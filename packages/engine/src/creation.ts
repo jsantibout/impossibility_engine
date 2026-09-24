@@ -1662,34 +1662,6 @@ function classFeatureSpells(content: Content, choices: CharacterChoices, caster:
 }
 
 /**
- * The spells a class's features write into that class's **book**.
- *
- * SRD Pact of the Tome: the conjured book "counts as a spellbook", and the two
- * Rituals chosen for it are what Ritual Adept's "any spell ... in your
- * spellbook" then reaches. A spellbook class writes its feature spells into the
- * book already — that is `fromFeatures` in the compile below — and this is the
- * field for a class that keeps no book and is handed one by a feature.
- */
-function classFeatureBookSpells(
-  content: Content,
-  choices: CharacterChoices,
-  caster: CasterChoices,
-): readonly string[] {
-  const written: string[] = [];
-  for (const [feature, grant] of grantsIn(castingFeaturesOf(content, choices, caster))) {
-    if (grant.kind !== 'spells' || grant.intoBook !== true) continue;
-    if (grant.fixed !== undefined) {
-      written.push(...grantedFixedSpells(choices, feature, grant));
-      continue;
-    }
-    const from = grant.choiceFrom;
-    const keyed = from !== undefined && featureOfAnswerKey(from) !== from;
-    written.push(...(choices.featureChoices[keyed ? from : feature.id] ?? []));
-  }
-  return written;
-}
-
-/**
  * The castings a class's features price at **nothing**.
  *
  * SRD Armor of Shadows, Fiendish Vigor, Mask of Many Faces, Misty Visions and
@@ -4214,8 +4186,6 @@ export function planCharacter(
     // which is a price the book never prints. Every other feature that grants
     // spells grants levelled ones and is untouched.
     const granting = classFeatureSpells(content, choices, caster);
-    // And what a feature wrote into this class's book — SRD Pact of the Tome.
-    const intoBook = classFeatureBookSpells(content, choices, caster);
     const fromFeatures = granting.filter((id) => (content.spellEntry(id)?.level ?? 1) > 0);
     const grantedCantrips = granting.filter((id) => content.spellEntry(id)?.level === 0);
     const style = caster.definition.spellcasting?.style ?? 'spellbook';
@@ -4262,21 +4232,10 @@ export function planCharacter(
       slotKind: pactMagic(content, caster.definition.id) ? 'pact' : 'spell',
       // The book, for the one feature that reads it — SRD Ritual Adept casts
       // "any spell ... in your spellbook" as a Ritual, prepared or not.
-      //
-      // **A class that keeps none may still be handed one.** SRD Pact of the
-      // Tome conjures a book that "counts as a spellbook", and the two Rituals
-      // written into it are the whole of what a Warlock's book holds — so the
-      // field is present for a class with no book of its own exactly when a
-      // feature wrote something into it, and absent otherwise.
-      ...(style === 'spellbook' || intoBook.length > 0
+      ...(style === 'spellbook'
         ? {
             book: [
-              ...new Set([
-                ...(style === 'spellbook'
-                  ? [...caster.spellbook.map((entry) => entry.spellId), ...fromFeatures]
-                  : []),
-                ...intoBook,
-              ]),
+              ...new Set([...caster.spellbook.map((entry) => entry.spellId), ...fromFeatures]),
             ].sort(),
           }
         : {}),

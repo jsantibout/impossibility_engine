@@ -1,9 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { ELDRITCH_INVOCATIONS, SRD_CONTENT } from '@ie/content';
-import { checkCharacter, type CharacterChoices } from '@ie/engine';
+import { asCharacterId, expect as unwrap } from '@ie/shared';
+import {
+  advanceCharacter,
+  canSee,
+  checkCharacter,
+  createCharacter,
+  createRng,
+  createRollIssuer,
+  fold,
+  pactSlotKey,
+  planCharacter,
+  remaining,
+  resolveDamage,
+  resolveSpell,
+  resolveTest,
+  routesFor,
+  type CharacterChoices,
+  type GameEvent,
+  type GameState,
+  type Rng,
+} from '@ie/engine';
 
 /**
- * SRD Eldritch Invocations, the Warlock's level 1 feature.
+ * SRD Eldritch Invocations, the Warlock's level 1 feature, and the eleven
+ * invocations a level 5 Warlock can take that this catalogue executes.
  *
  * "You have unearthed Eldritch Invocations ... You gain one invocation of your
  * choice ... You gain more invocations at higher levels, as shown in the
@@ -13,8 +34,16 @@ import { checkCharacter, type CharacterChoices } from '@ie/engine';
  *
  * The shape is the plural choice Divine Order built plus one count that
  * scales: an `option` question whose count is a column, each option carrying
- * its own gated grants, and a prerequisite the validator and creation check.
+ * its own gated grants, and a Prerequisite the validator and creation check.
+ * What is asserted here is what a player would see at the table — the modifier
+ * on the beams, the slot that was not spent, the creature seen in magical
+ * darkness, the Advantage on the save, the Temporary Hit Points that were not
+ * rolled for, the feat on the sheet, and the book the Rituals came out of.
  */
+
+const WHO = asCharacterId('kael');
+const TARGET = asCharacterId('ogre');
+const FIEND = 'warlock:eldritch-invocations';
 
 const base = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   name: 'Kael',
@@ -40,11 +69,13 @@ const base = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   hitPoints: { method: 'fixed' },
   featureChoices: { 'human:skillful': ['perception'] },
   feats: {
+    // Fire Bolt through the feat, so the Warlock holds a cantrip that deals
+    // damage and is **not** the one Agonizing Blast named.
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',
       spellList: 'wizard',
       spellcastingAbility: 'int',
-      cantrips: ['mage-hand', 'light'],
+      cantrips: ['fire-bolt', 'light'],
       levelOneSpell: 'find-familiar',
     },
     'human:versatile': { featId: 'alert' },
@@ -54,42 +85,629 @@ const base = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   ...over,
 });
 
+/** A Warlock holding the invocations named, and whatever they ask for after. */
+const warlock = (
+  invocations: readonly string[],
+  answers: Record<string, readonly string[]> = {},
+  over: Partial<CharacterChoices> = {},
+): CharacterChoices =>
+  base({
+    featureChoices: {
+      'human:skillful': ['perception'],
+      [FIEND]: invocations,
+      ...answers,
+    },
+    ...over,
+  });
+
+/**
+ * The same Warlock below level 5, with only what that level really holds: no
+ * subclass before 3, no Improvement before 4, and the spells the table prints.
+ */
+const atLevel = (level: number, invocations: readonly string[]): CharacterChoices =>
+  warlock(invocations, {}, {
+    level,
+    ...(level < 3 ? { subclassId: undefined } : {}),
+    cantrips: ['eldritch-blast', 'chill-touch'],
+    // A Warlock's slots *become* the next level rather than accumulating, so
+    // nothing here is above what the table prints at that level.
+    preparedSpells: ['hex', 'charm-person', 'hellish-rebuke', 'hold-person'].slice(
+      0,
+      Math.min(level + 1, 4),
+    ),
+    feats: {
+      'sage:magic-initiate-wizard': base().feats['sage:magic-initiate-wizard']!,
+      'human:versatile': { featId: 'alert' },
+    },
+  });
+
 const codes = (choices: CharacterChoices): readonly string[] =>
   checkCharacter(SRD_CONTENT, choices).map((problem) => problem.code);
 
+const plan = (choices: CharacterChoices) => unwrap(planCharacter(SRD_CONTENT, choices), 'plan');
+
+const supply = (seed: string, flat?: number) => ({
+  issuer: createRollIssuer(seed),
+  rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
+  ...(flat === undefined ? {} : { bonuses: [{ source: 'the test insists', flat }] }),
+});
+
+/** The Warlock, an ogre twenty feet away, and a scene to stand them in. */
+const table = (choices: CharacterChoices): GameEvent[] => [
+  ...(unwrap(createCharacter(SRD_CONTENT, choices, WHO), 'creation') as GameEvent[]),
+  {
+    type: 'creature-added',
+    id: TARGET,
+    name: 'an ogre',
+    maxHp: 200,
+    diesAtZero: true,
+    creatureType: 'Giant',
+    sheet: {
+      level: 1,
+      abilities: { str: 19, dex: 8, con: 16, int: 5, wis: 7, cha: 7 },
+      skills: {},
+      saveProficiencies: [],
+      armor: null,
+      shield: null,
+      armorTraining: { light: false, medium: false, heavy: false, shields: false },
+      baseSpeed: 40,
+      spellcastingAbility: null,
+      stated: { armorClass: 11, proficiencyBonus: 2, initiative: -1 },
+    },
+  },
+  { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+  { type: 'landmark-added', name: 'the well', at: { x: 100, y: 100, z: 0 } },
+  { type: 'creature-placed', id: WHO, placement: { from: { landmark: 'the well' }, feet: 0 } },
+  {
+    type: 'creature-placed',
+    id: TARGET,
+    placement: { from: { creature: WHO }, feet: 20, bearing: 90 },
+  },
+  { type: 'sight-declared', from: WHO, to: TARGET, seen: true },
+];
+
+/** Everything this log says was taken off the ogre. */
+const dealt = (events: readonly GameEvent[]): number =>
+  events
+    .filter((event): event is Extract<GameEvent, { type: 'damage-taken' }> =>
+      event.type === 'damage-taken' && event.id === TARGET)
+    .reduce((sum, event) => sum + event.amount, 0);
+
+// ─── the count, and the Prerequisite ────────────────────────────────────────
+
 describe('the count the Invocations column prints', () => {
-  it('asks a Warlock 5 for five', () => {
-    expect(ELDRITCH_INVOCATIONS[4]).toBe(5);
-    const five = base({
-      featureChoices: {
-        'human:skillful': ['perception'],
-        'warlock:eldritch-invocations': [
-          'Agonizing Blast',
-          'Armor of Shadows',
-          "Devil's Sight",
-          'Eldritch Mind',
-          'Fiendish Vigor',
-        ],
-        'warlock:eldritch-invocations:agonizing-blast': ['eldritch-blast'],
-      },
-    });
-    expect(codes(five)).toEqual([]);
+  it('asks a Warlock 1 for one, a Warlock 2 for three and a Warlock 5 for five', () => {
+    expect([ELDRITCH_INVOCATIONS[0], ELDRITCH_INVOCATIONS[1], ELDRITCH_INVOCATIONS[4]]).toEqual([
+      1, 3, 5,
+    ]);
+
+    // A Warlock 1 has no invocation with a Prerequisite in reach at all, so
+    // the one they take is one of the three the SRD prints bare.
+    expect(codes(atLevel(1, ['Armor of Shadows']))).toEqual([]);
+    expect(codes(atLevel(2, ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight"]))).toEqual([]);
+    expect(codes(warlock(['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions']))).toEqual([]);
   });
 
-  it('refuses a sixth', () => {
-    const six = base({
-      featureChoices: {
-        'human:skillful': ['perception'],
-        'warlock:eldritch-invocations': [
-          'Agonizing Blast',
+  it('refuses a sixth, and refuses four', () => {
+    expect(
+      codes(
+        warlock([
           'Armor of Shadows',
-          "Devil's Sight",
           'Eldritch Mind',
+          "Devil's Sight",
           'Fiendish Vigor',
           'Misty Visions',
-        ],
+          'Mask of Many Faces',
+        ]),
+      ),
+    ).toContain('missing_feature_choice');
+    expect(codes(warlock(['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor'])))
+      .toContain('missing_feature_choice');
+  });
+
+  /**
+   * "If an invocation has a prerequisite, you must meet it to learn that
+   * invocation." Read at the level of the class that granted the feature.
+   */
+  it('refuses an invocation whose printed level this Warlock has not reached', () => {
+    // Ascendant Step is "Level 5+ Warlock", and this one is 3.
+    expect(codes(atLevel(3, ['Armor of Shadows', 'Eldritch Mind', 'Ascendant Step']))).toContain(
+      'prerequisite_not_met',
+    );
+    // And the same invocation at level 5 is legal.
+    expect(
+      codes(
+        warlock(['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Ascendant Step']),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses an invocation the catalogue does not offer', () => {
+    expect(
+      codes(
+        warlock([
+          'Armor of Shadows',
+          'Eldritch Mind',
+          "Devil's Sight",
+          'Fiendish Vigor',
+          'Pact of the Blade',
+        ]),
+      ),
+    ).toContain('option_not_offered');
+  });
+});
+
+// ─── Agonizing Blast ────────────────────────────────────────────────────────
+
+describe('Agonizing Blast', () => {
+  const ALL = ['Agonizing Blast', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor'];
+  const WITHOUT = ['Misty Visions', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor'];
+
+  const blasting = (invocations: readonly string[], answers: Record<string, readonly string[]> = {}) =>
+    table(warlock(invocations, answers));
+
+  /**
+   * "You can add your Charisma modifier to that spell's damage rolls." Two
+   * beams at level 5, so two modifiers: the plural is the whole of `everyRoll`.
+   */
+  it('adds Charisma to every beam of the cantrip it named', () => {
+    const answers = { [`${FIEND}:agonizing-blast`]: ['eldritch-blast'] };
+    const withIt = blasting(ALL, answers);
+    const without = blasting(WITHOUT);
+
+    const cast = (log: readonly GameEvent[]) =>
+      unwrap(
+        resolveSpell(
+          fold('seed', log),
+          WHO,
+          // One creature, and the cantrip's two beams both go to it.
+          { spellId: 'eldritch-blast', targets: [TARGET] },
+          supply('one', 50),
+        ),
+        'blast',
+      );
+
+    // Charisma 15 is a +2, and the cantrip throws two beams at level 5.
+    expect(dealt(cast(withIt).events) - dealt(cast(without).events)).toBe(4);
+  });
+
+  /** "**That** spell's damage rolls" — and no other spell's. */
+  it('adds nothing to a cantrip it did not name', () => {
+    const answers = { [`${FIEND}:agonizing-blast`]: ['eldritch-blast'] };
+    const cast = (log: readonly GameEvent[]) =>
+      unwrap(
+        resolveSpell(
+          fold('seed', log),
+          WHO,
+          { spellId: 'fire-bolt', targets: [TARGET] },
+          supply('two', 50),
+        ),
+        'bolt',
+      );
+
+    expect(dealt(cast(blasting(ALL, answers)).events)).toBe(dealt(cast(blasting(WITHOUT)).events));
+  });
+});
+
+// ─── the at-will castings ───────────────────────────────────────────────────
+
+describe('an invocation that casts a spell for nothing', () => {
+  const FIVE = ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions'];
+
+  it('puts Mage Armor on the sheet as a granted route with no pool and no slot', () => {
+    const granted = plan(warlock(FIVE)).spellcasting.granted.find(
+      (one) => one.spellId === 'mage-armor',
+    );
+    expect(granted?.atWill).toBe(true);
+    expect(granted?.freeCastPool).toBeNull();
+    expect(granted?.slotCasting).toBe(false);
+    expect(granted?.source).toBe(FIEND);
+
+    // And it is **not** a prepared Warlock spell: the invocation prints a
+    // route, not a place on the class's list.
+    const warlockCasting = plan(warlock(FIVE)).spellcasting.classes[0];
+    expect(warlockCasting?.prepared).not.toContain('mage-armor');
+  });
+
+  it('casts Mage Armor as often as asked and spends no Pact slot', () => {
+    // Mage Armor is cast on a creature wearing none, so this Warlock is not.
+    const log = table(warlock(FIVE, {}, { equipped: [] }));
+    const slots = (state: GameState): number =>
+      remaining(state.creatures[WHO]!.resources, pactSlotKey(3));
+
+    let state = fold('seed', log);
+    let events: GameEvent[] = [...log];
+    expect(slots(state)).toBe(2);
+
+    for (const seed of ['one', 'two', 'three']) {
+      const cast = unwrap(
+        resolveSpell(state, WHO, { spellId: 'mage-armor', targets: [WHO] }, supply(seed)),
+        `cast ${seed}`,
+      );
+      events = [...events, ...cast.events];
+      state = fold('seed', events);
+    }
+
+    expect(slots(state)).toBe(2);
+  });
+
+  /** Silent Image, Disguise Self, Alter Self, Levitate and Jump, all the same sentence. */
+  it('grants every other spell an invocation prices at nothing', () => {
+    const granted = (invocation: string, spellId: string) => {
+      const five = [invocation, 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor']
+        .filter((one, index, all) => all.indexOf(one) === index)
+        .slice(0, 5);
+      return plan(warlock(five)).spellcasting.granted.find((one) => one.spellId === spellId);
+    };
+
+    expect(granted('Misty Visions', 'silent-image')?.atWill).toBe(true);
+    expect(granted('Mask of Many Faces', 'disguise-self')?.atWill).toBe(true);
+    expect(granted('Otherworldly Leap', 'jump')?.atWill).toBe(true);
+    expect(granted('Ascendant Step', 'levitate')?.atWill).toBe(true);
+    expect(granted('Master of Myriad Forms', 'alter-self')?.atWill).toBe(true);
+  });
+});
+
+// ─── Devil's Sight ──────────────────────────────────────────────────────────
+
+describe("Devil's Sight", () => {
+  const FIVE = ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions'];
+
+  /**
+   * A **Dwarf** Warlock, because SRD's word is "normally": what the invocation
+   * buys is the removal of the sentence that stops an ordinary sight-sense
+   * working in Darkness, and the sense underneath it is what answers. A human
+   * with the invocation and nothing else gets the question back rather than a
+   * yes — `docs/design/light-and-sight.md`'s model, unchanged.
+   */
+  const dwarf = (invocations: readonly string[]): CharacterChoices =>
+    warlock(invocations, {}, {
+      speciesId: 'dwarf',
+      featureChoices: { [FIEND]: invocations },
+      feats: {
+        'sage:magic-initiate-wizard': base().feats['sage:magic-initiate-wizard']!,
+        'warlock:ability-score-improvement': { featId: 'savage-attacker' },
       },
     });
-    expect(codes(six)).toContain('missing_feature_choice');
+
+  const inDarkness = (feet: number, invocations: readonly string[]): GameState => {
+    const log: GameEvent[] = [
+      ...(unwrap(createCharacter(SRD_CONTENT, dwarf(invocations), WHO), 'creation') as GameEvent[]),
+      {
+        type: 'creature-added',
+        id: TARGET,
+        name: 'an ogre',
+        maxHp: 60,
+        diesAtZero: true,
+        creatureType: 'Giant',
+        sheet: {
+          level: 1,
+          abilities: { str: 19, dex: 8, con: 16, int: 5, wis: 7, cha: 7 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: false, medium: false, heavy: false, shields: false },
+          baseSpeed: 40,
+          spellcastingAbility: null,
+          stated: { armorClass: 11, proficiencyBonus: 2, initiative: -1 },
+        },
+      },
+      { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
+      { type: 'landmark-added', name: 'the well', at: { x: 200, y: 200, z: 0 } },
+      { type: 'creature-placed', id: WHO, placement: { from: { landmark: 'the well' }, feet: 0 } },
+      {
+        type: 'creature-placed',
+        id: TARGET,
+        placement: { from: { creature: WHO }, feet, bearing: 90 },
+      },
+      // Magical darkness over the ogre: the kind Darkvision does not answer.
+      {
+        type: 'light-declared',
+        patch: 'the dark',
+        region: { origin: { creature: TARGET }, shape: { kind: 'sphere', radius: 0 } },
+        level: 'darkness',
+        magical: { spellLevel: 2 },
+      },
+    ];
+    return fold('seed', log, SRD_CONTENT);
+  };
+
+  /** "within 120 feet of yourself" — a range, and it is read as one. */
+  it('sees a creature in magical darkness at 100 feet and not at 130', () => {
+    expect(canSee(inDarkness(100, FIVE), WHO, TARGET)).toBe(true);
+    expect(canSee(inDarkness(130, FIVE), WHO, TARGET)).toBe(false);
+  });
+
+  it('gives a Warlock who did not take it nothing', () => {
+    const without = ['Armor of Shadows', 'Eldritch Mind', 'Fiendish Vigor', 'Misty Visions', 'Mask of Many Faces'];
+    expect(canSee(inDarkness(100, without), WHO, TARGET)).toBe(false);
+  });
+});
+
+// ─── Eldritch Mind ──────────────────────────────────────────────────────────
+
+describe('Eldritch Mind', () => {
+  const WITH = ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions'];
+  const WITHOUT = ['Armor of Shadows', 'Mask of Many Faces', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions'];
+
+  const concentrating = (invocations: readonly string[]): GameState =>
+    fold('seed', [
+      ...table(warlock(invocations)),
+      { type: 'concentration-started', id: WHO, castingId: 'cast:1', spell: 'Hex', level: 1 },
+    ]);
+
+  const saveAfterDamage = (invocations: readonly string[]) => {
+    const hurt = unwrap(
+      resolveDamage(
+        concentrating(invocations),
+        WHO,
+        { amount: 8, source: 'a club' },
+        supply('hurt'),
+      ),
+      'damage',
+    );
+    return hurt.concentration;
+  };
+
+  it('gives Advantage on the Constitution save that maintains Concentration', () => {
+    const settled = saveAfterDamage(WITH);
+    expect(settled.kind).toBe('resolved');
+    if (settled.kind !== 'resolved') throw new Error('unreachable');
+    expect(settled.save.mode).toBe('advantage');
+  });
+
+  it('gives a Warlock who did not take it nothing', () => {
+    const settled = saveAfterDamage(WITHOUT);
+    if (settled.kind !== 'resolved') throw new Error('unreachable');
+    expect(settled.save.mode).toBe('normal');
+  });
+
+  /**
+   * "Constitution saving throws that you make **to maintain Concentration**" —
+   * and no other save, not even another Constitution one.
+   */
+  it('gives nothing to a Dexterity save or to a plain Constitution save', () => {
+    const state = concentrating(WITH);
+    for (const ability of ['dex', 'con'] as const) {
+      const rolled = unwrap(
+        resolveTest(state, WHO, { kind: 'saving-throw', ability, dc: 12 }, supply(ability)),
+        `${ability} save`,
+      );
+      expect(rolled.test?.mode).toBe('normal');
+    }
+  });
+});
+
+// ─── Fiendish Vigor ─────────────────────────────────────────────────────────
+
+describe('Fiendish Vigor', () => {
+  const FIVE = ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions'];
+
+  /**
+   * "you don't roll the die for the Temporary Hit Points; you automatically
+   * get the highest number on the die." SRD 5.2.1 False Life is "2d4 + 4", so
+   * the highest is 8 + 4 — every die takes its top face and the flat addend
+   * stands.
+   */
+  it('takes the top face of every die False Life throws', () => {
+    const log = table(warlock(FIVE));
+    const cast = unwrap(
+      resolveSpell(fold('seed', log), WHO, { spellId: 'false-life', targets: [WHO] }, supply('vigor')),
+      'false life',
+    );
+    const after = fold('seed', [...log, ...cast.events]);
+    expect(after.creatures[WHO]?.vitals.temporaryHp).toBe(12);
+  });
+
+  /**
+   * And a Warlock who casts the same spell off a Pact slot rolls it, because
+   * the rule is the grant's rather than the spell's. Driven twenty times from
+   * twenty seeds: the maximum is legal on any one of them, and never rolling
+   * anything else is not.
+   */
+  /**
+   * And it is the same twenty seeds running. Nothing here is "the dice came
+   * out well": 2d4 would be 6 through 12 and this is 12 every time, which is
+   * what "you don't roll the die" means.
+   */
+  it('is the same on every seed, which a rolled 2d4 would not be', () => {
+    const log = table(warlock(FIVE));
+    const amounts = new Set<number>();
+    for (let seed = 0; seed < 20; seed += 1) {
+      const cast = unwrap(
+        resolveSpell(
+          fold('seed', log),
+          WHO,
+          { spellId: 'false-life', targets: [WHO] },
+          supply(`vigor-${String(seed)}`),
+        ),
+        'false life',
+      );
+      amounts.add(fold('seed', [...log, ...cast.events]).creatures[WHO]?.vitals.temporaryHp ?? 0);
+    }
+    expect([...amounts]).toEqual([12]);
+  });
+
+  /**
+   * The rule is the **grant's** rather than the spell's, which is what the
+   * flag on the route says: no other route to False Life carries it.
+   */
+  it('rides the route rather than the spell', () => {
+    const granted = plan(warlock(FIVE)).spellcasting.granted.find(
+      (one) => one.spellId === 'false-life',
+    );
+    expect(granted?.maximisedDice).toBe(true);
+    const without = ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Misty Visions', 'Mask of Many Faces'];
+    expect(
+      plan(warlock(without)).spellcasting.granted.some((one) => one.spellId === 'false-life'),
+    ).toBe(false);
+  });
+});
+
+// ─── Lessons of the First Ones ──────────────────────────────────────────────
+
+describe('Lessons of the First Ones', () => {
+  const five = (featId: string, choice: Record<string, unknown> = {}) =>
+    warlock(
+      ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Lessons of the First Ones'],
+      {},
+      {
+        feats: {
+          ...base().feats,
+          // The level 4 slot takes the Improvement, so the invocation's own
+          // slot is free to take an Origin feat nothing else has taken.
+          'warlock:ability-score-improvement': {
+            featId: 'ability-score-improvement',
+            abilities: ['cha', 'con'],
+          },
+          [`${FIEND}:lessons`]: { featId, ...choice },
+        },
+      },
+    );
+
+  it('grants the Origin feat its holder named', () => {
+    expect(codes(five('savage-attacker'))).toEqual([]);
+    // The plan names each feat and the slot it came through: the invocation's
+    // own key, which is where a second question's answer is filed.
+    expect(plan(five('savage-attacker')).feats).toContain(`Savage Attacker (${FIEND}:lessons)`);
+  });
+
+  /** "one **Origin** feat of your choice" — and a General feat is not one. */
+  it('refuses a feat of another category', () => {
+    expect(codes(five('ability-score-improvement', { abilities: ['cha', 'con'] }))).toContain(
+      'wrong_feat_category',
+    );
+  });
+
+  it('refuses a Warlock who took it and named no feat', () => {
+    const none = warlock([
+      'Armor of Shadows',
+      'Eldritch Mind',
+      "Devil's Sight",
+      'Fiendish Vigor',
+      'Lessons of the First Ones',
+    ]);
+    expect(codes(none)).toContain('missing_feat_choice');
+  });
+});
+
+// ─── Pact of the Tome ───────────────────────────────────────────────────────
+
+describe('Pact of the Tome', () => {
+  const tome = (
+    cantrips: readonly string[],
+    rituals: readonly string[],
+  ): CharacterChoices =>
+    warlock(
+      ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Pact of the Tome'],
+      {
+        [`${FIEND}:tome-cantrips`]: cantrips,
+        [`${FIEND}:tome-rituals`]: rituals,
+      },
+    );
+
+  // Three cantrips off three different class lists, and two Rituals off two
+  // more: "The spells can be from any class's spell list."
+  const CANTRIPS = ['druidcraft', 'sacred-flame', 'fire-bolt'];
+  const RITUALS = ['alarm', 'detect-magic'];
+
+  it('prepares three cantrips from any class list, as Warlock cantrips', () => {
+    expect(codes(tome(CANTRIPS, RITUALS))).toEqual([]);
+    const casting = plan(tome(CANTRIPS, RITUALS)).spellcasting.classes[0];
+    expect(casting?.classId).toBe('warlock');
+    for (const id of CANTRIPS) expect(casting?.cantrips).toContain(id);
+  });
+
+  it('prepares the two Ritual-tagged level 1 spells over the count the table prints', () => {
+    const casting = plan(tome(CANTRIPS, RITUALS)).spellcasting.classes[0];
+    for (const id of RITUALS) expect(casting?.prepared).toContain(id);
+    // Over and above whatever the table and the patron already gave, which is
+    // what "you have the chosen spells prepared" means: the same Warlock
+    // without the book has exactly these two fewer, and neither of them.
+    const without = warlock(['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions']);
+    const bare = plan(without).spellcasting.classes[0]?.prepared ?? [];
+    expect(casting?.prepared).toHaveLength(bare.length + 2);
+    for (const id of RITUALS) expect(bare).not.toContain(id);
+  });
+
+  /** A prepared spell with the Ritual tag is cast as one, and spends nothing. */
+  it('casts one of them as a Ritual, without a slot', () => {
+    const log = table(tome(CANTRIPS, RITUALS));
+    const before = fold('seed', log);
+    const slots = (state: GameState): number =>
+      remaining(state.creatures[WHO]!.resources, pactSlotKey(3));
+    expect(slots(before)).toBe(2);
+
+    // Alarm is cast on a place rather than a creature, so it names nobody.
+    const cast = unwrap(
+      resolveSpell(before, WHO, { spellId: 'alarm', targets: [], ritual: true }, supply('rite')),
+      'ritual',
+    );
+    expect(slots(fold('seed', [...log, ...cast.events]))).toBe(2);
+
+    // The route it came through is the Warlock's own, on Charisma: "they
+    // function as Warlock spells for you".
+    expect(routesFor(plan(tome(CANTRIPS, RITUALS)).spellcasting, 'alarm')).toEqual([
+      { kind: 'prepared', ability: 'cha', classId: 'warlock' },
+    ]);
+  });
+
+  it('refuses a cantrip the Warlock already has prepared', () => {
+    expect(codes(tome(['eldritch-blast', 'sacred-flame', 'fire-bolt'], RITUALS))).toContain(
+      'spell_already_known',
+    );
+  });
+
+  it('refuses a level 2 spell in the Rituals, and a level 1 spell with no Ritual tag', () => {
+    expect(codes(tome(CANTRIPS, ['alarm', 'augury']))).toContain('spell_level_not_allowed');
+    expect(codes(tome(CANTRIPS, ['alarm', 'magic-missile']))).toContain('spell_not_a_ritual');
+  });
+});
+
+// ─── the swap on a level-up ─────────────────────────────────────────────────
+
+describe('replacing an invocation on a level-up', () => {
+  /**
+   * "Whenever you gain a Warlock level, you can replace one of your
+   * invocations with another one for which you qualify." The answer is a
+   * re-choice and `advance_character` already writes one, so what this asserts
+   * is that the swap arrives on the sheet and takes the old one away.
+   */
+  it('takes the old invocation off the sheet and puts the new one on', () => {
+    const before = atLevel(3, ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight"]);
+    const log = unwrap(createCharacter(SRD_CONTENT, before, WHO), 'creation') as GameEvent[];
+    const state = fold('seed', log);
+
+    // Mage Armor is on the sheet before the swap and Silent Image is not.
+    const spellsOf = (world: GameState): readonly string[] =>
+      (world.creatures[WHO]?.spellcasting.granted ?? []).map((one) => one.spellId);
+    expect(spellsOf(state)).toContain('mage-armor');
+    expect(spellsOf(state)).not.toContain('silent-image');
+
+    const gained = unwrap(
+      advanceCharacter(state, SRD_CONTENT, WHO, {
+        cantrips: ['eldritch-blast', 'chill-touch', 'poison-spray'],
+        preparedSpells: ['hex', 'charm-person', 'hellish-rebuke', 'hold-person', 'mind-spike'],
+        featureChoices: {
+          'human:skillful': ['perception'],
+          [FIEND]: ['Misty Visions', 'Eldritch Mind', "Devil's Sight"],
+        },
+        // Level 4 is an Improvement, and the level-up asks for its feat.
+        feats: {
+          'warlock:ability-score-improvement': {
+            featId: 'ability-score-improvement',
+            abilities: ['cha', 'con'],
+          },
+        },
+      }),
+      'advance',
+    );
+    const after = fold('seed', [...log, ...gained]);
+
+    expect(after.creatures[WHO]?.sheet.level).toBe(4);
+    expect(spellsOf(after)).toContain('silent-image');
+    expect(spellsOf(after)).not.toContain('mage-armor');
   });
 });

@@ -1143,19 +1143,6 @@ export type FeatureGrant =
        */
       readonly maximisedDice?: true;
       /**
-       * SRD Pact of the Tome: "While the book is on your person, you have the
-       * chosen spells prepared, and they function as Warlock spells for you"
-       * — and the book "counts as a spellbook" for the Ritual licence.
-       *
-       * The spells this grant hands over go into the granting class's
-       * {@link SpellcastingClass.book} as well as its prepared list, which is
-       * the one place SRD Ritual Adept's "any spell ... in your spellbook"
-       * reads. A class that keeps a book already writes its feature spells
-       * there; this is the field for a class that keeps none and is handed one
-       * by a feature.
-       */
-      readonly intoBook?: true;
-      /**
        * SRD Elven Lineage, High Elf: "Whenever you finish a Long Rest, you can
        * replace that cantrip with a different cantrip from the Wizard spell
        * list."

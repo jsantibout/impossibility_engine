@@ -128,7 +128,7 @@ export const WARLOCK: ClassDefinition = {
       name: 'Eldritch Invocations',
       level: 1,
       automation: 'manual',
-      note: 'SRD: "You gain one invocation of your choice ... You gain more invocations at higher levels, as shown in the Invocations column of the Warlock Features table." The count is that column and the invocations offered are executed: Agonizing Blast adds Charisma to every damage roll of the one cantrip its holder named, Armor of Shadows, Ascendant Step, Fiendish Vigor, Mask of Many Faces, Master of Myriad Forms, Misty Visions and Otherworldly Leap each cast their spell for nothing as often as asked, Fiendish Vigor takes the highest face of the die rather than rolling it, Devil’s Sight sees through Darkness magical and nonmagical to 120 feet, Eldritch Mind gives Advantage on the Constitution save that maintains Concentration, Lessons of the First Ones grants the Origin feat its holder names, and Pact of the Tome prepares three cantrips and two Rituals from any class’s list and puts the Rituals in a book the Ritual licence reads. Each grant is gated on the invocation chosen, so a Warlock holds what they took and nothing else, and a Prerequisite the book prints over an option is checked at creation. Four clauses are left. Half the book’s invocations are not offered at all, and a Warlock who names one is refused rather than handed an option that does nothing: Eldritch Spear and Repelling Blast change what a casting costs or catches, the three Pacts and what hangs off them are a conjured weapon, a familiar’s extra forms and a book of names, and Gaze of Two Minds and One with Shadows are a perception and a light gate the engine has no reader for. Four invocations are Repeatable and this refuses a second copy, because an option is taken once and nothing on the question says which of them says otherwise. And "a Warlock cantrip that deals damage" is checked as a Warlock cantrip and not as one that deals damage, so a cantrip that deals none simply reaches nothing.',
+      note: 'SRD: "You gain one invocation of your choice ... You gain more invocations at higher levels, as shown in the Invocations column of the Warlock Features table." The count is that column and the invocations offered are executed: Agonizing Blast adds Charisma to every damage roll of the one cantrip its holder named, Armor of Shadows, Ascendant Step, Fiendish Vigor, Mask of Many Faces, Master of Myriad Forms, Misty Visions and Otherworldly Leap each cast their spell for nothing as often as asked, Fiendish Vigor takes the highest face of the die rather than rolling it, Devil’s Sight sees through Darkness magical and nonmagical to 120 feet, Eldritch Mind gives Advantage on the Constitution save that maintains Concentration, Lessons of the First Ones grants the Origin feat its holder names, and Pact of the Tome prepares three cantrips and two Ritual-tagged level 1 spells from any class’s list, as Warlock spells. Each grant is gated on the invocation chosen, so a Warlock holds what they took and nothing else, and a Prerequisite the book prints over an option is checked at creation. Four clauses are left. Half the book’s invocations are not offered at all, and a Warlock who names one is refused rather than handed an option that does nothing: Eldritch Spear and Repelling Blast change what a casting costs or catches, the three Pacts and what hangs off them are a conjured weapon, a familiar’s extra forms and a book of names, and Gaze of Two Minds and One with Shadows are a perception and a light gate the engine has no reader for. Four invocations are Repeatable and this refuses a second copy, because an option is taken once and nothing on the question says which of them says otherwise. And "a Warlock cantrip that deals damage" is checked as a Warlock cantrip and not as one that deals damage, so a cantrip that deals none simply reaches nothing.',
       choices: [
         // "as shown in the Invocations column of the Warlock Features table" —
         // the column itself, the way Weapon Mastery reads the Fighter's.
@@ -308,8 +308,9 @@ export const WARLOCK: ClassDefinition = {
         },
         // Pact of the Tome: "While the book is on your person, you have the
         // chosen spells prepared, and they function as Warlock spells for you."
-        // Three cantrips on the Warlock's cantrip list and two Rituals both
-        // prepared and written into the book the licence below reads.
+        // Three cantrips on the Warlock's cantrip list and two Rituals on its
+        // prepared list — which is what makes each of them castable as a Ritual
+        // by the ordinary rule, with no licence of its own.
         {
           kind: 'spells',
           onlyIfChoice: 'Pact of the Tome',
@@ -319,15 +320,6 @@ export const WARLOCK: ClassDefinition = {
           kind: 'spells',
           onlyIfChoice: 'Pact of the Tome',
           choiceFrom: 'warlock:eldritch-invocations:tome-rituals',
-          intoBook: true,
-        },
-        // "[the book] counts as a spellbook" — the licence Ritual Adept reads,
-        // over the two spells the book holds.
-        {
-          kind: 'standing',
-          reach: 'self',
-          onlyIfChoice: 'Pact of the Tome',
-          effects: [{ kind: 'ritual-from-book' }],
         },
       ],
     },
