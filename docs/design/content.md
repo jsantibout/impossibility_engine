@@ -121,10 +121,11 @@ a sentence the tracked map already anchors a **debt** to — a `'table'` entry i
 not one, because that entry *is* the record of this reading. The marker rule
 has one way past it and it is a reading rather than an exemption: a marked
 sentence may be handed over where the tracked map anchors a `'table'` entry to
-it, so the argument lives in the map with a note somebody can re-run. Four SRD
-sentences take that door — Meld into Stone's three, and See Invisibility's
-sight of the Invisible condition — where the marker fires on a real word and
-what makes the sentence the table's is the fact underneath it.
+it, so the argument lives in the map with a note somebody can re-run. Five SRD
+sentences take that door — Meld into Stone's three, See Invisibility's sight of
+the Invisible condition and Magic Mouth's trigger condition — where the marker
+fires on a real word and what makes the sentence the table's is the fact
+underneath it.
 
 A handover reaches the
 log for a long casting, which pins it on `spell-declared`; for an **atomic**
