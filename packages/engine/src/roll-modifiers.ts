@@ -464,11 +464,15 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     // one. Every key an existing log holds is therefore byte-identical to what
     // it was, and the only keys that gained a segment are keys nothing had yet.
     //
-    // The residue of writing them conditionally is that a homebrew class id
-    // spelled exactly `only-spell-attacks` would key as the marker does. That
-    // is a collision between two grants of one source, which is the only thing
-    // this key decides, and it needs somebody to name a class after a field of
-    // this module — the cheaper price than reordering a persisted list.
+    // **A conditional segment can be ambiguous and this pair is not**, which
+    // the validator beside it is what settles: `rollSelectorProblems` refuses
+    // a class narrowing with no `onlySpellAttacks` next to it, so the marker
+    // is present whenever a class is, and the only three tails a source can
+    // have are nothing, the marker, and the marker with a class after it. A
+    // homebrew class named `only-spell-attacks` keys as the marker twice and
+    // collides with nothing. What could still write an ambiguous tail is an
+    // event hand-made past the validator, which is outside what any key here
+    // promises.
     ...(selector.onlySpellAttacks === true ? ['only-spell-attacks'] : []),
     ...(selector.onlyThroughClass === undefined ? [] : [selector.onlyThroughClass]),
   ].join('|');
