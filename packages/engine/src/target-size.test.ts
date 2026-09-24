@@ -48,7 +48,20 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
 
 const added = (
   who: CharacterId,
-  over: { readonly creatureType?: string; readonly size?: string } = {},
+  over: {
+    readonly creatureType?: string;
+    readonly size?: string;
+    /**
+     * **And the rating the block prints, where the spell reads one.**
+     *
+     * Animal Messenger's save spares a target whose Challenge Rating is not 0
+     * and asks about a creature nobody has rated — the difference between a
+     * missing fact and a wrong one, which `challenge-rating.test.ts` is about.
+     * A fixture that left it out would be asked rather than answered, so it
+     * states the rating exactly as it states the type and the size.
+     */
+    readonly cr?: number;
+  } = {},
 ): GameEvent =>
   ({
     type: 'creature-added',
@@ -62,8 +75,11 @@ const added = (
 
 const SETUP: readonly GameEvent[] = [
   added(DRUID, { creatureType: 'Humanoid', size: 'medium' }),
-  added(RAVEN, { creatureType: 'Beast', size: 'tiny' }),
-  added(WOLF, { creatureType: 'Beast', size: 'medium' }),
+  // The SRD Raven, which is what a Tiny Beast is here: Beast, Tiny, and rated
+  // at nothing, which is the one rating Animal Messenger's parenthesis leaves
+  // the die to decide.
+  added(RAVEN, { creatureType: 'Beast', size: 'tiny', cr: 0 }),
+  added(WOLF, { creatureType: 'Beast', size: 'medium', cr: 0.25 }),
   {
     type: 'spellcasting-declared',
     id: DRUID,

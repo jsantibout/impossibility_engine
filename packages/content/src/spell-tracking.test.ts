@@ -94,6 +94,7 @@ const added = (
   who: CharacterId,
   creatureType = 'Humanoid',
   size?: CreatureSize,
+  cr?: number,
 ): GameEvent => ({
   type: 'creature-added',
   id: who,
@@ -103,6 +104,12 @@ const added = (
   diesAtZero: false,
   creatureType,
   ...(size === undefined ? {} : { size }),
+  // **And the rating the block prints, where a spell reads one.** SRD Animal
+  // Messenger spares a target whose Challenge Rating is not 0, and a creature
+  // nobody has rated is *asked* about rather than read as a zero — so a
+  // fixture states the rating the way it already states the type and the
+  // size, and only for the creature a rating is a fact about.
+  ...(cr === undefined ? {} : { cr }),
 });
 
 /**
@@ -166,7 +173,9 @@ const SETUP: readonly GameEvent[] = [
   added(ALLY),
   added(FOE),
   added(BEAST, 'Beast'),
-  added(RAVEN, 'Beast', 'tiny'),
+  // The SRD Raven, down to its rating: a Tiny Beast the book rates at 0,
+  // which is the one rating Animal Messenger's parenthesis leaves to the die.
+  added(RAVEN, 'Beast', 'tiny', 0),
   added(CORPSE),
   // **And one creature who has just died**, for the spell that raises one.
   // SRD Revivify reaches "a creature that has died within the last minute",
@@ -1700,6 +1709,18 @@ describe('every spell this batch added is cast for real', () => {
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    // **Animal Messenger leaves on a die whose whole content is its verdict.**
+    // Its failure buys an errand and nothing a rule can hold, so while a save
+    // had to impose a condition, hang a rider or write a record there was
+    // nowhere to put the one thing the spell decides. `save.verdictOnly` is
+    // that place: the Charisma save is rolled, the answer reaches the caller
+    // in the casting's own outcomes, and no ongoing record is written for it.
+    // The parenthesis is the second half — "if the target's Challenge Rating
+    // isn't 0, it automatically succeeds" is `autoSucceedIf`, read off the
+    // rating `creature-added` pins — and what is left is the errand, which is
+    // narration from the first word to the last and goes out under the
+    // handover mark rather than as a debt.
+    'animal-messenger',
     // **Arcanist's Magic Aura leaves by the one spell in the book that lies to
     // another spell.** A creature's type is a fact the engine holds
     // authoritatively and refuses to contradict, so the Mask does not write
