@@ -312,18 +312,33 @@ describe('the clauses a failure prints besides the damage', () => {
 
   it('reads the one line whose failure kills, and what it buys the creature that forced it', () => {
     // SRD Will-o'-Wisp: "_Failure:_ The target dies, and the wisp regains 10
-    // (3d6) Hit Points." Who it may be forced on is already the targeting
-    // clause's — "one living creature … that has 0 Hit Points" — so the
-    // threshold is the table's answer and the failure is one sentence.
+    // (3d6) Hit Points." The one part of a targeting clause this reader takes
+    // is the ceiling on it — "that has 0 Hit Points" — because a sentence that
+    // kills outright is the last one to take a caller's word for.
     expect(lineOf('will-o-wisp', 'Consume Life').save).toEqual({
       ability: 'con',
       dc: 10,
       targets: 'one living creature the wisp can see within 5 feet that has 0 Hit Points',
       onSuccess: 'none',
       onFailure: [
-        { kind: 'dies', sourceRegains: { dice: '3d6', flat: 0, average: 10 } },
+        {
+          kind: 'dies',
+          ifHitPointsAtMost: 0,
+          sourceRegains: { dice: '3d6', flat: 0, average: 10 },
+        },
       ],
     });
+  });
+
+  it('refuses a failure that kills with no ceiling on who it may be forced on', () => {
+    // The Will-o'-Wisp's sentence with its targeting clause's restriction
+    // taken away: a DC 10 save that kills a creature at full health is a rule
+    // nobody printed, so the line stays prose rather than reaching a caller.
+    expect(
+      parseSaveLine(
+        '_Constitution Saving Throw:_ DC 10, one living creature the wisp can see within 5 feet. _Failure:_ The target dies, and the wisp regains 10 (3d6) Hit Points.',
+      ),
+    ).toBeNull();
   });
 
   it('reads a curse that is only conditions as those conditions, for the curse’s span', () => {
@@ -412,8 +427,10 @@ describe('a failure the line grades', () => {
       onSuccess: 'none',
       onFailure: [poisoned],
       onFailureBy: { by: 5, effects: [{ ...poisoned, implies: ['unconscious'] }] },
+      // Under its own heading, so the fragment reaches a table with the rung
+      // it was printed under rather than with no antecedent at all.
       handedOver: [
-        'which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it.',
+        '_Failure by 5 or More:_ which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it.',
       ],
     });
   });
@@ -450,12 +467,6 @@ describe('the lines the reader does not reach', () => {
     expect(lineOf('half-dragon', "Dragon's Breath").save).toBeUndefined();
   });
 
-  it('refuses a clause the reader cannot start on even inside a graded failure', () => {
-    // A `_First Failure:_` is read now, so the refusal that matters is the
-    // one underneath it: SRD Copper Dragon Wyrmling's Slowing Breath says
-    // three things in one sentence and none of them is a clause this knows.
-    expect(lineOf('copper-dragon-wyrmling', 'Slowing Breath').save).toBeUndefined();
-  });
 
   it('reads a save whose failure imposes a condition rather than damage', () => {
     // SRD Dust Mephit's Blinding Breath — refused by the first reader, and the

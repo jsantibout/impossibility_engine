@@ -228,6 +228,27 @@ export function applyPrintedClauses(
         // maximum drops to 0 and does not die, and a sentence that kills is
         // not a blow — no Resistance halves it, no Concentration save answers
         // it and no Temporary Hit Points stand in front of it.
+        // **The ceiling the line prints on who it may be forced on**, read off
+        // the targeting clause because it is a number the engine holds rather
+        // than an area it would have to measure. Reported and not applied, the
+        // reading the size gate above already takes: the save was thrown, the
+        // line reached nobody it could kill, and a caller is told so rather
+        // than left to read a nought.
+        const vitals = current.creatures[target]?.vitals;
+        if (vitals === undefined) break;
+        if (
+          clause.ifHitPointsAtMost !== undefined &&
+          vitals.hp > clause.ifHitPointsAtMost
+        ) {
+          unverified.push(
+            `${line} kills a creature with ${clause.ifHitPointsAtMost} Hit Points or fewer, and ${target} has ${vitals.hp} — nothing here died`,
+          );
+          break;
+        }
+        // A creature already dead is not made deader, and nothing is written —
+        // the reading `declareCreatureDead` takes of the same event. A second
+        // use on the same corpse buys the creature that forced it nothing.
+        if (vitals.dead) break;
         land([{ type: 'creature-died', id: target, cause: line }]);
         died.push(target);
         if (clause.sourceRegains === undefined) break;

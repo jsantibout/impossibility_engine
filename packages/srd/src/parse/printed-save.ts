@@ -31,16 +31,36 @@
  * trait. Each sentence is read **transactionally**: one whose second half the
  * grammar does not know is carried whole, never half-applied.
  *
+ * **Transactionally, with one seam, and it is declared rather than discovered.**
+ * A clause may be read *and* carry words it did not model — `Scratch.carried`
+ * — and exactly one shape uses it: "While Poisoned, the target also has the
+ * Unconscious condition**, which ends early if…**", where the condition is a
+ * primitive the engine has and the early ending is not. What separates that
+ * from half-applying a sentence is that the residue goes into `handedOver`
+ * under its own heading and the ledger goes on counting the line: the rule the
+ * engine will not keep is said out loud at the moment of use, and recognising
+ * part of a sentence does not retire its debt. Nothing is dropped anywhere in
+ * this file, which is the property, rather than a sentence boundary, that the
+ * transaction is about.
+ *
  * **A graded failure is read, and refused whole where its second rung is a
  * rule this cannot hold.** `_First Failure:_` opens a line exactly as
  * `_Failure:_` does; `_Second Failure:_` is a sentence about the clause above
  * it, read onto the repeat the first rung scheduled — which is the engine's
- * `RepeatSave.onFailure` word for word. `_Failure by 5 or More:_` is the same
- * failure with one more thing riding on it, chosen by a margin the engine
- * already has from the roll it made. Where the second rung says anything the
- * vocabulary has no field for — a span, a repeat of its own — the whole line
- * stays prose, because a first rung standing alone is a Restrained nothing
- * ever lifts.
+ * `RepeatSave.onFailure` word for word. Where the second rung says anything
+ * the vocabulary has no field for, the whole line stays prose, because a first
+ * rung standing alone is a Restrained nothing ever lifts. **That is the test
+ * the two dragon wyrmlings fail and the Pseudodragon passes**, and the
+ * difference is an ending rather than a wording: SRD Brass Dragon Wyrmling
+ * deepens into an Unconscious "for 1 minute" and SRD Silver Dragon Wyrmling
+ * into a Paralyzed that repeats its own save, and `RepeatSave.onFailure` is a
+ * bare condition name — so the deeper rung would stand for ever. SRD
+ * Pseudodragon's `_Failure by 5 or More:_` is the same failure with one more
+ * thing riding on the condition it already imposed, so its Unconscious lifts
+ * with the Poisoned that carries it, at the printed hour; what is missing is
+ * only the *early* endings, and those are carried rather than dropped. An
+ * effect that would never end is refused; one that ends later than the book
+ * says is applied and the difference is handed to the table.
  */
 
 import type { MonsterDamage, MonsterSave, PrintedSaveEffect, PrintedSpan } from '../schemas.js';
@@ -107,8 +127,9 @@ const SIZES: Readonly<Record<string, NonNullable<ConditionEffect['ifNoLargerThan
  *
  * `_First Failure:_` opens a graded line exactly as `_Failure:_` opens a plain
  * one, so both are the head of the tail. What sits *before* either is the
- * targeting clause and, for the Basilisk alone, one more sentence: "If the
- * basilisk sees its reflection in the Cone, the basilisk must make this save."
+ * targeting clause and, for the Basilisk and the Medusa, one more sentence of
+ * their own: "If the basilisk sees its reflection in the Cone, the basilisk
+ * must make this save."
  * The capture is lazy and therefore swallows it, which is why {@link headOf}
  * splits the two apart rather than filing a rule about the source under who
  * the line catches. No SRD targeting clause contains a full stop, which is
@@ -135,8 +156,8 @@ const SECTION =
 const BY_MARGIN = /^Failure by (\d+) or More$/;
 
 /**
- * SRD Gorgon and SRD Basilisk: "The target has the Petrified condition instead
- * of the Restrained condition."
+ * SRD Gorgon, SRD Basilisk and SRD Medusa: "The target has the Petrified
+ * condition instead of the Restrained condition."
  *
  * The whole of what a `_Second Failure:_` may say. A rung that says anything
  * else — a span, a repeat of its own, a second effect — refuses the line, and
@@ -234,12 +255,28 @@ const CAPPED = /^After (\d+) minutes?, it succeeds automatically$/;
  * SRD Will-o'-Wisp: "The target dies, and the wisp regains 10 (3d6) Hit
  * Points."
  *
- * The only failure in the corpus that kills outright, and the regain is part
- * of the same sentence rather than a clause of its own — see
- * `PrintedSaveEffectSchema`'s `dies`.
+ * One of the two failures in the corpus that kill outright, and the only one
+ * this reads. SRD Solar's Slaying Bow is the other — "If the creature has 100
+ * Hit Points or fewer, it dies. It otherwise takes 24 (4d8 + 6) Piercing
+ * damage plus 36 (8d8) Radiant damage" — and its threshold is a *branch* with
+ * a damage arm rather than a restriction on who the line may be forced on,
+ * which is a shape this vocabulary has no field for and which SRD Sea Hag and
+ * SRD Incubus print too. The regain is part of the same sentence rather than a
+ * clause of its own — see `PrintedSaveEffectSchema`'s `dies`.
  */
 const DIES =
   /^The target dies(?:, and the [a-z' -]+ regains (\d+) \((\d+)d(\d+)(?:\s*([+−–-])\s*(\d+))?\) Hit Points)?$/;
+/**
+ * SRD Will-o'-Wisp's targeting clause: "one living creature the wisp can see
+ * within 5 feet **that has 0 Hit Points**."
+ *
+ * The one part of a targeting clause this reader takes, and it is taken only
+ * for {@link DIES}. Everything else in that slot needs an origin and a facing
+ * nobody declared and stays the table's; a hit-point ceiling is a number the
+ * engine already holds about a creature somebody has named, and a sentence
+ * that kills outright is the last one to take on trust.
+ */
+const TARGET_HIT_POINTS = /\bthat has (\d+) Hit Points?\b/;
 
 /**
  * Read one span, or null where the words are not a span this reader knows.
@@ -605,8 +642,9 @@ const KINDS: Readonly<Record<string, SectionKind>> = {
  *
  * The opening's third capture is lazy, so where a block prints prose between
  * the targeting clause and its first rung the prose ends up inside it — SRD
- * Basilisk is the one block that does. No SRD targeting clause contains a full
- * stop, so the first sentence is the targets and everything after it is a
+ * Basilisk and SRD Medusa are the two blocks that do. No SRD targeting clause
+ * contains a full stop, so the first sentence is the targets and everything
+ * after it is a
  * sentence the reader carries: nothing here makes a creature save against its
  * own reflection.
  */
@@ -728,13 +766,41 @@ export function parsePrintedSave(text: string): MonsterSave | null {
       const deeper = readSection(section.text, { seed: read.effects });
       if (!deeper.readSomething || deeper.damage !== null) return null;
       onFailureBy = { by: section.margin, effects: deeper.effects };
-      handedOver.push(...deeper.handedOver);
+      // Under its own heading, as the `_Failure or Success:_` branch does:
+      // "which ends early if…" reaching a table with no antecedent names
+      // neither the condition it is about nor the rung it was printed under.
+      handedOver.push(
+        ...deeper.handedOver.map(
+          (sentence) => `_Failure by ${section.margin} or More:_ ${sentence}`,
+        ),
+      );
     }
   }
 
   // A first rung with no second is a graded failure half-read: the condition
   // would repeat its save and a failure would leave it exactly where it was.
   if (graded && onFailure === read.effects) return null;
+
+  // **A clause that kills is gated or it is not read.** The ceiling is the
+  // targeting clause's — "one living creature … that has 0 Hit Points" — and
+  // a `dies` reaching a caller without it would be a DC 10 save that kills a
+  // creature at full health, which is a rule nobody printed.
+  const ceiling = TARGET_HIT_POINTS.exec(head.targets);
+  const gate = (effects: readonly PrintedSaveEffect[]): readonly PrintedSaveEffect[] | null => {
+    if (!effects.some((effect) => effect.kind === 'dies')) return effects;
+    if (ceiling === null) return null;
+    return effects.map((effect) =>
+      effect.kind === 'dies'
+        ? { ...effect, ifHitPointsAtMost: Number(ceiling[1]) }
+        : effect,
+    );
+  };
+  const gated = gate(onFailure);
+  const gatedEither = gate(either);
+  const gatedByMargin = onFailureBy === null ? [] : gate(onFailureBy.effects);
+  if (gated === null || gatedEither === null || gatedByMargin === null) return null;
+  onFailure = gated;
+  if (onFailureBy !== null) onFailureBy = { by: onFailureBy.by, effects: gatedByMargin };
 
   // Half of no damage is nothing: a success clause that halves what the line
   // never dealt buys nothing, and saying `half` would be a rule nobody printed.
@@ -749,7 +815,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     onSuccess,
     ...(onFailure.length === 0 ? {} : { onFailure: [...onFailure] }),
     ...(onFailureBy === null ? {} : { onFailureBy: { by: onFailureBy.by, effects: [...onFailureBy.effects] } }),
-    ...(either.length === 0 ? {} : { either }),
+    ...(gatedEither.length === 0 ? {} : { either: [...gatedEither] }),
     ...(handedOver.length === 0 ? {} : { handedOver }),
   };
 }

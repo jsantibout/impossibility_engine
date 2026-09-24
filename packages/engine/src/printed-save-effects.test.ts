@@ -20,6 +20,12 @@
  * repeated once, deepening to Petrified), and one graded by the **margin** the
  * engine already has from the roll it made (the Pseudodragon's Unconscious).
  *
+ * And the one failure that kills: the Will-o'-Wisp consumes a creature already
+ * at 0 Hit Points and regains the dice its block prints. The ceiling on who it
+ * may be forced on is read off the targeting clause and enforced here, which
+ * is the one part of that clause the reader takes — a sentence that kills
+ * outright is the last one to take a caller's word for.
+ *
  * Both branches of every save are exercised by running each line under a
  * handful of seeds and asserting the *rule* on whichever way the die fell —
  * a failure lands the clause, a success does not — and that both were seen.
@@ -33,6 +39,7 @@ import {
   addSceneLandmark,
   beginCombat,
   declareCreatureSide,
+  damageCreature,
   escapeGrapple,
   forcePrintedSave,
   liftConditionFrom,
@@ -441,17 +448,47 @@ describe('a condition the line says another one carries', () => {
 });
 
 describe('a failure that kills', () => {
+  /**
+   * The wisp, a goblin already down, and the line forced on it.
+   *
+   * SRD Will-o'-Wisp: "one living creature the wisp can see within 5 feet
+   * **that has 0 Hit Points**." The ceiling is the line's own, so the fixture
+   * has to put somebody under it before the save is thrown.
+   */
+  function overTheDying(seed: string, hitPoints: number, who: CharacterId = BREN) {
+    const table = inTheWoods('will-o-wisp', [{ id: GRISH, monster: 'goblin-warrior' }]);
+    let state = table.state;
+    const standing = state.creatures[who]!.vitals.hp;
+    if (hitPoints < standing) {
+      state = after(
+        state,
+        unwrap(
+          damageCreature(state, who, { amount: standing - hitPoints, source: 'a falling rock' }),
+          `downing ${who}`,
+        ),
+      );
+    }
+    const out = unwrap(
+      forcePrintedSave(
+        state,
+        FOE,
+        { line: 'Consume Life', targets: [who], commandId: `wisp-${seed}` },
+        supply(seed),
+      ),
+      'Consume Life',
+    );
+    return { before: state, out, state: after(state, out.events) };
+  }
+
   it("kills the Will-o'-Wisp's target outright and heals the wisp by the dice it rolled", () => {
     for (const seed of SEEDS) {
-      const { before, out, state } = forced('will-o-wisp', 'Consume Life', seed, [GRISH], [
-        { id: GRISH, monster: 'goblin-warrior' },
-      ]);
+      const { before, out, state } = overTheDying(seed, 0);
       if (out.outcomes[0]!.save.success) continue;
       // Death rather than damage: the target does not drop to 0, it dies, and
       // the outcome says so rather than leaving a caller to read a nought.
       expect(out.outcomes[0]!.damage).toBe(0);
       expect(out.outcomes[0]!.died).toBe(true);
-      expect(state.creatures[GRISH]!.vitals.dead).toBe(true);
+      expect(state.creatures[BREN]!.vitals.dead).toBe(true);
       expect(out.events.some((e) => e.type === 'creature-died')).toBe(true);
       expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
 
@@ -475,6 +512,46 @@ describe('a failure that kills', () => {
       return;
     }
     throw new Error('no seed failed the save');
+  });
+
+  it('kills nobody above the ceiling the line prints, and says so', () => {
+    for (const seed of SEEDS) {
+      const { before, out, state } = overTheDying(seed, 3);
+      if (out.outcomes[0]!.save.success) continue;
+      // The save was thrown and failed, and the line still reached nobody it
+      // could kill: a DC 10 Constitution save does not kill a creature with
+      // hit points left, however the die fell.
+      expect(state.creatures[BREN]!.vitals.dead).toBe(false);
+      expect(out.outcomes[0]!.died).toBeUndefined();
+      expect(out.events.some((e) => e.type === 'creature-died')).toBe(false);
+      // And the wisp regained nothing, because nothing died.
+      expect(state.creatures[FOE]!.vitals.hp).toBe(before.creatures[FOE]!.vitals.hp);
+      expect(
+        out.unverified.some((line) => line.includes('0 Hit Points or fewer')),
+        JSON.stringify(out.unverified),
+      ).toBe(true);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it('does not make a corpse deader, and buys the wisp nothing for it', () => {
+    // A Goblin Warrior brought to 0 is a Goblin Warrior dead: a monster does
+    // not lie there making death saves. Forcing the line over the body is the
+    // reading `declareCreatureDead` already takes of the same event �
+    // nothing is written, and nothing is regained for it.
+    let saw = false;
+    for (const seed of SEEDS) {
+      const { before, out, state } = overTheDying(seed, 0, GRISH);
+      expect(before.creatures[GRISH]!.vitals.dead).toBe(true);
+      if (out.outcomes[0]!.save.success) continue;
+      expect(out.outcomes[0]!.died).toBeUndefined();
+      expect(out.events.some((e) => e.type === 'creature-died')).toBe(false);
+      expect(out.events.some((e) => e.type === 'healed')).toBe(false);
+      expect(state.creatures[FOE]!.vitals.hp).toBe(before.creatures[FOE]!.vitals.hp);
+      saw = true;
+    }
+    expect(saw, 'no seed failed the save').toBe(true);
   });
 });
 

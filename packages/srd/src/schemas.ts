@@ -477,10 +477,16 @@ export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
    *
    * **Death that is not damage**, which is the engine's own distinction:
    * `creature-died` exists because "a healthy creature taking exactly its
-   * maximum in damage drops to 0, it does not die". Who the line may be forced
-   * on is the targeting clause's — "one living creature … that has 0 Hit
-   * Points" — so the threshold is the table's answer and nothing here reads a
-   * number off the victim.
+   * maximum in damage drops to 0, it does not die".
+   *
+   * **The restriction the line prints on who it may be forced on is read, not
+   * handed over**, and it is the one part of a targeting clause that is. Who
+   * stands in a Cone needs an origin and a facing nobody declared, so that
+   * stays the table's — but "that has 0 Hit Points" is a number the engine
+   * already holds about a creature somebody named, and a sentence that kills
+   * outright is the last one to take on trust. A `dies` with no gate on it is
+   * a clause the reader refuses, which is why the field is optional in the
+   * schema and required by `parsePrintedSave`.
    *
    * **One effect rather than two**, because the book joins them with "and" and
    * the second half has no other sentence in the corpus: a `source-heals`
@@ -488,6 +494,11 @@ export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
    */
   z.object({
     kind: z.literal('dies'),
+    /**
+     * SRD Will-o'-Wisp's "that has 0 Hit Points", read off the targeting
+     * clause: above it the line kills nobody and says so.
+     */
+    ifHitPointsAtMost: z.number().int().min(0).optional(),
     /** What the creature that forced the save regains by it, where it does. */
     sourceRegains: z
       .object({
