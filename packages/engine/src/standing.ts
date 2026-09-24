@@ -1624,6 +1624,37 @@ export interface ActivatedFeature {
 }
 
 /**
+ * A feature that makes a thing with statistics of its own — SRD Gnomish
+ * Lineage's clockwork device.
+ *
+ * Resolved at creation for the reason `activated` and `shapeShifts` are: a
+ * command reads a sheet and never a class table, and the numbers the trait
+ * prints — AC 5, one hit point, three at a time, eight hours — are the only
+ * place any of this is written. What is made is a creature in the roster, so
+ * nothing about it is kept here.
+ */
+export interface ObjectMaker {
+  readonly feature: string;
+  readonly name: string;
+  readonly action: 'action' | 'bonus-action' | 'none';
+  /** SRD's "10 minutes", in the seconds the clock counts. */
+  readonly castingSeconds: number;
+  /** The spell the making is a casting of, recorded on the thing's bond. */
+  readonly spell: string;
+  readonly size: CreatureSize;
+  readonly armorClass: number;
+  readonly hitPoints: number;
+  /** How long one stands before it falls apart. */
+  readonly lastsSeconds: number;
+  /** How many may be in existence at a time. */
+  readonly atOnce: number;
+  /** The functions the maker chooses between, pinned on the thing as prose. */
+  readonly functions: readonly string[];
+  /** What activating one costs the creature that touches it. */
+  readonly activation: 'action' | 'bonus-action';
+}
+
+/**
  * A feature that lays another creature's stat block over its holder's sheet —
  * SRD Wild Shape — with its table already read at this character's level.
  *

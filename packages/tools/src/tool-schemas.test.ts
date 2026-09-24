@@ -128,10 +128,15 @@ describe('toolSchemas', () => {
     // in place of its damage — and the Blinded track gave `eligible_targets`
     // the `at` / `towards` a self-origin area needs to be placed, all on the
     // same night; the three pins sum.
-    expect(toolSchemas(player())).toHaveLength(78);
-    expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(108921);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(129843);
+    // Re-pinned 2026-09-24 for the three doors a thing a feature makes needs:
+    // `create_device`, `dismantle_device` and `activate_device`, on both
+    // surfaces, which is the whole of SRD Gnomish Lineage's clockwork device
+    // above the engine. Other tracks in the same batch move this number too
+    // and the pins sum.
+    expect(toolSchemas(player())).toHaveLength(81);
+    expect(toolSchemas(dm())).toHaveLength(98);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(112359);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(133281);
   });
 });
 

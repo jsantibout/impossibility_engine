@@ -1846,6 +1846,68 @@ function grantProblems(
     }
   }
 
+  // A feature that makes a thing, judged on the five numbers the trait prints
+  // and the menu it offers. Each of them is read by a command and none has a
+  // default: a thing with no hit points cannot be broken, a thing that stands
+  // for no time never falls apart, a ceiling of nothing refuses every making,
+  // and a menu of nothing refuses every function anybody names — four
+  // different ways for the feature to validate and do nothing.
+  if (grant.kind === 'creates-object') {
+    const made = grant.object as Partial<typeof grant.object> | undefined;
+    if (!(CREATURE_SIZES as readonly unknown[]).includes(made?.size)) {
+      found.push({
+        field: 'grants.object.size',
+        code: 'bad_made_object',
+        reason: `"${String(made?.size)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
+      });
+    }
+    if (!isCount(made?.armorClass) || !isCount(made?.hitPoints)) {
+      found.push({
+        field: 'grants.object',
+        code: 'bad_made_object',
+        reason: 'a thing a feature makes prints an Armour Class and a hit point total, each a whole number of at least one',
+      });
+    }
+    for (const [field, value] of [
+      ['castingSeconds', grant.castingSeconds],
+      ['lastsSeconds', grant.lastsSeconds],
+      ['atOnce', grant.atOnce],
+    ] as const) {
+      if (!isCount(value)) {
+        found.push({
+          field: `grants.${field}`,
+          code: 'bad_made_object',
+          reason: `${field} is a whole number of at least one, not ${String(value)}`,
+        });
+      }
+    }
+    if (typeof grant.spell !== 'string' || grant.spell.trim() === '') {
+      found.push({
+        field: 'grants.spell',
+        code: 'bad_made_object',
+        reason: 'the making is a casting, and what is made is kept on a bond that records which spell made it',
+      });
+    } else if (!context.spellExists(grant.spell)) {
+      found.push({
+        field: 'grants.spell',
+        code: 'unknown_granted_spell',
+        reason: `this content holds no spell with the id "${grant.spell}", so the casting this feature makes its thing with names nothing`,
+      });
+    }
+    const menu: unknown = grant.functions;
+    if (
+      !Array.isArray(menu) ||
+      menu.length === 0 ||
+      menu.some((one: unknown) => typeof one !== 'string' || one.trim() === '')
+    ) {
+      found.push({
+        field: 'grants.functions',
+        code: 'bad_made_object',
+        reason: 'a thing a feature makes does one of the effects the feature prints, and a menu naming none would refuse every making',
+      });
+    }
+  }
+
   // A gate on an option nobody can pick — the half a definition can answer
   // about itself, which is the half where the choice is its own.
   //

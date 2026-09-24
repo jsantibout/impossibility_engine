@@ -2,6 +2,7 @@
   "state.ts": [
     "SummonBond",
     "KeptBond",
+    "DeviceRecord",
     "AssumedShape",
     "Attachment",
     "attachSource",

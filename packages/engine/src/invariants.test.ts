@@ -64,6 +64,9 @@ import {
   declareCreatureType,
   declareFalling,
   declareObject,
+  activateDevice,
+  createDevice,
+  dismantleDevice,
   declareDifficultTerrain,
   declareLight,
   declareObscurement,
@@ -214,6 +217,24 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ],
   activated: [
     { feature: 'test:stance', name: 'Stance', action: 'bonus-action', pool: null, lasts: 'end-of-next-turn' },
+  ],
+  // A thing this creature can make, so `createDevice` reaches its price and
+  // its ceiling rather than stopping at a feature the sheet does not hold.
+  objectMakers: [
+    {
+      feature: 'test:tinker',
+      name: 'A Tinkering',
+      action: 'none',
+      castingSeconds: 600,
+      spell: 'prestidigitation',
+      size: 'tiny',
+      armorClass: 5,
+      hitPoints: 1,
+      lastsSeconds: 28_800,
+      atOnce: 3,
+      functions: ['it whistles'],
+      activation: 'bonus-action',
+    },
   ],
   healingTouch: [
     {
@@ -1644,7 +1665,70 @@ const STRANDED: readonly GameEvent[] = (() => {
   return [...log, ...unwrap(endOngoingSpell(fold('s', log), A, cast.castingId!, null), 'the end')];
 })();
 
+/**
+ * A thing a feature made, standing five feet from its maker.
+ *
+ * SRD Gnomish Lineage's clockwork device in the sweep's own vocabulary: the
+ * making is refused inside a fight — ten minutes of casting is not something a
+ * round holds — so it is built in the world with no fight in it, which is the
+ * same reading `advanceTime`'s fixture takes and for the same reason.
+ */
+const DEVICE = id('a-tinkered-thing');
+
+const TINKERED: readonly GameEvent[] = [
+  ...OUT_OF_COMBAT,
+  ...unwrap(
+    createDevice(fold('s', OUT_OF_COMBAT), A, {
+      feature: 'test:tinker',
+      device: DEVICE,
+      name: 'a tinkered thing',
+      function: 'it whistles',
+      placement: { from: { creature: A }, feet: 5, bearing: 180 },
+    }),
+    'the tinkering',
+  ),
+];
+
+/**
+ * And the same world with the fight started afterwards, for the one command
+ * whose price only exists inside one: pressing the button costs a Bonus
+ * Action, and outside a fight there is no economy to spend from — so a sweep
+ * run out of combat would be reading a command that did nothing.
+ */
+const TINKERED_IN_COMBAT: readonly GameEvent[] = [
+  ...TINKERED,
+  ...SETUP.filter((event) => event.type === 'combat-started'),
+];
+
 const GUARDED: readonly Guarded[] = [
+  {
+    // The making itself, which is the retry question `addCreature` asks with a
+    // clock attached: the same id twice is one device, and a second run that
+    // got past the guard would spend another ten minutes and stand a second
+    // thing in the room.
+    name: 'createDevice',
+    log: OUT_OF_COMBAT,
+    run: (s, commandId) =>
+      createDevice(s, A, {
+        feature: 'test:tinker',
+        device: DEVICE,
+        name: 'a tinkered thing',
+        function: 'it whistles',
+        placement: { from: { creature: A }, feet: 5, bearing: 180 },
+        commandId,
+      }),
+  },
+  {
+    name: 'dismantleDevice',
+    log: TINKERED,
+    run: (s, commandId) => dismantleDevice(s, A, { device: DEVICE, commandId }),
+  },
+  {
+    // In the fight, because what a retry could spend twice is the Bonus Action.
+    name: 'activateDevice',
+    log: TINKERED_IN_COMBAT,
+    run: (s, commandId) => activateDevice(s, A, { device: DEVICE, commandId }),
+  },
   {
     name: 'settleAreaEffects',
     log: greased(),
@@ -3182,6 +3266,17 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => activateSpell(s, B, { castingId: 'cast:1', targets: [A] }, supply()),
   },
   { name: 'activateFeature', run: (s) => activateFeature(s, B, { feature: 'test:stance' }) },
+  {
+    name: 'createDevice',
+    run: (s) =>
+      createDevice(s, B, {
+        feature: 'test:tinker',
+        device: id('a-tinkered-thing'),
+        name: 'a tinkered thing',
+        function: 'it whistles',
+      }),
+  },
+  { name: 'activateDevice', run: (s) => activateDevice(s, B, { device: A }) },
   {
     name: 'useHealingTouch',
     run: (s) => useHealingTouch(s, B, { feature: 'test:healing-touch', target: A, lift: ['poisoned'] }),

@@ -38,6 +38,7 @@ import type {
   HealingTouch,
   CastingOption,
   HitOption,
+  ObjectMaker,
   PoolOption,
   RecoveryFeature,
   SelfHealFeature,
@@ -3174,6 +3175,29 @@ export function planCharacter(
     });
   }
 
+  // A feature that makes a thing with statistics of its own — SRD Gnomish
+  // Lineage's clockwork device. Everything it needs is printed on the trait
+  // rather than read off a table, so it is carried across whole; what varies
+  // between two holders is the room, not the sheet.
+  const objectMakers: ObjectMaker[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'creates-object') continue;
+    objectMakers.push({
+      feature: feature.id,
+      name: feature.name,
+      action: grant.action,
+      castingSeconds: grant.castingSeconds,
+      spell: grant.spell,
+      size: grant.object.size,
+      armorClass: grant.object.armorClass,
+      hitPoints: grant.object.hitPoints,
+      lastsSeconds: grant.lastsSeconds,
+      atOnce: grant.atOnce,
+      functions: grant.functions,
+      activation: grant.activation,
+    });
+  }
+
   // A feature whose use is spent to heal its holder. The die is resolved here
   // because one of the two reads it off a class table — "roll your Martial
   // Arts die" is 1d6 at Monk 1 and 1d10 at Monk 11 — and the addend stays
@@ -3881,6 +3905,7 @@ export function planCharacter(
     ...(strikeStyles.length === 0 ? {} : { strikeStyles }),
     ...(activated.length === 0 ? {} : { activated }),
     ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
+    ...(objectMakers.length === 0 ? {} : { objectMakers }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(onDroppingAHostile.length === 0 ? {} : { onDroppingAHostile }),

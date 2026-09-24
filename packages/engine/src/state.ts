@@ -177,7 +177,51 @@ export interface KeptBond {
    * Absent on a bond the spell alone wrote, which is every other kept summons.
    */
   readonly untilSummonerLongRests?: true;
+  /**
+   * SRD Gnomish Lineage: "each falls apart 8 hours after its creation" — a
+   * span measured from {@link since}, which is the clock at the binding.
+   *
+   * **On the bond rather than on a timer**, and the reason is the same one
+   * that makes this a bond at all: what runs out here takes a *creature* away,
+   * and a creature leaving is a batch of events rather than a line the fold
+   * can delete. The four other ways a kept creature goes are already read by
+   * `strandedSummons` and settled by `dismissStrandedSummons`; this is a
+   * fifth, and it needed no new machinery on either side.
+   */
+  readonly lastsSeconds?: number;
   readonly since?: number;
+}
+
+/**
+ * What a thing a feature made **is**, beyond the sheet it arrived with — see
+ * {@link CreatureState.device}.
+ *
+ * SRD Gnomish Lineage's clockwork device. Everything here was pinned at the
+ * making, which is rule 5: the trait that made it, what the maker chose it to
+ * do, and what touching it costs. Nothing is looked up again, so a device made
+ * last year still does what its maker said it would.
+ *
+ * **The function is prose and stays prose.** "One effect from the
+ * Prestidigitation spell" is a sentence the table narrates — the engine holds
+ * no candle to light and no thimbleful of flavour — so what the Bonus Action
+ * buys is the sentence handed back, which is the reading a stat block's
+ * printed line already gets.
+ */
+export interface DeviceRecord {
+  /** The feature that made it — SRD's Gnomish Lineage. */
+  readonly feature: string;
+  /** What that feature is called, for a refusal and for the log. */
+  readonly featureName: string;
+  /** The effect its maker chose, in the book's own words. */
+  readonly function: string;
+  /**
+   * SRD: "If the chosen effect has options within it, you choose one of those
+   * options for the device when you create it." Absent where the effect has
+   * none, which is most of them.
+   */
+  readonly detail?: string;
+  /** What activating it costs whoever touches it. */
+  readonly activation: 'action' | 'bonus-action';
 }
 
 /**
@@ -388,6 +432,16 @@ export interface CreatureState {
    * declared, because a summoned creature can turn.
    */
   readonly summonedBy: SummonBond | null;
+  /**
+   * What a feature made this thing to do, or null for everything that is not
+   * such a thing — which is every creature in the book but one trait's.
+   *
+   * SRD Gnomish Lineage's clockwork device. Pinned into `creature-added` by
+   * the making rather than carried on a second event, because it is part of
+   * what the thing *is* in exactly the way its Armour Class and its size are.
+   * See {@link DeviceRecord}.
+   */
+  readonly device: DeviceRecord | null;
   /**
    * Features this creature has switched on and is still in.
    *

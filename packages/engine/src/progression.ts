@@ -1320,6 +1320,83 @@ export type FeatureGrant =
       readonly flatByLevel?: readonly number[];
     }
   /**
+   * A feature that **makes a thing with statistics of its own** — SRD Gnomish
+   * Lineage's clockwork device.
+   *
+   * > "you can spend 10 minutes casting Prestidigitation to create a Tiny
+   * > clockwork device (AC 5, 1 HP) ... You can have three such devices in
+   * > existence at a time, and each falls apart 8 hours after its creation or
+   * > when it is dismantled by you or another creature."
+   *
+   * **Not an `activated` grant and not a pool option**, and the printed
+   * sentence is why: both of those buy something that happens to a creature —
+   * a span on the holder, an effect list over targets — and this puts a
+   * *second thing* in the room, with an Armour Class, a hit point and a
+   * lifetime of its own. `objects.ts` already says what such a thing is and
+   * `declareObject` already raises one when a DM describes it; what was
+   * missing was the door a **feature** makes one through.
+   *
+   * **And not a pool.** "Three such devices in existence at a time" is a count
+   * of things standing, not of uses spent: a device dismantled makes room for
+   * another the same minute, and a pool with no recovery would refuse the
+   * fourth for ever. So the ceiling is derived from the room rather than
+   * stored on the sheet, which is the same reading `strandedSummons` takes of
+   * a summons — a question about the world as it stands.
+   *
+   * What the device *does* is **prose the table narrates**, pinned at the
+   * making. The SRD's own sentence hands it over: the function is "one effect
+   * from the Prestidigitation spell", and the engine holds no candle to light.
+   * So {@link functions} is the menu the book prints, the maker names one of
+   * them, and the Bonus Action that activates the device spends the slot and
+   * hands the sentence back — the reading `take_printed_action` already takes
+   * of a stat block's line.
+   */
+  | {
+      readonly kind: 'creates-object';
+      /**
+       * What the making costs in the action economy, beside the time it takes.
+       *
+       * `none` is SRD's answer: the trait prints ten minutes and no action,
+       * and ten minutes is not something a round holds — the command refuses
+       * inside a fight for the reason `advanceTime` does.
+       */
+      readonly action: 'action' | 'bonus-action' | 'none';
+      /** SRD: "spend **10 minutes** casting Prestidigitation". */
+      readonly castingSeconds: number;
+      /**
+       * The spell the making is a casting of.
+       *
+       * Required, because the thing that is made is **kept** by its maker and
+       * a kept creature's bond records which spell keeps it — the same field
+       * a familiar's does. A feature that made something without casting
+       * anything would need a second kind of bond, which is a sentence no book
+       * has written.
+       */
+      readonly spell: string;
+      /** SRD: "a Tiny clockwork device (AC 5, 1 HP)". */
+      readonly object: {
+        readonly size: CreatureSize;
+        readonly armorClass: number;
+        readonly hitPoints: number;
+      };
+      /** SRD: "each falls apart 8 hours after its creation". */
+      readonly lastsSeconds: number;
+      /** SRD: "You can have three such devices in existence at a time." */
+      readonly atOnce: number;
+      /**
+       * The functions the maker chooses between, each one a sentence the table
+       * narrates.
+       *
+       * Content, because it is the printed list of another spell's effects and
+       * the engine holds no catalogue. A making that names anything else is
+       * refused rather than pinned, so a device always does something its own
+       * trait prints.
+       */
+      readonly functions: readonly string[];
+      /** SRD: "takes a Bonus Action to activate it with a touch". */
+      readonly activation: 'action' | 'bonus-action';
+    }
+  /**
    * SRD Extra Attack: "You can attack twice instead of once whenever you take
    * the Attack action."
    *

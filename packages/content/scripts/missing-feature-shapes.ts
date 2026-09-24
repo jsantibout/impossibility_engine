@@ -1014,13 +1014,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Species and backgrounds. Read here; `origins.ts` is somebody else's file. —
-  'gnome:gnomish-lineage': [
-    {
-      clause: 'an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates',
-      why: 'an-object-with-statistics-of-its-own',
-      note: 'the Rock Gnome’s clockwork device, which is the spell map’s own id: a thing with an Armour Class and a Hit Point that is not a creature.',
-    },
-  ],
   // — the feats, which no population had until gate G1 ————————————————————
   //
   // `allFeatures` walked classes, subclasses, species and backgrounds and

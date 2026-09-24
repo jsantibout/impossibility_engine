@@ -309,12 +309,39 @@ function table(seed = 'holdings') {
   return { campaign, surface, call, rule };
 }
 
+/**
+ * A Rock Gnome beside the class party, because the record is not a record of
+ * classes.
+ *
+ * The sweep below was one character per class and would have gone on being
+ * silent about `makes-object` for ever: SRD prints the clockwork device on a
+ * **species**, and a party of twelve Humans holds no species feature anybody
+ * can spend. The same failure the hand-picked party had, one population along
+ * — so the party gains an origin rather than the record losing a line.
+ */
+const ROCK_GNOME = 'rock-gnome';
+
+const rockGnome = (): Record<string, unknown> => {
+  const base = character('fighter', SWEPT_LEVEL);
+  return {
+    ...base,
+    speciesId: 'gnome',
+    size: 'Small',
+    featureChoices: {
+      ...(base['featureChoices'] as Record<string, unknown>),
+      'gnome:gnomish-lineage': ['Rock Gnome'],
+    },
+    featureSpellcasting: { 'gnome:gnomish-lineage': 'int' },
+  };
+};
+
 /** One character of every class in the book, each named for its class. */
 function wholeCatalogue(seed = 'catalogue') {
   const t = table(seed);
   for (const classId of EVERY_CLASS) {
     expectOk(t.call('create_character', { id: classId, choices: character(classId, SWEPT_LEVEL) }));
   }
+  expectOk(t.call('create_character', { id: ROCK_GNOME, choices: rockGnome() }));
   return t;
 }
 
@@ -496,8 +523,8 @@ describe('a character can be asked what it holds', () => {
   it('names, for every feature it can spend, a tool this surface really has', () => {
     const t = wholeCatalogue();
 
-    const spendable = EVERY_CLASS.flatMap((classId) =>
-      sheetOf(t, classId).features.filter((one) => one.spentBy !== null),
+    const spendable = [...EVERY_CLASS, ROCK_GNOME].flatMap((who) =>
+      sheetOf(t, who).features.filter((one) => one.spentBy !== null),
     );
     // Non-vacuous, and exhaustive over the kinds the surface claims to spend:
     // a party holding none of one of them would make the sweep silent about it.

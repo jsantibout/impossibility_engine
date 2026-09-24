@@ -118,6 +118,18 @@ export const SPENT_BY = {
    * `reachability.test.ts` listed under `NOTHING_TO_BUY` until this line.
    */
   shape: 'assume_shape',
+  /**
+   * A use that puts a **thing** in the room: SRD Rock Gnome's clockwork
+   * device.
+   *
+   * `shape` one door along again, and the difference is who the statistics
+   * belong to: a form replaces the holder's sheet, and this stands a second
+   * creature beside them with an Armour Class and a hit point of its own.
+   * What a caller cannot see it cannot name, which is why the line carries the
+   * menu as well as the door — the engine refuses a function the feature does
+   * not print, exactly as it refuses a form nobody learned.
+   */
+  'makes-object': 'create_device',
 } as const;
 
 export type SpendableKind = keyof typeof SPENT_BY;
@@ -413,6 +425,19 @@ export interface HeldFeature {
    */
   readonly forms?: readonly string[];
   readonly form?: string | null;
+  /**
+   * The effects a thing this feature makes may be made to do — the strings
+   * `create_device.function` takes.
+   *
+   * Reported for {@link forms}' reason and it is the same sentence: a caller
+   * cannot name what it cannot see, and the engine refuses a function the
+   * feature does not print. {@link atOnce} is beside it because the ceiling is
+   * a count of the room rather than a pool, so nothing else on this line
+   * carries it and a caller would otherwise meet `too_many_devices` with no
+   * way to have known.
+   */
+  readonly functions?: readonly string[];
+  readonly atOnce?: number;
   /** The ceiling a form may print and whether a flier may be taken, at this level. */
   readonly maxChallengeRating?: number;
   readonly flying?: boolean;
@@ -843,6 +868,26 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       form: worn ? creature.shape!.form : null,
       maxChallengeRating: one.maxChallengeRating,
       flying: one.flying,
+    });
+  }
+
+  // A feature that makes a thing with statistics of its own — SRD Rock Gnome's
+  // clockwork device. It spends no pool at all: what bounds it is how many are
+  // standing, which is a count of the room rather than of a resource, so the
+  // line carries the ceiling and the menu and leaves `pool` and `left` null.
+  for (const one of sheet.objectMakers ?? []) {
+    add({
+      feature: one.feature,
+      name: one.name,
+      kind: 'makes-object',
+      spentBy: SPENT_BY['makes-object'],
+      action: one.action,
+      pool: null,
+      left: null,
+      active: false,
+      lasts: describeElapsed(one.lastsSeconds),
+      functions: one.functions,
+      atOnce: one.atOnce,
     });
   }
 

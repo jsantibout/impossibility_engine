@@ -237,6 +237,29 @@ const GNOMISH_SPELLS: Readonly<Record<string, LineageRow>> = {
   'Rock Gnome': { cantrips: ['mending', 'prestidigitation'] },
 };
 
+/**
+ * SRD Prestidigitation's printed effects, which are what a Rock Gnome's
+ * clockwork device may be made to do.
+ *
+ * > "you determine its function by choosing one effect from the
+ * > Prestidigitation spell"
+ *
+ * Transcribed from the spell's own list rather than read off its definition,
+ * because the definition holds what the *engine* executes and these are six
+ * sentences it executes none of: the spell's own entry carries them as
+ * narration, and a device made to soil a tablecloth is the table's to
+ * describe. Here rather than in `spells.ts` for the same reason the lineage
+ * table is here — it is one trait's menu, printed beside the trait.
+ */
+const PRESTIDIGITATION_EFFECTS: readonly string[] = [
+  'You create an instantaneous, harmless sensory effect, such as a shower of sparks, a puff of wind, faint musical notes, or an odd odor.',
+  'You instantaneously light or snuff out a candle, a torch, or a small campfire.',
+  'You instantaneously clean or soil an object no larger than 1 cubic foot.',
+  'You chill, warm, or flavor up to 1 cubic foot of nonliving material for 1 hour.',
+  'You make a color, a small mark, or a symbol appear on an object or a surface for 1 hour.',
+  'You create a nonmagical trinket or an illusory image that can fit in your hand. It lasts until the end of your next turn.',
+];
+
 /** The other three columns of the same table. */
 const FIENDISH_SPELLS: Readonly<Record<string, LineageRow>> = {
   Abyssal: { cantrips: ['poison-spray'], atThree: 'ray-of-sickness', atFive: 'hold-person' },
@@ -573,10 +596,35 @@ export const GNOME: SpeciesDefinition = {
       id: 'gnome:gnomish-lineage',
       name: 'Gnomish Lineage',
       level: 1,
-      automation: 'manual',
-      note: 'The cantrips each option knows are applied and the rest is the DM, which is why this is not marked as executed. A Forest Gnome knows Minor Illusion and a Rock Gnome knows Mending and Prestidigitation, granted only to the option chosen and cast off the Intelligence, Wisdom or Charisma this trait asks for. The Forest Gnome\'s Speak with Animals is always prepared and cast without a slot a number of times equal to your Proficiency Bonus, which is a pool the lineage declares and `cast_spell` spends — as far as the spell goes, and it has no definition yet. One sentence is left: the Rock Gnome\'s clockwork device is an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates.',
+      automation: 'engine',
+      note: 'Every lineage\'s benefits are applied. A Forest Gnome knows Minor Illusion and a Rock Gnome knows Mending and Prestidigitation, granted only to the option chosen and cast off the Intelligence, Wisdom or Charisma this trait asks for. The Forest Gnome\'s Speak with Animals is always prepared and cast without a slot a number of times equal to your Proficiency Bonus, which is a pool the lineage declares and `cast_spell` spends — as far as the spell goes, and it has no definition yet. The Rock Gnome\'s clockwork device is made now: ten minutes of casting Prestidigitation puts a Tiny thing in the room at Armour Class 5 with one hit point, which breaks to a blow like any object, falls apart eight hours after its creation or when anybody within reach takes it apart, and is refused a fourth while three stand. Its function is one of the effects Prestidigitation prints, named at the making and pinned on the thing; the Bonus Action that activates it with a touch spends the slot and hands that sentence back, because the engine holds no candle to light and no thimbleful of flavour. "Each device also stops working if you die" is a refusal on the button rather than a removal, since a dead maker leaves the thing lying there.',
       choice: { kind: 'option', choose: 1, from: ['Forest Gnome', 'Rock Gnome'] },
-      grants: lineageSpells('gnome:gnomish-lineage', GNOMISH_SPELLS),
+      grants: [
+        ...lineageSpells('gnome:gnomish-lineage', GNOMISH_SPELLS),
+        {
+          // SRD Rock Gnome: "you can spend 10 minutes casting Prestidigitation
+          // to create a Tiny clockwork device (AC 5, 1 HP), such as a toy,
+          // fire starter, or music box."
+          onlyIfChoice: 'Rock Gnome',
+          kind: 'creates-object',
+          // The trait prints ten minutes and no action at all.
+          action: 'none',
+          castingSeconds: 10 * 60,
+          spell: 'prestidigitation',
+          object: { size: 'tiny', armorClass: 5, hitPoints: 1 },
+          // "each falls apart 8 hours after its creation".
+          lastsSeconds: 8 * 60 * 60,
+          // "You can have three such devices in existence at a time."
+          atOnce: 3,
+          // "you determine its function by choosing one effect from the
+          // Prestidigitation spell" — the spell's own six bullets, which are
+          // catalogue prose and live here rather than in any reader.
+          functions: PRESTIDIGITATION_EFFECTS,
+          // "whenever you or another creature takes a Bonus Action to activate
+          // it with a touch".
+          activation: 'bonus-action',
+        },
+      ],
     },
   ],
 };
