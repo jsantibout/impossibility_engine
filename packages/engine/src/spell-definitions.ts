@@ -584,12 +584,19 @@ export interface SpellRepeatSave {
  *
  * **These are not the spells' own vocabulary any more.** `ReactionWindow` in
  * `reactions.ts` names every moment a Reaction can answer, for spells and for
- * class features alike, and this is the narrowing to the three that SRD spells
- * use. The narrowing is what keeps `triggerRefusal` exhaustive over exactly
- * what exists; the sharing is what keeps *Hellish Rebuke* and the Barbarian's
- * Retaliation from growing two readings of one rule.
+ * class features alike, and this is the narrowing to the ones a definition can
+ * name *with a word*. The narrowing is what keeps `triggerRefusal` exhaustive
+ * over exactly what exists; the sharing is what keeps *Hellish Rebuke* and the
+ * Barbarian's Retaliation from growing two readings of one rule.
+ *
+ * **`targeted-by-spell` is excluded, and the exclusion is the point of the
+ * field beside this one.** That window is real and a spell answers it — SRD
+ * *Shield*'s second trigger — but a definition naming it would have said which
+ * *spell*'s targeting it answers, and a member of a string union carries no
+ * id. So it is `SpellDefinition.targetedBy`, which is a spell id, and this
+ * union stays the set of moments a bare word describes.
  */
-export type ReactionTrigger = SpellReactionWindow;
+export type ReactionTrigger = Exclude<SpellReactionWindow, 'targeted-by-spell'>;
 
 /**
  * A second, smaller hit that arrives at a later moment.
@@ -4413,6 +4420,39 @@ export interface SpellDefinition {
    * spent. A spell with no trigger is not a Reaction spell and is unaffected.
    */
   readonly trigger?: ReactionTrigger;
+  /**
+   * A **second** moment this Reaction answers: being targeted by one named
+   * spell.
+   *
+   * SRD *Shield* is the only spell in the book that prints two triggers in one
+   * casting time — "when you are hit by an attack roll **or targeted by the
+   * *Magic Missile* spell**" — which is why this is a field beside
+   * {@link trigger} rather than a member of it: a definition that could say
+   * only one of the two would have to give up the other, and the attack half
+   * has been executed since Shield landed.
+   *
+   * **A spell id, held by content and compared by the engine.** The window it
+   * opens is `targeted-by-spell`, and what the engine does with this is ask
+   * whether the casting being declared has the same id — it names nothing
+   * itself, which is the rule `spell-schema.test.ts` sweeps for.
+   */
+  readonly targetedBy?: string;
+  /**
+   * SRD *Shield*: "…and you take no damage from *Magic Missile*."
+   *
+   * The benefit that hangs on {@link targetedBy}, and it is narrowed to **one
+   * casting** rather than to a spell: the casting id this Reaction answered is
+   * pinned on the record it leaves running, and the damage that one casting
+   * would deal the reactor is not dealt. That is what keeps it out of
+   * `damage-defense`, which names a damage *type* and rightly refuses to name
+   * a spell — a second Magic Missile from a second caster is not answered by
+   * this Shield, exactly as the SRD's Reaction answers the casting it was
+   * taken against.
+   *
+   * Legal only beside `targetedBy`, because there is otherwise no casting for
+   * it to be narrowed to; `spell-schema.ts` refuses the pair apart.
+   */
+  readonly negatesTriggeringCasting?: true;
   /**
    * A casting that ends at a moment in the turn order rather than after a span
    * of seconds.

@@ -31,9 +31,10 @@ import type { FallMoment } from './state.js';
  * | `damaged-by-creature` | **everything** — the damage landed | nothing | *Hellish Rebuke*, Retaliation |
  * | `test-rolled` | the d20's total, and whether it beat the DC | the effects of that outcome | Indomitable, Dark One's Own Luck, Peerless Skill, Cutting Words, the Sphinx |
  * | `casting-a-spell` | the casting is declared and the action spent | the slot, the effects | *Counterspell* |
+ * | `targeted-by-spell` | the casting is declared and its targets are fixed | its effects, on each of them | *Shield*'s second trigger |
  * | `creature-falling` | the table has said a creature is falling | how far, how long, and what it lands on | *Feather Fall*; the Monk's Slow Fall |
  *
- * **Five of the six are points in a resolution; the sixth is a declaration.**
+ * **Six of the seven are points in a resolution; the last is a declaration.**
  * `creature-falling` is open because somebody at the table said so rather than
  * because the engine is in the middle of something, which is what it costs to
  * name an instant the engine has no other way to see — and the reason it is
@@ -44,14 +45,17 @@ import type { FallMoment } from './state.js';
  * evidence this vocabulary is shared rather than merely tidy: a spell
  * (*Hellish Rebuke*) and a class feature (Retaliation) answer the same instant
  * under the same rule, and there is exactly one place that decides whether the
- * instant is still open.
+ * instant is still open. `hit-by-attack` is the second such member and the
+ * same evidence again — *Shield* answers it with a spell and seven stat blocks
+ * answer it with Parry, which is the same sentence about the same number.
  *
  * **What this deliberately is not.** There is no predicate language, no
  * registry, no subscription and no ordering engine. A window is a named point
  * in a resolution path, and adding one means adding a point to a path — which
- * is why two of the six arrived with the mechanics that needed them, three were
- * already there under other names, and the sixth arrived with a fact the table
- * declares.
+ * is why two of the seven arrived with the mechanics that needed them, three
+ * were already there under other names, one arrived with a fact the table
+ * declares, and the seventh is a stop in a path the engine already walks: a
+ * casting that has been declared and not yet resolved.
  */
 export type ReactionWindow =
   /** SRD *Shield*: "when you are hit by an attack roll". Damage is unrolled. */
@@ -86,6 +90,29 @@ export type ReactionWindow =
   /** SRD *Counterspell*: "a creature in the process of casting a spell". */
   | 'casting-a-spell'
   /**
+   * SRD *Shield*: "Reaction, which you take when you are hit by an attack roll
+   * **or targeted by the *Magic Missile* spell**."
+   *
+   * The seventh, and a point in a resolution like the first five rather than a
+   * declaration like `creature-falling`: a casting that has been declared has
+   * settled its targets and has not resolved its effects, which is exactly the
+   * state `pendingCastings` already holds for *Counterspell*. The difference
+   * between the two is who may answer — Counterspell answers *the caster*, and
+   * this answers as one of *the targets* — and what the answer is allowed to
+   * change.
+   *
+   * **It opens where the casting is declared and nowhere else.** A casting
+   * resolved in one command has no seam between its targets and its effects —
+   * SRD Magic Missile settles both in a breath — so what opens the window is
+   * the same `hold` that opens Counterspell's, and a caller who wants the
+   * defender to have their say asks for the declaration. That is stated rather
+   * than worked around: an engine that held every casting open would make
+   * every Fire Bolt a two-command negotiation, which is the rule
+   * {@link offersForDamage} already keeps about a damage roll nobody can
+   * answer.
+   */
+  | 'targeted-by-spell'
+  /**
    * SRD *Feather Fall*: "when you or a creature you can see within 60 feet of
    * you **falls**"; SRD Slow Fall: "when you fall".
    *
@@ -115,7 +142,11 @@ export type ReactionWindow =
  */
 export type SpellReactionWindow = Extract<
   ReactionWindow,
-  'hit-by-attack' | 'damaged-by-creature' | 'casting-a-spell' | 'creature-falling'
+  | 'hit-by-attack'
+  | 'damaged-by-creature'
+  | 'casting-a-spell'
+  | 'creature-falling'
+  | 'targeted-by-spell'
 >;
 
 /**

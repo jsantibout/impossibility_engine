@@ -5028,6 +5028,29 @@ export function checkSpellDefinition(
     });
   }
 
+  // **The second trigger, and it is a Reaction's too.** SRD *Shield* is the
+  // one spell that prints two moments in one casting time, and a definition
+  // that named the second without the casting time would be a spell answering
+  // a window nothing spends a Reaction at.
+  if (definition.targetedBy !== undefined && definition.castingTime !== 'reaction') {
+    found.push({
+      field: 'targetedBy',
+      code: 'trigger_without_reaction',
+      reason: 'being targeted by a spell is a second Reaction trigger; nothing else has one',
+    });
+  }
+
+  // And the benefit hangs on that trigger: it is narrowed to **the casting
+  // that triggered it**, so without one there is no casting for it to name.
+  if (definition.negatesTriggeringCasting === true && definition.targetedBy === undefined) {
+    found.push({
+      field: 'negatesTriggeringCasting',
+      code: 'negation_without_a_trigger',
+      reason:
+        'taking no damage from the casting that triggered this needs a casting that triggered it; name the spell in `targetedBy`',
+    });
+  }
+
   // — what the spell does ——————————————————————————————————————————————————
 
   definition.effects.forEach((effect, i) =>

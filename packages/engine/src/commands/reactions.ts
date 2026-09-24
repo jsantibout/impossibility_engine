@@ -59,6 +59,7 @@ import {
 } from '../reactions.js';
 import { remaining } from '../resources.js';
 import { type Content } from '../content.js';
+import { type SpellDefinition } from '../spell-definitions.js';
 import {
   defensesOf,
   effectiveConditions,
@@ -1347,8 +1348,21 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     return state.combat.budgets[who]?.reaction !== false;
   };
 
-  /** Reaction spells this creature could cast for a given window. */
-  const spellsFor = (who: CharacterId, window: SpellReactionWindow): ReactionOpportunity[] => {
+  /**
+   * Reaction spells this creature could cast for a given window.
+   *
+   * The match is a predicate rather than the trigger alone, because one spell
+   * answers two windows: SRD *Shield*'s casting time prints "when you are hit
+   * by an attack roll **or** targeted by the *Magic Missile* spell", so its
+   * `trigger` is the first and its `targetedBy` is the second. Everything
+   * below the match is the same for either.
+   */
+  const spellsFor = (
+    who: CharacterId,
+    window: SpellReactionWindow,
+    matches: (definition: SpellDefinition) => boolean = (definition) =>
+      definition.trigger === window,
+  ): ReactionOpportunity[] => {
     const creature = state.creatures[who];
     if (creature === undefined) return [];
     const known = [
@@ -1357,7 +1371,7 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     ];
     return [...new Set(known)].sort().flatMap((spellId): ReactionOpportunity[] => {
       const definition = content.spell(spellId);
-      if (definition?.trigger !== window) return [];
+      if (definition === null || !matches(definition)) return [];
       return [
         {
           window,
@@ -1415,6 +1429,23 @@ export function reactionOpportunities(state: GameState, content: Content): reado
   // caster would be indistinguishable, and the ambiguity refusal would then
   // tell a caller to name an id they could not see.
   for (const casting of pendingCastingsOf(state)) {
+    // **And the creatures the casting named, who answer the same hold at the
+    // other end of it.** SRD *Shield*: "or targeted by the *Magic Missile*
+    // spell." Counterspell answers the caster and this answers as a target, so
+    // the two are listed off one record — and this one is not filtered by
+    // `subtle`, because being *targeted* is a fact about the creature the
+    // casting named rather than about what anybody saw or heard.
+    for (const target of [...new Set(casting.targets)].sort()) {
+      if (!canReact(target)) continue;
+      for (const chance of spellsFor(
+        target,
+        'targeted-by-spell',
+        (definition) => definition.targetedBy === casting.spellId,
+      )) {
+        found.push({ ...chance, against: casting.caster, casting: casting.castingId });
+      }
+    }
+
     // SRD Subtle Spell: a spell cast "without any Verbal, Somatic, or Material
     // components" cannot be identified or Counterspelled, because there is
     // nothing to see or hear. The mark is on the record the declaration wrote,

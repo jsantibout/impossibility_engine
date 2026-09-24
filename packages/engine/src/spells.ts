@@ -522,6 +522,22 @@ export interface OngoingSpell {
    * replay that changed is the one thing the pinning was for.
    */
   readonly areaStanding?: AreaStanding;
+  /**
+   * The casting this one was taken against, and whose damage it turns aside.
+   *
+   * SRD *Shield*: "…and you take no damage from *Magic Missile*." The
+   * narrowing is a **casting id** rather than a spell id, and that is the
+   * whole of what makes it expressible: an Immunity to a named spell is
+   * something `damage-defense` refuses to be — it names a damage type — and an
+   * engine rule may name no catalogue entry at all. A casting id is a fact the
+   * log already holds, so what this says is "the one that was coming when this
+   * Reaction was taken", which is what the SRD's Reaction answers.
+   *
+   * Pinned at the cast for the reason every other field here is pinned, and
+   * read where a casting's damage would land on this creature. Absent on every
+   * other casting in the book.
+   */
+  readonly negates?: string;
 }
 
 /**

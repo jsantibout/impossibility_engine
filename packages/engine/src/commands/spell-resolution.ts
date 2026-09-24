@@ -131,6 +131,7 @@ import {
   settlementEvents,
   lightPatchesOf,
   terrainPatchOf,
+  targetedCasting,
   triggerRefusal,
   fixedChoiceOf,
 } from './casting.js';
@@ -153,7 +154,7 @@ import {
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
-import { replacedCastings } from './ongoing.js';
+import { ongoingSpellsOn, replacedCastings } from './ongoing.js';
 import {
   attunementProblem,
   maskProblem,
@@ -610,7 +611,17 @@ export function castOrRelease(
     // **A field quietly ignored is a caller who thinks they said something.**
     // The shape every other stated fact on this request takes: refused for a
     // spell that prints no clause it could belong to.
-    if (request.answers !== undefined && definition.trigger !== 'casting-a-spell') {
+    //
+    // **A spell with a second trigger names a casting too**, and names it for
+    // the same reason: SRD *Shield* answers the volley that was aimed at its
+    // caster, and where two are open the caller says which one. So the clause
+    // belongs to either kind of answer, and `targetedCasting` is what reads it
+    // on this one.
+    if (
+      request.answers !== undefined &&
+      definition.trigger !== 'casting-a-spell' &&
+      definition.targetedBy === undefined
+    ) {
       return err(
         'no_answer_clause',
         `${definition.name} is not a Reaction taken when a creature casts a spell, so it answers no casting`,
@@ -1937,6 +1948,17 @@ function resolveOnTargets(
 
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
+    // **Which casting this one was taken against**, where the definition says
+    // its benefit is narrowed to that casting. SRD *Shield*'s "you take no
+    // damage from *Magic Missile*" is the only sentence of this shape in the
+    // book, and it is answered by an id rather than by a spell: the Reaction
+    // was taken against the darts that were coming, not against the spell.
+    ...(definition.negatesTriggeringCasting === true
+      ? (() => {
+          const answered = targetedCasting(state, casterId, definition, request.answers);
+          return answered === null ? {} : { negates: answered.castingId };
+        })()
+      : {}),
     // **Three answers, stated rather than inferred.** A Range: Self spell is
     // on its caster; a casting that holds a point is on the point and so on
     // nobody; everything else is on whoever it actually caught.
@@ -2552,6 +2574,35 @@ function creatureTypeNeeds(
 }
 
 /**
+ * Whether this effect is one that would deal the target damage.
+ *
+ * The three kinds that roll damage at a creature, named once so the negation
+ * above and a reader can agree about what "you take no damage" covers. An
+ * `attack` still *misses* or hits on its own terms — what is turned aside here
+ * is the whole roll, because the Reaction was taken against the casting rather
+ * than against one of its dice.
+ */
+const dealsDamage = (effect: SpellEffect): boolean =>
+  effect.kind === 'auto-damage' || effect.kind === 'save-damage' || effect.kind === 'attack';
+
+/**
+ * Whether this creature is holding a Reaction taken against **this** casting.
+ *
+ * SRD *Shield*'s "you take no damage from *Magic Missile*", read off the
+ * record that Reaction left running: `OngoingSpell.negates` is the casting id
+ * it was taken against, and a casting whose id nobody pinned is answered by
+ * nobody. An item's conferral and a feature's use are not castings and have no
+ * id, so neither can be negated — which is right rather than a limit: the
+ * sentence is about a spell somebody was in the middle of casting.
+ */
+function negatedBy(world: GameState, target: CharacterId, origin: EffectOrigin): boolean {
+  if (origin.kind !== 'casting') return false;
+  return ongoingSpellsOn(world, target).some(
+    (casting) => casting.negates === origin.castingId,
+  );
+}
+
+/**
  * Which rule resolves this effect.
  *
  * The whole of the branching, in one place, over a union the compiler closes:
@@ -2567,6 +2618,24 @@ function resolveOneEffect(
   victim: CreatureState,
   world: GameState,
 ): Result<GameState> {
+  // **And the Reaction this creature took against *this casting*.** SRD
+  // *Shield*: "you take no damage from *Magic Missile*." The Reaction was
+  // taken when the casting named them, before its effects resolved, and what
+  // it turns aside is the damage — so a casting a target negates simply deals
+  // them none, and everything else the same casting does to them stands.
+  //
+  // Read here rather than inside the damaging resolvers because it is one
+  // rule about three kinds, and read per target because that is what a
+  // Reaction one creature took can answer for: the Fighter beside the wizard
+  // takes their darts.
+  if (dealsDamage(effect) && negatedBy(world, target, ctx.origin)) {
+    ctx.unverified.push(
+      `${target} took no damage from ${ctx.name}: a Reaction they took against this casting turns it aside`,
+    );
+    ctx.outcomes.push({ target, damage: 0, affected: true });
+    return ok(world);
+  }
+
   switch (effect.kind) {
     case 'attack':
       return resolveAttackEffect(ctx, effect, target, world);
@@ -2935,6 +3004,9 @@ export function resolveEffects(
         ...(becomes.anchoring === undefined ? {} : { anchoring: becomes.anchoring }),
         ...(becomes.unaffected === undefined ? {} : { unaffected: becomes.unaffected }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
+        // The casting this one turns aside, pinned at the cast — see
+        // `OngoingSpell.negates`.
+        ...(becomes.negates === undefined ? {} : { negates: becomes.negates }),
         // The object the casting was pointed at, so a later Bonus Action deals
         // the damage again to the same thing — see `OngoingSpell.object`.
         ...(context.object === undefined ? {} : { object: context.object }),
@@ -3426,6 +3498,8 @@ function aimedAt(
 interface OngoingRecordPlan {
   readonly spellId: string;
   readonly on: 'caster' | 'targets' | 'point';
+  /** The casting this one answered and negates — see `OngoingSpell.negates`. */
+  readonly negates?: string;
   /** Set when the geometry chose the targets rather than the caller. */
   readonly fromArea?: true;
   readonly origin?: Point;

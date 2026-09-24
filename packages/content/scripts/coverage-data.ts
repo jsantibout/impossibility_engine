@@ -341,6 +341,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // record at all.
   'searing-smite',
   'shatter',
+  // `shield.test.ts` (engine): both triggers. The Armour Class raised against
+  // a held hit, and the second clause the spell waited on a window for — the
+  // wizard answering a declared Magic Missile and taking none of its darts
+  // while the fighter beside them takes theirs, with the negation pinned by
+  // casting id so a second caster's volley still lands.
+  'shield',
   // Driven end to end by `executed-second-pass.test.ts`: refused by the
   // ordinary casting command, then settled onto a held greatsword hit, with
   // the 2d6 Radiant and its per-slot die measured as the gap between two

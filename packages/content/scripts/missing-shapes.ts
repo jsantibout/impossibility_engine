@@ -163,8 +163,6 @@ export const MISSING_SHAPES = {
     'a die whose result an effect overrides or throws again. `docs/design/rolls-and-damage.md` has both halves for damage dice — "Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs`" — and for a D20 Test it had only `rerollTest`, which is a Reaction a feature takes. **The half that is retired is the pipeline reroll**: a `reroll-test-die` grant names a face, `sheetAsItStands` derives it onto the sheet every roller already asks for, and `rollD20Recorded` throws the counted die again and keeps the first throw on `roll-recorded.supersedes` — which reaches every ability check, saving throw, attack roll, Initiative and death save without a roll site having to know, and is SRD Luck whole. What is left under this name is a **spell effect** reaching either half: nothing a definition can write replaces a die or a result, so the reroll above is a feature’s sentence and only a feature’s.',
   'a-die-behaviour-a-spell-asks-for':
     '`docs/design/rolls-and-damage.md`’s "Dice Are Individually Addressable" table: `treatLowRollsAs`, `explodeOnMax` and `rerollDice` are built and tested, and the claim this description used to make — that no definition passes any of them — is **half retired**. `SpellDefinition.dieRule` is the door a spell asks through, `explodeOnMax` is behind its one arm, and Sorcerous Burst is the SRD sentence that walks through it, capped at a modifier the engine derives rather than one the catalogue states. What is left under this id is two different things, and neither of them is the plumbing. **A predicate over a whole roll**: `DieEffect` judges one die at a time — `substitute` and `bonusOn` both take `(rolled, sides)` — and Chromatic Orb’s "If you roll the same number on two or more of the d8s" asks about a pair, which no signature here can be handed; its consequence is a second attack out of one casting in any case, so the trigger alone would fire at nothing. **A reroll the roller chooses**: `rerollDice` takes indices because SRD Empowered Spell lets a player pick which damage dice to throw again, and nothing in the command layer asks a caller which, so the one feature that prints it stays filed here. Savage Attacker used to be filed beside it and never belonged there — it throws the **whole** weapon component a second time and keeps one of two totals rather than naming dice — and it is retired: `RollRule` and `rollUnder` are the roll-level scope `DieEffect` could not be handed, an `attack-roll-rule` grant is how a feature asks for one, and `standingWeaponRollRule` supplies `AttackOptions.weaponRollRule` once a turn. **An attack’s scope rather than a spell’s** is the third thing that used to be filed here, and it is retired: `AttackOptions.damageEffects` is supplied now, by `standingDamageEffects`, off an `attack-die-rule` grant a feat may carry and a `WeaponNarrowing` that says "a Melee weapon that you are holding with two hands". SRD Great Weapon Fighting is the sentence that walks through it. Defense was filed beside it under the same weapon clause and never belonged there — its own is about **armour** — and is blocked on a `StandingRequirement` instead.',
-  'a-reaction-window-that-opens-on-being-targeted':
-    'a Reaction window that opens when a casting **names** a creature, before it resolves on them. `docs/design/rolls-and-damage.md` says what a window is and the archived record behind it says why the list is closed: "The vocabulary is five named windows and it is shared with spells", "a table rather than a framework because every member is a point in a resolution the engine already performs", and "A spell’s saving throws are atomic", so nothing can be pushed inside `resolveSpell`. Being *targeted* is exactly such a point and the engine passes through it without stopping: a casting settles its targets and resolves its effects in one breath. SRD Shield prints it in its Casting Time and hangs a second sentence on the same absent moment — "you take no damage from _Magic Missile_" — which is a benefit with nowhere to be, rather than a second shape.',
   'a-damage-penalty-a-spell-grants':
     '`docs/design/rolls-and-damage.md`: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
@@ -1171,27 +1169,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'costs no Attack action',
       why: 'table',
       note: 'SRD ends this spell "if the warded creature makes an attack roll", and an attack roll changes no state by rule — `roll-recorded` is an audit line — so the ending hangs on the swing that spends something or on the blow that lands. An Opportunity Attack that misses, or any swing outside combat, leaves the ward standing where the book would end it.',
-    },
-  ],
-  shield: [
-    {
-      clause: 'Magic Missile',
-      // **Re-filed, because the reason it used to give stopped being true.**
-      // This clause was `damage-with-neither-an-attack-roll-nor-a-save` on the
-      // grounds that Shield's second trigger and second benefit could not
-      // exist while the spell they name could not be cast. Magic Missile is
-      // executed now and Shield is no nearer: what blocks it is two other
-      // things entirely, and leaving the old id here would have credited a
-      // shape's retirement with finishing a spell it does not touch.
-      // **Re-filed a second time, because the shape it named was built and
-      // this clause was not what it was about.** `damage-reduction` is a
-      // standing grant on the defender that takes a rolled amount off a hit of
-      // a named type, and SRD Resistance walks through it; nothing about it
-      // brings Shield any nearer, because what Shield is waiting for is a
-      // *moment*. Crediting the reduction's arrival with finishing a spell it
-      // does not touch is the failure this entry has now avoided twice.
-      why: 'a-reaction-window-that-opens-on-being-targeted',
-      note: 'SRD hangs two halves of this spell on one absent moment. The printed Casting Time makes being targeted by the Magic Missile spell a trigger for the Reaction, and the paragraph hangs the benefit on it — "you take no damage from _Magic Missile_". A casting names its targets and resolves its effects in one breath, so there is no point between the two for a defender to answer at, and with no window there is nothing for the benefit to hang on either. The benefit is not a granted defence in any case: `damage-defense` names a damage type, and an engine rule naming a spell id is swept out of the engine by name.',
     },
   ],
   'shining-smite': [
