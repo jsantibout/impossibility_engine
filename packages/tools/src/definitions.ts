@@ -234,6 +234,7 @@ import {
   usePoolOption,
   useRecovery,
   useSelfHeal,
+  wakeCreature,
 } from '@ie/engine';
 import { z } from 'zod';
 import type { Campaign } from './campaign.js';
@@ -2637,6 +2638,42 @@ const END_CONCENTRATION = tool({
       context,
       endConcentration(context.campaign.state(), who(args.who), 'voluntary', identity(context)),
       { ended: 'concentration' },
+    ),
+});
+
+/**
+ * SRD Sleep: "The spell ends on a target if it takes damage or **someone
+ * within 5 feet of it takes an action to shake it out of the spell's
+ * effect**."
+ *
+ * The one thing in the book a creature spends its own Action on to end an
+ * effect on **somebody else**, which is why it is a tool of its own rather
+ * than a `kind` under `take_action`: every action there is something the
+ * creature does to or for itself, and this one names a second creature.
+ *
+ * **It carries no number and no die**, which is what keeps it on this surface:
+ * the Action is the engine's to charge, the five feet the engine's to measure,
+ * and which effects end is the engine's to find. The caller states an intent
+ * and nothing else.
+ *
+ * A creature holding nothing a shake would end is refused rather than charged,
+ * because an Action spent on nothing is the one thing the book does not let a
+ * table do by accident.
+ */
+const WAKE_CREATURE = tool({
+  name: 'wake_creature',
+  description:
+    'Spend an Action shaking a creature within 5 feet out of a magical sleep or stupor — SRD Sleep’s "someone within 5 feet of it takes an action to shake it out of the spell’s effect", SRD Hypnotic Pattern’s stupor, a dragon’s sleep breath, a pseudodragon’s sting. It ends every one of those on that creature at once; nothing else, and nothing on anybody standing beside them. A creature holding nothing a shake would end is refused rather than charged, and so is one more than 5 feet away. A creature merely Unconscious at 0 Hit Points is not woken this way: what ends that is hit points.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The creature spending the Action.'),
+    target: creatureId.describe('The sleeper being shaken — within 5 feet, and not themselves.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      wakeCreature(context.campaign.state(), who(args.who), { target: who(args.target) }, identity(context)),
+      { woke: args.target },
     ),
 });
 
@@ -5050,6 +5087,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   USE_POOL_OPTION,
   TRADE_RESOURCE,
   ADVANCE_CHARACTER,
+  WAKE_CREATURE,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const TOOL_NAMES: readonly string[] = TOOLS.map((definition) => definition.name);

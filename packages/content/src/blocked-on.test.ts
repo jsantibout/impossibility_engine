@@ -3102,24 +3102,23 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
   });
 
   /**
-   * And Hypnotic Pattern keeps the whole of its clause, which is the
-   * discriminating case for "do not widen the list to make a spell fit".
+   * And Hypnotic Pattern owes nothing at all now, which is the other end of
+   * the lesson the old row taught.
    *
-   * The lesson the old row taught survives the build that spent it. The list
-   * was widened by *transcribing a sentence*, not by stretching a member until
-   * a spell fitted, and the spell still owes what it owes.
+   * The list was widened by *transcribing a sentence* rather than by
+   * stretching a member until a spell fitted, and the residue it left —
+   * "someone else uses an action to shake the creature out of its stupor" —
+   * was carried on the spell until the verb it names existed. It does now, so
+   * both halves of the sentence are causes and neither is prose.
    */
-  it('builds the half of Hypnotic Pattern’s sentence that is a blow, and keeps the other', () => {
+  it('builds both halves of Hypnotic Pattern’s sentence, the blow and the shake', () => {
     const shapes = (ADJUDICATED['hypnotic-pattern'] ?? []).map((entry) => entry.why);
     expect(shapes).not.toContain('a-casting-ended-by-a-trigger');
     expect(SRD_CONTENT.spell('hypnotic-pattern')?.endsEarly).toEqual([
       { on: 'target-takes-damage', ends: 'target' },
+      { on: 'shaken-awake', ends: 'target' },
     ]);
-    expect(
-      (SRD_CONTENT.spell('hypnotic-pattern')?.unmodelled ?? []).filter((note) =>
-        note.includes('shake the creature out of its stupor'),
-      ),
-    ).toHaveLength(1);
+    expect(SRD_CONTENT.spell('hypnotic-pattern')?.unmodelled ?? []).toEqual([]);
   });
 
   /**

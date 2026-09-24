@@ -159,6 +159,20 @@ describe('the door that rolls a printed line’s saving throw', () => {
     const t = fight('the-gorgon-tramples', 'gorgon');
     turnOf(t, 'fang');
 
+    // "one creature within 5 feet **that has the Prone condition**": the other
+    // fact this reader takes off a targeting clause, so a trample forced on a
+    // creature still on its feet is refused before anything is spent.
+    const upright = t.call('force_printed_save', {
+      who: 'fang',
+      line: 'Trample',
+      targets: ['grish'],
+    });
+    expect(upright.status).toBe('refused');
+    if (upright.status === 'refused') expect(upright.code).toBe('target_not_eligible');
+    expectOk(
+      t.call('rule_condition', { who: 'grish', condition: 'prone', ruling: 'the gorgon shoved it' }),
+    );
+
     const out = expectOk(
       t.call('force_printed_save', { who: 'fang', line: 'Trample', targets: ['grish'] }),
     );
@@ -197,8 +211,9 @@ describe('the door that rolls a printed line’s saving throw', () => {
     // SRD Brass Dragon Wyrmling's Sleep Breath: "_Failure:_ Incapacitated
     // until the end of its next turn, at which point it repeats the save.
     // _Second Failure:_ The Unconscious condition for 1 minute." Both rungs
-    // are the engine's now, and the two endings the book prints for the
-    // deeper one are handed to the table at the moment of use.
+    // are the engine's, and so are the two endings the book prints for the
+    // deeper one — a blow, and a neighbour's Action — so nothing of the line
+    // reaches the table but the Cone.
     const t = fight('sleeping', 'brass-dragon-wyrmling');
     turnOf(t, 'fang');
 
@@ -213,9 +228,92 @@ describe('the door that rolls a printed line’s saving throw', () => {
     expect(outcomes).toHaveLength(1);
     expect(outcomes[0]!['dc']).toBe(11);
     expect(out.events.filter((event) => event.type === 'roll-recorded')).toHaveLength(1);
-    expect(out.unverified.join(' ')).toContain(
-      '_Second Failure:_ This effect ends for the target if it takes damage',
+    expect(out.unverified.join(' ')).not.toContain('This effect ends for the target');
+    expect(out.unverified).toHaveLength(1);
+  });
+
+  /**
+   * SRD Vampire Spawn's Bite: "one creature within 5 feet that is willing or
+   * that has the Grappled, Incapacitated, or Restrained condition."
+   *
+   * The engine checks the three conditions off the creature; the willingness
+   * is fiction and no state answers it, so the DM's door carries the word and
+   * a caller who has not said it is **asked** rather than refused.
+   */
+  it('asks whether an unheld creature is willing, and bites one that is', () => {
+    const t = fight('the-vampire-bites', 'vampire-spawn');
+    turnOf(t, 'fang');
+
+    const asked = t.call('force_printed_save', {
+      who: 'fang',
+      line: 'Bite',
+      targets: ['grish'],
+    });
+    expect(asked.status).toBe('needs-context');
+    if (asked.status !== 'needs-context') return;
+    expect(asked.code).toBe('undeclared_consent');
+    expect(asked.reason).toContain('willing');
+    // Nothing was spent asking: the Action is still the vampire's.
+    expect(t.campaign.log().some((event) => event.type === 'action-spent')).toBe(false);
+
+    const bitten = expectOk(
+      t.call('force_printed_save', {
+        who: 'fang',
+        line: 'Bite',
+        targets: ['grish'],
+        willing: ['grish'],
+      }),
     );
+    expect(bitten.resolution['outcomes']).toHaveLength(1);
+  });
+
+  /**
+   * SRD Pseudodragon's Sting: "_Failure by 5 or More:_ While Poisoned, the
+   * target also has the Unconscious condition, **which ends early if the
+   * target takes damage or a creature within 5 feet of it takes an action to
+   * wake it**."
+   *
+   * The second half is `wake_creature`, and it is on **both** surfaces: one
+   * creature spending its own Action to end an effect on another is something
+   * a player does as often as a DM does.
+   */
+  it('lets a neighbour spend an Action shaking the sleeper, on either surface', () => {
+    for (const seed of ['sting-a', 'sting-b', 'sting-c', 'sting-d', 'sting-e', 'sting-f']) {
+      const t = fight(seed, 'pseudodragon');
+      turnOf(t, 'fang');
+      const out = expectOk(
+        t.call('force_printed_save', { who: 'fang', line: 'Sting', targets: ['grish'] }),
+      );
+      const conditions = t.surface
+        .observe()
+        .creatures.find((one) => one.id === 'grish')!.conditions;
+      if (!conditions.includes('unconscious')) continue;
+
+      // A goblin standing beside the sleeper spends its Action and the
+      // Unconscious goes; the hour of Poison the book hung it on runs on.
+      turnOf(t, 'snik');
+      expectOk(t.call('wake_creature', { who: 'snik', target: 'grish' }));
+      const awake = t.surface.observe().creatures.find((one) => one.id === 'grish')!.conditions;
+      expect(awake).not.toContain('unconscious');
+      expect(awake).toContain('poisoned');
+      expect(out.unverified).toHaveLength(1);
+
+      // And a creature holding nothing a shake would end is refused rather
+      // than charged: an Action spent on nothing is what the verb exists to
+      // prevent.
+      const nothing = t.call('wake_creature', { who: 'snik', target: 'grish' });
+      expect(nothing.status).toBe('refused');
+      if (nothing.status === 'refused') expect(nothing.code).toBe('nothing_to_wake');
+      return;
+    }
+    throw new Error('no seed missed the sting by five');
+  });
+
+  it('publishes the shake on the player’s door too', () => {
+    const player = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'shaking' }));
+    expect(player.tools.map((one) => one.name)).toContain('wake_creature');
+    const dm = createDmSurface(createCampaign({ content: SRD_CONTENT, seed: 'shaking' }));
+    expect(dm.tools.map((one) => one.name)).toContain('wake_creature');
   });
 
   it('is the DM’s door and not the model’s', () => {

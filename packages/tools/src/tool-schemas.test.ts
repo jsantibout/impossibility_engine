@@ -128,10 +128,18 @@ describe('toolSchemas', () => {
     // in place of its damage — and the Blinded track gave `eligible_targets`
     // the `at` / `towards` a self-origin area needs to be placed, all on the
     // same night; the three pins sum.
-    expect(toolSchemas(player())).toHaveLength(78);
-    expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(108921);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(129843);
+    // Re-pinned 2026-09-24 for the sleeper's door: `wake_creature` is a tool
+    // of its own on **both** surfaces — one creature spending an Action to end
+    // an effect on another is the one thing in the book shaped that way, and
+    // it sits beside `take_action` rather than inside it because every kind
+    // there names only the creature taking it. The DM surface also gained
+    // `force_printed_save.willing`, the half of SRD Vampire Spawn's targeting
+    // clause no state can answer. Two pins, and they sum with whatever the
+    // other tracks of this batch moved.
+    expect(toolSchemas(player())).toHaveLength(79);
+    expect(toolSchemas(dm())).toHaveLength(96);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(109831);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(131334);
   });
 });
 
