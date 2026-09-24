@@ -189,6 +189,14 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'chill-touch',
   'chromatic-orb',
   'circle-of-death',
+  // Driven end to end by `spell-options.test.ts` (engine): the word refused
+  // when none was spoken and when a sixth was, Halt forbidding the move, the
+  // action and the Bonus Action to the end of the target's next turn, Drop
+  // emptying both hands, Grovel knocking it Prone, a made save doing none of
+  // the three, Approach handing its sentence over and moving nobody, and no
+  // word running another word's branch. Partial as well as verified: every
+  // one of the five is obeyed inside a turn the engine does not direct.
+  'command',
   'compulsion',
   'cone-of-cold',
   'conjure-fey',
@@ -392,6 +400,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'stinking-cloud',
   'stoneskin',
   'sunburst',
+  // Driven end to end by `spell-options.test.ts` (engine): the wonder named
+  // at the casting, its own sentence handed to the table and the other five
+  // withheld, and a fourth casting ending the first of the three the book
+  // lets run at once. Partial as well as verified: Booming Voice's Advantage
+  // is a mode with no creature to land on.
+  'thaumaturgy',
   'thunderwave',
   // Driven end to end by `cantrip-with-the-swing.test.ts` (engine): the cantrip
   // named on the attack command, the Action spent as the casting's and no
@@ -467,6 +481,14 @@ export interface SpellCoverage {
  * one of the seven arms above, so an arm for it would be a claim about a
  * population that does not exist.
  *
+ * **The ninth arm is a branch that resolves something**, and it is the first
+ * arm about a list that is not `effects`. `SpellDefinition.options` is a
+ * choice of which effects run — SRD Command's five words — so a definition
+ * whose own list is empty may still knock a creature Prone, empty its hands
+ * or forbid its next turn the moment a caster speaks the word. Reading
+ * `effects` alone would call that spell tracked while it was doing three of
+ * the five things it prints.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -480,7 +502,10 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.areaLight !== undefined ||
   definition.areaObscurement !== undefined ||
   definition.conjures !== undefined ||
-  definition.maxRunning !== undefined;
+  definition.maxRunning !== undefined ||
+  Object.values(definition.options ?? {}).some(
+    (branch) => (branch.effects ?? []).length > 0,
+  );
 
 /** Every definition the engine resolves something of, by id. */
 export const EXECUTED_SPELL_IDS: ReadonlySet<string> = new Set(

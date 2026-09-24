@@ -302,6 +302,14 @@ const cast = (
       ...(definition.choiceStated === undefined
         ? {}
         : { choice: definition.choiceStated.options[0]! }),
+      // And the branch, where the spell prints several: `option_required`
+      // rather than `choice_required`, and the same reading a third time —
+      // what this file claims is that every one of these is cast rather than
+      // refused, not which of Command's five words was spoken. The first in
+      // key order, as the executed sweep answers it.
+      ...(definition.options === undefined
+        ? {}
+        : { option: Object.keys(definition.options).sort()[0]! }),
       // And the same for a printed list of damage types, which is the other
       // fact a casting is refused for leaving unstated — `damage_type_required`
       // rather than `choice_required`, and the same reading: what this file
@@ -1654,6 +1662,15 @@ describe('every spell this batch added is cast for real', () => {
     // finished total if it came out under seventeen, which is read last and
     // through plate. Nothing is left but willingness and the bark.
     'barkskin',
+    // **Command leaves by the second arm of a choice made at the casting.**
+    // Three of its five words were each writable alone — a drop, a Prone, a
+    // rule forbidding three slots — and what none of them had was a way to
+    // say *only if the caster spoke this word*. `SpellDefinition.options` is
+    // that: the word is the tenth stated fact, the Wisdom save belongs to the
+    // branch it gates, and the consequence is a rider on the save. What is
+    // left is the turn Drop and Grovel end, and the two words whose whole
+    // content is a turn played by somebody along a route nobody chose.
+    'command',
     'darkness',
     'daylight',
     'enhance-ability',
@@ -1731,6 +1748,14 @@ describe('every spell this batch added is cast for real', () => {
     // left, which are a fact about a room.
     'sleet-storm',
     'spike-growth',
+    // **Thaumaturgy leaves by the same door and by Prestidigitation's.** Its
+    // six wonders are six branches, so the casting records which one was
+    // worked and hands that one's sentence — and none of the other five — to
+    // the table; "up to three of its 1-minute effects active at a time" is
+    // `maxRunning`, the field Prestidigitation's identical sentence built.
+    // What is left is Booming Voice's Advantage, which is an ordinary mode
+    // with no creature to land on: the spell names no target at all.
+    'thaumaturgy',
     // **True Strike leaves by a door no effect kind opened.** Its swing *is*
     // the casting — "you make one attack with the weapon used in the spell's
     // casting" — so `weapon-attack` is resolved by the attack command, which
@@ -2009,8 +2034,19 @@ describe('every spell this batch added is cast for real', () => {
     (spellId) => {
       const definition = SRD_CONTENT.spell(spellId)!;
       const out = driven(spellId);
-      expect(definition.unmodelled ?? [], spellId).not.toEqual([]);
-      for (const gap of definition.unmodelled ?? []) {
+      // **A branch's debts are the spell's**, and for a spell that prints
+      // branches they may be all of them: SRD Command's own list is empty and
+      // every line it owes belongs to the word that was spoken. The harness
+      // speaks the first branch in key order, so this reads the same one — a
+      // sweep that read only the definition's list would call a spell honest
+      // for saying nothing while its branch said everything.
+      const branch = Object.keys(definition.options ?? {}).sort()[0];
+      const owed = [
+        ...(definition.unmodelled ?? []),
+        ...(branch === undefined ? [] : (definition.options![branch]!.unmodelled ?? [])),
+      ];
+      expect(owed, spellId).not.toEqual([]);
+      for (const gap of owed) {
         expect(out.unverified).toContain(`${definition.name}: ${gap}`);
       }
     },

@@ -830,6 +830,12 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // choice — a condition, an ability, a skill — and a readied one, which
   // states it at the Ready because that is where SRD spends the slot.
   choice_required: { fields: ['cast_spell.choice', 'take_ready.response.choice'] },
+  // The tenth, and it has **one** caller rather than two. A branch is stated
+  // through `cast_spell.option`; a Ready cannot state one at all, because
+  // `ReadyResponse` carries the facts a release reads back and a branch is not
+  // among them — so readying SRD Command is refused at the Ready, before the
+  // slot, with the same code and the list of words in the reason.
+  option_required: { fields: ['cast_spell.option'] },
   fought_fact_required: { fields: ['cast_spell.fought', 'take_ready.response.fought'] },
   destination_required: {
     fields: [

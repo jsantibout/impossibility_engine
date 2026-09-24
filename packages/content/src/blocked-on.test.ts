@@ -2356,14 +2356,16 @@ describe('a consumer count is a query', () => {
             ];
       expect(shapes, id).not.toContain('a-choice-made-at-the-casting');
     }
-    // What is still filed here is the **other arm**, and it is a different
-    // mechanism rather than a leftover: a choice of *which effects run*, where
-    // a substitution replaces a value in the one list a definition has.
-    // Thaumaturgy's six wonders, Enlarge/Reduce's two halves and Glyph of
-    // Warding's two glyphs are all that sentence, and they are read across
-    // three populations — one executed, two undefined — which is what
-    // makes the claim about the *shape* rather than about one map.
-    for (const id of ['thaumaturgy', 'enlarge-reduce', 'glyph-of-warding']) {
+    // **And the other arm is built too, which is what this loop now records.**
+    // A choice of *which effects run* is `SpellDefinition.options`: a record
+    // of named branches, one of which a casting runs, named as the tenth
+    // stated fact and pinned onto the record. Thaumaturgy's six wonders and
+    // Command's five words left by that door, and Enlarge/Reduce's two halves
+    // are the shell of it with every clause inside them filed under a shape of
+    // its own. What is left under the id is **Glyph of Warding**, whose two
+    // glyphs are a stored casting rather than a branch — a shape of its own,
+    // and the one population the claim still reads across.
+    for (const id of ['glyph-of-warding']) {
       const shapes =
         BLOCKED_ON[id] !== undefined
           ? blockersOf(id)
@@ -2610,7 +2612,11 @@ describe('a consumer count is a query', () => {
         .map((one) => one.shape)
         .sort(),
     ).toEqual([
-      'a-choice-made-at-the-casting',
+      // `a-choice-made-at-the-casting` stood here until its second arm was
+      // built. `SpellDefinition.options` is that arm — a choice of which
+      // effects run — and Command and Thaumaturgy left the undefined and
+      // tracked maps through it, which took the shape out of this band rather
+      // than moving it down inside one.
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',
       'an-effect-that-suppresses-other-magic',

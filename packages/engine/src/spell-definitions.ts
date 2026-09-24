@@ -1098,6 +1098,31 @@ export type ModifierRider =
  */
 export interface DropRider {
   /**
+   * Everything the creature is holding, rather than the one thing the casting
+   * named.
+   *
+   * > SRD Command, _Drop_: "The target drops **whatever it is holding** and
+   * > then ends its turn."
+   *
+   * The paragraph above says the rider names no object because which thing is
+   * the caster's decision; this is the sentence where there is no decision to
+   * make, and so no `CastSpellRequest.object` to demand. The two are told
+   * apart at the door rather than at the table: `namesAnObject` answers no for
+   * a definition whose every drop is an `all`, so the caster is not asked for
+   * an object they were never offered, and `object_required` still refuses a
+   * Heat Metal that named none.
+   *
+   * **"Whatever it is holding" is the same count of hands the named drop
+   * uses.** `handsFor` answers it item by item — a mace and a shield are let
+   * go of, a breastplate is worn and stays on — so the two arms agree about
+   * what holding means rather than each having an opinion.
+   *
+   * `orElse` is read per item and hangs once: a creature that let go of
+   * everything it could takes nothing, and one that could let go of nothing
+   * takes the clause the book prints after the drop.
+   */
+  readonly all?: true;
+  /**
    * What the outcome does where the object cannot be let go of.
    *
    * {@link ModifierRider}s and not effects, because they are the same kind of
@@ -3983,6 +4008,63 @@ export interface StatedChoice {
   readonly options: readonly string[];
 }
 
+/**
+ * One branch of a spell that prints several, of which a casting runs exactly
+ * one — see {@link SpellDefinition.options}.
+ *
+ * Each of the three fields answers "what does this branch do", and a branch
+ * that answers with none of them is refused (`option_says_nothing`): the whole
+ * point of naming a branch is that a reader of the definition can see what
+ * speaking that word gets you.
+ */
+export interface SpellOption {
+  /** The book's own name for the branch: "Halt", "Booming Voice", "Enlarge". */
+  readonly label: string;
+  /**
+   * The effects this branch runs, after the spell's own list.
+   *
+   * **A whole list rather than a patch on the common one.** SRD Command's five
+   * words are five different consequences of one Wisdom saving throw, and the
+   * saving throw is the thing that *gates* them — so the branch carries the
+   * save with its own riders hung on it, which is what makes the gate real. A
+   * common save with the consequences appended after it would run them whether
+   * the target resisted or not, which is the confident wrong answer rather
+   * than the missing one.
+   *
+   * **What a branch may not carry is what the casting settles before it runs.**
+   * `resolveSpell` sizes the target list off the aimed rolls in
+   * `SpellDefinition.effects`, measures a swing's reach off the same list, and
+   * requires a stated weapon, object, destination or form off it too — all
+   * before any effect resolves. A branch is read at resolution, so an effect
+   * of one of those kinds here would be a roll nobody made room for; see
+   * `PRESETTLED_EFFECT_KINDS` in `spell-schema.ts`, which refuses it at
+   * authoring rather than dropping it at the table.
+   */
+  readonly effects?: readonly SpellEffect[];
+  /**
+   * Printed text this branch hands to whoever is running the table — see
+   * {@link SpellDefinition.dmDecides}, which is the same field one level up
+   * and travels the same way.
+   *
+   * SRD Command's _Approach_ and _Flee_ are the writers: "moves toward you by
+   * the shortest and most direct route", "spends its turn moving away from you
+   * by the fastest available means". Both are a whole turn played by somebody,
+   * along a route nobody chose, which is the ruling Fear's compelled Dash
+   * already took — the engine adjudicates legality and walks nobody anywhere.
+   */
+  readonly handsOver?: readonly string[];
+  /**
+   * Parts of this branch the engine does not execute — see
+   * {@link SpellDefinition.unmodelled}, which is the same field one level up.
+   *
+   * A debt rather than a handover, and the distinction is the one that field
+   * already draws: Enlarge/Reduce's size change is a shape somebody will build
+   * and this line will then go, where Approach's route is a question no engine
+   * answers.
+   */
+  readonly unmodelled?: readonly string[];
+}
+
 export interface SpellDefinition {
   /** The SRD slug, so a definition and its parsed record are the same spell. */
   readonly id: string;
@@ -4176,11 +4258,55 @@ export interface SpellDefinition {
    * run.** SRD Thaumaturgy's six wonders, Enlarge/Reduce's two halves and
    * Glyph of Warding's two glyphs are a choice *between effect lists*, and
    * nothing here can express one: `statedChoice` rewrites a field on an effect
-   * that is already in the list. That is the second arm of this shape and it
-   * is deliberately absent rather than half-built — an `of` member with no
-   * reader is the promise the validator exists to stop the engine making.
+   * that is already in the list. That is the second arm of this shape, and it
+   * is {@link SpellDefinition.options} — built after this docstring had named
+   * it absent for long enough that three spells were waiting on it. The two
+   * fields are neighbours rather than alternatives: a definition may print
+   * both, and one casting may state a branch *and* a value inside it.
    */
   readonly choiceStated?: StatedChoice;
+  /**
+   * The branches this spell prints, of which a casting runs exactly one.
+   *
+   * > SRD Command: "Choose the command from these options: _Approach. Drop.
+   * > Flee. Grovel. Halt._"
+   * > SRD Thaumaturgy: "You create one of the effects below within range."
+   * > SRD Enlarge/Reduce: "the spell enlarges or reduces a creature or an
+   * > object you can see within range (**see the chosen effect below**)."
+   *
+   * The second arm of `a-choice-made-at-the-casting`, and a different
+   * mechanism from {@link choiceStated} rather than a wider version of it:
+   * that one rewrites a *field* on an effect the list already holds, and this
+   * one decides *which list runs at all*. A substitution could never have
+   * expressed either — a definition carrying Booming Voice's mode would boom
+   * the caster's voice every time they flickered a candle.
+   *
+   * **The casting names one, the engine names none.** `CastSpellRequest.option`
+   * is the tenth stated fact and follows the discipline the other nine do:
+   * required where the spell prints branches (`option_required`), refused
+   * where it prints none (`no_option_clause`), refused off the list
+   * (`unknown_option`), and **never defaulted** — picking the first branch
+   * because it is printed first is the engine answering a question the book
+   * asked the caster, and it would answer the same way for ever.
+   *
+   * **The common list runs too, and it runs first.** A spell whose every
+   * branch shares an opening — a template, a grant on the caster — writes it
+   * once in {@link effects}, and the branch's own list runs after it. Where
+   * the shared thing is a *saving throw whose failure gates the branch*, the
+   * save belongs to the branch and not to the common list: an effect appended
+   * after a save does not know how the save went, so SRD Command writes the
+   * Wisdom save inside each word that has a consequence, with the consequence
+   * as a rider on it.
+   *
+   * **Pinned onto the casting**, beside the stated choice and for its reason:
+   * the record is read again on a later turn, and a casting already made does
+   * not change when the book does. `OngoingSpell.option` is where it lands and
+   * an activation reads it from there.
+   *
+   * At least two branches, which the validator enforces: one branch is a spell
+   * with no choice in it, written the long way round.
+   */
+  readonly options?: Readonly<Record<string, SpellOption>>;
   /**
    * How the individual dice of this spell's damage behave — see
    * {@link DieRule}.
@@ -5447,9 +5573,23 @@ export function delaysDamage(definition: SpellDefinition): boolean {
  * rolled. Honest, and one roll too late — which is the argument for asking
  * where the *running* list is known, and not here.
  */
-export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
+export function riderDurations(
+  definition: SpellDefinition,
+  /**
+   * The branch this casting named, where the spell prints branches.
+   *
+   * **The list that is running, not every list that could.** SRD Command's
+   * Halt hangs a rule that ends at the end of the target's next turn and its
+   * four other words hang nothing, so asking about all five would demand a
+   * turn order of a caster who spoke Grovel — and asking about none would let
+   * Halt reach `schedule` after the Wisdom save had been rolled, which is the
+   * failure the paragraph above records in the past tense. `optionEffects` is
+   * the identity function for every spell that prints no branches.
+   */
+  option?: string,
+): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
-  for (const effect of definition.effects) {
+  for (const effect of optionEffects(definition, option)) {
     // Every rider on every host, because a plural `conditions` means the one
     // that cannot be pinned is not always the first.
     for (const rider of conditionRiderOf(effect)) {
@@ -5537,10 +5677,63 @@ export function namesAnObject(definition: SpellDefinition): boolean {
  * ever writes the clause.
  */
 export function dropsAnObject(definition: SpellDefinition): boolean {
-  const lists = [definition.effects, definition.activation?.effects ?? []];
+  const lists = [
+    definition.effects,
+    definition.activation?.effects ?? [],
+    ...optionEffectLists(definition),
+  ];
   return lists.some((effects) =>
-    effects.some((effect) => outcomeRidersOf(effect).drops !== undefined),
+    effects.some((effect) => {
+      const drops = outcomeRidersOf(effect).drops;
+      // SRD Command's _Drop_ names no object because there is none to name —
+      // "whatever it is holding" — so it is a drop that does not make the
+      // spell one the caster has to point at something.
+      return drops !== undefined && drops.all !== true;
+    }),
   );
+}
+
+/**
+ * Every branch's effect list, for the readers that ask a question of the whole
+ * definition rather than of the list one casting runs.
+ *
+ * {@link SpellDefinition.options} is a choice made at the casting, so "does
+ * this spell ever write the clause" has to look inside the branches — exactly
+ * as it already looks inside an activation. The order is the record's key
+ * order, which `checkContent` sorts, so two readers of one definition agree.
+ */
+export function optionEffectLists(
+  definition: SpellDefinition,
+): readonly (readonly SpellEffect[])[] {
+  const options = definition.options;
+  if (options === undefined) return [];
+  return Object.keys(options)
+    .sort()
+    .map((key) => options[key]?.effects ?? []);
+}
+
+/**
+ * The effects a casting of this definition actually runs, given the branch it
+ * named.
+ *
+ * The common list first and the branch's after it, which is the order
+ * {@link SpellDefinition.options} states and the only one that reads: a
+ * definition writes what every branch shares once, and the branch adds what is
+ * its own. Identity for every spell that prints no branches, which is all but
+ * three of them.
+ *
+ * **It does not validate.** `declaredFacts` has already refused a casting that
+ * named no branch or a branch the spell does not print, so a name that reaches
+ * here is one of the record's keys; an unknown one contributes nothing rather
+ * than throwing, for the reason `statedChoice` is the identity function on a
+ * spell that prints no choice.
+ */
+export function optionEffects(
+  definition: SpellDefinition,
+  option: string | undefined,
+): readonly SpellEffect[] {
+  if (definition.options === undefined || option === undefined) return definition.effects;
+  return [...definition.effects, ...(definition.options[option]?.effects ?? [])];
 }
 
 export function teleportOf(
@@ -5718,10 +5911,17 @@ export function creatureTypesRead(effect: SpellEffect): readonly string[] {
  * answer yes; which roll eventually reads it is the difference between them.
  */
 export function castersAbilityRead(definition: SpellDefinition): boolean {
-  return definition.effects.some(
-    (effect) =>
-      effect.kind === 'dispel' ||
-      (effect.kind === 'weapon-rider' && effect.castingAbility === true),
+  // **Every list a casting could resolve**, which for a spell that prints
+  // branches includes each of them: the question is whether this spell ever
+  // reads the ability, asked before the wand's charge goes, and a wielder
+  // must hear about a word they have not yet spoken. `dropsAnObject` reads
+  // the branches for the same reason.
+  return [definition.effects, ...optionEffectLists(definition)].some((effects) =>
+    effects.some(
+      (effect) =>
+        effect.kind === 'dispel' ||
+        (effect.kind === 'weapon-rider' && effect.castingAbility === true),
+    ),
   );
 }
 
@@ -5769,6 +5969,13 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
     ...definition.effects,
     ...(definition.areaTrigger?.effects ?? []),
     ...(definition.activation?.effects ?? []),
+    // And every branch, for the reason the three above are here: the question
+    // is which numbers *resolving this spell* reads, and SRD Command rolls a
+    // Wisdom save in three of its five words and in none of its own list. The
+    // branch the casting will speak is not known when a wand is asked which
+    // ability to bring, and erring towards `true` is the safe direction this
+    // function's own note names.
+    ...optionEffectLists(definition).flat(),
   ];
 
   // SRD Minor Illusion offers a check "against your spell save DC" to anybody

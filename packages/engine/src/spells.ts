@@ -506,6 +506,24 @@ export interface OngoingSpell {
    */
   readonly choice?: StatedChoicePin;
   /**
+   * Which of the spell's printed branches this casting ran.
+   *
+   * SRD Command's five words, Thaumaturgy's six wonders, Enlarge/Reduce's two
+   * halves — see `SpellDefinition.options`. Pinned for the reason
+   * {@link choice} beside it is: a later turn acts through the record, and a
+   * casting already made does not change when the book does.
+   *
+   * **The bare name, where the choice beside it is a pair.** A pinned choice
+   * has to say which *field* it replaces, because applying it means rewriting
+   * one; a branch is applied by running its own list, and which list is a
+   * lookup in the definition the activation already has in hand. So there is
+   * no second half to lose.
+   *
+   * Absent for every spell that prints no branches, which is what makes a
+   * record written before this fold to exactly the state it always did.
+   */
+  readonly option?: string;
+  /**
    * What {@link area} does to whoever is standing in it — **as cast**.
    *
    * Pinned beside the area it is measured over, for the reason the area and

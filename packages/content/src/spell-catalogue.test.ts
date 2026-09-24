@@ -249,7 +249,14 @@ const logFor = (spellId: string): readonly GameEvent[] => {
     definition?.durationUntil !== undefined ||
     (definition !== null &&
       (delaysDamage(definition) ||
-        riderDurations(definition).some((lasts) => typeof lasts === 'string')));
+        riderDurations(
+    definition,
+    // The same word this sweep goes on to speak below, because the question
+    // is about the list a casting runs: reading every branch would demand a
+    // turn order of a casting that never hangs a deadline, and reading none
+    // would let one through to be refused after the die.
+    Object.keys(definition.options ?? {}).sort()[0],
+  ).some((lasts) => typeof lasts === 'string')));
 
   // A Reaction is cast in answer to something, and the engine now checks that
   // the something happened. Same principle as the creature type above: the
@@ -416,6 +423,15 @@ const castAt = (
       : dropsAnObject(definition)
         ? { object: HEATED }
         : {}),
+    // The tenth, and the same shape a ninth time: a spell that prints
+    // branches is refused until the caster names one, and one that prints none
+    // is refused for naming one. The sweep answers with the **first** branch
+    // in key order, for the reason it answers the choice above with the first
+    // printed value — the point here is that every definition casts rather
+    // than which word this casting spoke.
+    ...(definition.options === undefined
+      ? {}
+      : { option: Object.keys(definition.options).sort()[0]! }),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

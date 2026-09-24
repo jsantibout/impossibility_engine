@@ -2329,6 +2329,13 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the values a spell prints this casting chose, for the spells that print a list and leave the pick to the caster — Blindness/Deafness’ "the Blinded or Deafened condition (your choice)", Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s "choose a skill". Leaving it out for one of those is refused, and so is naming one for a spell that prints no choice.',
       ),
+    option: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which of the branches a spell prints this casting runs, for the spells that print several and leave the pick to the caster — Command’s "Choose the command from these options: Approach, Drop, Flee, Grovel, Halt", Thaumaturgy’s six wonders, Enlarge/Reduce’s two halves. Named by the branch’s own key: `halt`, `booming-voice`, `enlarge`. Leaving it out for one of those is refused and comes back listing them; naming one for a spell that prints no branches is refused too. Not the same field as `choice`, which names a value substituted into the effects a spell already has.',
+      ),
     fought: z
       .array(creatureId)
       .optional()
@@ -2448,6 +2455,7 @@ const CAST_SPELL = tool({
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
       ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
       ...(args.choice === undefined ? {} : { choice: args.choice }),
+      ...(args.option === undefined ? {} : { option: args.option }),
       // **An empty `fought` is an answer and is never elided.** "We are
       // fighting none of them" is a fact the caster stated; absence is a
       // caller who has not read the spell, and the engine tells the two

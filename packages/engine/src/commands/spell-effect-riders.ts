@@ -623,22 +623,41 @@ export function applyRiders(
   // and the pools a labelled copy carries are all the command's own rules
   // rather than a second spelling of them here.
   if (riders.drops !== undefined) {
-    const object = context.object;
-    if (object === undefined) {
-      throw new Error(
-        `${definition.name} makes its target drop an object and none was named; ` +
-          'the caller should have been refused `object_required` before reaching here',
-      );
+    // **Two sentences and one mechanism.** Heat Metal heats the object the
+    // caster pointed at; SRD Command's _Drop_ says "whatever it is holding",
+    // which names nothing and so asks for nothing. `namesAnObject` answers no
+    // for the second, so a casting that reaches here with `all` was never
+    // asked for an object and there is none to miss.
+    const named =
+      riders.drops.all === true
+        ? [...(current.creatures[target]?.equipped ?? [])].map((worn) => worn.id).sort()
+        : [
+            context.object ??
+              (() => {
+                throw new Error(
+                  `${definition.name} makes its target drop an object and none was named; ` +
+                    'the caller should have been refused `object_required` before reaching here',
+                );
+              })(),
+          ];
+
+    // **Whether anything at all was let go of**, which is the question the
+    // second sentence asks. A named drop has one answer and an `all` has as
+    // many as the creature has hands full; a creature that let go of something
+    // has dropped, and one that could let go of nothing has not.
+    let dropped = false;
+    for (const object of named) {
+      const letGo = forcedDrop(current, context.content, target, object);
+      if (!letGo.ok) return letGo;
+      events.push(...letGo.value.events);
+      current = letGo.value.events.reduce(applyEvent, current);
+      dropped ||= letGo.value.dropped;
     }
-    const letGo = forcedDrop(current, context.content, target, object);
-    if (!letGo.ok) return letGo;
-    events.push(...letGo.value.events);
-    current = letGo.value.events.reduce(applyEvent, current);
 
     // "If it doesn't drop the object" — the clause the book puts after the
     // one above, and the branch the engine can actually see.
     const instead = riders.drops.orElse ?? [];
-    if (!letGo.value.dropped && instead.length > 0) {
+    if (!dropped && instead.length > 0) {
       const hung = applyRiders(current, target, { modifiers: instead }, context);
       if (!hung.ok) return hung;
       events.push(...hung.value.events);

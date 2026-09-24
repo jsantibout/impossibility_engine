@@ -93,6 +93,7 @@ import {
   type SpellEffect,
   teleportOf,
   weaponRiderOf,
+  optionEffects,
   statedChoice,
   statedDamageType,
   damageTypesDealt,
@@ -368,9 +369,12 @@ export function resolveDeclaredCast(
     // declaration rather than dropping it. What reaches here is every feature
     // that needs no election — Foe Slayer's die, Potent Cantrip's floor — which
     // is the whole of what a long casting could have wanted.
+    // The branch first, then the substitutions over what it produced, then
+    // the caster's own riders over the result — see `optionEffects`, the
+    // identity function for every spell that prints no branches.
     const running = withCastingRiders(
       statedChoice(
-        statedDamageType(definition.effects, pending.damageType),
+        statedDamageType(optionEffects(definition, pending.option), pending.damageType),
         definition.choiceStated?.of,
         pending.choice,
       ),
@@ -384,7 +388,7 @@ export function resolveDeclaredCast(
           chosen.value?.kind === 'cantrip' || chosen.value?.kind === 'prepared'
             ? chosen.value.classId
             : null,
-        damageTypes: damageTypesDealt(definition.effects),
+        damageTypes: damageTypesDealt(optionEffects(definition, pending.option)),
         slotLevel: pending.level,
         using: [],
       }),
@@ -492,6 +496,9 @@ export function resolveDeclaredCast(
               // a record is read again on a turn boundary and may not ask the
               // book how to apply an answer it already holds.
               ...(settledChoice === undefined ? {} : { choice: settledChoice }),
+              // And the branch the declaration named, read back off the record
+              // rather than from a fresh request there is none of.
+              ...(pending.option === undefined ? {} : { option: pending.option }),
               // The designation and the stated type reach the record the area
               // detectors read, exactly as they do on the atomic path: without
               // them a held Spirit Guardians catches a creature its caster
@@ -669,7 +676,7 @@ export function castOrRelease(
     // different moment per target and is asked below, where the targets are
     // settled — the division {@link anchoredOnTarget} owns, and the one
     // `delayedDuration` has always made for the same reason.
-    for (const lasts of riderDurations(definition)) {
+    for (const lasts of riderDurations(definition, request.option)) {
       if (anchoredOnTarget(lasts)) continue;
       const wants = riderDuration(lasts, casterId) as Duration;
       const pinned = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, wants);
@@ -866,9 +873,20 @@ export function castOrRelease(
     // layer ("what of this spell is still yours?") and stay distinguishable
     // because they are different answers: a gap is a debt somebody may pay,
     // and a handover is a question nobody here will ever answer.
+    //
+    // **And the branch's own two lists**, which travel exactly as the
+    // definition's do and are the branch's for the same reason the effects
+    // are: SRD Command's _Approach_ hands a whole turn to the table and
+    // _Grovel_ does not, so a spell that reported both would tell the table to
+    // walk a creature it had knocked Prone. Read off the word this casting
+    // spoke, and nothing at all for the four it did not.
+    const branch =
+      request.option === undefined ? undefined : definition.options?.[request.option];
     const unverified: string[] = [
       ...(definition.unmodelled ?? []).map((gap) => `${definition.name}: ${gap}`),
+      ...(branch?.unmodelled ?? []).map((gap) => `${definition.name}: ${gap}`),
       ...(definition.dmDecides ?? []).map((printed) => handedOver(definition.name, printed)),
+      ...(branch?.handsOver ?? []).map((printed) => handedOver(definition.name, printed)),
       // And what the *grant* printed about this spell, which is the same
       // question one host along: a stat block's "(self only)", "(level 4
       // version)", "(lasts 24 hours)" are clauses the grant has no field for,
@@ -1115,7 +1133,17 @@ export function castOrRelease(
     // and joins the same list the position and sight requests use, because a
     // caller fixing a thin record should be told everything that is thin
     // rather than one fact at a time.
-    needs.push(...creatureTypeNeeds(state, definition.name, definition.effects, targets));
+    // **The list this casting will actually run**, branch included: a word
+    // whose effect answers differently against an Undead has to raise the
+    // question before the first die, exactly as the common list does.
+    needs.push(
+      ...creatureTypeNeeds(
+        state,
+        definition.name,
+        optionEffects(definition, request.option),
+        targets,
+      ),
+    );
 
     // **A printed later consequence asks for the timeline it needs**, at the
     // same moment and by the same rule: with the targets settled, before the
@@ -1174,7 +1202,7 @@ export function castOrRelease(
     //
     // One request per target that cannot be pinned, because the fact is about
     // that creature.
-    for (const lasts of riderDurations(definition)) {
+    for (const lasts of riderDurations(definition, request.option)) {
       if (!anchoredOnTarget(lasts)) continue;
       for (const target of targets) {
         const owed = riderDuration(lasts, casterId, target) as Duration;
@@ -1952,6 +1980,10 @@ function resolveOnTargets(
     ...stated,
     // And the choice as the pair a record keeps — see `choicePinned`.
     ...(pinned === undefined ? {} : { choice: pinned }),
+    // And the branch, as the bare name: which effects a word runs is a lookup
+    // in the definition an activation already holds, so there is no second
+    // half for the record to lose. See `OngoingSpell.option`.
+    ...(request.option === undefined ? {} : { option: request.option }),
   });
 
   /**
@@ -1974,13 +2006,18 @@ function resolveOnTargets(
   // The caster's answer, or the one the route fixes — SRD Wild Companion's
   // Fey — read once here for the roll and for the record a held casting keeps.
   const answeredChoice = request.choice ?? fixedChoiceOf(route);
-  // And the third substitution: the riders the **caster's** own features hang
-  // on this spell's hits — SRD Repelling Blast's shove, which Eldritch Blast's
+  // **The branch first, and the substitutions over what it produced.** A
+  // spell may print both — a word spoken and a value chosen inside it — and
+  // a choice that landed only in the common list would miss the half the
+  // caster actually asked for. See `optionEffects`, which is the identity
+  // function for every spell that prints no branches. And the third
+  // substitution over both: the riders the **caster's** own features hang on
+  // this spell's hits — SRD Repelling Blast's shove, which Eldritch Blast's
   // definition says nothing about because the sentence is printed on the
   // Warlock.
   const running = withCastingRiders(
     statedChoice(
-      statedDamageType(definition.effects, request.damageType),
+      statedDamageType(optionEffects(definition, request.option), request.damageType),
       definition.choiceStated?.of,
       answeredChoice,
     ),
@@ -1989,7 +2026,7 @@ function resolveOnTargets(
       school: definition.school,
       classId:
         route?.kind === 'cantrip' || route?.kind === 'prepared' ? route.classId : null,
-      damageTypes: damageTypesDealt(definition.effects),
+      damageTypes: damageTypesDealt(optionEffects(definition, request.option)),
       slotLevel: castLevel,
       using: [],
     }),
@@ -2325,7 +2362,13 @@ function resolveOnTargets(
       // rather than handing it to its caller and forgetting it. The
       // declaration below has its own copy, in `unverified` and under the
       // mark, and `castSpell` writes only one of the two.
-      ...(definition.dmDecides === undefined ? {} : { dmDecides: definition.dmDecides }),
+      // The printed text this casting handed over, pinned — the definition's
+      // and the branch's alike, because a branch's sentence is printed text
+      // this casting read from the catalogue and CLAUDE.md's rule 5 does not
+      // ask which field it came out of.
+      ...(handoversPinned(definition, request.option).length === 0
+        ? {}
+        : { dmDecides: handoversPinned(definition, request.option) }),
       ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
       // A span of seconds, or a moment in the turn order. A definition carries
       // one or the other: Shield's "until the start of your next turn" is not
@@ -2387,6 +2430,9 @@ function resolveOnTargets(
               // definition anyway, so the half it cannot work out again is the
               // caster's answer and nothing else.
               ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
+              // And the word spoken, for the same reason: a Command declared
+              // as Halt settles as Halt and as no other word.
+              ...(request.option === undefined ? {} : { option: request.option }),
               // The fourth, and the one settlement could not possibly work
               // out again: where the caster said they were going.
               ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -2939,6 +2985,9 @@ export function resolveEffects(
         // the damage again to the same thing — see `OngoingSpell.object`.
         ...(context.object === undefined ? {} : { object: context.object }),
         ...(becomes.choice === undefined ? {} : { choice: becomes.choice }),
+        // And the branch the casting ran, so a later activation acts through
+        // the word its caster spoke — see `OngoingSpell.option`.
+        ...(becomes.option === undefined ? {} : { option: becomes.option }),
       },
     });
   }
@@ -3438,6 +3487,8 @@ interface OngoingRecordPlan {
   readonly damageType?: string;
   /** The choice the caster made, where the spell prints one. */
   readonly choice?: StatedChoicePin;
+  /** The branch the casting ran, where the spell prints branches. */
+  readonly option?: string;
 }
 
 /**
@@ -3481,6 +3532,25 @@ function statedFacts(stated: {
       : { unaffected: [...stated.unaffected].sort() }),
     ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),
   };
+}
+
+/**
+ * The printed text a casting hands to the table, the definition's and the
+ * branch's together.
+ *
+ * One reader, because the two callers of it must not disagree: `unverified`
+ * reports the handover to the layer narrating the spell, and `spell-cast`
+ * pins it into the log. A branch's sentence is printed text this casting read
+ * from the catalogue, so rule 5 applies to it exactly as it applies to the
+ * definition's — and a handover reported to the caller but missing from the
+ * log would be the one sentence the table still owes, lost on replay.
+ */
+function handoversPinned(
+  definition: SpellDefinition,
+  option: string | undefined,
+): readonly string[] {
+  const branch = option === undefined ? undefined : definition.options?.[option];
+  return [...(definition.dmDecides ?? []), ...(branch?.handsOver ?? [])];
 }
 
 /**

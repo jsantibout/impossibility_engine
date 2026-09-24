@@ -1381,6 +1381,19 @@ export interface PendingCasting {
    */
   readonly choice?: string;
   /**
+   * Which of the spell's printed branches this casting runs.
+   *
+   * Beside the value the caster chose and for its reason: a Command declared
+   * as Halt must not settle as Grovel, and a settlement takes no fresh request
+   * to ask again. SRD Command's five words, Thaumaturgy's six wonders and
+   * Enlarge/Reduce's two halves are the writers — see
+   * `SpellDefinition.options`.
+   *
+   * Absent for every spell that prints no branches, which is what makes a
+   * declaration written before this folds to exactly the state it always did.
+   */
+  readonly option?: string;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "It does so with Advantage if you or your allies are

@@ -6970,12 +6970,28 @@ export const DETECT_THOUGHTS: SpellDefinition = {
  * > "For the duration, the spell enlarges or reduces a creature or an object
  * > you can see within range (see the chosen effect below)."
  *
- * **The spell in the batch that is blocked by the choice rather than by the
- * effect.** Each branch's Advantage or Disadvantage on Strength checks and
- * Strength saving throws is a `roll-mode` the engine writes easily — and the
- * two branches say opposite things, so a definition would have to record which
- * the caster picked, and a choice made at the casting has nowhere to be
- * recorded. Writing either branch would be a spell that always enlarges.
+ * **It was the spell in its batch blocked by the choice rather than by the
+ * effect, and the choice is built.** That paragraph read: the two branches say
+ * opposite things, so a definition would have to record which the caster
+ * picked, and a choice made at the casting had nowhere to be recorded.
+ * `SpellDefinition.options` is where it is recorded — the word is the tenth
+ * stated fact, `OngoingSpell.option` pins it, and this definition has two
+ * branches to hang the clauses on.
+ *
+ * **What is left is every clause inside them, and each waits on its own
+ * shape.** The Advantage or Disadvantage on Strength checks and Strength
+ * saving throws is *not* the easy `roll-mode` that paragraph claimed: SRD
+ * names an ability check **and** a saving throw in one breath and a
+ * `RollSelector` says one family. The size change is a fact the engine holds
+ * authoritatively and nothing writes over one for a duration — the twin of
+ * the creature type a spell overrides, which is built. And the ±1d4 on a hit
+ * is damage with no type of its own on one side and a penalty on a damage roll
+ * on the other. Each branch says so in its own `unmodelled` list.
+ *
+ * **The Constitution save is not rolled either**, and the reason is the three
+ * above: a saving throw whose failure imposes no condition and hangs no rider
+ * is a die thrown for nothing, which the definition validator refuses rather
+ * than accepts.
  *
  * The Potion of Growth is the other end of that: the bottle **makes** the
  * choice, so the conferral writes the enlarge branch and nothing is guessed.
@@ -6991,12 +7007,32 @@ export const ENLARGE_REDUCE: SpellDefinition = {
   targets: { count: 1, self: true },
   requiresSight: true,
   effects: [],
+  // "see the chosen effect below": two branches, and the shell of them is what
+  // this definition is. Every clause inside either branch is filed rather than
+  // built — see each branch's own lines — and what changes is that there is
+  // now somewhere to hang them when those shapes land, and that the casting
+  // records which half was chosen.
+  options: {
+    enlarge: {
+      label: 'Enlarge',
+      unmodelled: [
+        'the size increase is not applied: "The target’s size increases by one category—from Medium to Large, for example" writes over a fact the engine holds authoritatively and reads for sharing a space, passing through and what a template catches. It is the twin of the creature type a spell overrides, which is built: that one is a mask a grant hangs and gives back, and a size has no such reader',
+        'the Advantage on Strength checks and Strength saving throws is not granted: one modifier cannot say both families, and the two rolls the sentence names are an ability check and a saving throw',
+        'the extra 1d4 on a hit is not hung: "attacks with its enlarged weapons or Unarmed Strikes deal an extra 1d4 damage" is damage with no type of its own, so it is the weapon’s, and the rider that hangs a notation on a later attack names a type beside it',
+      ],
+    },
+    reduce: {
+      label: 'Reduce',
+      unmodelled: [
+        'the size decrease is not applied, for the reason the increase is not: "decreases by one category—from Medium to Small, for example" is a fact the engine holds and nothing lets an effect write over one for a duration',
+        'the Disadvantage on Strength checks and Strength saving throws is not granted, for the reason the Advantage is not',
+        'the subtraction on a hit is not hung: "deal 1d4 less damage on a hit (this can’t reduce the damage below 1)" is a penalty on a damage roll, and nothing a spell grants reaches a damage roll at all',
+      ],
+    },
+  },
   durationSeconds: 60,
   unmodelled: [
-    'which of the two effects was chosen is not recorded, and nothing below can be applied without it: the branches say opposite things — "The target also has Advantage on Strength checks and Strength saving throws" against "Disadvantage on Strength checks and Strength saving throws" — and a choice made at the casting has nowhere to be kept',
-    'the size change is not applied either way: "The target’s size increases by one category" and "decreases by one category" write over a fact the engine holds authoritatively and reads for sharing a space, passing through and what an area catches',
-    'the rider on the target’s later attacks is not hung: "deal an extra 1d4 damage on a hit" is extra damage with no type, so it is the weapon’s own, and "deal 1d4 less damage on a hit (this can’t reduce the damage below 1)" is a penalty on a damage roll that nothing grants',
-    'the Constitution saving throw is not rolled, because what it gates is the size change above',
+    'the Constitution saving throw an unwilling target makes is not rolled: what a failure would impose is the three clauses each branch files above, and a saving throw that decides nothing is a die thrown for nothing — which the definition validator refuses rather than accepts',
     'the gear changing size with the target, and a thrown weapon returning to normal after it hits or misses, are the DM’s',
   ],
 };
@@ -7870,11 +7906,24 @@ export const CONJURE_FEY: SpellDefinition = {
  * > creature for each spell slot level above 1."
  *
  * The whole spell in five words: **a creature's next turn is spent doing what
- * somebody else said.** The action economy is the engine's and the only lever
- * a spell has on it is a condition the engine names, so all five options are
- * the table's — including Grovel, whose Prone is an ordinary `condition`
- * effect and whose "and then ends its turn" is not. Writing the Prone alone
- * would be half a sentence.
+ * somebody else said.** The five words are five different effect lists and a
+ * casting runs one of them, which is exactly what `SpellDefinition.options`
+ * says — so the word is stated at the casting, the Wisdom save belongs to the
+ * branch that has a consequence, and each consequence is a rider hung on that
+ * save.
+ *
+ * **The save is in the branch and not in the common list**, which is the one
+ * thing about this definition worth reading twice. A save in `effects` with
+ * the consequence appended after it would impose the consequence on a creature
+ * that had just resisted: nothing in an effect list knows how the effect
+ * before it went, and only a rider does. So Halt, Drop and Grovel each write
+ * "Wisdom saving throw" and hang their own sentence off the failure.
+ *
+ * **Approach and Flee carry no save at all**, and it is the honest end of the
+ * same rule rather than an oversight: their whole consequence is a turn played
+ * by somebody along a route nobody chose, so there is nothing for a failure to
+ * hang and `save_imposes_nothing` refuses a die thrown for nothing. Both hand
+ * the book's sentence to the table, which is where the roll goes with it.
  */
 export const COMMAND: SpellDefinition = {
   id: 'command',
@@ -7886,14 +7935,84 @@ export const COMMAND: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 1, extraPerSlotLevelAbove: 1 },
   requiresSight: true,
+  // Nothing is common to all five words but the sentence that gates them, and
+  // a gate is a rider rather than a neighbour — see the note above.
   effects: [],
-  unmodelled: [
-    'the Wisdom saving throw is not rolled, because nothing it could gate is written: the five words are five different effect lists and a casting runs one list, so a definition that carried any of them would impose that one whatever the caster said',
-    'which of the five commands was spoken is not recorded: `choiceStated` substitutes a value into an effect that is already in the list, and this is a choice of **which effects run** — the second arm of `a-choice-made-at-the-casting`, which that field’s own docstring names as deliberately absent',
-    'Approach and Flee are the DM’s under the ruling Fear’s compelled Dash took: a route nobody chose and a whole turn spent running are a creature being played rather than a spend being charged, and the engine adjudicates legality without walking anybody anywhere',
-    'Drop, Grovel and Halt are each writable on their own — `OutcomeRiders.drops` lets go of a named object, Prone is an ordinary condition, and `forbids` takes movement, the action and the Bonus Action together — and what none of them has is a way to say "only if the caster spoke this word"',
-    'the clause that ends the compelled creature’s turn, which Drop and Grovel both print, is a moment no rider reaches',
-  ],
+  options: {
+    approach: {
+      label: 'Approach',
+      handsOver: [
+        'Approach. The target moves toward you by the shortest and most direct route, ending its turn if it moves within 5 feet of you.',
+      ],
+      unmodelled: [
+        'the Wisdom saving throw is not rolled for Approach: what a failure would buy is a route nobody chose and a whole turn spent walking it, which is a creature being played rather than a spend being charged — so the die goes to the table with the sentence',
+      ],
+    },
+    drop: {
+      label: 'Drop',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          // "The target drops whatever it is holding": no object is named
+          // because there is none to name, which is the arm `DropRider.all`
+          // was written for. Heat Metal points at one thing; this empties the
+          // hands.
+          drops: { all: true },
+        },
+      ],
+      unmodelled: [
+        'the hands are emptied at the casting rather than on the target’s next turn, and "and then ends its turn" is not applied at all: both are the directed turn itself — "follow the command on its next turn" defers every one of the five words to a turn somebody else is deciding, and a rider settles with the save that raised it',
+      ],
+    },
+    flee: {
+      label: 'Flee',
+      handsOver: [
+        'Flee. The target spends its turn moving away from you by the fastest available means.',
+      ],
+      unmodelled: [
+        'the Wisdom saving throw is not rolled for Flee, for the reason Approach’s is not: the whole of what a failure buys is a direction and a turn spent running in it, which the engine adjudicates rather than performs',
+      ],
+    },
+    grovel: {
+      label: 'Grovel',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          condition: 'prone',
+          // Command is Instantaneous, and Prone ends when the creature stands
+          // up — Grease’s reading, on the same condition and the same word.
+          outlivesCasting: true,
+        },
+      ],
+      unmodelled: [
+        'the Prone lands at the casting rather than on the target’s next turn, and the turn it cuts short is not cut short, for the reason Drop’s object hits the floor early: the word is obeyed inside a turn somebody else is directing, and nothing defers a rider into one',
+      ],
+    },
+    halt: {
+      label: 'Halt',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          modifiers: [
+            {
+              kind: 'action',
+              // "On its turn, the target doesn't move and takes no action or
+              // Bonus Action" — three slots in one sentence, which is what
+              // `forbids` takes, and the Reaction is deliberately not among
+              // them because the book does not name it.
+              rule: { kind: 'forbids', slots: ['action', 'bonus-action', 'movement'] },
+              // "On **its** turn": the rule is lifted at the end of the
+              // target's next turn, which is the only turn it can govern.
+              lasts: 'end-of-targets-next-turn',
+            },
+          ],
+        },
+      ],
+    },
+  },
 };
 
 /**
@@ -10475,11 +10594,52 @@ export const THAUMATURGY: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 0 },
   effects: [],
+  // "You create **one** of the effects below": six branches, of which the
+  // casting runs one and records which.
+  options: {
+    'altered-eyes': {
+      label: 'Altered Eyes',
+      handsOver: ['Altered Eyes. You alter the appearance of your eyes for 1 minute.'],
+    },
+    'booming-voice': {
+      label: 'Booming Voice',
+      handsOver: [
+        'Booming Voice. Your voice booms up to three times as loud as normal for 1 minute. For the duration, you have Advantage on Charisma (Intimidation) checks.',
+      ],
+      unmodelled: [
+        'the Advantage on Charisma (Intimidation) checks is not granted: the mode itself is ordinary — a roll modifier naming a Charisma check and the Intimidation skill — and what it has nowhere to land is a creature. Thaumaturgy names no target at all, the wonder happens "within range" rather than on somebody, and the only target rule that would hand the mode a creature would also let a caster boom an ally’s voice',
+      ],
+    },
+    'fire-play': {
+      label: 'Fire Play',
+      handsOver: [
+        'Fire Play. You cause flames to flicker, brighten, dim, or change color for 1 minute.',
+      ],
+    },
+    'invisible-hand': {
+      label: 'Invisible Hand',
+      handsOver: [
+        'Invisible Hand. You instantaneously cause an unlocked door or window to fly open or slam shut.',
+      ],
+    },
+    'phantom-sound': {
+      label: 'Phantom Sound',
+      handsOver: [
+        'Phantom Sound. You create an instantaneous sound that originates from a point of your choice within range, such as a rumble of thunder, the cry of a raven, or ominous whispers.',
+      ],
+    },
+    tremors: {
+      label: 'Tremors',
+      handsOver: ['Tremors. You cause harmless tremors in the ground for 1 minute.'],
+    },
+  },
   durationSeconds: 60,
+  // "If you cast this spell multiple times, you can have up to three of its
+  // 1-minute effects active at a time" — Prestidigitation's sentence with a
+  // different word for the same number, and the same field answers it.
+  maxRunning: 3,
   unmodelled: [
-    'which of the six wonders was worked is not recorded: altered eyes, a booming voice, flames that flicker, a door that flies open, a phantom sound and harmless tremors are a choice between effect *lists*, where a stated choice substitutes a value into the one list a definition has',
-    'so the Advantage on Charisma (Intimidation) checks the Booming Voice branch grants is not granted either — the mode itself is ordinary, and granting it unconditionally would be a cantrip that intimidated while it rumbled the floor',
-    '"you can have up to three of its 1-minute effects active at a time" counts castings of one spell against each other, and nothing counts them; a fourth is not refused',
+    'the cap counts every casting rather than only the four wonders that last a minute: the two the book calls instantaneous leave a record here as the other four do, so a door flung open counts against the three',
   ],
 };
 

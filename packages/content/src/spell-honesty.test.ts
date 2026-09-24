@@ -74,8 +74,23 @@ const EXECUTED: readonly string[] = [...EXECUTED_SPELL_IDS].sort();
  * so there is one list and this guard imports it.
  */
 
-const clausesOf = (spellId: string): readonly string[] =>
-  SPELL_DEFINITIONS.find((d) => d.id === spellId)?.unmodelled ?? [];
+/**
+ * **A branch's debts are the spell's**, and for a spell that prints branches
+ * they may be all of them: SRD Command's own `unmodelled` list is empty and
+ * every line it owes belongs to one of the five words. Reading the
+ * definition's list alone would have let a spell file a rule the engine owns
+ * as fiction simply by writing it one level down, which is the exact failure
+ * this whole guard exists for.
+ */
+const clausesOf = (spellId: string): readonly string[] => {
+  const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
+  return [
+    ...(definition?.unmodelled ?? []),
+    ...Object.keys(definition?.options ?? {})
+      .sort()
+      .flatMap((key) => definition!.options![key]!.unmodelled ?? []),
+  ];
+};
 
 /** The clauses of this spell that name a mechanic the engine owns. */
 const mechanicalClausesOf = (spellId: string): readonly string[] =>

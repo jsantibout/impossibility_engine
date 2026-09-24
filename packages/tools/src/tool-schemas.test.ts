@@ -180,13 +180,19 @@ describe('toolSchemas', () => {
     // Re-pinned again for the bookkeeping spells track: `cast_spell.object` (the
     // eighth stated fact — Remove Curse's attunement, Heat Metal's object) and
     // the Command word's slot grew both surfaces by the same amount.
+    // And again for the branch track: `cast_spell.option` (the tenth stated
+    // fact — SRD Command's five words, Thaumaturgy's six wonders,
+    // Enlarge/Reduce's two halves) is one field on one tool, so both surfaces
+    // grew by the same amount and neither gained a tool.
     expect(toolSchemas(player())).toHaveLength(83);
     expect(toolSchemas(dm())).toHaveLength(102);
     // Re-pinned again for the bestiary traits track: `end_turn.burns` — the
     // creatures a Fire Aura's holder chooses to burn, `fought`'s twin, on the
-    // one tool both surfaces publish — grew both by the same amount.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(118264);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142394);
+    // one tool both surfaces publish — grew both by the same amount. And
+    // again for the options track: `cast_spell.option`, the tenth stated
+    // fact, one field on one tool, both surfaces.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(118895);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(143025);
   });
 });
 
