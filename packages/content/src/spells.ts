@@ -8467,14 +8467,13 @@ export const FAERIE_FIRE: SpellDefinition = {
  * "must succeed on a Charisma saving throw, **or** it attempts to deliver a
  * message for you" — so a success is the Beast declining the errand, and the
  * errand is narration from the first word to the last. The failure therefore
- * imposes no condition and hangs no rider, and the third thing that lifts
- * `save_imposes_nothing` is `recordsOutcome`, which `verdict_before_the_record`
- * refuses in a casting's own effect list for a reason that is not a preference:
- * the list resolves before `spell-ongoing` is pushed, so the record the verdict
- * would be written onto does not exist yet. Whether a save whose whole content
- * is its verdict may be written there — published by the casting that rolled
- * it, in its own outcomes — is a decision nobody has taken, and this spell is
- * the one that asks for it.
+ * imposes no condition and hangs no rider: the die's whole content is its
+ * verdict, which is what `verdictOnly` says (ruled 2026-09-24; the area-standing
+ * track built the mark and this definition is the first to write it). The
+ * verdict reaches the caller in the casting's own outcomes and no ongoing
+ * record is written. "If the target's Challenge Rating isn't 0, it
+ * automatically succeeds" is `autoSucceedIf.challengeRatingAbove`, read off
+ * the rating the block prints and pinned at the arrival.
  */
 export const ANIMAL_MESSENGER: SpellDefinition = {
   id: 'animal-messenger',
@@ -8490,7 +8489,14 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
   // rule can ask for a size. A Wolf is a Beast and is not a messenger.
   targets: { count: 1, mustBeType: 'Beast', mustBeSize: 'tiny' },
   requiresSight: true,
-  effects: [],
+  effects: [
+    {
+      kind: 'save',
+      ability: 'cha',
+      verdictOnly: true,
+      autoSucceedIf: { challengeRatingAbove: 0 },
+    },
+  ],
   durationSeconds: 86_400,
   // "+48 hours for each spell slot level above 2", as the band table the
   // field takes: the value is the whole duration rather than the increase.
@@ -8503,9 +8509,12 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
     8: 1_123_200,
     9: 1_296_000,
   },
-  unmodelled: [
-    'the Charisma saving throw is not rolled, and the Challenge Rating is no longer why: `CreatureState.cr` holds the rating the block prints and `save.autoSucceedIf.challengeRatingAbove` reads it. What the failure buys is an errand and nothing a rule can hold, so the only thing left for the die to decide is its own verdict — and `verdict_before_the_record` refuses `recordsOutcome` in a casting’s own effect list, because that list resolves before the record the verdict would be written onto exists',
-    'the errand is the DM’s: the location, the recipient "who matches a general description", the message of up to twenty-five words, the 25 or 50 miles a day and the Beast returning if it does not arrive are all narration',
+  dmDecides: [
+    'You specify a location you have visited and a recipient who matches a general description, such as "a person dressed in the uniform of the town guard" or "a red-haired dwarf wearing a pointed hat."',
+    'You also communicate a message of up to twenty-five words.',
+    'The Beast travels for the duration toward the specified location, covering about 25 miles per 24 hours or 50 miles if the Beast can fly.',
+    'When the Beast arrives, it delivers your message to the creature that you described, mimicking your communication.',
+    "If the Beast doesn't reach its destination before the spell ends, the message is lost, and the Beast returns to where you cast the spell.",
   ],
 };
 
