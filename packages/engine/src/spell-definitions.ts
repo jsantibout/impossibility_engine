@@ -3926,7 +3926,23 @@ export type CastingEndCause =
    * that link is the whole difference: this is a casting ending because
    * something happened to the thing it put in the world.
    */
-  | 'summon-takes-damage';
+  | 'summon-takes-damage'
+  /**
+   * SRD Sleep: "The spell ends on a target if it takes damage or **someone
+   * within 5 feet of it takes an action to shake it out of the spell's
+   * effect**." SRD Hypnotic Pattern writes the same clause as "if someone else
+   * uses an action to shake the creature out of its stupor."
+   *
+   * **The one ending in the vocabulary that somebody else spends an action
+   * on**, and the reason it is a cause rather than a check the sleeper makes:
+   * every other member here is read off an event that happened *to* the
+   * creature the casting is on, and this is read off an event a neighbour
+   * wrote. `creature-woken` is that event, `wakeCreature` is the door, and the
+   * five feet and the action are spent there — so what reaches this list is
+   * the same shape everything else in it is: a fact the log already holds,
+   * naming one creature.
+   */
+  | 'shaken-awake';
 
 /**
  * One printed sentence: what happens, and what it ends.

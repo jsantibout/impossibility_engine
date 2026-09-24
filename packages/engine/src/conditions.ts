@@ -86,6 +86,47 @@ export interface ConditionInstance {
   readonly source: string;
   /** The instance that carried this one, for conditions another implies. */
   readonly impliedBy: string | null;
+  /**
+   * This instance ends the moment the creature takes damage.
+   *
+   * SRD Sleep: "The spell ends on a target if it **takes damage** or someone
+   * within 5 feet of it takes an action to shake it out of the spell's
+   * effect." SRD Incubus, SRD Brass Dragon Wyrmling and SRD Pseudodragon print
+   * the same pair over a printed condition that was never cast.
+   *
+   * **A mark on the instance rather than a trigger on a timer**, and the
+   * Pseudodragon is why: its Unconscious is a condition its Poisoned *carries*
+   * — `impliedBy` — and a carried instance has no deadline of its own for an
+   * `endsEarly` to hang on. The mark travels with the instance whatever
+   * created it, so one reading in `fold/endings.ts` covers a span, a carried
+   * condition and a deepening alike.
+   *
+   * Absent on every instance in every log written before this existed, and
+   * absent is what it always meant: the condition ends when its cause does.
+   */
+  readonly endsOnDamage?: true;
+  /**
+   * This instance ends when a neighbour spends an action waking the creature.
+   *
+   * {@link endsOnDamage}'s twin, and the other half of the same sentence in
+   * all five places the book prints it. `wakeCreature` is the verb; the fold
+   * is where the mark is read.
+   */
+  readonly endsWhenWoken?: true;
+}
+
+/**
+ * Which of an application's conditions carry the sleeper's early endings.
+ *
+ * **Names rather than flags**, because one application may impose more than
+ * one condition and the book ends only one of them: SRD Pseudodragon's hour of
+ * Poison runs on and the Unconscious it carries is what a blow lifts. A name
+ * that this application did not impose marks nothing, which is the same answer
+ * the printed executor gives a clause whose host was never there.
+ */
+export interface EarlyEndings {
+  readonly onDamage?: readonly ConditionName[];
+  readonly whenWoken?: readonly ConditionName[];
 }
 
 export interface ConditionState {
@@ -217,20 +258,52 @@ export function applyCondition(
    * take any of it away.
    */
   implies: readonly ConditionName[] = [],
+  /**
+   * The conditions **this** application ends early, by a blow or by a
+   * neighbour's action.
+   *
+   * Eleventh and last, so no existing call site moves for a field none of them
+   * passes — the reading `applyConditionTo`'s last two parameters already
+   * took. See {@link EarlyEndings} for why it names conditions.
+   */
+  endsEarly: EarlyEndings = {},
 ): ConditionState {
   const id = conditionInstanceId(condition, source);
   if (state.instances.some((i) => i.id === id)) return state;
 
-  const added: ConditionInstance[] = [{ id, condition, source, impliedBy: null }];
+  const marks = (name: ConditionName): Pick<ConditionInstance, 'endsOnDamage' | 'endsWhenWoken'> => ({
+    ...(endsEarly.onDamage?.includes(name) === true ? { endsOnDamage: true as const } : {}),
+    ...(endsEarly.whenWoken?.includes(name) === true ? { endsWhenWoken: true as const } : {}),
+  });
+
+  const added: ConditionInstance[] = [
+    { id, condition, source, impliedBy: null, ...marks(condition) },
+  ];
 
   for (const implied of expandConditions([condition, ...implies]).filter((c) => c !== condition)) {
     const impliedId = conditionInstanceId(implied, source);
     if (state.instances.some((i) => i.id === impliedId)) continue;
     if (added.some((i) => i.id === impliedId)) continue;
-    added.push({ id: impliedId, condition: implied, source, impliedBy: id });
+    added.push({ id: impliedId, condition: implied, source, impliedBy: id, ...marks(implied) });
   }
 
   return derive([...state.instances, ...added], state.exhaustion);
+}
+
+/**
+ * Every instance on a creature that one of the two early endings lifts.
+ *
+ * One reader for both marks, so the blow and the neighbour's action are two
+ * doors onto one rule rather than two rules that agree until they do not.
+ * Sorted by id, as everything here is, so a fold settles them in one order.
+ */
+export function instancesEndingEarly(
+  state: ConditionState,
+  by: 'damage' | 'waking',
+): readonly ConditionInstance[] {
+  return state.instances.filter((instance) =>
+    by === 'damage' ? instance.endsOnDamage === true : instance.endsWhenWoken === true,
+  );
 }
 
 /**

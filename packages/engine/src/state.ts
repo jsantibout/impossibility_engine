@@ -15,7 +15,7 @@
  */
 import type { Ability, CharacterId, ConditionName, RollMode } from '@ie/shared';
 import type { Armor, CreatureSize, WeaponMastery } from '@ie/srd';
-import type { CharacterSheet, GrantedArmorClass } from './character.js';
+import type { CharacterSheet, GrantedArmorClass, GrantedLineImmunity } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { RngState } from './dice.js';
@@ -638,6 +638,20 @@ export interface CreatureState {
    * flatten a distinction `conditionApplicability` exists to keep.
    */
   readonly grantedConditionImmunities: readonly GrantedConditionImmunity[];
+  /**
+   * The printed lines this creature has a day's grace from.
+   *
+   * SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
+   * Visage for 24 hours." The eighteenth member of the family the seventeen
+   * above form, and the one whose subject is not a condition, a number or a
+   * roll but **one creature's one heading** — see {@link GrantedLineImmunity}
+   * for why it is not folded into {@link grantedConditionImmunities}.
+   *
+   * Linked by the line in its `source` exactly as the others are, so the
+   * `grants` deadline the success hung ends it through the door that already
+   * existed.
+   */
+  readonly lineImmunities: readonly GrantedLineImmunity[];
   /**
    * What a running casting hands this creature at each of its turn boundaries.
    *

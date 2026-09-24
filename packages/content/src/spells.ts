@@ -2375,9 +2375,13 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
   // damage, dealer or no dealer, and for that creature rather than for the
   // Cube: the other three go on staring. The second half of the sentence is
   // somebody else's action and stays in `unmodelled`.
-  endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
-  unmodelled: [
-    'the spell ending because "someone else uses an action to shake the creature out of its stupor" is not offered: one creature spending an action to free another is an action nothing spends',
+  // "The spell ends for an affected creature if it takes any damage **or if
+  // someone else uses an action to shake the creature out of its stupor**."
+  // Both halves, and both on that creature rather than on the Cube: the other
+  // three go on staring. `wakeCreature` is the action the second half costs.
+  endsEarly: [
+    { on: 'target-takes-damage', ends: 'target' },
+    { on: 'shaken-awake', ends: 'target' },
   ],
 };
 
@@ -8777,13 +8781,16 @@ export const SLEEP: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  // "The spell ends on a target if it takes damage" — **any** damage, from
-  // anybody or from nobody at all, and on that sleeper rather than on the
-  // Sphere: the rest of the room stays asleep. Hypnotic Pattern writes the
-  // same sentence and reaches the same cause.
-  endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
+  // "The spell ends on a target if it takes damage **or someone within 5 feet
+  // of it takes an action to shake it out of the spell's effect**" — any
+  // damage, from anybody or from nobody at all, and on that sleeper rather
+  // than on the Sphere: the rest of the room stays asleep. Hypnotic Pattern
+  // writes both sentences and reaches both causes.
+  endsEarly: [
+    { on: 'target-takes-damage', ends: 'target' },
+    { on: 'shaken-awake', ends: 'target' },
+  ],
   unmodelled: [
-    'somebody standing beside the sleeper taking an action to shake them out of the spell is not offered: one creature spending an action to free another is an action nothing spends, and the check it would buy is one only the sleeper may attempt',
     'the automatic successes are not granted: creatures that do not sleep, and creatures with Immunity to the Exhaustion condition, are an outcome read off the target’s own defences, and `checks.ts` carries an automatic failure and no automatic success',
   ],
 };

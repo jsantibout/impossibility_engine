@@ -1167,6 +1167,15 @@ function deepenedBy(state: GameState, pending: PendingSave): Result<readonly Gam
       id: pending.target,
       condition: deeper.condition,
       source: pending.source,
+      // **What ends the deeper condition *early* comes with it too.** SRD
+      // Brass Dragon Wyrmling's Sleep Breath deepens into an Unconscious that
+      // "ends for the target if it takes damage or a creature within 5 feet of
+      // it takes an action to wake it", and the deepening carries a flag
+      // because it is one condition. The event carries names, because an
+      // application may impose several — so this is the seam where the two
+      // vocabularies meet, and it is one line rather than a rule.
+      ...(deeper.endsOnDamage === true ? { endsOnDamage: [deeper.condition] } : {}),
+      ...(deeper.endsWhenWoken === true ? { endsWhenWoken: [deeper.condition] } : {}),
     },
   ];
 

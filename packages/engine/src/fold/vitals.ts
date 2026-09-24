@@ -48,6 +48,7 @@ export const VITALS_EVENTS = [
   'death-save-recorded',
   'stabilised',
   'condition-applied',
+  'creature-woken',
   'condition-removed',
   'exhaustion-set',
   'creature-died',
@@ -305,6 +306,16 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
         event.condition,
         event.source,
         event.implies,
+        // What a blow and a neighbour's action end early, pinned on the event
+        // for `implies`' reason: SRD Sleep's "The spell ends on a target if it
+        // takes damage or someone within 5 feet of it takes an action to shake
+        // it out of the spell's effect" is a fact about *this* sleep, and a
+        // replay that had to open a stat block to know it would be a fold
+        // reading a book. `fold/endings.ts` is where the marks are spent.
+        {
+          ...(event.endsOnDamage === undefined ? {} : { onDamage: event.endsOnDamage }),
+          ...(event.endsWhenWoken === undefined ? {} : { whenWoken: event.endsWhenWoken }),
+        },
       );
       // **And nothing else.** This case used to also put the creature into the
       // casting's list of who it was on, by hand — a growth pass called
@@ -314,6 +325,15 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
       // world at every read, so growth is not an operation any more.
       return withCreature(next, event.id, { conditions }, creature);
     }
+
+    // A record, not a mutation *here*: what a shake ends is found by the
+    // derived pass in `fold/endings.ts`, off the marks the sleeping instances
+    // carry and the `shaken-awake` cause a casting's record names. The same
+    // reading `roll-recorded` takes of the seam it sits in, and for a stronger
+    // reason — the blow half of the same SRD sentence is derived too, and two
+    // doors onto one sentence would be two rules.
+    case 'creature-woken':
+      return next;
 
     case 'condition-removed': {
       const creature = creatureOf(state, event, event.id);

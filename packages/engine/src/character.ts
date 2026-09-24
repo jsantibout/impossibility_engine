@@ -1,4 +1,4 @@
-import { SKILL_ABILITY, type Ability, type RollMode, type Skill } from '@ie/shared';
+import { SKILL_ABILITY, type Ability, type CharacterId, type RollMode, type Skill } from '@ie/shared';
 import type {
   ActivatedFeature,
   CastingOption,
@@ -216,6 +216,36 @@ export interface StatedAction {
    * before the save. Those are still handed over whole.
    */
   readonly save?: MonsterSave;
+}
+
+/**
+ * A day's grace from **one creature's one printed line**.
+ *
+ * > SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
+ * > Visage for 24 hours." SRD Mummy's Dreadful Glare and SRD Nalfeshnee's
+ * > Horror Nimbus print it word for word.
+ *
+ * The eighteenth member of the family `grantsOf` enumerates, and it is here —
+ * beside {@link StatedAction}, whose `save` is what it holds off — for
+ * `GrantedArmorClass`'s reason: a grant lives with the vocabulary it is
+ * written in rather than with the other grants.
+ *
+ * **Not a condition Immunity**, and the difference is the whole of why it is
+ * its own family: `GrantedConditionImmunity` refuses a *condition* from any
+ * source at all, and a creature that shrugged off the visage is still
+ * Frightenable by a second ghost, by a Lion's Roar and by Fear. What this
+ * refuses is one heading on one creature, which is exactly what
+ * `printedLineSource` names — so the source is the whole of the identity and
+ * the `grants` deadline over it is the whole of the lifetime, exactly as it
+ * is for the seventeen families beside it.
+ */
+export interface GrantedLineImmunity {
+  /** `printedLineSource(who, line)` — `printed:ghost:Horrific Visage`. */
+  readonly source: string;
+  /** The creature whose line it is, so a refusal reads as a sentence. */
+  readonly by: CharacterId;
+  /** The printed heading, for the same reason. */
+  readonly line: string;
 }
 
 /**

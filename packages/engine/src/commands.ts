@@ -329,6 +329,8 @@ export type {
   StatedBonusActionCommand,
   StatedBonusActionOutcome,
 } from './commands/actions.js';
+export { wakeableOn, wakeCreature } from './commands/wake.js';
+export type { WakeRequest } from './commands/wake.js';
 export {
   joinCombat,
   recordInitiativeRolls,

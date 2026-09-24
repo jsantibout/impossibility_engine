@@ -238,6 +238,22 @@ export interface RepeatSave {
      * side by spreading its repeat's shape without the branch.
      */
     readonly repeats?: Omit<RepeatSave, 'onFailure'>;
+    /**
+     * The deeper condition ends the moment the creature takes damage.
+     *
+     * SRD Brass Dragon Wyrmling's Sleep Breath: "_Second Failure:_ The target
+     * has the Unconscious condition for 1 minute. **This effect ends for the
+     * target if it takes damage** or a creature within 5 feet of it takes an
+     * action to wake it."
+     *
+     * **A flag rather than the list `condition-applied` carries**, because a
+     * deepening is exactly one condition and there is nothing else here for a
+     * name to pick out. `deepenedBy` widens it back to the name when it writes
+     * the event, which is where the two vocabularies meet.
+     */
+    readonly endsOnDamage?: true;
+    /** The other half of the same sentence — see `wakeCreature`. */
+    readonly endsWhenWoken?: true;
   };
   /**
    * Damage the creature takes **before** the die is thrown.

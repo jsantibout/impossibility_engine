@@ -8,7 +8,7 @@
  */
 
 import { type CharacterId, type ConditionName, err, ok, type Result } from '@ie/shared';
-import { conditionInstanceId, reasonsFor } from '../conditions.js';
+import { conditionInstanceId, type EarlyEndings, reasonsFor } from '../conditions.js';
 import { type Duration, resolveDuration } from '../time.js';
 import {
   type EffectCheck,
@@ -78,6 +78,16 @@ export function applyConditionTo(
    * command that would move every one of them.
    */
   implies?: readonly ConditionName[],
+  /**
+   * Which of this application's conditions a blow ends, and which a
+   * neighbour's action ends — SRD Incubus' "for 1 hour, until it takes damage,
+   * or until a creature within 5 feet of it takes an action to wake it".
+   *
+   * Eleventh, appended for the tenth's reason. Names rather than flags,
+   * because the Pseudodragon ends the Unconscious its Poisoned carries and
+   * not the Poisoned: see {@link EarlyEndings}.
+   */
+  endsEarly?: EarlyEndings,
 ): Result<GameEvent[]> {
   // "You are Frightened" is the state change a narrating layer reaches for
   // most, and a retried one was a second Frightened from the same source —
@@ -91,6 +101,7 @@ export function applyConditionTo(
     ...(repeatSave === undefined ? {} : { repeatSave }),
     ...(check === undefined ? {} : { check }),
     ...(implies === undefined || implies.length === 0 ? {} : { implies }),
+    ...(endsEarly === undefined ? {} : { endsEarly }),
   }, () => [], (stamp) => {
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
@@ -108,6 +119,13 @@ export function applyConditionTo(
     const implied = (implies ?? []).filter(
       (one) => !immuneTo.includes(one) && !immunities.includes(one),
     );
+    // **And a mark goes only on a condition that landed.** A name the
+    // immunity above filtered out has no instance to carry it, and an ending
+    // filed against nothing is an ending nothing could ever spend — the same
+    // reading `applyPrintedClauses` takes of a mode whose host was refused.
+    const landed = new Set<ConditionName>([condition, ...implied]);
+    const onDamage = (endsEarly?.onDamage ?? []).filter((one) => landed.has(one));
+    const whenWoken = (endsEarly?.whenWoken ?? []).filter((one) => landed.has(one));
     // **A success cannot end a casting there is none of.** A repeat save is
     // honoured under any source now — a poison in a bottle repeats its save
     // like a spell — and `end-casting` is the one thing that does not
@@ -131,6 +149,8 @@ export function applyConditionTo(
         condition,
         source,
         ...(implied.length === 0 ? {} : { implies: implied }),
+        ...(onDamage.length === 0 ? {} : { endsOnDamage: onDamage }),
+        ...(whenWoken.length === 0 ? {} : { endsWhenWoken: whenWoken }),
         ...(stamp === null ? {} : { command: stamp }),
       },
     ];
