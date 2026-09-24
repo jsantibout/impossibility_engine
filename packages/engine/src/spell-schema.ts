@@ -5288,6 +5288,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkFoughtClause(effect as object, entry.kind, where, at, found);
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
+      checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
@@ -5515,6 +5516,66 @@ function checkTeleportPlacement(
     code: 'teleport_outside_the_casting',
     reason:
       'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
+  });
+}
+
+/**
+ * Where a clause that reads the casting's stated object may be written.
+ *
+ * {@link checkTeleportPlacement}'s rule applied to the eighth stated fact, and
+ * the two halves differ because the two clauses are read at different moments.
+ *
+ * | | |
+ * |---|---|
+ * | `end-attunement` | the casting's own list, and nowhere else |
+ * | a `drops` rider | the casting's own list **or its activation's** |
+ *
+ * **An `end-attunement` is Remove Curse's, and that spell is Instantaneous**:
+ * it breaks the Attunement once, at the touch, so there is no later moment for
+ * one to be written at. An area trigger firing a minute later reads an
+ * `OngoingSpell` and the caster is not there to be asked again.
+ *
+ * **A `drops` rider may be in an activation**, because SRD Heat Metal's Bonus
+ * Action deals the same damage to the same object and the record pins it —
+ * which is exactly what `OngoingSpell.object` is for, and what
+ * {@link dropsAnObject} reads both lists to see. What is refused is an **area
+ * trigger's** list: a trigger catches whoever walks into a patch of ground and
+ * has nothing to do with a thing one creature is carrying, so a rider written
+ * there would reach `applyRiders` with an object the caster stated about
+ * somebody else entirely.
+ *
+ * Refused at authoring rather than met at the table: without this a homebrew
+ * definition validates clean, `namesAnObject` answers no, `declaredFacts`
+ * refuses the caller's `object` as a fact the spell does not ask for, and the
+ * resolver then throws a raw `Error` for want of it — a programmer-error
+ * exception raised by a rules-legal catalogue, which is rule 6 broken from the
+ * wrong end.
+ */
+function checkObjectPlacement(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind === 'end-attunement' && where !== 'effects') {
+    found.push({
+      field: `${path}.kind`,
+      code: 'attunement_outside_the_casting',
+      reason:
+        'the caster states which object at the casting, and Remove Curse breaks the Attunement at the touch; only the casting’s own effect list can read it',
+    });
+    return;
+  }
+
+  const drops = (effect as { readonly drops?: unknown }).drops;
+  if (drops === undefined) return;
+  if (where === 'effects' || where === 'activation.effects') return;
+  found.push({
+    field: `${path}.drops`,
+    code: 'drop_outside_the_casting',
+    reason:
+      'a forced drop names the object the caster stated at the casting; the casting’s own list and its activation are where that is known, and an area trigger catches whoever walks in',
   });
 }
 

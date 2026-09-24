@@ -169,6 +169,65 @@ describe('Revivify', () => {
     expect(before.creatures[CLERIC]?.resources.pools[spellSlotKey(3)]?.spent ?? 0).toBe(0);
   });
 
+  /**
+   * **All four ways a creature dies, because the stamp claims all four.**
+   *
+   * `stampDeaths` is derived from the transition rather than from any one
+   * event, on the argument that a list of the events that can kill somebody is
+   * not a list anybody could keep correct — and that argument is only worth
+   * anything if the other three are driven. A monster dies inside
+   * `applyDamageToVitals` off a `damage-taken`, a character off a third failed
+   * `death-save-recorded`, another at Exhaustion 6 off an `exhaustion-set`,
+   * and `creature-died` is the deaths nobody else settled.
+   */
+  it.each([
+    [
+      'damage a monster cannot survive',
+      // SRD: "A monster dies the instant it drops to 0 Hit Points", which is
+      // `diesAtZero` and the route that never writes `creature-died` at all.
+      true,
+      [
+        { type: 'damage-taken', id: FALLEN, amount: 40, source: 'an ogre’s club' },
+      ] as readonly GameEvent[],
+    ],
+    [
+      'a third failed death saving throw',
+      // A character, so the blow drops them rather than killing them and the
+      // three failures are what does it.
+      false,
+      [
+        { type: 'hit-points-dropped-to-zero', id: FALLEN, source: 'an ogre’s club' },
+        { type: 'death-save-recorded', id: FALLEN, natural: 3 },
+        { type: 'death-save-recorded', id: FALLEN, natural: 4 },
+        { type: 'death-save-recorded', id: FALLEN, natural: 5 },
+      ] as readonly GameEvent[],
+    ],
+    [
+      'Exhaustion reaching six',
+      false,
+      [{ type: 'exhaustion-set', id: FALLEN, level: 6 }] as readonly GameEvent[],
+    ],
+  ])('stamps the moment of death when it comes from %s', (_how, diesAtZero, killing) => {
+    const before = fold('seed', [
+      ...SETUP.map((event) =>
+        event.type === 'creature-added' && event.id === FALLEN
+          ? { ...event, diesAtZero }
+          : event,
+      ),
+      ...killing,
+      { type: 'time-advanced', seconds: 30, reason: 'the fixture waits' },
+    ]);
+    expect(before.creatures[FALLEN]?.vitals.dead, _how).toBe(true);
+    expect(before.creatures[FALLEN]?.vitals.diedAt, _how).toBe(0);
+    // And none of the three is the event the stamp would have been easy to
+    // hang on, which is the whole point of driving them.
+    expect(killing.some((event) => event.type === 'creature-died'), _how).toBe(false);
+
+    const out = unwrap(cast(before, FALLEN), 'the revival');
+    const after = out.events.reduce(applyEvent, before);
+    expect(after.creatures[FALLEN]?.vitals.hp, _how).toBe(1);
+  });
+
   it('stamps the moment a creature died and clears it on the way back', () => {
     const before = dead(30);
     expect(before.creatures[FALLEN]?.vitals.diedAt).toBe(0);

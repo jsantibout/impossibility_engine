@@ -246,6 +246,39 @@ describe('Heat Metal', () => {
     expect(attackModes(after, THUG)).toEqual([]);
   });
 
+  /**
+   * "If a creature is holding or wearing the object **and takes the damage
+   * from it**" — a thug who let the mace fall last round is touching nothing,
+   * so the Bonus Action reaches him with neither the dice nor the clause about
+   * not letting go. The refusal is what stops the second half punishing a
+   * creature for keeping a thing lying at its feet.
+   */
+  it('refuses a later Bonus Action against a creature that has dropped it', () => {
+    const started = fold('seed', FIGHTING);
+    const first = unwrap(cast(started, THUG, MACE, FAILS), 'the heat');
+    const log = [...FIGHTING, ...first.events];
+    const state = fold('seed', log);
+    expect(state.creatures[THUG]!.equipped.map((worn) => worn.id)).not.toContain(MACE);
+
+    const record = Object.values(state.ongoing).find((one) => one.spellId === 'heat-metal')!;
+    const again = activateSpell(
+      state,
+      DRUID,
+      { castingId: record.castingId, targets: [THUG] },
+      supply(SAVES, 'again'),
+    );
+    expect(isErr(again) && again.code).toBe('not_equipped');
+    expect(state.creatures[THUG]!.vitals.hp).toBe(
+      fold('seed', log).creatures[THUG]!.vitals.hp,
+    );
+  });
+
+  /** And the casting itself is refused for the same reason, before a slot. */
+  it('refuses a casting aimed at a creature not wearing or wielding the thing', () => {
+    const out = cast(fold('seed', ARMED), THUG, BREASTPLATE, SAVES);
+    expect(isErr(out) && out.code).toBe('not_equipped');
+  });
+
   it('deals the damage again on a later Bonus Action', () => {
     const started = fold('seed', FIGHTING);
     const cast1 = unwrap(cast(started, KNIGHT, BREASTPLATE, SAVES), 'the heat');

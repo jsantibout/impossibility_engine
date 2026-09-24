@@ -846,11 +846,12 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // nonmagical weapon" name one object out of what the target is carrying, and
   // a Druid holding both has two answers the engine will not pick between.
   weapon_required: { fields: ['cast_spell.weapon', 'take_ready.response.weapon'] },
-  // The weapon's neighbour, and one caller: SRD Remove Curse breaks "its
-  // owner's Attunement to the object", and a creature attuned to three items
-  // has three answers. A readied casting does not carry it — `ReadyResponse`
-  // holds the four facts a readied spell states and this is not one of them —
-  // so the field is `cast_spell`'s alone.
+  // The weapon's neighbour, and one caller. Two clauses ask: SRD Remove Curse
+  // breaks "its owner's Attunement to the object", and SRD Heat Metal heats a
+  // thing and makes its holder drop it. Either way a creature carrying three
+  // things has three answers. A readied casting does not carry it —
+  // `ReadyResponse` holds the four facts a readied spell states and this is not
+  // one of them — so the field is `cast_spell`'s alone.
   object_required: { fields: ['cast_spell.object'] },
   // The seventh stated fact, and one caller: SRD Find Familiar's "an animal
   // form you choose" names the stat block the summons raises, and the engine

@@ -257,3 +257,44 @@ export function resolveCreatureTypeOverrideEffect(
   outcomes.push({ target, affected: true });
   return ok(applyEvent(world, masked));
 }
+
+/**
+ * Whether this creature is in contact with the object, and why not where it is
+ * not.
+ *
+ * > SRD Heat Metal: "**If a creature is holding or wearing the object** and
+ * > takes the damage from it…"
+ *
+ * `equipped` is the whole of the contact the engine can see — armour on a body,
+ * a weapon in a hand — so this is the sentence as the engine can read it.
+ *
+ * **Asked on both paths and not only at the cast**, which is the correction
+ * this function exists for. The pre-flight in `resolveSpell` refuses a casting
+ * aimed at a creature who has no such thing, and the Bonus Action on a later
+ * turn goes nowhere near that pre-flight: a creature that dropped the mace on
+ * the round before is no longer touching it, and without this it would have
+ * taken the dice again and the Disadvantage for "not dropping" a thing it had
+ * already let go of.
+ *
+ * Written once and asked twice, for {@link reviveProblem}'s reason.
+ */
+export function objectHeldProblem(
+  state: GameState,
+  content: Content,
+  target: CharacterId,
+  object: string,
+  name: string,
+): Result<true> {
+  const item = content.item(object);
+  if (item === null) return err('unknown_item', `${object} is not in the catalogue`);
+
+  const victim = state.creatures[target];
+  // A creature the casting cannot find is targeting's refusal, not this one.
+  if (victim === undefined) return ok(true);
+
+  if (victim.equipped.some((worn) => worn.id === item.id)) return ok(true);
+  return err(
+    'not_equipped',
+    `${name} reaches a creature holding or wearing the object, and ${target} has no ${item.name} in hand or on their back`,
+  );
+}

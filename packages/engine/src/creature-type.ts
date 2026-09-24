@@ -43,8 +43,11 @@
  * Hands' "can't be used on an Undead or a Construct" — against the creature's
  * own type. That is a magical effect by the sentence above and should read the
  * Mask; the file belonged to another track on the batch this arrived in, and
- * routing it is one line. Until then the engine is conservative in the
- * direction that refuses rather than the one that permits.
+ * routing it is one line. **It is wrong in both directions and the record says
+ * so**: a masked Undead can be healed by a paladin who should be refused, and
+ * a masked Humanoid who really is one cannot be healed by a paladin who should
+ * not be. There is no conservative half here — only a debt, named where the
+ * next reader of this function will meet it.
  */
 import type { CreatureState } from './state.js';
 

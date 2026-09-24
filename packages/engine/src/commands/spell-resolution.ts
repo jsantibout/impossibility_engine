@@ -79,6 +79,7 @@ import { remaining, tallied } from '../resources.js';
 import {
   breaksAttunement,
   dropsAnObject,
+  outcomeRidersOf,
   creatureTypesRead,
   delayedDuration,
   delaysDamage,
@@ -147,6 +148,7 @@ import { replacedCastings } from './ongoing.js';
 import {
   attunementProblem,
   maskProblem,
+  objectHeldProblem,
   resolveCreatureTypeOverrideEffect,
   resolveEndAttunementEffect,
   resolveReviveEffect,
@@ -1125,18 +1127,15 @@ export function castOrRelease(
     // knight's pack rather than the breastplate on his back has aimed at
     // nothing, and must hear so before the slot is gone.
     if (request.object !== undefined && dropsAnObject(definition)) {
-      const item = supply.content.item(request.object);
-      if (item === null) {
-        return err('unknown_item', `${request.object} is not in the catalogue`);
-      }
       for (const target of targets) {
-        const creature = state.creatures[target];
-        if (creature === undefined) continue;
-        if (creature.equipped.some((worn) => worn.id === item.id)) continue;
-        return err(
-          'not_equipped',
-          `${definition.name} is aimed at a thing its target is wearing or wielding, and ${target} has no ${item.name} in hand or on their back`,
+        const touching = objectHeldProblem(
+          state,
+          supply.content,
+          target,
+          request.object,
+          definition.name,
         );
+        if (!touching.ok) return touching;
       }
     }
 
@@ -1960,7 +1959,7 @@ function resolveOnTargets(
         ...(fought === undefined ? {} : { fought }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
-      ...(request.object === undefined ? {} : { object: request.object }),
+        ...(request.object === undefined ? {} : { object: request.object }),
         ...(request.form === undefined ? {} : { form: request.form }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
@@ -2261,7 +2260,7 @@ function resolveOnTargets(
               // The fifth, and the same: a Shillelagh declared at one staff
               // must not settle at the other one in the pack.
               ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
-      ...(request.object === undefined ? {} : { object: request.object }),
+              ...(request.object === undefined ? {} : { object: request.object }),
               // The sixth: a Find Familiar declared as a Cat settles as a Cat.
               ...(request.form === undefined ? {} : { form: request.form }),
               // **And the numbers, for a casting an item made.** A class
@@ -2680,6 +2679,27 @@ export function resolveEffects(
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, castingId, events } = context;
+
+  // **Whoever is being burned has to still be touching the thing**, and this
+  // is the seam both ways in share. SRD Heat Metal: "If a creature is holding
+  // or wearing the object and takes the damage from it…" — the cast asks it in
+  // the pre-flight so a refusal costs no slot, and the Bonus Action on a later
+  // turn passes nowhere near that pre-flight. Without this, a thug who dropped
+  // the mace last round would take the dice again and the Disadvantage for
+  // holding on to a thing lying at his feet.
+  //
+  // Before the first die and before the action is charged, which is what makes
+  // it a refusal rather than a wasted turn.
+  const heated = context.object;
+  if (heated !== undefined) {
+    const run = context.effects ?? definition.effects;
+    if (run.some((effect) => outcomeRidersOf(effect).drops !== undefined)) {
+      for (const target of targets) {
+        const touching = objectHeldProblem(state, supply.content, target, heated, definition.name);
+        if (!touching.ok) return touching;
+      }
+    }
+  }
 
   const resolved = runEffects(state, casterId, caster, {
     origin: { kind: 'casting', castingId, definition },

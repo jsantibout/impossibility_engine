@@ -5266,9 +5266,11 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
  * have one answer.
  *
  * Only the casting's own list, because that is the only place the kind may be
- * written: the object is stated at the casting, and an area trigger or an
- * activation firing a minute later has no request to read it off. The
- * validator refuses it anywhere else.
+ * written: the object is stated at the casting, Remove Curse is Instantaneous
+ * and breaks the Attunement at the touch, and an area trigger or an activation
+ * firing a minute later has no request to read it off. `checkObjectPlacement`
+ * refuses it anywhere else, which is what makes reading one list here correct
+ * rather than optimistic.
  */
 export function breaksAttunement(definition: SpellDefinition): boolean {
   return definition.effects.some((effect) => effect.kind === 'end-attunement');

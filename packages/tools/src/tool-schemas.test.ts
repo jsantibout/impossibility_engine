@@ -160,8 +160,8 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(83);
     expect(toolSchemas(dm())).toHaveLength(101);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(116463);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(138770);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(116567);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(138874);
   });
 });
 

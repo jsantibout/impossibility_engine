@@ -7846,12 +7846,11 @@ export const COMMAND: SpellDefinition = {
   requiresSight: true,
   effects: [],
   unmodelled: [
-    'the Wisdom saving throw is not rolled, because what it gates cannot be imposed: "follow the command on its next turn" spends somebody else’s turn, and nothing lets a spell reach the action economy except by naming a condition',
-    'which of the five commands was spoken is not recorded; a per-casting choice has nowhere to be kept, and a damage type is the one choice that does',
-    'Approach and Flee are not applied: a route nobody chose, a turn that ends early on arrival, and a whole turn spent running are compelled movement, and `moveCreature` has no notion of a move the rules require',
-    'Drop is not applied: what is in a creature’s hands is not a fact the engine holds, so a rule that makes it let go has nothing to call',
-    'Grovel is not applied: the Prone is an ordinary condition and the clause beside it that ends the creature’s turn is not, so the engine writes neither rather than half of one',
-    'Halt is not applied: forbidding the move, the action and the Bonus Action together is the Incapacitated condition’s effect without the condition, and nothing reaches `mayAct` except through a condition the engine knows',
+    'the Wisdom saving throw is not rolled, because nothing it could gate is written: the five words are five different effect lists and a casting runs one list, so a definition that carried any of them would impose that one whatever the caster said',
+    'which of the five commands was spoken is not recorded: `choiceStated` substitutes a value into an effect that is already in the list, and this is a choice of **which effects run** — the second arm of `a-choice-made-at-the-casting`, which that field’s own docstring names as deliberately absent',
+    'Approach and Flee are the DM’s under the ruling Fear’s compelled Dash took: a route nobody chose and a whole turn spent running are a creature being played rather than a spend being charged, and the engine adjudicates legality without walking anybody anywhere',
+    'Drop, Grovel and Halt are each writable on their own — `OutcomeRiders.drops` lets go of a named object, Prone is an ordinary condition, and `forbids` takes movement, the action and the Bonus Action together — and what none of them has is a way to say "only if the caster spoke this word"',
+    'the clause that ends the compelled creature’s turn, which Drop and Grovel both print, is a moment no rider reaches',
   ],
 };
 
