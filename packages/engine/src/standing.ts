@@ -4,13 +4,14 @@ import {
   type Ability,
   type CharacterId,
   type ConditionName,
+  type DamageType,
   type Result,
   type RollMode,
   type Skill,
 } from '@ie/shared';
 import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
 import type { CreatureSize } from '@ie/srd';
-import type { TurnAnchor } from './time.js';
+import type { TurnAnchor, TurnMoment } from './time.js';
 import {
   grantedRollModes,
   unsettledSightGrants,
@@ -2048,6 +2049,17 @@ export interface HitOption {
    */
   readonly grapples?: HitGrapple;
   /**
+   * An **attach** the blow makes — SRD Stirge: "the stirge attaches to the
+   * target"; SRD Darkmantle: "the darkmantle attaches to the target."
+   *
+   * Beside {@link grapples} rather than inside it, because the two hold
+   * opposite ends: a grapple gives the *target* the Grappled condition and is
+   * read back off that instance, and an attach fixes the *attacker* to a
+   * target who may walk off with it on them. `CreatureState.attachments` is
+   * where it lands, and `attachmentsOf` is what finds it.
+   */
+  readonly attaches?: HitAttach;
+  /**
    * A shove the blow itself delivers — SRD Satyr: "the satyr pushes the target
    * up to 10 feet straight away from itself"; SRD Merrow pulls fifteen.
    *
@@ -2182,6 +2194,72 @@ export interface HitGrapple {
    * one particular set of jaws does.
    */
   readonly whileHeld?: readonly ConditionName[];
+  /**
+   * SRD Animated Rug of Smothering: "the rug **can** give it the Grappled
+   * condition (escape DC 13) instead of dealing damage."
+   *
+   * An offer rather than a consequence, which is the whole of why it is a flag
+   * the swing answers: the book writes "can", the engine has nobody to ask,
+   * and a hold made on every hit would be a rule the line does not print. A
+   * swing that names the choice takes it; one that does not deals the damage.
+   */
+  readonly insteadOfDamage?: true;
+  /** What the hold costs at each of somebody's turn boundaries, where it costs one. */
+  readonly payout?: HitHoldPayout;
+}
+
+/**
+ * An attach the blow makes, compiled off the line that prints one.
+ *
+ * Everything here is optional because the two SRD blocks that attach share
+ * only the first sentence: a stirge attaches and drinks, a darkmantle
+ * attaches, blinds and pins its own Speed at 0.
+ */
+export interface HitAttach {
+  /** SRD Darkmantle's "DC 13 Strength (Athletics) check", where the line prints one. */
+  readonly detachDc?: number;
+  /** SRD Darkmantle: "Its Speed becomes 0" — the *attacher's*. */
+  readonly holderSpeedBecomesZero?: true;
+  /**
+   * What the attach hangs on the creature it landed on, for as long as it
+   * holds — SRD Darkmantle's Blinded.
+   *
+   * {@link HitGrapple.whileHeld}'s twin on the other hold, filed under the
+   * attach's own source so `creature-detached` lifts it. The size gate the
+   * line prints is evaluated at the swing and is not here; the *other* gate is
+   * — see {@link coverNeedsAdvantage}.
+   */
+  readonly whileHeld?: readonly ConditionName[];
+  /**
+   * SRD Darkmantle: "…**and the darkmantle had Advantage on the attack roll**,
+   * it covers the target."
+   *
+   * The one gate a printed rider carries past the moment it is built, and it
+   * has to be: what a hit buys is settled before the d20 so a hold can pin it,
+   * and this clause asks about the roll that has not happened yet. The swing
+   * narrows the option once the mode is known — see `coveredByTheRoll`.
+   */
+  readonly coverNeedsAdvantage?: true;
+  /** What the attach takes out of somebody at each of somebody's boundaries. */
+  readonly payout?: HitHoldPayout;
+}
+
+/**
+ * What a hold hands over at every one of somebody's turn boundaries — SRD
+ * Stirge's 5 (2d4) Necrotic, SRD Animated Rug's 10 (2d6 + 3) Bludgeoning.
+ *
+ * `GrantedPayout` as a printed line states it. **`onTurnOf` is the
+ * load-bearing field**: the Stirge names its own turns and the Rug writes
+ * "its", which is the creature that was struck, and the two are a round apart.
+ * The dice are a notation rather than a total, because a payment that repeats
+ * throws a new die at each boundary.
+ */
+export interface HitHoldPayout {
+  readonly dice: string;
+  readonly flat: number;
+  readonly damageType: DamageType;
+  readonly at: TurnMoment;
+  readonly onTurnOf: HitRiderAnchor;
 }
 
 /**

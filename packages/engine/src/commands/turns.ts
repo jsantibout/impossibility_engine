@@ -64,6 +64,8 @@ import {
 } from './rolls.js';
 import { resolveEffects } from './spell-resolution.js';
 import { type SpellTargetOutcome } from './targeting.js';
+import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
+import { attachedTo } from '../state.js';
 
 /** One turn-boundary save, rolled and settled. */
 export interface ResolvedRepeatSave {
@@ -177,6 +179,13 @@ function collectDueDamage(
 /** One creature's payout, and the arrangement that owes it. */
 interface DuePayout {
   readonly target: CharacterId;
+  /**
+   * Whose boundary this fell due at, which is the creature the arrangement is
+   * on � and, where {@link GrantedPayout.to} names somebody else, the one
+   * dealing the damage. SRD Stirge is drinking, and a blow with no dealer is a
+   * blow nothing can answer or attribute.
+   */
+  readonly holder: CharacterId;
   readonly payout: GrantedPayout;
 }
 
@@ -216,8 +225,43 @@ function payoutsAt(
   const creature = state.creatures[who];
   if (creature === undefined || creature.vitals.dead) return [];
   return creature.payouts
-    .filter((payout) => payout.at === at)
-    .map((payout) => ({ target: who, payout }));
+    .filter((payout) => payout.at === at && holdStillStands(state, who, payout.source))
+    // **Whose boundary and who pays are two roles**, and a printed hold is the
+    // first sentence that puts them on two creatures: SRD Stirge collects at
+    // its own turn and the damage lands on whoever it is drinking from. See
+    // {@link GrantedPayout.to}.
+    .map((payout) => ({ target: payout.to ?? who, holder: who, payout }));
+}
+
+/**
+ * Whether a payout filed under a **hold** is still owed.
+ *
+ * SRD Animated Rug of Smothering pays out "until the grapple ends", and a
+ * grapple ends by a rule the fold cannot raise — a successful escape lifts the
+ * Grappled instance and nothing releases what the hold hung beside it. That is
+ * the same absence `lapsedGrapples` is about, and the same answer `carrying`
+ * gives a conjured item whose casting ran out: **the lifetime is derived
+ * rather than folded**, read off the source at the moment the boundary looks.
+ *
+ * Read off the source, because that is where every other reader of a hold
+ * reads it: `grapplesOn`, `lapsedGrapples` and `escapeGrapple` all find one by
+ * the `grapple:<who>` its instance is filed under, and an attach by
+ * `attach:<who>`. A source naming neither is not a hold and is always owed.
+ */
+function holdStillStands(state: GameState, holder: CharacterId, source: string): boolean {
+  const grappler = grapplerOf(source);
+  if (grappler !== null) {
+    return grapplesOn(state, holder).some((held) => held.grappler === grappler);
+  }
+  const other = attachedTo(source);
+  if (other === null) return true;
+  // Either end of the attach may be holding the arrangement — the Stirge's is
+  // on the stirge and a line that wrote it the other way round would put it on
+  // the target — so the question is whether the pair is still attached at all.
+  return (
+    attachmentsOf(state, holder).some((one) => one.to === other) ||
+    attachmentsOf(state, other).some((one) => one.to === holder)
+  );
 }
 
 /**
@@ -270,7 +314,7 @@ function settleTurnPayouts(
   // so a payout carrying nothing but a flat number can still move the stream.
   const issuedBefore = supply.issuer.count;
 
-  for (const { target, payout } of due) {
+  for (const { target, holder, payout } of due) {
     const recipient = current.creatures[target];
     // Settling an earlier payout can kill the creature the next one is for —
     // one fight, one combatant, a curse that drops them — so this is re-read
@@ -312,7 +356,17 @@ function settleTurnPayouts(
       // The caster is named so the hit can be answered and attributed, and is
       // omitted rather than guessed at when the casting has outlived them.
       const castingId = castingIdOf(payout.source);
-      const by = castingId === null ? undefined : current.ongoing[castingId]?.caster;
+      // A casting names its caster; a printed hold names nobody, and the
+      // creature whose boundary this is *is* the one dealing it � SRD Stirge
+      // drinks at the start of its own turn. Where the two are the same
+      // creature there is nothing to attribute and the field stays empty, as
+      // it always has for a payout that lands on its own holder.
+      const by =
+        castingId === null
+          ? payout.to === undefined
+            ? undefined
+            : holder
+          : current.ongoing[castingId]?.caster;
       const hurt = dealSpellDamage(current, target, whole, label, supply, {
         ...(by === undefined ? {} : { by: by as CharacterId }),
       });

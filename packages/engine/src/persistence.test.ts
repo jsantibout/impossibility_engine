@@ -222,6 +222,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'condition-removed',
   'cover-declared',
   'creature-added',
+  'creature-attached',
+  'creature-detached',
   'creature-died',
   'creature-heads-declared',
   'creature-moved',

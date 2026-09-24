@@ -39,8 +39,9 @@ import { canUseFeatureThisTurn } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
+import { attachSource } from '../state.js';
 import { remaining } from '../resources.js';
-import { sheetAsItStands, type HitOption } from '../standing.js';
+import { sheetAsItStands, type HitHoldPayout, type HitOption } from '../standing.js';
 import { type EffectTarget, timerKey } from '../timers.js';
 import { turnAnchored, type Duration } from '../time.js';
 import { type Supply } from './casting.js';
@@ -303,7 +304,20 @@ export function applyHitRider(
   if (!grabbed.ok) return grabbed;
   events.push(...grabbed.value);
 
-  const held = grabbed.value.reduce(applyEvent, resolved.value.state);
+  // **The attach, beside the grapple and for the grapple's reason**: it is a
+  // relation between two creatures rather than anything hung on one of them,
+  // and it must see the world the effects left. The two never both happen on
+  // one printed line — a block either holds you or holds on to you.
+  const fixed = makeTheAttach(
+    grabbed.value.reduce(applyEvent, resolved.value.state),
+    hit,
+    option,
+    unverified,
+  );
+  if (!fixed.ok) return fixed;
+  events.push(...fixed.value);
+
+  const held = [...grabbed.value, ...fixed.value].reduce(applyEvent, resolved.value.state);
 
   // **The shove, after the grapple**, because the order is the engine's to fix
   // and no printed line does both: a hold and a push are two answers to "where
@@ -408,7 +422,123 @@ function makeTheGrapple(
     );
     return ok([]);
   }
-  return ok(landed.value.events);
+  return ok([
+    ...landed.value.events,
+    // SRD Animated Rug of Smothering: "takes 10 (2d6 + 3) Bludgeoning damage
+    // at the start of each of its turns" — an arrangement the hold makes,
+    // filed under the hold's own source so the boundary can read it and
+    // `holdStillStands` can stop reading it the moment the escape succeeds.
+    ...payoutEvents(grapple.payout, grappleSource(hit.attacker), hit),
+  ]);
+}
+
+/**
+ * SRD Stirge: "the stirge attaches to the target." SRD Darkmantle: the same,
+ * plus a cover and a Speed of 0.
+ *
+ * **Made the way the grapple above it is made**, and filed the other way
+ * round: the relation is written on the creature that attached, and everything
+ * it hung at either end is filed under {@link attachSource} so one
+ * `creature-detached` takes all of it.
+ *
+ * **Nothing here refuses.** The blow has landed; a creature immune to the
+ * condition the cover imposes is attached without being covered and is said so
+ * out loud, which is the reading `conditionLanding` holds at every door a
+ * condition arrives through.
+ */
+function makeTheAttach(
+  world: GameState,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+  unverified: string[],
+): Result<readonly GameEvent[]> {
+  const attach = option.attaches;
+  if (attach === undefined) return ok([]);
+
+  const source = attachSource(hit.target);
+  const events: GameEvent[] = [
+    {
+      type: 'creature-attached',
+      id: hit.attacker,
+      attachment: {
+        to: hit.target,
+        name: option.name,
+        ...(attach.detachDc === undefined ? {} : { detachDc: attach.detachDc }),
+      },
+    },
+  ];
+
+  // SRD Darkmantle: "Its Speed becomes 0." The grant the engine already writes
+  // for Hypnotic Pattern's own sentence, filed under the attach so it comes
+  // back the moment the darkmantle lets go.
+  if (attach.holderSpeedBecomesZero === true) {
+    events.push({
+      type: 'speed-modifier-granted',
+      id: hit.attacker,
+      modifier: { source, change: 'zero' },
+    });
+  }
+
+  // SRD Darkmantle: "it covers the target, which has the Blinded condition."
+  // No deadline of its own — the attach is the lifetime — so the condition is
+  // applied with no duration and lifted by the cause when the hold ends.
+  let current = events.reduce(applyEvent, world);
+  for (const condition of attach.whileHeld ?? []) {
+    const landed = conditionLanding(
+      applyConditionTo(current, hit.target, condition, attachSource(hit.attacker)),
+    );
+    if (!landed.ok) return landed;
+    if (!landed.value.landed) {
+      unverified.push(
+        `${option.featureName} leaves ${hit.target} ${condition} while it is attached, and ${hit.target} cannot be given that condition at all`,
+      );
+      continue;
+    }
+    events.push(...landed.value.events);
+    current = landed.value.events.reduce(applyEvent, current);
+  }
+
+  // SRD Stirge: "the target takes 5 (2d4) Necrotic damage at the start of each
+  // of the stirge's turns."
+  events.push(...payoutEvents(attach.payout, source, hit));
+  return ok(events);
+}
+
+/**
+ * The arrangement a hold makes, as the grant a turn boundary already reads.
+ *
+ * **Filed on whoever's turn collects it**, which is the shape `payoutsAt`
+ * wants: SRD Stirge collects at its own boundary and the damage lands on the
+ * creature it is drinking from, so the grant sits on the stirge and names the
+ * other end. SRD Animated Rug writes "each of its turns" — the creature that
+ * was struck — so its grant sits on them and names nobody.
+ *
+ * The dice are a notation, thrown at the boundary and never here: a payment
+ * that repeats throws a new die each turn, and rolling one at the hit would
+ * put the number in the log before the moment that produced it.
+ */
+function payoutEvents(
+  payout: HitHoldPayout | undefined,
+  source: string,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+): readonly GameEvent[] {
+  if (payout === undefined) return [];
+  const collector = payout.onTurnOf === 'attacker' ? hit.attacker : hit.target;
+  return [
+    {
+      type: 'turn-payout-granted',
+      id: collector,
+      payout: {
+        source,
+        at: payout.at,
+        payout: 'damage',
+        dice: payout.dice,
+        flat: payout.flat,
+        damageType: payout.damageType,
+        ...(collector === hit.target ? {} : { to: hit.target }),
+      },
+    },
+  ];
 }
 
 /**

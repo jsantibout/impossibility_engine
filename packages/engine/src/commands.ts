@@ -158,21 +158,30 @@ export type { UseBudgetPurchaseCommand } from './commands/budget.js';
 export { resolveAttack, resolveAttackDamage } from './commands/attacks.js';
 export type { AttackCommand, AttackDamageCommand, AttackResolution } from './commands/attacks.js';
 export {
+  attachmentsOf,
+  attachmentsOn,
+  detachFrom,
   escapeGrapple,
   grappleSource,
   grapplerOf,
   grapplesOn,
   grappleTarget,
   lapsedGrapples,
+  letGoOfAttachment,
+  SELF_DETACH_FEET,
   SHOVE_FEET,
   shoveTarget,
   UNARMED_REACH,
 } from './commands/unarmed.js';
 export type {
+  DetachCommand,
+  DetachResolution,
   EscapeCommand,
   EscapeResolution,
   GrappleCommand,
+  HeldAttachment,
   HeldGrapple,
+  LetGoCommand,
   LapsedGrapple,
   SaveChoice,
   ShoveCommand,

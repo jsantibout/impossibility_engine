@@ -41,11 +41,12 @@ import { CREATURE_SIZES, type CreatureSize } from '@ie/srd/schemas';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { modifierFor, proficiencyBonus } from '../character.js';
 import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from '../checks.js';
-import { spendAction, spendAttack } from '../combat.js';
+import { spendAction, spendAttack, spendMovement } from '../combat.js';
 import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { attacksInAction, statedBonusActionsUsed } from '../monster.js';
+import { attachSource } from '../state.js';
 import {
   apartFrom,
   bearingBetween,
@@ -53,11 +54,17 @@ import {
   sizeAtMost,
 } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
-import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
+import {
+  actionRulesOn,
+  effectiveConditions,
+  rollModesFor,
+  sheetAsItStands,
+  speedOf,
+} from '../standing.js';
 import { timerKey, type EffectCheck } from '../timers.js';
 import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, unknownCreature } from './command.js';
-import { applyConditionTo } from './conditions.js';
+import { applyConditionTo, endConditionsOn } from './conditions.js';
 import { mayAct } from './holds.js';
 import { conditionEndedBy } from './turns.js';
 import { checkBonuses, recordD20Test, savingSupport, spentRollModifiers } from './rolls.js';
@@ -826,4 +833,288 @@ export function escapeGrapple(
       });
     },
   );
+}
+
+// — the attach ————————————————————————————————————————————————————————————————
+
+/**
+ * A creature currently fixed to another — SRD Stirge, SRD Darkmantle.
+ *
+ * {@link HeldGrapple}'s counterpart one hold along, with the two ends the
+ * other way round: a grapple is held *on* the target and an attach is held
+ * *by* the attacker. Read off `CreatureState.attachments`, which is written
+ * down rather than derived for the reason `creature-attached` gives — an
+ * attach can leave the target holding nothing at all.
+ */
+export interface HeldAttachment {
+  /** The creature that attached, and holds the relation. */
+  readonly holder: CharacterId;
+  readonly to: CharacterId;
+  /** What everything the attach hung — at either end — is filed under. */
+  readonly source: string;
+  /** The stat-block line that made it, for the log. */
+  readonly name: string;
+  /** SRD Darkmantle's "DC 13 Strength (Athletics) check", where the line prints one. */
+  readonly detachDc?: number;
+}
+
+/** Everything this creature is attached to. */
+export function attachmentsOf(state: GameState, holder: CharacterId): readonly HeldAttachment[] {
+  return (state.creatures[holder]?.attachments ?? []).map((held) => ({
+    holder,
+    to: held.to,
+    source: attachSource(held.to),
+    name: held.name,
+    ...(held.detachDc === undefined ? {} : { detachDc: held.detachDc }),
+  }));
+}
+
+/**
+ * Everything attached **to** this creature.
+ *
+ * A walk of the roster rather than a lookup, exactly as `lapsedGrapples` is
+ * and for the same reason: the record is on the other creature, and the fold
+ * reduces one at a time. Sorted, so two replays answer in the same order.
+ */
+export function attachmentsOn(state: GameState, target: CharacterId): readonly HeldAttachment[] {
+  return Object.keys(state.creatures)
+    .sort()
+    .flatMap((who) => attachmentsOf(state, who as CharacterId).filter((one) => one.to === target));
+}
+
+/** SRD Darkmantle: "a successful DC 13 **Strength (Athletics)** check". */
+const ATTACH_DETACH_ABILITY = 'str' as const;
+const ATTACH_DETACH_SKILL = 'athletics' as const;
+
+/** SRD: "The stirge can detach itself by spending **5 feet** of its movement." */
+export const SELF_DETACH_FEET = 5;
+
+/** SRD Stirge: "The target **or a creature within 5 feet of it** can detach the stirge." */
+export interface DetachCommand extends CommandIdentity {
+  /** The creature holding on — SRD's "the stirge". */
+  readonly holder: CharacterId;
+  /** The creature it is attached to, which the detacher must be at or beside. */
+  readonly from: CharacterId;
+  /** Advantage or Disadvantage the table knows about, where the line asks for a check. */
+  readonly modes?: readonly (RollMode | ModeSource)[];
+  /** Named modifiers the table supplies: Guidance's 1d4, a Bardic die. */
+  readonly bonuses?: readonly Bonus[];
+}
+
+export interface DetachResolution {
+  readonly events: readonly GameEvent[];
+  /** The check, where the line printed a DC and this was not a replay. */
+  readonly check: D20TestResult | null;
+  readonly success: boolean;
+  readonly duplicate: boolean;
+}
+
+/**
+ * SRD Stirge: "The target or a creature within 5 feet of it can detach the
+ * stirge as an action." SRD Darkmantle: "A creature can take an action to try
+ * to detach the darkmantle from itself, doing so with a successful DC 13
+ * Strength (Athletics) check."
+ *
+ * **One door for two sentences, and the DC is what differs.** The Stirge's
+ * line prints no roll, so its hold comes off for the Action alone; the
+ * Darkmantle's prints one, and it is the number pinned on the attach at the
+ * hit. Inventing a DC for the first would be a check nobody wrote down, and
+ * ignoring the second would be a hold that came off for free.
+ *
+ * **Not {@link escapeGrapple}**, which it otherwise resembles: that command is
+ * the creature *in* the hold getting out of it, rolls against a DC pinned on a
+ * timer, and offers the book's two abilities. This is somebody pulling a
+ * creature off somebody — possibly off a third party — and SRD names one
+ * ability where it names any.
+ */
+export function detachFrom(
+  state: GameState,
+  who: CharacterId,
+  command: DetachCommand,
+  /**
+   * Required, though only one of the two printed lines throws a die: a caller
+   * cannot know which without reading the block, and a command that refused
+   * for want of a generator would be a rules refusal about a programmer's
+   * mistake. `escapeGrapple` takes one the same way.
+   */
+  supply: Supply,
+): Result<DetachResolution> {
+  return once(
+    state,
+    `detach:${who}`,
+    command,
+    () => ({ events: [], check: null, success: false, duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. After the duplicate check, as `escapeGrapple`'s
+      // is and for its reason.
+      const owedHere = mayAct(state, who);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, who);
+      if (creature === null) return unknownCreature(who);
+      if (creatureOf(state, command.holder) === null) return unknownCreature(command.holder);
+
+      const attached = attachmentsOf(state, command.holder).find((one) => one.to === command.from);
+      if (attached === undefined) {
+        return err('not_attached', `${command.holder} is not attached to ${command.from}`);
+      }
+
+      // SRD's "or a creature within 5 feet of **it**" — of the creature being
+      // held, not of the thing holding on. Somebody is always in reach of
+      // themself, which is what `reachedBy` answers when the two are one.
+      const near = reachedBy(state, who, command.from, `${who} reaching ${command.from}`);
+      if (near !== null) return near;
+
+      // Nothing is rolled until the whole operation is known to be valid, so a
+      // refusal costs neither the Action nor a turn of the generator.
+      const events: GameEvent[] = [];
+      const combat = state.combat;
+      if (combat !== null && combat.budgets[who] !== undefined) {
+        const spent = spendAction(combat, who, creature.conditions, {
+          rules: actionRulesOn(state, who),
+        });
+        if (!spent.ok) return spent;
+        events.push({ type: 'action-spent', id: who });
+      }
+
+      const letGo = releaseAttachment(state, attached, stamp);
+
+      // SRD Stirge prints no check, so the Action alone is the whole of it.
+      if (attached.detachDc === undefined) {
+        return ok({ events: [...events, ...letGo], check: null, success: true, duplicate: false });
+      }
+
+      const issuedBefore = supply.issuer.count;
+      const query = {
+        family: 'ability-check' as const,
+        roller: who,
+        ability: ATTACH_DETACH_ABILITY,
+        skill: ATTACH_DETACH_SKILL,
+      };
+      const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+      const rolled = rollAbilityCheck(supply.issuer, supply.rng, sheet, ATTACH_DETACH_ABILITY, {
+        dc: attached.detachDc,
+        skill: ATTACH_DETACH_SKILL,
+        conditions: effectiveConditions(state, who),
+        modes: [...rollModesFor(state, query).modes, ...(command.modes ?? [])],
+        bonuses: checkBonuses(state, who, command.bonuses, ATTACH_DETACH_SKILL),
+      });
+      if (!rolled.ok) return rolled;
+
+      events.push(
+        {
+          type: 'rolls-issued',
+          count: supply.issuer.count - issuedBefore,
+          rng: supply.rng.snapshot(),
+        },
+        {
+          ...recordD20Test(
+            who,
+            `check to detach ${command.holder} from ${command.from}`,
+            rolled.value,
+            rolled.value.success ? 'pulled it off' : 'it held on',
+          ),
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+        // And the one-shot grants this check used up — beside the roll and
+        // whatever the outcome, as every other roller that spends one does.
+        ...spentRollModifiers(state, query),
+      );
+
+      return ok({
+        events: rolled.value.success ? [...events, ...letGo] : events,
+        check: rolled.value,
+        success: rolled.value.success,
+        duplicate: false,
+      });
+    },
+  );
+}
+
+/** Which of this creature's attaches to let go of, where it holds more than one. */
+export interface LetGoCommand extends CommandIdentity {
+  readonly from: CharacterId;
+}
+
+/**
+ * SRD Stirge: "The stirge can detach itself by spending 5 feet of its
+ * movement." SRD Darkmantle writes the same sentence of itself.
+ *
+ * **A command of its own rather than a flag on a move**, and the reason is
+ * what a move is: `resolveMove` is a placement — a bearing, a distance, the
+ * terrain it crosses, the Opportunity Attacks it provokes, the record of the
+ * run a charge reads back — and this spends five feet and goes nowhere. A flag
+ * would have made every one of those questions answerable about a move that
+ * never happened, and the charge's own record is the one that would have been
+ * wrong quietly.
+ *
+ * Outside a fight there is no budget and nothing is charged, which is the
+ * answer every other economy question in this module gives to the same
+ * absence.
+ */
+export function letGoOfAttachment(
+  state: GameState,
+  who: CharacterId,
+  command: LetGoCommand,
+): Result<readonly GameEvent[]> {
+  return once(state, `let-go:${who}`, command, () => [], (stamp) => {
+    // **`mayAct` applies, because this spends movement**, which is the rule
+    // `mountCreature` states of the same spend: a creature owing a mandatory
+    // saving throw settles it before it moves anywhere. After the duplicate
+    // check, never before it.
+    const owedHere = mayAct(state, who);
+    if (owedHere !== null) return owedHere;
+
+    const creature = creatureOf(state, who);
+    if (creature === null) return unknownCreature(who);
+
+    const attached = attachmentsOf(state, who).find((one) => one.to === command.from);
+    if (attached === undefined) {
+      return err('not_attached', `${who} is not attached to ${command.from}`);
+    }
+
+    const events: GameEvent[] = [];
+    if (state.combat !== null && state.combat.budgets[who] !== undefined) {
+      const spent = spendMovement(state.combat, who, SELF_DETACH_FEET, speedOf(state, who), {
+        rules: actionRulesOn(state, who),
+      });
+      if (!spent.ok) return spent;
+      events.push({ type: 'movement-spent', id: who, feet: SELF_DETACH_FEET });
+    }
+
+    return ok([...events, ...releaseAttachment(state, attached, stamp)]);
+  });
+}
+
+/**
+ * Letting go, whichever door it was let go by.
+ *
+ * Two events and one ending: `creature-detached`, whose fold releases what the
+ * attach granted at **both** ends, and the ordinary `condition-removed` for
+ * what it hung on the creature it covered — the door every other condition
+ * leaves by, which takes an implied instance and its deadline with it.
+ */
+function releaseAttachment(
+  state: GameState,
+  attached: HeldAttachment,
+  stamp: CommandStamp | null,
+): readonly GameEvent[] {
+  return [
+    {
+      type: 'creature-detached',
+      id: attached.holder,
+      to: attached.to,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+    ...endConditionsOn(
+      attached.to,
+      (state.creatures[attached.to]?.conditions.instances ?? [])
+        // Only what this cause is itself the reason for: an implied instance
+        // goes with the one that carried it, through `removeCondition`.
+        .filter((one) => one.source === attached.source && one.impliedBy === undefined)
+        .map((one) => one.condition),
+      attached.source,
+    ),
+  ];
 }

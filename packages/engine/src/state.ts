@@ -198,6 +198,51 @@ export interface AssumedShape {
   };
 }
 
+/**
+ * One creature fixed to another — see {@link CreatureState.attachments}.
+ *
+ * Everything here was pinned at the hit, which is rule 5: the line's own name,
+ * so the log and a refusal can say which set of jaws this is, and the DC the
+ * block prints on pulling it off. Nothing is looked up again afterwards.
+ */
+export interface Attachment {
+  /** The creature this one is attached to. */
+  readonly to: CharacterId;
+  /** The stat-block line that made it — SRD's "Proboscis", "Crush". */
+  readonly name: string;
+  /**
+   * SRD Darkmantle: "a successful DC 13 Strength (Athletics) check".
+   *
+   * **Absent is a rule rather than a default**: SRD Stirge's line says "can
+   * detach the stirge as an action" and prints no roll at all, so an attach
+   * with no DC comes off for the Action alone. Inventing one would be a check
+   * nobody wrote down, which is the same reading `HitGrapple.escapeDc` takes
+   * of a number the book does print.
+   */
+  readonly detachDc?: number;
+}
+
+/**
+ * What an attach files everything under, named for **the other creature**.
+ *
+ * `grappleSource`'s twin, and symmetric where that one is not: a grapple lives
+ * on the target alone, so naming the grappler is enough; an attach hangs
+ * something at both ends — the Stirge's payment on the stirge, the
+ * Darkmantle's Blinded on whoever it covered — and each end is filed under the
+ * id of the one at the far end. So `attach:<x>` read off a creature means
+ * "this is the attach between me and x", whichever of the two is reading, and
+ * one ending releases both.
+ *
+ * Here rather than in `commands/unarmed.ts` beside its twin because the
+ * **fold** needs it: `creature-detached` releases what the attach hung, and
+ * nothing under `fold/` may reach a command.
+ */
+export const attachSource = (other: CharacterId): string => `attach:${other}`;
+
+/** Who is at the far end of an attach, read back out of the source. Null for any other cause. */
+export const attachedTo = (source: string): CharacterId | null =>
+  source.startsWith('attach:') ? (source.slice('attach:'.length) as CharacterId) : null;
+
 export interface CreatureState {
   readonly id: CharacterId;
   readonly name: string;
@@ -616,6 +661,26 @@ export interface CreatureState {
    * existed.
    */
   readonly payouts: readonly GrantedPayout[];
+  /**
+   * What this creature has **fixed itself to** — SRD Stirge: "the stirge
+   * attaches to the target"; SRD Darkmantle: "the darkmantle attaches to the
+   * target."
+   *
+   * **A relation and not a grant**, which is why it is here rather than in the
+   * family above it: every member of that family is an effect *hung on* a
+   * creature and ended by a source match, and this is a fact about two
+   * creatures at once. It is also not a grapple — a grapple gives the *target*
+   * the Grappled condition and is derived off that instance's source, and the
+   * creature held by an attach is the one that attached: the target may walk
+   * off with a stirge on them. So `grapplesOn` correctly finds nothing.
+   *
+   * **On the attacher, because that is where the sentence is.** "The stirge
+   * attaches to the target" is a thing the stirge did, and the two doors out
+   * of it are both about the stirge — five feet of its own movement, or an
+   * Action somebody spends pulling it off. What the attach hung on the
+   * *target* is filed under `attach:<the attacher>` and ends with it.
+   */
+  readonly attachments: readonly Attachment[];
   /**
    * What a running effect has changed about what this creature may spend a
    * turn on — the ninth member of the family the eight above form.
