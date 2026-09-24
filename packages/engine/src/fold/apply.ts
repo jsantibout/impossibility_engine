@@ -28,7 +28,7 @@ import { settleHitPointMaximum } from '../vitals.js';
 import { INITIATIVE_LABEL } from '../combat.js';
 
 import type { GameEvent } from '../events.js';
-import type { CreatureState, EquippedItem, GameState } from '../state.js';
+import type { CreatureState, EquippedItem, GameState, InventoryLine } from '../state.js';
 import { initialState } from '../state.js';
 import { castingIdOf } from '../spells.js';
 import { featureOfSource } from '../progression.js';
@@ -696,19 +696,30 @@ function settleConjuredLines(state: GameState): GameState {
     // own — which is exactly why `dropItem` refuses to put down what is being
     // wielded rather than quietly unequipping it — and a weapon that has
     // ceased to exist is the one case where nobody can be asked to take it off
-    // first. So the line and the wielding go together, and `equipped` never
-    // names something its holder does not own. Only the copies that went: a
-    // Warlock who conjured a second Longsword beside the one in their pack
-    // keeps the pack's.
+    // first. So `equipped` never names something its holder does not own.
+    //
+    // **A backstop rather than the rule**, and the rule is `equipItem`'s:
+    // a conjured line is already in its holder's hands, so equipping one is
+    // refused `already_in_hand` and there is nothing here for a log this
+    // engine writes to clean up. What this catches is a log assembled by hand,
+    // which is the population every derived pass in this file is written for.
+    //
+    // **Only where nothing that is left backs the wielding.** A Warlock who
+    // bonds a Longsword while carrying one of their own has two lines — the
+    // key `mergeKey` gives a conjured line is the bond's — and the pack's copy
+    // is what keeps the wielding standing when the pact weapon goes.
+    //
+    // It writes `equipped` without going back through `withEquipment`, so the
+    // sheet's armour view is not recomputed. Harmless by construction rather
+    // than by luck: `conjuresWeapon` requires an `imbuesWeapon` beside it and
+    // `imbuedWeapon` refuses anything the catalogue does not print a weapon
+    // record for, so only a weapon can ever be dropped here and no armour or
+    // shield can.
     const gone = creature.inventory.filter((line) => !kept.includes(line));
-    const equipped = gone.reduce(
-      (worn: readonly EquippedItem[], line) => {
-        const at = worn.findIndex(
-          (one) => one.id === line.id && (one.instance ?? undefined) === line.instance,
-        );
-        return at === -1 ? worn : [...worn.slice(0, at), ...worn.slice(at + 1)];
-      },
-      creature.equipped,
+    const backs = (line: InventoryLine, worn: EquippedItem): boolean =>
+      line.id === worn.id && (line.instance ?? undefined) === (worn.instance ?? undefined);
+    const equipped = creature.equipped.filter(
+      (worn) => kept.some((line) => backs(line, worn)) || !gone.some((line) => backs(line, worn)),
     );
 
     creatures[key] = { ...creature, inventory: kept, equipped };

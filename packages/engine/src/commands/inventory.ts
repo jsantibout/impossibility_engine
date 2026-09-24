@@ -402,8 +402,9 @@ export function handsInUse(state: GameState, content: Content, id: CharacterId):
   // A conjured line, whichever kind of magic put it there: a casting's
   // handful, or the weapon a feature's activation made. Both pinned their own
   // hand count at the moment they appeared — see `conjuredLine` and
-  // `featureConjuredLine` — and neither is in `equipped`, which is what makes
-  // adding them to the worn total right rather than double-counting.
+  // `featureConjuredLine` — and neither can be in `equipped`, because
+  // `equipItem` refuses `already_in_hand` for exactly this arithmetic. That is
+  // what makes adding them to the worn total right rather than double-counting.
   const conjured = carrying(state, id).reduce(
     (total, line) =>
       total + (line.casting === undefined && line.feature === undefined ? 0 : (line.hands ?? 0)),
@@ -469,6 +470,20 @@ export function equipItem(
     // wand in one pair of hands would be one item's grants counted twice.
     if (creature.equipped.some((held) => held.id === item.id)) {
       return err('already_equipped', `${item.name} is already in hand`);
+    }
+    // **And a conjured thing is already in a hand**, which is the whole of
+    // what a conjuring is: SRD Flame Blade evokes a blade "in your free hand"
+    // and SRD Pact of the Blade conjures a pact weapon "in your hand". The
+    // hands it takes up were charged when it appeared and are pinned on the
+    // line, so equipping it is not a second thing anybody can do — and
+    // `handsInUse`, which counts the line's own hands beside what is worn,
+    // would charge a second pair for one blade. Told apart by the pinned count
+    // rather than by which magic made it, so both conjurings answer alike.
+    if (copy.hands !== undefined) {
+      return err(
+        'already_in_hand',
+        `${item.name} was conjured into ${id}'s hand and is in it; there is nothing to take up`,
+      );
     }
 
     // One suit of body armour, one shield.

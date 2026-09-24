@@ -63,13 +63,26 @@ export const isInventoryEvent = seamOf(INVENTORY_EVENTS);
  * berries that disappear when another does, and neither is the same line as a
  * berry somebody picked. So the casting is part of the key, and a line without
  * one keeps exactly the key it has always had.
+ *
+ * **A weapon a *feature* conjured is its activation's**, for exactly that
+ * reason and with exactly that consequence: SRD Pact of the Blade's Longsword
+ * disappears when the bond ends, and a Warlock who bonds one while carrying a
+ * Longsword of their own must not find both gone. Merged under one key they
+ * would be one line of two carrying the bond's name, and `settleConjuredLines`
+ * would take the pack's copy with the pact weapon.
+ *
+ * No log written before a feature could conjure anything carries the field, so
+ * every existing line keeps the key it has always had and both frozen fixtures
+ * fold unchanged.
  */
 const mergeKey = (line: InventoryLine): string =>
   line.instance !== undefined
     ? `copy:${line.instance}`
-    : line.casting === undefined
-      ? `kind:${line.id}`
-      : `conjured:${line.casting}:${line.id}`;
+    : line.casting !== undefined
+      ? `conjured:${line.casting}:${line.id}`
+      : line.feature !== undefined
+        ? `conjured:${line.feature}:${line.id}`
+        : `kind:${line.id}`;
 
 /**
  * Quantities merge and the list stays sorted, so two identical packs agree.

@@ -8,6 +8,7 @@ import {
   createCharacter,
   createRng,
   createRollIssuer,
+  equipItem,
   fold,
   resolveAttack,
   type CharacterChoices,
@@ -434,15 +435,85 @@ describe('Pact of the Blade', () => {
   });
 
   /**
-   * And what was in the hand goes with it: `equipped` never names something
-   * its holder does not own.
+   * "A conjured weapon disappears when the bond ends" — **that** weapon, and
+   * not the one in the pack.
    *
-   * `dropItem` refuses to put down what is being wielded rather than quietly
-   * unequipping it, and a weapon that has ceased to exist is the one case
-   * where nobody can be asked to take it off first — so the fold's own pass
-   * takes both.
+   * A pact Longsword and a Longsword somebody bought are two lines with two
+   * lifetimes, which is what `mergeKey` keys a conjured line by its bond for.
+   * Merged into one stack they would be one line of two carrying the bond's
+   * name, and the Warlock would lose their own sword with the pact weapon.
    */
-  it('takes the wielding with the weapon when the bond ends', () => {
+  it('takes the weapon it conjured and leaves the one in the pack', () => {
+    const log = [
+      ...table(),
+      {
+        type: 'items-gained',
+        id: WHO,
+        items: [{ id: 'longsword', quantity: 1 }],
+        source: 'bought in town',
+      },
+    ] as GameEvent[];
+    const bonded = [...log, ...conjure(fold('seed', log), 'longsword', 'one')];
+    expect(held(fold('seed', bonded), 'longsword')).toBe(2);
+
+    const after = fold('seed', [...bonded, { type: 'creature-died', id: WHO }] as GameEvent[]);
+    expect(held(after, 'longsword')).toBe(1);
+    expect(after.creatures[WHO]?.inventory.some((line) => line.feature !== undefined)).toBe(false);
+  });
+
+  /**
+   * And the one in the pack keeps being wielded, where it was.
+   *
+   * The fold takes a wielding away only when nothing that is left backs it:
+   * `equipped` must never name something its holder does not own, and must go
+   * on naming what they do.
+   */
+  it('leaves a wielded copy of the same weapon alone', () => {
+    const log = [
+      ...table(),
+      {
+        type: 'items-gained',
+        id: WHO,
+        items: [{ id: 'longsword', quantity: 1 }],
+        source: 'bought in town',
+      },
+      { type: 'item-equipped', id: WHO, item: 'longsword', armor: null },
+    ] as GameEvent[];
+    const bonded = [...log, ...conjure(fold('seed', log), 'longsword', 'one')];
+
+    const after = fold('seed', [...bonded, { type: 'creature-died', id: WHO }] as GameEvent[]);
+    expect(after.creatures[WHO]?.equipped.map((one) => one.id)).toContain('longsword');
+    expect(held(after, 'longsword')).toBe(1);
+  });
+
+  /**
+   * A conjured weapon is already in a hand, so there is nothing to take up.
+   *
+   * That is what makes `handsInUse` right: the line's own pinned hands are
+   * added to what is worn, and a copy that could be both would be charged for
+   * twice. SRD Flame Blade's blade answers the same way for the same reason.
+   */
+  it('refuses to equip what it conjured, which is already in hand', () => {
+    const log = table();
+    // A Mace, because the Warlock's starting kit holds a Sickle: two lines of
+    // one kind is `ambiguous_copy`, which is a different answer to a different
+    // question and would hide this one.
+    const bonded = [...log, ...conjure(fold('seed', log), 'mace', 'one')];
+    const refused = equipItem(fold('seed', bonded), SRD_CONTENT, WHO, 'mace');
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? '' : refused.code).toBe('already_in_hand');
+  });
+
+  /**
+   * And if a log assembled by hand puts one in the hand anyway, the wielding
+   * goes with the weapon.
+   *
+   * The backstop rather than the rule — `equipItem` is the rule, and it
+   * refuses — written because `equipped` naming something nobody owns charges
+   * its hands for ever and `dropItem` cannot be asked to put down a weapon
+   * that has ceased to exist.
+   */
+  it('takes a hand-written wielding with the weapon when the bond ends', () => {
     const log = table();
     const bonded = [
       ...log,
