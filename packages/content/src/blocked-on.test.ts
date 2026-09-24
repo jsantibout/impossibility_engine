@@ -3132,15 +3132,28 @@ describe('the shape that was built three tranches before its entries were re-rea
    * its paragraph, which is the same claim written where a generator can count
    * it. The distinction this assertion still makes is the one that matters:
    * which of them a marker could have demanded an entry of.
+   *
+   * **Magic Mouth has grown a second entry and it is marker-less**, which is
+   * P3-S6 rather than a weakening: reading the spell to the end found that its
+   * own `unmodelled` line had been naming `a-casting-dismissed-early` since it
+   * was written while the map carried no such claim. That sentence — "you can
+   * have the spell end after it delivers its message" — is written in none of
+   * the guard's words, so the entry is exactly the marker-less form that
+   * exists for a blocker no marker can ask for. What is asserted below is the
+   * original claim narrowed to the clause it was always about: **one** entry
+   * each that a marker could have demanded.
    */
   it('files the two clauses the twelve carry under a marker', () => {
     expect(TRACKED_ADJUDICATED['hallucinatory-terrain']?.map((e) => e.why)).toEqual(['engine']);
-    expect(TRACKED_ADJUDICATED['magic-mouth']?.map((e) => e.why)).toEqual(['table']);
+    expect(TRACKED_ADJUDICATED['magic-mouth']?.map((e) => e.why)).toEqual([
+      'table',
+      'a-casting-dismissed-early',
+    ]);
     for (const id of ['hallucinatory-terrain', 'magic-mouth']) {
       expect(
-        (TRACKED_ADJUDICATED[id] ?? []).every((entry) => entry.marker !== null),
+        (TRACKED_ADJUDICATED[id] ?? []).filter((entry) => entry.marker !== null).length,
         id,
-      ).toBe(true);
+      ).toBe(1);
     }
     for (const id of ['alarm', 'clairvoyance', 'identify', 'mending']) {
       const entries = TRACKED_ADJUDICATED[id] ?? [];

@@ -69,15 +69,45 @@ describe('every tracked spell in reach has been read', () => {
   /**
    * The population, asserted before the claim over it: these are spells a
    * level 1–5 character can cast that the engine casts and resolves nothing
-   * of, and every one of them prints at least one `unmodelled` line.
+   * of, and every one of them says what it leaves the table.
+   *
+   * **It said `unmodelled`, and P3-S6 is why it does not now.** Thirty-two of
+   * these were read to the end and their text moved to `dmDecides`, which is
+   * the list `docs/design/content.md` keeps apart from the debts — so a
+   * definition printing no `unmodelled` line is now the *finished* state
+   * rather than a silent one. What is still refused is silence, which is
+   * `checkSpellDefinition`'s own `silent_gap` rule read from out here.
    */
   it('is the tracked half of level-5 reach, and none of it is silent', () => {
     const population = trackedInReach(LEDGER_LEVEL);
     expect(population.length).toBeGreaterThan(0);
     for (const one of population) {
-      expect(SRD_CONTENT.spell(one.id), one.id).not.toBeNull();
-      expect(one.unmodelled.length, `${one.id} prints no unmodelled line`).toBeGreaterThan(0);
+      const definition = SRD_CONTENT.spell(one.id);
+      expect(definition, one.id).not.toBeNull();
+      expect(
+        [...one.unmodelled, ...(definition?.dmDecides ?? [])].length,
+        `${one.id} declares nothing at all`,
+      ).toBeGreaterThan(0);
     }
+  });
+
+  /**
+   * And the demand for a reading does not lapse when a definition stops
+   * printing a debt.
+   *
+   * `trackedAdjudicationGaps` asks for an entry from every tracked definition
+   * that prints an `unmodelled` line, which was the whole population when it
+   * was written and is a third of it now. A definition that hands everything
+   * over has *more* need of a recorded reading, not less — the claim it makes
+   * is precisely that somebody read every sentence — so the demand is made
+   * here over the whole population instead, unconditionally.
+   */
+  it('has an entry for every tracked spell in reach, debt or no debt', () => {
+    const unrecorded = trackedInReach(LEDGER_LEVEL)
+      .map((one) => one.id)
+      .filter((id) => TRACKED_ADJUDICATED[id] === undefined)
+      .sort();
+    expect(unrecorded).toEqual([]);
   });
 
   /**

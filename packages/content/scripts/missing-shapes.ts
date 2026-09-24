@@ -148,7 +148,7 @@ export const MISSING_SHAPES = {
   'an-exhaustion-level-a-spell-changes':
     'Exhaustion is a level rather than a condition that is simply on or off — `docs/rules/srd-policy.md`: "**Exhaustion is a flat -2 per level, not Disadvantage**" — and `end-condition` takes a list of condition names, so it removes the condition and cannot remove *one level* of it. `setExhaustionLevel` is a DM-declared command, among the nine `docs/rules/srd-policy.md` records as reachable from a command and from no spell effect.',
   'healing-that-raises-the-dead':
-    '**Built.** PROGRESS.md ranked "Healing that lifts a condition, **raises the dead**, or raises the maximum", and `docs/design/spell-definitions.md` stated the refusal it had to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot". The refusal stands and the shape goes round it: a `revive` effect and a `creature-revived` event of their own, because lifting death is not hit points with a small number in them, and `Vitals.diedAt` — stamped by the vitals seam on the transition rather than by any one of the four events that can kill somebody — is what makes the minute a spell reaches back into subtraction. SRD Revivify is executed off it. **Four undefined claimants are left**, and each prints a longer window, a bigger price or a body the engine has no shape for; the id stays because they are still owed and the mechanism they would reuse is now here.',
+    '**Built.** PROGRESS.md ranked "Healing that lifts a condition, **raises the dead**, or raises the maximum", and `docs/design/spell-definitions.md` stated the refusal it had to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot". The refusal stands and the shape goes round it: a `revive` effect and a `creature-revived` event of their own, because lifting death is not hit points with a small number in them, and `Vitals.diedAt` — stamped by the vitals seam on the transition rather than by any one of the four events that can kill somebody — is what makes the minute a spell reaches back into subtraction. SRD Revivify is executed off it. **Four undefined claimants are left**, and each prints a longer window, a bigger price or a body the engine has no shape for; the id stays because they are still owed and the mechanism they would reuse is now here. **And a fifth claimant that is none of those three**, which P3-S6 found by reading Gentle Repose to the end: that spell widens the window rather than reaching through one — "days spent under the influence of this spell don’t count against the time limit of spells such as _Raise Dead_" — so what it wants is a *second casting* altering the arithmetic `revive` does over `Vitals.diedAt`, and no effect kind in the vocabulary does that. It is filed here because the window is this shape’s own mechanism and the description already names it, and because a spell whose only debt is an unbuildable sentence had to stop being counted as finished business; whether that sentence deserves a blocker id of its own is a vocabulary decision for the owner rather than a reading, and until it is taken this id does **not** finish Gentle Repose.',
   'a-hit-point-maximum-a-spell-moves':
     'PROGRESS.md ranked "Healing that lifts a condition, raises the dead, or raises the maximum" and the audit named Harm’s reduction as debt: the maximum was set when a creature is added and by advancement, and no effect moved it. **The raise is built**: `hit-point-maximum` is a twelfth sourced grant, `settleHitPointMaximum` reconciles `Vitals.hpMax` in the fold’s derived pass so every ending gives it back, and `advanceCharacter` subtracts the *unadjusted* maximum so a level taken mid-spell is worth the whole of its level — which is Aid and its slot scaling whole. Three things are still missing under this name and each is its own sentence. **A reduction**: Harm’s, the Berserker Axe’s, and Greater Restoration ending one — every SRD sentence that lowers a maximum is fastened to damage already taken, so the clause that makes it mean something is the half that is absent. **A maximum that cannot be reduced**, which is Aura of Life and is a refusal rather than an amount. **And a rolled one**: Heroes’ Feast’s 2d10, refused at authoring (`rolled_hit_point_maximum`) because a die thrown once and then carried for hours is a number the log cannot account for. A *feature* that raises a maximum is a different absence again — see the feature ledger.',
   'difficult-terrain-an-area-creates':
@@ -1561,7 +1561,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'ability-check',
       clause: 'succeed on an Intelligence (Investigation) check against your spell save DC',
       why: 'engine',
-      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against the casting own timer; the table decides only that somebody looked closely.',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against the casting own timer; the table decides only that somebody looked closely. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'minor-illusion': [
@@ -1569,7 +1569,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'ability-check',
       clause: 'determine that it is an illusion with a successful Intelligence (Investigation) check',
       why: 'engine',
-      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck; a cantrip, so the DC comes off the caster sheet rather than off any slot.',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck; a cantrip, so the DC comes off the caster sheet rather than off any slot. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'silent-image': [
@@ -1577,7 +1577,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'ability-check',
       clause: 'determine that it is an illusion with a successful Intelligence (Investigation) check',
       why: 'engine',
-      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck, against a Concentration casting timer that ends with the Concentration.',
+      note: 'the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck, against a Concentration casting timer that ends with the Concentration. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   demiplane: [
@@ -1602,7 +1602,13 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'condition',
       clause: 'a message that is uttered when a trigger condition is met',
       why: 'table',
-      note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds.',
+      note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds. **P3-S6 read this spell to the end**: eight of its nine sentences are in the definition’s `dmDecides` now, and the ninth is the entry beside this one.',
+    },
+    {
+      marker: null,
+      clause: 'you can have the spell end after it delivers its message',
+      why: 'a-casting-dismissed-early',
+      note: 'the choice the caster makes at the casting is not offered, and it is the one sentence of this spell that is a debt rather than fiction: `endOngoingSpell` ends a casting of the caster’s own by id and refuses this one, because SRD prints the free dismissal for a **time span** and this spell lasts until dispelled. So there is no way to end it early however the choice went, which is the very exception the shape’s own description names. The definition’s `unmodelled` line has said so since it was written and no map entry carried it, which is the hole P3-S6 closed.',
     },
   ],
   'see-invisibility': [
@@ -1610,7 +1616,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'condition',
       clause: 'creatures and objects that have the Invisible condition as if they were visible',
       why: 'table',
-      note: 'seeing through the Invisible condition is declared, not derived: sight is a pairwise declaration and the condition’s own effects already read it, so the table declares the sight this spell grants.',
+      note: 'seeing through the Invisible condition is declared, not derived: sight is a pairwise declaration and the condition’s own effects already read it, so the table declares the sight this spell grants. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'plane-shift': [
@@ -1831,7 +1837,13 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'ability-check',
       clause: 'determine that it is an illusion with a successful Intelligence (Investigation) check',
       why: 'engine',
-      note: 'Silent Image’s sentence two levels up, and the same answer: the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against a Concentration casting timer that ends with the Concentration.',
+      note: 'Silent Image’s sentence two levels up, and the same answer: the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against a Concentration casting timer that ends with the Concentration. **P3-S6 read this spell to the end**: eight sentences went to the definition’s `dmDecides`, and the one that is a debt is the entry beside this one.',
+    },
+    {
+      marker: null,
+      clause: 'The spell lasts until dispelled, without requiring Concentration',
+      why: 'a-duration-the-slot-changes',
+      note: 'the shape’s own description names this spell as the one in the book that prints the sentence — a slot that changes **what kind** of duration a casting has rather than how long it runs, which `durationAtSlot`’s table of seconds cannot say. It is a debt and not fiction because Concentration is a rule the engine really holds: cast at a level 4 slot, the engine takes a Concentration the book says this casting does not require, which is a wrong answer rather than a missing narration. The definition’s `unmodelled` line had said so since it was written and no map entry carried it.',
     },
   ],
   'meld-into-stone': [
@@ -1839,19 +1851,19 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'movement-cost',
       clause: 'You can use 5 feet of movement to leave the stone where you entered it',
       why: 'table',
-      note: 'the five feet are spendable and what they buy is stepping out of a stone. **The ruling of 2026-09-24: this is a handover and not a debt**, because the fact underneath every clause of this spell — a creature inside a rock — is a place, and the engine holds one scene of spaces creatures stand in. A second kind of place is not a mechanism somebody forgot to build; it is a world model nobody has asked for, and inventing one for a single level 3 spell is the direction `docs/design/content.md` names as the way a catalogue starts writing the engine. Nothing reads the fact afterwards, which is the test that makes this the table’s. The owner may reopen it — ROADMAP §10 says so — and the day a second place exists this row and Rope Trick’s come back together.',
+      note: 'the five feet are spendable and what they buy is stepping out of a stone. **The ruling of 2026-09-24: this is a handover and not a debt**, because the fact underneath every clause of this spell — a creature inside a rock — is a place, and the engine holds one scene of spaces creatures stand in. A second kind of place is not a mechanism somebody forgot to build; it is a world model nobody has asked for, and inventing one for a single level 3 spell is the direction `docs/design/content.md` names as the way a catalogue starts writing the engine. Nothing reads the fact afterwards, which is the test that makes this the table’s. The owner may reopen it — ROADMAP §10 says so — and the day a second place exists this row and Rope Trick’s come back together. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
     {
       marker: 'dice',
       clause: 'expels you and deals 6d6 Force damage to you',
       why: 'table',
-      note: 'the dice are ordinary and being expelled is not: the damage is a consequence of having been inside the stone, and the sentence after it deals a flat 50 for the same reason. The DM says the stone was broken and the DM says the damage lands; there is no state the engine could have held that would have made either of those its own.',
+      note: 'the dice are ordinary and being expelled is not: the damage is a consequence of having been inside the stone, and the sentence after it deals a flat 50 for the same reason. The DM says the stone was broken and the DM says the damage lands; there is no state the engine could have held that would have made either of those its own. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
     {
       marker: 'condition',
       clause: 'you move into an unoccupied space closest to where you first entered and have the Prone condition',
       why: 'table',
-      note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary, and both are reachable through commands a DM already has. What is missing is the expulsion they follow from, which is the place this whole paragraph hangs on — so the engine stands ready to execute the consequence and owns none of the cause.',
+      note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary, and both are reachable through commands a DM already has. What is missing is the expulsion they follow from, which is the place this whole paragraph hangs on — so the engine stands ready to execute the consequence and owns none of the cause. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   seeming: [
@@ -3524,7 +3536,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'skill options with them',
       why: 'table',
-      note: 'the reading that filed this was written before the Influence action had a spender, and it is stale twice over. `NAMED_ACTIONS` holds `influence` now and `takeInfluence` takes it — the Charisma check against a DC the DM set, over `INFLUENCE_SKILLS` — and that command **never narrowed by the target’s creature type**, so an Influence attempt on a Beast was already legal and already rolled. There is nothing here for an `allows` to widen. What the spell actually buys is comprehension: that the Beast understands what was said and that the caster understands the answer, which is speech, and the engine holds no speech. The attitude a check argues against is the DM’s by the Influence entry’s own handover, and what a Beast has to say is the paragraph after it. A handover, and no rule reads it afterwards.',
+      note: 'the reading that filed this was written before the Influence action had a spender, and it is stale twice over. `NAMED_ACTIONS` holds `influence` now and `takeInfluence` takes it — the Charisma check against a DC the DM set, over `INFLUENCE_SKILLS` — and that command **never narrowed by the target’s creature type**, so an Influence attempt on a Beast was already legal and already rolled. There is nothing here for an `allows` to widen. What the spell actually buys is comprehension: that the Beast understands what was said and that the caster understands the answer, which is speech, and the engine holds no speech. The attitude a check argues against is the DM’s by the Influence entry’s own handover, and what a Beast has to say is the paragraph after it. A handover, and no rule reads it afterwards. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   knock: [
@@ -3627,7 +3639,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'an alarm alerts you whenever a creature touches or enters the warded area',
       why: 'table',
-      note: 'nothing mechanically authoritative changes when the alarm fires — no roll, no resource, no condition, nothing about any creature — so the warning is the DM’s to give and the exemption the caster designates is an exemption from it. The Cube the ward fills is a ceiling the caster picks rather than a spell’s one fixed area, which is why the definition quotes it instead of pinning it.',
+      note: 'nothing mechanically authoritative changes when the alarm fires — no roll, no resource, no condition, nothing about any creature — so the warning is the DM’s to give and the exemption the caster designates is an exemption from it. The Cube the ward fills is a ceiling the caster picks rather than a spell’s one fixed area, which is why the definition quotes it instead of pinning it. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'arcane-lock': [
@@ -3635,7 +3647,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You touch a closed door, window, gate, container, or hatch and magically lock it',
       why: 'table',
-      note: 'the whole spell is about an object, and objects are not modelled: which door was touched, who may open it despite the lock and what the password is have nowhere in state to live. Dispel Magic executes and cannot reach this casting, because it ends an ongoing spell **on a target** and this one is on a door.',
+      note: 'the whole spell is about an object, and objects are not modelled: which door was touched, who may open it despite the lock and what the password is have nowhere in state to live. Dispel Magic executes and cannot reach this casting, because it ends an ongoing spell **on a target** and this one is on a door. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   clairvoyance: [
@@ -3643,7 +3655,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'The intangible, invulnerable sensor remains in place for the duration',
       why: 'table',
-      note: 'nothing is measured from the sensor and nothing is resolved at it: what it buys is that the caster perceives a place, and sight in this engine is a declared pairwise fact between two creatures rather than a derived one. The Bonus Action that switches seeing for hearing is a cost of operating a thing the engine does not hold.',
+      note: 'nothing is measured from the sensor and nothing is resolved at it: what it buys is that the caster perceives a place, and sight in this engine is a declared pairwise fact between two creatures rather than a derived one. The Bonus Action that switches seeing for hearing is a cost of operating a thing the engine does not hold. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'comprehend-languages': [
@@ -3651,7 +3663,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'you understand the literal meaning of any language that you hear or see signed',
       why: 'table',
-      note: 'the sheet records which languages a character knows and nothing in play reads them, so understanding one more is a fact with no reader — the test `docs/design/content.md` draws, applied: a table fact that a rule then reads is a debt, and this one nothing reads afterwards.',
+      note: 'the sheet records which languages a character knows and nothing in play reads them, so understanding one more is a fact with no reader — the test `docs/design/content.md` draws, applied: a table fact that a rule then reads is a debt, and this one nothing reads afterwards. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'create-food-and-water': [
@@ -3659,7 +3671,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You create 45 pounds of food and 30 gallons of fresh water',
       why: 'table',
-      note: 'the food and the water are objects, and objects are not modelled; malnutrition, dehydration and the 24 hours after which the food spoils have no reader either.',
+      note: 'the food and the water are objects, and objects are not modelled; malnutrition, dehydration and the 24 hours after which the food spoils have no reader either. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'create-or-destroy-water': [
@@ -3667,7 +3679,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You create up to 10 gallons of clean water within range in an open container',
       why: 'table',
-      note: 'ten gallons in a container, rain in a Cube, exposed flames put out and fog destroyed are four facts about a world the engine holds none of — fog is not a state it keeps even where another spell made it. The higher slot buys gallons and feet, and neither is a number any effect of this definition reads.',
+      note: 'ten gallons in a container, rain in a Cube, exposed flames put out and fog destroyed are four facts about a world the engine holds none of — fog is not a state it keeps even where another spell made it. The higher slot buys gallons and feet, and neither is a number any effect of this definition reads. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'detect-evil-and-good': [
@@ -3675,7 +3687,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'you sense the location of any Aberration, Celestial, Elemental, Fey, Fiend, or Undead',
       why: 'table',
-      note: 'the engine knows a creature’s type and reports nothing, and a creature nobody has typed has nothing to report; sensing whether Hallow is active, and the foot of stone or inch of metal that blocks the sense, are facts about a world that is declared rather than modelled.',
+      note: 'the engine knows a creature’s type and reports nothing, and a creature nobody has typed has nothing to report; sensing whether Hallow is active, and the foot of stone or inch of metal that blocks the sense, are facts about a world that is declared rather than modelled. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'detect-magic': [
@@ -3683,7 +3695,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'you sense the presence of magical effects within 30 feet of yourself',
       why: 'table',
-      note: 'knowing something changes no authoritative state, which is the line this spell and Identify are both on: the Magic action that sees an aura and the school it reports are narration, and the blocking rule is a wall nobody has modelled.',
+      note: 'knowing something changes no authoritative state, which is the line this spell and Identify are both on: the Magic action that sees an aura and the school it reports are narration, and the blocking rule is a wall nobody has modelled. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'detect-poison-and-disease': [
@@ -3691,7 +3703,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'you sense the location of poisons, poisonous or venomous creatures, and magical contagions',
       why: 'table',
-      note: 'poisons, venomous creatures and magical contagions are not modelled, so what the caster senses is narration and the blocking rule is the same declared wall the other two Detects print.',
+      note: 'poisons, venomous creatures and magical contagions are not modelled, so what the caster senses is narration and the blocking rule is the same declared wall the other two Detects print. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   druidcraft: [
@@ -3699,7 +3711,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'you create one of the following effects within range',
       why: 'table',
-      note: 'not one of the four branches is arithmetic, which is why the choice needs nowhere to be recorded — the line `blocked-on.test.ts` draws against Thaumaturgy, whose sixth branch grants Advantage on a check and so does decide something.',
+      note: 'not one of the four branches is arithmetic, which is why the choice needs nowhere to be recorded — the line `blocked-on.test.ts` draws against Thaumaturgy, whose sixth branch grants Advantage on a check and so does decide something. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   elementalism: [
@@ -3707,7 +3719,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You exert control over the elements',
       why: 'table',
-      note: 'five branches and no arithmetic in any of them; the 5-foot Cube each fits in is quoted rather than pinned because nothing is resolved over it, and the minute of scent, the minute of evaporation and the hour a sculpted shape holds run no clock on an Instantaneous casting.',
+      note: 'five branches and no arithmetic in any of them; the 5-foot Cube each fits in is quoted rather than pinned because nothing is resolved over it, and the minute of scent, the minute of evaporation and the hour a sculpted shape holds run no clock on an Instantaneous casting. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'find-traps': [
@@ -3715,7 +3727,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You sense any trap within range that is within line of sight',
       why: 'table',
-      note: 'neither a mechanism nor a Glyph of Warding is a thing in state, so whether one is in range and the general nature of the danger are the DM’s to answer.',
+      note: 'neither a mechanism nor a Glyph of Warding is a thing in state, so whether one is in range and the general nature of the danger are the DM’s to answer. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'floating-disk': [
@@ -3723,7 +3735,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'This spell creates a circular, horizontal plane of force',
       why: 'table',
-      note: 'the disk is an object: where it is, the 500 pounds it holds, what rides on it, the 20 feet it follows within, the elevation change it refuses and the 100 feet that end the spell are all measured against a thing that is not in the scene.',
+      note: 'the disk is an object: where it is, the 500 pounds it holds, what rides on it, the 20 feet it follows within, the elevation change it refuses and the 100 feet that end the spell are all measured against a thing that is not in the scene. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'gentle-repose': [
@@ -3731,7 +3743,13 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You touch a corpse or other remains',
       why: 'table',
-      note: 'a corpse is an object rather than a creature in state, and decay, becoming Undead and the time limit this extends on raising the dead are all outside what the engine holds — no spell it executes raises anybody.',
+      note: 'a corpse is an object rather than a creature in state, so which remains were touched, the decay they are protected from and the Undead they cannot become have nothing in state to read. **P3-S6 read this spell to the end**: these two sentences are in the definition’s `dmDecides` now, and the third is the entry beside this one.',
+    },
+    {
+      marker: null,
+      clause: 'extends the time limit on raising the target from the dead',
+      why: 'healing-that-raises-the-dead',
+      note: 'the note this entry replaces said "no spell the engine executes raises anybody", and that stopped being true when the shape was built: `revive` reaches back a printed window, `Vitals.diedAt` is stamped by the vitals seam, and the window is subtraction over it and `state.elapsed`. So a rule the engine runs really does read the time limit this spell widens — a corpse seven days under this casting is refused by a resurrection the book would allow — and no effect kind in the vocabulary alters another casting’s window. A debt, by `docs/design/content.md`’s own test: a table fact a rule then reads.',
     },
   ],
   identify: [
@@ -3739,7 +3757,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'you learn its properties and how to use them, whether it requires Attunement',
       why: 'table',
-      note: 'what is learned about an object is a fact about a magic item, and what is learned about a creature the engine already answers as a query; no effect kind reports knowledge, because knowing something changes no authoritative state.',
+      note: 'what is learned about an object is a fact about a magic item, and what is learned about a creature the engine already answers as a query; no effect kind reports knowledge, because knowing something changes no authoritative state. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'illusory-script': [
@@ -3747,7 +3765,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'imbue it with an illusion that lasts for the duration',
       why: 'table',
-      note: 'what the text says, what the illusion makes it say and the altered meaning, handwriting and language are fiction, and so is the parchment; what being designated buys is the ability to read, and reading is the DM’s.',
+      note: 'what the text says, what the illusion makes it say and the altered meaning, handwriting and language are fiction, and so is the parchment; what being designated buys is the ability to read, and reading is the DM’s. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'locate-animals-or-plants': [
@@ -3755,7 +3773,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You learn the direction and distance to the closest creature or plant of that kind',
       why: 'table',
-      note: 'the engine holds one scene, and a creature five miles off it is not a creature at a distance — there is nothing to measure a direction to.',
+      note: 'the engine holds one scene, and a creature five miles off it is not a creature at a distance — there is nothing to measure a direction to. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'locate-object': [
@@ -3763,7 +3781,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: "You sense the direction to the object's location",
       why: 'table',
-      note: 'objects have no position, so where the object is and whether it is moving have nothing to read; the thickness of lead that blocks it is the same declared wall the Detect spells print.',
+      note: 'objects have no position, so where the object is and whether it is moving have nothing to read; the thickness of lead that blocks it is the same declared wall the Detect spells print. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'mage-hand': [
@@ -3771,7 +3789,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'A spectral, floating hand appears at a point you choose within range',
       why: 'table',
-      note: 'the hand is not a thing in the world: manipulating an object, the 30 feet it moves, the 10-pound limit and the ban on attacking or activating magic items are all about a hand with no position. **The recast is the exception and it is executed** — `replacesPriorCasting` is on the definition, which is why no clause here names it.',
+      note: 'the hand is not a thing in the world: manipulating an object, the 30 feet it moves, the 10-pound limit and the ban on attacking or activating magic items are all about a hand with no position. **The recast is the exception and it is executed** — `replacesPriorCasting` is on the definition, which is why no clause here names it. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   mending: [
@@ -3779,7 +3797,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'This spell repairs a single break or tear in an object you touch',
       why: 'table',
-      note: 'which break was mended and the 1 foot it may not exceed are facts about an object’s condition, and the engine tracks what a creature owns and wears and nothing about the state of it; the ban on restoring magic forbids undoing something it never did.',
+      note: 'which break was mended and the 1 foot it may not exceed are facts about an object’s condition, and the engine tracks what a creature owns and wears and nothing about the state of it; the ban on restoring magic forbids undoing something it never did. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   message: [
@@ -3787,7 +3805,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'The target (and only the target) hears the message',
       why: 'table',
-      note: 'what is said and what is whispered back are the DM’s. The one clause that is not — SRD lets this spell alone be cast through a solid object at a familiar target — is a refusal the engine makes for every spell and an exception the format cannot state, and it is fiction on both sides of the wall.',
+      note: 'what is said and what is whispered back are the DM’s. The one clause that is not — SRD lets this spell alone be cast through a solid object at a familiar target — is a refusal the engine makes for every spell and an exception the format cannot state, and it is fiction on both sides of the wall. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'purify-food-and-drink': [
@@ -3795,7 +3813,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'You remove poison and rot from nonmagical food and drink',
       why: 'table',
-      note: 'the food and drink are objects; the Poisoned condition belongs to a creature and is untouched by this spell, and a definition that cured one would be inventing a rule the sentence does not print.',
+      note: 'the food and drink are objects; the Poisoned condition belongs to a creature and is untouched by this spell, and a definition that cured one would be inventing a rule the sentence does not print. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'rope-trick': [
@@ -3803,7 +3821,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'an Invisible 3-foot-by-5-foot portal opens to an extradimensional space',
       why: 'table',
-      note: 'the engine holds one scene, so a second place is not somewhere a creature can be: who has climbed in, the eight Medium creatures it holds and the rule that attacks and spells cannot cross are all about a space that does not exist in state.',
+      note: 'the engine holds one scene, so a second place is not somewhere a creature can be: who has climbed in, the eight Medium creatures it holds and the rule that attacks and spells cannot cross are all about a space that does not exist in state. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'speak-with-dead': [
@@ -3811,7 +3829,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'you can ask the corpse up to five questions',
       why: 'table',
-      note: 'the corpse is an object rather than a creature in state, so the mouth it must have, the Undead it must not have been and the 10 days since the last casting have nothing to read; the five answers and their truthfulness are the DM’s.',
+      note: 'the corpse is an object rather than a creature in state, so the mouth it must have, the Undead it must not have been and the 10 days since the last casting have nothing to read; the five answers and their truthfulness are the DM’s. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   tongues: [
@@ -3819,7 +3837,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'the ability to understand any spoken or signed language that it hears or sees',
       why: 'table',
-      note: 'the same reading as Comprehend Languages: the sheet records the languages a character knows and nothing in play reads them, so understanding and being understood have no reader.',
+      note: 'the same reading as Comprehend Languages: the sheet records the languages a character knows and nothing in play reads them, so understanding and being understood have no reader. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'water-breathing': [
@@ -3827,7 +3845,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'the ability to breathe underwater until the spell ends',
       why: 'table',
-      note: 'suffocation is not modelled, so breathing underwater lifts a rule the engine does not apply.',
+      note: 'suffocation is not modelled, so breathing underwater lifts a rule the engine does not apply. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
   'water-walk': [
@@ -3835,7 +3853,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'This spell grants the ability to move across any liquid surface',
       why: 'table',
-      note: 'nothing in state says there is water, acid, mud or lava under the party, so what the surface is and what the heat of lava does are the DM’s — and the Bonus Action a target spends to drop through it is charged by the DM for the same reason.',
+      note: 'nothing in state says there is water, acid, mud or lava under the party, so what the surface is and what the heat of lava does are the DM’s — and the Bonus Action a target spends to drop through it is charged by the DM for the same reason. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
     },
   ],
 };

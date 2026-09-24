@@ -79,6 +79,14 @@ import {
  */
 const FILED: Readonly<Record<string, readonly string[]>> = {
   'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
+  // **Re-read on 2026-09-24 and moved off {@link HANDOVERS}.** This pass filed
+  // the whole spell as fiction on the grounds that "no spell the engine
+  // executes raises anybody", and that stopped being true when
+  // `healing-that-raises-the-dead` was built: `revive` reaches back a printed
+  // window, the window is subtraction over `Vitals.diedAt`, and the sentence
+  // this spell prints widens exactly that window. A rule reads it, so it is a
+  // debt — `docs/design/content.md`'s own test, applied the other way round.
+  'gentle-repose': ['healing-that-raises-the-dead'],
   knock: ['an-effect-that-suppresses-other-magic'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
   'pass-without-trace': [
@@ -123,7 +131,6 @@ const HANDOVERS: readonly string[] = [
   'elementalism',
   'find-traps',
   'floating-disk',
-  'gentle-repose',
   'identify',
   'illusory-script',
   'locate-animals-or-plants',
@@ -305,7 +312,13 @@ describe('the forty-five unadjudicated spells are read', () => {
   it.each(Object.entries(FILED))('files %s against the shapes it waits on', (spellId, shapes) => {
     const entries = TRACKED_ADJUDICATED[spellId] ?? [];
     expect(entries.length, `${spellId} has no adjudication`).toBeGreaterThan(0);
-    expect([...new Set(entries.map((entry) => entry.why))].sort(), spellId).toEqual([...shapes]);
+    // **The shapes, and a `'table'` entry is not one.** A spell can print a
+    // debt in one sentence and fiction in the next — Gentle Repose does, and
+    // so does Magic Mouth — and this list is what each one *waits on*, which a
+    // handover is not. A spell whose every entry says `'table'` still fails:
+    // the filtered list is empty and the shapes are not.
+    const waits = entries.filter((entry) => entry.why !== 'table');
+    expect([...new Set(waits.map((entry) => entry.why))].sort(), spellId).toEqual([...shapes]);
     expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
     const known = [...Object.keys(MISSING_SHAPES), ...Object.keys(FEATURE_SHAPES)];
     for (const shape of shapes) expect(known, spellId).toContain(shape);
@@ -315,15 +328,24 @@ describe('the forty-five unadjudicated spells are read', () => {
    * The reading, written where a generator reads it rather than where a
    * reviewer does.
    *
-   * Three claims per spell, and the third is the one that was missing: the
-   * definition prints an `unmodelled` line, the map carries an entry, and
-   * every clause of that entry says the table owns it. A spell that turns out
-   * to carry a debt has to come here and leave this list.
+   * Four claims per spell now, and the first two are where P3-S6 changed this
+   * file: the definition **hands its text over** and prints **no debt at all**,
+   * the map carries an entry, and every clause of that entry says the table
+   * owns it. A spell that turns out to carry a debt has to come here and leave
+   * this list, which is what Gentle Repose just did.
+   *
+   * It read `unmodelled` before, and that was the contradiction: a spell whose
+   * every clause the map calls the table's, printing its clauses on the list
+   * `docs/design/content.md` defines as "a debt: the blocker map ranks it, and
+   * one day somebody pays it by building the shape". Both statements could not
+   * be true, and the ledger believed the first while `COVERAGE.md` counted the
+   * second.
    */
   it.each(HANDOVERS.map((s) => [s] as const))('records %s as read and handed over', (spellId) => {
     const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
     expect(definition, `${spellId} has no definition`).toBeDefined();
-    expect((definition?.unmodelled ?? []).length, spellId).toBeGreaterThan(0);
+    expect((definition?.dmDecides ?? []).length, `${spellId} hands nothing over`).toBeGreaterThan(0);
+    expect((definition?.unmodelled ?? []), `${spellId} still files a debt`).toEqual([]);
 
     const entries = TRACKED_ADJUDICATED[spellId] ?? [];
     expect(entries.length, `${spellId} is unread after all`).toBeGreaterThan(0);

@@ -2119,9 +2119,26 @@ describe('every spell this batch added is cast for real', () => {
         ...(definition.unmodelled ?? []),
         ...(branch === undefined ? [] : (definition.options![branch]!.unmodelled ?? [])),
       ];
-      expect(owed, spellId).not.toEqual([]);
+      // **And the handover counts as saying so**, which is P3-S6 arriving
+      // here. Five of this file's spells were read to the end — Druidcraft,
+      // Elementalism, Create or Destroy Water, Purify Food and Drink, Meld
+      // into Stone — and their text moved to `dmDecides`, the list
+      // `docs/design/content.md` keeps apart from the debts. The claim this
+      // sweep makes is that the casting tells the table what it was left
+      // with, and it does; what it may not be is *silent*, which either list
+      // answers and neither being there would fail.
+      const given = definition.dmDecides ?? [];
+      expect([...owed, ...given], spellId).not.toEqual([]);
       for (const gap of owed) {
         expect(out.unverified).toContain(`${definition.name}: ${gap}`);
+      }
+      // A handover travels under its own mark, which is the whole of what
+      // tells the two apart in `unverified`. Asked as containment rather than
+      // as equality, because a long casting reports twice — once at the
+      // declaration and once at the settlement — and a spell that prints
+      // branches hands over the branch's sentences as well as its own.
+      for (const printed of given) {
+        expect(dmDecisionsIn(out.unverified), spellId).toContain(printed);
       }
     },
   );

@@ -23,6 +23,7 @@ import {
   HANDOVER_TRAIT_KINDS,
   TRAIT_KINDS_WITH_A_READER,
 } from '../scripts/coverage-data.js';
+import { TRACKED_ADJUDICATED } from '../scripts/missing-shapes.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
 import { bestiaryRow, bestiarySummary, renderReport } from '../scripts/coverage.js';
 
@@ -127,14 +128,42 @@ describe('a spell the engine tracks says what it does not do', () => {
   );
 
   /**
-   * And the second list is not a way out of the first: exactly one tracked
-   * definition accounts for itself with a handover alone, and it is named here
-   * so that a second one is a line somebody has to add rather than a silence.
+   * And the second list is not a way out of the first.
+   *
+   * It used to be "exactly one, named here", and P3-S6 made that the wrong
+   * shape of rule rather than a stale number: thirty-two tracked definitions
+   * account for themselves with a handover alone now, because somebody read
+   * every sentence of each against the book and found no debt. A list of
+   * thirty-three names would be a second copy of that reading kept by hand.
+   *
+   * So the rule asks for the reading instead: a definition that declares no
+   * debt at all must have a `TRACKED_ADJUDICATED` entry — the map
+   * `spellShapesOf` counts and `LEDGER.md` prints — and none of that entry may
+   * name a shape, because a spell waiting on a shape owes a debt and has just
+   * said it owes none. That is strictly more than a name list asked for, and
+   * it cannot go stale.
+   *
+   * **Legend Lore is the exception and is named, which is what the old rule
+   * was for.** It was re-filed by the `dmDecides` sweep, it is a level 5 spell
+   * and so was never in level-5 reach, and the guard that demands a reading of
+   * every tracked spell restricts itself to that reach — so nobody has ever
+   * been asked to read it, and pretending otherwise here would be this file
+   * inventing a population.
    */
-  it('names the one tracked spell whose whole text is the DM’s', () => {
-    expect(tracked.filter((d) => (d.unmodelled ?? []).length === 0).map((d) => d.id)).toEqual([
-      'legend-lore',
-    ]);
+  it('lets a tracked spell hand everything over only where somebody read it to the end', () => {
+    const handoverOnly = tracked.filter((d) => (d.unmodelled ?? []).length === 0);
+    expect(handoverOnly.length).toBeGreaterThan(1);
+    for (const definition of handoverOnly) {
+      expect((definition.dmDecides ?? []).length, definition.id).toBeGreaterThan(0);
+      if (definition.id === 'legend-lore') continue;
+      const entries = TRACKED_ADJUDICATED[definition.id] ?? [];
+      expect(entries.length, `${definition.id} owes nothing and nobody recorded reading it`).toBeGreaterThan(0);
+      expect(
+        entries.filter((entry) => entry.why !== 'table' && entry.why !== 'engine'),
+        `${definition.id} declares no debt and its map entry names a shape`,
+      ).toEqual([]);
+    }
+    expect(handoverOnly.map((d) => d.id)).toContain('legend-lore');
   });
 
   /** And an executed spell is still allowed to have nothing to declare. */

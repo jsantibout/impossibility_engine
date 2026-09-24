@@ -233,6 +233,33 @@ export interface LedgerRow {
    * report. The spells do, and it was being printed as finished business.
    */
   readonly pending: number;
+  /**
+   * Read to the end and handed over whole — **counted apart from
+   * {@link size}**, which is P3-S6's ruling and the reason this is a fourth
+   * field rather than a fourth reading of the third.
+   *
+   * {@link LedgerWait}'s `'none'` says "somebody read every sentence and every
+   * one left is the table's or the engine's", which is finished business by
+   * the ledger's own words — and while such an item counted in the size, the
+   * road to zero ran through spells nobody may ever build. The bestiary's row
+   * had already drawn this line for a trait the engine hands over: "a handover
+   * waits on nothing, so putting it in the population would inflate the map
+   * with entries blocked on nothing". This is the same line drawn for a spell.
+   *
+   * **Nothing is hidden by it.** The entries are listed by name under a
+   * heading of their own in §1, because an entry silently missing from a
+   * ledger looks exactly like an entry nobody read — which is the sentence
+   * this whole report's header already makes about the column it replaced.
+   *
+   * Zero on four of the five rows, and that is a fact about those populations
+   * rather than a placeholder, exactly as {@link pending} is: a feature, an
+   * item, a glossary rule and a stat block are each built or not built, and
+   * none of them carries a reading that says *this one is finished and nobody
+   * may build it*. The bestiary counts its own handed-over traits in
+   * {@link LedgerMonsters.handedOverTraits}, which is that population's answer
+   * to the same question and is already outside its size.
+   */
+  readonly handedOver: number;
   readonly free: number;
   /**
    * The size in {@link splitUnit}, which is always `blocked + pending + free`.
@@ -638,6 +665,12 @@ export function auditLedger(level: number = LEDGER_LEVEL): Ledger {
  * **Three columns, not two**, which is gate G1's second finding. The middle
  * one is empty on two rows and that is a statement about those populations
  * rather than a placeholder — see {@link LedgerRow.pending}.
+ *
+ * **And a fourth, which is the spells row's size shrinking rather than a
+ * column being added to it.** A spell read to the end and handed over whole is
+ * finished business, so it leaves the population and is reported in
+ * {@link LedgerRow.handedOver} — see that field for the argument and for why
+ * it is zero everywhere else.
  */
 export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
   const split = (items: readonly { readonly wait: LedgerWait }[]) => ({
@@ -645,17 +678,21 @@ export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
     pending: items.filter((one) => one.wait === 'definition').length,
     free: items.filter((one) => one.wait === 'none').length,
   });
-  const spells = split(ledger.spells);
+  // The spells the row still owes. Everything else here splits its whole
+  // population, because nothing else has a reading that finishes an item.
+  const owed = ledger.spells.filter((one) => one.wait !== 'none');
+  const spells = split(owed);
   const features = split(ledger.features);
   const items = split(ledger.items);
 
   return [
     {
       name: 'Spells in reach, not executed',
-      size: ledger.spells.length,
+      size: owed.length,
       unit: 'spells',
       ...spells,
-      split: ledger.spells.length,
+      handedOver: ledger.spells.length - owed.length,
+      split: owed.length,
       splitUnit: 'spells',
     },
     {
@@ -663,6 +700,7 @@ export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
       size: ledger.features.length,
       unit: 'features',
       ...features,
+      handedOver: 0,
       split: ledger.features.length,
       splitUnit: 'features',
     },
@@ -671,6 +709,7 @@ export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
       size: ledger.items.length,
       unit: 'items',
       ...items,
+      handedOver: 0,
       split: ledger.items.length,
       splitUnit: 'items',
     },
@@ -683,6 +722,7 @@ export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
       // to be written, because the rule is the book's and not the
       // catalogue's.
       pending: 0,
+      handedOver: 0,
       free: ledger.rules.filter((one) => one.built !== null).length,
       split: ledger.rules.length,
       splitUnit: 'rules',
@@ -695,6 +735,12 @@ export function ledgerTotals(ledger: Ledger): readonly LedgerRow[] {
       // A parsed line is read or it is handed over, and a block carrying one
       // handed-over line is unfinished. There is no third state to report.
       pending: 0,
+      // The bestiary's own handed-over count is not this column: it is a count
+      // of **lines** and this row splits **blocks**, so putting it here would
+      // be the only cell in the table measured in the other unit. It is
+      // reported in §5, out of `items` for the same reason this is out of the
+      // spells row's size.
+      handedOver: 0,
       free: ledger.monsters.clean,
       split: ledger.monsters.blocks,
       splitUnit: 'blocks',
@@ -734,6 +780,15 @@ const HEADER = [
   'has to **rise** when somebody reads the book, and it cannot while the unread',
   'state is displayed as zero.',
   '',
+  '**And a fourth, which takes items out of a size rather than out of a**',
+  '**column.** A spell that has been read to the end and handed over whole is',
+  'finished: every sentence it prints is the table’s or the engine’s, nobody',
+  'will ever build it, and counting it in the size of the population the',
+  'roadmap ranks by put the road to zero through work nobody may do. So it',
+  'leaves the size and is counted in the last column, and §1 lists every one of',
+  'them by name — the bestiary’s row already counts a handed-over trait apart',
+  'for exactly this reason.',
+  '',
 ];
 
 const line = (row: LedgerRow): string => {
@@ -745,7 +800,7 @@ const line = (row: LedgerRow): string => {
           `${row.pending}`,
           `${row.free} ${row.splitUnit} already clean`,
         ];
-  return `| ${row.name} | ${row.size} ${row.unit} | ${split[0]} | ${split[1]} | ${split[2]} |`;
+  return `| ${row.name} | ${row.size} ${row.unit} | ${split[0]} | ${split[1]} | ${split[2]} | ${row.handedOver} |`;
 };
 
 const spellLine = (one: LedgerSpell): string =>
@@ -754,12 +809,26 @@ const spellLine = (one: LedgerSpell): string =>
 const featureLine = (one: LedgerFeature): string =>
   `- \`${one.id}\` — ${one.name} (level ${one.level}, ${one.source}, ${one.automation})`;
 
+/**
+ * How the *waits on nothing* tail of a population is headed and introduced.
+ *
+ * One population has an answer for it and the others do not, which is why this
+ * is a parameter rather than a sentence in the renderer: a spell's clauses can
+ * be read to the end and handed over whole, and a feature is built or it is
+ * not. Absent is the plain heading every population had before.
+ */
+interface FreeSection {
+  readonly heading: string;
+  readonly note: readonly string[];
+}
+
 /** Everything of a population that waits on one shape, under that shape. */
 function groupByShape<T extends { readonly shapes: readonly string[]; readonly wait: LedgerWait }>(
   items: readonly T[],
   render: (one: T) => string,
   noun: string,
   order: string,
+  free?: FreeSection,
 ): readonly string[] {
   const shapes = sorted(items.flatMap((one) => one.shapes));
   const rows = shapes
@@ -810,9 +879,10 @@ function groupByShape<T extends { readonly shapes: readonly string[]; readonly w
   );
   for (const one of pending) lines.push(render(one));
 
-  const free = items.filter((one) => one.wait === 'none');
-  lines.push('', `#### Waiting on no shape — ${free.length}`, '');
-  for (const one of free) lines.push(render(one));
+  const finished = items.filter((one) => one.wait === 'none');
+  lines.push('', `#### ${free?.heading ?? 'Waiting on no shape'} — ${finished.length}`, '');
+  if (free !== undefined) lines.push(...free.note, '');
+  for (const one of finished) lines.push(render(one));
   lines.push('', `Listed by ${order}.`);
   return lines;
 }
@@ -824,8 +894,8 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
   lines.push(
     '## The five populations',
     '',
-    '| Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |',
-    '|---|---|---|---|---|',
+    '| Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |',
+    '|---|---|---|---|---|---|',
   );
   for (const row of ledgerTotals(ledger)) lines.push(line(row));
 
@@ -838,8 +908,30 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
     'still carries a clause nobody has built; `tracked` is one it casts and',
     'hands the effect over; `no-definition` is a spell the catalogue does not',
     'hold at all. An executed spell with nothing left is not here.',
+    '',
+    '**The size above is what this population still owes, and a spell read to**',
+    '**the end is not owed.** The last column counts the spells whose every',
+    'printed sentence somebody has read and found to be the table’s or the',
+    'engine’s: they are finished business by the definition of *waits on none*',
+    'above, they will never be built, and while they counted in the size the',
+    'road to zero ran through work nobody may do. The bestiary’s row had',
+    'already drawn that line for a trait the engine hands to the table, and',
+    'this is the same line drawn for a spell. They are **listed** below under a',
+    'heading of their own, because a count subtracted with no list behind it is',
+    'exactly the silently-missing entry this report’s header refuses.',
   );
-  lines.push(...groupByShape(ledger.spells, spellLine, 'spell', 'spell level, then name'));
+  lines.push(
+    ...groupByShape(ledger.spells, spellLine, 'spell', 'spell level, then name', {
+      heading: 'Read to the end, handed over whole',
+      note: [
+        'Somebody read every printed sentence of each of these against the',
+        'definition and the blocker map, and every clause left is the table’s to',
+        'narrate or the engine’s to roll. **Nothing here is work.** It is out of',
+        'the size above and is listed here so a reader can see what the table is',
+        'being asked for — which is the whole of what these spells are.',
+      ],
+    }),
+  );
 
   lines.push(
     '',
