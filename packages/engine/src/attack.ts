@@ -1,6 +1,13 @@
 import { err, ok, type Ability, type CharacterId, type Result, type RollMode } from '@ie/shared';
 import type { Weapon, WeaponMastery, WeaponProperty } from '@ie/srd';
-import { parseNotation, rerollDice, type DieEffect, type Rng, type RollRule } from './dice.js';
+import {
+  parseNotation,
+  rerollDice,
+  type DieEffect,
+  type DieRoll,
+  type Rng,
+  type RollRule,
+} from './dice.js';
 import type { Content } from './content.js';
 // Type-only, and deliberately: `events.ts` reads this module's damage types
 // the same way, so a value edge in either direction would be a real cycle.
@@ -1058,6 +1065,20 @@ function averageDamage(dice: string | null, fixed: number | null): number {
  * what the die **showed**, not what a substitution made of it: the sentence is
  * about the die, and Great Weapon Fighting's 3 is still a 1 on the table.
  *
+ * **`die` is a position among the dice that counted, and nothing else is
+ * nameable.** A dropped die is not a die this roll used — SRD Savage
+ * Attacker's losing throw rides along `dropped`, and `rerollDice` keeps a
+ * replacement for one dropped — so naming one would burn a use and move no
+ * total. A position past the end of that list names no die of this roll, and
+ * the election simply does not fire: nothing is spent, and every face is in
+ * the log with its disposition for a reader to see why. **It is not a
+ * refusal**, and that is a trade rather than an oversight: how many dice a
+ * swing throws is settled by the critical and by whatever rule doubled the
+ * notation, so a caller cannot know the count before the die, and refusing
+ * here would refuse a swing the engine had already rolled — leaving the
+ * generator advanced, so the retry would be a different swing. A better error
+ * message is not worth a divergent replay.
+ *
  * `rerollDice` keeps the replaced die in the roll marked `rerolled`, so "you
  * must use the new roll" and the audit trail are the same act. The roll id is
  * the one already issued: this is one damage roll with a die thrown twice, and
@@ -1073,21 +1094,19 @@ function electedDamageRethrow(
     return ok({ roll: rolled, spent: null });
   }
 
-  const named = election.die;
   const counted = rolled.dice.filter((die) => die.disposition === 'counted');
-  const lowest = counted.reduce<number | null>(
-    (best, die) =>
-      best === null || die.rolled < rolled.dice[best]!.rolled ? die.index : best,
-    null,
-  );
-  const index = named ?? lowest;
-  if (index === null) return ok({ roll: rolled, spent: null });
+  const die =
+    election.die === undefined
+      ? counted.reduce<DieRoll | null>(
+          (best, one) => (best === null || one.rolled < best.rolled ? one : best),
+          null,
+        )
+      : (counted[election.die] ?? null);
+  if (die === null || die.rolled > election.when.faceAtOrBelow) {
+    return ok({ roll: rolled, spent: null });
+  }
 
-  const die = rolled.dice[index];
-  if (die === undefined) return err('unknown_die', `this roll has no die at index ${index}`);
-  if (die.rolled > election.when.faceAtOrBelow) return ok({ roll: rolled, spent: null });
-
-  const again = rerollDice(rng, rolled, [index], election.pool, effects);
+  const again = rerollDice(rng, rolled, [die.index], election.pool, effects);
   if (!again.ok) return again;
   return ok({ roll: { ...again.value, provenance: rolled.provenance }, spent: election.pool });
 }

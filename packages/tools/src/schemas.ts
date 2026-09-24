@@ -314,7 +314,7 @@ export const rollElectionSchema = z
       .min(0)
       .optional()
       .describe(
-        'Which of the damage dice, by its position in the roll. Only on a damage election; leaving it out rerolls the lowest die that counted, which is the one a single reroll is worth spending on.',
+        'Which of the damage dice, by its position among the dice that **counted** — 0 is the first. Only on a damage election; leaving it out rerolls the lowest of them, which is the one a single reroll is worth spending on. How many a swing throws depends on the Critical Hit and on whatever doubled the notation, so a position past the end is not refused: it names no die of that roll, the reroll does not happen and nothing is spent.',
       ),
   })
   .describe(

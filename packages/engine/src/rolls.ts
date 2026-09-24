@@ -205,8 +205,11 @@ export interface RollElection {
   readonly pool: string;
   readonly when: ElectionCondition;
   /**
-   * Which damage die, by its index in the roll. Absent is the lowest counted
-   * die, which is the one a player rethrowing exactly one die would pick.
+   * Which damage die, by its position **among the dice that counted**. Absent
+   * is the lowest of them, which is the one a player rethrowing exactly one
+   * die would pick. A position past the end names no die of that roll and the
+   * election does not fire — see `electedDamageRethrow` for why that is not a
+   * refusal.
    */
   readonly die?: number;
 }
@@ -239,7 +242,7 @@ export function electionProblem(election: RollElection, site: ElectionSite): str
 
   if (die !== undefined) {
     if (site !== 'damage') return 'only a damage election names which die; a D20 Test throws the one the mode counted';
-    if (!Number.isInteger(die) || die < 0) return `${String(die)} is not a die of this roll`;
+    if (!Number.isInteger(die) || die < 0) return `${String(die)} is not a position in a roll`;
   }
 
   return null;

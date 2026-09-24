@@ -31,7 +31,7 @@ import {
 import { reactionsOf } from '../reactions.js';
 import { remaining } from '../resources.js';
 import { abilityModifier, type CharacterSheet } from '../character.js';
-import { type D20TestKind, type D20TestResult, skillName } from '../checks.js';
+import { type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../timers.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
@@ -75,6 +75,14 @@ import { type Supply } from './casting.js';
  * `consumedRollModifiers` asks the same {@link selectorMatches} the gatherer
  * did.
  */
+export function spentRollModifiers(state: GameState, query: RollQuery): GameEvent[] {
+  return consumedRollModifiers(state, query).map((spent) => ({
+    type: 'roll-modifier-consumed',
+    id: spent.holder,
+    source: spent.source,
+  }));
+}
+
 /**
  * Whether this creature may elect this reroll on this roll, and what it costs.
  *
@@ -84,13 +92,22 @@ import { type Supply } from './casting.js';
  * would let any resource on any sheet buy one; and the roll it is elected on
  * has to be one that feature's sentence reaches.
  *
- * **What "any die" is spelled as.** `ReactionGrantEffect`'s `tests` says of
- * itself that "SRD Heroic Inspiration answers 'any die', which on this window
- * is both kinds of test" — so a reroll naming **both** is a reroll of any die,
- * and one naming fewer is the narrower sentence it actually prints. SRD
- * Indomitable names a saving throw and is electable on one, which is its own
- * sentence exactly; it reaches no attack roll and no damage die, which is also
- * its own sentence. No new field, and no engine file naming a feature.
+ * **Only a reroll of "any die" may be elected, and that is the whole rule.**
+ * `ReactionGrantEffect`'s `tests` says of itself that "SRD Heroic Inspiration
+ * answers 'any die', which on this window is both kinds of test" — so a reroll
+ * naming **both** is a reroll of any die and is electable anywhere, and one
+ * naming fewer is a narrower sentence that keeps the window road it already
+ * has. SRD Indomitable is the narrower one: "if you **fail** a saving throw",
+ * with a bonus equal to your Fighter level. Electing it would go wrong twice —
+ * a face condition would let a *made* save be thrown again, which
+ * `progression.ts` says is withheld on purpose, and the pipeline rethrow
+ * carries no `Bonus`, so the Fighter level `rerollTest` adds at the window
+ * would silently vanish. A `bonus` on the grant is refused outright for that
+ * second reason, so a homebrew "any die" reroll that priced one cannot lose it
+ * quietly either.
+ *
+ * No new field and no engine file naming a feature: both questions are asked
+ * of the grant the creature is holding.
  *
  * Asked **before** anything is rolled, so a refused election leaves the
  * generator and the roll counter where it found them.
@@ -100,7 +117,6 @@ export function electionRefusal(
   who: CharacterId,
   election: RollElection,
   site: ElectionSite,
-  kind?: D20TestKind,
 ): Result<null> {
   const shape = electionProblem(election, site);
   if (shape !== null) return err('bad_election', shape);
@@ -114,20 +130,20 @@ export function electionRefusal(
     (reaction) => reaction.pool === election.pool && reaction.does.kind === 'reroll',
   );
   if (held === undefined || held.does.kind !== 'reroll') {
-    return err(
-      'bad_election',
-      `${who} has nothing that spends ${election.pool} on a reroll`,
-    );
+    return err('bad_election', `${who} has nothing that spends ${election.pool} on a reroll`);
   }
 
   const tests = held.does.tests ?? ['saving-throw'];
-  const anyDie = tests.includes('ability-check') && tests.includes('saving-throw');
-  if (site === 'test' ? kind !== undefined && !tests.includes(kind) : !anyDie) {
+  if (!tests.includes('ability-check') || !tests.includes('saving-throw')) {
     return err(
       'bad_election',
-      `${held.name} rerolls ${tests.join(' or a ')}, and this is ${
-        site === 'damage' ? 'a damage die' : site === 'attack' ? 'an attack roll' : `a ${kind ?? 'D20 Test'}`
-      }`,
+      `${held.name} rerolls ${tests.join(' or a ')} and nothing else, so it is answered at the window rather than elected before the die`,
+    );
+  }
+  if (held.does.bonus !== undefined) {
+    return err(
+      'bad_election',
+      `${held.name} adds to the roll it throws again, and an election carries no addend; answer it at the window`,
     );
   }
 
@@ -136,14 +152,6 @@ export function electionRefusal(
   }
 
   return ok(null);
-}
-
-export function spentRollModifiers(state: GameState, query: RollQuery): GameEvent[] {
-  return consumedRollModifiers(state, query).map((spent) => ({
-    type: 'roll-modifier-consumed',
-    id: spent.holder,
-    source: spent.source,
-  }));
 }
 
 /**

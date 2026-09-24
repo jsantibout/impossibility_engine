@@ -446,7 +446,7 @@ const SAVING_THROW = tool({
     reroll: rollElectionSchema
       .optional()
       .describe(
-        'A reroll the **roller** elected before the die — SRD Heroic Inspiration, and SRD Indomitable said as a condition rather than as an answer. Send `{"pool": "human:heroic-inspiration", "when": "fails"}`, or a face to rethrow at. The use is spent only if the condition was met, and the `test-rolled` window still opens afterwards — though the same pool may not buy a second reroll of the same die.',
+        'A reroll the **roller** elected before the die — SRD Heroic Inspiration. Send `{"pool": "human:heroic-inspiration", "when": "fails"}`, or a face to rethrow at. Only a feature that rerolls **any** die can be elected: SRD Indomitable rerolls a failed saving throw and adds your Fighter level to it, so it is answered at the window where that addend exists rather than elected here, and electing it is refused. The use is spent only if the condition was met, and the `test-rolled` window still opens afterwards — though the same pool may not buy a second reroll of the same die.',
       ),
     ...ADVANTAGE_FIELDS,
   }),

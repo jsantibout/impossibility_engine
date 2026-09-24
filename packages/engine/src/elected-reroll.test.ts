@@ -27,13 +27,14 @@ import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { remaining } from './resources.js';
-import { createRollIssuer } from './rolls.js';
+import { createRollIssuer, electedRethrow, rollD20Recorded } from './rolls.js';
 import { beginRest, endRest } from './rest.js';
 import { advanceTime, resolveAttack, resolveTest, takeTestReaction } from './commands.js';
 
 const id = (s: string) => asCharacterId(s);
 const HERO = id('hero');
 const DUMMY = id('dummy');
+const STUBBORN = id('stubborn');
 
 const POOL = 'human:heroic-inspiration';
 
@@ -54,7 +55,7 @@ const refused = (result: { ok: boolean; code?: string }): string => {
 };
 
 /** A Human Fighter 1, because Resourceful is every Human's. */
-const human = (): CharacterChoices => ({
+const human = (originFeat = 'alert'): CharacterChoices => ({
   name: 'Bren',
   classId: 'fighter',
   level: 1,
@@ -85,7 +86,7 @@ const human = (): CharacterChoices => ({
       cantrips: ['mage-hand', 'light'],
       levelOneSpell: 'find-familiar',
     },
-    'human:versatile': { featId: 'alert' },
+    'human:versatile': { featId: originFeat },
     'fighter:fighting-style': { featId: 'archery' },
   },
 });
@@ -102,8 +103,8 @@ const plain = (): CharacterSheet => ({
   spellcastingAbility: null,
 });
 
-const log = (): readonly GameEvent[] => [
-  ...unwrap(createCharacter(SRD_CONTENT, human(), HERO), 'Bren'),
+const log = (originFeat = 'alert'): readonly GameEvent[] => [
+  ...unwrap(createCharacter(SRD_CONTENT, human(originFeat), HERO), 'Bren'),
   { type: 'creature-side-declared', id: HERO, side: 'party' },
   {
     type: 'creature-added',
@@ -125,6 +126,67 @@ const log = (): readonly GameEvent[] => [
     placement: { from: { creature: HERO }, feet: 5, bearing: 0 },
   },
   { type: 'sight-declared', from: HERO, to: DUMMY, seen: true },
+];
+
+/**
+ * Two rerolls nobody prints, because what is under test is a **rule** about
+ * grants rather than a catalogue entry.
+ *
+ * `test:stubborn` is SRD Indomitable's shape — a saving throw alone, with an
+ * addend a class table sized — and `test:steadfast` is Heroic Inspiration's
+ * reach with an addend bolted on, which no SRD feature writes and a homebrew
+ * could. Both must be refused an election and keep the window, and naming
+ * Indomitable itself would have meant building a Fighter 9 to say one thing
+ * about a shape.
+ */
+const narrow = (): readonly GameEvent[] => [
+  {
+    type: 'creature-added',
+    id: STUBBORN,
+    name: 'stubborn',
+    sheet: {
+      ...plain(),
+      reactions: [
+        {
+          feature: 'test:stubborn',
+          name: 'Stubborn',
+          window: 'test-rolled',
+          costsReaction: false,
+          pool: 'test:stubborn',
+          reach: { kind: 'self' },
+          does: {
+            kind: 'reroll',
+            bonus: { kind: 'level', level: 9, label: 'Fighter level' },
+            tests: ['saving-throw'],
+          },
+        },
+        {
+          feature: 'test:steadfast',
+          name: 'Steadfast',
+          window: 'test-rolled',
+          costsReaction: false,
+          pool: 'test:steadfast',
+          reach: { kind: 'self' },
+          does: {
+            kind: 'reroll',
+            bonus: { kind: 'flat', amount: 2, label: 'Steadfast' },
+            tests: ['ability-check', 'saving-throw'],
+          },
+        },
+      ],
+    },
+    maxHp: 60,
+    diesAtZero: false,
+    creatureType: 'Humanoid',
+    side: 'party',
+  },
+  ...(['test:stubborn', 'test:steadfast'] as const).map(
+    (key): GameEvent => ({
+      type: 'resource-pool-declared',
+      id: STUBBORN,
+      pool: { key, label: key, max: 1, recovers: 'long-rest' },
+    }),
+  ),
 ];
 
 const run = (state: GameState, events: readonly GameEvent[]): GameState =>
@@ -326,6 +388,78 @@ describe('an election on a damage die', () => {
     ).toBe('bad_election');
   });
 
+  /**
+   * **A position among the dice that counted, and no refusal past the end.**
+   *
+   * A longsword throws one die, so 0 names it and 1 names nothing this roll
+   * has. Refusing there would refuse a swing the engine had already rolled,
+   * leaving the generator advanced so the retry would be a different swing —
+   * and how many dice a swing throws is settled by the critical and by
+   * whatever doubled the notation, which no caller can know beforehand.
+   */
+  it('takes the die named among those that counted, and does not fire past the end', () => {
+    const state = fold('seed', log());
+    const low = SEEDS.map((seed) => ({ seed, out: swing(state, seed) })).find(
+      (one) => weaponDice(one.out)[0]!.rolled <= 5,
+    );
+    if (low === undefined) throw new Error('the fixture meant to hold one low longsword die');
+
+    const named = swing(state, low.seed, {
+      damageElection: { pool: POOL, when: { faceAtOrBelow: 5 }, die: 0 },
+    });
+    expect(weaponDice(named)[0]!.disposition).toBe('rerolled');
+    expect(spends(named.events)).toEqual([POOL]);
+
+    const beyond = swing(state, low.seed, {
+      damageElection: { pool: POOL, when: { faceAtOrBelow: 5 }, die: 1 },
+    });
+    expect(weaponDice(beyond).length).toBe(1);
+    expect(weaponDice(beyond)[0]!.disposition).toBe('counted');
+    expect(spends(beyond.events)).toEqual([]);
+    // And the swing is not refused: it landed and dealt its damage.
+    expect(beyond.attack?.hit).toBe(true);
+  });
+
+  /**
+   * **A dropped die is not a die this roll used.**
+   *
+   * SRD Savage Attacker throws the weapon's dice twice and keeps a whole
+   * throw; the losing one rides along `dropped`, exactly as a keep clause's
+   * does. Naming a position among *all* the dice would let a caller spend a
+   * Heroic Inspiration on the throw the swing had already given up, which
+   * `rerollDice` keeps dropped — a use burned for nothing. So the position is
+   * among the dice that counted, and which throw that was is not something the
+   * caller has to know.
+   */
+  it('cannot be aimed at a die the whole-roll rule dropped', () => {
+    const state = fold('seed', log('savage-attacker'));
+    const thrownTwice = SEEDS.map((seed) => ({ seed, out: swing(state, seed) })).find(
+      (one) => weaponDice(one.out).some((die) => die.disposition === 'dropped'),
+    );
+    if (thrownTwice === undefined) {
+      throw new Error('the fixture meant Savage Attacker to throw the longsword’s die twice');
+    }
+    const dice = weaponDice(thrownTwice.out);
+    const counted = dice.filter((die) => die.disposition === 'counted');
+    expect(counted).toHaveLength(1);
+
+    // `die: 0` is the die that counted, whichever throw it came from; a face
+    // above it leaves the roll alone, and one at or below rethrows it.
+    const face = counted[0]!.rolled;
+    const aimed = swing(state, thrownTwice.seed, {
+      damageElection: { pool: POOL, when: { faceAtOrBelow: face }, die: 0 },
+    });
+    expect(weaponDice(aimed).find((die) => die.disposition === 'rerolled')?.rolled).toBe(face);
+    expect(spends(aimed.events)).toEqual([POOL]);
+
+    // And there is no second position to aim at, because only one die counted.
+    const missed = swing(state, thrownTwice.seed, {
+      damageElection: { pool: POOL, when: { faceAtOrBelow: 20 }, die: 1 },
+    });
+    expect(weaponDice(missed).some((die) => die.disposition === 'rerolled')).toBe(false);
+    expect(spends(missed.events)).toEqual([]);
+  });
+
   it('refuses one use buying two rerolls on one swing', () => {
     const state = fold('seed', log());
     expect(
@@ -496,6 +630,59 @@ describe('what an election costs before the die', () => {
     expect(remaining(state.creatures[HERO]!.resources, POOL)).toBe(0);
   });
 
+  /**
+   * **The narrowing, which is the one inference this design rests on.**
+   *
+   * `ReactionGrantEffect.tests` says of itself that "any die" on this window is
+   * both kinds of test, so a reroll naming fewer is a narrower sentence and
+   * keeps the window it already has. SRD Indomitable is that sentence, and the
+   * second half of the reason is arithmetic rather than reading: the pipeline
+   * rethrow carries no `Bonus`, so a Fighter level added at the window would
+   * vanish here.
+   */
+  it('refuses an election of a reroll that is not of any die, and of one that adds to the roll', () => {
+    const state = fold('seed', [...log(), ...narrow()]);
+    const elect = (pool: string, site: 'test' | 'attack') =>
+      site === 'test'
+        ? resolveTest(
+            state,
+            STUBBORN,
+            {
+              kind: 'saving-throw',
+              ability: 'dex',
+              dc: 15,
+              election: { pool, when: 'fails' },
+            },
+            supply('narrow'),
+          )
+        : resolveAttack(
+            state,
+            STUBBORN,
+            { target: DUMMY, weapon: null, election: { pool, when: 'misses' } },
+            supply('narrow'),
+          );
+
+    // A saving throw alone, on the very test its own sentence names.
+    expect(refused(elect('test:stubborn', 'test'))).toBe('bad_election');
+    // And on the two rolls it does not name at all.
+    expect(refused(elect('test:stubborn', 'attack'))).toBe('bad_election');
+    // "Any die", but with an addend the election has nowhere to put.
+    expect(refused(elect('test:steadfast', 'test'))).toBe('bad_election');
+    expect(refused(elect('test:steadfast', 'attack'))).toBe('bad_election');
+
+    // And the window is untouched: a failed save still offers both.
+    const failed = unwrap(
+      resolveTest(
+        state,
+        STUBBORN,
+        { kind: 'saving-throw', ability: 'dex', dc: 40 },
+        supply('window'),
+      ),
+      'save',
+    );
+    expect(failed.offers.map((o) => o.feature)).toEqual(['test:steadfast', 'test:stubborn']);
+  });
+
   it('refuses a pool the roller holds that buys no reroll', () => {
     const state = fold('seed', log());
     const out = resolveTest(
@@ -534,5 +721,62 @@ describe('what an election costs before the die', () => {
       supply('after'),
     );
     expect(out.ok).toBe(true);
+  });
+});
+
+// — the free reroll and the bought one, on one die ————————————————————————————
+
+/**
+ * SRD Luck fires on the face inside `rollD20Recorded` and an election fires on
+ * the roll as it stands, after the bonus dice. Both go through
+ * `rethrowCountedD20`, so the two cannot disagree about which die counted —
+ * and a roller holding both throws the die at most twice, with the whole chain
+ * in the record.
+ *
+ * Driven at the primitive because no SRD character can hold both: Luck is a
+ * Halfling's and Heroic Inspiration is a Human's.
+ */
+describe('a free reroll and an elected one on the same die', () => {
+  /** A generator whose very first d20 is the 1 SRD Luck answers. */
+  const unlucky = (): Rng => {
+    for (let n = 0; n < 200; n++) {
+      const seed = `unlucky-${n}`;
+      if ((createRng(seed) as Rng).int(20) === 1) return createRng(seed) as Rng;
+    }
+    throw new Error('no seed in the fixture opens on a natural 1');
+  };
+
+  it('chains the throws rather than losing one, and only the bought one is paid for', () => {
+    const issuer = createRollIssuer('r');
+    const rng = unlucky();
+    // A 1 the free rule catches, and a face the election catches after it.
+    const first = rollD20Recorded(issuer, rng, 'normal', 0, { on: 1, source: 'Luck' });
+    const chained = electedRethrow(issuer, rng, first, 'normal', 0, first.total, {
+      pool: POOL,
+      fires: () => true,
+    });
+
+    expect(chained.elected).toBe(POOL);
+    expect(chained.superseded?.natural).toBe(first.natural);
+    // The free reroll's own record survives underneath, so the log can show
+    // all three faces and which rule threw which.
+    expect(first.superseded?.natural).toBe(1);
+    expect(chained.superseded?.superseded?.natural).toBe(1);
+    // And the free throw is not marked as bought: only one of them cost a use.
+    expect(first.elected).toBeUndefined();
+    expect(chained.superseded?.elected).toBeUndefined();
+  });
+
+  it('leaves the roll alone, and unpaid, when the election does not fire', () => {
+    const issuer = createRollIssuer('r');
+    const rng = unlucky();
+    const first = rollD20Recorded(issuer, rng, 'normal', 0, { on: 1, source: 'Luck' });
+    const before = rng.snapshot();
+    const stood = electedRethrow(issuer, rng, first, 'normal', 0, first.total, {
+      pool: POOL,
+      fires: () => false,
+    });
+    expect(stood).toBe(first);
+    expect(rng.snapshot()).toEqual(before);
   });
 });

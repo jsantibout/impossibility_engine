@@ -570,7 +570,7 @@ export function resolveTest(
     // afford, or whose feature's sentence does not reach this test is refused
     // with nothing rolled and nothing spent.
     if (command.election !== undefined) {
-      const allowed = electionRefusal(state, who, command.election, 'test', command.kind);
+      const allowed = electionRefusal(state, who, command.election, 'test');
       if (!allowed.ok) return allowed;
     }
 

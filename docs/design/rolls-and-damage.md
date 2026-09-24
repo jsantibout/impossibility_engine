@@ -79,14 +79,23 @@ two can never disagree about which die counted. It is intent from the caller
 and a number from the engine, and it is still a decision made knowing the die,
 because the condition is a function of the face. The pool is spent only where
 the condition was met, the first face rides on `roll-recorded.supersedes`, and
-the second roll stands whatever it shows. **Which rolls an election may reach
-is the feature's own sentence**, read off the `tests` its Reaction declares:
-naming both kinds of D20 Test is how "any die" is already spelled on that
-window, so a reroll naming both is electable on an attack roll and a damage
-die too, and one naming a saving throw alone — Indomitable — is not. The
+the second roll stands whatever it shows. **Only a reroll of "any die" may be
+elected**, read off the `tests` its Reaction declares: naming both kinds of
+D20 Test is how "any die" is already spelled on that window, so a reroll
+naming both is electable anywhere and a narrower one keeps the window road it
+has. Indomitable is the narrower one — "if you **fail** a saving throw", with
+a bonus equal to your Fighter level — and electing it would go wrong twice: a
+face condition would throw a *made* save again, and the pipeline rethrow
+carries no `Bonus`, so the Fighter level would vanish. A grant with a bonus on
+it is refused for that second reason alone, whatever its `tests` say. The
 window keeps its arm, because Indomitable and Cutting Words share it and a
 player may prefer to look first; what the same pool may not do is buy a second
-reroll of a die an election already threw again.
+reroll of a die an election already threw again. A damage election names a die
+by its position **among those that counted**, and a position past the end
+simply does not fire — how many dice a swing throws is settled by the critical
+and by whatever doubled the notation, so a caller cannot know the count
+beforehand, and refusing a swing the engine had already rolled would leave the
+generator advanced and make the retry a different swing.
 
 **A selector may name a family of D20 Tests, and it must then name the ability
 behind them.** `RollFamily`'s sixth member is the glossary's own union of the
