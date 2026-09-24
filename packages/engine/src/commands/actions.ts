@@ -45,6 +45,8 @@ import {
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type StatedAction, type StatedBonusAction } from '../character.js';
+import { formNamed, wrongFormFor } from '../forms.js';
+import type { CreatureSize } from '@ie/srd';
 import { rollAbilityCheck, type D20TestResult } from '../checks.js';
 import { isDown } from '../vitals.js';
 import {
@@ -90,6 +92,7 @@ import {
   printedSaveOf,
   statedActionOf,
   statedBonusActionOf,
+  withFormSpeeds,
 } from '../monster.js';
 import { remaining, tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
@@ -515,6 +518,13 @@ export function takeStatedBonusAction(
         );
       }
 
+      // **A line the block prints for one of its forms only.** SRD Weretiger:
+      // "Prowl (Tiger or Hybrid Form Only)", which is the one Bonus Action in
+      // the book that prints the clause. Before the economy, for the reason
+      // everything on this command is.
+      const wrongForm = wrongFormFor(creature, line);
+      if (wrongForm !== null) return err('wrong_form', wrongForm);
+
       // **A line already used and not yet back.** Before the economy, because
       // a refusal after the Bonus Action is gone is a refusal with a
       // footprint — the rule every other argument on this command follows.
@@ -702,6 +712,13 @@ export function takeStatedAction(
           `no line called ${command.line} is printed under this creature's Actions with nothing the engine could read beneath it; a heading the parser did read, and a heading printed under another section, are each taken by the command that owns them`,
         );
       }
+
+      // **A line the block prints for one of its forms only.** SRD Vampire:
+      // "Grave Strike (Vampire Form Only)". Before the economy for the reason
+      // everything on this command is: a refusal after the Action is gone is a
+      // refusal with a footprint.
+      const wrongForm = wrongFormFor(creature, line);
+      if (wrongForm !== null) return err('wrong_form', wrongForm);
 
       // **A line already used and not yet back.** Before the economy, because
       // a refusal after the Action is gone is a refusal with a footprint — the
@@ -1432,6 +1449,265 @@ export function takePrintedTeleport(
         events: [...events, ...moved.value.events],
         feet: moved.value.feet,
         unverified: moved.value.unverified.map((gap) => `${line.name}: ${gap}`),
+        duplicate: false,
+      });
+    },
+  );
+}
+
+export interface PrintedFormCommand extends CommandIdentity {
+  readonly line: string;
+  /**
+   * Which form, by the word its own line prints it under — `wolf`, `hybrid`,
+   * `object`, `true`.
+   *
+   * **The one fact the table supplies.** A line offers two, three or four
+   * forms and the engine chooses none of them, exactly as it chooses none of
+   * the spaces a printed teleport offers. Absent is asked about rather than
+   * refused.
+   */
+  readonly form?: string;
+  /**
+   * Which size, where the form prints more than one.
+   *
+   * SRD Doppelganger: "a Medium or Small Humanoid" — one form at a choice of
+   * sizes, and the choice is the table's for the reason the form itself is.
+   * Ignored by every form that prints one size or none.
+   */
+  readonly size?: CreatureSize;
+}
+
+export interface PrintedFormOutcome {
+  readonly events: readonly GameEvent[];
+  /** The form now worn, as the line prints its name. */
+  readonly form: string;
+  /** The size that form leaves the creature, or null where the line prints none. */
+  readonly size: CreatureSize | null;
+  /** What the line said that the engine does not do — see `MonsterForms.handedOver`. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Take one of the forms a creature's own stat block prints.
+ *
+ * SRD Werewolf, Shape-Shift: "The werewolf shape-shifts into a Large
+ * wolf-humanoid hybrid or a Medium wolf, or it returns to its true humanoid
+ * form. Its game statistics, other than its size, are the same in each form.
+ * Any equipment it is wearing or carrying isn't transformed."
+ *
+ * **The fourth door on one line**, beside {@link takeStatedAction} and
+ * {@link takeStatedBonusAction}, which spend the slot and hand the sentence
+ * over for every line including this one, {@link forcePrintedSave} and
+ * {@link takePrintedTeleport}. This one changes the form, and it refuses
+ * `line_states_no_form` for a line whose sentence says something else.
+ *
+ * **What it changes is three things and deliberately not a fourth.** The size,
+ * which every printing but two names and which `effectiveSizeOf` then reads
+ * for every Grapple, Shove and Hide; the Speeds, on the Imp and the Quasit,
+ * which are the one thing those two sentences say changes; and the word the
+ * block's own headings gate on, so a werewolf as a wolf may bite and may not
+ * draw its longbow. What it does **not** touch is the inventory — "Any
+ * equipment it is wearing or carrying isn't transformed" is a rule this engine
+ * keeps by doing nothing at all — and nothing else on the sheet, because the
+ * sentence says the statistics are the same.
+ *
+ * **The economy is the one the other doors spend**, in the same order and for
+ * the same reason: the recharge and the day's uses before the slot, so a
+ * refusal leaves no footprint, and the slot the *heading* names — the Imp's
+ * and the Quasit's are Actions and the other eleven are Bonus Actions.
+ */
+export function takePrintedForm(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedFormCommand,
+): Result<PrintedFormOutcome> {
+  return once(
+    state,
+    `printed-form:${id}`,
+    command,
+    () => ({ events: [], form: '', size: null, unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. After the duplicate check, never before it.
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+
+      // Actions first, for `takePrintedTeleport`'s reason: the book writes
+      // this sentence under both headings and what the heading changes is what
+      // the line costs.
+      const action = statedActionOf(creature.sheet, command.line);
+      const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
+      const line: StatedAction | StatedBonusAction | null = action ?? bonus;
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions; a printed attack is taken by the command that swings it, and a heading printed under another section by the command that owns that one`,
+        );
+      }
+
+      const printed = line.forms;
+      if (printed === undefined) {
+        return err(
+          'line_states_no_form',
+          `${line.name} states no form this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      // **A line already used and not yet back**, and **a line whose day's
+      // worth is gone** — both before the slot, because a refusal after the
+      // slot is gone is a refusal with a footprint.
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
+      // Which form, which is the table's to say — asked for rather than
+      // refused, because a missing fact is not a wrong one.
+      const stated = command.form;
+      if (stated === undefined) {
+        return needsContext(
+          'undeclared_form',
+          `${line.name} offers ${printed.forms.map((one) => one.name).join(', ')}, and nobody has said which`,
+          [
+            {
+              kind: 'route',
+              subject: id,
+              need: `which form ${id} takes`,
+              because: 'the line offers a choice of forms and the engine makes none of them',
+              satisfyWith: 'takePrintedForm again with its form named',
+            },
+          ],
+        );
+      }
+
+      const form = formNamed(printed, stated);
+      if (form === null) {
+        return err(
+          'no_such_form',
+          `${line.name} prints no form called ${stated}; it offers ${printed.forms
+            .map((one) => one.name)
+            .join(', ')}`,
+        );
+      }
+
+      // Which size, where the form prints a choice of them. The same question
+      // as the form itself, one level down, and asked the same way.
+      if (form.sizes.length > 1 && command.size === undefined) {
+        return needsContext(
+          'undeclared_form_size',
+          `${line.name} prints ${form.name} form at ${form.sizes.join(' or ')}, and nobody has said which`,
+          [
+            {
+              kind: 'route',
+              subject: id,
+              need: `which size ${id}'s ${form.name} form is`,
+              because: 'the line offers a choice of sizes and the engine makes none of them',
+              satisfyWith: 'takePrintedForm again with its size named',
+            },
+          ],
+        );
+      }
+      if (command.size !== undefined && !form.sizes.includes(command.size)) {
+        return err(
+          'size_not_printed',
+          `${line.name} does not print ${form.name} form at ${command.size}${
+            form.sizes.length === 0
+              ? `: it prints no size for that form, which leaves ${id} the size its block states`
+              : `: it prints ${form.sizes.join(' or ')}`
+          }`,
+        );
+      }
+
+      // The slot the **heading** names, refused by the primitive that owns
+      // its rule.
+      const spent =
+        action !== null
+          ? spendAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            })
+          : spendBonusAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            });
+      if (!spent.ok) return spent;
+
+      // **Measured from what the creature was before any form**, so a werewolf
+      // going wolf-to-hybrid is sized and sped from its own skin rather than
+      // from the wolf's. The same original the fold keeps, read here because
+      // the sheet is what the event pins.
+      const base = creature.form?.original ?? {
+        sheet: creature.sheet,
+        size: creature.size,
+        sceneSize: null,
+      };
+      const size = command.size ?? form.sizes[0] ?? base.size;
+      const sheet = withFormSpeeds(base.sheet, form);
+
+      return ok({
+        events: [
+          action !== null
+            ? { type: 'action-spent', id }
+            : { type: 'bonus-action-spent' as const, id },
+          // SRD *Monsters*: "a monster can use the stat block part once."
+          ...(recharge === null
+            ? []
+            : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+          ...(perDay === null
+            ? []
+            : [
+                {
+                  type: 'resource-spent' as const,
+                  id,
+                  key: perDayTallyKey(line.name),
+                  amount: 1,
+                  tally: 'dawn' as const,
+                },
+              ]),
+          // The same event the door that hands the sentence over writes,
+          // because the same line was taken.
+          action !== null
+            ? { type: 'stated-action-taken' as const, id, line: line.name }
+            : {
+                type: 'stated-bonus-action-taken' as const,
+                id,
+                line: line.name,
+                turn: state.combat.turnsTaken,
+              },
+          {
+            type: 'form-assumed' as const,
+            id,
+            form: form.name,
+            line: line.name,
+            sheet,
+            size,
+            ...(stamp === null ? {} : { command: stamp }),
+          },
+        ],
+        form: form.name,
+        size,
+        // What the line said that this does not do — the Succubus's Fly Speed
+        // clause is the whole of it in the SRD, and it comes back at the
+        // moment of use exactly as a printed save's residue does.
+        unverified: printed.handedOver.map((gap) => `${line.name}: ${gap}`),
         duplicate: false,
       });
     },

@@ -559,8 +559,14 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'addsToRoll',
       'attack',
       'casts',
+      // The forms a Shape-Shift line offers, read out of the sentence, and the
+      // forms a heading gates its line to — "Bite (Wolf or Hybrid Form Only)"
+      // — read off the **name** like `recharge` and `perDay` beside it, and
+      // changing what "read" counts for exactly as little.
+      'forms',
       'multiattack',
       'name',
+      'onlyInForms',
       'perDay',
       'recharge',
       'save',

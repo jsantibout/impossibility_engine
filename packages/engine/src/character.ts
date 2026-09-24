@@ -26,6 +26,7 @@ import type {
   Armor,
   MonsterAttack,
   MonsterCastLine,
+  MonsterForms,
   MonsterMultiattack,
   MonsterRecharge,
   MonsterSave,
@@ -120,6 +121,20 @@ export interface StatedAttack extends MonsterAttack {
    * out a recharging one.
    */
   readonly perDay?: number;
+  /**
+   * The forms this attack may be made in, where its **heading** says so.
+   *
+   * SRD Werewolf: "Bite (Wolf or Hybrid Form Only)", "Longbow (Humanoid or
+   * Hybrid Form Only)". Seventeen lines across five lycanthropes, the vampire
+   * and the mimic print the clause, and until a form was a fact on a creature
+   * nothing could evaluate it — a werewolf in wolf form could draw its longbow
+   * and a werewolf in its own skin could bite.
+   *
+   * **Carried from the line onto the attack** for the reason the recharge is:
+   * the book prints it on the heading, `Feature` owns it in `@ie/srd`, and
+   * what reads it here is the swing that would otherwise have happened.
+   */
+  readonly onlyInForms?: readonly string[];
 }
 
 /**
@@ -166,6 +181,22 @@ export interface StatedBonusAction {
   readonly save?: MonsterSave;
   /** Where this line teleports its creature — see {@link StatedAction.teleports}. */
   readonly teleports?: MonsterTeleport;
+  /**
+   * The forms this line offers — see {@link StatedAction.forms}, which this is
+   * the same field as and for the same reason.
+   *
+   * **Where eleven of the book's thirteen Shape-Shift lines are printed.**
+   * Only the Imp's and the Quasit's are Actions, which is a heading saying
+   * what the use costs and nothing else the engine can see.
+   */
+  readonly forms?: MonsterForms;
+  /**
+   * The forms this line may be taken in — see {@link StatedAction.onlyInForms}.
+   *
+   * SRD Weretiger, Prowl (Tiger or Hybrid Form Only), which is the one Bonus
+   * Action in the book that prints the clause.
+   */
+  readonly onlyInForms?: readonly string[];
   /**
    * The spells this line casts — see {@link StatedAction.casts}, which this is
    * the same field as and for the same reason.
@@ -267,6 +298,29 @@ export interface StatedAction {
    * and done nothing.
    */
   readonly casts?: MonsterCastLine;
+  /**
+   * The forms this line offers, where its sentence is the book's Shape-Shift
+   * template — see `MonsterFormsSchema`.
+   *
+   * SRD Werewolf: "shape-shifts into a Large wolf-humanoid hybrid or a Medium
+   * wolf, or it returns to its true humanoid form. Its game statistics, other
+   * than its size, are the same in each form." A **form** is a fact the DM
+   * states and the engine then reads in three places: the size every rule
+   * asks for through `effectiveSizeOf`, the Speeds two blocks print per form,
+   * and the headings that name one ({@link onlyInForms}). Everything else the
+   * sentence promises — the statistics unchanged, the equipment untouched —
+   * the engine honours by doing nothing.
+   */
+  readonly forms?: MonsterForms;
+  /**
+   * The forms this line may be taken in, where its **heading** says so.
+   *
+   * SRD Vampire: "Multiattack (Vampire Form Only)", "Grave Strike (Vampire
+   * Form Only)". The clause is printed inside the heading, which is exactly
+   * what nothing downstream may branch on, so the parser reads it into the
+   * same words the block's own Shape-Shift prints its forms under.
+   */
+  readonly onlyInForms?: readonly string[];
 }
 
 /**

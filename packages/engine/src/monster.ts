@@ -12,6 +12,7 @@ import {
 import type {
   CreatureSize,
   Monster,
+  MonsterForm,
   MonsterMultiattack,
   MonsterMultiattackBranch,
   MonsterMultiattackEntry,
@@ -289,6 +290,11 @@ function printedAttacks(monster: Monster): readonly StatedAttack[] {
             // prints it; a homebrew block reaching the same door can, and a
             // limit dropped here is a limit that silently becomes none.
             ...(line.perDay === undefined ? {} : { perDay: line.perDay }),
+            // And the forms the **heading** names, carried the same way and
+            // for the same reason: "Bite (Wolf or Hybrid Form Only)" is a
+            // gate on the swing, and a gate dropped here is a werewolf biting
+            // in a shape the book gave it no teeth in.
+            ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
           },
         ],
   );
@@ -1203,6 +1209,43 @@ export function withPrintedSpeeds(
     ...sheet,
     ...(walk === undefined ? {} : { baseSpeed: walk }),
     ...(Object.keys(modes).length === 0 ? {} : { speeds: joined }),
+  };
+}
+
+/**
+ * A sheet with one **form's** printed Speeds on it, or the block's own back.
+ *
+ * {@link withPrintedSpeeds}'s sibling, here for the same reason and differing
+ * in the one way that matters: it **replaces** rather than joins. SRD Imp's
+ * rat is "Speed 20 ft." and nothing else, so a join with the imp's own Fly 40
+ * would have given the rat wings the book did not print — where a spell's
+ * Speeds are written *over* a block that keeps whatever the spell is silent
+ * about.
+ *
+ * A form that prints no Speeds leaves the sheet exactly as it was handed in,
+ * which is what returning to a true form means: the caller hands in the sheet
+ * the creature had before it took any form.
+ */
+export function withFormSpeeds(sheet: CharacterSheet, form: MonsterForm): CharacterSheet {
+  const printed = form.speed;
+  if (printed === null) return sheet;
+  const some = (feet: number | null): number | undefined =>
+    feet === null || feet <= 0 ? undefined : feet;
+  const modes: OtherSpeeds = {
+    ...(some(printed.burrow) === undefined ? {} : { burrow: printed.burrow as number }),
+    ...(some(printed.climb) === undefined ? {} : { climb: printed.climb as number }),
+    ...(some(printed.fly) === undefined ? {} : { fly: printed.fly as number }),
+    ...(some(printed.swim) === undefined ? {} : { swim: printed.swim as number }),
+  };
+  // The block's other Speeds are **dropped** rather than merged, which is the
+  // whole difference from `withPrintedSpeeds`: a rat that kept the imp's Fly
+  // Speed would be a creature the book did not print.
+  const rest: Record<string, unknown> = { ...sheet };
+  delete rest['speeds'];
+  return {
+    ...(rest as Omit<CharacterSheet, 'speeds'>),
+    baseSpeed: printed.walk,
+    ...(Object.keys(modes).length === 0 ? {} : { speeds: modes }),
   };
 }
 
@@ -2146,6 +2189,14 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       // and hands the casting to the pipeline through the route the adapter
       // compiled above.
       ...(line.casts === undefined ? {} : { casts: line.casts }),
+      // And the forms it offers, which the Imp and the Quasit print under this
+      // heading and eleven other blocks print under Bonus Actions. It arrives
+      // for the reason the teleport did: the line is one no attack could be
+      // read out of, and what the structure buys is a door that executes it
+      // rather than quotes it.
+      ...(line.forms === undefined ? {} : { forms: line.forms }),
+      // And the forms the heading gates the line to, where it names any.
+      ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
@@ -2176,6 +2227,12 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // nine of the book's fourteen cast lines are printed under this heading,
     // which is the whole reason a route may state a casting time.
     ...(line.casts === undefined ? {} : { casts: line.casts }),
+    // And the forms it offers — eleven of the book's thirteen Shape-Shift
+    // lines are printed here, which is a heading saying what the use costs.
+    ...(line.forms === undefined ? {} : { forms: line.forms }),
+    // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
+    // Bonus Action in the book that prints the clause.
+    ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
   }));
 
   const stated: StatedValues = {

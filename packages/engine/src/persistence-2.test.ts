@@ -702,6 +702,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // deadline, an Aid that carries the current total up with the maximum and
   // clamps it on the way down, and a level-up taken mid-Aid that is worth the
   // whole of its level.
+  // A creature taking one of the forms its **own** stat block prints — SRD
+  // Shape-Shift, on thirteen blocks. Neither log was written when a form could
+  // be worn: `CreatureState` had no `form`, the parser read the sentence as
+  // prose, and the headings gated on one ("Bite (Wolf or Hybrid Form Only)")
+  // were nothing anybody could evaluate. Both fixtures fold to exactly the
+  // states they always folded to with `form: null` on every creature, which is
+  // the printed default rather than an absence. `monster-forms.test.ts` folds
+  // it and drives it end to end: a doppelganger Small in a Humanoid's shape, an
+  // imp with a raven's Speeds, a werewolf refused its longbow as a wolf and its
+  // bite as a humanoid, and the return that puts both back.
+  'form-assumed',
   'hazard-caught',
   'hazard-ended',
   'healing-rule-granted',

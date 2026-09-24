@@ -14,7 +14,7 @@ import {
   type Result,
 } from '@ie/shared';
 import { featureGrants } from './progression.js';
-import type { CharacterSheet } from './character.js';
+import type { CharacterSheet, StatedAction } from './character.js';
 import { createRng, type Rng, type RngState } from './dice.js';
 import { createRollIssuer, type RollIssuer } from './rolls.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
@@ -139,6 +139,7 @@ import {
   takeReady,
   forcePrintedSave,
   castPrintedLine,
+  takePrintedForm,
   takePrintedTeleport,
   takeStatedAction,
   takeStatedBonusAction,
@@ -513,6 +514,31 @@ const TELEPORTING_LINE = {
 const BLINKING: readonly GameEvent[] = SETUP.map((event) =>
   event.type === 'creature-added' && event.id === A
     ? { ...event, sheet: sheet({ stated: { unreadActions: [TELEPORTING_LINE] } }) }
+    : event,
+);
+
+/**
+ * The same invented line with the book's Shape-Shift template read off it.
+ *
+ * Two forms, because a line that offers one offers no choice, and a size on
+ * the first so that a second run under one id would be a second resizing
+ * rather than nothing visible at all.
+ */
+const SHIFTING_LINE: StatedAction = {
+  ...PRINTED_LINE,
+  forms: {
+    forms: [
+      { name: 'wolf', sizes: ['small'], speed: null },
+      { name: 'humanoid', sizes: [], speed: null },
+    ],
+    handedOver: [],
+  },
+};
+
+/** The same world again, with that line under Actions. */
+const SHIFTING: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [SHIFTING_LINE] } }) }
     : event,
 );
 
@@ -2034,7 +2060,18 @@ const GUARDED: readonly Guarded[] = [
       }),
   },
   /**
-   * And the fourth, which is the most expensive retry of the four: a second
+   * And the fourth door one line can be taken through. A retry that was not
+   * guarded would spend a second Action and put the creature into the form
+   * twice — which, on a line whose form prints a size, is a second resizing.
+   */
+  {
+    name: 'takePrintedForm',
+    log: SHIFTING,
+    run: (s, commandId) =>
+      takePrintedForm(s, A, { line: SHIFTING_LINE.name, form: 'wolf', commandId }),
+  },
+  /**
+   * And the fifth, which is the most expensive retry of the five: a second
    * run under one id would be a second casting with a second id, a second
    * Concentration and a second day's use gone.
    */
@@ -3642,9 +3679,18 @@ const SPENDERS: readonly Spender[] = [
       }),
   },
   /**
-   * And the fourth door on one line, which spends the same slot through the
+   * And the fourth door on one line, which spends the same slot to change the
+   * creature's form — refused for the same debt before the line, the form or
+   * the size are looked at, like its siblings.
+   */
+  {
+    name: 'takePrintedForm',
+    run: (s) => takePrintedForm(s, B, { line: 'A Printed Line', form: 'wolf' }),
+  },
+  /**
+   * And the fifth door on one line, which spends the same slot through the
    * casting the route opens — and is refused for the same debt before the
-   * line, the menu or the targets are looked at, like its three siblings.
+   * line, the menu or the targets are looked at, like its four siblings.
    */
   {
     name: 'castPrintedLine',
@@ -4878,7 +4924,14 @@ const reachedInEngine = (sources: Readonly<Record<string, string>>): Reached => 
     for (const fn of functions) declarations.set(`${file}#${fn.name}`, { ...fn, file });
 
     const named = new Map<string, string>();
-    for (const line of source.matchAll(/import(?: type)?\s*\{([\s\S]*?)\}\s*from\s*'(\.[^']*)'/g)) {
+    // **Stopped at the statement's own closing brace**, and the specifier is
+    // filtered below rather than in the pattern. A lazy `[\s\S]*?` looking for
+    // the next *relative* specifier reads one `import … from '@ie/srd'`
+    // followed by a relative import as a **single** clause and loses every
+    // name in the second one — which is how `rollAbilityCheck` stopped
+    // reaching a die the day a package import landed above it, with this sweep
+    // reporting the loss as `takeHide` rolling nothing.
+    for (const line of source.matchAll(/import(?: type)?\s*\{([^}]*)\}\s*from\s*'([^']*)'/g)) {
       const target = importedFile(file, line[2]!);
       if (sources[target] === undefined) continue;
       for (const raw of line[1]!.split(',')) {

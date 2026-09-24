@@ -263,6 +263,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'feature-activated',
   'feature-ended',
   'feature-used',
+  'form-assumed',
   'free-interaction-used',
   'hazard-caught',
   'hazard-ended',

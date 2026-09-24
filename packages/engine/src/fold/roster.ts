@@ -114,6 +114,11 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // In its own shape, which is what every log written before a form
             // could be worn says — so both frozen fixtures fold unchanged.
             shape: null,
+            // And in the form its own line returns to, which is what every log
+            // written before a printed form could be taken says — so both
+            // frozen fixtures fold unchanged. Null is the printed default
+            // rather than an absence; see `formWornBy`.
+            form: null,
             // Nothing has been spent, which is what every log says on the
             // event that adds a creature — so both frozen fixtures fold
             // unchanged and a fresh stat block has every line it prints.

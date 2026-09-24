@@ -1127,6 +1127,8 @@ export interface StatBlockLine {
   readonly casts?: unknown;
   /** Where a line teleports its creature. */
   readonly teleports?: unknown;
+  /** The forms a line puts its creature into — SRD Shape-Shift. */
+  readonly forms?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
   readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
   /** What a Reaction line adds to its own Armour Class against one attack. */
@@ -1160,6 +1162,7 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.spellcasting !== undefined ||
   line.casts !== undefined ||
   line.teleports !== undefined ||
+  line.forms !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined;
@@ -1554,6 +1557,12 @@ export const hasHandedOverSave = (line: StatBlockLine): boolean =>
  */
 export const isExecutedLine = (line: StatBlockLine): boolean =>
   line.teleports !== undefined ||
+  // **A line that takes a form is spent** — `takePrintedForm` changes the
+  // size, the Speeds and the word the block's own gated headings read, at the
+  // heading's own price. What the sentence promises besides is honoured by
+  // the engine doing nothing: "Its game statistics, other than its size, are
+  // the same in each form", and the equipment untransformed.
+  line.forms !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
