@@ -2158,6 +2158,27 @@ function checkEffect(
       if (effect.rolls !== undefined) {
         checkRollCount(effect.rolls, level, `${path}.rolls`, found);
       }
+      // SRD Vampiric Touch's "within reach": a whole number of feet, at least
+      // one space of the lattice everything else is measured on, and only on
+      // the arm that has one — a ranged spell attack's distance is the
+      // spell's own Range, and a second number there would be a second place
+      // to get it wrong.
+      if (effect.reach !== undefined) {
+        if (effect.attack !== 'melee') {
+          found.push({
+            field: `${path}.reach`,
+            code: 'reach_without_a_melee_attack',
+            reason:
+              'a reach is how far the caster’s arm goes; a ranged spell attack is bounded by the spell’s own Range',
+          });
+        } else if (!Number.isInteger(effect.reach) || (effect.reach as number) < 5) {
+          found.push({
+            field: `${path}.reach`,
+            code: 'bad_reach',
+            reason: `a reach is a whole number of feet, at least one space, not ${String(effect.reach)}`,
+          });
+        }
+      }
       // An attack rolls an attack, so nothing it hangs has a save to repeat.
       checkRiders(effect, level, path, host(false), found);
       return;

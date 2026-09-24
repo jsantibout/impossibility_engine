@@ -208,7 +208,7 @@ export const MISSING_SHAPES = {
   'what-a-creature-is-holding':
     '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. What is still missing is the verb that takes something **out** of a hand against its holder’s will: SRD Fear’s "drop whatever it is holding" and SRD Heat Metal’s save-or-drop are an effect no definition can write, and an ordinary thing let go of would land on a floor this engine does not keep. `dropConjured` is the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
   'targeting-rules-that-differ-within-one-casting':
-    'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point `docs/design/spell-definitions.md` added for Mass Cure Wounds ("The range then belongs to the point rather than to each target"). `spell-definitions.ts` records the reach half on Vampiric Touch, whose clause says the initial attack’s "within reach" goes unchecked.',
+    'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point `docs/design/spell-definitions.md` added for Mass Cure Wounds ("The range then belongs to the point rather than to each target"). **The reach half is built and what is left is the other two.** `attack.reach` is the distance a swing goes where the spell’s own Range does not say it — SRD Vampiric Touch’s "within reach" on a Range of Self — checked with the targets settled and before anything is spent, and that spell has left this id. A later target measured from an earlier one, and sight required of the first target only, are the two SRD Chain Lightning still prints and neither is a distance from the caster.',
   'a-condition-that-ends-when-its-holder-leaves-an-area':
     '`docs/design/space-and-areas.md` says it outright: Web’s Restrained lasts "while in the webs", and "a condition that ends when its holder walks out of an area has no shape here at all".',
   'an-area-that-filters-its-catch':
@@ -1232,13 +1232,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'dispelling magical Darkness',
       why: 'light-and-obscurement-the-scene-holds',
       note: 'the clause this shape’s own test was built to hand back. It was filed `table` on the strength of one field — "the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached" — and `spell-honesty.test.ts` pinned both halves so that the day Darkness grew an area the reading would fail rather than go quietly on calling a rule fiction. That day is P3-S: Darkness holds a Sphere, the Sphere holds magical darkness, and Sunburst’s own 60-foot Sphere overlaps it perfectly well. What is missing is the **trigger**, and `docs/design/light-and-sight.md` says exactly where its edge is: the mutual dispel runs "on pinning a patch", and Sunburst pins none — it is a flash, Instantaneous, leaving no light behind. So `lightDispelledBy` is built and reachable from every casting that lays light, and a casting that lays none has no way to call it.',
-    },
-  ],
-  'vampiric-touch': [
-    {
-      clause: 'goes unchecked',
-      why: 'targeting-rules-that-differ-within-one-casting',
-      note: 'The spell’s printed Range is Self, which is what the targeting rules read, and the five feet belong to the attack rather than to the spell. Every later use of the casting checks the reach; the attack made at the moment of casting does not.',
     },
   ],
   web: [

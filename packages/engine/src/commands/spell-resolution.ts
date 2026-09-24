@@ -67,6 +67,7 @@ import {
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
+  distanceBetween,
   type Placement,
   type Point,
   type PointAnchoring,
@@ -92,6 +93,7 @@ import {
   damageTypesDealt,
   statedFormOf,
   isCreatureType,
+  swingReachIn,
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute } from '../spellcasting.js';
 import {
@@ -897,6 +899,48 @@ export function castOrRelease(
     if (altered.value.resolving.spares !== undefined && (request.unaffected ?? []).length > 0) {
       const spared = new Set<CharacterId>(request.unaffected);
       targets = targets.filter((who) => !spared.has(who));
+    }
+
+    // **How far the swing itself reaches**, where the spell's own Range does
+    // not say — SRD Vampiric Touch's "Make a melee spell attack against one
+    // creature **within reach**" on a spell whose printed Range is Self. The
+    // Range is what `namedTargets` reads and what the casting sits on; the
+    // five feet belong to the arm, so a spell that prints both has to be
+    // measured twice. Asked here for the reason every check in this stretch is
+    // asked here: the targets are settled and nothing has been spent, so a
+    // swing out of reach costs its caster nothing.
+    //
+    // **Not folded into `namedTargets`**, which would be the tempting place:
+    // that function takes one `reach` and it is the spell's, and a creature
+    // caught by an area or measured from a point the casting keeps is
+    // deliberately *not* measured from the caster there. A swing is always the
+    // caster's arm, so it is its own question.
+    const swing = swingReachIn(definition.effects);
+    if (swing !== null && state.scene !== null) {
+      for (const target of targets) {
+        if (target === casterId) continue;
+        const apart = distanceBetween(state.scene, casterId, target);
+        // Nobody has said where somebody is standing. `namedTargets` has
+        // already asked for whatever it needed, and for a Range of Self it
+        // asked nothing — so the request is made here rather than the reach
+        // being waved through or guessed at.
+        if (!apart.ok) {
+          needs.push({
+            kind: 'position',
+            subject: target,
+            need: `where ${target} is standing`,
+            because: `${definition.name} strikes a creature within ${swing} feet of you`,
+            satisfyWith: `a placeCreatureInScene command for ${target}`,
+          });
+          continue;
+        }
+        if (apart.value > swing) {
+          return err(
+            'out_of_range',
+            `${definition.name} strikes a creature within ${swing} feet; ${target} is ${apart.value} away`,
+          );
+        }
+      }
     }
 
     // SRD Ring of Jumping: "but can target only yourself when you do so."

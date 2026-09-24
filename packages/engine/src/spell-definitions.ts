@@ -1164,6 +1164,28 @@ export type SpellEffect =
        */
       readonly healsCasterForHalf?: true;
       /**
+       * How far the swing itself reaches, where the spell's own Range does not
+       * say — SRD Vampiric Touch: "Make a melee spell attack against one
+       * creature **within reach**", on a spell whose printed Range is Self.
+       *
+       * **Two distances, and they are about different things.**
+       * {@link SpellDefinition.range} is what the *spell* reaches, and for
+       * this one it is Self: the casting sits on the caster, which is what
+       * Dispel Magic reads and what `spellOn` answers. The five feet belong to
+       * the arm, and a Range of Self says nothing whatever about them — so the
+       * targeting rules, which read the Range, checked nothing at all and the
+       * initial swing could be made across a room. Every later use went
+       * through `SpellActivation.range` and was measured; this is that clause
+       * on the effect that makes the first one.
+       *
+       * Checked with the targets settled and before the slot, the action or a
+       * die, so a swing out of reach costs its caster nothing. Absent is every
+       * other attack in the book, where the spell's Range is the whole of the
+       * distance and a second number here would be a second place to get it
+       * wrong.
+       */
+      readonly reach?: number;
+      /**
        * SRD Scorching Ray: "You hurl three fiery rays ... **Make a ranged
        * spell attack for each ray.**"
        *
@@ -4270,6 +4292,27 @@ export const swungExtraDiceAt = (
 /** How far a range reaches in feet, or null where it is not a distance at all. */
 export const ranged = (range: SpellRange): number | null =>
   range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
+
+/**
+ * The shortest reach any swing in this list states, or null where none does.
+ *
+ * SRD Vampiric Touch's "within reach" — see `attack.reach`, where the two
+ * distances are told apart. The **shortest**, because a list whose swings
+ * reached different distances would be asking for every one of them to be in
+ * range of a creature the casting names once; no SRD spell writes two, and
+ * taking the loosest of them would let one arm excuse another.
+ *
+ * Only the spell's own effects, never an activation's: an activation states
+ * its reach in its own `range`, which `reachFromCaster` has always measured.
+ */
+export const swingReachIn = (effects: readonly SpellEffect[]): number | null => {
+  let shortest: number | null = null;
+  for (const effect of effects) {
+    if (effect.kind !== 'attack' || effect.reach === undefined) continue;
+    if (shortest === null || effect.reach < shortest) shortest = effect.reach;
+  }
+  return shortest;
+};
 
 /**
  * Whether resolving this effect needs dice thrown from the caster's own sheet.

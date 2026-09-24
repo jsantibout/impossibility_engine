@@ -908,6 +908,46 @@ describe('activating an ongoing spell', () => {
     expect(isErr(out) ? out.code : 'ok').toBe('not_ongoing');
   });
 
+  /**
+   * **And the *first* swing is checked too, which it was not.** SRD Vampiric
+   * Touch prints Range: Self — that is what the targeting rules read, and it
+   * is why the casting sits on the wizard rather than on whoever is being
+   * drained — and the five feet belong to "Make a melee spell attack against
+   * one creature **within reach**". Every later use went through the
+   * activation's own `range` and was measured; the attack made at the moment
+   * of casting went through nothing at all, so a wizard could drain a goblin
+   * across the room and then be refused the identical swing a turn later.
+   *
+   * `attack.reach` is that clause on the effect that makes the swing, and it
+   * is checked with the targets settled and before the slot, the action or a
+   * die — so a refusal costs the caster nothing.
+   */
+  it('refuses the first swing at a creature out of reach, and spends nothing', () => {
+    const g = new Game().push(fighting());
+    g.push([
+      { type: 'creature-unplaced', id: FOE },
+      { type: 'creature-placed', id: FOE, placement: { from: { creature: WIZ }, feet: 10, bearing: 0 } },
+    ]);
+    const before = g.state;
+
+    const out = resolveSpell(
+      g.state,
+      WIZ,
+      { spellId: 'vampiric-touch', targets: [FOE], slotLevel: 3 },
+      supply(),
+    );
+    expect(isErr(out) ? out.code : 'ok').toBe('out_of_range');
+    expect(g.state).toEqual(before);
+    expect(g.left(WIZ, 'spell-slot:3')).toBe(4);
+  });
+
+  /** And the swing five feet away is made, which is the other half of it. */
+  it('makes the first swing at a creature in reach', () => {
+    const g = new Game().push(fighting());
+    const castingId = g.cast(WIZ, 'vampiric-touch', [FOE], 3);
+    expect(ongoingSpellOf(g.state, castingId)?.spell).toBe('Vampiric Touch');
+  });
+
   /** The range is checked afresh: the creature in reach a minute ago may not be. */
   it('refuses a target out of reach now', () => {
     const g = new Game().push(fighting());

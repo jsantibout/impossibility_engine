@@ -5369,6 +5369,11 @@ export const VAMPIRIC_TOUCH: SpellDefinition = {
       damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
       damageType: 'necrotic',
       healsCasterForHalf: true,
+      // "against one creature **within reach**", which the Range of Self says
+      // nothing about: the Range is what the spell is *on* and the five feet
+      // are the arm's. Every later swing checks the activation's own `range`;
+      // this is the same distance on the swing the casting makes.
+      reach: 5,
     },
   ],
   durationSeconds: 60,
@@ -5388,9 +5393,6 @@ export const VAMPIRIC_TOUCH: SpellDefinition = {
       },
     ],
   },
-  unmodelled: [
-    'the *initial* attack\u2019s "within reach" goes unchecked: the spell\u2019s printed Range is Self, which is the reach the targeting rules read, and the five feet belong to the attack rather than to the spell. Every later use checks it',
-  ],
 };
 
 /**
