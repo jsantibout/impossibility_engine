@@ -236,6 +236,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'strike-style',
   'trade',
   'unarmored-defense',
+  'weapon-and-armor-training',
   'weapon-mastery',
   'widens-reaction',
 ]);
@@ -275,6 +276,7 @@ const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set([
 /** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
 export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
   'choice',
+  'choices',
   'grants',
   'grantsFeat',
   'optionMeans',
