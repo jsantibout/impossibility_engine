@@ -321,10 +321,6 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'mind-spike',
   'misty-step',
   'moonbeam',
-  // `spell-tracking.test.ts`: cast, spent, the eight hours run, and its three
-  // sentences handed over — every Divination spell here is cast at Self or at
-  // no creature, so there is nothing for the refusal to meet.
-  'nondetection',
   // `area-standing.test.ts`: the Ranger's aura, the Rogue on the list taking
   // the +10 on a Stealth check and nothing on a Perception one, the Fighter
   // inside it and off the list taking nothing, the Rogue five feet too far
@@ -591,7 +587,10 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.conjures !== undefined ||
   definition.maxRunning !== undefined ||
   Object.values(definition.options ?? {}).some(
-    (branch) => (branch.effects ?? []).length > 0,
+    // A branch's own standing clauses count for the reason the common list's
+    // do: SRD Magic Circle's two directions are two lists of clauses the
+    // Cylinder imposes, and nothing else the spell does.
+    (branch) => (branch.effects ?? []).length > 0 || (branch.areaStanding ?? []).length > 0,
   );
 
 /** Every definition the engine resolves something of, by id. */

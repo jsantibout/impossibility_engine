@@ -5575,9 +5575,12 @@ describe('a wall is bounded by its definition and asks once', () => {
   });
 
   /**
-   * And the rule the whole design rests on: the path is drawn at the casting
-   * and nothing keeps it, so a clause that would read the shape again is
-   * refused at authoring rather than reading a shape that answers null.
+   * And the rule the design rests on, narrowed by one clause: the path is
+   * drawn at the casting, and the record now pins it — `OngoingSpell.path` —
+   * so what a wall does to a creature standing in it (`areaStanding`, SRD Wind
+   * Wall's own barrier and deflection) can be read again. A trigger, terrain,
+   * light and obscurement still settle nothing against a wall and are refused
+   * at authoring rather than reading a shape nothing settles against.
    */
   it.each([
     [
@@ -5590,7 +5593,6 @@ describe('a wall is bounded by its definition and asks once', () => {
         ],
       },
     ],
-    ['areaStanding', { kind: 'speed', change: 'halve' }],
     ['areaTerrain', { costPerFoot: 2 }],
     ['areaLight', { level: 'dim' }],
     ['areaObscurement', { degree: 'lightly' }],
@@ -5598,6 +5600,17 @@ describe('a wall is bounded by its definition and asks once', () => {
     expect(codes(checkSpellDefinitionValue({ ...WALL, [clause]: value }))).toContain(
       'wall_answers_once',
     );
+  });
+
+  it('admits a standing clause beside a wall, now that the record keeps the path', () => {
+    expect(
+      codes(
+        checkSpellDefinitionValue({
+          ...WALL,
+          areaStanding: [{ kind: 'deflects-projectiles' }],
+        }),
+      ),
+    ).not.toContain('wall_answers_once');
   });
 });
 

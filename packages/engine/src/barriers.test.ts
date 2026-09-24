@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, isErr, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap, isErr, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
-import type { CreatureSize } from '@ie/shared';
+import type { CreatureSize } from '@ie/srd';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -72,7 +72,7 @@ const added = (
 /** The wall runs east–west along y = 215, ten spaces long: 175 to 220. */
 const WALL_PATH = Array.from({ length: 10 }, (_, i) => ({ x: 175 + i * 5, y: 215, z: 0 }));
 
-const LANDMARKS: Readonly<Record<string, { x: number; y: number; z: number }>> = {
+const LANDMARKS = {
   'the druid’s rock': { x: 190, y: 200, z: 0 },
   'the fighter’s post': { x: 200, y: 200, z: 0 },
   'the goblin’s ridge': { x: 200, y: 230, z: 0 },
@@ -80,7 +80,7 @@ const LANDMARKS: Readonly<Record<string, { x: number; y: number; z: number }>> =
   'south of the wall': { x: 210, y: 205, z: 0 },
   'the wall’s north face': { x: 200, y: 220, z: 0 },
   'the wall’s south face': { x: 200, y: 210, z: 0 },
-};
+} as const;
 
 const FIELD: readonly GameEvent[] = [
   added(DRUID, 'party', 'medium'),
@@ -155,8 +155,7 @@ const supply = (state: GameState) => ({
   content: SRD_CONTENT,
 });
 
-const codeOf = (result: { readonly ok: boolean }): string | null =>
-  isErr(result) ? result.code : null;
+const codeOf = (result: Result<unknown>): string | null => (isErr(result) ? result.code : null);
 
 class Game {
   readonly events: GameEvent[] = [...FIELD];
@@ -182,11 +181,11 @@ class Game {
       'wind wall',
     );
     this.push(out.events);
-    this.castingId = out.castingId;
+    this.castingId = out.castingId!;
     return this;
   }
 
-  fly(who: CharacterId, to: string) {
+  fly(who: CharacterId, to: keyof typeof LANDMARKS) {
     return resolveMove(
       this.state,
       who,

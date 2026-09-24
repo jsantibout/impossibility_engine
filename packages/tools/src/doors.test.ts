@@ -841,6 +841,10 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // among them — so readying SRD Command is refused at the Ready, before the
   // slot, with the same code and the list of words in the reason.
   option_required: { fields: ['cast_spell.option'] },
+  // The eleventh, and one caller for the reason a branch has one: a Ready
+  // cannot state a list of creature types either. SRD Magic Circle's "one or
+  // more" is a list and not a value, so it is `types` beside `choice`.
+  types_required: { fields: ['cast_spell.types'] },
   fought_fact_required: { fields: ['cast_spell.fought', 'take_ready.response.fought'] },
   destination_required: {
     fields: [

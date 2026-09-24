@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, isErr, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap, isErr, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -78,16 +78,17 @@ const slots = (who: CharacterId): readonly GameEvent[] =>
     pool: { key: `spell-slot:${level}`, label: `level ${level}`, max: 4, recovers: 'long-rest' },
   }));
 
-const LANDMARKS: Readonly<Record<string, { x: number; y: number; z: number }>> = {
+const LANDMARKS = {
   'the altar': { x: 200, y: 200, z: 0 },
   'inside east': { x: 205, y: 200, z: 0 },
   'inside west': { x: 195, y: 200, z: 0 },
   'outside east': { x: 215, y: 200, z: 0 },
   'outside west': { x: 185, y: 200, z: 0 },
-};
+} as const;
+type Landmark = keyof typeof LANDMARKS;
 
 /** The fiend starts where the scenario needs it: outside for the ward, inside for the reverse. */
-const field = (fiendAt: string): readonly GameEvent[] => [
+const field = (fiendAt: Landmark): readonly GameEvent[] => [
   added(CLERIC, 'party', 'Humanoid'),
   added(FIEND, 'foes', 'Fiend'),
   added(BANDIT, 'foes', 'Humanoid'),
@@ -135,14 +136,13 @@ const supply = (state: GameState, flat?: number) => ({
   content: SRD_CONTENT,
 });
 
-const codeOf = (result: { readonly ok: boolean }): string | null =>
-  isErr(result) ? result.code : null;
+const codeOf = (result: Result<unknown>): string | null => (isErr(result) ? result.code : null);
 
 class Game {
   readonly events: GameEvent[];
   castingId = '';
 
-  constructor(fiendAt = 'outside east') {
+  constructor(fiendAt: Landmark = 'outside east') {
     this.events = [...field(fiendAt)];
   }
 
@@ -169,15 +169,15 @@ class Game {
     this.push(declared.events);
     this.push([{ type: 'time-advanced', seconds: 60, reason: 'the rite' }]);
     const settled = unwrap(
-      resolveDeclaredCast(this.state, declared.castingId, supply(this.state)),
+      resolveDeclaredCast(this.state, declared.castingId!, supply(this.state)),
       'settle magic circle',
     );
     this.push(settled.events);
-    this.castingId = declared.castingId;
+    this.castingId = declared.castingId!;
     return this;
   }
 
-  move(who: CharacterId, to: string) {
+  move(who: CharacterId, to: Landmark) {
     return resolveMove(
       this.state,
       who,
@@ -187,7 +187,7 @@ class Game {
   }
 
   /** The fiend's Misty Step to a space inside, with the save the test insists on. */
-  mistyStep(to: string, flat: number) {
+  mistyStep(to: Landmark, flat: number) {
     return resolveSpell(
       this.state,
       FIEND,

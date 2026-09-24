@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
+import { isExecuted } from '../scripts/coverage-data.js';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CatalogueItem, CharacterSheet, Content } from '@ie/engine';
 import {
@@ -225,10 +226,13 @@ describe('the spells the eighteen items were waiting for', () => {
     for (const [spellId, bucket] of Object.entries(WRITTEN)) {
       const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
       expect(definition, `${spellId} has no definition`).toBeDefined();
-      expect(
-        definition!.effects.length === 0 ? 'tracked' : 'executed',
-        `${spellId} is ${bucket}`,
-      ).toBe(bucket);
+      // **Asked of the one predicate** rather than of `effects.length`, which
+      // is the copy `isExecuted`'s own docstring warns about: SRD Tiny Hut has
+      // no effect in its list and is executed through what its Emanation does
+      // to whoever stands in it.
+      expect(isExecuted(definition!) ? 'executed' : 'tracked', `${spellId} is ${bucket}`).toBe(
+        bucket,
+      );
     }
   });
 

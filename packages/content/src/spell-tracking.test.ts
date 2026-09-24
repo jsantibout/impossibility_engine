@@ -321,6 +321,11 @@ const cast = (
       ...(definition.options === undefined
         ? {}
         : { option: Object.keys(definition.options).sort()[0]! }),
+    // And the creature types a spell prints "choose one or more" of, stated
+    // as the first one printed — the branch's reading, for a list.
+    ...(definition.typesStated === undefined
+      ? {}
+      : { types: [definition.typesStated.options[0]!] }),
       // And the same for a printed list of damage types, which is the other
       // fact a casting is refused for leaving unstated — `damage_type_required`
       // rather than `choice_required`, and the same reading: what this file
@@ -342,7 +347,20 @@ const cast = (
             // to have it moved — `area_starts_at_caster` — which the sibling
             // builder above has always known and this one learned the day a
             // tracked spell grew a carried Emanation.
-            ...(definition.area.origin === 'point' ? { at: AREA_AT } : {}),
+            //
+            // **And the point is held to the spell's own Range.** `AREA_AT`
+            // is fifty feet from the door, which every Range this table
+            // printed reached until SRD Magic Circle's ten feet joined it; a
+            // spell that cannot reach that far puts its area on the caster's
+            // own space, as the sibling builder above always has.
+            ...(definition.area.origin === 'point'
+              ? {
+                  at:
+                    definition.range.kind === 'ranged' && definition.range.feet < 50
+                      ? { x: 50, y: 50, z: 0 }
+                      : AREA_AT,
+                }
+              : {}),
             ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
             // **And a wall needs its path**, which is the third fact an area
             // can demand and the only one that is a shape rather than a point:
@@ -794,6 +812,12 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     // the word Attunement. No marker knows those words either.
     'prestidigitation',
     'remove-curse',
+    // And the seventh kind: SRD Tiny Hut's paragraph is a dome — creatures
+    // barred from passing through it, spells of a level that cannot be cast
+    // through it, a caster who leaves it — and the marker list knows none of
+    // those words. The barrier, the ward and the ending are executed all the
+    // same, off the Emanation the record pins where it rose.
+    'tiny-hut',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {
@@ -1803,12 +1827,6 @@ describe('every spell this batch added is cast for real', () => {
     // first: its own Sphere, centred on the space the shard reached, its own
     // effect list, and one level deep. Nothing of the spell is left.
     'ice-knife',
-    // **Knock and Nondetection leave by being read to the end.** Every
-    // sentence of Knock is about an object the engine has no state for, and
-    // Nondetection refuses a Divination spell none of which this engine can
-    // aim at a creature — so both are handed over whole, in the book's words,
-    // and neither is a debt any longer.
-    'knock',
     // **Magic Circle leaves on four shapes at once**: a barrier the movement
     // command refuses a chosen type at, with the Charisma save the book prints
     // rolled on a teleport in; Disadvantage on that type's attacks against
@@ -1819,7 +1837,6 @@ describe('every spell this batch added is cast for real', () => {
     'magic-circle',
     'magic-jar',
     'mirror-image',
-    'nondetection',
     // **The two the area-standing track wrote, and they left together.** SRD
     // Pass without Trace's whole content is a +10 on the Stealth checks of
     // whoever is in a 30-foot Emanation, and SRD Silence's is three sentences
@@ -1894,13 +1911,6 @@ describe('every spell this batch added is cast for real', () => {
     // What is left is Booming Voice's Advantage, which is an ordinary mode
     // with no creature to land on: the spell names no target at all.
     'thaumaturgy',
-    // **Tiny Hut leaves on three shapes**: a barrier that bars every creature
-    // but those inside when it rose — a list the record pins — a ward a casting
-    // of level three or lower is refused across and an area effect does not
-    // reach into, and a casting the caster's own step out of the dome ends,
-    // derived in the fold off `creature-moved`. The Emanation stays where it
-    // rose, which is the one Emanation in the book that does.
-    'tiny-hut',
     // **True Strike leaves by a door no effect kind opened.** Its swing *is*
     // the casting — "you make one attack with the weapon used in the spell's
     // casting" — so `weapon-attack` is resolved by the attack command, which

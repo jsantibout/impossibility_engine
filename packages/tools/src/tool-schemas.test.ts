@@ -233,10 +233,15 @@ describe('toolSchemas', () => {
     // reel door are two more pins on the DM's surface alone — the form a block
     // prints and which creatures are reeled are the DM's decisions — for 3,358
     // bytes; the player's surface is untouched.
+    // And again for the barriers-and-wards track: `cast_spell.types`, the
+    // creature types a casting states where a spell prints "choose one or
+    // more" — SRD Magic Circle's — is one field on one tool published on both
+    // doors, so both surfaces grew by the same 488 characters and neither
+    // gained a tool.
     expect(toolSchemas(player())).toHaveLength(85);
     expect(toolSchemas(dm())).toHaveLength(107);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(128636);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(164146);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(129124);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(164634);
   });
 });
 

@@ -114,6 +114,7 @@ export interface RelocateOutcome {
     /** The casting's pinned display name, for the roll's label. */
     readonly spell: string;
   };
+  readonly duplicate: boolean;
 }
 
 /**

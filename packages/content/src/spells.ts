@@ -4493,9 +4493,11 @@ export const KNOCK: SpellDefinition = {
   // an Arcane Lock the engine has no lock for — and no object has a state here
   // to be opened. Read to the end: nothing in it reaches a creature.
   dmDecides: [
-    'Choose an object that you can see within range. The object can be a door, a box, a chest, a set of manacles, a padlock, or another object that contains a mundane or magical means that prevents access.',
-    'A target that is held shut by a mundane lock or that is stuck or barred becomes unlocked, unstuck, or unbarred. If the object has multiple locks, only one of them is unlocked.',
-    'If the target is held shut by Arcane Lock, that spell is suppressed for 10 minutes, during which time the target can be opened and closed.',
+    'Choose an object that you can see within range.',
+    'The object can be a door, a box, a chest, a set of manacles, a padlock, or another object that contains a mundane or magical means that prevents access.',
+    'A target that is held shut by a mundane lock or that is stuck or barred becomes unlocked, unstuck, or unbarred.',
+    'If the object has multiple locks, only one of them is unlocked.',
+    'If the target is held shut by _Arcane Lock_, that spell is suppressed for 10 minutes, during which time the target can be opened and closed.',
     'When you cast the spell, a loud knock, audible up to 300 feet away, emanates from the target.',
   ],
 };
@@ -4686,16 +4688,18 @@ export const NONDETECTION: SpellDefinition = {
   targets: { count: 1, self: true, willing: true },
   effects: [],
   durationSeconds: 28_800,
-  // **Handed over whole.** Read to the end, the spell refuses one thing — a
-  // Divination spell aimed at the target — and every Divination spell this
-  // engine defines is cast at Self or at no creature, so there is nothing for
-  // the refusal to meet; a scrying sensor, a place and an object are not in
-  // state at all. The casting is made, the eight hours run, and the table
-  // holds the sentence.
-  dmDecides: [
-    'For the duration, you hide a target that you touch from Divination spells.',
-    'The target can be a willing creature, or it can be a place or an object no larger than 10 feet in any dimension.',
-    "The target can't be targeted by any Divination spell or perceived through magical scrying sensors.",
+  // **Tracked, not handed over, and the reason is a correction.** This note
+  // used to say the refusal had no reachable case because every Divination
+  // spell the engine defines is cast at Self or at no creature. That was
+  // wrong: SRD Mind Spike and SRD Hunter's Mark are Divinations aimed at one
+  // creature, both executed and both inside level-5 reach, so a Nondetection
+  // on a quarry is a casting a table reaches. What is missing is the state a
+  // creature holds that refuses a school of casting, and its reader at the one
+  // seam a casting checks its targets — `an-effect-that-suppresses-other-magic`
+  // from the target's side, which `missing-shapes.ts` files.
+  unmodelled: [
+    'the refusal is not applied: "The target can’t be targeted by any Divination spell" would stop a Mind Spike or a Hunter’s Mark aimed at the target, and no state on a creature refuses a casting by its school',
+    'scrying sensors are not modelled, and a place or an object as the target is not a creature in state',
   ],
 };
 
@@ -11800,7 +11804,7 @@ export const WIND_WALL: SpellDefinition = {
   ],
   durationSeconds: 60,
   unmodelled: [
-    'objects are not in the scene: a Small flying object turned back, and a Giant’s boulder let through, are the DM’s — a stat block’s ranged line does not say whether it is an arrow or a boulder, so the shot is made and the wall reported beside it rather than deflecting it',
+    'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — a stat block’s printed line does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
     'fog, smoke and gases kept at bay, and loose lightweight material flying upward, are the DM’s',
   ],
 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, isErr, type CharacterId } from '@ie/shared';
+import { asCharacterId, expect as unwrap, isErr, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -71,14 +71,15 @@ const slots = (who: CharacterId, upTo: number): readonly GameEvent[] =>
   }));
 
 /** Every place anybody stands or walks to, named so no bearing has to be read. */
-const LANDMARKS: Readonly<Record<string, { x: number; y: number; z: number }>> = {
+const LANDMARKS = {
   'the hearth': { x: 200, y: 200, z: 0 },
   'beside the hearth': { x: 205, y: 200, z: 0 },
   'the dome’s edge': { x: 210, y: 200, z: 0 },
   'just outside': { x: 215, y: 200, z: 0 },
   'the road': { x: 230, y: 200, z: 0 },
   'the field': { x: 200, y: 230, z: 0 },
-};
+} as const;
+type Landmark = keyof typeof LANDMARKS;
 
 const FIELD: readonly GameEvent[] = [
   added(WIZARD, 'party'),
@@ -155,15 +156,15 @@ class Game {
     this.push(declared.events);
     this.push([{ type: 'time-advanced', seconds: 60, reason: 'the rite' }]);
     const settled = unwrap(
-      resolveDeclaredCast(this.state, declared.castingId, supply(this.state)),
+      resolveDeclaredCast(this.state, declared.castingId!, supply(this.state)),
       'settle tiny hut',
     );
     this.push(settled.events);
-    this.castingId = declared.castingId;
+    this.castingId = declared.castingId!;
     return this;
   }
 
-  move(who: CharacterId, to: string) {
+  move(who: CharacterId, to: Landmark) {
     return resolveMove(
       this.state,
       who,
@@ -172,7 +173,7 @@ class Game {
     );
   }
 
-  moved(who: CharacterId, to: string): this {
+  moved(who: CharacterId, to: Landmark): this {
     this.push(unwrap(this.move(who, to), `${who} to ${to}`).events);
     return this;
   }
@@ -182,8 +183,7 @@ class Game {
   }
 }
 
-const codeOf = (result: { readonly ok: boolean }): string | null =>
-  isErr(result) ? result.code : null;
+const codeOf = (result: Result<unknown>): string | null => (isErr(result) ? result.code : null);
 
 describe('SRD Tiny Hut: the definition', () => {
   it('validates, and pins its three clauses on the emanation that stays put', () => {

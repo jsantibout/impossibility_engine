@@ -1114,6 +1114,23 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "You touch one Large or smaller object that isn\'t being worn or carried by someone else." The light is executed — a `light` effect carried by the creature the casting names as the bearer, bright to 20 feet and dim to 40, moving with them and gone with the hour — and the object is the table’s: which thing was touched, whether somebody else is carrying it, and whether it was set down, in which case the DM lights the point with `declare_light`. "Covering the object with something opaque blocks the light" is a fact about an object too.',
     },
   ],
+  'magic-circle': [
+    {
+      clause: 'possession is not a state the engine holds',
+      why: 'table',
+      note: 'SRD: "Targets within the Cylinder can’t be possessed by or gain the Charmed or Frightened condition from the creature." The two conditions are executed — an Immunity narrowed to the chosen types, read off the Cylinder — and the marker fires on their names. Possession is the third thing in the sentence and the one the engine has no state for: no condition, no grant and no event says a creature is possessed, so whether a Fiend possesses somebody standing in the circle is a fact only the table holds, and always will be.',
+    },
+    {
+      clause: 'interplanar travel is not modelled',
+      why: 'table',
+      note: 'SRD: "If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw." The teleport half is executed — `teleportTo` hands the save back and the spell’s own road rolls it before the creature arrives — and the markers fire on the save and the teleport. Interplanar travel is the other half, and there is one scene: a creature arriving from another plane has no position to arrive from, so nothing here could raise the save against it, and whether a Fiend steps in from the Abyss is the table’s.',
+    },
+    {
+      clause: 'the duration increasing by 1 hour for each spell slot level above 3',
+      why: 'a-duration-the-slot-changes',
+      note: 'SRD, _Using a Higher-Level Spell Slot_: "The duration increases by 1 hour for each spell slot level above 3." A slot reaches damage dice, a target count and, for the one spell that prints it, a Concentration the slot drops; a duration that grows by the slot is the shape Major Image’s level-4 sentence is filed under, and this is a second writer of it — an hour a level rather than a casting that outlasts its Concentration.',
+    },
+  ],
   'magic-jar': [
     {
       clause: 'Charisma save to possess a Humanoid',
@@ -3480,8 +3497,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: null,
       clause: 'that spell is suppressed for 10 minutes',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing`. **Two things are missing and they are not the same thing.** The first is this shape: the state a suppressed casting sits in, a spell that does not function while its time goes on running, which is the half `spell-ended` did not build. The second is that nothing can name this particular casting anyway — Arcane Lock’s own definition records it for Dispel Magic, which ends an ongoing spell on a target where this casting is on a door. The debt is the first; the second is why building it would still leave a lock nobody can reach.',
+      why: 'table',
+      note: 'read to the end, and handed over whole rather than filed as a debt. This clause was filed under `an-effect-that-suppresses-other-magic`, and the entry itself recorded why building that state would still leave the sentence unreachable: Arcane Lock is cast on a door, a door is not in state, and nothing could name the casting Knock would suppress. Every other sentence of the spell — the lock, the bar, the chest, the knock heard 300 feet off — is about an object the engine holds no state for. So the casting is made, the slot spent, and the four printed sentences go to the table in the book’s words.',
     },
   ],
   'speak-with-plants': [

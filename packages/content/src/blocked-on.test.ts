@@ -2600,10 +2600,13 @@ describe('a consumer count is a query', () => {
     // leader lost a consumer without anything being built for it, and
     // `a-casting-ended-by-a-trigger` drew level: a ranking is a measurement of
     // the populations rather than a statement about what is hard.
-    expect(leaders).toEqual([
-      'a-casting-ended-by-a-trigger',
-      'a-random-outcome-that-is-not-a-d20',
-    ]);
+    //
+    // **And the tie broke the other way.** Tiny Hut's "ends early if you
+    // leave the Emanation" is executed — `caster-leaves-the-area`, derived
+    // off `creature-moved` — so `a-casting-ended-by-a-trigger` lost a
+    // consumer to a shape that was built for it, and the coin flip leads
+    // alone.
+    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2633,9 +2636,15 @@ describe('a consumer count is a query', () => {
       // effects run — and Command and Thaumaturgy left the undefined and
       // tracked maps through it, which took the shape out of this band rather
       // than moving it down inside one.
+      //
+      // And `a-casting-ended-by-a-trigger` dropped **into** this band from the
+      // leading tie when Tiny Hut's caster-leaves ending was built, while
+      // `an-effect-that-suppresses-other-magic` fell out of it: Tiny Hut's
+      // ward and Magic Circle's teleport save were both executed, and Knock's
+      // filed claim was read to the end and handed over.
+      'a-casting-ended-by-a-trigger',
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',
-      'an-effect-that-suppresses-other-magic',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
