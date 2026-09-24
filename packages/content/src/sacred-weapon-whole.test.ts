@@ -456,6 +456,13 @@ describe('the two clauses are refused at the door where they say nothing', () =>
     expect(
       feat({ requires: [{ kind: 'feature-active', feature: 'lantern-bearer' }] }),
     ).toEqual([]);
+    // A feat's reach is not this guard's question: `feat_grant_not_read`
+    // refuses an aura at this door already, and creation compiles a feat's
+    // grant to the holder's own reach whatever it says, so asking twice would
+    // report one mistake twice.
+    expect(feat({ reach: 'aura' })).toEqual([
+      'feat_grant_not_read @ feats[lantern-bearer].grants.reach',
+    ]);
 
     const subclass = (over: Record<string, unknown>): readonly string[] => {
       const oath = JSON.parse(
@@ -471,9 +478,17 @@ describe('the two clauses are refused at the door where they say nothing', () =>
         (problem) => `${problem.code} @ ${problem.field}`,
       );
     };
-    expect(subclass({ reach: 'aura', auraFeet: 30 })).toContain(
-      'light_nobody_gathers @ subclasses[oath-of-devotion].features[1].grants.reach',
-    );
+    const reachAt = 'light_nobody_gathers @ subclasses[oath-of-devotion].features[1].grants.reach';
+    expect(subclass({ reach: 'aura', auraFeet: 30 })).toContain(reachAt);
+    // **And the aura spelled quietly**: creation compiles every reach that is
+    // not literally `self` — a missing one included — to an aura, so an
+    // unwritten reach is refused with the written one rather than passing into
+    // a grant `carriedLight` would drop.
+    expect(subclass({})).toContain(reachAt);
+    // And the reach the reader honours is not refused. `toContain` throughout,
+    // because a subclass checked on its own draws the problems of a class that
+    // is not there beside it.
+    expect(subclass({ reach: 'self' })).not.toContain(reachAt);
   });
 
   /**

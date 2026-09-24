@@ -4117,10 +4117,12 @@ function featStandingProblems(
     return problems;
   }
 
-  // The grant around a light, at the third door: a feat's `reach` is already
-  // refused above unless it is the holder's own, and the requirements are not
-  // — see `shedLightHostProblems`.
-  for (const problem of shedLightHostProblems(grant, where)) {
+  // The grant around a light, at the third door, with the reach question off:
+  // `feat_grant_not_read` above already refuses a feat's aura, and creation
+  // compiles a feat's grant to the holder's own reach whatever it says, so
+  // asking again here would report one mistake twice. The requirements are
+  // nobody else's question — see `shedLightHostProblems`.
+  for (const problem of shedLightHostProblems(grant, where, false)) {
     problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
   }
 
@@ -4498,8 +4500,9 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           // The grant *around* a light, which is where the two clauses nobody
           // could gather are written — see `shedLightHostProblems`. Asked once
           // per grant rather than once per effect, because both fields are the
-          // grant's.
-          for (const problem of shedLightHostProblems(grant, grantsAt)) {
+          // grant's, and with the reach question on, because a feature's reach
+          // is its own and an unwritten one is compiled as an aura.
+          for (const problem of shedLightHostProblems(grant, grantsAt, true)) {
             problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
           }
           (grant.effects ?? []).forEach((effect, position) => {

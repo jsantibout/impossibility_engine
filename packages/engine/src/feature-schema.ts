@@ -323,9 +323,19 @@ export function shedLightProblems(
  * `lightAt`, and a light gathered through it would be a function asking a
  * question of its own answer.
  *
- * Reach is the other half: a light is shed *from* whoever carries it, and an
- * aura's feet would be a second radius beside the one the effect already
- * prints. `carriedLight` drops such a grant, so the catalogue is refused it.
+ * Reach is the other half, and only at a door where the reach is the grant's
+ * to write. A light is shed *from* whoever carries it, and an aura's feet
+ * would be a second radius beside the one the effect already prints;
+ * `carriedLight` drops such a grant, so the catalogue is refused it. **An
+ * absent reach is refused with the rest**, because `creation.ts` compiles
+ * every reach that is not literally `'self'` — a missing one included — to an
+ * aura, so silence here is the aura spelled quietly.
+ *
+ * {@link reachIsTheGrants} is false at a **feat's** door, where the question
+ * has nothing to ask: a feat belongs to no source, creation compiles its grant
+ * to the holder's own reach whatever it says, and `feat_grant_not_read`
+ * already refuses an aura there. Asking twice would report one mistake twice,
+ * which is the rule the feature door's `speed` skip is written for.
  *
  * Asked of the grant rather than of the effect because both fields are the
  * grant's. It has nothing to say about a `whileActive` list, where creation
@@ -339,6 +349,7 @@ export function shedLightHostProblems(
     readonly effects?: unknown;
   },
   at: string,
+  reachIsTheGrants: boolean,
 ): readonly FeatureDefinitionProblem[] {
   const effects = Array.isArray(grant.effects) ? grant.effects : [];
   if (!effects.some((effect) => (effect as { readonly kind?: unknown })?.kind === 'light')) {
@@ -346,12 +357,12 @@ export function shedLightHostProblems(
   }
 
   const found: FeatureDefinitionProblem[] = [];
-  if (grant.reach !== undefined && grant.reach !== 'self') {
+  if (reachIsTheGrants && grant.reach !== 'self') {
     found.push({
       field: `${at}.reach`,
       code: 'light_nobody_gathers',
       reason:
-        'light is shed from whoever carries it, and `carriedLight` reads a grant that reaches the holder alone; an aura would be a second radius beside the one the light already prints, and nothing would gather it',
+        'light is shed from whoever carries it, and `carriedLight` reads a grant that reaches the holder alone; an aura would be a second radius beside the one the light already prints, and nothing would gather it — and a reach left unwritten is compiled as one',
     });
   }
   (Array.isArray(grant.requires) ? grant.requires : []).forEach((requirement, index) => {
