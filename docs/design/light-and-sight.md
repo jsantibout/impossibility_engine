@@ -149,8 +149,6 @@ Sunlight Weakness and Vampire Spawn's Sunlight. Mirror Image and Blur are
 the attacker-side sense reading (P2-T16), not this; the Darkvision spell
 confers its sense through a `sense` effect and `sensesOf` reads it.
 
-## Not built, on purpose
-
 ## Blinded reaches every one of them (2026-09-23)
 
 SRD Blinded — "You can't see and automatically fail any ability check that
@@ -167,6 +165,10 @@ which is precisely the reliance the condition removes, so a Blinded looker
 sees inside that range and nothing beyond it. Darkvision and Truesight are
 sight and go dark with the eyes. A creature still sees *itself*, which is
 answered before everything for the reason `seeing-yourself.test.ts` gives.
+Where the *distance* cannot be measured — a looker nobody has placed, or a
+template anchored on a corner rather than a space — a Blinded creature holding
+Blindsight is `null` rather than blind: the condition settles the question only
+where the exception is known not to apply.
 
 The paragraph above replaces this note's earlier line that "Blinded itself
 changes nothing: a Blinded creature already fails sight" — it did not. Blinded

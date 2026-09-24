@@ -211,6 +211,35 @@ describe('the Blinded condition is the first thing the sight question reads', ()
     expect(canSomehowSee(fold('seed', scene(SEER, 55, 'blindsight')), SEER, OTHER)).toBe(true);
   });
 
+  /**
+   * **A Blindsight nobody can measure is homework, not blindness.**
+   *
+   * The exception is a range, and a range needs a distance. Where there is
+   * none — a looker nobody has placed, or a template anchored on a corner
+   * rather than a space — the condition has settled nothing about a creature
+   * who holds Blindsight, and saying `false` would be the engine answering a
+   * question it cannot reach. One who holds none is blind either way, because
+   * no distance could have made a sense they do not have reach.
+   */
+  it('is unsettled where the distance cannot be measured and Blindsight might have reached', () => {
+    const unplaced = (sense: Sense) =>
+      fold(
+        'seed',
+        // Nobody is placed, so there is no distance for a range to be
+        // measured against — the same hole a scene with one creature standing
+        // outside it leaves.
+        scene(SEER, 55, sense).filter((e) => e.type !== 'creature-placed'),
+      );
+    expect(canSee(unplaced('blindsight'), SEER, OTHER)).toBeNull();
+    expect(canSomehowSee(unplaced('blindsight'), SEER, OTHER)).toBeNull();
+    expect(canSee(unplaced('none'), SEER, OTHER)).toBe(false);
+
+    // And the same answer about a place with no coordinates, which is the one
+    // the two used to disagree about.
+    expect(canSeePoint(unplaced('blindsight'), SEER, null)).toBeNull();
+    expect(canSeePoint(unplaced('none'), SEER, null)).toBe(false);
+  });
+
   /** And the sight of a place — Hypnotic Pattern's "who can see the pattern". */
   it('closes the question about a place', () => {
     const at = { x: 100, y: 130, z: 0 };

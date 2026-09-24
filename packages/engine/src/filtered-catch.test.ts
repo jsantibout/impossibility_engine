@@ -555,6 +555,24 @@ describe('the shortlist knows the area', () => {
   });
 
   /**
+   * **A self-origin area is told to point it, never to place it.** SRD Burning
+   * Hands starts its Cone at the caster, and `placeArea` refuses an `at` for
+   * one — so a request telling the caller to supply one would send them round
+   * a loop between two refusals, which is the one thing a `needs-context` may
+   * not do.
+   */
+  it('asks a self-origin Cone for its direction and not for a point', () => {
+    const asked = shortlist('burning-hands', 1);
+    expect(asked.needsContext.map((n) => n.kind)).toEqual(['route']);
+    expect(asked.needsContext[0]?.satisfyWith).toContain('towards');
+    expect(asked.needsContext[0]?.satisfyWith).not.toContain('`at`');
+
+    const pointed = shortlist('burning-hands', 1, { towards: TOWARDS });
+    expect(pointed.needsContext).toEqual([]);
+    expect(pointed.eligible.slice().sort()).toEqual([ALLY, GOBLIN].sort());
+  });
+
+  /**
    * And the Range still bounds the *point*, which is the one thing it is for
    * once the template is doing the catching: a Sphere the caster cannot reach
    * is a placement to correct, not a list to hand back.

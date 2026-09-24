@@ -2004,6 +2004,25 @@ export function eligibleTargets(
  * definition. Where the refusal already carries its own requests — no scene,
  * an unplaced caster — those are the better ones and they travel unchanged.
  */
+/**
+ * Which fields would place this template, in the words a caller can act on.
+ *
+ * **A self-origin area is never told to supply an `at`**, and that is the
+ * whole reason this is a function rather than a sentence: `placeArea` refuses
+ * a point for one (`area_starts_at_caster`), so a request naming `at` for SRD
+ * Burning Hands would send a caller between two refusals forever — which is
+ * precisely what a `needs-context` exists not to do.
+ */
+const howToPlace = (area: SpellArea): string => {
+  const aim = DIRECTIONAL_AREAS.has(area.kind) ? `\`towards\` pointing the ${area.kind}` : null;
+  if (area.origin === 'self') {
+    return aim === null
+      ? `no placement of any kind: the ${area.kind} starts at you and goes nowhere else`
+      : `${aim}, which is all of it: the ${area.kind} starts at you`;
+  }
+  return aim === null ? `\`at\` placing the ${area.kind}` : `\`at\` and ${aim}`;
+};
+
 function areaShortlist(
   state: GameState,
   casterId: CharacterId,
@@ -2019,6 +2038,14 @@ function areaShortlist(
     area,
     { targets: [], ...placement },
     ranged(definition.range),
+    // **The catch's `unverified` is dropped here on purpose.** Its one entry
+    // is Hypnotic Pattern's unanswerable question — whether a creature can see
+    // a point, which no table can declare — and the catch answers it by
+    // catching them, so the shortlist offers exactly whom the casting would
+    // catch. `EligibleTargets` has three channels and none of them is a
+    // caveat: `needsContext` is for a fact somebody could go and establish,
+    // and this is not one. The casting still reports it on the outcome, which
+    // is where a table can overrule it.
     [],
     rejected,
   );
@@ -2035,7 +2062,7 @@ function areaShortlist(
             subject: casterId,
             need: caught.reason,
             because: `${definition.name} catches whoever is standing in its area, so who is on the list turns on where the area is laid`,
-            satisfyWith: `eligibleTargets again with \`at\`${DIRECTIONAL_AREAS.has(area.kind) ? ' and `towards`' : ''} placing the ${area.kind}`,
+            satisfyWith: `eligibleTargets again with ${howToPlace(area)}`,
           },
         ],
     };

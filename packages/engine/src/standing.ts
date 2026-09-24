@@ -3377,7 +3377,17 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  *
  * `blindsightReaches` is the caller's, because each of the three measures to a
  * different far end — a creature, a point, or a place with no coordinates at
- * all — and the range is the only part of this that is about the pair.
+ * all — and the range is the only part of this that is about the pair. It is
+ * three-valued for the reason everything about range in this file is: **a
+ * Blindsight nobody can measure is homework rather than blindness.** The
+ * exception the SRD prints is a distance, and where there is no distance the
+ * condition has settled nothing about a creature who holds the sense — while
+ * one who holds none is blind either way, because no distance could have made
+ * a sense they do not have reach.
+ *
+ * `undefined` is "the condition says nothing here", which is a third answer
+ * and not a fourth: the looker is not Blinded, or their Blindsight reaches, and
+ * either way the caller falls through to the ordinary question.
  *
  * `effectiveConditions` rather than the raw record, for the reason every
  * reader of a condition's *effect* goes through it: a feature that says
@@ -3386,26 +3396,29 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
 function blindedTo(
   state: GameState,
   from: CharacterId,
-  blindsightReaches: boolean,
-): boolean {
-  return !blindsightReaches && hasCondition(effectiveConditions(state, from), 'blinded');
+  blindsightReaches: boolean | null,
+): boolean | null | undefined {
+  if (blindsightReaches === true) return undefined;
+  if (!hasCondition(effectiveConditions(state, from), 'blinded')) return undefined;
+  return blindsightReaches === null ? null : false;
 }
 
-/** The looker's Blindsight, filtered to whatever of it reaches that creature. */
+/**
+ * Whether the looker's Blindsight reaches that creature — `false` for a looker
+ * who holds none or none long enough, and `null` where they hold some and the
+ * lattice cannot say how far away the other one is.
+ */
 function blindsightReaching(
   state: GameState,
   scene: PositionState,
   from: CharacterId,
   to: CharacterId,
-): boolean {
-  return (
-    sensesReaching(
-      scene,
-      sensesOf(state, from).filter((sense) => sense.sense === 'blindsight'),
-      from,
-      to,
-    ).length > 0
-  );
+): boolean | null {
+  const held = sensesOf(state, from).filter((sense) => sense.sense === 'blindsight');
+  if (held.length === 0) return false;
+  const apart = distanceBetween(scene, from, to);
+  if (!apart.ok) return null;
+  return held.some((sense) => apart.value <= sense.feet);
 }
 
 /**
@@ -3461,8 +3474,9 @@ export function canSee(state: GameState, from: CharacterId, to: CharacterId): bo
   // before everything, because where a creature stands relative to itself is
   // the engine's fact rather than the table's, and `seeing-yourself.test.ts`
   // is the whole of what asking it cost.
-  if (from !== to && blindedTo(state, from, blindsightReaching(state, scene, from, to))) {
-    return false;
+  if (from !== to) {
+    const forced = blindedTo(state, from, blindsightReaching(state, scene, from, to));
+    if (forced !== undefined) return forced;
   }
   return sightBetween(scene, from, to, sensesOf(state, from), {
     obscured: obscuredFrom(state, from, to),
@@ -3529,8 +3543,12 @@ export function canSeePoint(
   const apart = space === null ? null : distanceToPoint(scene, from, space);
   const reach = apart !== null && apart.ok ? apart.value : null;
   if (space === null || reach === null) {
-    const blindsight = sensesOf(state, from).some((sense) => sense.sense === 'blindsight');
-    return blindedTo(state, from, blindsight) ? false : null;
+    // Held but unmeasurable is `null` here as it is between two creatures, and
+    // {@link blindedTo} is the one place that ruling is written.
+    const blindsight = sensesOf(state, from).some((sense) => sense.sense === 'blindsight')
+      ? null
+      : false;
+    return blindedTo(state, from, blindsight) ?? null;
   }
 
   // The looker's own senses, narrowed to those that are a form of sight and
@@ -3542,9 +3560,13 @@ export function canSeePoint(
   );
 
   // SRD Blinded, the same first step the other two take — {@link blindedTo}.
-  if (blindedTo(state, from, reaching.some((sense) => sense.sense === 'blindsight'))) {
-    return false;
-  }
+  // The reach is measured, so the Blindsight question has a yes or a no.
+  const forced = blindedTo(
+    state,
+    from,
+    reaching.some((sense) => sense.sense === 'blindsight'),
+  );
+  if (forced !== undefined) return forced;
 
   const darkness = seesThroughOf(state, from).darkness;
   const pierced = piercesObscurement(
@@ -3690,8 +3712,9 @@ export function canSomehowSee(
   const scene = state.scene;
   // SRD Blinded, the same first step and for the same reason: the sentence is
   // about the looker, and this question has one too.
-  if (from !== to && blindedTo(state, from, blindsightReaching(state, scene, from, to))) {
-    return false;
+  if (from !== to) {
+    const forced = blindedTo(state, from, blindsightReaching(state, scene, from, to));
+    if (forced !== undefined) return forced;
   }
   return sightBetween(
     scene,
