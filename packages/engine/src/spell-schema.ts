@@ -2605,6 +2605,63 @@ function checkEffect(
       return;
     }
 
+    // The **adjustment** half of the printed line above, and the same three
+    // rules about the list — SRD Resistance's "damage of the chosen type",
+    // where the defence's is "Resistance to Fire damage". What is extra is the
+    // notation, because this one rolls: a reduction with no dice takes nothing
+    // off, and the ledger that caps it needs a value it can key on.
+    case 'damage-reduction': {
+      if (
+        readsAsList(
+          effect.damageTypes,
+          `${path}.damageTypes`,
+          'a reduction names the damage types it answers as a list',
+          found,
+        )
+      ) {
+        if (effect.damageTypes.length === 0) {
+          found.push({
+            field: `${path}.damageTypes`,
+            code: 'reduces_nothing',
+            reason:
+              'a reduction that names no damage type never meets a blow it is about; name the types the SRD prints',
+          });
+        }
+        const named = new Set<string>();
+        effect.damageTypes.forEach((type, i) => {
+          checkDamageType(type, `${path}.damageTypes[${i}]`, found);
+          if (named.has(type)) {
+            found.push({
+              field: `${path}.damageTypes[${i}]`,
+              code: 'duplicate_damage_type',
+              reason: `${type} is named twice, and one blow of a type is one blow`,
+            });
+          }
+          named.add(type);
+        });
+      }
+      const reduces = effect.reduces?.dice;
+      if (typeof reduces !== 'string' || !parseNotation(reduces).ok) {
+        found.push({
+          field: `${path}.reduces.dice`,
+          code: 'bad_dice',
+          reason: `"${String(reduces)}" is not dice notation`,
+        });
+      }
+      // **`true` is the only value, and it is required.** Every SRD sentence
+      // of this shape prints the limit, and a definition that left it out
+      // would be granting a much larger rule by omission than by statement.
+      if (effect.oncePerTurn !== true) {
+        found.push({
+          field: `${path}.oncePerTurn`,
+          code: 'malformed_field',
+          reason:
+            'a reduction states the once-per-turn limit the SRD prints beside it; the only value is true',
+        });
+      }
+      return;
+    }
+
     // The condition half of the same sentence, and the same three rules — with
     // one field fewer, because there is no Vulnerability to a condition and no
     // halfway house: the list is the whole of what a definition states.
@@ -3170,6 +3227,13 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'light the target carries';
     case 'sense':
       return 'a sense the target gains';
+    // The seventeenth sourced grant, and it carries no deadline of its own for
+    // the reason the fifth, sixth and seventh do not: SRD Resistance says
+    // "before the spell ends", so the casting is the only thing that could
+    // stop the subtraction — and an Instantaneous casting would take a d4 off
+    // every hit of that type for ever.
+    case 'damage-reduction':
+      return 'an amount taken off later damage';
     // The sixth sourced grant, and it carries no deadline of its own for the
     // reason `speed` does not: every SRD sentence of this shape says "until
     // the spell ends", so the casting is the only thing that could take the
@@ -5238,6 +5302,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'speed',
   'light',
   'sense',
+  'damage-reduction',
   'attack-rider',
   'weapon-rider',
   'teleport',

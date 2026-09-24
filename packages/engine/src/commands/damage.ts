@@ -17,7 +17,8 @@
 import { type Ability, type CharacterId, err, ok, type Result } from '@ie/shared';
 import { applyDamage, type DamageComponent, rawDamageTotal } from '../attack.js';
 import { parseNotation } from '../dice.js';
-import { spendReaction } from '../combat.js';
+import { canUseFeatureThisTurn, spendReaction } from '../combat.js';
+import { damageReductionsOf, reductionApplies } from '../damage-reduction.js';
 import { isIncapacitated } from '../conditions.js';
 import {
   applyEvent,
@@ -28,7 +29,7 @@ import {
   type PendingHitRider,
   type StatedRoll,
 } from '../events.js';
-import type { RollProvenance } from '../rolls.js';
+import { rollRecorded, type RollProvenance } from '../rolls.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   offersForDamage,
@@ -160,6 +161,90 @@ export function adjustmentsFor(
     left -= off;
   }
   return adjustments;
+}
+
+/** A standing reduction, rolled: what it took off and what the log says about it. */
+export interface StandingReduction {
+  readonly events: readonly GameEvent[];
+  /** What comes off the total, before any defence is applied. */
+  readonly amount: number;
+}
+
+/**
+ * What the reductions standing on a creature take off this blow.
+ *
+ * SRD Resistance, the cantrip: "When the creature takes damage of the chosen
+ * type before the spell ends, the creature reduces the total damage taken by
+ * 1d4. A creature can benefit from this spell only once per turn." Three
+ * sentences and three decisions, and none of them is the arithmetic —
+ * {@link adjustmentsFor} has answered "off which type" since Uncanny Dodge
+ * needed it, and the reduction is fed into that as a total exactly as a
+ * Reaction's is.
+ *
+ * **One helper, because there are two roads to a hit and only one rule.**
+ * {@link dealSpellDamage} lands a blow nobody may answer; `settleDamage`
+ * lands one somebody held open at a Reaction window. A reduction written into
+ * the first alone would be skipped by every blow a defender answered, which is
+ * precisely the blow a defender is most likely to be holding a ward against.
+ *
+ * **The die is thrown here and its faces reach the log**, because that is what
+ * every die this engine throws does: a `roll-recorded` names the ward, the
+ * notation and what it prevented, so the total the target lost can be read
+ * back out of the log rather than taken on trust.
+ *
+ * **"Only once per turn" is the engine's own ledger** — `feature-used`, keyed
+ * on the grant's `source`, which is the casting id and therefore already
+ * unique per casting. Two Resistances on one creature are two allowances; one
+ * Resistance and two blows in a turn is one. Outside combat there are no turns
+ * and nothing restricts it, which is the reading `canUseFeatureThisTurn`
+ * already takes of every once-per-turn line in the book — and the `feature-used`
+ * is written only where a budget exists to hold it, because a log that says a
+ * feature was used outside combat is a log the fold refuses.
+ */
+export function standingReductionOf(
+  state: GameState,
+  target: CharacterId,
+  components: readonly DamageComponent[],
+  supply: Supply,
+): Result<StandingReduction> {
+  const standing = damageReductionsOf(state, target).filter((reduction) =>
+    reductionApplies(reduction, components),
+  );
+  if (standing.length === 0) return ok({ events: [], amount: 0 });
+
+  const combat = state.combat;
+  const counted = combat !== null && combat.budgets[target] !== undefined;
+  const events: GameEvent[] = [];
+  let amount = 0;
+
+  for (const reduction of standing) {
+    const capped = reduction.oncePerTurn === true && counted;
+    if (capped && !canUseFeatureThisTurn(combat!, target, reduction.source)) continue;
+
+    const rolled = rollRecorded(supply.issuer, supply.rng, reduction.dice);
+    if (!rolled.ok) return rolled;
+    amount += rolled.value.total;
+
+    events.push({
+      type: 'roll-recorded',
+      who: target,
+      label: reduction.label,
+      natural: rolled.value.total,
+      total: rolled.value.total,
+      contributions: [{ source: reduction.dice, amount: rolled.value.total }],
+      outcome: `${rolled.value.total} damage prevented`,
+    });
+    if (capped) {
+      events.push({
+        type: 'feature-used',
+        id: target,
+        feature: reduction.source,
+        turn: combat!.turnsTaken,
+      });
+    }
+  }
+
+  return ok({ events, amount });
 }
 
 /**
@@ -358,11 +443,21 @@ export function dealSpellDamage(
   const victim = state.creatures[target];
   if (victim === undefined) return unknownCreature(target);
 
+  // **What a ward standing on the defender takes off, before anything else.**
+  // SRD's order of application puts an adjustment first and Resistance second,
+  // so this is computed here and handed to `applyDamage` as the adjustment
+  // rather than subtracted from what comes back. `settleDamage` does exactly
+  // the same with the same helper, which is what keeps a blow somebody
+  // answered and a blow nobody could from being two different rules.
+  const warded = standingReductionOf(state, target, components, supply);
+  if (!warded.ok) return warded;
+
   // A creature's own defences and the ones its features grant, together. The
   // stat block's entries alone would miss a Sorcerer's Elemental Affinity.
   const applied = applyDamage(
     components,
     options.ignoresDefenses === true ? {} : defensesOf(state, target),
+    adjustmentsFor(components, warded.value.amount),
   );
   const resolved = resolveDamage(
     state,
@@ -392,7 +487,13 @@ export function dealSpellDamage(
   const dice = damageDiceRecorded(target, components, source, options.by);
 
   return ok({
-    events: dice === null ? resolved.value.events : [dice, ...resolved.value.events],
+    // The faces, then the ward's own die, then what the two came to: the
+    // chronology of the moment, which is the rule the line above states.
+    events: [
+      ...(dice === null ? [] : [dice]),
+      ...warded.value.events,
+      ...resolved.value.events,
+    ],
     // What landed, which is what the defences left of the roll *and* what a
     // damage threshold let through. `damageTakenIn` reads it off the event the
     // command wrote rather than re-deriving it here, so there is one answer.

@@ -2017,6 +2017,65 @@ export type SpellEffect =
    */
   | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
   /**
+   * An amount the spell takes off a hit **before** the target's defences meet
+   * it — SRD Resistance: "When the creature takes damage of the chosen type
+   * before the spell ends, the creature reduces the total damage taken by 1d4.
+   * A creature can benefit from this spell only once per turn."
+   *
+   * **Not `damage-defense`, which is the neighbour it is easiest to mistake
+   * for.** That kind names a damage type and grants Resistance, Immunity or
+   * Vulnerability over it — a *multiplier*, and the second step of SRD's
+   * "Order of Application". This is the **first** step, an adjustment, and the
+   * difference is observable: a d4 off 10 Fire against a fire-resistant target
+   * leaves 3, where halving first would leave 4 and round twice. The cantrip
+   * and the defence share one word and are different arithmetic.
+   *
+   * **The die is a notation and is thrown at the blow.** A reduction rolled at
+   * the cast would put the number in the log a minute before the hit that
+   * produced it, which is the rule a scheduled hit and a turn payout already
+   * follow.
+   *
+   * **The type is chosen at the casting through the mechanism that exists.**
+   * `SpellDefinition.damageTypeStated` lists what a definition prints and
+   * `statedDamageType` rewrites a `damageTypes` field to the one the caster
+   * named — the same door SRD Protection from Energy's granted defence goes
+   * through — so this field is plural to be reachable by that rewrite and SRD
+   * Resistance leaves it holding exactly one. A casting that names none is
+   * `damage_type_required` at the door, as it already is for the other two.
+   *
+   * **It carries no `lasts` of its own**, for the reason `sense`, `speed` and
+   * `action-rule` carry none: the SRD sentence in this position runs for the
+   * spell's own duration, and an Instantaneous casting would leave a reduction
+   * nothing could ever lift. `checkGrantLifetimes` refuses that pairing.
+   */
+  | {
+      readonly kind: 'damage-reduction';
+      /** What comes off. A notation, thrown when a blow arrives. */
+      readonly reduces: { readonly dice: string };
+      /**
+       * The kinds of damage the sentence is about — see `statedDamageType`.
+       *
+       * `readonly string[]`, as `damage-defense`'s list is and for the same
+       * two reasons: the table `applyDamage` sums into is keyed by string, and
+       * {@link statedDamageType} writes `[damageType]` into this field out of
+       * a casting's stated choice, which is a string. The vocabulary is held
+       * at the door instead — `checkSpellDefinition` refuses a type the SRD
+       * does not print, exactly as it does for a granted defence.
+       */
+      readonly damageTypes: readonly string[];
+      /**
+       * SRD Resistance's "only once per turn".
+       *
+       * Required rather than optional, and `true` is its only value: every SRD
+       * sentence of this shape prints the limit, and a definition that left it
+       * out would be claiming a reduction off *every* blow — which is a much
+       * bigger rule to grant by omission than by statement. The ledger that
+       * enforces it is the engine's own `feature-used`, keyed on the casting,
+       * so outside combat there are no turns and nothing restricts it.
+       */
+      readonly oncePerTurn: true;
+    }
+  /**
    * What the spell changes about how its target may spend a turn.
    *
    * SRD Wind Walk: "The only actions a target can take in this form are the
@@ -4698,6 +4757,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // read nothing of the caster's — a radius and a range are the book's.
       case 'light':
       case 'sense':
+      // And a reduction the target takes off later damage: a notation and a
+      // list of types, both the book's, with nothing of the caster's in
+      // either — SRD Resistance's d4 is a d4 whoever cast it.
+      case 'damage-reduction':
       case 'attack-rider':
       // The ability it may pin is not one of these three: it is an *ability*
       // and not a number, which is `castersAbilityRead`'s question and not

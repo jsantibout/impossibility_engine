@@ -8042,9 +8042,17 @@ export const WALL_OF_FIRE: SpellDefinition = {
  *
  * **Not Resistance the defence**, which is the reason this cantrip is worth
  * reading twice: `defensesOf` halves a type and this subtracts a die from it,
- * and the two are different arithmetic with the same name. Nothing in the
- * damage pipeline takes a die away from a total, so the minute of
- * Concentration runs and the 1d4 does not.
+ * and the two are different arithmetic with the same name. The `damage-reduction`
+ * effect is the first of them the pipeline learned — an *adjustment*, which
+ * SRD's "Order of Application" puts before the halving, so a 1d4 off 10 Fire
+ * against a fire-resistant target leaves 3 rather than 4.
+ *
+ * **The eleven printed types are a `damageTypeStated` list**, and the field is
+ * the same one Spirit Guardians and Protection from Energy already use: the
+ * definition carries one so the shape is well-formed, the caster names one at
+ * the casting, and a casting that names none is refused rather than defaulted.
+ * The list here is the book's, minus Force and Psychic, which the SRD does not
+ * print in this sentence.
  */
 export const RESISTANCE: SpellDefinition = {
   id: 'resistance',
@@ -8055,12 +8063,35 @@ export const RESISTANCE: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  effects: [
+    {
+      kind: 'damage-reduction',
+      // "reduces the total damage taken by 1d4" — a notation, thrown by the
+      // blow that arrives rather than at the cast.
+      reduces: { dice: '1d4' },
+      // Rewritten to the one the caster named; `fire` is here so the shape is
+      // well-formed, exactly as Spirit Guardians carries one of its two.
+      damageTypes: ['fire'],
+      // "A creature can benefit from this spell only once per turn."
+      oncePerTurn: true,
+    },
+  ],
+  // The eleven the sentence prints, in the book's own order.
+  damageTypeStated: [
+    'acid',
+    'bludgeoning',
+    'cold',
+    'fire',
+    'lightning',
+    'necrotic',
+    'piercing',
+    'poison',
+    'radiant',
+    'slashing',
+    'thunder',
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'the die is not subtracted: "the creature reduces the total damage taken by 1d4" is a reduction applied to damage, and the pipeline adjusts, halves and doubles a total but never takes a roll off one',
-    'which damage type was chosen is not recorded, because nothing reads it — the eleven the spell prints would be a `damageTypeStated` list if there were an effect for it to choose the type of',
-    'the once-per-turn limit is not enforced, because nothing is applied for it to limit',
     'whether the creature touched is willing is not modelled; willingness is fiction',
   ],
 };

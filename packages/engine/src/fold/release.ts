@@ -6,7 +6,7 @@
  * `releaseOnTarget` is the same operation narrowed to one creature, which is
  * the whole of Dispel Magic's "one creature, object, or magical effect"
  * distinction. Beneath them is the grant enumerator: `grantsOf`,
- * `grantSourcesOf` and `withoutGrants`, the one walk over the fourteen sourced
+ * `grantSourcesOf` and `withoutGrants`, the one walk over the seventeen sourced
  * grant families that five call sites used to make by hand.
  *
  * `spellOn` and `withoutTarget` are here for the same reason as each other:
@@ -32,7 +32,7 @@ import type { CreatureState, GameState, PendingCasting } from '../state.js';
 /**
  * A grant a running effect hung on a creature, read only for what hung it.
  *
- * The fourteen families below all carry more than this — a `Bonus`, a base Armour
+ * The seventeen families below all carry more than this — a `Bonus`, a base Armour
  * Class, a `RollModifier`, a list of damage types, a change to a Speed, a die
  * on later attacks, a list of condition names, a payout at a turn boundary, a
  * rule about what a turn may be spent on —
@@ -74,7 +74,7 @@ type GrantFamily = Exclude<
 type HeldGrants = { readonly [K in GrantFamily]: readonly SourcedGrant[] };
 
 /**
- * The fourteen families as one value, and the only place the list is written.
+ * The seventeen families as one value, and the only place the list is written.
  *
  * The annotation is a mapped type over {@link GrantFamily}, so a family
  * declared on `CreatureState` makes **this literal** a compile error naming the
@@ -83,8 +83,9 @@ type HeldGrants = { readonly [K in GrantFamily]: readonly SourcedGrant[] };
  * has fired ten times now — for `speedModifiers`, for `attackRiders`, for
  * `weaponRiders`, for
  * `grantedConditionImmunities`, for `payouts`, for `actionRules`, for
- * `grantedReactions`, for `healingRules`, for `hitPointMaxima` and for
- * `deniedBenefits` — and each time the whole of the plumbing was the one line
+ * `grantedReactions`, for `healingRules`, for `hitPointMaxima`, for
+ * `deniedBenefits` and for `damageReductions` — and each time the whole of the
+ * plumbing was the one line
  * the compiler insisted on, which is what the guard was built to buy. Each of
  * the last several named two sites in the whole engine: this literal, and the
  * empty list `creature-added` starts a creature with.
@@ -98,6 +99,7 @@ const grantsOf = (creature: CreatureState): HeldGrants => ({
   grantedDefenses: creature.grantedDefenses,
   speedModifiers: creature.speedModifiers,
   senseModifiers: creature.senseModifiers,
+  damageReductions: creature.damageReductions,
   attackRiders: creature.attackRiders,
   weaponRiders: creature.weaponRiders,
   grantedConditionImmunities: creature.grantedConditionImmunities,
@@ -117,14 +119,14 @@ const countGrants = (held: Record<string, readonly SourcedGrant[]>): number =>
 /**
  * Every source that has hung a grant on this creature.
  *
- * One enumerator over the fourteen families — the bonuses Bless adds, the Armour
+ * One enumerator over the seventeen families — the bonuses Bless adds, the Armour
  * Class Mage Armor supplies, the Advantage Blur grants, the Resistance
  * Stoneskin grants, the ten feet Longstrider adds, the die Divine Favor hangs
  * on later attacks, the d8 Shillelagh puts in a Quarterstaff, the Charmed Mind
  * Blank refuses, the Temporary Hit Points Heroism pays each turn, the Action
  * Stinking Cloud forbids, the die a Bard put in somebody's hand — so a reader
  * asking "is this casting still holding anything here" asks it once rather
- * than fourteen times.
+ * than seventeen times.
  *
  * **Sorted and deduplicated**, so the answer is fixed however the families are
  * visited and whatever order the grants arrived in; serialised state reaches
@@ -153,7 +155,7 @@ export function grantSourcesOf(creature: CreatureState): readonly string[] {
 }
 
 /**
- * Every grant whose source the predicate names, taken off all fourteen families.
+ * Every grant whose source the predicate names, taken off all seventeen families.
  *
  * The one removal. The three callers differ only in which sources they name —
  * `releaseCasting` and `releaseOnTarget` match the casting id inside the

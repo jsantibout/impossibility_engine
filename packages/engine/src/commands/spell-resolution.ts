@@ -159,6 +159,7 @@ import {
   resolveBuffEffect,
   resolveConditionImmunityEffect,
   resolveDamageDefenseEffect,
+  resolveDamageReductionEffect,
   resolvePassiveDefenseEffect,
   resolveRollModeEffect,
   resolveActionRuleEffect,
@@ -2158,6 +2159,8 @@ function resolveOneEffect(
       return resolveLightEffect(ctx, effect, target, world);
     case 'sense':
       return resolveSenseEffect(ctx, effect, target, world);
+    case 'damage-reduction':
+      return resolveDamageReductionEffect(ctx, effect, target, world);
     case 'action-rule':
       return resolveActionRuleEffect(ctx, effect, target, world);
     case 'attack-rider':

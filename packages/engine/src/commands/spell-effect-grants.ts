@@ -694,3 +694,48 @@ export function resolveSenseEffect(
   outcomes.push({ target, affected: true });
   return ok(events.slice(-1).reduce(applyEvent, world));
 }
+
+/**
+ * An amount the casting takes off later damage — SRD Resistance: "the creature
+ * reduces the total damage taken by 1d4".
+ *
+ * The same shape as the sense above and the Speed beside it: nothing is rolled
+ * *here*, the casting is in the source, and `releaseCasting` takes it back
+ * with the spell. What is different is where the die is — the grant carries a
+ * notation and the d4 is thrown by the blow that arrives, which is the rule a
+ * scheduled hit and a turn payout already follow and the reason nothing in
+ * this function touches the generator.
+ *
+ * **The damage types are whatever reached this point**, which is the caster's
+ * stated choice where the definition prints a list: `statedDamageType` has
+ * already rewritten the effect by the time a resolver sees it, so there is no
+ * second reading of the request here and no way for the two to disagree.
+ *
+ * The label is what the log calls the die. It names the source so two
+ * Resistances on one creature read apart, and it is written here rather than
+ * at the blow because here is where the casting's name is known — the same
+ * reason a repeat save's label is written when the condition lands.
+ */
+export function resolveDamageReductionEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'damage-reduction'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held } = ctx;
+  const name = ctx.origin.kind === 'casting' ? ctx.origin.definition.name : source;
+  held.add(target);
+  events.push({
+    type: 'damage-reduction-granted',
+    id: target,
+    reduction: {
+      source,
+      label: `${name} (${effect.damageTypes.join(', ')})`,
+      dice: effect.reduces.dice,
+      damageTypes: effect.damageTypes,
+      ...(effect.oncePerTurn ? { oncePerTurn: true as const } : {}),
+    },
+  });
+  outcomes.push({ target, affected: true });
+  return ok(events.slice(-1).reduce(applyEvent, world));
+}

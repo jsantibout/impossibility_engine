@@ -73,6 +73,7 @@ import {
   heldDamageTotal,
   reactionContributions,
   spendReactionCost,
+  standingReductionOf,
   statedFrom,
 } from './damage.js';
 import { applyHitRider } from './hit-riders.js';
@@ -330,7 +331,34 @@ export function settleDamage(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
-    const reduction = pending.reductions.reduce((sum, r) => sum + r.amount, 0);
+    // **And the wards standing on the defender, beside the Reactions they
+    // answered with.** A reduction a casting hung on this creature is not a
+    // Reaction and nobody chose to spend it, so it is not in `reductions` —
+    // but it comes off the same total at the same step, and it must come off
+    // on *this* road too: a blow held open for a Reaction is exactly the blow
+    // a warded creature is most likely to be holding one against, and a
+    // reduction written only into `dealSpellDamage` would be skipped by every
+    // one of them. `standingReductionOf` is the shared rule.
+    const issuedBeforeWard = supply.issuer.count;
+    const warded = standingReductionOf(state, pending.target, pending.components, supply);
+    if (!warded.ok) return warded;
+    events.push(...warded.value.events);
+    // **And the generator moving is recorded here**, narrowly, because nothing
+    // above this command counts for it: `dealSpellDamage`'s ward rides the one
+    // `rolls-issued` the casting already emits for its whole effect loop, and
+    // this road has no such loop — `resolveDamage` below counts only its own
+    // Undead Fortitude save. A die thrown with no count beside it leaves
+    // `rollsIssued` short and the next command reusing a roll id.
+    if (supply.issuer.count > issuedBeforeWard) {
+      events.push({
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBeforeWard,
+        rng: supply.rng.snapshot(),
+      });
+    }
+
+    const reduction =
+      pending.reductions.reduce((sum, r) => sum + r.amount, 0) + warded.value.amount;
     const adjustments = adjustmentsFor(pending.components, reduction);
     const applied = applyDamage(pending.components, defensesOf(state, pending.target), adjustments);
 
