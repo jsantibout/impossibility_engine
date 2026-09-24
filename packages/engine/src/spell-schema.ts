@@ -34,6 +34,7 @@ import type {
   DiceScaling,
   LightRider,
   ModifierRider,
+  OutcomeRiders,
   SequencedBurst,
   RiderDuration,
   SpellArea,
@@ -302,6 +303,11 @@ export const ROLL_FAMILIES: ReadonlySet<string> = new Set([
   'saving-throw',
   'initiative',
   'death-save',
+  // The glossary's own union of the first three, which a selector may name and
+  // a roll never is — see {@link RollFamily}. Refused without an ability by
+  // `rollSelectorProblems`, which is what keeps it from reaching every roll its
+  // holder makes.
+  'd20-test',
 ]);
 const AREA_KINDS: ReadonlySet<string> = new Set([
   'sphere',
@@ -1062,6 +1068,87 @@ function checkCastingRepeat(
   }
 }
 
+/**
+ * A repeat save on a `save` whose failure imposed no condition.
+ *
+ * SRD Ray of Enfeeblement: "On a failed save, the target has Disadvantage on
+ * Strength-based D20 Tests for the duration — The target repeats the save at
+ * the end of each of its turns, ending the spell on a success." One saving
+ * throw, a failure that hands out grants and imposes nothing, and a repeat.
+ *
+ * **The second host a casting may carry a repeat on**, and the first was SRD
+ * Searing Smite — see {@link checkCastingRepeat}, whose three rules this
+ * shares because the hook rides on the same timer: a success ends the casting
+ * because there is no condition instance for `end-on-target` to release, a
+ * failure deepens nothing because there is no condition to deepen, and
+ * {@link checkCastingRepeatLifetime} insists on the span the deadline is.
+ *
+ * **The one rule it does not share is the ability**, and the fork is the one
+ * {@link SpellRepeatSave.ability} draws: Searing Smite's host rolls no save,
+ * so the repeat has to name one; this host rolled the very save being
+ * repeated, so naming a second would be a second answer to one sentence. It is
+ * refused in the same words a rider's is.
+ *
+ * `beforeTheSave` is refused for the reason a rider's is: the payout is read
+ * off the hook by the boundary and pinned onto it by the command that hangs
+ * it, and the resolver that hangs *this* hook pins no amount — so a
+ * definition writing one here would be promising damage nothing would deal.
+ */
+function checkSaveCastingRepeat(
+  repeats: SpellRepeatSave,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const at = `${path}.repeats`;
+  if (!readsAsObject(repeats, at, 'a repeat save is an object naming when it fires', found)) {
+    return;
+  }
+
+  if (!TURN_MOMENT_NAMES.has(repeats.at as unknown as string)) {
+    found.push({
+      field: `${at}.at`,
+      code: 'bad_moment',
+      reason: `"${String(repeats.at)}" is not a moment in a turn`,
+    });
+  }
+
+  if (repeats.onSuccess !== 'end-casting') {
+    found.push({
+      field: `${at}.onSuccess`,
+      code: 'repeat_without_condition',
+      reason:
+        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so there is nothing on the target for a success to end, and the hook rides on the casting instead; SRD writes "ending the spell on a success", which is "end-casting"',
+    });
+  }
+
+  if (repeats.ability !== undefined) {
+    found.push({
+      field: `${at}.ability`,
+      code: 'repeat_states_an_ability',
+      reason:
+        'SRD writes "the target repeats the save" — the one this effect already rolled — so a repeat on a saving throw names no ability of its own',
+    });
+  }
+
+  if (repeats.beforeTheSave !== undefined) {
+    found.push({
+      field: `${at}.beforeTheSave`,
+      code: 'repeat_deals_no_damage',
+      reason:
+        'damage before a repeat save is pinned onto the hook by the command that hangs it, and a save’s own hook pins no amount; written here it would be dealt by nothing',
+    });
+  }
+
+  if (repeats.onFailure !== undefined) {
+    found.push({
+      field: `${at}.onFailure`,
+      code: 'deepening_without_a_condition',
+      reason:
+        'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
+    });
+  }
+}
+
 function checkConditionRider(
   rider: ConditionRider | undefined,
   namePath: string,
@@ -1285,14 +1372,7 @@ function checkSaveWithoutCondition(
     });
   }
 
-  if (effect.repeats !== undefined) {
-    found.push({
-      field: `${path}.repeats`,
-      code: 'repeat_without_condition',
-      reason:
-        'a repeat save is filed on the condition instance the failure created, and this failure creates none, so no turn boundary would ever raise it',
-    });
-  }
+  if (effect.repeats !== undefined) checkSaveCastingRepeat(effect.repeats, path, found);
 
   for (const field of ['lasts', 'check', 'outlivesCasting'] as const) {
     if (effect[field] === undefined) continue;
@@ -1642,6 +1722,59 @@ function checkBudgetSpend(
  * apply — shared rather than restated, because a second copy is a second
  * place for a rolled Armour Class to slip through.
  */
+/**
+ * The amount a rider makes its target take off the damage it deals.
+ *
+ * SRD prints three of these and they are two shapes: a notation (Ray of
+ * Enfeeblement's 1d8, Enlarge/Reduce's 1d4) and a number (the Gold Dragon
+ * Wyrmling's "subtracts 2"). So one of the two has to be there — a penalty
+ * that subtracts nothing is a sentence the book never writes and a grant the
+ * damage path would consult at every blow to take nought off it.
+ *
+ * **The floor is a whole number of hit points and at least one**, because that
+ * is the only value the parenthesis prints: "this can't reduce the damage
+ * below 1". A floor of nought is the absence of one and is written by leaving
+ * the field off, which is what Ray of Enfeeblement does.
+ */
+function checkDamagePenalty(
+  rider: { readonly dice?: unknown; readonly flat?: unknown; readonly floor?: unknown },
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (
+    rider.dice !== undefined &&
+    (typeof rider.dice !== 'string' || !parseNotation(rider.dice).ok)
+  ) {
+    found.push({
+      field: `${path}.dice`,
+      code: 'bad_dice',
+      reason: `"${String(rider.dice)}" is not dice notation`,
+    });
+  }
+  if (rider.flat !== undefined && (!Number.isInteger(rider.flat) || (rider.flat as number) < 1)) {
+    found.push({
+      field: `${path}.flat`,
+      code: 'bad_damage_penalty',
+      reason: `a penalty takes a whole number of hit points off, and "${String(rider.flat)}" is not one`,
+    });
+  }
+  if (rider.dice === undefined && rider.flat === undefined) {
+    found.push({
+      field: path,
+      code: 'penalty_subtracts_nothing',
+      reason:
+        'a penalty that subtracts nothing would be consulted at every blow its holder struck and take nought off; name the dice the sentence rolls or the number it prints',
+    });
+  }
+  if (rider.floor !== undefined && (!Number.isInteger(rider.floor) || (rider.floor as number) < 1)) {
+    found.push({
+      field: `${path}.floor`,
+      code: 'bad_damage_floor',
+      reason: `the book floors this at 1 hit point, so a floor is a whole number and at least one; leave it off where the sentence prints none, rather than writing "${String(rider.floor)}"`,
+    });
+  }
+}
+
 function checkModifierRider(
   rider: ModifierRider | undefined,
   path: string,
@@ -1649,6 +1782,10 @@ function checkModifierRider(
 ): void {
   if (rider?.kind === 'bonus') {
     checkBonusGrant(rider.bonus, rider.applies, path, found);
+    return;
+  }
+  if (rider?.kind === 'damage-penalty') {
+    checkDamagePenalty(rider, path, found);
     return;
   }
   if (rider?.kind === 'mode') {
@@ -1750,7 +1887,7 @@ function checkModifierRider(
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, changes a Speed, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, grants a mode, changes a Speed, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
   });
 }
 
@@ -1864,6 +2001,83 @@ function checkShedLight(
  * know would land as a push.
  */
 const MOVEMENT_KINDS: ReadonlySet<string> = new Set(['push', 'lift']);
+
+/**
+ * The four things a **success** may carry, and the four it may not.
+ *
+ * SRD Ray of Enfeeblement is the one spell in reach whose success costs the
+ * target something: "On a successful save, the target has Disadvantage on the
+ * next attack roll it makes until the start of your next turn." So
+ * {@link save.onSuccessRiders} reuses {@link OutcomeRiders} whole and this is
+ * where the half of it a success may write is decided.
+ *
+ * | Allowed | Because the book writes it |
+ * |---|---|
+ * | `modifiers` | Ray of Enfeeblement's Disadvantage |
+ * | `conditions` | Flesh to Stone's "its Speed is 0" is the same position |
+ * | `movement` | a success that still moves the creature is a sentence of the same shape |
+ * | `spends` | and so is one that costs it a slot of its turn |
+ *
+ * **`delayed` is refused on the book's authority**: no printed success deals
+ * damage, and a definition able to say so would be a spell rewarding a save
+ * with a hit. The other three are refused because nothing in the book hangs
+ * them on a success either, and a slot no sentence writes is the guess this
+ * file exists to refuse — `light`, `drops` and `breaksConcentration` each ride
+ * a failure in every sentence that prints them.
+ *
+ * Everything that *is* allowed is then held to the ordinary rules by
+ * {@link checkRiders}, so a mode on a success is judged exactly as a mode on a
+ * failure is — and {@link grantOnASuccess} is the other half of that, which
+ * is where the lifetime rule reaches this branch.
+ */
+function checkSuccessRiders(
+  riders: OutcomeRiders,
+  level: number,
+  path: string,
+  host: RiderHost,
+  found: SpellDefinitionProblem[],
+): void {
+  if (
+    !readsAsObject(
+      riders,
+      path,
+      'what a success carries is an object holding the rider slots it fills',
+      found,
+    )
+  ) {
+    return;
+  }
+
+  if (riders.delayed !== undefined) {
+    found.push({
+      field: `${path}.delayed`,
+      code: 'damage_on_a_success',
+      reason:
+        'no saving throw in the book rewards a success with damage; a hit a success still takes is the failure branch, or the host\u2019s own onSuccess',
+    });
+  }
+  for (const slot of ['light', 'drops', 'breaksConcentration'] as const) {
+    if (riders[slot] === undefined) continue;
+    found.push({
+      field: `${path}.${slot}`,
+      code: 'rider_off_a_success',
+      reason: `every sentence the book prints hangs "${slot}" on a failure; a success may grant a mode, impose a condition, move the creature or use up a slot of its turn`,
+    });
+  }
+
+  checkRiders(
+    {
+      ...(riders.conditions === undefined ? {} : { conditions: riders.conditions }),
+      ...(riders.modifiers === undefined ? {} : { modifiers: riders.modifiers }),
+      ...(riders.movement === undefined ? {} : { movement: riders.movement }),
+      ...(riders.spends === undefined ? {} : { spends: riders.spends }),
+    },
+    level,
+    path,
+    host,
+    found,
+  );
+}
 
 function checkRiders(
   riders: {
@@ -2573,6 +2787,19 @@ function checkEffect(
         );
       }
       checkRiders(source, level, path, host(true), found);
+      // And what a **success** carries, where the sentence gives it something
+      // — SRD Ray of Enfeeblement. The slot is narrowed before it is walked,
+      // so an author is told which rider a success may not hang as well as
+      // what is wrong with the ones it may. See {@link checkSuccessRiders}.
+      if (effect.onSuccessRiders !== undefined) {
+        checkSuccessRiders(
+          effect.onSuccessRiders,
+          level,
+          `${path}.onSuccessRiders`,
+          host(true),
+          found,
+        );
+      }
       return;
     }
 
@@ -3777,24 +4004,53 @@ function checkLiftAgainstDeadlines(
   found: SpellDefinitionProblem[],
 ): void {
   const lists = effectLists(definition as unknown as Record<string, unknown>);
-  const holders: { readonly where: string; readonly at: number }[] = [];
+  // The slot travels with the holder, because the refusal names the field an
+  // author would have to change and a lift may now be written on either
+  // branch — pointing at `effects[0].movement.kind` for a lift that is at
+  // `effects[0].onSuccessRiders.movement.kind` is a refusal about nothing.
+  const holders: { readonly where: string; readonly at: number; readonly slot: string }[] = [];
   let deadlines = 0;
 
   for (const [where, effects] of lists) {
     effects.forEach((effect, i) => {
       if (typeof effect !== 'object' || effect === null) return;
-      const moved = (effect as { readonly movement?: { readonly kind?: unknown } }).movement;
-      if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
-        holders.push({ where, at: i });
+      // **Both branches, for the reason the deadlines below are counted on
+      // both**: `releaseGrants` has a creature and no scene, so it takes the
+      // lift off without setting anybody down, and it neither knows nor could
+      // know which branch hung either of the two. A lift written on a success
+      // and a deadline written on a failure are the same pair one slot apart,
+      // which is exactly the shape this check says a refusal has to cover.
+      const slots: readonly (readonly [string, unknown])[] = [
+        ['', (effect as { readonly movement?: unknown }).movement],
+        [
+          '.onSuccessRiders',
+          (effect as { readonly onSuccessRiders?: { readonly movement?: unknown } })
+            .onSuccessRiders?.movement,
+        ],
+      ];
+      for (const [slot, moved] of slots) {
+        if (typeof moved !== 'object' || moved === null) continue;
+        if ((moved as { readonly kind?: unknown }).kind !== 'lift') continue;
+        holders.push({ where, at: i, slot });
       }
       // Read off the same slot `grantCarried` reads, and with the same
       // tolerance for input nobody can walk: a `modifiers` that is not a list
       // schedules nothing, and what is wrong with it is `checkRiders`' to say.
-      const modifiers = (effect as { readonly modifiers?: unknown }).modifiers;
-      if (!Array.isArray(modifiers)) return;
-      for (const rider of modifiers) {
-        if (typeof rider !== 'object' || rider === null) continue;
-        if ((rider as { readonly lasts?: unknown }).lasts !== undefined) deadlines += 1;
+      //
+      // **Both branches**, because the timer is keyed by the casting's source
+      // and the creature and knows nothing about which branch hung it: a
+      // deadline written on `onSuccessRiders` releases the lift on the same
+      // key a deadline written on the failure would.
+      for (const slot of [
+        (effect as { readonly modifiers?: unknown }).modifiers,
+        (effect as { readonly onSuccessRiders?: { readonly modifiers?: unknown } })
+          .onSuccessRiders?.modifiers,
+      ]) {
+        if (!Array.isArray(slot)) continue;
+        for (const rider of slot) {
+          if (typeof rider !== 'object' || rider === null) continue;
+          if ((rider as { readonly lasts?: unknown }).lasts !== undefined) deadlines += 1;
+        }
       }
     });
   }
@@ -3802,7 +4058,7 @@ function checkLiftAgainstDeadlines(
   if (deadlines === 0) return;
   for (const holder of holders) {
     found.push({
-      field: `${holder.where}[${holder.at}].movement.kind`,
+      field: `${holder.where}[${holder.at}]${holder.slot}.movement.kind`,
       code: 'lift_beside_a_shorter_grant',
       reason:
         'a grant that ends before its casting takes every grant that casting hung on the creature with it, and a lift is one of them — the creature would be left in the air with nothing holding it up, so one casting may not both lift a creature and hand out a grant with a deadline of its own',
@@ -4124,6 +4380,14 @@ function grantCarried(effect: SpellEffect): string | null {
         switch (rider?.kind) {
           case 'bonus':
             return 'a bonus';
+          // The twentieth sourced grant, and it carries no deadline of its own
+          // for the reason `bonus` carries none: both sentences in reach run
+          // for the casting's own duration — SRD Ray of Enfeeblement's "for
+          // the duration" and Enlarge/Reduce's reduced half — so an
+          // Instantaneous casting would take a d8 off every blow its target
+          // ever struck, for ever.
+          case 'damage-penalty':
+            return 'an amount taken off the damage the target deals';
           case 'mode':
             // The third rider with an escape of its own, and it arrived with
             // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
@@ -4173,9 +4437,87 @@ function grantCarried(effect: SpellEffect): string | null {
       if ((effect as { readonly light?: unknown }).light !== undefined) {
         return 'light the target sheds';
       }
-      return null;
+      // **And the slot a success fills, which leaves the same things
+      // standing.** `modifierRidersOf` and `conditionRiderOf` read the flat
+      // `modifiers` and the flat condition, because they are the vocabulary
+      // the *failure* is written in; `save.onSuccessRiders` is a second
+      // `OutcomeRiders` on the other branch, and a grant hung there is welded
+      // to the casting exactly as one hung on the failure is. Without this the
+      // lifetime rule stopped at the failure slot, and an Instantaneous spell
+      // could hang a permanent Poisoned or a permanent damage penalty off a
+      // creature that had made its save — the silent failure this whole
+      // function exists to refuse, reached by the one branch it was not
+      // looking at.
+      return grantOnASuccess(effect);
     }
   }
+}
+
+/**
+ * What a `save`'s success slot leaves standing, or null if it leaves nothing.
+ *
+ * {@link grantCarried}'s walk over the four slots `checkSuccessRiders` admits,
+ * asked of the branch the flat fields do not describe. `spends` is not among
+ * them and never could be: a slot of a turn used up is over the moment it is
+ * spent, which is the reading `delayed` and a push already get one branch
+ * along.
+ *
+ * Read through `?.` and `Array.isArray` like every other reader in this file,
+ * because it meets untyped input: a slot nobody can walk carries no lifetime
+ * worth reporting, and what is wrong with it is {@link checkSuccessRiders}' to
+ * say.
+ */
+function grantOnASuccess(effect: SpellEffect): string | null {
+  if (effect.kind !== 'save') return null;
+  const riders = effect.onSuccessRiders;
+  if (typeof riders !== 'object' || riders === null) return null;
+
+  if (Array.isArray(riders.conditions)) {
+    for (const rider of riders.conditions) {
+      if (typeof rider !== 'object' || rider === null || Array.isArray(rider)) continue;
+      if (rider.lasts !== undefined || rider.outlivesCasting === true) continue;
+      return `the ${String(rider.name)} condition`;
+    }
+  }
+
+  if (Array.isArray(riders.modifiers)) {
+    for (const rider of riders.modifiers) {
+      switch (rider?.kind) {
+        case 'bonus':
+          return 'a bonus';
+        case 'damage-penalty':
+          return 'an amount taken off the damage the target deals';
+        case 'mode':
+          if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
+          break;
+        case 'speed-change':
+          if (rider.lasts === undefined) return 'a changed Speed';
+          break;
+        case 'action':
+          if (rider.lasts === undefined) return 'a rule about what a turn may be spent on';
+          break;
+        case 'healing':
+          if (rider.lasts === undefined) return 'a rule standing in front of healing';
+          break;
+        case 'benefit':
+          if (rider.lasts === undefined) return 'a benefit taken off a condition';
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  // A lift is held for the casting's duration and set down when it ends, so an
+  // Instantaneous host would leave the creature in the air with nothing that
+  // could bring it down — the same debt the failure branch's lift carries,
+  // and a push carries none because a shove is over the instant it lands.
+  const moved = riders.movement;
+  if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
+    return 'a creature this casting is holding in the air';
+  }
+
+  return null;
 }
 
 /**
@@ -6662,10 +7004,44 @@ function checkCastingRepeatLifetime(
   definition: SpellDefinition,
   found: SpellDefinitionProblem[],
 ): void {
-  const hosted = definition.effects.some(
-    (effect) => effect.kind === 'attack-damage' && effect.repeats !== undefined,
+  // **The second host**, and it is the same timer underneath: a `save` whose
+  // failure imposes no condition has no instance to file a repeat on, so the
+  // hook rides on the casting's deadline exactly as a smite's does — see
+  // {@link checkSaveCastingRepeat}.
+  const onASave = definition.effects.some(
+    (effect) => effect.kind === 'save' && effect.condition === undefined && effect.repeats !== undefined,
   );
+  const hosted =
+    onASave ||
+    definition.effects.some(
+      (effect) => effect.kind === 'attack-damage' && effect.repeats !== undefined,
+    );
   if (!hosted) return;
+
+  // **And one creature, because one timer holds one hook.** A casting has a
+  // single deadline, so the repeat it carries names the single creature whose
+  // turns raise it; a saving throw that caught three would file three hooks on
+  // one key and keep the last. Every SRD sentence of this shape is about one
+  // target, so the shape is refused rather than the mechanism owed.
+  //
+  // **Asked of the saving throw alone.** A smite's repeat names the creature
+  // the *blow* landed on rather than anybody the target rule admits — SRD
+  // Searing Smite's Range is Self and it targets nobody at all — so the head
+  // count says nothing about it.
+  if (
+    onASave &&
+    (definition.area !== undefined ||
+      definition.targets.count !== 1 ||
+      definition.targets.extraPerSlotLevelAbove !== undefined)
+  ) {
+    found.push({
+      field: 'targets',
+      code: 'casting_repeat_over_several_targets',
+      reason:
+        'a repeat save hosted by the casting rides on the casting’s one deadline and names the one creature whose turns raise it, so a saving throw that can catch more than one has nowhere to file the rest',
+    });
+  }
+
   if (definition.durationSeconds !== undefined || definition.durationAtSlot !== undefined) return;
 
   found.push({
@@ -6995,6 +7371,7 @@ const RIDER_DEPTH_LIMIT = 6;
  */
 export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'bonus',
+  'damage-penalty',
   'mode',
   'speed-change',
   'action',

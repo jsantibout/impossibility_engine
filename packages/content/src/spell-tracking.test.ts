@@ -5,11 +5,12 @@ import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
 import { createRng, type Rng } from '@ie/engine';
 import { createRollIssuer } from '@ie/engine';
-import { fold, type GameEvent } from '@ie/engine';
+import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
 import { dropsAnObject, statesWillingFact } from '@ie/engine';
 import { dmDecisionsIn } from '@ie/engine';
+import { riderDurations, type RiderDuration } from '@ie/engine';
 import {
   advanceTime,
   DIRECTIONAL_AREAS,
@@ -361,7 +362,40 @@ const cast = (
   );
 };
 
-const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = SETUP) =>
+/**
+ * The same scene with Initiative rolled, for the spells that need a turn order.
+ *
+ * A rider deadline anchored to a turn cannot be pinned outside combat, and the
+ * casting is **asked** for one before anything is spent rather than refused
+ * after the fact — so a spell that hangs one cannot be cast off `SETUP` at
+ * all. SRD Ray of Enfeeblement is the first tracked spell to write one: "the
+ * next attack roll it makes until the start of your next turn".
+ *
+ * **Derived from the definition, not listed by spell id**, which is the rule
+ * the area point and the wall path above already follow: the next tracked
+ * spell that hangs a turn-anchored rider needs no line here.
+ */
+const IN_A_FIGHT: readonly GameEvent[] = [
+  ...SETUP,
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: WIZARD, initiative: 20, speed: 30 },
+      { id: ALLY, initiative: 10, speed: 30 },
+      { id: FOE, initiative: 5, speed: 30 },
+    ],
+  },
+];
+
+/** Which of the two a tracked spell is cast off. */
+const logFor = (spellId: string): readonly GameEvent[] =>
+  riderDurations(SRD_CONTENT.spell(spellId)!).some(
+    (lasts: RiderDuration) => typeof lasts === 'string',
+  )
+    ? IN_A_FIGHT
+    : SETUP;
+
+const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = logFor(spellId)) =>
   unwrap(cast(spellId, over, log), spellId);
 
 /**
@@ -379,7 +413,7 @@ const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = SETUP)
  * against the printed casting time, so the clock is moved by the number the
  * book prints rather than by one this fixture chose.
  */
-const driven = (spellId: string, log: readonly GameEvent[] = SETUP) => {
+const driven = (spellId: string, log: readonly GameEvent[] = logFor(spellId)) => {
   const definition = SRD_CONTENT.spell(spellId)!;
   const first = resolved(spellId, {}, log);
   if (definition.castingTime !== 'long') return first;
@@ -1722,6 +1756,14 @@ describe('every spell this batch added is cast for real', () => {
     'mirror-image',
     'phantom-steed',
     'plant-growth',
+    // **Ray of Enfeeblement leaves on three shapes at once**, which is what
+    // kept it tracked: a selector for a family of D20 Tests narrowed by an
+    // ability, a penalty on the target's **own** damage rolls — the mirror
+    // of the reduction Resistance below hangs on a defender — and a success
+    // branch that does something, which is the rarest shape in the book. The
+    // repeat had no condition to be filed on either, so it rides on the
+    // casting's deadline the way Searing Smite's does.
+    'ray-of-enfeeblement',
     // **Resistance leaves with nothing left over**, which is Aid's door rather
     // than the nine others: the whole of the cantrip is a d4 off a hit of a
     // chosen type, and `damage-reduction` is the first thing the damage
@@ -1837,7 +1879,7 @@ describe('every spell this batch added is cast for real', () => {
     (spellId) => {
       const level = SRD_CONTENT.spell(spellId)!.level;
       const out = driven(spellId);
-      const after = fold('seed', [...SETUP, ...out.events]);
+      const after = fold('seed', [...logFor(spellId), ...out.events]);
       expect(remaining(after.creatures.wizard!.resources, spellSlotKey(level)), spellId).toBe(3);
     },
   );
@@ -1868,7 +1910,7 @@ describe('every spell this batch added is cast for real', () => {
   /** Concentration exactly where the printed Duration says so, and nowhere else. */
   it.each(DRIVEN_HERE.map((s) => [s] as const))('concentrates on %s only if the book does', (spellId) => {
     const out = driven(spellId);
-    const after = fold('seed', [...SETUP, ...out.events]);
+    const after = fold('seed', [...logFor(spellId), ...out.events]);
     expect(after.creatures.wizard!.concentration !== null, spellId).toBe(
       SRD_CONTENT.spell(spellId)!.concentration,
     );
@@ -1881,22 +1923,32 @@ describe('every spell this batch added is cast for real', () => {
    */
   it.each(DRIVEN_HERE.map((s) => [s] as const))('runs %s’s duration on the clock', (spellId) => {
     const seconds = SRD_CONTENT.spell(spellId)!.durationSeconds;
-    const log = [...SETUP, ...driven(spellId).events];
+    const log = [...logFor(spellId), ...driven(spellId).events];
+    // **The casting’s own deadline, counted apart from anything else it
+    // hung.** This asked for one timer in total, which was the same number
+    // while nothing tracked here hung a rider with a deadline of its own; SRD
+    // Ray of Enfeeblement hangs one on the branch a success takes, and a
+    // `grants` timer standing beside the casting’s is the rider working
+    // rather than the span being wrong. So the claim is made precise rather
+    // than loosened: the casting has exactly one deadline, and the clock ends
+    // it.
+    const castings = (state: GameState) =>
+      Object.values(state.timers).filter((timer) => timer.target.kind === 'casting');
     if (seconds === undefined) {
-      expect(Object.keys(fold('seed', log).timers), spellId).toHaveLength(0);
+      expect(castings(fold('seed', log)), spellId).toHaveLength(0);
       return;
     }
-    expect(Object.keys(fold('seed', log).timers), spellId).toHaveLength(1);
+    expect(castings(fold('seed', log)), spellId).toHaveLength(1);
     const almost = fold('seed', [
       ...log,
       { type: 'time-advanced', seconds: seconds - 1, reason: 'the party waits' },
     ]);
-    expect(Object.keys(almost.timers), spellId).toHaveLength(1);
+    expect(castings(almost), spellId).toHaveLength(1);
     const expired = fold('seed', [
       ...log,
       { type: 'time-advanced', seconds, reason: 'the party waits' },
     ]);
-    expect(Object.keys(expired.timers), spellId).toHaveLength(0);
+    expect(castings(expired), spellId).toHaveLength(0);
   });
 
   /**
@@ -1974,7 +2026,17 @@ describe('every spell this batch added is cast for real', () => {
    * touch a **willing** creature", and `TargetRule.willing` is the field that
    * reads it, so the cantrip now prints nothing the engine leaves alone.
    */
-  const FINISHED_OUTRIGHT: readonly string[] = ['aid', 'expeditious-retreat', 'resistance'];
+  const FINISHED_OUTRIGHT: readonly string[] = [
+    'aid',
+    'expeditious-retreat',
+    // The third, and the three shapes it was waiting on all arrived together:
+    // a family of D20 Tests picked out by an ability, a penalty on the
+    // target’s own damage rolls, and a success branch that does something.
+    'ray-of-enfeeblement',
+    // And the fourth, finished by the consent track: a `willing` list to
+    // declare into.
+    'resistance',
+  ];
 
   /**
    * The third end of a row, and it is a different claim from either of the

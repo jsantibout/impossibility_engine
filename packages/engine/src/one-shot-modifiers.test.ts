@@ -733,7 +733,12 @@ describe('an item may not promise a one-shot nothing spends either', () => {
     const DECLARATION = /export type RollFamily =([\s\S]*?);\r?\n/;
     const membersFrom = (text: string): readonly string[] => {
       const declared = DECLARATION.exec(text);
-      return declared === null ? [] : [...declared[1]!.matchAll(/'([a-z-]+)'/g)].map((m) => m[1]!);
+      // The digits are load-bearing too: the union's sixth member is `d20-test`,
+      // and a class that stopped at letters read a five-member union and called
+      // the sixth a drift in the copy rather than a member of the original.
+      return declared === null
+        ? []
+        : [...declared[1]!.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]!);
     };
     const members = membersFrom(source);
     expect(members.length).toBeGreaterThan(1);

@@ -1787,8 +1787,20 @@ const rollsASave = (record: Record<string, unknown>): boolean =>
  * push on the day a conferral executes one, and the sentence that will want it
  * is a feature's rather than an item's: SRD Open Hand Technique pushes a
  * failed saver fifteen feet.
+ *
+ * **And the success branch is the fifth**, for the plainest of the reasons:
+ * `save.onSuccessRiders` is a whole `OutcomeRiders` and reaches the world
+ * through the same `applyRiders`, which only the casting arm of the save
+ * resolver takes. A bottle or a pool use carrying one would carry a paragraph
+ * nothing would read.
  */
-const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed', 'movement'];
+const RIDER_FIELDS: readonly string[] = [
+  'conditions',
+  'modifiers',
+  'delayed',
+  'movement',
+  'onSuccessRiders',
+];
 
 /**
  * The field that says a save's verdict is kept, which needs a casting to keep

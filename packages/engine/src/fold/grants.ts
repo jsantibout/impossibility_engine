@@ -41,6 +41,7 @@ export const GRANTS_EVENTS = [
   'speed-modifier-granted',
   'sense-granted',
   'damage-reduction-granted',
+  'damage-penalty-granted',
   'fall-ward-granted',
   'creature-lifted',
   'jump-allowance-granted',
@@ -217,6 +218,19 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.reduction,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { damageReductions }, creature);
+    }
+
+    // SRD Ray of Enfeeblement: "it also subtracts 1d8 from all its damage
+    // rolls." The source alone is the identity, as it is for the reduction
+    // above: one casting grants one penalty, and a second casting is a second
+    // source rather than a second entry under the first.
+    case 'damage-penalty-granted': {
+      const creature = creatureOf(state, event, event.id);
+      const damagePenalties = [
+        ...creature.damagePenalties.filter((held) => held.source !== event.penalty.source),
+        event.penalty,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { damagePenalties }, creature);
     }
 
     // SRD *Feather Fall*: "the creature takes no damage from the fall." The

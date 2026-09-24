@@ -4737,7 +4737,13 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       'a selector naming no roll the engine makes, behind the modifier guard',
       {
         kind: 'roll-mode',
-        modifier: { mode: 'advantage', selector: { roll: 'd20-test', relation: 'roller' } },
+        // **A name the union does not hold and will not.** This said
+        // `d20-test`, which the engine really did not make until the family of
+        // D20 Tests arrived with SRD Ray of Enfeeblement — and the fixture
+        // then stopped testing the guard and started testing the new member's
+        // own refusal. A synthetic that a later batch can make real is not a
+        // synthetic.
+        modifier: { mode: 'advantage', selector: { roll: 'wibble', relation: 'roller' } },
       },
       'bad_roll_family',
     ],

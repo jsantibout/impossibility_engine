@@ -828,6 +828,53 @@ export type ModifierRider =
       readonly direction: 'add' | 'subtract';
     }
   /**
+   * An amount the same roll makes its target take off the damage **it** deals.
+   *
+   * SRD Ray of Enfeeblement: "On a failed save, the target has Disadvantage on
+   * Strength-based D20 Tests for the duration. During that time, it **also
+   * subtracts 1d8 from all its damage rolls**." One Constitution save, two
+   * consequences, which is the argument every member of this union makes —
+   * and writing the second as an effect of its own would roll a second save
+   * for one sentence.
+   *
+   * **It is not a `bonus` aimed at damage, and the refusal is older than this
+   * rider.** {@link BonusApplies} has no damage member on purpose: a spell
+   * that *adds* damage adds it at a moment, with a source and a type, so it is
+   * a rider on the casting that deals it and `bonusesFor` has never needed a
+   * damage reader. This sentence names no moment and no type. It is a standing
+   * arrangement consulted by every damage roll its holder makes afterwards,
+   * whatever made it — the lifetime `GrantedDamageReduction` already has on
+   * the other side of a blow, and `GrantedDamagePenalty` is the mirror of it.
+   *
+   * **The subtraction is not damage of a type.** It comes off the blow's total
+   * as an adjustment, before Resistance, which is SRD's own Order of
+   * Application and is observable: 10 Fire less 7 against a fire-resistant
+   * target is 1 in that order and 0 in the other.
+   *
+   * **It carries no `lasts`**, for the reason `bonus` carries none: both
+   * sentences in reach run for the casting's own duration — Ray of
+   * Enfeeblement's "for the duration", Enlarge/Reduce's reduced half — so
+   * `checkGrantLifetimes` refuses the rider on an Instantaneous host rather
+   * than offering a deadline nothing asks for. On **either** branch: the
+   * success slot is walked by `grantOnASuccess`, so the refusal is not one a
+   * definition can get round by writing the penalty on the other side.
+   */
+  | {
+      readonly kind: 'damage-penalty';
+      /** SRD Ray of Enfeeblement's "1d8", thrown at the blow and never at the cast. */
+      readonly dice?: string;
+      /** A printed number, where the sentence prints one instead of dice. */
+      readonly flat?: number;
+      /**
+       * SRD Enlarge/Reduce: "this can't reduce the damage below 1."
+       *
+       * Absent is no floor, which is what Ray of Enfeeblement prints. Read
+       * against the blow's **total**, because that is the number the
+       * parenthesis is about.
+       */
+      readonly floor?: number;
+    }
+  /**
    * A mode the same roll grants, and — where the sentence says so — the moment
    * it ends at and the creature it is about.
    *
@@ -1049,11 +1096,20 @@ export type ModifierRider =
  * writes one slot per sentence shape. The cost is one `applyRiders` with three
  * loops, which is smaller than a dispatch.
  *
- * **Which branch a rider rides is the host's, never the author's.** There is
- * no miss-branch slot and no success-branch slot: the affirmative outcome is
- * the only one that carries riders, which is why the slot name *is* the
- * branch. A spell whose success clause does something — Flesh to Stone's
- * "its Speed is 0" — is one consumer and a different shape.
+ * **Which branch a rider rides is the host's, never the author's, and the
+ * slot name is what says so.** This value is the *affirmative* outcome's — a
+ * hit, a failed save — and there is nothing in it that could name a branch,
+ * which is the invariant `applyRiders` rests on: it is handed a settled
+ * outcome's riders and never asked which one.
+ *
+ * **A success has its own slot and not a member here**, which is the shape
+ * that sentence was one consumer short of. SRD Ray of Enfeeblement: "On a
+ * successful save, the target has Disadvantage on the next attack roll it
+ * makes until the start of your next turn." {@link save.onSuccessRiders} is a
+ * second value of this type, written under a name that says which branch it
+ * rides, so the vocabulary is shared and the branch is still the host's.
+ * There is still no *miss*-branch slot: a miss's only printed consequence is
+ * damage, which `attack.onMiss` says already.
  */
 /**
  * A thing taken out of a creature's hands against its will, and what happens
@@ -2297,6 +2353,45 @@ export type SpellEffect =
        * object if it can**".
        */
       readonly drops?: DropRider;
+      /**
+       * What a **successful** save carries with it, where the sentence gives a
+       * success a consequence.
+       *
+       * SRD Ray of Enfeeblement: "**On a successful save**, the target has
+       * Disadvantage on the next attack roll it makes until the start of your
+       * next turn." One Constitution save, and both branches cost the target
+       * something — which is the sentence {@link OutcomeRiders} said it had
+       * no slot for: "there is no miss-branch slot and no success-branch slot:
+       * the affirmative outcome is the only one that carries riders."
+       *
+       * **The slot name is the branch, which is why this is a second slot
+       * rather than a flag.** Everything the flat fields above and
+       * {@link save.modifiers} hang rides the *failure*, because that is a
+       * saving throw's affirmative outcome; this rides the other one, and a
+       * reader of the definition can see which is which by the name they are
+       * written under. `applyRiders` is handed one or the other and never
+       * learns there were two, so the rider vocabulary is not forked.
+       *
+       * **It reuses {@link OutcomeRiders} whole and the validator narrows
+       * it**, rather than a type of its own with four members copied out: a
+       * success may hang a mode, impose a condition, move the creature or use
+       * up a slot of its turn, and `checkSuccessRiders` refuses the rest. The
+       * one refused on the book's authority rather than on the plumbing's is
+       * `delayed` — **no printed success deals damage**, and a definition that
+       * could say so would be a spell rewarding a save with a hit.
+       *
+       * **A success hangs nothing on the casting's record.** The creature is
+       * still `affected: false` in the outcome, because it made its save;
+       * what it is carrying is a grant the casting hung, which `spellOn`
+       * reads off the world exactly as it reads a failure's.
+       *
+       * There is no `onSuccessRiders` on `save-damage`, for the reason there
+       * is no `onSuccess` here: that host's `onSuccess` already says what a
+       * success buys, no SRD sentence in reach hangs a rider on one, and a
+       * member no definition can use is the guess this format's unused-member
+       * sweep exists to catch.
+       */
+      readonly onSuccessRiders?: OutcomeRiders;
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
@@ -5696,6 +5791,16 @@ export function riderDurations(
 ): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
   for (const effect of optionEffects(definition, option)) {
+    // **And the slot a success fills**, which lands in the same breath as the
+    // failure's and so is asked about at the same moment. SRD Ray of
+    // Enfeeblement's Disadvantage ends "until the start of your next turn"; a
+    // pre-flight that read only the failure would have let the beam be thrown
+    // outside combat, the save made, and the deadline then fail to pin — the
+    // refused operation that has already moved the world this function exists
+    // to prevent, arriving down the one branch it was not looking at.
+    for (const rider of effect.kind === 'save' ? (effect.onSuccessRiders?.modifiers ?? []) : []) {
+      if (rider.kind === 'mode' && rider.lasts !== undefined) found.push(rider.lasts);
+    }
     // Every rider on every host, because a plural `conditions` means the one
     // that cannot be pinned is not always the first.
     for (const rider of conditionRiderOf(effect)) {

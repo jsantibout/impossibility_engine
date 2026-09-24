@@ -771,6 +771,43 @@ export function resolveSenseEffect(
  * at the blow because here is where the casting's name is known — the same
  * reason a repeat save's label is written when the condition lands.
  */
+/**
+ * The event a `damage-penalty` rider writes, built where the casting's name is.
+ *
+ * SRD Ray of Enfeeblement: "it also subtracts 1d8 from all its damage rolls."
+ * {@link resolveDamageReductionEffect}'s mirror on the other side of a blow —
+ * that grant is read where damage lands on its holder and this one where the
+ * damage its holder *rolls* is totalled — and it is a function rather than a
+ * resolver because no spell in reach writes the sentence as an effect of its
+ * own: both writers hang it off a settled outcome, so `applyRiders` is the
+ * caller and this is the one place the payload is assembled.
+ *
+ * The label is what the log calls the die, and it names the spell for
+ * `resolveDamageReductionEffect`'s reason: two penalties on one creature have
+ * to read apart, and the casting's name is known here rather than at the blow.
+ *
+ * Nothing here touches the generator: what is granted is a **notation**, and
+ * the die is thrown by the damage roll that arrives.
+ */
+export function damagePenaltyGranted(
+  id: CharacterId,
+  source: string,
+  name: string,
+  rider: { readonly dice?: string; readonly flat?: number; readonly floor?: number },
+): GameEvent {
+  return {
+    type: 'damage-penalty-granted',
+    id,
+    penalty: {
+      source,
+      label: name,
+      ...(rider.dice === undefined ? {} : { dice: rider.dice }),
+      ...(rider.flat === undefined ? {} : { flat: rider.flat }),
+      ...(rider.floor === undefined ? {} : { floor: rider.floor }),
+    },
+  };
+}
+
 export function resolveDamageReductionEffect(
   ctx: EffectContext,
   effect: EffectOfKind<'damage-reduction'>,

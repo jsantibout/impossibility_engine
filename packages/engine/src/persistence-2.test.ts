@@ -610,6 +610,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // puts it before the halving, the once-per-turn limit across three rays of
   // one Scorching Ray, the held road a Reaction opened, and the grant going
   // back when the Concentration does.
+  // The reduction's mirror, on the other side of a blow: an amount a running
+  // effect makes a creature take off the damage **it deals**. SRD Ray of
+  // Enfeeblement is the one spell in reach that writes it, and it was
+  // unwritable until this batch — `BonusApplies` names no damage and the
+  // feature-side `damageBonuses` is a list a feature supplies — so neither
+  // frozen log can hold one and both fold with an empty list on every
+  // creature. `ray-of-enfeeblement.test.ts` casts the spell through the public
+  // API and drives it end to end: the 1d8 off a longsword hit and off a
+  // spell's damage, the component the log shows for it, and the grant going
+  // back when the repeat save ends the casting.
+  'damage-penalty-granted',
   'damage-reduction-granted',
   // The one word a stat block declines to print, ruled on by the table. SRD
   // Half-Dragon's Draconic Origin names five damage types and chooses none,

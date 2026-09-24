@@ -308,6 +308,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'produce-flame',
   'protection-from-energy',
   'protection-from-poison',
+  // `ray-of-enfeeblement.test.ts`: the Constitution save, the Disadvantage a
+  // failure hangs on every Strength-based D20 Test and on no other, the 1d8 it
+  // takes off the target's own longsword and off its own spell, the one attack
+  // roll a success costs it, and the repeat at the end of its turn ending the
+  // spell and the penalty with it.
+  'ray-of-enfeeblement',
   'ray-of-frost',
   'ray-of-sickness',
   // Driven end to end by `executed-second-pass.test.ts`: the minute on the

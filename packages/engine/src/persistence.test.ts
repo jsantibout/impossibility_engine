@@ -239,6 +239,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'creature-woken',
   'damage-defense-granted',
   'damage-dice-recorded',
+  'damage-penalty-granted',
   'damage-reaction-answered',
   'damage-reduction-granted',
   'damage-rolled',
