@@ -68,6 +68,8 @@ import {
   MONSTER_LINE_SHAPES,
   PARTIAL_SPELLS,
   RIDER_HANDOVER_SHAPE,
+  CAST_LINE_SHAPE,
+  hasUnspentCastLine,
   RIDER_SHAPE,
   SAVE_HANDOVER_SHAPE,
   TRACKED_IDS,
@@ -453,7 +455,7 @@ const sectionsOf = (
 ];
 
 /**
- * The two shapes that run over a line the parser **read**.
+ * The shapes that run over a line the parser **read**.
  *
  * Everything else asks about a sentence nothing got structure out of, and a
  * recharge on a line whose attack is parsed is an economy the engine already
@@ -475,6 +477,11 @@ const OVER_READ_LINES: ReadonlySet<string> = new Set([
   // and the sentence about its victim being absorbed does not. A residue
   // leaves the line unpaid, and `unpaid` below says so too.
   RIDER_HANDOVER_SHAPE,
+  // A line that casts, which is the newest of them and the same argument
+  // again: the parser reads the ability, the printed DC and the menu, and
+  // nothing spends one — so the gate below would hide a debt that the shape's
+  // own note says is still owed.
+  CAST_LINE_SHAPE,
 ]);
 
 /** Whether a shape accounts for a line. */
@@ -503,7 +510,8 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     hasUnappliedRider(line) ||
     hasHandedOverRider(line) ||
     hasUnexecutedTrait(line) ||
-    hasHandedOverSave(line);
+    hasHandedOverSave(line) ||
+    hasUnspentCastLine(line);
   for (const monster of low) {
     const lines = statBlockLines(monster);
     printed += lines.length;

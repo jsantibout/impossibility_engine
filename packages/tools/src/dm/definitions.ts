@@ -105,6 +105,7 @@ import {
   settleTest,
   takeInfluence,
   takeSearch,
+  takePrintedTeleport,
   takeStatedAction,
   takeStatedBonusAction,
   takeStudy,
@@ -128,6 +129,7 @@ import {
   conditionSchema,
   creatureId,
   damageTypeSchema,
+  placementSchema,
   printedLineName,
   sensesFields,
   sizeSchema,
@@ -1561,6 +1563,76 @@ const RESOLVE_FALL = tool({
     ),
 });
 
+/**
+ * Take the teleport a creature's stat block prints, at the distance it prints.
+ *
+ * SRD Blink Dog: "The dog teleports up to 40 feet to an unoccupied space it
+ * can see." The sentence is SRD Misty Step's about a different subject, so
+ * every number in it is the block's and every refusal is one the engine
+ * already makes for a casting — and until this door existed the only thing a
+ * caller could do with the line was spend the Bonus Action and read it out.
+ *
+ * **It is here and not on the model's surface, by {@link FORCE_PRINTED_SAVE}'s
+ * narrower rule.** The engine executes nearly all of it; what is left over is
+ * the one thing the call takes — *which* unoccupied space — and that is a
+ * decision the book hands to whoever is running the creature, exactly as the
+ * head count in a Cone is. A model choosing where a monster reappears is a
+ * model moving the monster, which is what the division of authority is for.
+ * The destination is still validated rather than trusted: the distance, the
+ * occupancy, the scene's extent and the declared sight are all refused here
+ * and none of them is a number this schema could carry.
+ *
+ * **The other doors over the same line are untouched.**
+ * {@link TAKE_PRINTED_ACTION} and {@link TAKE_PRINTED_BONUS_ACTION} still
+ * spend the slot and hand the sentence back, for every line including this
+ * one, so a DM who would rather move the creature themselves has lost nothing.
+ */
+const TELEPORT_PRINTED_LINE = tool({
+  name: 'teleport_printed_line',
+  description:
+    'Have the engine take the teleport a creature’s stat block prints — the Blink Dog’s Teleport, the Marilith’s. Name the heading as the block prints it and say which space it lands in, measured from a landmark or a creature the way every other placement is. The engine reads the distance and the "space it can see" clause off the block, refuses a space too far, one somebody is standing in, one outside the scene or one measured from something the creature cannot see, and spends whichever slot the heading names along with any recharge or daily limit it prints. You state no distance. For a line that teleports and says more besides, and for this one if you would rather move the creature yourself, use `take_printed_action` or `take_printed_bonus_action`.',
+  mutates: true,
+  // Where it lands is answered by re-sending *this* call with the destination
+  // filled in, so the door the refusal names is this tool.
+  selfAnswers: ['position'],
+  input: z
+    .strictObject({
+      who: creatureId.describe('Which creature is taking the line.'),
+      line: printedLineName,
+    })
+    .and(placementSchema),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedTeleport(context.campaign.state(), who(args.who), {
+        line: args.line,
+        to: {
+          from:
+            args.fromLandmark !== undefined
+              ? { landmark: args.fromLandmark }
+              : { creature: who(args.fromCreature!) },
+          feet: args.feet,
+          ...(args.bearing === undefined ? {} : { bearing: args.bearing }),
+          ...(args.elevation === undefined ? {} : { elevation: args.elevation }),
+        },
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        // Which slot was spent is the heading's answer and the caller does not
+        // know it, so both events are searched — see {@link lineTaken}.
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        feet: value.feet,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   AWARD_COIN,
@@ -1581,6 +1653,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   TAKE_PRINTED_ACTION,
   TAKE_PRINTED_BONUS_ACTION,
   TAKE_TESTED_ACTION,
+  TELEPORT_PRINTED_LINE,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const DM_ONLY_TOOL_NAMES: readonly string[] = DM_ONLY_TOOLS.map((tool) => tool.name);

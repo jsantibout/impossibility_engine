@@ -136,6 +136,7 @@ import {
   takeItemUp,
   takeReady,
   forcePrintedSave,
+  takePrintedTeleport,
   takeStatedAction,
   takeStatedBonusAction,
   takeTestReaction,
@@ -443,6 +444,26 @@ const SAVING_LINE = {
 const FORCED: readonly GameEvent[] = SETUP.map((event) =>
   event.type === 'creature-added' && event.id === A
     ? { ...event, sheet: sheet({ stated: { unreadActions: [SAVING_LINE] } }) }
+    : event,
+);
+
+/**
+ * The same invented line with the book's teleport template read off it.
+ *
+ * Invented here for the reason the two above are, and thirty feet because the
+ * fixture's two creatures stand five feet apart: a distance the destination
+ * below is comfortably inside is a distance that cannot make this sweep about
+ * the geometry.
+ */
+const TELEPORTING_LINE = {
+  ...PRINTED_LINE,
+  teleports: { feet: 30, mustSee: true as const },
+} as const;
+
+/** The same world again, with that line under Actions. */
+const BLINKING: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [TELEPORTING_LINE] } }) }
     : event,
 );
 
@@ -1855,6 +1876,22 @@ const GUARDED: readonly Guarded[] = [
     log: FORCED,
     run: (s, commandId) =>
       forcePrintedSave(s, A, { line: SAVING_LINE.name, targets: [B], commandId }, supply()),
+  },
+  /**
+   * The same shape again, on the third door one line can be taken through. A
+   * retry that was not guarded would spend a second Action and move the
+   * creature a second time, which is the most visible kind of double landing
+   * there is.
+   */
+  {
+    name: 'takePrintedTeleport',
+    log: BLINKING,
+    run: (s, commandId) =>
+      takePrintedTeleport(s, A, {
+        line: TELEPORTING_LINE.name,
+        to: { from: { landmark: 'here' }, feet: 10, bearing: 180 },
+        commandId,
+      }),
   },
   /**
    * The five the glossary prints that arrived with their spenders. Each is a
@@ -3382,6 +3419,19 @@ const SPENDERS: readonly Spender[] = [
   {
     name: 'forcePrintedSave',
     run: (s) => forcePrintedSave(s, B, { line: 'A Printed Line', targets: [A] }, supply()),
+  },
+  /**
+   * And the third door on one line, which spends the same slot and is refused
+   * for the same debt — before the line, the destination or the geometry, like
+   * its two siblings.
+   */
+  {
+    name: 'takePrintedTeleport',
+    run: (s) =>
+      takePrintedTeleport(s, B, {
+        line: 'A Printed Line',
+        to: { from: { landmark: 'here' }, feet: 10, bearing: 180 },
+      }),
   },
   /**
    * A wand's charge. It spends no Action here — what a charge *buys* is not

@@ -1060,7 +1060,8 @@ export const statBlockLines = (
 
 /**
  * A line the parser got structure out of: an attack's numbers, a trait's
- * mechanic, the DC and dice of a save a line forces.
+ * mechanic, the DC and dice of a save a line forces, the spells a line casts,
+ * where a line teleports, the addend a Reaction puts on a roll.
  */
 export const isReadLine = (line: StatBlockLine): boolean =>
   line.attack !== undefined ||
@@ -1272,6 +1273,50 @@ export const hasHandedOverSave = (line: StatBlockLine): boolean =>
   ((line.save as { handedOver?: readonly string[] } | undefined)?.handedOver?.length ?? 0) > 0;
 
 /**
+ * A line whose sentence a command **executes**, rather than one the parser
+ * merely read.
+ *
+ * The two economy rows below count a notation the engine has always spent
+ * correctly — `LEDGER.md` says so in as many words — so what is actually
+ * waiting on such a line is what the line *does*. This is the list of shapes
+ * that no longer are: `teleportTo` moves the Blink Dog through
+ * `takePrintedTeleport`, and the Sphinx of Wonder's Burst of Ingenuity answers
+ * the `test-rolled` window off its own sheet.
+ *
+ * **`casts` is deliberately not in it.** A cast line is *read* — `isReadLine`
+ * says so — and no door spends one yet: the block's own heading may price the
+ * casting at a Bonus Action where the spell prints an Action, and nothing in
+ * the casting path can yet be told so. Reading a sentence never retires the
+ * debt of executing it, which is the discipline this whole table keeps.
+ */
+export const isExecutedLine = (line: StatBlockLine): boolean =>
+  line.teleports !== undefined || line.addsToRoll !== undefined;
+
+/**
+ * A line that casts, read and with nothing yet spending it.
+ *
+ * `hasHandedOverSave`'s sibling and on the ledger's over-read list for exactly
+ * its reason: the line **is** read — the ability, the printed DC and the menu
+ * of spells are structure on the sheet — and it is not **paid**, because no
+ * door hands one of those spells to the casting pipeline.
+ *
+ * What stands between the two is one fact the pipeline cannot yet be told:
+ * which slot the *heading* prices the casting at. SRD Divine Aid is printed
+ * under **Bonus Actions** and offers *Bless*, whose own casting time is an
+ * Action, and `castingOf` derives that time from the definition alone. A door
+ * built without it would spend an Action where the book prints a Bonus
+ * Action, which is the engine getting a rule wrong on its own — worse than a
+ * line read and not yet executed, and the reason this row exists rather than
+ * that door.
+ *
+ * It retires the moment something spends one, exactly as the Multiattack and
+ * Spellcasting rows shrank when their sentences became structure the engine
+ * runs.
+ */
+export const CAST_LINE_SHAPE = 'A line that casts, read and not spent';
+export const hasUnspentCastLine = (line: StatBlockLine): boolean => line.casts !== undefined;
+
+/**
  * The shapes a printed stat-block line waits on, over the whole bestiary and
  * over the CR ≤ 5 tail alike.
  *
@@ -1300,11 +1345,20 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ],
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
+  [CAST_LINE_SHAPE, hasUnspentCastLine],
   [RIDER_SHAPE, hasUnappliedRider],
   [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
-  ['A recharge', (line) => /\(Recharge/.test(line.name)],
-  ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],
+  // The two economy rows, each with the half that is now executed taken out of
+  // it — exactly as the Multiattack and Spellcasting rows above were narrowed.
+  // The economy on these lines was always right; what waited was the sentence,
+  // and a line the engine now performs is no longer waiting on anything. See
+  // {@link isExecutedLine}, which is also why a cast line stays in both.
+  ['A recharge', (line) => /\(Recharge/.test(line.name) && !isExecutedLine(line)],
+  [
+    'A use the block limits per day',
+    (line) => /\(\d+\/Day/.test(line.name) && !isExecutedLine(line),
+  ],
   // The same predicate it was, with the half that is now read taken out of
   // it — exactly as the Multiattack row above was narrowed. A Spellcasting
   // line whose list the parser read is a spell list `addCreature` declares and
