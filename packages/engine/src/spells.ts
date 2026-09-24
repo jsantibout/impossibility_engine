@@ -12,6 +12,7 @@ import {
 } from './positioning.js';
 import type {
   AreaTrigger,
+  CastingEndRider,
   CastingEndTrigger,
   SpellArea,
   StatedChoiceOf,
@@ -302,6 +303,16 @@ export interface OngoingSpell {
    * matched to the events that raise them. Nothing else reads it.
    */
   readonly endsEarly?: readonly CastingEndTrigger[];
+  /**
+   * What this casting leaves on its targets the moment it ends — SRD Haste's
+   * lethargy. See `SpellDefinition.onEnd`, where the rule is argued.
+   *
+   * **Pinned here because `releaseCasting` runs in the fold**, which opens no
+   * catalogue: the four endings converge there and none of them has a
+   * definition in hand. Absent for every casting written before the field and
+   * for every spell that prints no such sentence, which is all but one.
+   */
+  readonly onEnd?: readonly CastingEndRider[];
   /**
    * The numbers this casting was made with — see {@link CastingNumbers}.
    *

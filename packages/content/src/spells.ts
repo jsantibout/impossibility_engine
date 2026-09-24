@@ -7059,6 +7059,12 @@ export const HASTE: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
+  // "When the spell ends, the target is Incapacitated and has a Speed of 0
+  // until the end of its next turn, as a wave of lethargy washes over it." One
+  // rider, two things, one span — laid by whichever of the four endings
+  // arrives, under the spell's bare name so the release that lays it does not
+  // lift it in the same breath.
+  onEnd: [{ conditions: ['incapacitated'], speed: 'zero', lasts: 'end-of-next-turn' }],
   unmodelled: [
     '"(one attack only)" is not enforced: the parenthesis counts the attacks inside one Attack action, and the economy counts one Attack action and not the swings in it',
   ],

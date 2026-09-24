@@ -4446,6 +4446,83 @@ const END_TRIGGER_SCOPES: ReadonlySet<string> = new Set(['casting', 'target']);
 const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set(['summon-takes-damage']);
 
 /**
+ * What a casting leaves behind when it ends, and the four ways it can be a
+ * sentence nothing reads.
+ *
+ * SRD Haste prints the one clause of this shape in the book. The rules are
+ * {@link checkEndsEarly}'s own, asked of the other end of the same lifetime: a
+ * casting that never becomes ongoing has no ending for anything to hang on, and
+ * a rider that lays nothing is a sentence somebody meant to finish.
+ */
+function checkOnEnd(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const riders = definition.onEnd;
+  if (riders === undefined) return;
+  if (!readsAsList(riders, 'onEnd', 'what a casting leaves behind is a list of riders', found)) {
+    return;
+  }
+
+  if (riders.length === 0) {
+    found.push({
+      field: 'onEnd',
+      code: 'on_end_lays_nothing',
+      reason: 'a list with nothing in it is a spell that leaves nothing behind; omit the field',
+    });
+    return;
+  }
+
+  if (!lasts) {
+    found.push({
+      field: 'onEnd',
+      code: 'on_end_without_a_lifetime',
+      reason:
+        'a casting with no duration, no Concentration and nothing to dispel is over the moment it resolves and never enters the record the ending is read off, so nothing would ever lay this',
+    });
+  }
+
+  riders.forEach((rider, i) => {
+    const path = `onEnd[${i}]`;
+    if (!readsAsObject(rider, path, 'a rider names what it lays and how long', found)) return;
+
+    if (rider.conditions !== undefined) {
+      if (!readsAsList(rider.conditions, `${path}.conditions`, 'a list of conditions', found)) {
+        return;
+      }
+      rider.conditions.forEach((condition, at) =>
+        checkCondition(String(condition), `${path}.conditions[${at}]`, found),
+      );
+    }
+
+    if (rider.speed !== undefined && rider.speed !== 'zero') {
+      found.push({
+        field: `${path}.speed`,
+        code: 'bad_speed_change',
+        reason: `"${String(rider.speed)}" is not what an ending does to a Speed; SRD prints one sentence and it sets the Speed to 0`,
+      });
+    }
+
+    if ((rider.conditions ?? []).length === 0 && rider.speed === undefined) {
+      found.push({
+        field: path,
+        code: 'on_end_lays_nothing',
+        reason: 'a rider that imposes no condition and changes no Speed leaves nothing behind',
+      });
+    }
+
+    if (rider.lasts !== 'end-of-next-turn') {
+      found.push({
+        field: `${path}.lasts`,
+        code: 'bad_rider_duration',
+        reason: `"${String(rider.lasts)}" is not a span an ending can run for; SRD prints one — "until the end of its next turn"`,
+      });
+    }
+  });
+}
+
+/**
  * A trigger that ends a casting needs a casting that could still be running.
  *
  * The same sentence {@link checkGrantLifetimes} enforces about a grant, about
@@ -6110,6 +6187,7 @@ export function checkSpellDefinition(
   }
 
   checkEndsEarly(definition, lasts, found);
+  checkOnEnd(definition, lasts, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //

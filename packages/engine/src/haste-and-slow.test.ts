@@ -9,7 +9,13 @@ import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { combineSpeed, speedOf } from './standing.js';
 import { conditionState } from './conditions.js';
-import { resolveSpell, resolveTest, resolveTurn, type TurnResolution } from './commands.js';
+import {
+  endConcentration,
+  resolveSpell,
+  resolveTest,
+  resolveTurn,
+  type TurnResolution,
+} from './commands.js';
 
 /**
  * SRD Haste and SRD Slow, the two halves of one arithmetic.
@@ -222,6 +228,30 @@ class Game {
   sourcesOn(who: CharacterId): readonly string[] {
     return (this.state.creatures[who]?.speedModifiers ?? []).map((held) => held.source);
   }
+
+  conditionsOn(who: CharacterId): readonly string[] {
+    return (this.state.creatures[who]?.conditions.instances ?? []).map((held) => held.condition);
+  }
+
+  /** Let go of whatever the wizard is concentrating on. */
+  letGo(): this {
+    return this.push(unwrap(endConcentration(this.state, WIZARD, 'voluntary'), 'let go'));
+  }
+
+  /**
+   * Turn after turn, until nothing is running any more.
+   *
+   * **Stopped at the ending rather than run for a fixed count**, because what
+   * the ending lays lasts until the end of one more turn: a loop that kept
+   * going would watch the lethargy arrive and then watch it lapse.
+   */
+  untilNothingRuns(): this {
+    for (let turn = 0; turn < 80; turn += 1) {
+      if (Object.keys(this.state.ongoing).length === 0) return this;
+      this.turn();
+    }
+    throw new Error('the casting never ran out');
+  }
 }
 
 describe('a Speed an effect multiplies', () => {
@@ -311,5 +341,44 @@ describe('SRD Slow’s repeat save, which the casting hosts once per creature', 
     expect(game.sourcesOn(GOBLIN)).toHaveLength(0);
     expect(game.sourcesOn(HOBGOBLIN)).toHaveLength(1);
     expect(game.state.ongoing).not.toEqual({});
+  });
+});
+
+describe('an effect that fires when the casting ends', () => {
+  /**
+   * SRD Haste: "When the spell ends, the target is Incapacitated and has a
+   * Speed of 0 until the end of its next turn, as a wave of lethargy washes
+   * over it."
+   */
+  it('lays the lethargy when the Concentration is let go, and lifts it a turn later', () => {
+    const game = new Game().haste(FIGHTER);
+    expect(game.conditionsOn(FIGHTER)).not.toContain('incapacitated');
+
+    game.letGo();
+    expect(game.conditionsOn(FIGHTER)).toContain('incapacitated');
+    expect(game.speed(FIGHTER)).toBe(0);
+
+    // The end of the fighter's next turn, and not before it.
+    game.until(FIGHTER);
+    expect(game.conditionsOn(FIGHTER)).toContain('incapacitated');
+    game.turn();
+    expect(game.conditionsOn(FIGHTER)).not.toContain('incapacitated');
+    expect(game.speed(FIGHTER)).toBe(30);
+  });
+
+  it('lays it when the minute runs out too, which nobody decides', () => {
+    const game = new Game().haste(FIGHTER);
+    game.untilNothingRuns();
+    expect(game.state.ongoing).toEqual({});
+    expect(game.conditionsOn(FIGHTER)).toContain('incapacitated');
+    expect(game.speed(FIGHTER)).toBe(0);
+  });
+
+  it('outlives the casting, so the release that ends the spell does not lift it', () => {
+    const game = new Game().haste(FIGHTER).letGo();
+    const sources = (game.state.creatures[FIGHTER]?.conditions.instances ?? []).map(
+      (held) => held.source,
+    );
+    expect(sources).toContain('Haste');
   });
 });

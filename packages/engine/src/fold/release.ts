@@ -23,9 +23,15 @@
  * is `releaseGrants` reached by a die rather than by the clock.
  */
 import type { CharacterId } from '@ie/shared';
-import { removeConditionInstance } from '../conditions.js';
+import { applyCondition, conditionInstanceId, removeConditionInstance } from '../conditions.js';
+import { endOfNextTurn, resolveDuration } from '../time.js';
 import { settleToGround } from '../positioning.js';
-import { type EffectTarget, type ScheduledDamage, type TimedEffect } from '../timers.js';
+import {
+  type EffectTarget,
+  type ScheduledDamage,
+  type TimedEffect,
+  timerKey,
+} from '../timers.js';
 import { castingIdOf, castingNumber, type AreaTriggerStamp, type OngoingSpell } from '../spells.js';
 
 import type { CreatureState, GameState, PendingCasting } from '../state.js';
@@ -213,6 +219,17 @@ export function releaseCasting(
   let changed = false;
   let scene = state.scene;
 
+  // What the casting leaves behind, read **before** the record goes and laid
+  // on every creature the casting was on. `spellOn` is the one answer to who
+  // that is — the record's `aimed` unioned with whoever it is holding
+  // something on — so the lethargy reaches the same creatures the release
+  // does. See {@link landEndRiders}.
+  const record = state.ongoing[castingId];
+  const lethargic = new Set(
+    record === undefined || record.onEnd === undefined ? [] : spellOn(state, record),
+  );
+  const landed: TimedEffect[] = [];
+
   for (const key of Object.keys(state.creatures)) {
     const creature = state.creatures[key];
     if (creature === undefined) continue;
@@ -255,6 +272,16 @@ export function releaseCasting(
       updated = { ...updated, concentration: null };
     }
 
+    // **And what the ending costs, after everything it takes away.** SRD
+    // Haste's lethargy is filed under the spell's bare name, so the removals
+    // above walk past it — which is the whole reason it can be laid here at
+    // all.
+    if (record !== undefined && lethargic.has(key)) {
+      const left = landEndRiders(state, updated, record);
+      updated = left.creature;
+      landed.push(...left.timers);
+    }
+
     if (updated !== creature) changed = true;
     creatures[key] = updated;
   }
@@ -276,6 +303,12 @@ export function releaseCasting(
       continue;
     }
     timers[key] = timer;
+  }
+  // And the deadlines the ending's own riders run under, laid after the
+  // casting's were swept so nothing here is swept with them.
+  for (const laid of landed) {
+    timers[timerKey(laid.target)] = laid;
+    changed = true;
   }
 
   // A hit the casting promised for a later moment goes with it. No ongoing
@@ -362,6 +395,100 @@ export function releaseCasting(
         scene,
       }
     : state;
+}
+
+/**
+ * What a casting leaves on one creature at the moment it ends.
+ *
+ * > SRD Haste: "When the spell ends, the target is Incapacitated and has a
+ * > Speed of 0 until the end of its next turn, as a wave of lethargy washes
+ * > over it."
+ *
+ * **Derived and written nowhere**, exactly as the landing beside it is: a
+ * deadline arriving is nobody's decision and a broken Concentration is nobody's
+ * either, so an event the fold invented would be an event no command issued.
+ * The four endings converge on {@link releaseCasting}, and this is what each of
+ * them costs.
+ *
+ * **Under the spell's bare name**, which is the whole of what makes it work:
+ * the release above lifts everything whose source carries this casting's id,
+ * so a condition filed under the casting would be taken off by the very call
+ * that laid it. `outlivesCasting` records a condition the same way and for the
+ * same reason. It also means a second casting of the same spell replaces the
+ * first lethargy rather than standing a second beside it, which is what
+ * `conditionInstanceId` says about two instances of one name from one source.
+ *
+ * **Applied after the removals and not before**, so the loop above walks the
+ * grants the casting made and not the ones its ending is making.
+ *
+ * **An Immunity still refuses it.** `conditionImmunitiesOf` reads state and
+ * this file may not — `fold/*` is beneath it — so the creature's own printed
+ * list and its unqualified granted ones are read here directly. That is every
+ * Immunity that could apply: a *narrowed* one asks what is causing the
+ * condition, and what is causing this is a spell rather than a creature.
+ *
+ * **And the span is the target's own next turn**, which needs a turn order to
+ * be a moment in. A casting that ends outside combat lays nothing and says so
+ * in {@link CastingEndRider.lasts}: calling that moment six seconds is the one
+ * mistake the two-type split exists to prevent, and the fold has nobody to ask.
+ */
+function landEndRiders(
+  state: GameState,
+  creature: CreatureState,
+  record: OngoingSpell,
+): { readonly creature: CreatureState; readonly timers: readonly TimedEffect[] } {
+  const riders = record.onEnd;
+  if (riders === undefined || riders.length === 0) return { creature, timers: [] };
+
+  const deadline = resolveDuration(
+    { elapsed: state.elapsed, combat: state.combat },
+    endOfNextTurn(creature.id),
+  );
+  if (!deadline.ok) return { creature, timers: [] };
+
+  const immune = new Set<string>([
+    ...creature.conditionImmunities,
+    ...creature.grantedConditionImmunities
+      .filter((granted) => granted.fromTypes === undefined)
+      .flatMap((granted) => granted.conditions),
+  ]);
+
+  let conditions = creature.conditions;
+  let speedModifiers = creature.speedModifiers;
+  // **One timer per thing laid, because the two are undone by different
+  // doors.** A condition's deadline names its instance and `endTimedCondition`
+  // lifts it; a grant's names the creature and the source, and `releaseGrants`
+  // lifts that. A single timer would end one of the two and leave the other
+  // standing for ever.
+  const timers: TimedEffect[] = [];
+  for (const rider of riders) {
+    for (const condition of rider.conditions ?? []) {
+      if (immune.has(condition)) continue;
+      const before = conditions;
+      conditions = applyCondition(conditions, condition, record.spell);
+      if (conditions === before) continue;
+      timers.push({
+        target: {
+          kind: 'condition',
+          on: creature.id,
+          instance: conditionInstanceId(condition, record.spell),
+        },
+        deadline: deadline.value,
+      });
+    }
+    if (rider.speed === 'zero' && !speedModifiers.some((held) => held.source === record.spell)) {
+      speedModifiers = [...speedModifiers, { source: record.spell, change: 'zero' }];
+      timers.push({
+        target: { kind: 'grants', on: creature.id, source: record.spell },
+        deadline: deadline.value,
+      });
+    }
+  }
+
+  if (conditions === creature.conditions && speedModifiers === creature.speedModifiers) {
+    return { creature, timers: [] };
+  }
+  return { creature: { ...creature, conditions, speedModifiers }, timers };
 }
 
 /**
@@ -564,6 +691,16 @@ export function releaseOnTarget(
       ? settleToGround(base.scene, targetId)
       : base.scene;
 
+  // **And the same lethargy the other door lays**, on the one creature this
+  // call is about. SRD Haste's "when the spell ends" is as true of a Dispel
+  // Magic aimed at the hasted fighter as of the minute running out.
+  const record = base.ongoing[castingId];
+  const left =
+    record === undefined || record.onEnd === undefined
+      ? { creature: { ...released, conditions }, timers: [] as readonly TimedEffect[] }
+      : landEndRiders(base, { ...released, conditions }, record);
+  for (const laid of left.timers) timers[timerKey(laid.target)] = laid;
+
   return {
     ...base,
     timers,
@@ -577,7 +714,7 @@ export function releaseOnTarget(
     // keeps that from happening again to a family nobody has added yet.
     creatures: {
       ...base.creatures,
-      [targetId]: { ...released, conditions },
+      [targetId]: left.creature,
     },
   };
 }
