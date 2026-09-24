@@ -2127,3 +2127,27 @@ Appended after wave seven's first spells track (2026-09-24):
   a Reaction window settles through `applyDamage` directly, so a Bard within
   60 feet costs an Earth Elemental its doubling — one call in `settleDamage`.
   Main re-ingested.
+- **A choice of which effects run.** `SpellDefinition.options` is the second
+  arm of `a-choice-made-at-the-casting`: named branches, exactly one run per
+  casting, named on the request as the tenth stated fact (`option`), required
+  where the spell prints branches and refused where it prints none, never
+  defaulted, pinned on both records; `optionEffects` is the one reader and
+  the identity for every spell without branches. `DropRider.all` is Command's
+  "drops whatever it is holding". Command and Thaumaturgy are executed-partial;
+  Enlarge/Reduce has its two-branch shell with every clause filed. **Four
+  readings against the brief, all on validator evidence:** a save lives in the
+  branch, not the common list, because an effect appended after a save does
+  not know how it went and only a rider does; Approach and Flee roll no save,
+  because a save that imposes nothing is refused at authoring — the die goes
+  to the table with the sentence; Enlarge/Reduce's save is unwritten for the
+  same reason; Booming Voice's Advantage is filed because the spell targets
+  nobody and "the caster and nobody else" is a target rule the format lacks.
+  Command's drop and Prone land at the casting rather than on the target's
+  next turn, filed honestly. **Owed:** readying a spell with branches is
+  refused `option_required` until `ReadyResponse` carries the word (the
+  stated-action file, a bestiary track's this batch); an attack-family effect
+  inside a branch is refused (`PRESETTLED_EFFECT_KINDS`) because the target
+  list is sized off the common list before a branch is read;
+  `docs/design/casting.md` owes a line about branches, which the coordinator
+  adds. "Spells in reach, not executed" did not move: executed-partial still
+  counts, which is the honest reading.

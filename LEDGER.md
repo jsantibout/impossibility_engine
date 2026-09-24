@@ -50,12 +50,12 @@ hold at all. An executed spell with nothing left is not here.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
-| `a-choice-made-at-the-casting` | 4 | 2 |
+| `a-target-rule-the-format-cannot-state` | 4 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
 | `a-fact-only-the-table-can-declare` | 5 | 1 |
 | `a-barrier-that-blocks-passage` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
-| `a-target-rule-the-format-cannot-state` | 3 | 1 |
+| `a-choice-made-at-the-casting` | 2 | 1 |
 | `difficult-terrain-an-area-creates` | 2 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-reaction-window-that-opens-on-being-targeted` | 1 | 1 |
@@ -71,6 +71,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
+| `a-selector-for-every-d20-test` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `an-action-the-engine-has-no-spender-for` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
@@ -88,7 +89,6 @@ hold at all. An executed spell with nothing left is not here.
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
 | `a-range-that-scales-with-caster-level` | 1 | 0 |
 | `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 |
-| `a-selector-for-every-d20-test` | 1 | 0 |
 | `a-self-cure-a-spell-forbids` | 1 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 |
 | `a-success-branch-that-does-something` | 1 | 0 |
@@ -116,12 +116,12 @@ sums to the population.
 - **Sending** (level 3) — no-definition — also waits on 2
 - **Tiny Hut** (level 3) — tracked — also waits on 2
 
-#### `a-choice-made-at-the-casting` — blocks 4, finishes 2
+#### `a-target-rule-the-format-cannot-state` — blocks 4, finishes 2
 
-- **Thaumaturgy** (level 0) — tracked
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Glyph of Warding** (level 3) — tracked — also waits on 1
-- **Plant Growth** (level 3) — executed-partial
+- **Thaumaturgy** (level 0) — executed-partial
+- **Ensnaring Strike** (level 1) — tracked — also waits on 2
+- **Animal Messenger** (level 2) — tracked
+- **Animate Dead** (level 3) — tracked — also waits on 1
 
 #### `a-casting-ended-by-a-trigger` — blocks 5, finishes 1
 
@@ -151,11 +151,10 @@ sums to the population.
 - **Find Steed** (level 2) — executed-partial
 - **Animate Dead** (level 3) — tracked — also waits on 1
 
-#### `a-target-rule-the-format-cannot-state` — blocks 3, finishes 1
+#### `a-choice-made-at-the-casting` — blocks 2, finishes 1
 
-- **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Animal Messenger** (level 2) — tracked
-- **Animate Dead** (level 3) — tracked — also waits on 1
+- **Glyph of Warding** (level 3) — tracked — also waits on 1
+- **Plant Growth** (level 3) — executed-partial
 
 #### `difficult-terrain-an-area-creates` — blocks 2, finishes 1
 
@@ -164,7 +163,7 @@ sums to the population.
 
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 
-- **Command** (level 1) — tracked
+- **Command** (level 1) — executed-partial
 
 #### `a-reaction-window-that-opens-on-being-targeted` — blocks 1, finishes 1
 
@@ -239,6 +238,11 @@ sums to the population.
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
+#### `a-selector-for-every-d20-test` — blocks 2, finishes 0
+
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+- **Ray of Enfeeblement** (level 2) — tracked — also waits on 2
+
 #### `a-spells-effects-applied-to-different-targets` — blocks 2, finishes 0
 
 - **Calm Emotions** (level 2) — tracked — also waits on 1
@@ -311,10 +315,6 @@ sums to the population.
 #### `a-repeat-save-with-no-condition-to-hang-it-on` — blocks 1, finishes 0
 
 - **Slow** (level 3) — executed-partial — also waits on 2
-
-#### `a-selector-for-every-d20-test` — blocks 1, finishes 0
-
-- **Ray of Enfeeblement** (level 2) — tracked — also waits on 2
 
 #### `a-self-cure-a-spell-forbids` — blocks 1, finishes 0
 

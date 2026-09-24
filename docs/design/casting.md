@@ -83,6 +83,23 @@ the Druid completes a Long Rest later than the binding (`untilSummonerLongRests`
 and `since` on `KeptBond`) — the third lifetime a kept summons can have, and
 still one bond per creature.
 
+**A choice of which effects run.** `choiceStated` substitutes one value into
+an effect already in the list; `SpellDefinition.options` is the other arm —
+named branches (`label`, `effects`, and a branch's own `handsOver` or
+`unmodelled`), of which a casting runs exactly one, named on the request as
+`option`, required where the spell prints branches, refused where it prints
+none, never defaulted, and pinned on the pending and ongoing records.
+`optionEffects` is the one reader, and the identity for every definition
+without branches: the common list runs first, the branch's after it, and the
+stated substitutions and the caster's own riders apply over the result. A
+save belongs in the branch it gates, because an effect appended after a save
+does not know how the save went and only a rider does (SRD Command's Halt,
+Drop and Grovel each carry their own); a branch that imposes nothing and
+hands its sentence over is legal (Approach, Flee). Two limits stand: a
+readied casting cannot yet carry the word, and an attack-family effect inside
+a branch is refused, because the target list is sized off the common list
+before a branch is read.
+
 **A Ritual from the book.** `CastSpellRequest.ritual` makes a casting a long
 one, ten minutes longer than printed and slotless (`slotless: 'ritual'`), and
 is refused for a spell without the tag. Where no route supplies the spell,
