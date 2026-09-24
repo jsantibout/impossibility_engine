@@ -1201,6 +1201,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Up to five creatures of your choice who remain within range for the spell\'s entire casting gain the benefits of a Short Rest". Range is measured against where the five stand when the rite settles, and nothing records where anybody stood for the ten minutes before it; a position history kept only so that one spell could read it would be a rule nothing else asks for, so whether they stayed is the DM\'s.',
     },
   ],
+  'protection-from-evil-and-good': [
+    {
+      clause: 'Advantage on any new saving throw against the relevant effect',
+      why: 'a-mode-on-the-save-a-spell-forces',
+      note: 'nothing records what a save was against, so "the relevant effect" cannot be selected for. The same sentence that blocks Countercharm, arriving on the save rather than on the attack — and the one benefit of the three this spell prints that its two new axes did not reach: the Disadvantage is a roll mode narrowed by the attacker’s creature type, and the Charmed and Frightened Immunity is a grant narrowed by the type of whatever is causing them.',
+    },
+  ],
   revivify: [
     {
       clause: 'died of old age',
@@ -2131,20 +2138,11 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // clause, the phrase and the reasoning are the same phrase and the same
   // reasoning — a re-worded note would be a second reading of a paragraph
   // somebody had already read.
-  'protection-from-evil-and-good': [
-    {
-      marker: 'roll-mode',
-      clause: 'Creatures of those types have Disadvantage on attack rolls',
-      why: 'a-filter-on-the-attackers-creature-type',
-      note: 'the clause docs/design/rolls-and-damage.md names verbatim with this spell among its consumers: every other creature-type rule in the book is about the target, and a RollSelector has no axis for the type at the attacking end.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'Advantage on any new saving throw against the relevant effect',
-      why: 'a-mode-on-the-save-a-spell-forces',
-      note: 'nothing records what a save was against, so "the relevant effect" cannot be selected for. The same sentence that blocks Countercharm, arriving on the save rather than on the attack.',
-    },
-  ],
+  // **Protection from Evil and Good has left the tracked map**: two of its
+  // three benefits are executed off the two axes this batch built — a roll
+  // mode narrowed by the attacker's creature type, and a condition Immunity
+  // narrowed by the type of whatever is causing the condition — so the spell
+  // is executed-partial and what is left of it is filed in `ADJUDICATED`.
   'unseen-servant': [
     {
       marker: 'armor-class',

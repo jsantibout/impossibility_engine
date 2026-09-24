@@ -705,9 +705,18 @@ describe('the condition-immunity family is read sentence by sentence', () => {
       'hallow',
       'magic-circle',
     ]);
+    // **And Protection from Evil and Good's third reading has been paid.** The
+    // Immunity narrowed by the word "them" is a `fromTypes` on the grant now
+    // and the door that applies a condition asks what is causing it, so the
+    // spell is executed-partial and holds no reading against this shape at all
+    // — asserted rather than the row quietly disappearing, which is what the
+    // list above is for.
+    expect(consumersOf('a-condition-immunity-narrowed-to-its-source').executed).not.toContain(
+      'protection-from-evil-and-good',
+    );
     expect(
-      (SRD_CONTENT.spell('protection-from-evil-and-good')?.unmodelled ?? []).filter((note) =>
-        note.includes('"from them" narrows it to those six types'),
+      (SRD_CONTENT.spell('protection-from-evil-and-good')?.effects ?? []).filter(
+        (effect) => effect.kind === 'condition-immunity',
       ),
     ).toHaveLength(1);
     // Calm Emotions is the one spell the suppression residue blocks, and it

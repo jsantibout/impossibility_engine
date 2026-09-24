@@ -718,6 +718,36 @@ export interface GrantedConditionImmunity {
   readonly source: string;
   /** The conditions the sentence names, sorted so state serialises identically. */
   readonly conditions: readonly ConditionName[];
+  /**
+   * The creature types this Immunity holds **against**, where the sentence
+   * qualifies it.
+   *
+   * SRD Protection from Evil and Good: "The target also can't be possessed by
+   * or gain the Charmed or Frightened conditions **from them**" — where *them*
+   * is the six types the spell's first sentence names. A grant with no
+   * qualification is every cause there is, which is the paragraph above and
+   * SRD Heroes' Feast and Mind Blank.
+   *
+   * **A qualified defence is not an unconditional one**, which is the line
+   * `docs/design/characters-and-equipment.md` draws on the printed side and
+   * the reason the stat block's own table keeps such entries out. So the
+   * qualification travels with the grant rather than being flattened into it,
+   * and `conditionImmunitiesOf` is told what is causing the condition or is
+   * told nothing.
+   *
+   * **A cause the engine cannot name is not filtered out**, which is the
+   * direction every unsettled fact in this repository takes: the door is asked
+   * who is causing the condition, and where nobody has said — a DM's bare
+   * ruling, a hazard, a trap — a narrowed Immunity does not bite and the
+   * condition lands. The engine cannot show the creature is exempt, and
+   * sparing it on a fact nobody has stated would be the rule quietly doing
+   * more than the book says.
+   *
+   * **A creature type as the table writes it**, unchecked against any list
+   * here: a type is content, and this module holds the fifteen conditions
+   * rather than the fourteen types.
+   */
+  readonly fromTypes?: readonly string[];
 }
 
 /**

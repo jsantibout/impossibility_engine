@@ -11176,6 +11176,22 @@ export const THAUMATURGY: SpellDefinition = {
 };
 
 /**
+ * The six creature types SRD Protection from Evil and Good wards against.
+ *
+ * Written once and read by both benefits, because the spell's first sentence
+ * names them once and the two clauses after it both say "them": two copies
+ * would be two places for one printed list to be got wrong.
+ */
+const WARDED_AGAINST = [
+  'Aberration',
+  'Celestial',
+  'Elemental',
+  'Fey',
+  'Fiend',
+  'Undead',
+] as const;
+
+/**
  * SRD Protection from Evil and Good:
  *
  * > _Level 1 Abjuration (Cleric, Druid, Paladin, Warlock, Wizard)._
@@ -11190,14 +11206,27 @@ export const THAUMATURGY: SpellDefinition = {
  * > the target has Advantage on any new saving throw against the relevant
  * > effect."
  *
- * **Three benefits and one word ruins all three: *them*.** Every clause is a
- * mechanic the engine has — a mode on an attack roll, an Immunity to two named
- * conditions, a mode on a save — and every one of them is narrowed to the six
- * creature types the first sentence names. A `RollSelector` has no axis for the
- * *attacker's* type, `conditionImmunitiesOf` is told nothing about what is
- * causing the condition, and nothing records what a saving throw was against.
- * Writing any of the three unqualified would protect the target from its own
- * party.
+ * **Three benefits and one word used to ruin all three: *them*.** Every clause
+ * is a mechanic the engine has — a mode on an attack roll, an Immunity to two
+ * named conditions, a mode on a save — and every one of them is narrowed to
+ * the six creature types the first sentence names. Writing any of them
+ * unqualified would protect the target from its own party, which is the
+ * confident wrong answer rather than the missing one.
+ *
+ * **Two of the three carry the qualification now.** `RollSelector` has an axis
+ * for the **attacker's** type, read off the creature rolling exactly as SRD
+ * says a spell reads a type; and a granted condition Immunity may name the
+ * types it holds against, which the door that applies a condition asks about
+ * whatever is causing it. A Ghoul swings at Disadvantage and a bandit swings
+ * normally; the Ghoul cannot frighten the target and the bandit can.
+ *
+ * **The third is still a debt and says so.** "The target has Advantage on any
+ * new saving throw against the relevant effect" needs a save to remember what
+ * it was against, which is the gap `CLAUDE.md` has recorded since
+ * Countercharm; and possession is not a state the engine holds at all. Both
+ * are `unmodelled` rather than handed over, because both are rules the engine
+ * would execute the day it could — a handover is for a sentence nobody will
+ * ever build.
  */
 export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   id: 'protection-from-evil-and-good',
@@ -11208,13 +11237,33 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, self: true, willing: true },
-  effects: [],
+  effects: [
+    // "Creatures of those types have Disadvantage on attack rolls against the
+    // target" — a mode on rolls made **against** the holder, narrowed by what
+    // the creature making them is.
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'disadvantage',
+        selector: {
+          roll: 'attack',
+          relation: 'against-holder',
+          attackerType: WARDED_AGAINST,
+        },
+      },
+    },
+    // "The target also can't be ... gain the Charmed or Frightened conditions
+    // from them" — the same six types, on the other reader.
+    {
+      kind: 'condition-immunity',
+      conditions: ['charmed', 'frightened'],
+      fromTypes: WARDED_AGAINST,
+    },
+  ],
   durationSeconds: 600,
   unmodelled: [
-    'the Disadvantage on attack rolls is not granted: it belongs only to attackers that are Aberrations, Celestials, Elementals, Fey, Fiends or Undead, and a roll selector has no axis for the attacker’s creature type — an unqualified grant would give the target Disadvantage against everybody who swings at it',
-    'the Immunity to being Charmed or Frightened is not granted either, for the same word: "from them" narrows it to those six types, and the condition-immunity reader answers about a condition and is told nothing about what is trying to cause it',
-    'nor is the Advantage on a new saving throw "against the relevant effect": nothing records what a save was against, so the mode could not find the saves it belongs to',
-    'possession is not a state the engine holds, so neither the protection from it nor the save against it is anything the engine could apply',
+    'the target does not gain Advantage on any new saving throw against the relevant effect: nothing records what a save was against, so the mode could not find the saves it belongs to',
+    'the clause that the target can’t be possessed by such a creature is not applied: possession is not a state the engine holds, so there is nothing for the protection to refuse',
   ],
 };
 

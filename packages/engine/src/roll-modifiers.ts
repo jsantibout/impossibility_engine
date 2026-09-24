@@ -269,6 +269,37 @@ export interface RollSelector {
    */
   readonly unlessPerceivedWith?: readonly SenseName[];
   /**
+   * The creature types this modifier reaches, read of the **attacker**.
+   *
+   * SRD Protection from Evil and Good: "one willing creature you touch is
+   * protected against creatures that are Aberrations, Celestials, Elementals,
+   * Fey, Fiends, or Undead ... Creatures of those types have Disadvantage on
+   * attack rolls against the target." Every other field here narrows by what
+   * the roll *is* — its family, its ability, the other creature's id, what
+   * that creature perceives with — and none of them could ask what the other
+   * creature **is**, so the mode was granted to every attacker or to none, and
+   * a ward that protected the cleric from its own party is the wrong answer
+   * rather than the missing one.
+   *
+   * **Legal only on `against-holder`**, for the reason `unlessPerceivedWith`
+   * is: the relation says which end of the roll the holder is, and this reads
+   * the *other* end. On a `roller` selector the holder is the attacker and the
+   * sentence would be about the creature's own type — a fact it could read off
+   * itself, which no SRD sentence of this shape asks for.
+   *
+   * **The type a spell sees rather than the creature's own**, which is
+   * `typeMagicSees`' rule and this is one of its readers: SRD Arcanist's
+   * Magic Aura makes "spells and other magical effects treat the target as if
+   * it were a creature of the chosen type", and a ward is a spell. A creature
+   * nobody has typed is **not** spared and is not caught either: the list is a
+   * membership test, and `null` is in no list — the reading `mustBeType`
+   * already takes of an untyped creature.
+   *
+   * An empty list is refused for the reason an empty sense list is: it reads
+   * as a filter and is none.
+   */
+  readonly attackerType?: readonly string[];
+  /**
    * SRD Faerie Fire: "Attack rolls against an affected creature or object
    * have Advantage **if the attacker can see it**." The roller's sight of the
    * creature rolled against, asked of `canSee` — the declaration first, then
@@ -568,6 +599,19 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     // promises.
     ...(selector.onlySpellAttacks === true ? ['only-spell-attacks'] : []),
     ...(selector.onlyThroughClass === undefined ? [] : [selector.onlyThroughClass]),
+    // **The creature types the attacker must be one of**, kept in the identity
+    // for Beacon of Hope's reason and appended for the paragraph above's:
+    // every key an existing log holds stays byte-identical, and the only keys
+    // that gain a segment are keys nothing had yet.
+    //
+    // **And it cannot be read as either of the other two tails**, which is the
+    // ambiguity that paragraph is about: the segment carries its own name and
+    // a colon, and neither the marker nor a class id contains one. Sorted,
+    // because a list is a set here — a ward naming six types is the same
+    // sentence whichever order a definition wrote them in.
+    ...(selector.attackerType === undefined
+      ? []
+      : [`attacker-type:${[...selector.attackerType].sort().join(',')}`]),
   ].join('|');
 }
 
@@ -715,6 +759,23 @@ export interface RollQuery {
    * a miss — the reading {@link magical} takes.
    */
   readonly targetMissingHitPoints?: boolean;
+  /**
+   * What the creature **rolling** is, as a spell or other magical effect sees
+   * it — what {@link RollSelector.attackerType} matches.
+   *
+   * **Filled in by the gatherer rather than by the site that throws the die**,
+   * which is the reading {@link targetMissingHitPoints} already takes and for
+   * the same reason: it is read off `CreatureState` through `typeMagicSees`,
+   * which `rollModesFor` has the state for and a swing would only be
+   * repeating. So no attack site has to remember it and no caller can assert
+   * it.
+   *
+   * Absent or null means nobody has said what the creature is, and a selector
+   * naming types reads that as a miss — the reading every other fact here
+   * takes of a silence, and the one `mustBeType` already takes of an untyped
+   * creature.
+   */
+  readonly rollerType?: string | null;
 }
 
 /**
@@ -773,6 +834,19 @@ export function selectorMatches(
   if (selector.unlessPerceivedWith !== undefined) {
     const perceived = query.rollerPerceives ?? [];
     if (selector.unlessPerceivedWith.some((sense) => perceived.includes(sense))) return false;
+  }
+
+  // SRD Protection from Evil and Good: "Creatures of those types have
+  // Disadvantage on attack rolls against the target." The holder is the
+  // creature rolled against — the validator confines this to `against-holder`
+  // for that reason — so the type read is the roller's, and a roller nobody
+  // has typed is in no list. `RollQuery.rollerType` is the gatherer's, filled
+  // in the way SRD's "spells and other magical effects" says to read a type.
+  if (
+    selector.attackerType !== undefined &&
+    (query.rollerType == null || !selector.attackerType.includes(query.rollerType))
+  ) {
+    return false;
   }
 
   // SRD Faerie Fire: "if the attacker can see it". A declared *no* withholds
@@ -952,6 +1026,44 @@ export function rollSelectorProblems(
           code: 'perceived_with_off_against_holder',
           reason:
             'the engine records what the roller perceives the creature rolled against with, so a sense clause can only excuse an attacker — on a "roller" selector there is no direction to read and the exception would never apply',
+        });
+      }
+    }
+  }
+
+  // The attacker's creature type, and the three ways it describes a narrowing
+  // nothing could read — the sense clause's own three, on the other axis. The
+  // **names** are deliberately not checked against a list: a creature type is
+  // content (`typeMagicSees` reads whatever the table declared) and this
+  // validator holds the engine's own closed vocabularies, not the book's.
+  if (selector.attackerType !== undefined) {
+    // The shape before anything else, for the sense clause's reason: this
+    // validator meets homebrew, and a bare string walked with `for…of` would
+    // report one problem per letter.
+    if (!Array.isArray(selector.attackerType)) {
+      found.push({
+        code: 'attacker_type_is_not_a_list',
+        reason:
+          'a type filter is a list of creature types — the types SRD Protection from Evil and Good names',
+      });
+    } else {
+      if (selector.attackerType.some((type) => typeof type !== 'string' || type.length === 0)) {
+        found.push({
+          code: 'bad_creature_type',
+          reason: 'a creature type is a non-empty name, as the table and the stat blocks write it',
+        });
+      }
+      if (selector.attackerType.length === 0) {
+        found.push({
+          code: 'type_filters_nothing',
+          reason: 'a filter that names no creature type reaches nobody; leave the field off instead',
+        });
+      }
+      if (selector.relation !== 'against-holder') {
+        found.push({
+          code: 'type_on_the_wrong_end',
+          reason:
+            'this clause reads the creature **making** the roll, and on a "roller" selector that creature is the holder — a sentence about the holder\'s own type is a requirement on the grant rather than a narrowing on the roll',
         });
       }
     }

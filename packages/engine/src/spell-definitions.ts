@@ -2862,6 +2862,18 @@ export type SpellEffect =
        * rather than letting a definition resolve to a grant that does nothing.
        */
       readonly conditions: readonly ConditionName[];
+      /**
+       * The creature types the Immunity holds **against**, where the spell
+       * qualifies it — see `GrantedConditionImmunity.fromTypes`, which is
+       * where the rule and its silence are argued.
+       *
+       * SRD Protection from Evil and Good: "The target also can't be possessed
+       * by or gain the Charmed or Frightened conditions **from them**", where
+       * *them* is the six types the spell's first sentence names. Absent is
+       * the unqualified sentence, which is SRD Heroes' Feast and SRD Mind
+       * Blank and most of the book.
+       */
+      readonly fromTypes?: readonly string[];
     }
   /**
    * A Speed the spell changes, for as long as it runs.

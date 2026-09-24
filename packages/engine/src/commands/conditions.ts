@@ -34,6 +34,31 @@ const holderOf = (target: EffectTarget): string =>
   target.kind === 'casting' ? target.castingId : target.on;
 
 /**
+ * The creature behind a source, where the source names one.
+ *
+ * A condition's source is a string — `Hold Person#cast:3`, `item:potion`,
+ * `hazard:burning`, a DM's own ruling — and exactly one of those shapes has a
+ * creature behind it that the engine can find: a casting, whose record names
+ * its caster. `castingIdOf` is the engine's own reader of the format and not a
+ * branch on a name.
+ *
+ * **A pending casting counts too**, because a casting of a minute or more
+ * imposes conditions before it settles and its record is the pending one until
+ * it does.
+ *
+ * Null for everything else, which is the honest answer rather than a guess: a
+ * flask of poison is caused by no creature, and a narrowed Immunity that bit
+ * on one would be the engine inventing a Fiend.
+ */
+function causerOf(state: GameState, source: string): CharacterId | undefined {
+  const castingId = castingIdOf(source);
+  if (castingId === null) return undefined;
+  const caster =
+    state.ongoing[castingId]?.caster ?? state.pendingCastings[castingId]?.caster ?? null;
+  return caster === null ? undefined : (caster as CharacterId);
+}
+
+/**
  * Apply a condition, refusing one the creature cannot receive.
  *
  * Immunity is a rules-legal refusal rather than a silent no-op, so the DM can
@@ -88,6 +113,26 @@ export function applyConditionTo(
    * not the Poisoned: see {@link EarlyEndings}.
    */
   endsEarly?: EarlyEndings,
+  /**
+   * The creature **causing** this condition, where the caller knows one.
+   *
+   * SRD Protection from Evil and Good: the target "can't be possessed by or
+   * gain the Charmed or Frightened conditions **from them**". A narrowed
+   * Immunity reads the type of whatever is trying to cause the condition, and
+   * this is where that fact arrives — twelfth, appended for the ninth's
+   * reason: no existing call site passes one, and the options object the whole
+   * signature wants is a change to a DM-facing command that would move every
+   * one of them.
+   *
+   * **Derived from the source where the caller says nothing**, which is what
+   * makes a spell's own conditions answerable without threading a caster
+   * through four resolvers: a source carrying a casting mark names a casting,
+   * and a running casting's record names who cast it. See {@link causerOf}.
+   * Everything else — a hazard, a DM's bare ruling, a poison in a bottle — is
+   * a cause with no creature behind it, and a narrowed Immunity does not bite
+   * on one.
+   */
+  from?: CharacterId,
 ): Result<GameEvent[]> {
   // "You are Frightened" is the state change a narrating layer reaches for
   // most, and a retried one was a second Frightened from the same source —
@@ -106,7 +151,7 @@ export function applyConditionTo(
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
     }
-    const immunities = conditionImmunitiesOf(state, id);
+    const immunities = conditionImmunitiesOf(state, id, from ?? causerOf(state, source));
     if (immuneTo.includes(condition) || immunities.includes(condition)) {
       return err('immune', `${id} is immune to the ${condition} condition`);
     }

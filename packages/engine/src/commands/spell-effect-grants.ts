@@ -600,6 +600,10 @@ export function resolveConditionImmunityEffect(
     immunity: {
       source,
       conditions: effect.conditions,
+      // SRD Protection from Evil and Good's "from them", carried onto the
+      // grant so the gatherer can ask what is causing a condition before it
+      // answers — see `GrantedConditionImmunity.fromTypes`.
+      ...(effect.fromTypes === undefined ? {} : { fromTypes: effect.fromTypes }),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);

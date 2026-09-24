@@ -3858,6 +3858,42 @@ function checkEffect(
         }
         immune.add(condition);
       });
+      // **And the types it holds against, where the spell qualifies it.** SRD
+      // Protection from Evil and Good's "from them". The names are not checked
+      // against a list, for the reason `RollSelector.attackerType`'s are not: a
+      // creature type is content, and this validator holds the engine's own
+      // closed vocabularies. What it does refuse is a qualification that
+      // qualifies nothing, which reads as a narrowing and is none.
+      if (effect.fromTypes !== undefined) {
+        if (
+          !readsAsList(
+            effect.fromTypes,
+            `${path}.fromTypes`,
+            'the creature types an Immunity holds against are a list',
+            found,
+          )
+        ) {
+          return;
+        }
+        if (effect.fromTypes.length === 0) {
+          found.push({
+            field: `${path}.fromTypes`,
+            code: 'immunity_narrows_to_nothing',
+            reason:
+              'an Immunity qualified to no creature type holds against nobody; leave the field off for the unqualified sentence',
+          });
+        }
+        effect.fromTypes.forEach((type, i) => {
+          if (typeof type !== 'string' || type.length === 0) {
+            found.push({
+              field: `${path}.fromTypes[${i}]`,
+              code: 'bad_creature_type',
+              reason:
+                'a creature type is a non-empty name, as the table and the stat blocks write it',
+            });
+          }
+        });
+      }
       return;
     }
 

@@ -60,6 +60,7 @@ import {
   type SenseName,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
+import { typeMagicSees } from './creature-type.js';
 import type { EquippedItem } from './state.js';
 import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
 import type { OutcomeRiders, SpellArea, SpellEffect } from './spell-definitions.js';
@@ -3355,6 +3356,31 @@ function missingHitPoints(state: GameState, query: RollQuery): RollQuery {
 }
 
 /**
+ * The query with the **roller's** creature type worked out, where the engine
+ * knows one.
+ *
+ * SRD Protection from Evil and Good: "Creatures of those types have
+ * Disadvantage on attack rolls against the target." The fact is the engine's
+ * own record rather than anything the site throwing the die knows better, so
+ * it is filled in here beside {@link missingHitPoints} and for the same
+ * reason: one predicate decides every mode, and no attack site has to remember
+ * a field.
+ *
+ * **Through {@link typeMagicSees}, because the sentence that reads it is a
+ * spell's.** SRD Arcanist's Magic Aura makes "spells and other magical effects
+ * treat the target as if it were a creature of the chosen type", and a ward is
+ * one of those — so a masked Ghoul swings at the cleric as whatever the Mask
+ * says it is. A roller the record does not hold is left alone rather than
+ * answered null, because absent and null read the same way to the predicate
+ * and writing one would claim the engine had looked.
+ */
+function rollerCreatureType(state: GameState, query: RollQuery): RollQuery {
+  const roller = state.creatures[query.roller];
+  if (roller === undefined) return query;
+  return { ...query, rollerType: typeMagicSees(roller) };
+}
+
+/**
  * The style that reaches this swing, or null where none does.
  *
  * Three questions, and a style has to answer all three: its gate holds, it
@@ -4013,14 +4039,16 @@ export function rollModesFor(
   asked: RollQuery,
   options: { readonly seenByHolder?: boolean | null } = {},
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
-  // **The one fact on the query this gathers rather than receives.** SRD Blood
-  // Frenzy reads the Hit Points of the creature being swung at, which is the
+  // **The two facts on the query this gathers rather than receives.** SRD Blood
+  // Frenzy reads the Hit Points of the creature being swung at, and SRD
+  // Protection from Evil and Good reads what the creature swinging **is** —
+  // both the engine's own record, and
   // engine's own record and not something the site throwing the die knows any
   // better than this does — so it is filled in here, once, and
   // `selectorMatches` stays the single predicate every mode is decided by. A
   // roll with no second creature is left silent, and a selector asking for it
   // reads that as a miss.
-  const query: RollQuery = missingHitPoints(state, asked);
+  const query: RollQuery = rollerCreatureType(state, missingHitPoints(state, asked));
   const modes: ModeSource[] = [];
   const unverified: string[] = [];
   const seen = new Set<string>();
@@ -4214,11 +4242,34 @@ export function defensesOf(
 export function conditionImmunitiesOf(
   state: GameState,
   who: CharacterId,
+  /**
+   * The creature causing the condition, where the door knows one.
+   *
+   * SRD Protection from Evil and Good protects against gaining the Charmed or
+   * Frightened conditions "**from them**", and this function answered about a
+   * condition and was told nothing whatever about what was trying to cause it
+   * — which is the sentence `a-condition-immunity-narrowed-to-its-source`
+   * named. See {@link GrantedConditionImmunity.fromTypes}.
+   *
+   * **Read through `typeMagicSees`**, because a ward is a spell and the SRD
+   * says spells read a type through the Mask. Absent, or a creature this state
+   * does not hold, or a creature nobody has typed: a *narrowed* grant does not
+   * bite and the unqualified ones answer exactly as they always did.
+   */
+  from?: CharacterId,
 ): readonly ConditionName[] {
   const creature = state.creatures[who];
   if (creature === undefined) return [];
+  const causer = from === undefined ? undefined : state.creatures[from];
+  const causerType = causer === undefined ? null : typeMagicSees(causer);
   const names = new Set<ConditionName>(creature.conditionImmunities);
   for (const granted of creature.grantedConditionImmunities) {
+    if (
+      granted.fromTypes !== undefined &&
+      (causerType === null || !granted.fromTypes.includes(causerType))
+    ) {
+      continue;
+    }
     for (const condition of granted.conditions) names.add(condition);
   }
   return [...names].sort();
