@@ -101,8 +101,16 @@ const plain = (): CharacterSheet => ({
   spellcastingAbility: null,
 });
 
-/** A Paladin on a dark shrine floor, a ghoul beside him, nobody has lit the room. */
-const field = (): readonly GameEvent[] => [
+/**
+ * A Paladin on a dark shrine floor, a ghoul beside him, nobody has lit the room.
+ *
+ * `ghoulFeet` is how far off the ghoul stands, and it is a parameter for one
+ * reason: a mover who leaves a hostile creature's reach only *declares* the
+ * move and waits on the Opportunity Attack it provoked, so the test that walks
+ * the Paladin across the room stands the ghoul out of reach rather than
+ * settling a reaction it is not about.
+ */
+const field = (ghoulFeet = 5): readonly GameEvent[] => [
   ...(unwrap(createCharacter(SRD_CONTENT, paladin(), ARDAN), 'create') as GameEvent[]),
   { type: 'creature-side-declared', id: ARDAN, side: 'party' },
   {
@@ -131,7 +139,7 @@ const field = (): readonly GameEvent[] => [
   {
     type: 'creature-placed',
     id: GHOUL,
-    placement: { from: { creature: ARDAN }, feet: 5, bearing: 0 },
+    placement: { from: { creature: ARDAN }, feet: ghoulFeet, bearing: 0 },
   },
 ];
 
@@ -155,10 +163,10 @@ const supply = (state: GameState, d20 = 18) => ({
   content: SRD_CONTENT,
 });
 
-const imbued = (): readonly GameEvent[] => {
-  const before = fold(SEED, field());
+const imbued = (ghoulFeet = 5): readonly GameEvent[] => {
+  const before = fold(SEED, field(ghoulFeet));
   return [
-    ...field(),
+    ...field(ghoulFeet),
     ...unwrap(activateFeature(before, ARDAN, { feature: SACRED_WEAPON }), 'activate'),
   ];
 };
@@ -226,7 +234,7 @@ describe('SRD Sacred Weapon: "The weapon also emits Bright Light in a 20-foot ra
 
   /** The whole reason it is derived: the light goes where the Paladin goes. */
   it('moves with the Paladin, with nothing written down for the move', () => {
-    const log = [...imbued()];
+    const log = [...imbued(60)];
     const shrine: Point = { x: 200, y: 200, z: 0 };
     const thirtyOn: Point = { x: 230, y: 200, z: 0 };
     expect(lightAt(fold(SEED, log), shrine).level).toBe('bright');

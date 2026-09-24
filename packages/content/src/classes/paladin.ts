@@ -395,6 +395,27 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
             // as near as a standing grant reaches to one object.
             onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
           },
+          {
+            // "each time you hit with it, you cause it to deal its normal
+            // damage type or Radiant damage" — the weapon's own type restated
+            // at each hit rather than a die added beside it, so naming nothing
+            // leaves the Longsword slashing and the total never moves.
+            kind: 'weapon-damage-type',
+            damageTypes: ['radiant'],
+            // The same narrowing the bonus carries, and the same sentence it
+            // comes out of: a Paladin's Shortbow was never imbued.
+            onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
+          },
+          {
+            // "The weapon also emits Bright Light in a 20-foot radius and Dim
+            // Light for an additional 20 feet." Carried by the Paladin, because
+            // the engine holds no object to hang it on and the SRD's weapon is
+            // in their hand — the reading SRD Light's own patch already takes.
+            kind: 'light',
+            level: 'bright',
+            radius: 20,
+            dimBeyond: 20,
+          },
         ],
       },
     },

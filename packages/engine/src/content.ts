@@ -11,7 +11,9 @@ import {
   checkFeatureDefinition,
   duplicateFeatureIds,
   parseFeatureDefinition,
+  shedLightProblems,
   speedGrantProblems,
+  weaponDamageTypeProblems,
   weaponSelectorProblems,
   type FeatureContext,
   poolKeysIn,
@@ -319,6 +321,20 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
  * Charisma to every swing they made with anything, which is a benefit
  * misapplied rather than one never applied: strictly worse than the refusal.
  * The day an item prints the sentence, the field comes with it.
+ *
+ * **`weapon-damage-type` is the third, on `attack-bonus`'s reason exactly**:
+ * it narrows by a kind of weapon and has no `onlyWithItem`, so a blade
+ * admitted here would offer its type on every swing its wielder made with
+ * anything. No SRD item prints the sentence — a Flame Tongue adds a die, which
+ * is `attack-damage` — so the refusal costs the catalogue nothing.
+ *
+ * **`light` is the fourth, and on `speed`'s**: what reads it is `carriedLight`
+ * inside `lightAt`, which gathers from the sheet alone. It cannot gather a
+ * worn item's grants, because `lightAt` sits below `standing.ts` in the import
+ * graph, and it must not, because `requirementsHold` calls `lightAt` and a
+ * reader that went back through it would be asking a question of its own
+ * answer. A magic lantern is a real gap and refusing it by name is how the gap
+ * stays visible.
  */
 export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
@@ -424,11 +440,17 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
  * for the narrowing an item's sentence would need and this one has not got,
  * and belongs here because a feat's is its holder's own and reaches every
  * swing the weapon clause admits, which is exactly what it says.
+ * `weapon-damage-type` is withheld from an item for `attack-bonus`'s reason
+ * and belongs here for `attack-bonus`'s reason; `light` is withheld for
+ * `speed`'s and belongs here for `speed`'s — a feat's grants are compiled onto
+ * the sheet, which is the one place `carriedLight` reads.
  */
 export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([
   ...ITEM_EFFECT_KINDS,
   'speed',
   'attack-bonus',
+  'weapon-damage-type',
+  'light',
 ]);
 
 /**
@@ -777,6 +799,15 @@ function ownedStandingEffectProblems(
   }
   if (effect.kind === 'attack-bonus') {
     found.push(...attackBonusProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'weapon-damage-type') {
+    found.push(...weaponDamageTypeProblems(effect as unknown as Record<string, unknown>, at));
+    if (effect.onlyWithWeapon !== undefined) {
+      found.push(...weaponNarrowingProblems(effect.onlyWithWeapon, `${at}.onlyWithWeapon`));
+    }
+  }
+  if (effect.kind === 'light') {
+    found.push(...shedLightProblems(effect as unknown as Record<string, unknown>, at));
   }
   if (effect.kind === 'casting-healing') {
     found.push(...castingHealingProblems(effect as unknown as Record<string, unknown>, at));

@@ -13,6 +13,11 @@ import type {
   StrikeStyle,
   TradeFeature,
 } from './standing.js';
+// Type-only, so the edge back to `positioning.ts` — which imports
+// `printedLight` from this file as a value — is erased rather than a cycle.
+// The three light levels are the rules glossary's closed vocabulary and are
+// declared where the patches that carry them are.
+import type { LightLevel } from './positioning.js';
 import type { ConferrableReaction, ReactionFeature } from './reactions.js';
 import type { NamedAction } from './combat.js';
 import type {
@@ -1290,6 +1295,67 @@ export function printedLight(
     }
   }
   return null;
+}
+
+/** One light a creature's own features are shedding, named so a report can say which. */
+export interface ShedLight {
+  /** The feature shedding it, and what it is called. */
+  readonly feature: string;
+  readonly name: string;
+  readonly level: LightLevel;
+  readonly radius: number;
+  readonly dimBeyond?: number;
+}
+
+/**
+ * SRD Sacred Weapon: "The weapon also emits Bright Light in a 20-foot radius
+ * and Dim Light for an additional 20 feet."
+ *
+ * The second population of light a creature carries about with it, beside
+ * {@link printedLight}'s six Illumination traits: a `light` standing grant,
+ * which every SRD one of is a feature's `whileActive` and so is compiled onto
+ * the sheet requiring that feature to be running. **Here rather than in
+ * `standing.ts` beside the other grant readers**, for exactly the reason
+ * {@link printedLight} is here: `lightAt` in `positioning.ts` is what spends
+ * this, that module is kept next to the leaves, and this file has no value
+ * import but `@ie/shared`.
+ *
+ * **Which is also why the requirement is read here and not by
+ * `requirementsHold`.** That reader answers `in-sunlight` by calling
+ * `lightAt`, so a light gathered through it would be asking a question of its
+ * own answer — a loop, not merely a cycle. So exactly two shapes are honoured
+ * and everything else is withheld: a grant with no requirements at all, which
+ * is a creature that simply glows, and one whose requirements are all
+ * `feature-active` on features this creature is running, which is every SRD
+ * sentence that prints the clause. A `light` grant gated on anything else is
+ * silent rather than wrong, which is the direction every derived reader here
+ * takes, and `checkContent` is where such a grant is refused at authoring.
+ *
+ * Reach is the holder's own: a light is shed *from* whoever carries it, and an
+ * aura's feet would be a second radius beside the one the grant already
+ * prints.
+ */
+export function activatedLight(
+  sheet: CharacterSheet,
+  activeFeatures: readonly string[],
+): readonly ShedLight[] {
+  const shed: ShedLight[] = [];
+  for (const effect of sheet.standing ?? []) {
+    if (effect.grant.kind !== 'light' || effect.reach.kind !== 'self') continue;
+    const readable = (effect.requires ?? []).every(
+      (requirement) =>
+        requirement.kind === 'feature-active' && activeFeatures.includes(requirement.feature),
+    );
+    if (!readable) continue;
+    shed.push({
+      feature: effect.feature,
+      name: effect.name,
+      level: effect.grant.level,
+      radius: effect.grant.radius,
+      ...(effect.grant.dimBeyond === undefined ? {} : { dimBeyond: effect.grant.dimBeyond }),
+    });
+  }
+  return shed;
 }
 
 /**

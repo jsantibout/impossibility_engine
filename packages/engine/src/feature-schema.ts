@@ -26,6 +26,7 @@ import {
   type RollModifier,
   type RollSelector,
 } from './roll-modifiers.js';
+import { LIGHT_LEVELS } from './positioning.js';
 import { checkActionRule } from './spell-schema.js';
 import { hours, TURN_ANCHORS } from './time.js';
 
@@ -218,6 +219,91 @@ export function speedGrantProblems(
       field: `${at}.feet`,
       code: 'bad_speed_change',
       reason: `a Speed a feature adds to needs the number of feet, and a change of no feet is no change; this is ${String(feet)}`,
+    });
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with an offer to restate the weapon's own damage type.
+ *
+ * SRD Sacred Weapon: "each time you hit with it, you cause it to deal its
+ * normal damage type or Radiant damage." One question, and it is the one
+ * nothing downstream could recover from: an offer of *no* types is a choice
+ * with nothing in it, so the holder could never name anything and the clause
+ * would compile onto the sheet, be gathered by `damageTypesOffered` and refuse
+ * every type anybody asked for.
+ *
+ * The damage types themselves are **not** held to a list, for the reason no
+ * other damage type in this engine is: the engine names none, and what a blow
+ * deals is the catalogue's word carried through to the log.
+ *
+ * Exported for {@link speedGrantProblems}' reason — a feat reaches
+ * `ownedStandingEffectProblems` in `content.ts` and none of this file's own
+ * callers, so both doors call the one function.
+ */
+export function weaponDamageTypeProblems(
+  effect: { readonly damageTypes?: unknown },
+  at: string,
+): readonly FeatureDefinitionProblem[] {
+  const types = effect.damageTypes;
+  if (
+    !Array.isArray(types) ||
+    types.length === 0 ||
+    !types.every((one) => typeof one === 'string' && one.length > 0)
+  ) {
+    return [
+      {
+        field: `${at}.damageTypes`,
+        code: 'offers_no_damage_type',
+        reason:
+          "an offer to restate a weapon's damage type names the types it offers; one that names none could never be answered, so the feature would refuse every type its holder asked for",
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * Everything wrong with the light a feature sheds.
+ *
+ * SRD Sacred Weapon: "The weapon also emits Bright Light in a 20-foot radius
+ * and Dim Light for an additional 20 feet." A level out of the glossary's
+ * three, a radius of whole feet with at least one space in it, and — where the
+ * sentence prints the second half — an "additional" measured the same way.
+ * Every one of the three is a benefit nothing would read if it were wrong
+ * rather than refused: `carriedLight` lays one sphere per radius, a sphere of
+ * nought feet lights nothing, and a level nobody prints is compared against by
+ * no rule.
+ *
+ * The same three questions the `light` **spell** effect is asked, under the
+ * same two codes, because it is the same sentence printed on a class table.
+ */
+export function shedLightProblems(
+  effect: { readonly level?: unknown; readonly radius?: unknown; readonly dimBeyond?: unknown },
+  at: string,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+  const { level, radius, dimBeyond } = effect;
+  if (typeof level !== 'string' || !(LIGHT_LEVELS as readonly string[]).includes(level)) {
+    found.push({
+      field: `${at}.level`,
+      code: 'bad_light_level',
+      reason: `"${String(level)}" is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
+    });
+  }
+  if (!Number.isInteger(radius) || (radius as number) < 5) {
+    found.push({
+      field: `${at}.radius`,
+      code: 'bad_light_radius',
+      reason: `light reaches a whole number of feet, at least one space, not ${String(radius)}`,
+    });
+  }
+  if (dimBeyond !== undefined && (!Number.isInteger(dimBeyond) || (dimBeyond as number) < 5)) {
+    found.push({
+      field: `${at}.dimBeyond`,
+      code: 'bad_light_radius',
+      reason: `dim light beyond the bright reaches a whole number of feet, at least one space, not ${String(dimBeyond)}`,
     });
   }
   return found;
@@ -1321,6 +1407,19 @@ function grantProblems(
       }
       if (effect.kind === 'speed') {
         found.push(...speedGrantProblems(effect, `${at}[${index}]`));
+      }
+      // **The two members SRD Sacred Weapon prints, on the spelling it prints
+      // them in.** An offer of no damage types and a light of no radius are
+      // each a benefit that compiles onto the sheet and is matched by no
+      // reader. The `standing` spelling one line up reaches
+      // `ownedStandingEffectProblems`, which asks the same two questions of a
+      // feat's grant and of a `standing` feature's, so asking them here as
+      // well would report one mistake twice.
+      if (at === 'grants.whileActive' && effect.kind === 'weapon-damage-type') {
+        found.push(...weaponDamageTypeProblems(effect, `${at}[${index}]`));
+      }
+      if (at === 'grants.whileActive' && effect.kind === 'light') {
+        found.push(...shedLightProblems(effect, `${at}[${index}]`));
       }
     });
   }
