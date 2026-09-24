@@ -997,17 +997,25 @@ describe('a Cleric can be told to turn undead', () => {
   });
 
   /**
-   * And a Paladin's Channel Divinity is still shut, which is the honest half
-   * of this door: the pool is declared and what a use buys is executed by
-   * nothing, so the feature offers no option and reports no tool to spend it.
+   * And a Paladin's Channel Divinity is open too, by the other door: SRD gives
+   * that pool one effect at level 3 and it is not an option on a menu but an
+   * activation — Divine Sense, a Bonus Action that opens an awareness for ten
+   * minutes. So the sheet reports the pool *and* the feature that spends it,
+   * with the tool that spends it, which is the whole of what this door was
+   * missing while the pool was shut.
    */
-  it('leaves shut the pool whose options nothing executes', () => {
+  it('reports the pool whose use buys an activation, with the door that spends it', () => {
     const t = table('paladin-cd');
     expectOk(t.call('create_character', { id: 'ser', choices: character('paladin', 5) }));
     const held = sheetOf(t, 'ser');
 
     expect(held.pool('channel-divinity')).toMatchObject({ label: 'Channel Divinity' });
-    expect(held.feature('paladin:channel-divinity')).toBeUndefined();
+    expect(held.feature('paladin:channel-divinity')).toMatchObject({
+      kind: 'activated',
+      spentBy: 'activate_feature',
+      action: 'bonus-action',
+      pool: 'channel-divinity',
+    });
   });
 });
 

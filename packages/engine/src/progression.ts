@@ -1256,6 +1256,43 @@ export type FeatureGrant =
       readonly size?: CreatureSize;
       readonly capSeconds?: number;
       readonly endsOn?: readonly ActivationEnd[];
+      /**
+       * SRD Divine Sense: "you know the location of any creature of those types
+       * within 60 feet of yourself, and you know its creature type."
+       *
+       * **A question the engine can answer**, which is what makes it a field
+       * rather than a note handed to the table: every creature's type and every
+       * creature's distance are already in state, so what the feature supplies
+       * is only the filter and the radius. Nothing is hung on anybody and
+       * nothing is spent by reading it — `detectedBy` in `standing.ts` computes
+       * the answer afresh on every read, exactly as `sensesOf` does, so an
+       * awareness stops the instant its holder is Stunned without anything
+       * having to remember to.
+       *
+       * **Not a `sense`.** A `standing` grant's `sense` is Darkvision or
+       * Blindsight: it answers `canSee`, and every rule that asks whether one
+       * creature can see another goes through it. This answers a different
+       * question — *what is out there, of these kinds* — which no sight rule
+       * reads and which is true of a creature behind a wall.
+       *
+       * The half of the SRD's sentence that is **not** here is the second one:
+       * "any place or object that has been consecrated or desecrated". Nothing
+       * in the engine consecrates a place, so a radius would search for a fact
+       * nothing can state, and the feature's own note hands that sentence over.
+       */
+      readonly detects?: {
+        /** SRD's "within 60 feet of yourself". */
+        readonly feet: number;
+        /**
+         * The creature types it reports — SRD's "Celestials, Fiends, and
+         * Undead".
+         *
+         * The same word a stat block's `Fey` and an object's `Object` are, and
+         * not a catalogue id: it is the noun the glossary puts over the
+         * category, which `mustBeType` on a pool option already reads.
+         */
+        readonly creatureTypes: readonly string[];
+      };
       readonly forbidsCasting?: boolean;
       /**
        * SRD Steady Aim: "You can use this feature only if you haven't moved

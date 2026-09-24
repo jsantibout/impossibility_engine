@@ -35,13 +35,19 @@ import {
 } from '../scripts/missing-feature-shapes.js';
 
 /**
- * The five the owner's ruling of 2026-09-21 named, less the four that were
+ * The five the owner's ruling of 2026-09-21 named, less the five that were
  * built: Font of Magic and Arcane Recovery are `trade` grants now, Wild Shape
- * is a `shape-shift` grant, and Monk's Focus buys all three thirds of its page
- * — so the derivation below no longer finds any of them and their blocked-on
- * lines are gone.
+ * is a `shape-shift` grant, Monk's Focus buys all three thirds of its page,
+ * and a Paladin's Channel Divinity buys Divine Sense — so the derivation below
+ * no longer finds any of them and their blocked-on lines are gone.
+ *
+ * **The arm is empty and the machinery stays**, which is the discipline every
+ * other declared arm in this file keeps: a pool the engine counts and nothing
+ * spends is found by `isBarePool` rather than argued about, and the tests
+ * below drive that derivation over synthetic features so an empty answer is
+ * never a vacuous one.
  */
-const WIDENED = ['paladin:channel-divinity'];
+const WIDENED: readonly string[] = [];
 
 /** A pool grant with only the fields that say how big it is and when it refills. */
 const barePool = (id: string, automation: 'engine' | 'manual' = 'engine') =>
@@ -105,15 +111,21 @@ describe('a pool with nothing to buy is a shape, so it is derived', () => {
    * rather than by size: a new one would be a real finding and has to be
    * adjudicated here rather than quietly joining a count.
    *
-   * **It found four and finds one**, which is the derivation doing its job:
+   * **It found four and finds none**, which is the derivation doing its job:
    * Font of Magic and Arcane Recovery were built as `trade` grants and Wild
    * Shape as a `shape-shift` grant, and neither is a bare `pool`, so all three
-   * left this list without anybody editing it. The lines they held in the
-   * blocked-on map were hand work, and the coverage guard named each `stale`
-   * until that hand work was done.
+   * left this list without anybody editing it. A Paladin's Channel Divinity
+   * was the last, and left the same way — Divine Sense is an activation that
+   * spends the pool the feature declares, which `siblingSpends` reads. The
+   * lines they held in the blocked-on map were hand work, and the coverage
+   * guard named each `stale` until that hand work was done.
+   *
+   * An empty answer here is not a vacuous one: every branch of `isBarePool` is
+   * driven over synthetic features above and below, so a pool that really went
+   * bare would still be found.
    */
   it('finds the pools the catalogue really holds', () => {
-    expect(barePoolFeatureIds()).toEqual(['paladin:channel-divinity']);
+    expect(barePoolFeatureIds()).toEqual([]);
   });
 
   /** None of them is manual, or the first population would already hold it. */
@@ -303,10 +315,46 @@ describe('what the rest wait on', () => {
     }
   });
 
-  it('files a Paladin’s Channel Divinity under the fact Divine Sense writes', () => {
-    expect(featureBlockersOf('paladin:channel-divinity')).toEqual([
-      'a-declared-fact-a-feature-sets',
-    ]);
+  /**
+   * A Paladin's Channel Divinity was the last of the widened five and is
+   * built: Divine Sense is an activation on the pool the feature declares, so
+   * the pool is no longer one the engine counts and nothing spends. Off the
+   * map in both directions, exactly as Wild Shape is.
+   */
+  it('no longer files a Paladin’s Channel Divinity at all', () => {
+    expect(featureBlockersOf('paladin:channel-divinity')).toEqual([]);
+    expect(ledgerFeatureIds()).not.toContain('paladin:channel-divinity');
+  });
+
+  /**
+   * And the derivation that took it off the map, driven over a synthetic
+   * feature so the empty arm above is not vacuous: a pool with an activation
+   * that spends it is not bare, and the same pool without one is.
+   */
+  it('reads an activation on a feature’s own pool as something a use buys', () => {
+    const spends = (pool: string | null): FeatureDefinition =>
+      ({
+        id: 'paladin:a-homebrew-channel',
+        name: 'A Homebrew Channel',
+        level: 3,
+        automation: 'engine',
+        note: 'A pool and an activation that spends it, written by somebody other than the SRD so the derivation has something to judge.',
+        grants: [
+          { kind: 'pool', key: 'a-homebrew-channel', label: 'A Homebrew Channel', minimum: 1, recovers: 'long-rest' },
+          {
+            kind: 'activated',
+            action: 'bonus-action',
+            pool,
+            ...(pool === null ? {} : { spendsOnly: true }),
+            lastsSeconds: 600,
+          },
+        ],
+      }) as unknown as FeatureDefinition;
+
+    expect(isBarePool(spends('a-homebrew-channel'))).toBe(false);
+    // The same feature whose activation costs nothing: the pool is counted and
+    // nothing takes a use out of it.
+    expect(isBarePool(spends(null))).toBe(true);
   });
 
   /** Every clause of the five says something, as every other clause must. */

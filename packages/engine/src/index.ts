@@ -61,6 +61,17 @@ export { movementLeftFor, speedOf } from './standing.js';
 // be asked to establish a sight line the looker's own Darkvision already
 // settles.
 export { canSee, canSeePoint, sensesOf } from './standing.js';
+// And the other question a creature's awareness answers, which is not sight:
+// SRD Divine Sense's "you know the location of any creature of those types
+// within 60 feet of yourself, and you know its creature type". Derived on
+// every read, so a door publishing it can never show an awareness running on
+// a Paladin who has just been Stunned.
+export {
+  awarenessesOn,
+  detectedBy,
+  type DetectedCreature,
+  type RunningAwareness,
+} from './standing.js';
 // The scores as they stand, and the sheet a reader should be handed. Exported
 // for the third time for the same reason: an item that *sets* a score means
 // `creature.sheet.abilities` is the score the character had rather than the

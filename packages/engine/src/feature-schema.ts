@@ -1204,6 +1204,34 @@ function grantProblems(
         reason: `"${String(grant.size)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
       });
     }
+    // An awareness with no radius or nothing to report is a use of a pool that
+    // buys silence — SRD Divine Sense's "any creature of those types within 60
+    // feet". Both halves are the feature's and neither has a default: a radius
+    // of nothing finds nobody and an empty list names nobody, and a caller who
+    // spent the use would be told the room was empty.
+    if (grant.detects !== undefined) {
+      const detects = grant.detects;
+      if (!isCount(detects.feet)) {
+        found.push({
+          field: 'grants.detects.feet',
+          code: 'bad_awareness',
+          reason: `an awareness reaches a whole number of feet of at least one, not ${String(detects.feet)}`,
+        });
+      }
+      const types: unknown = detects.creatureTypes;
+      if (
+        !Array.isArray(types) ||
+        types.length === 0 ||
+        types.some((one: unknown) => typeof one !== 'string' || one.trim() === '')
+      ) {
+        found.push({
+          field: 'grants.detects.creatureTypes',
+          code: 'bad_awareness',
+          reason:
+            'an awareness names the creature types it reports, and one naming none would spend a use to find nobody',
+        });
+      }
+    }
 
     const kinds = new Set<string>();
     (grant.hangs ?? []).forEach((hung, index) => {

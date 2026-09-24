@@ -3116,6 +3116,10 @@ export function planCharacter(
       ...(grant.size === undefined ? {} : { size: grant.size }),
       ...(grant.capSeconds === undefined ? {} : { capSeconds: grant.capSeconds }),
       ...(grant.endsOn === undefined ? {} : { endsOn: grant.endsOn }),
+      // SRD Divine Sense's radius and the three types it reports, carried
+      // whole: neither is a column of any class table, and what reads them is
+      // `detectedBy` at the moment somebody asks.
+      ...(grant.detects === undefined ? {} : { detects: grant.detects }),
       ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
       ...(grant.onlyIfUnmoved === undefined ? {} : { onlyIfUnmoved: grant.onlyIfUnmoved }),
       // Carried across whole, and read at the moment of use rather than here:

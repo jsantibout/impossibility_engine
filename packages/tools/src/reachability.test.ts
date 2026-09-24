@@ -522,10 +522,14 @@ function reachOf(
  * The table is checked in both directions below, so opening one of these
  * deletes its line in the same commit.
  */
-const NOTHING_TO_BUY: Readonly<Record<string, string>> = {
-  'paladin:channel-divinity':
-    'the pool is real and prints no option this engine executes — SRD Divine Sense and Vow of Enmity are not built — which is the same argument that kept the Cleric’s shut until Turn Undead ran.',
-};
+const NOTHING_TO_BUY: Readonly<Record<string, string>> = {};
+// **The record is empty and the machinery stays.** A Paladin's Channel
+// Divinity was the one entry it ever held, and it left the way the Cleric's
+// did: Divine Sense is an activation on the pool the feature declares, so the
+// sheet reports it as spendable through `activate_feature` and the sweep below
+// finds no unreachable feature at all. A pool that closes is written down here
+// rather than argued about, and the guard is checked in both directions — so a
+// feature that stopped being reachable fails rather than being excused.
 
 // — the sweep ——————————————————————————————————————————————————————————————
 
