@@ -121,7 +121,16 @@ const castOn = (log: readonly GameEvent[], spellId: string, slotLevel: number): 
   const before = fold(SEED, log);
   return applyAll(
     before,
-    must(resolveSpell(before, CASTER, { spellId, targets: [TARGET], slotLevel }, supply(spellId)))
+    // Both spells here are cast on "a **willing** creature", so the consent is
+    // stated: what this file is about is the Speed the grant confers.
+    must(
+      resolveSpell(
+        before,
+        CASTER,
+        { spellId, targets: [TARGET], willing: [TARGET], slotLevel },
+        supply(spellId),
+      ),
+    )
       .events,
   );
 };

@@ -619,6 +619,28 @@ describe('each rule refuses something', () => {
   );
 
   /**
+   * SRD Mage Armor's "a **willing** creature", held to the one rule that
+   * matters and to the one that keeps the field from meaning two things.
+   *
+   * The gate is asked where a caller **names** somebody, so a spell that names
+   * nobody at all would carry a clause nothing ever reads — the reason above
+   * with the sides swapped. And `true` is the only value, because absence is
+   * how a spell says it does not print the word.
+   */
+  it('refuses a consent gate on a spell that names no target', () => {
+    expect(only({ targets: { count: 0, willing: true } })).toEqual(['consent_without_a_target']);
+  });
+
+  it('accepts a consent gate on a spell that names one, and on an unlimited list', () => {
+    expect(only({ targets: { count: 1, willing: true } })).toEqual([]);
+    expect(only({ targets: { count: 0, unlimited: true, willing: true } })).toEqual([]);
+  });
+
+  it('refuses any value but true for the consent gate', () => {
+    expect(only({ targets: { count: 1, willing: false } })).toEqual(['malformed_field']);
+  });
+
+  /**
    * And the second reader that is missing, which is the one worth a guard of
    * its own: a **persistent** area re-derives its catch off the pinned record
    * at every boundary it triggers on, and that seam reads `unaffected` and
@@ -4831,6 +4853,41 @@ describe('the fought clause is refused everywhere it could not be read', () => {
   /** And a save that says nothing is the ordinary case. */
   it('accepts a saving throw that does not print it', () => {
     expect(inList('effects', SAVE)).toEqual([]);
+  });
+
+  /**
+   * SRD Levitate's "An **unwilling** creature that succeeds on a Constitution
+   * saving throw is unaffected" is the same shape of clause over the same kind
+   * of stated fact, so it is held to the same three rules and tested against
+   * the same three lists. What differs is only what the clause does to the
+   * roll: the fought clause changes it and this one withholds it.
+   */
+  it('accepts an unwilling save on the casting’s own effect list', () => {
+    expect(inList('effects', { ...SAVE, unlessWilling: true })).toEqual([]);
+  });
+
+  it('refuses an unwilling clause on a host that rolls no saving throw', () => {
+    expect(
+      inList('effects', {
+        kind: 'attack',
+        damage: { dice: '1d10' },
+        damageType: 'fire',
+        unlessWilling: true,
+      }),
+    ).toEqual(['consent_without_save']);
+  });
+
+  it('refuses an unwilling clause inside an area trigger and inside an activation', () => {
+    expect(inList('areaTrigger', { ...SAVE, unlessWilling: true })).toEqual([
+      'consent_outside_the_casting',
+    ]);
+    expect(inList('activation', { ...SAVE, unlessWilling: true })).toEqual([
+      'consent_outside_the_casting',
+    ]);
+  });
+
+  it('refuses any value but true for the unwilling clause', () => {
+    expect(inList('effects', { ...SAVE, unlessWilling: false })).toEqual(['malformed_field']);
   });
 
   /**

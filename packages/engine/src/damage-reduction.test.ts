@@ -190,7 +190,7 @@ class Game {
       resolveSpell(
         this.state,
         CLERIC,
-        { spellId: 'resistance', targets: [WARD], damageType },
+        { spellId: 'resistance', targets: [WARD], willing: [WARD], damageType },
         supply(this.state),
       ),
       `warding against ${damageType}`,
@@ -523,7 +523,7 @@ describe('SRD Resistance: a d4 off the total, before the defences', () => {
     const out = resolveSpell(
       game.state,
       CLERIC,
-      { spellId: 'resistance', targets: [WARD] },
+      { spellId: 'resistance', targets: [WARD], willing: [WARD] },
       supply(game.state),
     );
     expect(isErr(out) && out.code).toBe('damage_type_required');
@@ -534,7 +534,7 @@ describe('SRD Resistance: a d4 off the total, before the defences', () => {
     const out = resolveSpell(
       game.state,
       CLERIC,
-      { spellId: 'resistance', targets: [WARD], damageType: 'force' },
+      { spellId: 'resistance', targets: [WARD], willing: [WARD], damageType: 'force' },
       supply(game.state),
     );
     expect(isErr(out)).toBe(true);

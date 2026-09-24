@@ -156,7 +156,17 @@ class Game {
       resolveSpell(
         this.state,
         WIZ,
-        { spellId, targets, slotLevel, ...(area === undefined ? {} : area) },
+        {
+          spellId,
+          targets,
+          slotLevel,
+          // SRD Gaseous Form is cast on "a **willing** creature", so a casting
+          // that named nobody would be asked about the consent rather than
+          // resolved. What this file is about is what a blow ends, so consent
+          // is stated for whoever the casting names.
+          ...(SRD_CONTENT.spell(spellId)?.targets.willing === true ? { willing: targets } : {}),
+          ...(area === undefined ? {} : area),
+        },
         supply(spellId),
       ),
       `casting ${spellId}`,

@@ -213,14 +213,17 @@ describe('two rings cast at will and at nobody but their wearer', () => {
 
   /**
    * "…but can target only yourself when you do so." The companion is standing
-   * five feet away, in sight and in range of both spells, and is refused by
-   * the ring rather than by the spell.
+   * five feet away, in sight and in range of both spells, **and has consented**
+   * — both spells are cast on "a willing creature", so a casting that said
+   * nothing would be asked about the consent instead of refused, and the claim
+   * made here is that the ring refuses a companion the spell would otherwise
+   * have taken. It is the ring that says no, and nothing else.
    */
   it.each(RINGS)('$item refuses a companion the spell itself would take', ({ item, spell, name }) => {
     const out = resolveSpell(
       fold('seed', wearing(item)),
       WEARER,
-      { spellId: spell, targets: [COMPANION], item },
+      { spellId: spell, targets: [COMPANION], item, willing: [COMPANION] },
       supply(`other-${item}`),
     );
     expect(isErr(out) && out.code).toBe('targets_only_yourself');

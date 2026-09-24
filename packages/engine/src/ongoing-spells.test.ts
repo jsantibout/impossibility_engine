@@ -182,6 +182,11 @@ class Game {
         {
           spellId,
           targets,
+          // SRD Mage Armor is cast on "a **willing** creature": a casting that
+          // named nobody would be asked about the consent rather than left
+          // running, and what this file is about is what a running casting
+          // leaves behind.
+          ...(SRD_CONTENT.spell(spellId)?.targets.willing === true ? { willing: targets } : {}),
           ...(slotLevel === undefined ? {} : { slotLevel }),
         },
         supply(seed),

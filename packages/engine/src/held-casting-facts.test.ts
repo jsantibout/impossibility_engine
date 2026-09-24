@@ -397,7 +397,7 @@ describe('a held Protection from Energy grants the Resistance its caster chose',
    */
   const held = (damageType: string): GameState => {
     const game = new Game();
-    game.declare('protection-from-energy', { targets: [FIGHTER], damageType });
+    game.declare('protection-from-energy', { targets: [FIGHTER], willing: [FIGHTER], damageType });
     game.settleCast();
     return game.state;
   };
@@ -412,7 +412,7 @@ describe('a held Protection from Energy grants the Resistance its caster chose',
 
   it('agrees with the same spell cast in one breath', () => {
     const game = new Game();
-    game.cast('protection-from-energy', { targets: [FIGHTER], damageType: 'cold' });
+    game.cast('protection-from-energy', { targets: [FIGHTER], willing: [FIGHTER], damageType: 'cold' });
     expect(hitFor(game.state, FIGHTER, 'cold', 20)).toBe(10);
     expect(hitFor(game.state, FIGHTER, 'acid', 20)).toBe(20);
   });
@@ -421,6 +421,7 @@ describe('a held Protection from Energy grants the Resistance its caster chose',
     const game = new Game();
     const { castingId } = game.declare('protection-from-energy', {
       targets: [FIGHTER],
+      willing: [FIGHTER],
       damageType: 'cold',
     });
     game.settleCast();

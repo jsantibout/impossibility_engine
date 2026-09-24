@@ -115,7 +115,7 @@ const supply = (seed = 'cast') => ({
 });
 
 const castOn = (state: GameState, target: CharacterId) =>
-  resolveSpell(state, WIZARD, { spellId: 'mage-armor', targets: [target], slotLevel: 1 }, supply());
+  resolveSpell(state, WIZARD, { spellId: 'mage-armor', targets: [target], slotLevel: 1, willing: [target] }, supply());
 
 describe('Mage Armor replaces the calculation rather than adding to it', () => {
   /** Dexterity +2, so 10 + 2 becomes 13 + 2. */
@@ -294,7 +294,7 @@ describe('the spell replays like every other', () => {
       resolveSpell(
         base(),
         WIZARD,
-        { spellId: 'mage-armor', targets: [FIGHTER], slotLevel: 1, commandId: 'c1' },
+        { spellId: 'mage-armor', targets: [FIGHTER], slotLevel: 1, willing: [FIGHTER], commandId: 'c1' },
         supply(),
       ),
       'first',
@@ -304,7 +304,7 @@ describe('the spell replays like every other', () => {
       resolveSpell(
         fold('seed', log),
         WIZARD,
-        { spellId: 'mage-armor', targets: [FIGHTER], slotLevel: 1, commandId: 'c1' },
+        { spellId: 'mage-armor', targets: [FIGHTER], slotLevel: 1, willing: [FIGHTER], commandId: 'c1' },
         supply(),
       ),
       'retry',

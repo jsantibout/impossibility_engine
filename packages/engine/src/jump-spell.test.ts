@@ -142,7 +142,7 @@ class Game {
   /** The druid touches somebody. The spell is a Bonus Action, so it needs no turn. */
   cast(on: CharacterId = WIZARD): string {
     const out = unwrap(
-      resolveSpell(this.state, DRUID, { spellId: 'jump', targets: [on] }, supply()),
+      resolveSpell(this.state, DRUID, { spellId: 'jump', targets: [on], willing: [on] }, supply()),
       'casting Jump',
     );
     this.push(out.events);

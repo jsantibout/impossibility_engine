@@ -2048,6 +2048,28 @@ export type SpellEffect =
        */
       readonly advantageIfFought?: true;
       /**
+       * SRD Levitate: "An **unwilling** creature that succeeds on a
+       * Constitution saving throw is unaffected."
+       *
+       * The save is offered to the creature that objects and to nobody else,
+       * so a target the casting named in its `willing` list skips the roll and
+       * is affected — the mirror of {@link advantageIfFought}, which reads the
+       * same kind of stated fact and changes the roll rather than removing it.
+       *
+       * **And nothing is asked for here**, which is where it parts company
+       * with the target rule that spells consent as a gate
+       * ({@link TargetRule.willing}). Casting this at a creature that has not
+       * consented is exactly what the sentence is about: the unwilling reading
+       * is legal, the book hands the objector a die, and a casting that said
+       * nothing has said "unwilling", which is the SRD's own default rather
+       * than a fact the engine invented.
+       *
+       * The value is `true` and nothing else: absence is how a spell says it
+       * does not print the clause, and `false` would be a second way to say
+       * the same thing.
+       */
+      readonly unlessWilling?: true;
+      /**
        * A defence the target already has that makes the save for it.
        *
        * SRD Sleep: "Creatures that don't sleep, such as elves, or **that have
@@ -3865,6 +3887,36 @@ export interface TargetRule {
    * caller to add a second faller to widen the spell.
    */
   readonly mustBeFalling?: true;
+  /**
+   * SRD *Mage Armor*: "You touch a **willing** creature who isn't wearing
+   * armor." Nineteen definitions at levels 0–3 print the word.
+   *
+   * **A fact nobody but the table holds, so it is asked for rather than
+   * assumed.** A target the casting has not named in `CastSpellRequest.willing`
+   * comes back `needs-context` — never refused, and never waved through. The
+   * engine holds no rule that an ally consents: `side` is a different question
+   * (a Charmed ally is still on the party's side, and an enemy nobody has come
+   * to blows with is not), and "of course the cleric's friend agreed" is a
+   * table's assumption rather than a sentence in the book. Deriving it would
+   * be the engine answering, the same way every time, a question the SRD put
+   * to somebody else.
+   *
+   * **The caster is willing by being the caster**, which is the one consent
+   * nothing has to state: a creature that chose to cast a spell on itself has
+   * said so by casting it, and SRD writes "a willing creature you touch" of
+   * spells whose own note says the caster may be the target.
+   *
+   * **A gate, not a die.** {@link SpellEffect} `save.unlessWilling` is the
+   * other half of the book's vocabulary for the same fiction — Levitate hands
+   * the objector a saving throw instead of refusing the casting — and the two
+   * are read at different moments for that reason: this one before a slot is
+   * spent, that one at the roll.
+   *
+   * Checked only where a caller **names** targets, for
+   * {@link mustBeUnarmored}'s reason: an area filters rather than refuses, and
+   * no spell prints this clause over an area's catch.
+   */
+  readonly willing?: true;
   /**
    * SRD *Entangle*: "Each creature (**other than you**) in the area".
    *
@@ -5904,6 +5956,42 @@ export function statesFoughtFact(definition: SpellDefinition): boolean {
   return definition.effects.some(
     (effect) => effect.kind === 'save' && effect.advantageIfFought === true,
   );
+}
+
+/**
+ * Does this spell offer a saving throw an **unwilling** creature makes?
+ *
+ * SRD Levitate's "An unwilling creature that succeeds on a Constitution saving
+ * throw is unaffected", read off the definition for {@link statesFoughtFact}'s
+ * reason: the fact is stated once, at the casting, and the clause therefore
+ * belongs to the saving throw the casting itself calls for. A clause on an
+ * area trigger's save or an activation's would fire off a record that carries
+ * no such fact and would be silently unread; the validator refuses one there
+ * rather than leaving that to be discovered.
+ */
+export function offersAnUnwillingSave(definition: SpellDefinition): boolean {
+  return definition.effects.some(
+    (effect) => effect.kind === 'save' && effect.unlessWilling === true,
+  );
+}
+
+/**
+ * Does this spell ask its caster who among its targets consents?
+ *
+ * The ninth stated fact's `statesFoughtFact`, and it reads **two** clauses
+ * because the SRD writes consent two ways: a target rule that requires it
+ * ({@link TargetRule.willing}, SRD Mage Armor) and a saving throw offered to
+ * whoever does not ({@link offersAnUnwillingSave}, SRD Levitate). Either makes
+ * `CastSpellRequest.willing` a fact this spell can be told; neither makes it
+ * one the spell demands, which is the difference from the fought clause — a
+ * Mage Armor on its own caster states nothing and is right to.
+ *
+ * One reader for one question, asked where the symmetry is checked: **refused**
+ * for a spell that prints neither clause, exactly as `no_fought_clause` and
+ * `no_object_clause` are.
+ */
+export function statesWillingFact(definition: SpellDefinition): boolean {
+  return definition.targets.willing === true || offersAnUnwillingSave(definition);
 }
 
 /**

@@ -424,6 +424,11 @@ const SELF_ANSWERED_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // for everybody else — a path through a room — are no help at all to a
   // caller being asked whether its friend agreed.
   'swap_initiative:route': ['willing'],
+  // SRD Mage Armor's "a **willing** creature", which is the same question over
+  // a list rather than a boolean: nineteen level 0–3 definitions print it, the
+  // engine asks rather than refusing when nobody has said, and the answer is
+  // this call again with the creature named.
+  'cast_spell:route': ['willing'],
 };
 
 describe('every kind a tool answers on itself has a field to carry it', () => {

@@ -319,7 +319,7 @@ describe('bonusesFor narrows a stored bonus the way a selector narrows a mode', 
 
 describe('Guidance adds its die to the chosen skill and to nothing else', () => {
   const withGuidance = (skill: string) =>
-    cast([], request({ spellId: 'guidance', targets: [FRIEND], choice: skill, slotLevel: undefined }));
+    cast([], request({ spellId: 'guidance', targets: [FRIEND], willing: [FRIEND], choice: skill, slotLevel: undefined }));
 
   it('reaches a check using the chosen skill', () => {
     const { state } = withGuidance('religion');

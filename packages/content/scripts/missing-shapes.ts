@@ -1038,12 +1038,15 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // did, arriving in the executed population with **one** clause left — and it
   // is the table's rather than a shape's, which is the honest end of a
   // prediction that was wrong for two tranches.
+  //
+  // **And that last clause is gone.** "An unwilling creature that succeeds on
+  // a Constitution saving throw is unaffected" was filed under
+  // `a-fact-only-the-table-can-declare` and named exactly what was missing:
+  // "the word on the request that names who consents". `CastSpellRequest.willing`
+  // is that word, `save.unlessWilling` is the clause that reads it, and the
+  // table declares consent by naming it — which is the shape working as
+  // described rather than a shape being removed.
   levitate: [
-    {
-      clause: 'the save is asked of every target',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD asks the Constitution saving throw of an **unwilling** creature only — "An unwilling creature that succeeds on a Constitution saving throw is unaffected" — so a willing ally is lifted with no roll at all. Whether a creature consents is fiction the engine does not hold and must not derive: `side` is a different question, a Charmed ally is on the party’s side and an unfought enemy is not, and no other spell’s consent clause has a die behind it for this one to borrow from. What is missing is the word on the request that names who consents.',
-    },
     {
       clause: 'what the levitating creature may do with its own Speed',
       why: 'movement-modes',

@@ -1398,6 +1398,20 @@ export interface PendingCasting {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Which of this casting's targets consent to it.
+   *
+   * SRD Mage Armor's "a **willing** creature" and SRD Levitate's save for one
+   * that is not. The ninth fact a caster states at the casting, pinned here
+   * for the third's reason — settlement takes no fresh request, so a Levitate
+   * declared over a willing ally must not settle with the ally saving.
+   *
+   * A list, because the clause is about the target; sorted on the way in and
+   * **absent when empty**, which is where it follows the designation rather
+   * than the fought list: neither consent clause insists on an answer, so
+   * "nobody was named" and "nobody consented" are one casting.
+   */
+  readonly willing?: readonly CharacterId[];
+  /**
    * Creatures the caster designated unaffected, for a spell that offers it.
    *
    * SRD Spirit Guardians: "When you cast this spell, you can designate
@@ -1787,6 +1801,15 @@ export type ReadiedResponse =
        * exactly the state it always did.
        */
       readonly fought?: readonly CharacterId[];
+      /**
+       * Which of the casting's targets consent to it.
+       *
+       * SRD Mage Armor's "a **willing** creature", held for the fought list's
+       * reason: the release restates nothing, so a spell whose target rule
+       * gates on consent could not be let go at all without this. Absent when
+       * nobody was named, because neither consent clause insists on an answer.
+       */
+      readonly willing?: readonly CharacterId[];
       /** Creatures the caster designated unaffected, for a spell that offers it. */
       readonly unaffected?: readonly CharacterId[];
       /**

@@ -2276,6 +2276,12 @@ const ATTACK = tool({
  */
 const CAST_SPELL = tool({
   name: 'cast_spell',
+  // **The consent question is answered by sending this same call again with
+  // `willing` on it**, so this tool is its own door — the reading
+  // `swap_initiative` already takes of SRD Alert's "one willing ally". Without
+  // it the surface's kind-wide mapping would send a caller asking whether
+  // their friend agreed to `move` and `activate_spell`.
+  selfAnswers: ['route'],
   description:
     'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration, the range. You name the spell, the targets and the slot. An area spell takes no targets and picks its own — give it `at` for where it is centred, and, for a Cone, Cube or Line, a `towardsCreature`, `towardsLandmark` or `towards` saying which way it points. A wall is the one template you draw instead: give it `path`, the 5-foot spaces it runs through in order. The exception is an area the spell says is "each creature of your choice": there `targets` names which of the creatures standing in it are caught, and the engine says who those are when you leave it out.',
   mutates: true,
@@ -2333,6 +2339,12 @@ const CAST_SPELL = tool({
       .optional()
       .describe(
         'Which of the targets you or your allies are already fighting, for a spell that prints the clause — Charm Person and Charm Monster roll that creature’s save with Advantage. A list, because an upcast Charm names several and the answer differs per creature. Send an empty list to say you are fighting none of them; leaving it out entirely is refused, because silence is not an answer the engine may fill in.',
+      ),
+    willing: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Which of the targets agreed to this, for a spell that asks — Mage Armor, Fly, Haste, Heroism, Guidance and a dozen more are cast on "a willing creature", and Levitate offers a Constitution saving throw to a creature that is **not**. Only you can see whether somebody consented, so leave it out and the casting is not refused but asked about: say who agreed and send the same call again. You never need to name yourself, because casting a spell on yourself is the consent. Naming somebody this casting is not aimed at is refused, and so is naming anybody at all through a spell that prints neither clause.',
       ),
     teleportTo: placementSchema
       .optional()
@@ -2452,6 +2464,10 @@ const CAST_SPELL = tool({
       // caller who has not read the spell, and the engine tells the two
       // apart. Every other stated fact here is absent-or-present.
       ...(args.fought === undefined ? {} : { fought: args.fought.map(who) }),
+      // And its opposite number, which **is** absent-or-present: neither
+      // consent clause insists on an answer, so "nobody consented" and
+      // "nobody was named" are one casting — see `willingFor`.
+      ...(args.willing === undefined ? {} : { willing: args.willing.map(who) }),
       ...(args.teleportTo === undefined ? {} : { teleportTo: placementOf(args.teleportTo) }),
       ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
       ...(args.object === undefined ? {} : { object: args.object }),

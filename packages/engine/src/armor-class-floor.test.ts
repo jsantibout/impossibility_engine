@@ -100,7 +100,7 @@ const supply = (seed = 'cast') => ({
 });
 
 const castOn = (state: GameState, target: CharacterId) =>
-  resolveSpell(state, DRUID, { spellId: 'barkskin', targets: [target], slotLevel: 2 }, supply());
+  resolveSpell(state, DRUID, { spellId: 'barkskin', targets: [target], slotLevel: 2, willing: [target] }, supply());
 
 describe('Barkskin floors the Armour Class rather than replacing it', () => {
   it('raises a creature whose Armour Class is lower than 17', () => {

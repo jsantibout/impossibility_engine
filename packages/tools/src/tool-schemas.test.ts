@@ -180,10 +180,13 @@ describe('toolSchemas', () => {
     // Re-pinned again for the bookkeeping spells track: `cast_spell.object` (the
     // eighth stated fact — Remove Curse's attunement, Heat Metal's object) and
     // the Command word's slot grew both surfaces by the same amount.
+    // And again for the consent track: `cast_spell.willing`, the ninth stated
+    // fact, on both surfaces and by the same 719 characters. The tool count is
+    // unmoved — a field on a call that already existed.
     expect(toolSchemas(player())).toHaveLength(83);
     expect(toolSchemas(dm())).toHaveLength(102);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(118063);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142193);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(118782);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142912);
   });
 });
 

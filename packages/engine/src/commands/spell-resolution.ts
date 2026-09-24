@@ -217,6 +217,7 @@ import {
   type CastSpellRequest,
   declaredFacts,
   foughtFor,
+  willingFor,
   type HeldCasting,
   namedTargets,
   placeOrigin,
@@ -434,6 +435,10 @@ export function resolveDeclaredCast(
       // fresh request there is none of. A held Charm Person settles with the
       // Advantage its caster said it had.
       ...(pending.fought === undefined ? {} : { fought: pending.fought }),
+      // And the ninth, read back the same way: a Levitate declared over a
+      // willing ally settles with the ally still willing, because a settlement
+      // takes no fresh request to ask again.
+      ...(pending.willing === undefined ? {} : { willing: pending.willing }),
       // The fourth stated fact, read back off the record. A Dimension Door
       // declared at one space settles at that space and at no other.
       ...(pending.teleportTo === undefined ? {} : { teleportTo: pending.teleportTo }),
@@ -1784,6 +1789,10 @@ function resolveOnTargets(
   // empty list, which this must never do: see `foughtFor`.
   const fought = foughtFor(request);
 
+  // The ninth, normalised beside it and elided when empty — see `willingFor`,
+  // which is where the two lists part company.
+  const willing = willingFor(request);
+
   // The fifth stated fact, in the shape the record wants rather than the one
   // the declaration wants. See `choicePinned`.
   const pinned = choicePinned(definition, request);
@@ -1958,6 +1967,7 @@ function resolveOnTargets(
         effects: running,
         ...(origin === null ? {} : { from: origin }),
         ...(fought === undefined ? {} : { fought }),
+        ...(willing === undefined ? {} : { willing }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
         ...(request.object === undefined ? {} : { object: request.object }),
@@ -2244,6 +2254,7 @@ function resolveOnTargets(
               // `statedFacts` — see where it is bound above.
               ...stated,
               ...(fought === undefined ? {} : { fought }),
+              ...(willing === undefined ? {} : { willing }),
               // And the two marks an elected option leaves on the record
               // itself: the mode it hung on one target's saves, and whether
               // the casting can be perceived being made at all.
@@ -2342,6 +2353,7 @@ function resolveOnTargets(
       effects: running,
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
+      ...(willing === undefined ? {} : { willing }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
       ...(request.object === undefined ? {} : { object: request.object }),
@@ -2615,6 +2627,15 @@ export function resolveEffects(
      */
     readonly fought?: readonly CharacterId[];
     /**
+     * Which of this casting's targets consent to it.
+     *
+     * The casting's own, or the declaration's for one held open. Read at the
+     * saving throw, because SRD Levitate offers it to an unwilling creature
+     * and to nobody else — and read per target for the fought list's reason,
+     * that the book asks it of the creature rather than of the casting.
+     */
+    readonly willing?: readonly CharacterId[];
+    /**
      * Where a `teleport` effect puts its target.
      *
      * The caster's decision, stated at the casting and never derived — the
@@ -2733,6 +2754,7 @@ export function resolveEffects(
     ...(context.label === undefined ? {} : { label: context.label }),
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
+    ...(context.willing === undefined ? {} : { willing: context.willing }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
     ...(context.object === undefined ? {} : { object: context.object }),
@@ -2894,6 +2916,7 @@ export interface EffectRun {
   readonly label?: string;
   readonly from?: Point;
   readonly fought?: readonly CharacterId[];
+  readonly willing?: readonly CharacterId[];
   readonly teleportTo?: Placement;
   readonly weapon?: string;
   readonly object?: string;
@@ -3183,6 +3206,7 @@ export function runEffects(
     alters: run.alters ?? NO_ALTERATIONS(),
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
+    ...(run.willing === undefined ? {} : { willing: run.willing }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
     ...(run.object === undefined ? {} : { object: run.object }),

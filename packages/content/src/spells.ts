@@ -2115,7 +2115,7 @@ export const HEROISM: SpellDefinition = {
   // "Range: Touch."
   range: { kind: 'touch' },
   // "A willing creature you touch", and one more per slot level above 1.
-  targets: { count: 1, self: true, extraPerSlotLevelAbove: 1 },
+  targets: { count: 1, self: true, extraPerSlotLevelAbove: 1, willing: true },
   effects: [
     { kind: 'condition-immunity', conditions: ['frightened'] },
     {
@@ -2126,7 +2126,6 @@ export const HEROISM: SpellDefinition = {
     },
   ],
   unmodelled: [
-    'whether the target is willing is not modelled; willingness is fiction',
     'being imbued with bravery is narration',
   ],
 };
@@ -2895,7 +2894,7 @@ export const GUIDANCE: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   effects: [
     {
       kind: 'buff',
@@ -3326,7 +3325,7 @@ export const MAGE_ARMOR: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true, mustBeUnarmored: true },
+  targets: { count: 1, self: true, mustBeUnarmored: true, willing: true },
   effects: [
     // "13 plus its Dexterity modifier": Dexterity is already in the formula,
     // so the base is the whole of what the spell states. A Shield still helps
@@ -3338,7 +3337,6 @@ export const MAGE_ARMOR: SpellDefinition = {
   // Shield: the sentence is the other half of the targeting clause, and
   // `mustBeUnarmored` already reads the body slot.
   endsEarly: [{ on: 'target-dons-armor', ends: 'casting' }],
-  unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
 };
 
 /**
@@ -3480,7 +3478,7 @@ export const FLY: SpellDefinition = {
   // Armor are already transcribed as — and which SRD says of this spell from
   // the other end too: a Wizard casting Fly on themselves is the most ordinary
   // use the spell has, and without `self` the engine refused it outright.
-  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true, willing: true },
   // The whole of the printed benefit, in one grant: the mode, the number of
   // feet, and the hovering the same sentence hands over. The ten minutes are
   // the casting's own deadline, so the grant needs no `lasts` — it ends
@@ -3540,7 +3538,7 @@ export const DARKVISION: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   // SRD: "the target has Darkvision with a range of 150 feet" — a sense the
   // casting confers, read beside the ones a species grants at the longest
   // range held, and gone when the eight hours are.
@@ -3568,7 +3566,7 @@ export const SPIDER_CLIMB: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'touch' },
-  targets: { count: 1, extraPerSlotLevelAbove: 1 },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, willing: true },
   // "a Climb Speed equal to its Speed", which is the sentence `match-walk`
   // exists for: the number is the target's own and no definition could print
   // it.
@@ -3905,7 +3903,7 @@ export const WATER_BREATHING: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 10 },
+  targets: { count: 10, willing: true },
   effects: [],
   durationSeconds: 86_400,
   unmodelled: [
@@ -3978,7 +3976,7 @@ export const JUMP: SpellDefinition = {
   // many words from the other end: Ring of Jumping casts Jump "but can target
   // only yourself when you do so", a sentence with no meaning if the caster
   // were not a legal target of it.
-  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true, willing: true },
   // "Once on each of its turns until the spell ends, that creature can jump up
   // to 30 feet by spending 10 feet of movement." Two numbers and a cap, and
   // the cap is stamped on the grant rather than counted anywhere else — so a
@@ -4476,7 +4474,7 @@ export const NONDETECTION: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   effects: [],
   durationSeconds: 28_800,
   unmodelled: [
@@ -5099,7 +5097,7 @@ export const WATER_WALK: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 10, self: true },
+  targets: { count: 10, self: true, willing: true },
   effects: [],
   durationSeconds: 3600,
   unmodelled: [
@@ -5815,7 +5813,9 @@ export const STONESKIN: SpellDefinition = {
     },
   ],
   durationSeconds: 3600,
-  unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
+  unmodelled: [
+    'the "willing creature" clause is not transcribed here: `TargetRule.willing` is the field that gates a casting on consent, and it has been written onto the levels the ledger counts and not yet onto this one',
+  ],
 };
 
 /**
@@ -5849,11 +5849,10 @@ export const PROTECTION_FROM_ENERGY: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'thunder'],
   effects: [{ kind: 'damage-defense', damageTypes: ['acid'], defense: 'resistant' }],
   durationSeconds: 3600,
-  unmodelled: ['whether the target is willing is not modelled; willingness is fiction'],
 };
 
 /**
@@ -5908,7 +5907,7 @@ export const MIND_BLANK: SpellDefinition = {
     { kind: 'condition-immunity', conditions: ['charmed'] },
   ],
   unmodelled: [
-    'whether the target is willing is not modelled; willingness is fiction',
+    'the "willing creature" clause is not transcribed here: `TargetRule.willing` is the field that gates a casting on consent, and it has been written onto the levels the ledger counts and not yet onto this one',
     'the second sentence is the table’s, once the Charmed Immunity above has answered the mind-control half of it: nothing in this engine senses emotions or alignment, reads thoughts, magically locates a creature, gathers information about one or observes it from elsewhere, so there is no effect for the protection to refuse and Wish is not in the catalogue',
   ],
 };
@@ -6679,7 +6678,7 @@ export const HASTE: SpellDefinition = {
   // "Choose a willing creature that you can see within range", which includes
   // you: Fly, Jump and Mage Armor are all transcribed that way, and willingness
   // is fiction.
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   requiresSight: true,
   effects: [
     // "it gains a +2 bonus to Armor Class"
@@ -6747,7 +6746,7 @@ export const GASEOUS_FORM: SpellDefinition = {
   range: { kind: 'touch' },
   // "A willing creature you touch", which includes you, plus one more per slot
   // level above the third.
-  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
+  targets: { count: 1, extraPerSlotLevelAbove: 1, self: true, willing: true },
   effects: [
     { kind: 'damage-defense', damageTypes: ['bludgeoning', 'piercing', 'slashing'], defense: 'resistant' },
     { kind: 'condition-immunity', conditions: ['prone'] },
@@ -6822,6 +6821,11 @@ export const LEVITATE: SpellDefinition = {
     {
       kind: 'save',
       ability: 'con',
+      // "An **unwilling** creature that succeeds on a Constitution saving
+      // throw is unaffected." The save is offered to the creature that objects
+      // and to nobody else, so a target the casting named as willing — and the
+      // caster, who consents by casting — is lifted with no roll at all.
+      unlessWilling: true,
       // "rises vertically up to 20 feet and remains suspended there for the
       // duration." The save is the gate and the lift is the whole of what it
       // gates: a creature that fails goes up, and a creature that makes it is
@@ -6831,7 +6835,6 @@ export const LEVITATE: SpellDefinition = {
   ],
   durationSeconds: 600,
   unmodelled: [
-    'the save is asked of every target, and SRD asks it of an **unwilling** creature only — "An unwilling creature that succeeds on a Constitution saving throw is unaffected" — so a willing ally may make the save and not be lifted; willingness is a fact about the fiction and a casting has no word for it, which is the same gap SRD Mage Armor’s "a willing creature" leaves and the first one here with a die behind it',
     'moving the target afterwards is the DM’s: "You can change the target’s altitude by up to 20 feet in either direction on your turn" is a later action that moves the **target** rather than an area, which no activation shape expresses, and the climbing along a wall is fiction',
     'what the levitating creature may do with its own Speed is the DM’s, and it is a gap this spell opens: "The target can move only by pushing or pulling against a fixed object or surface within reach" is the whole of SRD’s answer, and the engine refuses only a **rise** — a creature holding station twenty feet up may still walk its thirty feet sideways through the air and come down for nothing, because gravity is not a Speed and no rule asks what is under a creature that is already off the ground',
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
@@ -8178,7 +8181,7 @@ export const FREEDOM_OF_MOVEMENT: SpellDefinition = {
     'the two conditions are not refused: the subject is "spells and other magical effects", so a Ghoul’s Paralyzed still lands and a Hold Person’s does not, and a condition Immunity here answers about the condition rather than about what caused it',
     'the Swim Speed equal to its Speed is not granted; the engine tracks one Speed and no movement modes',
     'the escape is not offered: "the target can spend 5 feet of movement to automatically escape from nonmagical restraints" is a later action taken by the target rather than by the caster, and a casting is acted through by its caster and nobody else',
-    'whether the creature touched is willing is not modelled; willingness is fiction',
+    'the "willing creature" clause is not transcribed here: `TargetRule.willing` is the field that gates a casting on consent, and it has been written onto the levels the ledger counts and not yet onto this one',
   ],
 };
 
@@ -8262,7 +8265,7 @@ export const RESISTANCE: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   effects: [
     {
       kind: 'damage-reduction',
@@ -8291,9 +8294,6 @@ export const RESISTANCE: SpellDefinition = {
     'thunder',
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'whether the creature touched is willing is not modelled; willingness is fiction',
-  ],
 };
 
 /**
@@ -9029,7 +9029,7 @@ export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   // The Mask, with the fourteen the book gives a caster to choose from. The
   // printed value is a default the casting replaces, exactly as
   // Blindness/Deafness prints Blinded: `statedChoice` substitutes what the
@@ -9068,14 +9068,13 @@ export const BARKSKIN: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   // "the target has an Armor Class of 17 if its AC is lower than that" — the
   // whole rule, and the `if` is the arm rather than a condition anybody has
   // to write down.
   effects: [{ kind: 'armor-class', minimum: 17 }],
   durationSeconds: 3600,
   unmodelled: [
-    'whether the creature touched is willing is not modelled; willingness is fiction',
     'the bark-like appearance is narration',
   ],
 };
@@ -9366,14 +9365,13 @@ export const WARDING_BOND: SpellDefinition = {
   range: { kind: 'touch' },
   // "another creature", so not the caster: the whole spell is a bond between
   // two of them.
-  targets: { count: 1 },
+  targets: { count: 1, willing: true },
   effects: [],
   durationSeconds: 3600,
   unmodelled: [
     'none of the three benefits is granted: the +1 to AC, the +1 to saving throws and the Resistance to all damage are each ordinary, and all three hold only "While the target is within 60 feet of you" — a standing effect derived from where two creatures are standing, which nothing re-reads when either of them moves',
     'the shared damage is not dealt: "each time it takes damage, you take the same amount of damage" is a consequence of somebody else’s damage landing, and no effect answers one',
     'the two endings are not written: dropping to 0 Hit Points and drifting more than 60 feet apart are causes no `CastingEndTrigger` expresses, and neither is the recast on either of the connected creatures',
-    'whether the creature touched is willing is not modelled; willingness is fiction',
   ],
 };
 
@@ -9735,7 +9733,7 @@ export const FORESIGHT: SpellDefinition = {
   unmodelled: [
     'the Advantage is not granted: "the target has Advantage on D20 Tests" needs a selector for D20 Tests as a family, which `RollModifier` deliberately does not carry',
     'nor is the Disadvantage: "other creatures have Disadvantage on attack rolls against it" is a mode the attacker rolls with, granted by a spell cast on the defender, and a modifier is hung on the creature that rolls',
-    'whether the creature touched is willing is not modelled; willingness is fiction',
+    'the "willing creature" clause is not transcribed here: `TargetRule.willing` is the field that gates a casting on consent, and it has been written onto the levels the ledger counts and not yet onto this one',
   ],
 };
 
@@ -10515,7 +10513,7 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   effects: [],
   durationSeconds: 600,
   unmodelled: [
@@ -10694,7 +10692,7 @@ export const DRAGONS_BREATH: SpellDefinition = {
   castingTime: 'bonus-action',
   concentration: true,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true },
+  targets: { count: 1, self: true, willing: true },
   effects: [],
   durationSeconds: 60,
   unmodelled: [

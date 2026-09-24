@@ -28,7 +28,7 @@ import {
 } from '../attack.js';
 import { type DieEffect } from '../dice.js';
 import { bonusesFor, type ModeSource } from '../bonuses.js';
-import { rollSavingThrow } from '../checks.js';
+import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
@@ -1086,91 +1086,128 @@ export function resolveSaveEffect(
     held,
     saveDc,
     fought,
+    willing,
     alters,
   } = ctx;
   let current = world;
 
-  // A saving throw, and a condition on a failure.
-  //
-  // **Which is also what the save is *about*.** SRD Fey Ancestry grants
-  // Advantage "to avoid or end the Charmed condition", and the avoiding is
-  // this roll: the riders this failure would impose are the conditions the
-  // target is saving against, so the gatherer is handed them rather than left
-  // to guess from the ability. The list may be empty — SRD Slow's failure
-  // hands out grants and imposes nothing — and an empty list goes through as
-  // itself: it says this save is about no condition, which is a different
-  // claim from a caller that never answered, and a condition-keyed selector
-  // misses both.
-  const support = savingSupport(
-    current,
-    target,
-    victim,
-    effect.ability,
-    supply,
-    conditionRiderOf(effect).map((rider) => rider.name),
-    // A spell forced it, which SRD Magic Resistance reads.
-    true,
-  );
-  // The sheet as it stands — see `resolveSaveDamageEffect`. Two resolvers roll
-  // two saves, so one of them moving is not the other moving.
-  const sheet = sheetAsItStands(current, target) ?? victim.sheet;
-  // SRD Sleep: "Creatures … that have Immunity to the Exhaustion condition
-  // **automatically succeed** on saves against this spell." A defence the
-  // target already has, read through the one gatherer — so a Zombie's printed
-  // Immunity and a granted one answer alike — and applied as the mirror of the
-  // automatic failure `againstType` writes on the other resolver: the die is
-  // still thrown and recorded, and the total is overridden.
-  const spared =
-    effect.autoSucceedIf !== undefined &&
-    conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo);
-  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
-    dc: saveDc,
-    conditions: support.conditions,
-    ...(spared
-      ? {
-          autoSucceed: `${name}: a creature with Immunity to the ${effect.autoSucceedIf!.immuneTo} condition automatically succeeds on the save`,
-        }
-      : {}),
-    // SRD Charm Person: "It does so with Advantage if you or your allies are
-    // fighting **it**." The fact was stated at the casting and refused if it
-    // was not — `declaredFacts` asked before a slot went — so the only
-    // question left is whether the caster named *this* creature.
-    //
-    // **Per target, because that is who the sentence is about.** An upcast
-    // Charm Person names several, and the goblin you are fighting and the
-    // bystander you are not get different saves out of one casting.
-    //
-    // **Presence, not arithmetic.** It goes in as a named source and
-    // `combineRollModes` decides, so a fought target who is also Restrained
-    // rolls a normal save rather than a net-positive one, and `modeSources`
-    // still says both effects were in play.
-    modes: [
-      ...support.modes,
-      ...(effect.advantageIfFought === true && fought?.includes(target) === true
-        ? [
-            {
-              source: `${name} (you or your allies are fighting it)`,
-              mode: 'advantage' as const,
-            },
-          ]
-        : []),
-      // SRD Heightened Spell, on the other save resolver: two resolvers roll
-      // two saves, and an option that reached one of them would work against a
-      // Fireball and not against a Hold Person.
-      ...saveModeFor(alters, target),
-    ],
-    bonuses: support.bonuses,
-  });
-  if (!save.ok) return save;
+  /**
+   * SRD *Levitate*: "An **unwilling** creature that succeeds on a Constitution
+   * saving throw is unaffected."
+   *
+   * The whole of the clause, and it is a save **withheld** rather than one
+   * automatically failed: the book does not hand a consenting creature a die
+   * it is certain to lose, it declines to offer one at all. So nothing is
+   * rolled, no `d20-test-rolled` is written, and the outcome carries no save —
+   * which is what tells a reader this creature apart from one that rolled and
+   * failed.
+   *
+   * **The caster consents by casting.** A wizard levitating themselves has
+   * said so in the act, and asking them to name themselves as well would be
+   * one fact spelled two ways.
+   *
+   * `autoSucceedIf` below is the other shape and deliberately not this one:
+   * there the die *is* thrown and its total overridden, because SRD Sleep says
+   * the creature "automatically succeeds on saves against this spell" — a save
+   * made, not a save withheld.
+   */
+  const consents =
+    effect.unlessWilling === true &&
+    (target === casterId || willing?.includes(target) === true);
 
-  events.push(
-    recordD20Test(
+  /**
+   * What the die said, or **null** where no die was offered.
+   *
+   * Null is neither a failure nor a success: it is the absence of the roll,
+   * which is what the sentence above describes and what the outcome then
+   * reports by carrying no `save` at all. Everything below reads it as "was
+   * there a save, and did it hold".
+   */
+  let thrown: D20TestResult | null = null;
+  if (!consents) {
+    // A saving throw, and a condition on a failure.
+    //
+    // **Which is also what the save is *about*.** SRD Fey Ancestry grants
+    // Advantage "to avoid or end the Charmed condition", and the avoiding is
+    // this roll: the riders this failure would impose are the conditions the
+    // target is saving against, so the gatherer is handed them rather than left
+    // to guess from the ability. The list may be empty — SRD Slow's failure
+    // hands out grants and imposes nothing — and an empty list goes through as
+    // itself: it says this save is about no condition, which is a different
+    // claim from a caller that never answered, and a condition-keyed selector
+    // misses both.
+    const support = savingSupport(
+      current,
       target,
-      `${ABILITY_NAMES[effect.ability]} save vs ${name}`,
-      save.value,
-      save.value.success ? 'resisted' : 'affected',
-    ),
-  );
+      victim,
+      effect.ability,
+      supply,
+      conditionRiderOf(effect).map((rider) => rider.name),
+      // A spell forced it, which SRD Magic Resistance reads.
+      true,
+    );
+    // The sheet as it stands — see `resolveSaveDamageEffect`. Two resolvers roll
+    // two saves, so one of them moving is not the other moving.
+    const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+    // SRD Sleep: "Creatures … that have Immunity to the Exhaustion condition
+    // **automatically succeed** on saves against this spell." A defence the
+    // target already has, read through the one gatherer — so a Zombie's printed
+    // Immunity and a granted one answer alike — and applied as the mirror of the
+    // automatic failure `againstType` writes on the other resolver: the die is
+    // still thrown and recorded, and the total is overridden.
+    const spared =
+      effect.autoSucceedIf !== undefined &&
+      conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo);
+    const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
+      dc: saveDc,
+      conditions: support.conditions,
+      ...(spared
+        ? {
+            autoSucceed: `${name}: a creature with Immunity to the ${effect.autoSucceedIf!.immuneTo} condition automatically succeeds on the save`,
+          }
+        : {}),
+      // SRD Charm Person: "It does so with Advantage if you or your allies are
+      // fighting **it**." The fact was stated at the casting and refused if it
+      // was not — `declaredFacts` asked before a slot went — so the only
+      // question left is whether the caster named *this* creature.
+      //
+      // **Per target, because that is who the sentence is about.** An upcast
+      // Charm Person names several, and the goblin you are fighting and the
+      // bystander you are not get different saves out of one casting.
+      //
+      // **Presence, not arithmetic.** It goes in as a named source and
+      // `combineRollModes` decides, so a fought target who is also Restrained
+      // rolls a normal save rather than a net-positive one, and `modeSources`
+      // still says both effects were in play.
+      modes: [
+        ...support.modes,
+        ...(effect.advantageIfFought === true && fought?.includes(target) === true
+          ? [
+              {
+                source: `${name} (you or your allies are fighting it)`,
+                mode: 'advantage' as const,
+              },
+            ]
+          : []),
+        // SRD Heightened Spell, on the other save resolver: two resolvers roll
+        // two saves, and an option that reached one of them would work against a
+        // Fireball and not against a Hold Person.
+        ...saveModeFor(alters, target),
+      ],
+      bonuses: support.bonuses,
+    });
+    if (!save.ok) return save;
+    thrown = save.value;
+
+    events.push(
+      recordD20Test(
+        target,
+        `${ABILITY_NAMES[effect.ability]} save vs ${name}`,
+        save.value,
+        save.value.success ? 'resisted' : 'affected',
+      ),
+    );
+  }
 
   // **The verdict, where the sentence says somebody knows it** — SRD Zone of
   // Truth, "You know whether a creature succeeds or fails on this save."
@@ -1186,12 +1223,14 @@ export function resolveSaveEffect(
       type: 'casting-save-recorded',
       castingId: ctx.casting().castingId,
       target,
-      failed: !save.value.success,
+      // A creature that consented was never asked, and SRD's own word for
+      // what the spell then does to it is that it is affected.
+      failed: thrown === null || !thrown.success,
     });
   }
 
-  if (save.value.success) {
-    outcomes.push({ target, save: save.value, affected: false });
+  if (thrown !== null && thrown.success) {
+    outcomes.push({ target, save: thrown, affected: false });
     return ok(current);
   }
 
@@ -1248,14 +1287,14 @@ export function resolveSaveEffect(
     }
 
     if (conferred.length === 0) {
-      outcomes.push({ target, save: save.value, affected: false });
+      outcomes.push({ target, ...(thrown === null ? {} : { save: thrown }), affected: false });
       return ok(current);
     }
 
     held.add(target);
     outcomes.push({
       target,
-      save: save.value,
+      ...(thrown === null ? {} : { save: thrown }),
       conditions: conferred,
       affected: true,
     });
@@ -1298,7 +1337,7 @@ export function resolveSaveEffect(
   current = landed.value.events.reduce(applyEvent, current);
   outcomes.push({
     target,
-    save: save.value,
+    ...(thrown === null ? {} : { save: thrown }),
     ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
     affected: true,
   });

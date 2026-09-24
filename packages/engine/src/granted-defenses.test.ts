@@ -251,7 +251,7 @@ describe('Protection from Energy takes its damage type from the casting', () => 
     resolveSpell(
       state,
       CLERIC,
-      { spellId: 'protection-from-energy', targets: [FIGHTER], slotLevel: 3, damageType },
+      { spellId: 'protection-from-energy', targets: [FIGHTER], slotLevel: 3, willing: [FIGHTER], damageType },
       supply(),
     );
 
@@ -276,7 +276,7 @@ describe('Protection from Energy takes its damage type from the casting', () => 
     const refused = resolveSpell(
       base(),
       CLERIC,
-      { spellId: 'protection-from-energy', targets: [FIGHTER], slotLevel: 3 },
+      { spellId: 'protection-from-energy', targets: [FIGHTER], slotLevel: 3, willing: [FIGHTER] },
       supply(),
     );
     if (!isErr(refused)) throw new Error('an unnamed type should have been refused');

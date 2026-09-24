@@ -225,6 +225,16 @@ export interface EffectContext {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Which of this casting's targets consent to it, where the spell asks.
+   *
+   * Absent where nobody was named, which is the same casting as a list that
+   * named nobody — see `willingFor`. Read by the saving throw SRD Levitate
+   * offers an **unwilling** creature and by nothing else: the consent gate the
+   * other clause writes is checked before a slot is spent and never reaches a
+   * resolver.
+   */
+  readonly willing?: readonly CharacterId[];
+  /**
    * Where a `teleport` effect puts its target.
    *
    * Stated at the casting and refused there when a teleporting spell names

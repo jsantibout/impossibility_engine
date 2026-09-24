@@ -4362,6 +4362,37 @@ export function checkSpellDefinition(
     });
   }
 
+  /*
+   * SRD Mage Armor's "a **willing** creature", held to two rules.
+   *
+   * The value is `true` and nothing else, for the reason every other clause of
+   * this shape is: absence is how a spell says it does not print the word.
+   *
+   * **And it is read where a caller names somebody**, which is the rule that
+   * matters. `namedTargets` is the one seam that asks whose consent this is,
+   * so the clause on a spell that names nobody at all — an area picking its
+   * own catch, a Range: Self utility — would be a sentence the author believed
+   * they had said and nothing ever reads. `area_filter_without_area`'s reason
+   * with the sides swapped, and the same refusal rather than half a rule.
+   */
+  const willing = definition.targets.willing;
+  if (willing !== undefined) {
+    if (willing !== true) {
+      found.push({
+        field: 'targets.willing',
+        code: 'malformed_field',
+        reason: 'a spell either asks its targets to consent or does not; the only value is true',
+      });
+    } else if (definition.targets.count === 0 && definition.targets.unlimited !== true) {
+      found.push({
+        field: 'targets.willing',
+        code: 'consent_without_a_target',
+        reason:
+          '`willing` is asked of each creature a caller names, and this spell names nobody, so nothing would ever read it',
+      });
+    }
+  }
+
   // — geometry —————————————————————————————————————————————————————————————
 
   // One says the geometry chooses who is caught; the other says it bounds a
@@ -5452,6 +5483,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       // The two clause rules a *definition's* list has and a list hosted
       // anywhere else does not: both ask which of the lists the effect is in.
       checkFoughtClause(effect as object, entry.kind, where, at, found);
+      checkUnwillingSave(effect as object, entry.kind, where, at, found);
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkAreaBoundLifetime(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
@@ -5588,6 +5620,63 @@ function checkFoughtClause(
   if (stated !== true) {
     found.push({
       field: `${path}.advantageIfFought`,
+      code: 'malformed_field',
+      reason: 'a spell either prints the clause or does not; the only value is true',
+    });
+  }
+}
+
+/**
+ * Where SRD Levitate's "An **unwilling** creature that succeeds on a
+ * Constitution saving throw is unaffected" may be written.
+ *
+ * {@link checkFoughtClause}'s three rules, one for one, because it is the same
+ * kind of clause over the same kind of stated fact — the difference is only
+ * that this one *removes* the roll where the other changes it.
+ *
+ * **On a host that rolls a saving throw**, because the sentence is about who
+ * is offered one: an `attack` or a `heal` has none to withhold, and a field
+ * quietly ignored is an author who thinks they said something.
+ *
+ * **In the casting's own effect list, and nowhere nested.** Consent is stated
+ * once, at the casting, and pinned for a settlement to read back. An area
+ * trigger fires a minute later off an `OngoingSpell` that carries no such
+ * list, and an activation the same — so a clause written there would go unread
+ * and every creature the trigger caught would be saving when the book says
+ * some of them should not.
+ *
+ * The value is `true` and nothing else, for {@link checkFoughtClause}'s reason.
+ */
+function checkUnwillingSave(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const stated = (effect as { unlessWilling?: unknown }).unlessWilling;
+  if (stated === undefined) return;
+
+  if (where !== 'effects') {
+    found.push({
+      field: `${path}.unlessWilling`,
+      code: 'consent_outside_the_casting',
+      reason:
+        'the caster states who consents at the casting, so only the casting’s own saving throw can read it',
+    });
+    return;
+  }
+  if (kind !== 'save') {
+    found.push({
+      field: `${path}.unlessWilling`,
+      code: 'consent_without_save',
+      reason: 'SRD offers the saving throw to an unwilling creature, and this effect rolls none',
+    });
+    return;
+  }
+  if (stated !== true) {
+    found.push({
+      field: `${path}.unlessWilling`,
       code: 'malformed_field',
       reason: 'a spell either prints the clause or does not; the only value is true',
     });

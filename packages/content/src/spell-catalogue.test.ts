@@ -19,6 +19,7 @@ import {
   riderDurations,
   statedFormOf,
   statesFoughtFact,
+  statesWillingFact,
   teleportOf,
   breaksAttunement,
   dropsAnObject,
@@ -416,6 +417,19 @@ const castAt = (
       : dropsAnObject(definition)
         ? { object: HEATED }
         : {}),
+    // The ninth, and the shape the eight before it take with one half missing:
+    // a spell that gates on consent **asks** rather than refusing, and a spell
+    // that prints neither consent clause is refused for being told who is
+    // willing. The sweep answers with the one creature it ever names, because
+    // the point here is that every definition casts rather than who agreed to
+    // it. `statesWillingFact` is the runtime's own reader, for the reason the
+    // five above are.
+    //
+    // Safe beside the area branch below, which names nobody: no definition in
+    // the catalogue prints a consent clause over an area's own catch, and
+    // `checkSpellDefinition` refuses `willing` on a spell that names no target
+    // at all, so a list here always has the creature it names.
+    ...(statesWillingFact(definition) ? { willing: [TARGET] as readonly CharacterId[] } : {}),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

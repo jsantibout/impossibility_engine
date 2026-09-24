@@ -2246,13 +2246,15 @@ describe('the fought fact is a second build that corrected the query', () => {
    * off the shape the build retired and onto this one, which is where a fact
    * rather than a mechanism belongs.
    *
-   * **And a third executed claimant arrived the same way.** SRD Levitate asks
+   * **And a third executed claimant arrived the same way — and has since left
+   * again**, which is the other half of the same honesty. SRD Levitate asks
    * its Constitution saving throw of "an **unwilling** creature" and a willing
-   * one is simply lifted; the lift is built, the save is rolled, and whether
-   * the creature consents is a fact the engine holds about nobody — `side` is
-   * a different question and the casting has no word for consent. So the spell
-   * moved off the movement shape the build retired and onto this one, which is
-   * the same journey Sleep made one field along.
+   * one is simply lifted; that clause was filed here because "the casting has
+   * no word for consent", and the word arrived: `CastSpellRequest.willing` is
+   * the fact the table declares and `save.unlessWilling` is the clause that
+   * reads it. A declared fact is what this shape has always been — the table
+   * says it and the engine uses it — so a claimant leaving by being *given a
+   * field to declare into* is the shape working, not shrinking.
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
@@ -2263,7 +2265,7 @@ describe('the fought fact is a second build that corrected the query', () => {
     // the half of it no mechanical marker sees: the undefined population is
     // empty of this shape and all three claims are live somewhere else.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['hunters-mark', 'levitate', 'sleep']);
+    expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
     expect(fact.tracked).toEqual(['call-lightning', 'enthrall', 'scrying']);
   });
 });
