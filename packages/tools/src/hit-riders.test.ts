@@ -114,6 +114,44 @@ const expectRefused = (outcome: ToolOutcome) => {
 };
 
 /**
+ * A Rogue at the level Cunning Strike arrives, for the one rider in the book
+ * whose price is not a pool.
+ *
+ * Five, because that is where SRD grants it. Nothing is handed out: what the
+ * report is asked about is the *record* — the price and the kit Poison wants —
+ * rather than whether this Rogue could use it today.
+ */
+const rogue = (name: string): Record<string, unknown> => ({
+  name,
+  classId: 'rogue',
+  level: 5,
+  subclassId: 'thief',
+  speciesId: 'dwarf',
+  backgroundId: 'criminal',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 10, dex: 15, con: 13, int: 8, wis: 14, cha: 12 },
+  },
+  abilityIncreases: { con: 2, dex: 1 },
+  classSkills: ['acrobatics', 'stealth', 'insight', 'investigation'],
+  languages: ['Dwarvish', 'Goblin'],
+  alignment: 'Neutral',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'rogue:expertise': ['stealth', 'acrobatics'] },
+  feats: {
+    'criminal:alert': { featId: 'alert' },
+    'rogue:ability-score-improvement': { featId: 'defense' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
+});
+
+/**
  * A Monk, a goblin five feet away, and a fight already running.
  *
  * In combat, because the deadline this rider files is a moment in the turn
@@ -297,5 +335,33 @@ describe('a caller can see the rider it is asked to elect', () => {
     );
     expect(refused.code).toBe('weapon_not_covered');
     expect(focusLeft(t, 'suri')).toBe(before);
+  });
+
+  /**
+   * And the price, where the price is not a pool — SRD Cunning Strike.
+   *
+   * The same argument the weapons clause above makes, on the field that would
+   * otherwise say the wrong thing rather than nothing: a rider paid for in
+   * another feature's damage dice declares no pool, so `pool: null` and
+   * `left: null` read as *free* to a caller that has only those two. The count
+   * and the feature whose dice it comes off are reported beside the option, and
+   * so is the kit Poison wants, because `item_not_carried` is otherwise a
+   * refusal nothing on the line foresees.
+   */
+  it('says what a rider priced in another feature’s dice costs, and what it needs', () => {
+    const t = table('sheet');
+    expectOk(t.call('create_character', { id: 'nyx', choices: rogue('Nyx') }));
+    const held = expectOk(t.call('sheet', { who: 'nyx' })).resolution as Record<string, unknown>;
+    const features = held['features'] as readonly Record<string, unknown>[];
+    const found = features.find((one) => one['feature'] === 'rogue:cunning-strike');
+
+    expect(found).toMatchObject({ name: 'Cunning Strike', kind: 'hit-rider', pool: null });
+    const onHit = found!['onHit'] as readonly Record<string, unknown>[];
+    expect(onHit.map((one) => one['option'])).toEqual(['poison', 'trip', 'withdraw']);
+    for (const one of onHit) {
+      expect(one['costsDice']).toEqual({ dice: 1, feature: 'rogue:sneak-attack' });
+    }
+    expect(onHit[0]!['requiresItem']).toBe('poisoners-kit');
+    expect(onHit[1]!['requiresItem']).toBeUndefined();
   });
 });
