@@ -2174,13 +2174,6 @@ function checkFeatureSpellChoices(
 }
 
 /**
- * Feats, and the choices each one demands.
- *
- * The engine does not execute feats; it does make sure the choices they
- * require were actually made, because a missing one must be an actionable
- * error rather than a silent gap on a sheet.
- */
-/**
  * A feat filed under a question this character was never asked.
  *
  * {@link unaskedAnswers} on the other record, and it arrived with the same
@@ -2216,6 +2209,13 @@ function unaskedFeats(
   return problems;
 }
 
+/**
+ * Feats, and the choices each one demands.
+ *
+ * The engine does not execute feats; it does make sure the choices they
+ * require were actually made, because a missing one must be an actionable
+ * error rather than a silent gap on a sheet.
+ */
 function checkFeats(
   content: Content,
   choices: CharacterChoices,
