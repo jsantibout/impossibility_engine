@@ -1352,3 +1352,70 @@ describe('the mechanic is the mechanic, not the spells that use it', () => {
     expect(base().creatures.ogre?.rollModifiers).toEqual([]);
   });
 });
+
+/**
+ * SRD Eldritch Mind, and SRD War Caster beside it: "You have Advantage on
+ * Constitution saving throws that you make to maintain Concentration."
+ *
+ * One save out of every Constitution save its holder makes, and the only thing
+ * that can tell them apart is the site that throws the die — the reading
+ * `againstMagic` already takes of what forced a save.
+ */
+describe('the Concentration narrowing', () => {
+  const selectorProblems = (selector: RollSelector) =>
+    rollSelectorProblems(selector, (skill) => SKILL_ABILITY[skill]).map((one) => one.code);
+
+  const SAVE: RollSelector = {
+    roll: 'saving-throw',
+    relation: 'roller',
+    ability: 'con',
+    onlyConcentration: true,
+  };
+
+  it('matches a save the roller said was a Concentration save', () => {
+    expect(
+      selectorMatches(SAVE, asCharacterId('kael'), {
+        family: 'saving-throw',
+        roller: asCharacterId('kael'),
+        ability: 'con',
+        concentration: true,
+      }),
+    ).toBe(true);
+  });
+
+  /** Silence is a miss: an unkeyed Constitution save is a different sentence. */
+  it('misses a Constitution save nobody classified', () => {
+    expect(
+      selectorMatches(SAVE, asCharacterId('kael'), {
+        family: 'saving-throw',
+        roller: asCharacterId('kael'),
+        ability: 'con',
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts the narrowing on a saving throw the holder makes', () => {
+    expect(selectorProblems(SAVE)).toEqual([]);
+  });
+
+  it('refuses it on any other family', () => {
+    for (const roll of ['attack', 'ability-check', 'initiative', 'death-save'] as const) {
+      expect(selectorProblems({ roll, relation: 'roller', onlyConcentration: true })).toContain(
+        'concentration_off_a_saving_throw',
+      );
+    }
+  });
+
+  /** The save that maintains Concentration is made by whoever is concentrating. */
+  it('refuses a rule about saves made against its holder', () => {
+    expect(selectorProblems({ ...SAVE, relation: 'against-holder' })).toContain(
+      'concentration_against_the_holder',
+    );
+  });
+
+  it('refuses anything but a literal true', () => {
+    expect(selectorProblems({ ...SAVE, onlyConcentration: false as never })).toContain(
+      'bad_concentration_gate',
+    );
+  });
+});

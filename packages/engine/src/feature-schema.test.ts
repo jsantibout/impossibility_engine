@@ -725,6 +725,106 @@ describe('rule 8b — a feature may ask more than one question', () => {
     };
     expect(codes(unsized)).toContain('unsized_weapon_choice');
   });
+
+  /**
+   * SRD Eldritch Invocations: "You gain more invocations at higher levels, as
+   * shown in the Invocations column of the Warlock Features table." The weapon
+   * question's two sizings, one member along and held to the same rules.
+   */
+  describe('an option question sized by a column', () => {
+    const column = Array.from({ length: 20 }, (_, index) => (index < 4 ? 1 : 2));
+    const invocations: FeatureDefinition = {
+      ...sound,
+      id: 'wizard:invocations',
+      level: 1,
+      choice: { kind: 'option', chooseByLevel: column, from: ['One', 'Two'] },
+    };
+
+    it('accepts a column of the source’s own table', () => {
+      expect(codes(invocations)).toEqual([]);
+    });
+
+    it('refuses a question sized neither way, and one sized both', () => {
+      expect(codes({ ...invocations, choice: { kind: 'option', from: ['One'] } })).toContain(
+        'unsized_option_choice',
+      );
+      expect(
+        codes({ ...invocations, choice: { kind: 'option', choose: 1, chooseByLevel: column, from: ['One'] } }),
+      ).toContain('ambiguous_option_choice');
+    });
+
+    it('refuses a column that is not the length of the table', () => {
+      expect(
+        codes({ ...invocations, choice: { kind: 'option', chooseByLevel: [1, 2], from: ['One'] } }),
+      ).toContain('not_a_table_column');
+    });
+
+    it('refuses a count that is not a whole number of options', () => {
+      expect(
+        codes({ ...invocations, choice: { kind: 'option', choose: -1, from: ['One'] } }),
+      ).toContain('bad_option_choice');
+    });
+
+    /**
+     * "If an invocation has a prerequisite, you must meet it to learn that
+     * invocation." A line over an option nobody is offered gates nothing.
+     */
+    it('refuses a prerequisite over an option the question does not offer', () => {
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            prerequisites: [{ option: 'Three', level: 2 }],
+          },
+        }),
+      ).toContain('prerequisite_not_offered');
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            prerequisites: [{ option: 'One', requiresOption: 'Three' }],
+          },
+        }),
+      ).toContain('prerequisite_not_offered');
+    });
+
+    it('refuses a prerequisite that demands nothing', () => {
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            prerequisites: [{ option: 'One' }],
+          },
+        }),
+      ).toContain('empty_prerequisite');
+    });
+
+    it('accepts the two lines the book really prints', () => {
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            prerequisites: [
+              { option: 'One', level: 2 },
+              { option: 'Two', requiresOption: 'One' },
+            ],
+          },
+        }),
+      ).toEqual([]);
+    });
+  });
 });
 
 describe('the training a feature grants', () => {
