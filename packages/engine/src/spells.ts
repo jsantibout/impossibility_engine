@@ -539,7 +539,33 @@ export interface OngoingSpell {
    * casting is left as it was rather than re-read out of the book, because a
    * replay that changed is the one thing the pinning was for.
    */
-  readonly areaStanding?: AreaStanding;
+  readonly areaStanding?: readonly AreaStanding[];
+  /**
+   * The creatures this casting's area **reaches**, where the spell lets its
+   * caster choose them.
+   *
+   * SRD Pass without Trace: "While in the aura, **you and each creature you
+   * choose** have a +10 bonus to Dexterity (Stealth) checks." {@link
+   * unaffected} is the same decision with the opposite polarity — that one
+   * names who an area lets alone, this one names the only creatures it
+   * touches — and the two are separate fields rather than one with a sign,
+   * because a spell that printed both would mean two different things by them
+   * and because a record carrying the wrong one would silently invert a rule.
+   *
+   * **The caster is always on it**, put there where the fact is normalised
+   * rather than by the reader, so the list on the record is the whole answer
+   * and no reader has to remember the sentence's first word.
+   *
+   * Chosen once and kept, for {@link unaffected}'s reason: the sentence is
+   * about the casting and not about a moment, so the aura conceals whoever was
+   * named however far it later travels.
+   *
+   * Absent for every spell that prints no such clause, which is all but one of
+   * the ones the engine executes — and absent means the area reaches whoever
+   * the geometry catches, which is what every record written before this field
+   * says.
+   */
+  readonly chosen?: readonly string[];
   /**
    * The casting this one was taken against, and the spell whose damage it
    * turns aside while it runs.
@@ -609,6 +635,14 @@ export interface OngoingSpell {
 export function creaturesStandingInCastingArea(
   scene: PositionState,
   record: OngoingSpell,
+  /**
+   * SRD Silence's "entirely inside", for the clauses that print it.
+   *
+   * Asked per clause rather than per casting, because one Sphere carries both
+   * readings: Silence deafens whoever is entirely inside and forbids a Verbal
+   * casting merely "there". See `AreaStanding`'s `whollyInside`.
+   */
+  options: { readonly whollyInside?: boolean } = {},
 ): ReadonlySet<CharacterId> | null {
   if (record.area === undefined) return null;
 
@@ -618,7 +652,16 @@ export function creaturesStandingInCastingArea(
   const shape = areaShapeOf(record.area, record.towards, record.anchoring ?? 'space');
   if (shape === null) return null;
 
-  const caught = creaturesInArea(scene, origin, shape);
+  // SRD Pass without Trace radiates an aura its caster is standing in, which
+  // is the glossary's "unless its creator decides otherwise" — read off the
+  // pinned area rather than decided here, so the book's default holds for
+  // every other emanation ever cast.
+  const includesOrigin =
+    (record.area as { readonly includesOrigin?: true }).includesOrigin === true;
+  const caught = creaturesInArea(scene, origin, shape, {
+    ...(includesOrigin ? { includeOrigin: true } : {}),
+    ...(options.whollyInside === true ? { whollyInside: true } : {}),
+  });
   if (!caught.ok) return null;
 
   // SRD Spirit Guardians: "When you cast this spell, you can designate
@@ -626,9 +669,17 @@ export function creaturesStandingInCastingArea(
   // clause, so the one decision reaches every sentence that reads the area —
   // the damage, and the halved Speed beside it.
   const spared = record.unaffected;
-  return new Set(
-    spared === undefined ? caught.value : caught.value.filter((id) => !spared.includes(id)),
+  // And SRD Pass without Trace's "you and each creature you choose", which is
+  // the same filter with the opposite polarity and is applied in the same
+  // place for the same reason. A casting that states neither reaches whoever
+  // the geometry catches, which is every other spell in the book.
+  const chosen = record.chosen;
+  const reached = caught.value.filter(
+    (id) =>
+      (spared === undefined || !spared.includes(id)) &&
+      (chosen === undefined || chosen.includes(id)),
   );
+  return new Set(reached);
 }
 
 /** Where this casting's area sits: a point it keeps, or the creature carrying it. */
@@ -740,13 +791,23 @@ function areaShapeOf(
  * It is a supertype rather than a union, so `OngoingSpell` is assignable to it
  * and the resolvers that write a record need no cast.
  */
-export interface WrittenOngoing extends Omit<OngoingSpell, 'version' | 'aimed'> {
+export interface WrittenOngoing
+  extends Omit<OngoingSpell, 'version' | 'aimed' | 'areaStanding'> {
   /** Absent before the field existed; 2 before `aimed` did. */
   readonly version?: 2 | 3;
   /** Present from version 3 on. */
   readonly aimed?: readonly string[];
   /** What version 2 and every earlier shape wrote where `aimed` now is. */
   readonly on?: readonly string[];
+  /**
+   * One clause where this engine holds a list of them.
+   *
+   * A record written before SRD Silence needed three sentences about one
+   * Sphere carries the bare object; it means a list of one and always did, and
+   * `upgradeOngoing` is where it becomes one. See `normaliseStanding` for why
+   * this is an arity the reader absorbs rather than a version.
+   */
+  readonly areaStanding?: readonly AreaStanding[] | AreaStanding;
 }
 
 /**

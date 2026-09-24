@@ -328,7 +328,12 @@ const cast = (
       ...(definition.area === undefined
         ? {}
         : {
-            at: AREA_AT,
+            // **Only an area the caster puts somewhere takes a point.** A
+            // `self` origin is the caster's own space and `placeArea` refuses
+            // to have it moved — `area_starts_at_caster` — which the sibling
+            // builder above has always known and this one learned the day a
+            // tracked spell grew a carried Emanation.
+            ...(definition.area.origin === 'point' ? { at: AREA_AT } : {}),
             ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
             // **And a wall needs its path**, which is the third fact an area
             // can demand and the only one that is a shape rather than a point:
@@ -766,6 +771,12 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'fog-cloud',
     'light',
     'magic-weapon',
+    // And the sixth kind of clean paragraph: SRD Pass without Trace's says
+    // "+10 bonus" and "Dexterity (Stealth) checks", and the marker list knows
+    // neither: the word-bounded check pattern does not match "checks", and a
+    // bonus is not one of the words it holds. The aura is executed all the
+    // same, as a value derived from where a creature is standing.
+    'pass-without-trace',
     // And the three the casting track carried out. Every one of
     // Prestidigitation's six wonders is fiction, and the sentence over them —
     // three of its non-instantaneous effects at a time — is a rule the engine
@@ -1773,6 +1784,15 @@ describe('every spell this batch added is cast for real', () => {
     'ice-knife',
     'magic-jar',
     'mirror-image',
+    // **The two the area-standing track wrote, and they left together.** SRD
+    // Pass without Trace's whole content is a +10 on the Stealth checks of
+    // whoever is in a 30-foot Emanation, and SRD Silence's is three sentences
+    // about one Sphere — an Immunity, a condition and a Verbal casting it
+    // refuses. None of the four is an effect, a trigger or a patch: each is a
+    // value derived from where a creature is standing at the moment somebody
+    // asks, which is what the standing vocabulary now says and why
+    // `isExecuted` reads it.
+    'pass-without-trace',
     'phantom-steed',
     'plant-growth',
     // **Ray of Enfeeblement leaves on three shapes at once**, which is what
@@ -1803,6 +1823,7 @@ describe('every spell this batch added is cast for real', () => {
     // the engine holds.
     'revivify',
     'sanctuary',
+    'silence',
     // **Sleep leaves by the repeat save's new failure branch.** The save and
     // the Incapacitated were always ordinary; what had nowhere to go was "at
     // which point it must repeat the save. If the target fails the second

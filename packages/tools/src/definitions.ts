@@ -2435,6 +2435,12 @@ const CAST_SPELL = tool({
       .describe(
         'Creatures this casting leaves alone, for a spell that offers the choice — Spirit Guardians’ "you can designate creatures to be unaffected by it" — or for a casting that buys it, which is what Careful Spell does. They roll no saving throw and take no damage. Naming somebody through a spell that offers neither is refused, and so is naming more than the option pays for.',
       ),
+    chosen: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Creatures this casting’s aura reaches, for a spell that offers the choice — Pass without Trace’s "you and each creature you choose". The opposite of `unaffected`: that list names who an area lets alone, this names the only creatures it touches. The caster is always on it whether or not you say so. Naming anybody through a spell that offers no such clause is refused.',
+      ),
     saveModes: z
       .array(
         z.strictObject({
@@ -2505,6 +2511,7 @@ const CAST_SPELL = tool({
       ...(args.usingFeatures === undefined ? {} : { usingFeatures: args.usingFeatures }),
       ...(args.usingOptions === undefined ? {} : { usingOptions: args.usingOptions }),
       ...(args.unaffected === undefined ? {} : { unaffected: args.unaffected.map(who) }),
+      ...(args.chosen === undefined ? {} : { chosen: args.chosen.map(who) }),
       // A list of pairs on the wire and a map in the engine: a schema that
       // took an object keyed by creature id could not name the key, so the
       // description a model reads would have had nowhere to say what a key is.
@@ -5243,6 +5250,7 @@ const TAKE_READY = tool({
         choice: z.string().min(1).optional(),
         fought: z.array(creatureId).optional(),
         unaffected: z.array(creatureId).optional(),
+        chosen: z.array(creatureId).optional(),
         teleportTo: placementSchema.optional(),
         weapon: z.string().min(1).optional(),
       }),
@@ -5271,6 +5279,9 @@ const TAKE_READY = tool({
                   ...(response.unaffected === undefined
                     ? {}
                     : { unaffected: response.unaffected.map(who) }),
+                  ...(response.chosen === undefined
+                    ? {}
+                    : { chosen: response.chosen.map(who) }),
                   ...(response.teleportTo === undefined
                     ? {}
                     : { teleportTo: placementOf(response.teleportTo) }),

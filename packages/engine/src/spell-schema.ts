@@ -691,6 +691,154 @@ function checkChoiceOption(
   }
 }
 
+/**
+ * One clause of what an area does to whoever stands in it.
+ *
+ * **Every kind is named rather than assumed**, which is the discipline the
+ * Speed member arrived with and the reason this survived becoming a union: a
+ * sixth SRD sentence of this shape adds a member here, and data written
+ * against a member the engine does not hold must not resolve to one of the
+ * five by default.
+ *
+ * | Kind | SRD | What is checked |
+ * |---|---|---|
+ * | `speed` | Spirit Guardians | the change/feet pairing, through the one function every other carrier goes through |
+ * | `bonus` | Pass without Trace | a whole number, the one family with a gatherer, and the narrowing's own rules |
+ * | `condition` | Silence | one of the SRD's conditions |
+ * | `damage-defense` | Silence | one of the three defences, over damage types the engine holds |
+ * | `no-verbal-casting` | Silence | nothing: it is a fact with no fields |
+ */
+function checkAreaStanding(
+  value: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (
+    !readsAsObject(
+      value,
+      path,
+      'a standing area effect is an object naming what the area does to whoever is in it',
+      found,
+    )
+  ) {
+    return;
+  }
+  const standing = value as Record<string, unknown>;
+
+  // SRD Silence prints "entirely inside" on two of its three clauses and
+  // "there" on the third, so the field is a clause's rather than a kind's —
+  // and the one clause the book does not narrow may not claim it.
+  if (standing['whollyInside'] !== undefined && standing['whollyInside'] !== true) {
+    found.push({
+      field: `${path}.whollyInside`,
+      code: 'bad_wholly_inside',
+      reason: `"entirely inside" is a narrowing a clause either prints or does not, so the only value is true, and this is ${nameOf(standing['whollyInside'])}`,
+    });
+  }
+
+  switch (standing['kind']) {
+    case 'speed':
+      // The same pairing the standalone effect and the rider are held to,
+      // through the same function, so a Speed a casting's area moves cannot be
+      // spelled a fourth way.
+      checkSpeedChange(standing, path, found);
+      return;
+
+    case 'bonus': {
+      if (standing['applies'] !== 'ability-check') {
+        found.push({
+          field: `${path}.applies`,
+          code: 'unreadable_area_bonus',
+          reason: `an area's bonus is gathered by \`checkBonuses\` and by nothing else, so "${String(standing['applies'])}" would be a bonus no roll ever reads; the SRD's one sentence is an ability check`,
+        });
+      }
+      if (!Number.isInteger(standing['flat']) || standing['flat'] === 0) {
+        found.push({
+          field: `${path}.flat`,
+          code: 'bad_area_bonus',
+          reason: `an area's bonus is a whole number of points and a bonus of none is no bonus, and this is ${nameOf(standing['flat'])}`,
+        });
+      }
+      if (standing['only'] !== undefined) {
+        if (
+          readsAsObject(
+            standing['only'],
+            `${path}.only`,
+            'a narrowing is an object naming an ability or a skill',
+            found,
+          )
+        ) {
+          checkBonusNarrowing(standing['only'] as BonusNarrowing, ['ability-check'], path, found);
+        }
+      }
+      return;
+    }
+
+    case 'condition':
+      if (typeof standing['condition'] !== 'string') {
+        found.push({
+          field: `${path}.condition`,
+          code: 'unknown_condition',
+          reason: `a condition an area imposes is named, and this is ${nameOf(standing['condition'])}`,
+        });
+        return;
+      }
+      checkCondition(standing['condition'], `${path}.condition`, found);
+      return;
+
+    case 'damage-defense': {
+      // Read through a type rather than by index, which is not a style choice:
+      // `origin-and-feature-sweep.test.ts` refuses a quoted catalogue id in
+      // engine source, and one of the SRD's Fighting Style feats is called
+      // Defense — so the word may be a field and may not be a string.
+      const clause = standing as { readonly defense?: unknown; readonly damageTypes?: unknown };
+      if (!DEFENSE_KINDS.has(clause.defense as string)) {
+        found.push({
+          field: `${path}.defense`,
+          code: 'bad_damage_defense',
+          reason: `"${String(clause.defense)}" is not what a defence does; the SRD resists, is immune to, or is vulnerable to a damage type`,
+        });
+      }
+      if (
+        readsAsList(
+          clause.damageTypes,
+          `${path}.damageTypes`,
+          'the damage types a defence covers are a list',
+          found,
+        )
+      ) {
+        if (clause.damageTypes.length === 0) {
+          found.push({
+            field: `${path}.damageTypes`,
+            code: 'bad_damage_defense',
+            reason: 'a defence against no damage type at all is a sentence about nothing',
+          });
+        }
+        clause.damageTypes.forEach((type, i) => {
+          if (typeof type !== 'string' || !DAMAGE.has(type)) {
+            found.push({
+              field: `${path}.damageTypes[${i}]`,
+              code: 'unknown_damage_type',
+              reason: `"${String(type)}" is not one of the SRD's damage types`,
+            });
+          }
+        });
+      }
+      return;
+    }
+
+    case 'no-verbal-casting':
+      return;
+
+    default:
+      found.push({
+        field: `${path}.kind`,
+        code: 'unknown_area_standing',
+        reason: `"${String(standing['kind'])}" is not something an area does to a creature standing in it; the engine derives a Speed, a bonus, a condition and a defence, and refuses a Verbal casting`,
+      });
+  }
+}
+
 function checkCondition(
   name: string,
   path: string,
@@ -1328,6 +1476,46 @@ function checkConditionRider(
  * kept, not that a condition was imposed, so a `repeats` or a `lasts` beside
  * it still has no condition instance to hang on.
  */
+/**
+ * A save that says its whole content is its verdict, held to "whole".
+ *
+ * The other half of the lift beside it: `save_imposes_nothing` stops refusing
+ * a bare save the moment `verdictOnly` is set, so this is what keeps the mark
+ * from being a licence. A failure that imposed a condition, hung a rider,
+ * pushed somebody, emptied a hand, broke Concentration or kept its answer on
+ * the running casting **decided something besides its own answer**, and a
+ * definition claiming otherwise is describing a different sentence.
+ *
+ * Asked of every save rather than only of the ones with no condition, which is
+ * where it differs from its neighbour and is the whole reason it is a function
+ * of its own: the interesting case is precisely a save that imposes something.
+ */
+function checkVerdictIsWhole(
+  effect: Extract<SpellEffect, { kind: 'save' }>,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if ((effect as { readonly verdictOnly?: unknown }).verdictOnly !== true) return;
+
+  const decided =
+    effect.condition !== undefined ||
+    (Array.isArray(effect.conditions) ? effect.conditions.length > 0 : false) ||
+    (effect.modifiers ?? []).length > 0 ||
+    effect.light !== undefined ||
+    effect.movement !== undefined ||
+    effect.breaksConcentration === true ||
+    effect.drops !== undefined ||
+    effect.recordsOutcome === true;
+
+  if (!decided) return;
+  found.push({
+    field: `${path}.verdictOnly`,
+    code: 'verdict_is_not_the_whole_content',
+    reason:
+      'this save decided something besides its own answer — a condition, a rider or a record kept on the casting — so its whole content is not its verdict; drop the mark, or drop what the failure does',
+  });
+}
+
 function checkSaveWithoutCondition(
   effect: Extract<SpellEffect, { kind: 'save' }>,
   path: string,
@@ -1355,12 +1543,21 @@ function checkSaveWithoutCondition(
     // nothing.
     effect.drops !== undefined;
 
-  if (!hangs && effect.recordsOutcome !== true) {
+  // **The fourth way out, and it is the only one that needs no record.** SRD
+  // Animal Messenger's failure imposes nothing and there is nowhere to keep
+  // the answer either, because the casting need not leave anything running —
+  // so `verdictOnly` says the verdict *is* the content, and the die, the
+  // result and the log entry are the whole of the publication. See
+  // `SpellEffect`'s `save.verdictOnly`, and the two refusals below it, which
+  // are what keep this from being a licence to throw a die for nothing.
+  const verdict = (effect as { readonly verdictOnly?: unknown }).verdictOnly === true;
+
+  if (!hangs && effect.recordsOutcome !== true && !verdict) {
     found.push({
       field: `${path}.condition`,
       code: 'save_imposes_nothing',
       reason:
-        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer',
+        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer, or set verdictOnly where the verdict is the whole of it',
     });
   }
 
@@ -2814,6 +3011,12 @@ function checkEffect(
         }
       }
       const source = withReadableRiders(effect);
+      // **Asked of every save, and the branch below is why it is here.** A
+      // save that imposes a condition never reaches
+      // {@link checkSaveWithoutCondition} at all, and that is exactly the save
+      // a `verdictOnly` must be refused on — the mark says the verdict is the
+      // *whole* content, so anything the failure also did contradicts it.
+      checkVerdictIsWhole(effect, path, found);
       if (effect.condition === undefined) checkSaveWithoutCondition(effect, path, found);
       else {
         checkConditionRider(
@@ -4880,29 +5083,17 @@ export function checkSpellDefinition(
           'a standing effect an area has needs an area to stand in; nothing derives it from a spell with no volume',
       });
     }
-    if (
-      readsAsObject(
-        definition.areaStanding,
-        'areaStanding',
-        'a standing area effect is an object naming what the area does to whoever is in it',
-        found,
-      )
-    ) {
-      // One kind, and it is named rather than assumed: a second SRD sentence
-      // of this shape adds a member to `AreaStanding`, and data written
-      // against it must not resolve to the Speed rule by default.
-      if (definition.areaStanding.kind !== 'speed') {
-        found.push({
-          field: 'areaStanding.kind',
-          code: 'unknown_area_standing',
-          reason: `"${String(definition.areaStanding.kind)}" is not something an area does to a creature standing in it; the engine derives a Speed and nothing else`,
-        });
-      } else {
-        // The same pairing the standalone effect and the rider are held to,
-        // through the same function, so a Speed a casting's area moves cannot
-        // be spelled a fourth way.
-        checkSpeedChange(definition.areaStanding, 'areaStanding', found);
-      }
+    if (!Array.isArray(definition.areaStanding)) {
+      found.push({
+        field: 'areaStanding',
+        code: 'standing_is_a_list',
+        reason:
+          'what an area does to whoever stands in it is a list of clauses, because SRD Silence writes three of them about one Sphere',
+      });
+    } else {
+      definition.areaStanding.forEach((standing, i) =>
+        checkAreaStanding(standing, `areaStanding[${i}]`, found),
+      );
     }
   }
 
@@ -5080,6 +5271,29 @@ export function checkSpellDefinition(
       field: 'designatesUnaffected',
       code: 'unaffected_without_area',
       reason: 'SRD writes "designate creatures to be unaffected" only for an area',
+    });
+  }
+
+  // The same refusal from the other polarity: a list of who an area reaches is
+  // read where the area's catch is filtered, so a spell with no volume states
+  // a list nothing would ever consult.
+  if (definition.designatesChosen === true && definition.area === undefined) {
+    found.push({
+      field: 'designatesChosen',
+      code: 'chosen_without_area',
+      reason: 'SRD writes "each creature you choose" of an aura, and a spell with no volume has none',
+    });
+  }
+
+  // **And not both.** They are the same decision read two ways, so a
+  // definition carrying both would say that the creatures the aura reaches are
+  // also the creatures it lets alone. No SRD spell prints the pair.
+  if (definition.designatesChosen === true && definition.designatesUnaffected === true) {
+    found.push({
+      field: 'designatesChosen',
+      code: 'both_polarities',
+      reason:
+        'one list names who an area reaches and the other names who it lets alone; a spell that offered both would filter its own catch twice, and the SRD prints no such sentence',
     });
   }
 
@@ -6034,6 +6248,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkFoughtClause(effect as object, entry.kind, where, at, found);
       checkUnwillingSave(effect as object, entry.kind, where, at, found);
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
+      checkVerdictOnly(effect as object, entry.kind, where, at, found);
       checkAreaBoundLifetime(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
       checkAltitudePlacement(entry.kind, where, at, found);
@@ -6506,6 +6721,66 @@ function checkRecordedVerdict(
       field: `${path}.recordsOutcome`,
       code: 'malformed_field',
       reason: 'a spell either keeps the answer or does not; the only value is true',
+    });
+  }
+}
+
+/**
+ * Where a save may say its whole content is its verdict.
+ *
+ * {@link checkRecordedVerdict}'s mirror, and the two lists are exactly
+ * swapped. That one keeps the answer on the running casting, so it is refused
+ * in the casting's own list — the list resolves before `spell-ongoing` is
+ * pushed and the record does not exist yet. This one wants no record at all,
+ * so it is refused **wherever one already exists**: an `areaTrigger` or an
+ * `activation` list fires off a casting the cast has already written, and a
+ * verdict thrown away there when there is somewhere to keep it would be the
+ * answer reaching nobody a turn later. Between them every list has exactly one
+ * door, which is what keeps one sentence from being said two ways.
+ *
+ * On a host that rolls a saving throw, for the reason that one gives: a `heal`
+ * has no verdict, and a field quietly ignored is an author who thinks they
+ * said something. The value is `true` and nothing else, because absence is how
+ * a definition says the verdict is not the whole of it.
+ *
+ * What the mark *lifts* is `save_imposes_nothing`, and the refusal that keeps
+ * that honest is beside it in {@link checkSaveWithoutCondition}: a save
+ * carrying a rider, a condition or a record has not got a verdict for its
+ * whole content.
+ */
+function checkVerdictOnly(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const stated = (effect as { verdictOnly?: unknown }).verdictOnly;
+  if (stated === undefined) return;
+
+  if (kind !== 'save') {
+    found.push({
+      field: `${path}.verdictOnly`,
+      code: 'verdict_without_save',
+      reason:
+        'a verdict is the answer to a saving throw, and this effect rolls none; a save-damage effect reports its own damage instead',
+    });
+    return;
+  }
+  if (where !== 'effects' && !isBranchList(where)) {
+    found.push({
+      field: `${path}.verdictOnly`,
+      code: 'verdict_after_the_record',
+      reason:
+        'this list fires off a casting the cast has already written, so the answer has somewhere to be kept; set recordsOutcome, which writes it onto the running casting where a later reader can find it',
+    });
+    return;
+  }
+  if (stated !== true) {
+    found.push({
+      field: `${path}.verdictOnly`,
+      code: 'malformed_field',
+      reason: 'a save either is the whole of its own verdict or is not; the only value is true',
     });
   }
 }

@@ -322,6 +322,9 @@ export const ACID_ARROW: SpellDefinition = {
  */
 export const COUNTERSPELL: SpellDefinition = {
   id: 'counterspell',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Counterspell',
   level: 3,
   school: 'abjuration',
@@ -1218,6 +1221,9 @@ export const DISSONANT_WHISPERS: SpellDefinition = {
  */
 export const MIND_SPIKE: SpellDefinition = {
   id: 'mind-spike',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Mind Spike',
   level: 2,
   school: 'divination',
@@ -2386,6 +2392,9 @@ export const FEATHER_FALL: SpellDefinition = {
  */
 export const HYPNOTIC_PATTERN: SpellDefinition = {
   id: 'hypnotic-pattern',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Hypnotic Pattern',
   level: 3,
   school: 'illusion',
@@ -4228,6 +4237,9 @@ export const CREATE_FOOD_AND_WATER: SpellDefinition = {
  */
 export const DEMIPLANE: SpellDefinition = {
   id: 'demiplane',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Demiplane',
   level: 8,
   school: 'conjuration',
@@ -4550,6 +4562,9 @@ export const LOCATE_OBJECT: SpellDefinition = {
  */
 export const MESSAGE: SpellDefinition = {
   id: 'message',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Message',
   level: 0,
   school: 'transmutation',
@@ -4944,7 +4959,7 @@ export const SPIRIT_GUARDIANS: SpellDefinition = {
   // it on every read and stores it on nobody. The designated-unaffected list is
   // filtered once, where the area is read, so it reaches this sentence and the
   // saving throw below alike.
-  areaStanding: { kind: 'speed', change: 'halve' },
+  areaStanding: [{ kind: 'speed', change: 'halve' }],
   unmodelled: [
     'whether the spirits look angelic, fey or fiendish, which the SRD makes the caster’s choice and is narration',
   ],
@@ -5477,6 +5492,9 @@ export const SUNBEAM: SpellDefinition = {
  */
 export const MINOR_ILLUSION: SpellDefinition = {
   id: 'minor-illusion',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Minor Illusion',
   level: 0,
   school: 'illusion',
@@ -6628,6 +6646,9 @@ export const IDENTIFY: SpellDefinition = {
  */
 export const ILLUSORY_SCRIPT: SpellDefinition = {
   id: 'illusory-script',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Illusory Script',
   level: 1,
   school: 'illusion',
@@ -8950,6 +8971,9 @@ export const SORCEROUS_BURST: SpellDefinition = {
  */
 export const TRUE_STRIKE: SpellDefinition = {
   id: 'true-strike',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'True Strike',
   level: 0,
   school: 'divination',
@@ -9150,6 +9174,9 @@ export const GOODBERRY: SpellDefinition = {
  */
 export const ICE_KNIFE: SpellDefinition = {
   id: 'ice-knife',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Ice Knife',
   level: 1,
   school: 'conjuration',
@@ -9750,11 +9777,18 @@ export const MIRROR_IMAGE: SpellDefinition = {
  * > While in the aura, you and each creature you choose have a +10 bonus to
  * > Dexterity (Stealth) checks and leave no tracks."
  *
- * The bonus is a `Bonus` the engine applies all day and the **while** is the
- * problem: it holds for as long as a creature is inside a 30-foot Emanation
- * that moves with the caster, and lapses the moment it steps out. Nothing
- * derives a modifier from where a creature is standing, which is the same
- * absence Spirit Guardians' halved Speed has.
+ * **The whole of the mechanical sentence is an `areaStanding`**, which is the
+ * shape Spirit Guardians' halved Speed arrived in: the bonus holds "while in
+ * the aura", so it is derived from the scene on every read and hung on nobody,
+ * and it lapses the moment somebody steps out without an event saying so.
+ *
+ * Two of its clauses are the ones this spell added to that vocabulary.
+ * `includesOrigin` is the glossary's "unless its creator decides otherwise" —
+ * SRD excludes an Emanation's origin and this sentence says "**you** and each
+ * creature you choose", so the caster is in their own aura by the text.
+ * `designatesChosen` is the list the caster names at the casting, which is the
+ * designation Spirit Guardians prints with its polarity turned over: that one
+ * says who an aura lets alone and this says who it reaches.
  */
 export const PASS_WITHOUT_TRACE: SpellDefinition = {
   id: 'pass-without-trace',
@@ -9765,12 +9799,25 @@ export const PASS_WITHOUT_TRACE: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
+  area: { kind: 'emanation', distance: 30, origin: 'self', includesOrigin: true },
+  // "you and each creature you choose"
+  designatesChosen: true,
+  // Nothing fires and nothing is rolled: the aura appears and the bonus is a
+  // fact about where somebody is standing from that moment on.
   effects: [],
-  durationSeconds: 3600,
-  unmodelled: [
-    'the bonus is not granted: "While in the aura, you and each creature you choose have a +10 bonus to Dexterity (Stealth) checks" holds only while a creature stands inside a 30-foot Emanation that travels with the caster, and no effect derives a modifier from where somebody is standing',
-    'leaving no tracks is the DM’s',
+  areaStanding: [
+    // "a +10 bonus to Dexterity (Stealth) checks" — the skill names its own
+    // governing ability, so the narrowing is the skill and loses nothing.
+    { kind: 'bonus', applies: 'ability-check', flat: 10, only: { skill: 'stealth' } },
   ],
+  durationSeconds: 3600,
+  // **Nothing is handed over, and the leaving of no tracks stays a gap.** The
+  // ruling hands over *printed text*, word for word, and the book prints no
+  // unit that says only this: "you and each creature you choose have a +10
+  // bonus to Dexterity (Stealth) checks **and leave no tracks**" is one
+  // sentence whose first half the engine now executes, so handing the sentence
+  // over would disown the bonus in the same breath as granting it.
+  unmodelled: ['leaving no tracks is the DM’s: the engine holds no trail to leave or not leave'],
 };
 
 /**
@@ -11309,11 +11356,13 @@ export const DRAGONS_BREATH: SpellDefinition = {
  * > damage, and creatures have the Deafened condition while entirely inside it.
  * > Casting a spell that includes a Verbal component is impossible there."
  *
- * Both mechanical clauses are the same missing half: a value derived from where
- * a creature is *standing right now*. An Immunity is a standing effect and this
- * one is granted by a place; the Deafened is a condition that ends when its
- * holder walks out of an area, which `space-and-areas.md` says has no shape at
- * all.
+ * **Three sentences about one Sphere, and they are what made `areaStanding` a
+ * list.** Each is derived from where a creature is standing right now: the
+ * Immunity belongs to whoever is entirely inside at the moment the damage
+ * lands, the Deafened lasts "while entirely inside it" and no event applies or
+ * removes it, and the casting the Sphere forbids is a refusal read at the one
+ * moment somebody speaks. Two of them print "entirely inside" and the third
+ * prints "there", which is why that narrowing is a field on the clause.
  */
 export const SILENCE: SpellDefinition = {
   id: 'silence',
@@ -11325,13 +11374,24 @@ export const SILENCE: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
   effects: [],
+  areaStanding: [
+    // "Any creature or object entirely inside the Sphere has Immunity to
+    // Thunder damage."
+    { kind: 'damage-defense', defense: 'immune', damageTypes: ['thunder'], whollyInside: true },
+    // "creatures have the Deafened condition while entirely inside it"
+    { kind: 'condition', condition: 'deafened', whollyInside: true },
+    // "Casting a spell that includes a Verbal component is impossible there."
+    // "There", and not "entirely inside": the same paragraph writes both.
+    { kind: 'no-verbal-casting' },
+  ],
   durationSeconds: 600,
+  dmDecides: [
+    'For the duration, no sound can be created within or pass through a 20-foot-radius Sphere centered on a point you choose within range.',
+  ],
   unmodelled: [
-    'the Immunity to Thunder damage is not granted: it belongs to whoever is entirely inside the Sphere at the moment the damage lands, and a defence is a standing grant hung on a creature rather than a value derived from where it is standing',
-    'the Deafened condition is not applied either, for the other half of the same reason: it lasts "while entirely inside it", and a condition that ends when its holder leaves an area has no shape here',
-    'a spell with a Verbal component is not refused inside the Sphere: that is the action economy read through geometry, and nothing asks where a caster is standing before it spends their action',
-    'the silence itself is the DM’s — sound is not a fact the engine holds',
+    'an *object* entirely inside the Sphere is immune to Thunder damage too, and a declared object has no position on the lattice for the Sphere to catch it by',
   ],
 };
 
@@ -12211,6 +12271,9 @@ export const GEAS: SpellDefinition = {
  */
 export const MISLEAD: SpellDefinition = {
   id: 'mislead',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Mislead',
   level: 5,
   school: 'illusion',

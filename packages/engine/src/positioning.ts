@@ -419,6 +419,26 @@ const cubeCentre = (p: Point): Point => ({
   z: p.z + CUBE / 2,
 });
 
+/**
+ * Every cube a creature occupies, each as a volume of its own.
+ *
+ * {@link cubeCentres}' twin for the one question that has to be asked of a
+ * *space* rather than of a point: whether a creature is **entirely** inside an
+ * area is whether each of these is inside it, and three of the seven shapes
+ * measure against a volume rather than against a centre.
+ */
+const cubesOf = (box: Box): Box[] => {
+  const cubes: Box[] = [];
+  for (let x = box.min.x; x < box.max.x; x += CUBE) {
+    for (let y = box.min.y; y < box.max.y; y += CUBE) {
+      for (let z = box.min.z; z < box.max.z; z += CUBE) {
+        cubes.push({ min: { x, y, z }, max: { x: x + CUBE, y: y + CUBE, z: z + CUBE } });
+      }
+    }
+  }
+  return cubes;
+};
+
 const cubeCentres = (box: Box): Point[] => {
   const points: Point[] = [];
   for (let x = box.min.x; x < box.max.x; x += CUBE) {
@@ -1698,6 +1718,22 @@ export interface AreaOptions {
    * area of effect unless its creator decides otherwise".
    */
   readonly includeOrigin?: boolean;
+  /**
+   * SRD Silence: "Any creature or object **entirely inside** the Sphere."
+   *
+   * **The same template, asked of every cube instead of any cube.** A creature
+   * is in an area when one of the spaces it occupies is; it is *entirely
+   * inside* when all of them are — so this runs the shape's own predicate over
+   * each 5-foot cube of the volume rather than over the volume, and a Large
+   * creature with one corner out is caught by the first question and not by
+   * the second. Nothing about any shape is reimplemented, which is the whole
+   * point: a second geometry for "wholly" is a second place for a Cylinder's
+   * height to be measured from the wrong plane.
+   *
+   * Identical to the ordinary reading for a Medium creature, which occupies
+   * one cube — so every caller that does not ask gets exactly what it got.
+   */
+  readonly whollyInside?: boolean;
 }
 
 const subtract = (a: Point, b: Point): Point => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
@@ -1974,7 +2010,15 @@ export function creaturesInArea(
     const box = boxOf(state, id);
     if (box === null) continue;
 
-    if (!boxInShape(world, anchor, originBox, towards, shape, box)) continue;
+    // "Entirely inside" is the same question asked of every cube the creature
+    // occupies — see {@link AreaOptions.whollyInside}.
+    const inside =
+      options.whollyInside === true
+        ? cubesOf(box).every((cube) =>
+            boxInShape(world, anchor, originBox, towards, shape, cube),
+          )
+        : boxInShape(world, anchor, originBox, towards, shape, box);
+    if (!inside) continue;
 
     // The origin creature of an Emanation, or anything standing exactly on the
     // point of origin, is excluded unless the caster says otherwise.

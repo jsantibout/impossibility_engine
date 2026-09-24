@@ -141,6 +141,9 @@ const AUDIT: readonly {
         'which grant supplies a spell, for a caster whose class and a feat both do. Every Magic Initiate spell in Tier 2 is one the class does not also supply, so the default is never ambiguous — publish this the first time a route collides',
       ),
       unaffected: because('Spirit Guardians and Alarm print the clause; neither is castable by anyone here'),
+      chosen: because(
+        'the designation with its polarity turned over — SRD Pass without Trace’s "you and each creature you choose", which names the only creatures the aura reaches rather than the ones it lets alone. One spell prints it, no benchmark character prepares it, and the engine reaches the aura’s caster without being told. `packages/tools` publishes it as `cast_spell.chosen`',
+      ),
       damageType: because('Spirit Guardians reads the caster alignment; same, nobody can cast it'),
       choice: because(
         'the one value a spell asks its caster to pick — Blindness/Deafness’ Blinded or Deafened, Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s eighteen skills. The engine refuses a casting of one of those that names none, so this is required rather than optional the day any of them is castable here; no benchmark character has one prepared',

@@ -4,6 +4,8 @@ import { declaredCasting } from '@ie/engine';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createRng, type Rng } from '@ie/engine';
 import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
@@ -709,6 +711,52 @@ describe('every definition in the catalogue actually casts', () => {
     for (let n = 0; n <= log.length; n += 1) {
       expect(fold('seed', log.slice(0, n))).toEqual(fold('seed', log.slice(0, n)));
     }
+  });
+});
+
+/**
+ * The one fact about a spell's **components** the engine holds, held to the
+ * book that prints them.
+ *
+ * SRD Silence: "Casting a spell that includes a Verbal component is impossible
+ * there." `SpellDefinition.noVerbalComponent` is the whole of what the engine
+ * models of that question, and it is a **negative** marker: absence means the
+ * spell has a Verbal component, which is what the book says of all but a
+ * handful of its spells.
+ *
+ * That polarity is the reason this guard exists rather than a matter of taste.
+ * A positive marker nobody set would leave Silence inert and nothing would go
+ * red; a negative marker nobody set refuses a casting the book allows, and
+ * nothing would go red either. Both are the silent wrong answer, and the right
+ * answer is already parsed — `@ie/srd` reads the components off the book — so
+ * the field is checked against them in both directions rather than transcribed
+ * by hand and hoped over.
+ */
+const VERBAL: ReadonlyMap<string, boolean> = new Map(
+  (
+    JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
+        'utf8',
+      ),
+    ) as readonly { id: string; components: { verbal: boolean } }[]
+  ).map((spell) => [spell.id, spell.components.verbal]),
+);
+
+describe('the Verbal component a definition claims is the one the book prints', () => {
+  it.each(SPELL_DEFINITIONS.map((d) => [d.id, d] as const))(
+    'marks %s exactly as the parsed entry does',
+    (spellId, definition) => {
+      const verbal = VERBAL.get(spellId);
+      expect(verbal, spellId).toBeDefined();
+      expect(definition.noVerbalComponent === true, spellId).toBe(verbal === false);
+    },
+  );
+
+  /** And the guard is not vacuous: the book really does print both answers. */
+  it('has definitions on both sides of it', () => {
+    expect(SPELL_DEFINITIONS.some((d) => d.noVerbalComponent === true)).toBe(true);
+    expect(SPELL_DEFINITIONS.some((d) => d.noVerbalComponent === undefined)).toBe(true);
   });
 });
 

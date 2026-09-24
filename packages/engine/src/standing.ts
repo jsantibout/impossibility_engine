@@ -9,7 +9,7 @@ import {
   type RollMode,
   type Skill,
 } from '@ie/shared';
-import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
+import type { Bonus, BonusNarrowing, ModeSource, StandingBonusApplies } from './bonuses.js';
 import type { CreatureSize } from '@ie/srd';
 import type { HazardName } from './hazards.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
@@ -22,6 +22,7 @@ import {
 } from './roll-modifiers.js';
 import { UNIVERSAL_ACTION_EFFECTS } from './actions.js';
 import {
+  applyCondition,
   conditionSpeed,
   conditionState,
   deniedBenefitsOf,
@@ -155,11 +156,54 @@ export type StandingReach =
  * Longstrider — touched at a moment, ended at a moment — and wrong for a
  * volume a creature can walk out of.
  *
- * One member, because the SRD writes one sentence of this shape that the
- * engine can execute. A second sentence adds a member; it does not add a
- * second way of saying this one.
+ * **Four members and a list of them**, where there was one member and one
+ * value. SRD Silence writes three sentences of this shape about one Sphere —
+ * an Immunity, a condition and a casting it forbids — so a field holding one
+ * clause could not have carried it, and a second field beside this one would
+ * have been a second answer to "what does this area do". A definition states
+ * the list; the casting pins it; every reader below walks it and names the
+ * members it understands.
+ *
+ * | SRD | Member |
+ * |---|---|
+ * | Spirit Guardians, "Speed is halved in the Emanation" | {@link AreaSpeedStanding} |
+ * | Pass without Trace, "+10 bonus to Dexterity (Stealth) checks" | {@link AreaBonusStanding} |
+ * | Silence, "creatures have the Deafened condition while entirely inside it" | {@link AreaConditionStanding} |
+ * | Silence, "has Immunity to Thunder damage" | {@link AreaDefenseStanding} |
+ * | Silence, "Casting a spell that includes a Verbal component is impossible there" | {@link AreaSilenceStanding} |
  */
-export type AreaStanding = {
+export type AreaStanding =
+  | AreaSpeedStanding
+  | AreaBonusStanding
+  | AreaConditionStanding
+  | AreaDefenseStanding
+  | AreaSilenceStanding;
+
+/**
+ * How much of a creature has to be in the area for a clause to reach it.
+ *
+ * SRD writes both readings and writes them in one entry. Silence: "Any
+ * creature or object **entirely inside** the Sphere has Immunity to Thunder
+ * damage, and creatures have the Deafened condition **while entirely inside
+ * it**" — and then, of the casting it forbids, only "**there**". Spirit
+ * Guardians and Pass without Trace say "in the Emanation" and "while in the
+ * aura", which is the ordinary reading every other area rule takes.
+ *
+ * So it is a field on the clause rather than a rule about the kind: the same
+ * Sphere reaches a straddling ogre with one of its sentences and not with the
+ * other two, and a reader that decided this per kind would have had to get
+ * Silence's own paragraph wrong somewhere.
+ *
+ * **Absent is the ordinary reading**: any space the creature occupies inside
+ * the area puts it in the area, which is what `creaturesInArea` has always
+ * answered and what every record written before this field says.
+ */
+interface WhollyInside {
+  /** SRD Silence's "entirely inside": every space the creature occupies. */
+  readonly whollyInside?: true;
+}
+
+export type AreaSpeedStanding = WhollyInside & {
   /**
    * SRD Spirit Guardians' "Speed is halved in the Emanation", read through the
    * one composer — {@link combineSpeed} — so the halving meets Exhaustion's
@@ -189,6 +233,106 @@ export type AreaStanding = {
   readonly change: Exclude<SpeedChange, 'match-walk'>;
   /** Signed feet, required by `add` and refused by the other two. */
   readonly feet?: number;
+};
+
+/**
+ * SRD Pass without Trace: "While in the aura, you and each creature you choose
+ * have a **+10 bonus to Dexterity (Stealth) checks**."
+ *
+ * A flat number on a family of roll, narrowed the way {@link BonusNarrowing}
+ * already narrows the ongoing bonus Guidance hangs: "Dexterity (Stealth)" is
+ * `{ skill: 'stealth' }` and loses nothing, because a skill names its own
+ * governing ability.
+ *
+ * **`applies` is the one family with a gatherer, and is typed as that family
+ * rather than as `BonusApplies` whole.** Widening it would put a member
+ * in the vocabulary that no reader reaches, which is the failure `bonuses.ts`
+ * names in its own docstring: `checkBonuses` is where this is gathered, a
+ * saving throw and an attack roll gather their own, and the day the SRD prints
+ * an area that bonuses one of those the widening is a second gatherer rather
+ * than a wider field.
+ *
+ * **Flat only, for `BonusApplies`' reason two paragraphs up in that file.** No
+ * SRD area grants a rolled bonus, and a d4 derived from where somebody is
+ * standing has no moment at which it could be rolled — it would be thrown
+ * afresh on every read of a number that is supposed to be stable.
+ *
+ * **Stacked by the spell's name and not by the casting**, which is SRD's own
+ * sentence: "when two or more game features have the same name, only the
+ * effects of one of them — the most potent — apply". Two Pass without Traces
+ * over one Rogue are +10, exactly as two Rings of Protection are +1.
+ */
+export type AreaBonusStanding = WhollyInside & {
+  readonly kind: 'bonus';
+  /** The one family an area-derived bonus has a gatherer for. */
+  readonly applies: 'ability-check';
+  /** Signed, so an area could print a penalty; SRD's one sentence is a plus. */
+  readonly flat: number;
+  /** Which of those checks it reaches — see {@link BonusNarrowing}. */
+  readonly only?: BonusNarrowing;
+};
+
+/**
+ * SRD Silence: "creatures have the **Deafened** condition while entirely
+ * inside it."
+ *
+ * **Derived, and no `condition-applied` is ever written.** The cause is the
+ * creature's position and nothing else, so there is no moment to record: a
+ * pair of events — applied on the way in, removed on the way out — would be
+ * two facts that have to stay matched, and the first route that moved a
+ * creature without remembering would leave a goblin deaf a hundred feet from
+ * the Sphere. It is gathered by {@link effectiveConditions}, which is the one
+ * door every reader of a condition's *effects* already goes through, so the
+ * auto-failed hearing check and the Disadvantage a condition carries find it
+ * without a second reader being written.
+ *
+ * **So it cannot be removed, and that is the rule rather than a limitation.**
+ * Nothing the SRD prints lifts a condition a place imposes while you are still
+ * standing in the place; walking out is the whole of the ending.
+ */
+export type AreaConditionStanding = WhollyInside & {
+  readonly kind: 'condition';
+  readonly condition: ConditionName;
+};
+
+/**
+ * SRD Silence: "Any creature or object entirely inside the Sphere has
+ * **Immunity to Thunder damage**."
+ *
+ * {@link defensesOf}'s fourth input, beside the stat block's printed entries,
+ * the ones a feature grants while a requirement holds, and the ones a running
+ * effect has hung on a creature — and the only one of the four that is a fact
+ * about *where* rather than about *whom*. It unions with the rest for the
+ * SRD's own reason: "multiple instances of Resistance to the same damage type
+ * count as only one", so there is no arithmetic a second copy could do.
+ */
+export type AreaDefenseStanding = WhollyInside & {
+  readonly kind: 'damage-defense';
+  readonly defense: DefenseKind;
+  /** Lower-cased, and compared rather than named: the engine holds no list. */
+  readonly damageTypes: readonly string[];
+};
+
+/**
+ * SRD Silence: "**Casting a spell that includes a Verbal component is
+ * impossible there.**"
+ *
+ * **A pinned fact read by a refusal, which is what makes it a member here and
+ * not a derived value.** The other four members are read at the moment
+ * somebody asks what a creature's Speed, bonus, condition or defence is; this
+ * one is read at the moment somebody casts, and what it produces is
+ * `silenced` rather than a number. It is a member all the same because the
+ * question it answers is this type's question — *what does this casting's
+ * area do to whoever is standing in it* — and because the fold opens no
+ * catalogue: the sentence has to be pinned at the cast beside the area it is
+ * measured over, and a field of its own would be a second answer to one
+ * question.
+ *
+ * It carries no `whollyInside`, and the book is why: the two clauses above it
+ * say "entirely inside" and this one says "there".
+ */
+export type AreaSilenceStanding = {
+  readonly kind: 'no-verbal-casting';
 };
 
 /**
@@ -3972,7 +4116,11 @@ export function defensesOf(
   const own = state.creatures[who]?.defenses ?? {};
   const standing = standingDefenses(state, who);
   const hung = state.creatures[who]?.grantedDefenses ?? [];
-  if (Object.keys(standing).length === 0 && hung.length === 0) return own;
+  // And the fourth input: what an area the creature is standing in grants it
+  // for standing there. Derived on every read like the second, and stored on
+  // nobody — see {@link AreaDefenseStanding}.
+  const place = areaDefenses(state, who);
+  if (Object.keys(standing).length === 0 && hung.length === 0 && place.length === 0) return own;
 
   const merged: Record<string, DamageDefenses> = { ...own };
   const add = (type: string, defence: DefenseKind): void => {
@@ -3990,6 +4138,7 @@ export function defensesOf(
   for (const granted of hung) {
     for (const type of granted.damageTypes) add(type, granted.defense);
   }
+  for (const granted of place) add(granted.type, granted.defense);
   return merged;
 }
 
@@ -5584,20 +5733,179 @@ export function combineSpeed(
  * answer until somebody says, and inventing one to halve a Speed is the wrong
  * direction to guess in — the reading an aura already takes for an unplaced
  * creature.
+ *
+ * **The casting's spell name travels with each clause**, because one of the
+ * readers needs it and none of them should look it up: SRD's "when two or more
+ * game features have the same name, only the effects of one of them — the most
+ * potent — apply" is what decides two Pass without Traces over one Rogue, and
+ * the name is the only fact that answers it. It is the *pinned* display name
+ * off the record, so the fold's rule holds here too and no reader opens a
+ * catalogue.
  */
-function areaStandingOn(state: GameState, who: CharacterId): readonly AreaStanding[] {
+export function areaStandingOn(
+  state: GameState,
+  who: CharacterId,
+): readonly { readonly spell: string; readonly standing: AreaStanding }[] {
   const scene = state.scene;
   if (scene === null) return [];
 
-  const found: AreaStanding[] = [];
+  const found: { spell: string; standing: AreaStanding }[] = [];
   for (const castingId of Object.keys(state.ongoing).sort()) {
     const record = state.ongoing[castingId];
-    if (record?.areaStanding === undefined) continue;
-    const inside = creaturesStandingInCastingArea(scene, record);
-    if (inside === null || !inside.has(who)) continue;
-    found.push(record.areaStanding);
+    const standings = record?.areaStanding;
+    if (record === undefined || standings === undefined) continue;
+
+    // The two readings, asked at most once each and only when a clause of this
+    // casting prints the second: SRD Silence deafens whoever is *entirely*
+    // inside and forbids a Verbal casting merely there, so one record answers
+    // both questions about one Sphere.
+    let ordinary: ReadonlySet<CharacterId> | null | undefined;
+    let wholly: ReadonlySet<CharacterId> | null | undefined;
+    for (const standing of standings) {
+      let inside: ReadonlySet<CharacterId> | null;
+      if (standing.kind !== 'no-verbal-casting' && standing.whollyInside === true) {
+        wholly ??= creaturesStandingInCastingArea(scene, record, { whollyInside: true });
+        inside = wholly;
+      } else {
+        ordinary ??= creaturesStandingInCastingArea(scene, record);
+        inside = ordinary;
+      }
+      if (inside === null || !inside.has(who)) continue;
+      found.push({ spell: record.spell, standing });
+    }
   }
   return found;
+}
+
+/**
+ * The flat bonuses a creature has for standing where it is standing.
+ *
+ * {@link standingBonuses}' third sibling, and the one whose reach is a
+ * *place*: that one gathers what an item or a feature grants while a
+ * requirement holds, `standingCheckBonuses` gathers the ability-sized plus a
+ * feature names two skills for, and this gathers what an area a creature is
+ * inside is doing to its checks. All three are derived on every read, and this
+ * one changes when anybody walks.
+ *
+ * **Keyed by the spell's name for the SRD's own reason**: "when two or more
+ * game features have the same name, only the effects of one of them — the most
+ * potent — apply while the durations of the effects overlap." Two Pass without
+ * Traces over one Rogue are +10. "Most potent" is read as the larger number,
+ * which is the reading {@link standingBonuses} already takes and leaves a
+ * penalty unsettled in exactly the same way.
+ *
+ * The narrowing is `bonusesFor`'s and is read the same way: every filter the
+ * clause names must be matched by a fact the roll supplied, so a caller with no
+ * skill to name gets only the clauses that name none either.
+ */
+export function areaBonuses(
+  state: GameState,
+  who: CharacterId,
+  applies: 'ability-check',
+  of?: BonusNarrowing,
+): readonly Bonus[] {
+  const best = new Map<string, Bonus>();
+  for (const { spell, standing } of areaStandingOn(state, who)) {
+    if (standing.kind !== 'bonus' || standing.applies !== applies) continue;
+    if (!narrowingReaches(standing.only, of)) continue;
+    const current = best.get(spell);
+    if (current === undefined || (current.flat ?? 0) < standing.flat) {
+      best.set(spell, { source: spell, flat: standing.flat });
+    }
+  }
+  return [...best.values()];
+}
+
+/**
+ * Whether a narrowed area clause reaches the roll asking.
+ *
+ * `bonusesFor`'s `reaches`, which is not exported and is deliberately not made
+ * so: that one is a private rule of a function about a *stored* bonus, and
+ * this is the same sentence read off a clause that was never stored. Both say
+ * an unanswered filter withholds, which is the direction that cannot be wrong
+ * twice — a bonus narrowed to Stealth that reached a check nobody named a
+ * skill for would be the unnarrowed bonus back again.
+ */
+function narrowingReaches(only: BonusNarrowing | undefined, of: BonusNarrowing | undefined): boolean {
+  if (only === undefined) return true;
+  if (only.ability !== undefined && only.ability !== of?.ability) return false;
+  if (only.skill !== undefined && only.skill !== of?.skill) return false;
+  return true;
+}
+
+/**
+ * Damage types an area a creature is standing in resists, or does not.
+ *
+ * {@link standingDefenses}' twin on the other axis, gathered into
+ * {@link defensesOf} beside it: that one reads what a feature grants while a
+ * requirement holds, this what a place grants while a creature is in it. SRD
+ * Silence writes the only sentence — "Any creature or object entirely inside
+ * the Sphere has Immunity to Thunder damage" — and the union is the whole of
+ * the arithmetic, because "multiple instances of Resistance to the same damage
+ * type count as only one".
+ */
+function areaDefenses(
+  state: GameState,
+  who: CharacterId,
+): readonly { readonly type: string; readonly defense: DefenseKind }[] {
+  const found: { type: string; defense: DefenseKind }[] = [];
+  for (const { standing } of areaStandingOn(state, who)) {
+    if (standing.kind !== 'damage-defense') continue;
+    for (const type of standing.damageTypes) {
+      found.push({ type: type.toLowerCase(), defense: standing.defense });
+    }
+  }
+  return found;
+}
+
+/**
+ * Conditions a creature has for standing where it is standing.
+ *
+ * SRD Silence: "creatures have the Deafened condition **while entirely inside
+ * it**." Gathered into {@link effectiveConditions} — the one door every reader
+ * of a condition's effects already goes through — rather than applied, so no
+ * `condition-applied` is written and there is nothing to take back: the cause
+ * is the creature's position, which no event records, and a stored pair would
+ * be two facts that can disagree the first time something moves a creature
+ * without remembering.
+ *
+ * **The instance is sourced on the spell's pinned name rather than on the
+ * casting**, so two Spheres over one goblin are one instance and not two. That
+ * is the same reading the bonus beside it takes and for the SRD's own reason —
+ * "when two or more game features have the same name, only the effects of one
+ * of them applies" — and it costs nothing either way, because a condition is a
+ * set: a goblin standing in two Silences is Deafened exactly once whichever
+ * spelling is used. The name is what a log reader recognises; a casting id
+ * would put two indistinguishable instances on a creature to say one thing.
+ */
+function areaConditionsOn(
+  state: GameState,
+  who: CharacterId,
+): readonly { readonly condition: ConditionName; readonly source: string }[] {
+  const found: { condition: ConditionName; source: string }[] = [];
+  for (const { spell, standing } of areaStandingOn(state, who)) {
+    if (standing.kind !== 'condition') continue;
+    found.push({ condition: standing.condition, source: spell });
+  }
+  return found;
+}
+
+/**
+ * Whether an area this creature is standing in forbids a Verbal casting.
+ *
+ * SRD Silence: "Casting a spell that includes a Verbal component is impossible
+ * there." The name of the casting's spell, so the refusal can say what stopped
+ * the caster; null when nothing does.
+ *
+ * **"There", and not "entirely inside"** — the same paragraph writes both and
+ * this clause is the one that does not narrow. See
+ * {@link AreaSilenceStanding}.
+ */
+export function silencedBy(state: GameState, who: CharacterId): string | null {
+  for (const { spell, standing } of areaStandingOn(state, who)) {
+    if (standing.kind === 'no-verbal-casting') return spell;
+  }
+  return null;
 }
 
 /**
@@ -5739,7 +6047,8 @@ export function speedOf(
   // 0. The type is narrowed now, so nothing typed can arrive; naming the
   // members is what makes a *later* widening ignore what it cannot compute
   // rather than zero somebody's Speed.
-  for (const standing of areaStandingOn(state, who)) {
+  for (const { standing } of areaStandingOn(state, who)) {
+    if (standing.kind !== 'speed') continue;
     if (standing.change === 'add') flattenInMode({ feet: standing.feet ?? 0 });
     else if (standing.change === 'halve') halvings += 1;
     else if (standing.change === 'zero') zeroed = true;
@@ -6566,7 +6875,21 @@ export function effectiveConditions(
   const creature = state.creatures[who];
   if (creature === undefined) return conditionState([]);
 
-  const effective = withoutConditions(creature.conditions, suppressedConditions(state, who));
+  const suppressed = suppressedConditions(state, who);
+  let effective = withoutConditions(creature.conditions, suppressed);
+  // **And the conditions a place imposes, gathered here and nowhere else.**
+  // SRD Silence: "creatures have the Deafened condition while entirely inside
+  // it." Nothing applied it, so nothing is stored and nothing ends it but
+  // walking out — see {@link areaConditionsOn}. It joins *after* the
+  // suppression filter rather than before it, because an aura that suppresses
+  // a condition suppresses the condition a creature *has*, and this one the
+  // creature acquires by standing somewhere; a suppression that reached it
+  // would be an area and an aura arguing about a fact neither of them wrote
+  // down. The day the SRD prints that pair the argument is written first.
+  for (const { condition, source } of areaConditionsOn(state, who)) {
+    if (suppressed.includes(condition)) continue;
+    effective = applyCondition(effective, condition, source);
+  }
   // **The benefits something has taken away, gathered here and nowhere else.**
   // SRD Starry Wisp's "can't benefit from the Invisible condition" is not the
   // condition being suppressed and not the condition ending — the creature is

@@ -31,6 +31,7 @@
  */
 
 import type { SpellDefinition } from './spell-definitions.js';
+import type { AreaStanding } from './standing.js';
 import type { OngoingSpell, WrittenOngoing } from './spells.js';
 
 /**
@@ -78,7 +79,34 @@ export const ONGOING_RECORD_VERSION = 3;
  * shape the type says cannot exist.
  */
 const isCurrent = (casting: WrittenOngoing): casting is OngoingSpell =>
-  casting.version === ONGOING_RECORD_VERSION && casting.aimed !== undefined;
+  casting.version === ONGOING_RECORD_VERSION &&
+  casting.aimed !== undefined &&
+  // And the one field whose **arity** changed after version 3 was fixed: a
+  // record written when an area could do one thing to whoever stood in it
+  // carries a clause where this engine carries a list of them. It means
+  // exactly what it always meant, so it is widened rather than versioned —
+  // see {@link normaliseStanding} — and a record that still holds the old
+  // shape is rebuilt below rather than handed back as a shape the type says
+  // cannot exist.
+  (casting.areaStanding === undefined || Array.isArray(casting.areaStanding));
+
+/**
+ * A record's standing clauses, however many of them it was written with.
+ *
+ * SRD Silence writes three sentences of that shape about one Sphere, so the
+ * field became a list; SRD Spirit Guardians writes one and every record ever
+ * written holds it alone. A lone clause is a list of one and always was, which
+ * is why this is a widening the reader absorbs rather than a bump of
+ * {@link ONGOING_RECORD_VERSION}: no clause on an old record does anything
+ * different, and a bump would have sent every version 3 record through a
+ * rebuild it does not need.
+ */
+function normaliseStanding(
+  written: readonly AreaStanding[] | AreaStanding | undefined,
+): readonly AreaStanding[] | undefined {
+  if (written === undefined) return undefined;
+  return Array.isArray(written) ? written : [written as AreaStanding];
+}
 
 /**
  * An ongoing record as this engine reads it, whatever shape it was written in.
@@ -131,7 +159,14 @@ export function upgradeOngoing(
   // What the area does to whoever stands in it, read off the record first and
   // out of the legacy book only for a record written before the field existed
   // — the rule the area and the trigger above already follow.
-  const areaStanding = casting.areaStanding ?? definition?.areaStanding;
+  // **A lone clause is read as a list of one**, which is what a version 3
+  // record written before Silence needed three of them says. The field grew an
+  // arity rather than a meaning — every clause on such a record still does
+  // exactly what it did — so this is a widening the reader absorbs rather than
+  // a version bump, by the rule {@link ONGOING_RECORD_VERSION} states. What
+  // makes it safe to do here is that this function is the one door into
+  // `state.ongoing`.
+  const areaStanding = normaliseStanding(casting.areaStanding ?? definition?.areaStanding);
   const endsEarly = casting.endsEarly ?? definition?.endsEarly;
   return {
     version: ONGOING_RECORD_VERSION,
@@ -156,6 +191,17 @@ export function upgradeOngoing(
     ...(casting.towards === undefined ? {} : { towards: casting.towards }),
     ...(casting.anchoring === undefined ? {} : { anchoring: casting.anchoring }),
     ...(casting.unaffected === undefined ? {} : { unaffected: casting.unaffected }),
+    ...(casting.chosen === undefined ? {} : { chosen: casting.chosen }),
     ...(casting.damageType === undefined ? {} : { damageType: casting.damageType }),
+    // **The four fields a rebuild used to drop**, carried now because a
+    // version 3 record can reach the rebuild: until the standing clause grew
+    // an arity, only a pre-versioned record was ever rebuilt and none of these
+    // existed when one was written. A record that answered a Counterspell, ran
+    // a branch, heated an object or pinned a choice must not lose the fact on
+    // the way in.
+    ...(casting.object === undefined ? {} : { object: casting.object }),
+    ...(casting.choice === undefined ? {} : { choice: casting.choice }),
+    ...(casting.option === undefined ? {} : { option: casting.option }),
+    ...(casting.negates === undefined ? {} : { negates: casting.negates }),
   };
 }

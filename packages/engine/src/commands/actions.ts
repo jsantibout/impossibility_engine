@@ -2876,6 +2876,8 @@ export interface StatedFacts {
   readonly willing?: readonly CharacterId[];
   /** Creatures the caster designated unaffected, for a spell that offers it. */
   readonly unaffected?: readonly CharacterId[];
+  /** Creatures this casting's area reaches, for a spell that offers the choice. */
+  readonly chosen?: readonly CharacterId[];
   /** Where a teleporting spell puts its target. */
   readonly teleportTo?: Placement;
   /** The weapon a spell that imbues one was aimed at, by catalogue id. */
@@ -3156,6 +3158,7 @@ function statedOf(response: StatedFacts): StatedFacts {
     ...(response.fought === undefined ? {} : { fought: response.fought }),
     ...(response.willing === undefined ? {} : { willing: response.willing }),
     ...(response.unaffected === undefined ? {} : { unaffected: response.unaffected }),
+    ...(response.chosen === undefined ? {} : { chosen: response.chosen }),
     ...(response.teleportTo === undefined ? {} : { teleportTo: response.teleportTo }),
     ...(response.weapon === undefined ? {} : { weapon: response.weapon }),
   };

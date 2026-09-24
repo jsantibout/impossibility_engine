@@ -468,7 +468,7 @@ describe('the validator holds the pairing', () => {
     expect(
       riderCodes({ kind: 'speed-change', change: 'add', feet: -10, lasts: 'start-of-casters-next-turn' }),
     ).toEqual([]);
-    expect(areaCodes({ kind: 'speed', change: 'halve' })).toEqual([]);
+    expect(areaCodes([{ kind: 'speed', change: 'halve' }])).toEqual([]);
   });
 
   it('refuses a mode on a rider and on an area, which hold no such field', () => {
@@ -481,7 +481,7 @@ describe('the validator holds the pairing', () => {
         lasts: 'start-of-casters-next-turn',
       }),
     ).toContain('bad_speed_change');
-    expect(areaCodes({ kind: 'speed', change: 'halve', mode: 'fly' })).toContain(
+    expect(areaCodes([{ kind: 'speed', change: 'halve', mode: 'fly' }])).toContain(
       'bad_speed_change',
     );
   });
@@ -498,7 +498,7 @@ describe('the validator holds the pairing', () => {
     expect(
       riderReasons({ kind: 'speed-change', change: 'match-walk', lasts: 'start-of-casters-next-turn' }).join(' '),
     ).toContain('no mode to give it in');
-    expect(areaReasons({ kind: 'speed', change: 'match-walk' }).join(' ')).toContain(
+    expect(areaReasons([{ kind: 'speed', change: 'match-walk' }]).join(' ')).toContain(
       'no mode to give it in',
     );
   });

@@ -69,7 +69,7 @@ import {
   type SlotlessReason,
   validateSpellName,
 } from '../spells.js';
-import { actionRulesOn, armorClassOf, sheetAsItStands } from '../standing.js';
+import { actionRulesOn, armorClassOf, sheetAsItStands, silencedBy } from '../standing.js';
 import { applyDamageToVitals, concentrationSaveDc, damagePastThreshold } from '../vitals.js';
 import { undeadFortitudeSave } from '../monster.js';
 // The Hide action's source string, read-only, so that `hidingEndedBy` below
@@ -483,6 +483,28 @@ export interface CastCommand extends CommandIdentity {
    * invent a handover than it can invent a Range.
    */
   readonly dmDecides?: readonly string[];
+  /**
+   * This spell prints **no Verbal component**.
+   *
+   * The whole of what the engine models of a spell's components, carried down
+   * from the definition beside `dmDecides` and for one rule: SRD Silence's
+   * "Casting a spell that includes a Verbal component is impossible there."
+   *
+   * **Absent means the spell has one**, which is the book's own default — all
+   * but a handful of the SRD's spells print a Verbal component — and is
+   * therefore also what the low-level door says when nobody tells it. A caller
+   * with no definition in hand cannot know, and the conservative answer to
+   * "may this be cast in a Silence" is the one the book gives almost every
+   * spell. See `SpellDefinition.noVerbalComponent`.
+   *
+   * **A casting, not a spell**, which is the one place it differs from the
+   * definition's field it is copied from: SRD Subtle Spell casts a spell
+   * "without any Verbal, Somatic, or Material components", so a casting that
+   * bought it includes no Verbal component whatever the book prints. One fact
+   * arrives here and one refusal reads it, rather than a refusal that has to
+   * know about a metamagic.
+   */
+  readonly noVerbalComponent?: true;
   /** Why no slot is being expended. Mutually exclusive with `slotLevel`. */
   readonly slotless?: SlotlessReason;
   /**
@@ -635,6 +657,15 @@ export interface CastingPlan {
    */
   readonly unaffected?: readonly CharacterId[];
   /**
+   * Creatures this casting's area reaches, for a spell that offers the choice.
+   *
+   * The eleventh fact stated at the casting, and the designation above with
+   * the polarity turned over — SRD Pass without Trace's "you and each creature
+   * you choose". Sorted, non-empty and carrying the caster, or absent;
+   * normalised once by `chosenFor`, where the request is read.
+   */
+  readonly chosen?: readonly CharacterId[];
+  /**
    * A mode on the saves this casting forces on a named creature, with the
    * option that bought it — SRD Heightened Spell.
    *
@@ -778,6 +809,29 @@ function castSpellWith(
 
   const name = validateSpellName(command.spell);
   if (!name.ok) return name;
+
+  // SRD Silence: "Casting a spell that includes a Verbal component is
+  // impossible **there**." A refusal rather than a standing effect, because
+  // what the sentence forbids is an action and not a value — and it belongs
+  // here, beside Incapacitated, for the same reason that one does: nothing is
+  // spent and no die is thrown until every check has passed, so a caster who
+  // forgot where they were standing loses neither the slot nor the action.
+  //
+  // **"There" is the ordinary reading of the area**, not the "entirely inside"
+  // the same paragraph prints twice. A Subtle casting passes without a clause
+  // of its own: SRD Subtle Spell casts "without any Verbal, Somatic, or
+  // Material components", so such a casting includes no Verbal component to be
+  // impossible — and the metamagic's mark is already on the plan the layer
+  // above built.
+  if (command.noVerbalComponent !== true) {
+    const quieted = silencedBy(state, id);
+    if (quieted !== null) {
+      return err(
+        'silenced',
+        `${id} is standing in ${quieted}, where no sound can be created, and ${command.spell} includes a Verbal component`,
+      );
+    }
+  }
 
   if (!Number.isInteger(command.level) || command.level < 0 || command.level > 9) {
     return err('bad_level', `a spell's level runs from 0 to 9, got ${command.level}`);
@@ -1041,6 +1095,7 @@ function castSpellWith(
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.willing === undefined ? {} : { willing: command.hold.willing }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
+        ...(command.hold.chosen === undefined ? {} : { chosen: command.hold.chosen }),
         // And the mode an option hung on one target's saves, and whether the
         // casting can be perceived at all — the two marks a settlement and the
         // Counterspell window respectively read off the record.

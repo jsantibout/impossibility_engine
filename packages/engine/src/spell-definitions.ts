@@ -2315,6 +2315,37 @@ export type SpellEffect =
        */
       readonly recordsOutcome?: true;
       /**
+       * This save's **whole content is its verdict**.
+       *
+       * SRD Animal Messenger: "A Tiny Beast of your choice that you can see
+       * within range **must succeed on a Charisma saving throw**, or it
+       * attempts to deliver a message for you." The failure imposes no
+       * condition, hangs no rider and moves nobody: what it decides is whether
+       * the beast goes, which is an errand only the table can run.
+       *
+       * **The fourth thing a save may do, and the one that needs no record.**
+       * {@link save.recordsOutcome} above keeps the answer on the running
+       * casting, which is why it is refused in the casting's own list — that
+       * list resolves before `spell-ongoing` is pushed, so the record it would
+       * write onto does not exist yet, and a definition that validated clean
+       * would take the campaign down on `CorruptLogError`. This mark wants no
+       * record at all: the die is rolled, the answer is published through the
+       * casting's result as `SpellTargetOutcome.save`, and it stands in the
+       * log as the D20 Test it was. A casting that leaves nothing running
+       * still answered its question.
+       *
+       * So it lifts `save_imposes_nothing` for the definition that claims it,
+       * and it is **refused beside every rider and beside `recordsOutcome`**:
+       * a save that also halved a Speed, pushed somebody or kept its answer on
+       * a record is not a save whose whole content is its verdict, and two
+       * ways to say one thing is how a rule comes to be applied twice.
+       *
+       * And it is refused where a record *does* exist — an `areaTrigger` or an
+       * `activation` list fires off a casting the cast has already written, and
+       * `recordsOutcome` is the field that keeps an answer there.
+       */
+      readonly verdictOnly?: true;
+      /**
        * The condition the failure imposes, where it imposes one.
        *
        * **Optional, and the docstring it replaces said exactly why it could
@@ -3684,7 +3715,28 @@ export type SpellArea =
       readonly width: number;
       readonly origin: 'self';
     }
-  | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' }
+  | {
+      readonly kind: 'emanation';
+      readonly distance: number;
+      readonly origin: 'self';
+      /**
+       * SRD: a point of origin "isn't included in the area of effect **unless
+       * its creator decides otherwise**", and two spells decide otherwise in
+       * their own first sentence.
+       *
+       * SRD Pass without Trace: "You radiate a concealing aura in a 30-foot
+       * Emanation … While in the aura, **you** and each creature you choose
+       * have a +10 bonus." SRD Spirit Guardians writes the other half — "any
+       * **other** creature's Speed is halved" — which is the default and says
+       * so by omission.
+       *
+       * So it is the definition that decides, transcribed off the printed
+       * sentence, rather than a rule the engine applies to emanations in
+       * general. Absent is the glossary's own reading and is what every
+       * definition written before this field says.
+       */
+      readonly includesOrigin?: true;
+    }
   /**
    * SRD Wind Wall: "You can make the wall up to 50 feet long, 15 feet high,
    * and 1 foot thick. You can shape the wall in any way you choose so long as
@@ -4390,8 +4442,12 @@ export interface SpellDefinition {
    * enters the Emanation or ends its turn there, the creature must make a
    * Wisdom saving throw" is {@link areaTrigger}, and "Any other creature's
    * Speed is halved in the Emanation" is this.
+   *
+   * **A list, because SRD Silence writes three of these sentences about one
+   * Sphere**: an Immunity, a condition and a casting the Sphere forbids. Each
+   * member is read by the reader that understands it and by nobody else.
    */
-  readonly areaStanding?: AreaStanding;
+  readonly areaStanding?: readonly AreaStanding[];
   /**
    * What the area does to the **ground** — see {@link AreaTerrain}.
    *
@@ -4451,6 +4507,54 @@ export interface SpellDefinition {
    * refusing this field on a definition with no `area`.
    */
   readonly designatesUnaffected?: true;
+  /**
+   * SRD Pass without Trace: "you and **each creature you choose**".
+   *
+   * {@link designatesUnaffected} with the polarity turned over: that one names
+   * the creatures an area lets alone and this one names the only creatures it
+   * reaches. Two fields rather than one with a sign, because a definition that
+   * meant the wrong one by the same list would invert a rule in silence, and
+   * because nothing in the SRD prints both about one area.
+   *
+   * The caster is always on the list, added where the fact is normalised, so a
+   * reader has the whole answer in one place.
+   *
+   * Absent means the spell offers no such choice and naming anybody is
+   * refused, rather than quietly ignored — the reading its sibling takes.
+   */
+  readonly designatesChosen?: true;
+  /**
+   * This spell prints **no Verbal component**.
+   *
+   * SRD Silence: "Casting a spell that includes a Verbal component is
+   * impossible there", which is the one rule in the book that asks the
+   * question — so this is the whole of what the engine models of a spell's
+   * components, and it is deliberately not the three-way list the parsed
+   * catalogue carries. A field nothing reads is the failure the validator
+   * exists to prevent.
+   *
+   * **Absent means the spell has one, which is the book's own default and not
+   * a guess.** All but a handful of the SRD's spells print a Verbal component;
+   * a positive marker would have left Silence inert for every definition
+   * nobody had thought to annotate, which is a rule quietly switched off. So
+   * the exception is what is written down, on the entries that are the
+   * exception, and a definition that says nothing says what the book says
+   * about almost everything.
+   *
+   * **The polarity is the reason it is guarded rather than trusted.** Either
+   * marker set the wrong way is silent — one refuses a casting the book
+   * allows, the other allows one the book refuses — so `@ie/content` checks
+   * every definition's answer against the components `@ie/srd` parsed, in both
+   * directions. See `spell-catalogue.test.ts`.
+   *
+   * **A spell cast from an item carries the spell's answer**, which is a
+   * reading rather than an omission: SRD says an item's casting spends no slot
+   * and says nothing about dropping the words, so a wand's Fireball still
+   * includes a Verbal component and a Silence still stops it. An item that
+   * means otherwise would say so, and there is no field for it because no SRD
+   * item does.
+   */
+  readonly noVerbalComponent?: true;
   /**
    * The damage types this spell prints, where it prints more than one and
    * chooses between them on a fact about the caster.

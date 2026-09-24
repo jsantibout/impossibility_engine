@@ -222,10 +222,17 @@ describe('toolSchemas', () => {
     // description, because two spells (Hex, Hunter's Mark) now offer a later
     // Bonus Action through it and nothing told a model so — the same 181
     // bytes on both surfaces, no tool added.
+    // Re-pinned again for the area-standing track: `cast_spell.chosen`, the
+    // eleventh stated fact — SRD Pass without Trace’s “you and each creature
+    // you choose”, which is the designation with its polarity turned over — is
+    // one field on one tool, so both surfaces grew by the same 482 characters
+    // and neither gained a tool; `ready.response.chosen` is the same field on
+    // the door that holds a spell rather than casts one, and grew both by the
+    // same 95, because a readied casting states the facts a cast one does.
     expect(toolSchemas(player())).toHaveLength(85);
     expect(toolSchemas(dm())).toHaveLength(105);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(128059);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(160211);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(128636);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(160788);
   });
 });
 
