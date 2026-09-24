@@ -1509,7 +1509,7 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'burrows-through-solid-rock':
     'SRD Tunneler: "can burrow through solid rock at half its Burrow Speed and leaves a 10-foot-diameter tunnel in its wake." The same absent material as Earth Glide, and the tunnel besides: a hole left in the world is a change to the map the DM is drawing, and the engine draws none.',
   'ignores-a-webs-restrictions':
-    'SRD Web Walker: "ignores movement restrictions caused by webs, and the spider knows the location of any other creature in contact with the same web." A web is not a thing in this scene — the Giant Spider\'s own Web line is a save the engine has not read either — so there is no restriction with a source for this to be an exception to, and no web for two creatures to be in contact with.',
+    'SRD Web Walker: "ignores movement restrictions caused by webs, and the spider knows the location of any other creature in contact with the same web." A web **is** a thing in the scene now — the Giant Spider\'s own Web line raises one — and the sentence is a handover for a reason the object does not change: what a web does to a creature is the Restrained condition the save imposed, so this would have to be an exemption from a *condition* rather than from a movement cost, and a Restrained creature some rule quietly let walk is a condition read away. The second clause names knowledge about a place, which the vocabulary does not hold.',
   'walks-on-ice':
     'SRD Ice Walk: "can move across and climb icy surfaces without needing to make an ability check. Additionally, Difficult Terrain composed of ice or snow doesn\'t cost it extra movement." A patch of Difficult Terrain is declared and has no composition, and an icy surface is a description of a place rather than a fact about it, so the exemption names nothing the mover reads.',
   'cannot-wear-or-carry-anything':
@@ -1725,7 +1725,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    *
    * | Lines | The kind, and the seam |
    * |---|---|
-   * | Giant Spider's Web, Ettercap's Web Strand | a condition held by an **object the line creates**, with its own AC 10, HP 5 and defences. `declareObject` already holds a thing that can be broken; what is missing is `heldByObject` on the condition, so that burning the web ends the Restrained. `a-condition-an-object-holds` |
    * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
    * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | `a-second-place-to-put-a-creature`: a creature inside another one, which is a position the lattice has no word for |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
@@ -1798,7 +1797,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
   'ettercap/Reel':
-    'a-condition-an-object-holds. The Roper\'s Reel under the same heading is executed now, and this one is not the same sentence: it pulls "one creature within 30 feet of itself that is Restrained by its Web Strand", and the web is a thing the engine has no record of. Reading it as a grapple would have been a rule nobody printed. It lands the day the Web Strand save creates an object the Restrained is held by.',
+    'a pull whose **gate** is a hold. The web is a thing the engine keeps a record of now — the Web Strand save raises an object and files the Restrained under `held-by:<it>` — and the Roper\'s Reel under the same heading is executed. What is left is the clause between the two: "one creature within 30 feet of itself **that is Restrained by its Web Strand**" is a printed pull narrowed to whoever this creature\'s own web is holding, and `takePrintedPull` drags whoever it is holding by a *grapple*. It lands the day a printed pull may say which hold it reads.',
   'magmin/Ignited Illumination':
     'a light a use turns on and off. `sheds-light` exists and `carriedLight` derives a patch that moves with its holder — but the magmin\'s block prints no such trait: the radii are printed on this Bonus Action and nowhere else, so what is missing is a *toggle*, a light patch a use hangs and a second use takes away, rather than a reader for a trait the block does not have.',
   'will-o-wisp/Vanish':

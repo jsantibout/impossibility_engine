@@ -570,6 +570,66 @@ const ENDS_EARLY_ON_WAKING =
  */
 const ENDS_EARLY_ON_DAMAGE = /^which ends early if the target takes (?:any )?damage$/;
 /**
+ * SRD Giant Spider's Web: "The target has the Restrained condition until the
+ * web is destroyed (AC 10; HP 5; Vulnerability to Fire damage; Immunity to
+ * Poison and Psychic damage)." SRD Ettercap's Web Strand prints it with
+ * Bludgeoning in the immunity run.
+ *
+ * **A lifetime that is a *thing*.** Every other span this file reads is a
+ * clock or another condition; this one is an object the line brings into
+ * being, with numbers of its own and somebody free to burn it. Matched whole
+ * rather than as a `until …` tail on {@link HAS_CONDITION}, because the
+ * parenthesis is where the object's whole record is and a tail that swallowed
+ * it would have read a span out of a stat line.
+ *
+ * The noun is captured, because the thing has to be called something and the
+ * book is the only place that says what.
+ */
+const HELD_BY_OBJECT = new RegExp(
+  `^${SUBJECT}has the ([A-Z][a-z]+) condition until the ([a-z][a-z ]*) is destroyed ` +
+    `\\(AC (\\d+); HP (\\d+)((?:; [^)]+?)*)\\)$`,
+);
+
+/** One run of the object's defence line: "Immunity to Bludgeoning, Poison, and Psychic damage". */
+const DEFENCE_RUN = /^(Vulnerability|Resistance|Immunity) to (.+) damage$/;
+
+/**
+ * The defences a printed object's parenthesis states, or null where it states
+ * one this reader cannot key.
+ *
+ * Null rather than a partial answer, for the rule the whole file keeps: an
+ * object whose Vulnerability to Fire went unread is a web nobody can burn, and
+ * that is worse than a line the table applies by hand.
+ */
+function objectDefencesOf(
+  run: string,
+): {
+  readonly vulnerabilities?: string[];
+  readonly resistances?: string[];
+  readonly immunities?: string[];
+} | null {
+  const found: Record<'Vulnerability' | 'Resistance' | 'Immunity', string[]> = {
+    Vulnerability: [],
+    Resistance: [],
+    Immunity: [],
+  };
+  for (const clause of run.split(';').map((part) => part.trim()).filter((part) => part !== '')) {
+    const match = DEFENCE_RUN.exec(clause);
+    if (match === null) return null;
+    const types = match[2]!
+      .split(/, and |,? and |, /)
+      .map((word) => word.trim().toLowerCase())
+      .filter((word) => word !== '');
+    if (types.length === 0 || types.some((type) => !DAMAGE_TYPES.has(type))) return null;
+    found[match[1] as 'Vulnerability' | 'Resistance' | 'Immunity'].push(...types);
+  }
+  return {
+    ...(found.Vulnerability.length === 0 ? {} : { vulnerabilities: found.Vulnerability }),
+    ...(found.Resistance.length === 0 ? {} : { resistances: found.Resistance }),
+    ...(found.Immunity.length === 0 ? {} : { immunities: found.Immunity }),
+  };
+}
+/**
  * SRD Ghost: "The target is immune to this ghost's Horrific Visage for 24
  * hours." SRD Mummy's Dreadful Glare prints it word for word.
  *
@@ -906,6 +966,31 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
   const { graded } = where;
   const words = clause.replace(/\.$/, '').trim();
   if (words === '') return true;
+
+  // **Before the semicolon list below**, whose own note names this sentence as
+  // the thing it comes apart on: SRD Giant Spider's "(AC 10; HP 5; …)" is one
+  // stat line written with the book's list punctuation, not a list of clauses.
+  // And before {@link HAS_CONDITION}, whose `until …` tail would otherwise
+  // swallow the whole parenthesis as a span and read nothing out of it. The
+  // narrower sentence goes first, which is the order every pair here is tried
+  // in.
+  const web = HELD_BY_OBJECT.exec(words);
+  if (web !== null) {
+    const name = CONDITIONS[web[1]!];
+    const defences = objectDefencesOf(web[5] ?? '');
+    if (name === undefined || defences === null) return false;
+    into.effects.push({
+      kind: 'condition',
+      condition: name,
+      heldByObject: {
+        noun: web[2]!,
+        armorClass: Number(web[3]),
+        hitPoints: Number(web[4]),
+        ...defences,
+      },
+    });
+    return true;
+  }
 
   /**
    * A semicolon list, read one clause at a time.

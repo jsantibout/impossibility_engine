@@ -547,6 +547,39 @@ const PRINTED_SAVE_CLAUSES = [
      */
     endsWhenWoken: z.array(PrintedConditionSchema).min(1).optional(),
     /**
+     * The **thing the line creates** that this condition lasts as long as.
+     *
+     * SRD Giant Spider's Web: "The target has the Restrained condition until
+     * the web is destroyed (AC 10; HP 5; Vulnerability to Fire damage;
+     * Immunity to Poison and Psychic damage)." SRD Ettercap's Web Strand
+     * prints the same sentence with one more immunity.
+     *
+     * **A lifetime that is a thing rather than a clock**, which is what makes
+     * it a field of its own rather than a span: the web has an Armour Class,
+     * Hit Points and defences of its own, somebody may burn it, and the
+     * Restrained ends the moment they do — and never otherwise, because the
+     * sentence prints no repeat.
+     *
+     * Every number here is the line's; nothing is read off the Object Hit
+     * Points table, because the book printed them rather than pointing at it.
+     */
+    heldByObject: z
+      .object({
+        /** The book's own noun for the thing — SRD's "web". */
+        noun: z.string().min(1),
+        /** SRD's "AC 10". */
+        armorClass: z.number().int().min(1),
+        /** SRD's "HP 5". */
+        hitPoints: z.number().int().min(1),
+        /** SRD's "Vulnerability to Fire damage", by the engine's own keys. */
+        vulnerabilities: z.array(z.string().min(1)).min(1).optional(),
+        /** SRD's "Resistance to …", where a line prints one. */
+        resistances: z.array(z.string().min(1)).min(1).optional(),
+        /** SRD's "Immunity to Bludgeoning, Poison, and Psychic damage". */
+        immunities: z.array(z.string().min(1)).min(1).optional(),
+      })
+      .optional(),
+    /**
      * Conditions **this** cause carries for exactly as long as it lasts.
      *
      * SRD Couatl: "The target has the Grappled condition (escape DC 13), and

@@ -351,6 +351,30 @@ export const attachSource = (other: CharacterId): string => `attach:${other}`;
 export const attachedTo = (source: string): CharacterId | null =>
   source.startsWith('attach:') ? (source.slice('attach:'.length) as CharacterId) : null;
 
+/**
+ * What a condition **a thing holds** is filed under, named for the thing.
+ *
+ * SRD Giant Spider's Web: "The target has the Restrained condition until the
+ * web is destroyed (AC 10; HP 5; …)." The lifetime is neither a clock nor
+ * another condition: it is an object in the room with its own Hit Points, and
+ * the Restrained ends the moment somebody burns it.
+ *
+ * **A source rather than a field on the instance**, which is how every other
+ * hold in the engine says what ends it: `grapple:<who>`, `attach:<who>`, and
+ * `holdStillStands` reading both back off the string at the moment the
+ * boundary looks. So there is no new record, no migration, and nothing to
+ * write down when the web burns — {@link heldByObject} is read where the rule
+ * bites, and `liftWhatBrokenObjectsHeld` in `fold/expiry.ts` is the one reader.
+ *
+ * Here rather than beside the command for `attachSource`'s reason: the **fold**
+ * needs it, and nothing under `fold/` may reach a command.
+ */
+export const heldByObjectSource = (object: CharacterId): string => `held-by:${object}`;
+
+/** Which thing holds a condition, read back out of the source. Null for any other cause. */
+export const heldByObject = (source: string): CharacterId | null =>
+  source.startsWith('held-by:') ? (source.slice('held-by:'.length) as CharacterId) : null;
+
 export interface CreatureState {
   readonly id: CharacterId;
   readonly name: string;
