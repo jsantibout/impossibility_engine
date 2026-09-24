@@ -262,7 +262,7 @@ export function applyCondition(
    * The conditions **this** application ends early, by a blow or by a
    * neighbour's action.
    *
-   * Eleventh and last, so no existing call site moves for a field none of them
+   * Fifth and last, so no existing call site moves for a field none of them
    * passes — the reading `applyConditionTo`'s last two parameters already
    * took. See {@link EarlyEndings} for why it names conditions.
    */

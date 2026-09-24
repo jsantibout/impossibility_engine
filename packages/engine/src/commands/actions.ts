@@ -1020,6 +1020,13 @@ export function forcePrintedSave(
       // Visage for 24 hours." Skipped rather than saved against — the line
       // does not reach them at all — and *named*, the honesty an immune
       // target already gets.
+      //
+      // **The line is still taken even where it reaches nobody**, which is
+      // the reading rather than a gap: the creature swept the Cone, and what
+      // that costs is the Action the heading names. A recharge or a day's use
+      // would go with it — no SRD line that grants this immunity prints
+      // either, and a homebrew one that did would be spending on a room that
+      // had already learned to look away, which is what the book describes.
       const shielded = printedLineSource(id, line.name);
       const caught = targets.filter(
         (target) =>

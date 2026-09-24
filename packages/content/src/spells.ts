@@ -2371,14 +2371,11 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  // "The spell ends for an affected creature if it takes any damage" — **any**
-  // damage, dealer or no dealer, and for that creature rather than for the
-  // Cube: the other three go on staring. The second half of the sentence is
-  // somebody else's action and stays in `unmodelled`.
   // "The spell ends for an affected creature if it takes any damage **or if
   // someone else uses an action to shake the creature out of its stupor**."
-  // Both halves, and both on that creature rather than on the Cube: the other
-  // three go on staring. `wakeCreature` is the action the second half costs.
+  // **Any** damage, dealer or no dealer; and both halves on that creature
+  // rather than on the Cube, so the other three go on staring. `wakeCreature`
+  // is the action the second half costs.
   endsEarly: [
     { on: 'target-takes-damage', ends: 'target' },
     { on: 'shaken-awake', ends: 'target' },

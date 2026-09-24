@@ -59,8 +59,10 @@ export interface WakeRequest {
  * screen: a casting that says so — SRD Sleep, SRD Hypnotic Pattern — and a
  * condition a printed line marked, which was never cast at all.
  *
- * Exported so the tool surface can say whether the verb is worth an Action
- * before the caller spends one.
+ * Exported so the refusal below and the fold's own pass are not two readings
+ * of one question: this is what `nothing_to_wake` asks, and a caller that
+ * wants to know whether the Action is worth spending asks the same function
+ * rather than a second one that agrees until it does not.
  */
 export function wakeableOn(state: GameState, target: CharacterId): readonly string[] {
   const creature = state.creatures[target];
