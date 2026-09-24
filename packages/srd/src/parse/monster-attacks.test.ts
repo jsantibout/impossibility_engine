@@ -1134,7 +1134,12 @@ describe('what a stat block’s sections print, and what is read', () => {
       // One more again with the branch on a target's Hit Points — the Sea
       // Hag's Death Glare — while the Solar's Slaying Bow prints the same
       // shape over "it dies" and stays prose.
-      actions: { printed: 811, read: 747 },
+      // Four more again with the rule that couples two slots of a turn: the
+      // four Copper Dragons' Slowing Breath, which is a semicolon list of
+      // three clauses under one span printed beneath them all. The Dretch
+      // prints the same rule on the condition it imposed and was already
+      // counted here; what it was carrying is now applied.
+      actions: { printed: 811, read: 751 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
