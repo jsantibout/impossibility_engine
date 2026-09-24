@@ -4434,6 +4434,9 @@ export const GENTLE_REPOSE: SpellDefinition = {
     'You touch a corpse or other remains.',
     "For the duration, the target is protected from decay and can't become Undead.",
   ],
+  unmodelled: [
+    'the days are taken back only while this casting is still running: `preservedSpan` reads the castings on the body **now**, so a repose that has ended — its ten days run out, a Dispel Magic, the caster dead — gives the window back and a corpse the book would still raise is refused. SRD says "days **spent** under the influence of this spell", which is a fact about days elapsed rather than about the casting standing, and nothing accumulates a span on a creature',
+  ],
 };
 
 /**

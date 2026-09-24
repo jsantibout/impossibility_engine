@@ -252,6 +252,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // action and the casting it refuses, and the Magic action its target
   // spends to end it — which its caster's ally may not spend at all.
   'gaseous-form',
+  // `gentle-repose.test.ts` (engine): a corpse ninety seconds dead raised
+  // because eighty of them were under the repose, the same corpse refused
+  // without it, a repose laid seventy seconds late taking back only what it
+  // ran for, a living target refused, and the record on the body.
+  'gentle-repose',
   'goodberry',
   'grease',
   'greater-invisibility',

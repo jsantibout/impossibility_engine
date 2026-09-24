@@ -240,7 +240,7 @@ export const MISSING_SHAPES = {
   'an-activation-taken-by-somebody-other-than-the-caster':
     '`docs/design/casting.md`, on acting through a spell on a later turn: "Pinned at the casting | ... **the caster — nobody else may act through it**". A spell that hands its *target* the later action inverts exactly that rule, and the pinned numbers are still the caster’s.',
   'a-casting-dismissed-early':
-    'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration. What is left is what each claimant prints instead — `docs/design/casting.md`: "every one of those three prints an exception to it". Animal Shapes and Gaseous Form are ended by the **target** rather than by the caster; all three cost an action the book names where a dismissal costs none; and a casting that runs "Until dispelled" is refused outright, because the book gives its caster no ending at all.',
+    'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration. Two of the three exceptions are built too, and by this id’s own claimants: SRD Gaseous Form’s target ends the casting on itself and pays the Magic action the book charges (`dismissibleBy`, `endOngoingSpellOnSelf`), and SRD Magic Mouth’s caster may choose at the casting that a spell running “until dispelled” can be ended at all (`offersEndAfterTrigger`). `docs/design/casting.md` is where the general dismissal and its exceptions are described — "every one of those three prints an exception to it". What is left under the id is a casting ended by **something other than a creature deciding to**: SRD Instant Summons’ sapphire crushed as a Magic action, and SRD Animal Shapes, whose target ends it and whose definition nobody has written.',
   'a-dc-the-caster-does-not-set':
     'every saving throw a spell forces is measured against the casting’s pinned `saveDc`. The audit names the asymmetry from the other side — "**Three members of the definition format have zero catalogue users**, not one: `roll-mode.save` ..., `SpellCheck.dc` ..., and `’end-casting’` as a `save.repeats.onSuccess` value" — so an *ability check* may already name a printed DC and a *saving throw* may not.',
   'a-condition-benefit-an-effect-takes-away':
@@ -958,6 +958,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the things the cloud cannot do are not forbidden',
       why: 'an-action-the-engine-has-no-spender-for',
       note: 'two of the four, and the other two are built: "Finally, the target can\u2019t attack or cast spells" is one `forbids` rule naming the Attack action and, through the field this track gave that arm, the casting. What is left is "The target can\u2019t talk or manipulate objects" and "any objects it was carrying or holding can\u2019t be dropped, used, or otherwise interacted with" \u2014 talking is not an action anything spends, and what is in a creature\u2019s hands is a fact the engine does not hold. The Magic action its target takes to end the spell is no longer here either: `endOngoingSpellOnSelf` is that door and it charges that price.',
+    },
+  ],
+  'gentle-repose': [
+    {
+      clause: 'the days are taken back only while this casting is still running',
+      why: 'healing-that-raises-the-dead',
+      note: 'the sentence is executed while the casting runs — `preserves` marks the body, the record pins the moment, and `preservedSpan` takes the span back out of the time since `Vitals.diedAt`. What is left is the word **spent**: the span is read off the castings running on the body now, so a repose that has ended hands the window back, and a corpse ten days under one and then dispelled is refused a resurrection the book allows. Carrying that needs a span accumulated on the creature and written by an event, which is a primitive the vocabulary has not got — and the window is this shape\u2019s own mechanism, which is why the residue is filed here rather than anywhere new.',
     },
   ],
   'gust-of-wind': [

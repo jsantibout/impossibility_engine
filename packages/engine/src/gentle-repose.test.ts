@@ -182,4 +182,22 @@ describe('what a definition may say about preserving a body', () => {
   it('refuses one whose casting leaves nothing running', () => {
     expect(codes({ durationSeconds: undefined })).toContain('preserves_without_a_casting');
   });
+
+  /**
+   * The moment the keeping began is pinned onto the record from the
+   * definition's own list, and the record is written once for the whole
+   * casting — so a mark inside a printed branch would run its no-op resolver,
+   * pin nothing and be a sentence that validates and does nothing.
+   */
+  it('refuses a mark inside a printed branch', () => {
+    expect(
+      codes({
+        effects: [],
+        options: {
+          keep: { label: 'Keep', effects: [{ kind: 'preserves' }] },
+          let: { label: 'Let it lie', handsOver: ['the body rots'] },
+        },
+      }),
+    ).toContain('preserves_in_a_branch');
+  });
 });

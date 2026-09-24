@@ -2614,12 +2614,13 @@ export function eligibleTargets(
     const target = state.creatures[key];
     if (target === undefined) continue;
     if (target.id === casterId && definition.targets.self !== true) continue;
-    // **Unless the spell is about a body**, which is the one exception SRD
-    // prints and the reason `mustBeDead` exists: Revivify and Gentle Repose are
-    // cast on nobody else, and a shortlist that dropped the dead from them
-    // would offer an empty list for every legal casting. `namedTargets` has
-    // never refused a corpse, so this is the shortlist catching up with the
-    // cast rather than a new permission.
+    // **Unless the spell is about a body**, which is the reason `mustBeDead`
+    // exists: a spell cast on a corpse and on nobody else would be offered an
+    // empty shortlist for every legal casting. `namedTargets` has never
+    // refused a corpse, so this is the shortlist catching up with the cast
+    // rather than a new permission — and it reaches the spells whose target
+    // rule says so and no others, which is why the flag is a target rule and
+    // not a guess about what raising the dead looks like.
     if (target.vitals.dead && definition.targets.mustBeDead !== true) {
       excluded.push({ target: target.id, reason: `${target.name} is dead` });
       continue;

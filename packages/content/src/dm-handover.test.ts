@@ -99,9 +99,17 @@ import {
  * description names Major Image as the one spell in the book that prints it;
  * and Gentle Repose's extension of the time limit on raising the dead is
  * arithmetic over `Vitals.diedAt`, which `healing-that-raises-the-dead` built
- * and which a rule — `revive`'s window — really does read. Those three are
- * debts, they are filed as debts, and they are the reason this file's
- * population is not simply the ledger's column.
+ * and which a rule — `revive`'s window — really does read.
+ *
+ * **All three have since been paid**, which is the reading holding rather than
+ * the reading being dropped: `offersEndAfterTrigger` is Magic Mouth's choice,
+ * `untilDispelledAtSlot` is Major Image's level 4+ slot, and `preserves` marks
+ * the body Gentle Repose keeps so `revive` takes the span back out of its own
+ * window. Each spell still hands over what it always handed over, which is why
+ * all three are still in this file's population — and that population is still
+ * not simply the ledger's column, because a spell whose every debt is paid and
+ * whose fiction is the table's is finished business the ledger stops counting
+ * and this file goes on checking.
  */
 
 const HANDING_OVER: readonly string[] = SPELL_DEFINITIONS.filter(

@@ -5766,17 +5766,33 @@ export function checkSpellDefinition(
   // Instantaneous casting of it would keep the body for no time at all — the
   // reachability rule `cap_without_a_casting` states one field along, arriving
   // at the one effect kind whose whole content is how long it has been there.
-  if (
-    definition.effects.some(
-      (effect) => (effect as { readonly kind?: unknown }).kind === 'preserves',
-    ) &&
-    !castingPersists(definition)
-  ) {
+  const marksABody = (list: readonly unknown[] | undefined): boolean =>
+    (list ?? []).some(
+      (effect) => (effect as { readonly kind?: unknown })?.kind === 'preserves',
+    );
+
+  if (marksABody(definition.effects) && !castingPersists(definition)) {
     found.push({
       field: 'effects',
       code: 'preserves_without_a_casting',
       reason:
         'an Instantaneous casting leaves no record, so a body it kept would be kept for no span at all',
+    });
+  }
+
+  // **And it may not sit inside a printed branch.** The moment the keeping
+  // began is pinned onto the ongoing record from the definition's own list,
+  // because the record is written once for the whole casting and a branch is
+  // chosen per casting; a mark inside a branch would run its no-op resolver,
+  // pin nothing, and be a sentence that validates and does nothing. No SRD
+  // spell prints one, so this is refused rather than plumbed.
+  for (const [label, branch] of Object.entries(definition.options ?? {})) {
+    if (!marksABody(branch?.effects)) continue;
+    found.push({
+      field: `options.${label}.effects`,
+      code: 'preserves_in_a_branch',
+      reason:
+        'a body a casting keeps is pinned onto the casting\u2019s own record from the definition\u2019s effect list; a mark inside a branch would resolve to nothing',
     });
   }
 
