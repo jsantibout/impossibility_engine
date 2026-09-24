@@ -420,6 +420,63 @@ describe('the two clauses are refused at the door where they say nothing', () =>
   });
 
   /**
+   * And the grant *around* a light, which is where the two clauses nobody
+   * could gather are written.
+   *
+   * `carriedLight` honours a grant with no requirements and one gated on
+   * `feature-active`, and withholds everything else — it cannot ask
+   * `requirementsHold`, because that reader answers `in-sunlight` by calling
+   * `lightAt`, which is where `carriedLight` lives. So the two shapes it drops
+   * are refused at authoring instead, which is the difference between this and
+   * `speed`: `speedOf` asks the full requirement reader and withholds nothing.
+   * A light nobody could gather is a benefit that validates, compiles onto the
+   * sheet and shines for no one.
+   */
+  it('refuses a light nobody could gather: one gated on a clause, one with an aura', () => {
+    const feat = (over: Record<string, unknown>): readonly string[] =>
+      checkContent({
+        feats: [
+          {
+            id: 'lantern-bearer',
+            name: 'Lantern Bearer',
+            grants: {
+              kind: 'standing',
+              effects: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
+              ...over,
+            },
+          } as never,
+        ],
+      }).map((problem) => `${problem.code} @ ${problem.field}`);
+
+    expect(feat({ requires: [{ kind: 'while-bloodied' }] })).toContain(
+      'light_nobody_gathers @ feats[lantern-bearer].grants.requires[0]',
+    );
+    // And the shape the reader does honour is not refused, so the guard is a
+    // guard rather than a blanket.
+    expect(
+      feat({ requires: [{ kind: 'feature-active', feature: 'lantern-bearer' }] }),
+    ).toEqual([]);
+
+    const subclass = (over: Record<string, unknown>): readonly string[] => {
+      const oath = JSON.parse(
+        JSON.stringify(SRD_CONTENT.subclasses.find((one) => one.id === 'oath-of-devotion')),
+      ) as { features: { id: string; grants: Record<string, unknown> }[] };
+      const feature = oath.features.find((one) => one.id === SACRED_WEAPON)!;
+      feature.grants = {
+        kind: 'standing',
+        effects: [{ kind: 'light', level: 'bright', radius: 20 }],
+        ...over,
+      };
+      return checkContent({ subclasses: [oath as never] }).map(
+        (problem) => `${problem.code} @ ${problem.field}`,
+      );
+    };
+    expect(subclass({ reach: 'aura', auraFeet: 30 })).toContain(
+      'light_nobody_gathers @ subclasses[oath-of-devotion].features[1].grants.reach',
+    );
+  });
+
+  /**
    * And neither reaches an **item**, by name. A light on a worn thing is
    * gathered by nobody: `lightAt` reads the sheet alone and must, because
    * `requirementsHold` calls it and a reader that went back through the item's

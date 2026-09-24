@@ -1329,11 +1329,15 @@ export interface ShedLight {
  * `feature-active` on features this creature is running, which is every SRD
  * sentence that prints the clause. A `light` grant gated on anything else is
  * silent rather than wrong, which is the direction every derived reader here
- * takes, and `checkContent` is where such a grant is refused at authoring.
+ * takes — and the silence is **paid for at the door**, because it is not the
+ * silence `speed` gets: `speedOf` calls the full `meetsRequirements` and
+ * withholds nothing, so a grant this reader would drop is refused at authoring
+ * by `shedLightHostProblems`, which holds the catalogue to these two shapes.
  *
- * Reach is the holder's own: a light is shed *from* whoever carries it, and an
- * aura's feet would be a second radius beside the one the grant already
- * prints.
+ * Reach is the holder's own, for the same pair of reasons: a light is shed
+ * *from* whoever carries it, an aura's feet would be a second radius beside
+ * the one the grant already prints, and an aura-reaching light is refused at
+ * the same door rather than dropped here in silence.
  */
 export function activatedLight(
   sheet: CharacterSheet,

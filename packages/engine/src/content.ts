@@ -11,6 +11,7 @@ import {
   checkFeatureDefinition,
   duplicateFeatureIds,
   parseFeatureDefinition,
+  shedLightHostProblems,
   shedLightProblems,
   speedGrantProblems,
   weaponDamageTypeProblems,
@@ -4116,6 +4117,13 @@ function featStandingProblems(
     return problems;
   }
 
+  // The grant around a light, at the third door: a feat's `reach` is already
+  // refused above unless it is the holder's own, and the requirements are not
+  // — see `shedLightHostProblems`.
+  for (const problem of shedLightHostProblems(grant, where)) {
+    problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+  }
+
   effects.forEach((effect, position) => {
     const kind = (effect as { readonly kind?: unknown }).kind;
     if (effect === null || typeof effect !== 'object' || !isString(kind)) {
@@ -4487,6 +4495,13 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           }
         });
         if (grant.kind === 'standing') {
+          // The grant *around* a light, which is where the two clauses nobody
+          // could gather are written — see `shedLightHostProblems`. Asked once
+          // per grant rather than once per effect, because both fields are the
+          // grant's.
+          for (const problem of shedLightHostProblems(grant, grantsAt)) {
+            problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+          }
           (grant.effects ?? []).forEach((effect, position) => {
             // **`checkFeatureDefinition` above already held this one**, at this
             // very path, and a problem reported twice is a problem an author

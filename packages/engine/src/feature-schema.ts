@@ -310,6 +310,63 @@ export function shedLightProblems(
 }
 
 /**
+ * The two things the **grant around** a `light` effect may say that would stop
+ * anybody gathering it.
+ *
+ * `activatedLight` honours exactly two shapes — a grant with no requirements,
+ * which is a creature that simply glows, and one whose requirements are all
+ * `feature-active` — and it withholds anything else rather than answering
+ * wrongly. That silence has to be paid for at the door, because it is not the
+ * silence `speed` gets: `speedOf` calls the full `meetsRequirements` and so
+ * withholds nothing, and this reader **cannot**, for the reason written on
+ * {@link activatedLight} — `requirementsHold` answers `in-sunlight` by calling
+ * `lightAt`, and a light gathered through it would be a function asking a
+ * question of its own answer.
+ *
+ * Reach is the other half: a light is shed *from* whoever carries it, and an
+ * aura's feet would be a second radius beside the one the effect already
+ * prints. `carriedLight` drops such a grant, so the catalogue is refused it.
+ *
+ * Asked of the grant rather than of the effect because both fields are the
+ * grant's. It has nothing to say about a `whileActive` list, where creation
+ * writes `self` and one `feature-active` requirement itself — which is why
+ * every SRD light passes without this function seeing it.
+ */
+export function shedLightHostProblems(
+  grant: {
+    readonly reach?: unknown;
+    readonly requires?: unknown;
+    readonly effects?: unknown;
+  },
+  at: string,
+): readonly FeatureDefinitionProblem[] {
+  const effects = Array.isArray(grant.effects) ? grant.effects : [];
+  if (!effects.some((effect) => (effect as { readonly kind?: unknown })?.kind === 'light')) {
+    return [];
+  }
+
+  const found: FeatureDefinitionProblem[] = [];
+  if (grant.reach !== undefined && grant.reach !== 'self') {
+    found.push({
+      field: `${at}.reach`,
+      code: 'light_nobody_gathers',
+      reason:
+        'light is shed from whoever carries it, and `carriedLight` reads a grant that reaches the holder alone; an aura would be a second radius beside the one the light already prints, and nothing would gather it',
+    });
+  }
+  (Array.isArray(grant.requires) ? grant.requires : []).forEach((requirement, index) => {
+    const kind = (requirement as { readonly kind?: unknown })?.kind;
+    if (kind === 'feature-active') return;
+    found.push({
+      field: `${at}.requires[${index}]`,
+      code: 'light_nobody_gathers',
+      reason: `\`carriedLight\` sits inside \`lightAt\`, which the requirement reader itself calls, so it answers "${String(kind)}" for nobody: a light gated on it would be withheld for ever rather than shed when the clause held`,
+    });
+  });
+  return found;
+}
+
+/**
  * What a feature cannot know about itself.
  *
  * Every member is a fact held somewhere else — the table that grants it, the
