@@ -160,6 +160,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
   'animal-friendship',
   'arcane-sword',
+  // `creature-type-override.test.ts`: the Mask laid on a Fey goblin, the
+  // goblin's own type standing untouched underneath it, Hold Person catching
+  // it masked and refusing it unmasked, the type the book forbids choosing,
+  // and the mask gone the moment the casting is dispelled.
+  'arcanists-magic-aura',
   // `spell-chance.test.ts`: the rite is declared, the minute passes and it
   // settles, twice over — the first casting throwing no die and the second
   // one d100 against 25, with a seeded failure withholding the omen.
@@ -229,6 +234,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'guiding-bolt',
   'harm',
   'healing-word',
+  // `heat-metal.test.ts`: the breastplate's wearer burned, a failed save
+  // dropping a held mace, the same failure leaving the armoured knight holding
+  // his breastplate with Disadvantage instead, a made save leaving both alone,
+  // and the Bonus Action dealing the damage again on a later turn.
+  'heat-metal',
   'heroism',
   'hideous-laughter',
   'hold-monster',
@@ -270,6 +280,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // seeds by the gap between two means, and the Short Rest it does not confer
   // named in its own clause.
   'prayer-of-healing',
+  // `castings-running-at-once.test.ts`: three tricks running beside each
+  // other, a fourth ending the oldest, and another caster's three untouched.
+  'prestidigitation',
   'produce-flame',
   'protection-from-energy',
   'protection-from-poison',
@@ -282,12 +295,20 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // dice — a payout the casting rolls nothing of would otherwise pass every
   // assertion in the file while being wrong.
   'regenerate',
+  // `breaking-an-attunement.test.ts`: the Attunement to the named cloak
+  // broken while the cloak stays worn, an item the target is not attuned to
+  // refused, a casting naming no object refused, and no slot spent on either.
+  'remove-curse',
   // Driven end to end by `damage-reduction.test.ts`: the d4 off a blow of the
   // type the caster named, the order that takes it before the halving rather
   // than after, the once-per-turn limit measured across three rays of one
   // Scorching Ray, the held road a Reaction opened, the grant going back when
   // the Concentration does, and the refusal for a casting that names no type.
   'resistance',
+  // `revive.test.ts`: a corpse thirty seconds old back at one hit point with
+  // its death saves afresh, one ninety seconds old refused, a living creature
+  // refused, and the slot neither refusal spends.
+  'revivify',
   'sacred-flame',
   // Driven end to end by `several-attack-rolls.test.ts`, and partial as well,
   // which is the pairing `sorcerous-burst` already stands for: three rays
