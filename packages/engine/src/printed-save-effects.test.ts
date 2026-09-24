@@ -1050,7 +1050,7 @@ describe('a deepening with a lifetime of its own', () => {
     const struck = after(
       slept,
       unwrap(
-        damageCreature(slept, BREN, { amount: 3, source: 'a falling rock' }, { commandId: 'rock' }),
+        damageCreature(slept, BREN, { amount: 3, source: 'a falling rock', commandId: 'rock' }),
         'a rock',
       ),
     );
@@ -1376,7 +1376,7 @@ describe('a bite that feeds', () => {
       const hurt = after(
         held,
         unwrap(
-          damageCreature(held, FOE, { amount: 20, source: 'a torch' }, { commandId: 'burn' }),
+          damageCreature(held, FOE, { amount: 20, source: 'a torch', commandId: 'burn' }),
           'burning the vampire',
         ),
       );
