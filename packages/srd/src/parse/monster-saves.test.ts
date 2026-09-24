@@ -427,10 +427,11 @@ describe('a failure the line grades', () => {
       onSuccess: 'none',
       onFailure: [poisoned],
       onFailureBy: { by: 5, effects: [{ ...poisoned, implies: ['unconscious'] }] },
-      // Under its own heading, so the fragment reaches a table with the rung
-      // it was printed under rather than with no antecedent at all.
+      // Under its rung's heading and with the noun the book's "which" names:
+      // it is the Unconscious that ends early, not the Poisoned carrying it,
+      // and a table handed the relative clause alone could lift either.
       handedOver: [
-        '_Failure by 5 or More:_ which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it.',
+        '_Failure by 5 or More:_ The Unconscious condition, which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it.',
       ],
     });
   });
@@ -466,7 +467,6 @@ describe('the lines the reader does not reach', () => {
     // trait" — a type nobody has declared is not a type.
     expect(lineOf('half-dragon', "Dragon's Breath").save).toBeUndefined();
   });
-
 
   it('reads a save whose failure imposes a condition rather than damage', () => {
     // SRD Dust Mephit's Blinding Breath — refused by the first reader, and the

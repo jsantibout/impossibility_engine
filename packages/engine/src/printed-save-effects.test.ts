@@ -538,7 +538,7 @@ describe('a failure that kills', () => {
   it('does not make a corpse deader, and buys the wisp nothing for it', () => {
     // A Goblin Warrior brought to 0 is a Goblin Warrior dead: a monster does
     // not lie there making death saves. Forcing the line over the body is the
-    // reading `declareCreatureDead` already takes of the same event —
+    // reading `declareCreatureDead` already takes of the same event â€”
     // nothing is written, and nothing is regained for it.
     let saw = false;
     for (const seed of SEEDS) {
@@ -633,7 +633,11 @@ describe('a failure graded by how far the save missed', () => {
         shallow = true;
       }
       // Either way the rule the engine does not execute is said out loud.
-      expect(out.unverified.some((line) => line.includes('which ends early if'))).toBe(true);
+      expect(
+        out.unverified.some((line) =>
+          line.includes('The Unconscious condition, which ends early if'),
+        ),
+      ).toBe(true);
     }
     expect(deep, 'no seed missed by five').toBe(true);
     expect(shallow, 'no seed missed by less than five').toBe(true);

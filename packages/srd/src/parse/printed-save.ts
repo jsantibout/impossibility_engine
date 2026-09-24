@@ -276,7 +276,7 @@ const DIES =
  * engine already holds about a creature somebody has named, and a sentence
  * that kills outright is the last one to take on trust.
  */
-const TARGET_HIT_POINTS = /\bthat has (\d+) Hit Points?\b/;
+const TARGET_HIT_POINTS = /\bthat has (\d+) Hit Points?\b(?! or more)/;
 
 /**
  * Read one span, or null where the words are not a span this reader knows.
@@ -432,7 +432,15 @@ function readClause(clause: string, into: Scratch, graded: boolean): boolean {
       (last) => alsoImplies(last, name),
     );
     if (!amended) return false;
-    if (whileSo[3] !== undefined) into.carried.push(`${whileSo[3]}.`);
+    // **Carried with the noun it is about.** The book's words are "which ends
+    // early if…", and which condition that "which" names is the whole of the
+    // ruling: SRD Pseudodragon ends the *Unconscious* early and not the
+    // Poisoned that carries it, and a table handed the relative clause alone
+    // could lift either. So the condition is put back in front of the book's
+    // own words rather than the fragment being handed over bare.
+    if (whileSo[3] !== undefined) {
+      into.carried.push(`The ${whileSo[2]} condition, ${whileSo[3]}.`);
+    }
     return true;
   }
 
