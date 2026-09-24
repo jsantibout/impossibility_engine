@@ -4785,6 +4785,23 @@ describe('the fought clause is refused everywhere it could not be read', () => {
     );
 
   /**
+   * And the fourth list, which is the casting's own under a word the caster
+   * spoke — see `SpellDefinition.options`. A second branch, because one is
+   * not a choice and `one_option` would drown out the rule under test.
+   */
+  const inBranch = (effect: unknown) =>
+    codes(
+      checkSpellDefinitionValue({
+        ...FIRE_DART,
+        effects: [],
+        options: {
+          hush: { label: 'Hush', handsOver: ['the target says nothing'] },
+          word: { label: 'Word', effects: [effect] },
+        },
+      }),
+    );
+
+  /**
    * `outlivesCasting`, because `FIRE_DART` is Instantaneous and a condition the
    * casting owned would have nothing to end it — `grant_without_lifetime`,
    * which is a different rule and would drown out this one.
@@ -4814,6 +4831,22 @@ describe('the fought clause is refused everywhere it could not be read', () => {
 
   it('refuses it inside an activation, for the same reason', () => {
     expect(inList('activation', { ...SAVE, advantageIfFought: true })).toEqual([
+      'fought_outside_the_casting',
+    ]);
+  });
+
+  /**
+   * **And inside a branch**, which is the one placement rule that does not
+   * follow the drop's reading. A branch resolves in the same breath the
+   * casting's own list does, so the stated fact is *there* — what is not
+   * there is a reader: `statesFoughtFact` walks `effects` alone, so a clause
+   * written here would never raise `fought_fact_required`, nobody would be
+   * asked, and a caster who volunteered the answer would be refused
+   * `no_fought_clause`. The Advantage would be silently unread, which is what
+   * this refusal exists to stop. The reader moves before the permission does.
+   */
+  it('refuses it inside a branch, where nothing would ask for the fact', () => {
+    expect(inBranch({ ...SAVE, advantageIfFought: true })).toEqual([
       'fought_outside_the_casting',
     ]);
   });

@@ -6970,12 +6970,28 @@ export const DETECT_THOUGHTS: SpellDefinition = {
  * > "For the duration, the spell enlarges or reduces a creature or an object
  * > you can see within range (see the chosen effect below)."
  *
- * **The spell in the batch that is blocked by the choice rather than by the
- * effect.** Each branch's Advantage or Disadvantage on Strength checks and
- * Strength saving throws is a `roll-mode` the engine writes easily — and the
- * two branches say opposite things, so a definition would have to record which
- * the caster picked, and a choice made at the casting has nowhere to be
- * recorded. Writing either branch would be a spell that always enlarges.
+ * **It was the spell in its batch blocked by the choice rather than by the
+ * effect, and the choice is built.** That paragraph read: the two branches say
+ * opposite things, so a definition would have to record which the caster
+ * picked, and a choice made at the casting had nowhere to be recorded.
+ * `SpellDefinition.options` is where it is recorded — the word is the tenth
+ * stated fact, `OngoingSpell.option` pins it, and this definition has two
+ * branches to hang the clauses on.
+ *
+ * **What is left is every clause inside them, and each waits on its own
+ * shape.** The Advantage or Disadvantage on Strength checks and Strength
+ * saving throws is *not* the easy `roll-mode` that paragraph claimed: SRD
+ * names an ability check **and** a saving throw in one breath and a
+ * `RollSelector` says one family. The size change is a fact the engine holds
+ * authoritatively and nothing writes over one for a duration — the twin of
+ * the creature type a spell overrides, which is built. And the ±1d4 on a hit
+ * is damage with no type of its own on one side and a penalty on a damage roll
+ * on the other. Each branch says so in its own `unmodelled` list.
+ *
+ * **The Constitution save is not rolled either**, and the reason is the three
+ * above: a saving throw whose failure imposes no condition and hangs no rider
+ * is a die thrown for nothing, which the definition validator refuses rather
+ * than accepts.
  *
  * The Potion of Growth is the other end of that: the bottle **makes** the
  * choice, so the conferral writes the enlarge branch and nothing is guessed.
