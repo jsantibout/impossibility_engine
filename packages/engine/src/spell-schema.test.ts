@@ -3717,6 +3717,26 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { die: STRING_JUNK },
     },
     {
+      kind: 'weapon-attack',
+      base: { kind: 'weapon-attack', ability: 'spellcasting' },
+      // **The substitution is required and the other two are not**: SRD True
+      // Strike writes all three and a definition that wrote only the first is
+      // a swing made with the caster's own ability and nothing else, which is
+      // a sentence the format can hold. What a *wrong* substitution would be
+      // is an ability nobody named, so the field is swept as junk as well as
+      // required.
+      //
+      // The host is the three facts `checkWeaponAttack` holds the definition
+      // to — a cantrip, Range: Self, and this effect alone — asserted by name
+      // in `cantrip-with-the-swing.test.ts` rather than swept here.
+      fields: {
+        ability: required(STRING_JUNK),
+        damageTypes: ARRAY_JUNK,
+        extraDamage: OBJECT_JUNK,
+      },
+      host: { level: 0, range: { kind: 'self' } },
+    },
+    {
       kind: 'turn-payout',
       base: {
         kind: 'turn-payout',

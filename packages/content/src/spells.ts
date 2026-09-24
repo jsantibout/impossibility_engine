@@ -8249,9 +8249,19 @@ export const SORCEROUS_BURST: SpellDefinition = {
  * **2024 rewrote this cantrip entirely** and the 2014 version — Advantage on
  * your next attack roll — is not this spell at all. What it is now is a
  * weapon attack made through a casting, with the caster's spellcasting
- * ability substituted and a die of Radiant added on top: three riders on one
- * swing the casting does not take. So the Action goes and the swing is the
- * table's.
+ * ability substituted and a die of Radiant added on top.
+ *
+ * **The swing is the casting, so the attack command takes the cantrip.** The
+ * `weapon-attack` effect is the one kind `resolveSpell` refuses outright —
+ * the shape Divine Smite's `attack-damage` already has, one command earlier —
+ * and `resolveAttack` casts it beside the swing: one Action, `spell-cast`
+ * before `attack-made`, the substitution and the Radiant die on this roll and
+ * no other, nothing granted and nothing left standing.
+ *
+ * Every number here is the book's. The offer is the two types the sentence
+ * prints, of which the weapon's own is the unnamed half; the band table is
+ * the Cantrip Upgrade, keyed by the levels it names, with nothing below the
+ * first of them.
  */
 export const TRUE_STRIKE: SpellDefinition = {
   id: 'true-strike',
@@ -8262,11 +8272,18 @@ export const TRUE_STRIKE: SpellDefinition = {
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 0 },
-  effects: [],
-  unmodelled: [
-    'no attack is made: "you make one attack with the weapon used in the spell’s casting" is a weapon swing taken through a casting, and `resolveAttack` is reached by an attack command rather than by a spell',
-    'the substituted ability is not applied: "The attack uses your spellcasting ability for the attack and damage rolls instead of using Strength or Dexterity" is a rider on the attack the casting did not make',
-    'the extra Radiant die is not added: "the attack deals extra Radiant damage when you reach levels 5 (1d6), 11 (2d6), and 17 (3d6)" rides the same swing, and so does the choice of damage type beside it',
+  effects: [
+    {
+      kind: 'weapon-attack',
+      ability: 'spellcasting',
+      // "it can be Radiant damage **or** the weapon's normal damage type (your
+      // choice)" — one list, and declining it is the other half of the "or".
+      damageTypes: ['radiant'],
+      extraDamage: {
+        damageType: 'radiant',
+        diceAtLevel: { 5: '1d6', 11: '2d6', 17: '3d6' },
+      },
+    },
   ],
 };
 

@@ -2297,6 +2297,94 @@ export type SpellEffect =
        */
       readonly damageTypes?: readonly string[];
     }
+  /**
+   * The weapon attack the casting **itself** makes.
+   *
+   * SRD True Strike: "you make one attack with the weapon used in the spell's
+   * casting. The attack uses your spellcasting ability for the attack and
+   * damage rolls instead of using Strength or Dexterity. If the attack deals
+   * damage, it can be Radiant damage or the weapon's normal damage type (your
+   * choice)" — and a Cantrip Upgrade that adds Radiant dice at levels 5, 11
+   * and 17.
+   *
+   * **The neighbour above is the shape this is most easily confused with, and
+   * the difference is which command makes the swing.** A `weapon-rider` is
+   * hung on a weapon at the casting and read again at every *later* attack
+   * somebody makes with it; there is no later attack here. The casting and the
+   * swing are one moment — one Action, one target, nothing granted and nothing
+   * left standing — so an effect of this kind is resolved by the **attack**
+   * command, which names the cantrip beside the weapon, and `resolveSpell`
+   * refuses a definition carrying one outright: the door is wrong, and no fact
+   * is missing that would make it right.
+   *
+   * **It is the mirror of `attack-damage`, one command earlier.** That kind is
+   * a spell cast on a swing that has already hit and adds to its damage; this
+   * one is a spell cast *as* the swing, and it changes how the swing is rolled.
+   * Both are effects no `resolveSpell` can run, for the same reason — the
+   * attack is the thing they need — which is why they are two members of this
+   * union and not two commands.
+   *
+   * The validator holds it to the shape the sentence has: a cantrip, Range:
+   * Self, and nothing else on the definition, because a spell that makes a
+   * weapon attack and also does something to somebody else is a sentence the
+   * book does not print and an effect list this resolver never runs.
+   */
+  | {
+      readonly kind: 'weapon-attack';
+      /**
+       * Which ability the attack and damage rolls are made with instead of the
+       * weapon's own.
+       *
+       * **Imposed rather than offered**, which is the whole difference from
+       * `weapon-rider.castingAbility` beside it: SRD Shillelagh says "you
+       * **can** use your spellcasting ability", and this says "the attack
+       * **uses** your spellcasting ability ... instead of using Strength or
+       * Dexterity". So nothing weighs it against the weapon's own modifier and
+       * a caller cannot decline it.
+       *
+       * A union of one, for the reason {@link DieRule} is one: the SRD writes
+       * this substitution once and names the caster's own ability every time.
+       * A second spelling — a fixed ability, a choice of two — arrives beside
+       * this one rather than instead of it.
+       */
+      readonly ability: 'spellcasting';
+      /**
+       * The types the spell offers **instead of** the weapon's own, chosen at
+       * the swing.
+       *
+       * The same offer `weapon-rider.damageTypes` makes and the same reading:
+       * one type or the other, so a Radiant-immune target takes nothing from a
+       * mace swung as Radiant rather than half of two components, and naming
+       * none is how the offer is declined.
+       *
+       * Answered on the attack command's own `cantrip` request rather than in
+       * the map a standing rider's offer is answered through: that map is
+       * keyed by name because several imbued weapons could be in hand at once
+       * and the swing has to say which offer it is taking. This offer arrives
+       * in the same breath as the spell that makes it, so it is answered in
+       * the same object.
+       */
+      readonly damageTypes?: readonly string[];
+      /**
+       * SRD True Strike's Cantrip Upgrade: "the attack deals extra Radiant
+       * damage when you reach levels 5 (1d6), 11 (2d6), and 17 (3d6)."
+       *
+       * **A band table keyed by the lowest character level of the band, with
+       * no base**, which is `weapon-rider.dieAtLevel`'s shape read by the same
+       * `bandAt` — and deliberately not `DiceScaling.cantripUpgradesAt`. That
+       * field *adds* a die to a base notation, and this sentence has no base:
+       * below level 5 the spell adds no dice at all, which a `DiceScaling`
+       * could say only by writing a notation that rolls none — `0d6`, which
+       * `parseNotation` refuses and which every reader of a notation would
+       * then have to special-case. A table with no entry at or below the
+       * caster's level is an honest nothing.
+       */
+      readonly extraDamage?: {
+        readonly damageType: string;
+        /** Keyed by the lowest character level of the band: `{ 5: '1d6', … }`. */
+        readonly diceAtLevel: Readonly<Record<number, string>>;
+      };
+    }
   | {
       readonly kind: 'interrupt-casting';
       readonly ability: Ability;
@@ -3955,6 +4043,21 @@ export const weaponRiderDieAt = (
 /** The one arm of the effect union the two readers above are about. */
 type EffectOfWeaponRider = Extract<SpellEffect, { kind: 'weapon-rider' }>;
 
+/**
+ * The extra dice a casting's own swing adds at the caster's level, or
+ * undefined below every band.
+ *
+ * `bandAt` again, with **no base**: SRD True Strike's upgrade starts at level
+ * 5 and a caster below it adds nothing. Undefined rather than a notation that
+ * rolls no dice, for the reason the field's own docstring gives — `0d6` is not
+ * notation this engine accepts anywhere else, and inventing it here would put
+ * it in front of every reader of a damage component.
+ */
+export const swungExtraDiceAt = (
+  bands: Readonly<Record<number, string>>,
+  casterLevel: number,
+): string | undefined => bandAt<string | undefined>(bands, casterLevel, undefined);
+
 /** How far a range reaches in feet, or null where it is not a distance at all. */
 export const ranged = (range: SpellRange): number | null =>
   range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
@@ -4767,6 +4870,12 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // this one — the same split that keeps `EffectContext.ability` out of
       // `CastingNumbers`.
       case 'weapon-rider':
+      // And the swing the casting makes itself pins nothing either, for a
+      // sharper reason than the rider above it: there is no *later* moment for
+      // a pinned number to be read at. The attack roll happens in the same
+      // command as the casting, off the sheet as it stands, so an attack
+      // modifier written down here would be a copy nobody would ever read.
+      case 'weapon-attack':
       case 'heal':
       case 'turn-payout':
       case 'action-rule':

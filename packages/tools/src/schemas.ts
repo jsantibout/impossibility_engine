@@ -236,6 +236,43 @@ export const hitRiderSchema = z.object({
 });
 
 /**
+ * The cantrip a swing is cast with, and the one choice such a spell offers.
+ *
+ * SRD True Strike: "you make one attack with the weapon used in the spell's
+ * casting." The casting and the swing are one moment — one Action, one roll,
+ * nothing left standing — so it is named on the attack rather than on
+ * `cast_spell`, which has no attack to make and refuses the spell outright.
+ *
+ * **Two fields and nothing else.** Which ability is substituted, the
+ * Proficiency Bonus, the Cantrip Upgrade's dice at this character's level,
+ * whether the Action is there to spend and whether the caster has proficiency
+ * with the thing in their hand are every one of them the engine's, derived at
+ * the swing from the caster's own sheet. A caller cannot name a spell it
+ * cannot cast, a spell that is not cast this way, or a type the spell does not
+ * offer: all three are refused by name **before** the Action is spent and
+ * before a die is thrown.
+ *
+ * The spell is not enumerated here, for {@link hitRiderSchema}'s reason: which
+ * spells exist is content, and a schema listing today's would be a catalogue
+ * one layer up.
+ */
+export const cantripSwingSchema = z.object({
+  spell: z
+    .string()
+    .min(1)
+    .describe(
+      'The cantrip cast with this swing, by its catalogue id — `true-strike`. Refused unless this creature can cast it and unless it is a spell cast this way; `sheet` lists the cantrips they know.',
+    ),
+  damageType: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'The type the blow deals in place of the weapon’s own, where the spell offers a choice — SRD True Strike’s "it can be Radiant damage or the weapon’s normal damage type (your choice)". Written "your choice", so leaving it out deals what the weapon deals. A type the spell does not offer is refused before anything is spent.',
+    ),
+});
+
+/**
  * The heading a stat block prints a line under, as the caller types it.
  *
  * **A name and never a line**, which is `add_creature`'s rule and `attack`'s

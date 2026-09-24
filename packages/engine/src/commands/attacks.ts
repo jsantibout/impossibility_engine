@@ -81,6 +81,8 @@ import {
   isCreatureType,
   scaledDiceFor,
   scaledFlatFor,
+  swungExtraDiceAt,
+  type SpellDefinition,
   type SpellEffect,
 } from '../spell-definitions.js';
 import {
@@ -950,6 +952,29 @@ function packTactics(
   };
 }
 
+/**
+ * A cantrip cast **with** the swing that is about to be made, and the one
+ * choice such a spell offers.
+ *
+ * Its own type rather than an object written inline, for the reason
+ * {@link MasteryUse} and {@link HitRiderRequest} are: what a caller says about
+ * a rule is a thing with a name, and a name is what a door above the engine
+ * publishes a field as.
+ *
+ * `damageType` answers the offer the cantrip makes — SRD True Strike's "it can
+ * be Radiant damage or the weapon's normal damage type (your choice)" — and
+ * naming none takes the weapon's own, which is the other half of the "or". It
+ * is answered here rather than in {@link AttackCommand.featureDamageTypes}
+ * because that map is keyed by whatever made the offer: several imbued weapons
+ * and several features can be standing at once, so a swing has to say which
+ * offer it is answering. This offer arrives in the same object as the spell
+ * that makes it.
+ */
+export interface CantripSwingRequest {
+  readonly spellId: string;
+  readonly damageType?: string;
+}
+
 export interface AttackCommand extends CommandIdentity {
   readonly target: CharacterId;
   /** The weapon, by catalogue id, or null for an Unarmed Strike. */
@@ -1097,6 +1122,28 @@ export interface AttackCommand extends CommandIdentity {
    * need.
    */
   readonly onHit?: HitRiderRequest;
+  /**
+   * A cantrip cast **with** this swing, and what it offers the swing a choice
+   * of.
+   *
+   * SRD True Strike: "you make one attack with the weapon used in the spell's
+   * casting." The casting and the attack are one moment — one Action, one
+   * roll, nothing granted and nothing left behind — so the swing names the
+   * cantrip rather than a casting command naming a swing. It is the mirror of
+   * {@link AttackDamageCommand.smite}, one command earlier: that one is a
+   * spell cast on a hit that has already happened, and this one is the spell
+   * the hit happens inside.
+   *
+   * **The Action it costs is the casting's**, a Magic action like any other
+   * spell's, which is why `free`, `lightAttack` and `bonusAction` are refused
+   * beside it: each of those says something else paid for the swing, and the
+   * casting is what pays. It follows that this is **not the Attack action**,
+   * so Extra Attack adds nothing to it and a stat block's sequence has
+   * nothing to say about it.
+   *
+   * See {@link CantripSwingRequest} for the choice it carries.
+   */
+  readonly cantrip?: CantripSwingRequest;
 }
 
 export interface AttackResolution {
@@ -1147,6 +1194,189 @@ export interface AttackResolution {
   readonly deflected?: true;
   /** True when this command id had already been applied; `events` is empty. */
   readonly duplicate: boolean;
+}
+
+/**
+ * Everything the swing needs from a cantrip cast with it, settled before
+ * anything is spent.
+ *
+ * The definition and the route are what the casting below needs; the ability,
+ * the type and the dice are what the roll needs. Gathered once, at the door,
+ * so a refusal arrives with the Action unspent and no die thrown — the rule
+ * every other argument on this command follows.
+ */
+interface CantripSwing {
+  readonly definition: SpellDefinition;
+  readonly route: CastingRoute;
+  /** The ability the attack and the damage are rolled with, whatever the weapon says. */
+  readonly ability: Ability;
+  /** The type the caster took in place of the weapon's own, or null. */
+  readonly damageType: string | null;
+  /** The Cantrip Upgrade's dice at this caster's level, or undefined below every band. */
+  readonly extra?: ExtraDamage;
+}
+
+/**
+ * The cantrip this swing is cast with, checked against everything but the
+ * dice.
+ *
+ * SRD True Strike is cast with "a weapon with which you have proficiency" as
+ * its Material component and makes "one attack with the weapon used in the
+ * spell's casting", so the questions are: is this a spell the caster can cast,
+ * is it one of the kind that is cast this way, is there a weapon in the swing
+ * at all, is the caster proficient with it, and is the damage type they named
+ * one the spell offers. Every one of them is answerable here, which is why
+ * every one of them is asked here.
+ *
+ * **Holding it is the swing's own question**, already asked: `resolveAttack`
+ * refuses a weapon the attacker does not have, which is the same reading the
+ * casting of a weapon rider takes of "you are holding" — carrying is as close
+ * as this engine gets, because nothing says which hand a thing is in.
+ *
+ * Null where the swing names no cantrip, which is every attack in the game.
+ */
+function cantripAsked(
+  content: Content,
+  id: CharacterId,
+  attacker: CreatureState,
+  sheet: CharacterSheet,
+  weapon: Weapon | null,
+  command: AttackCommand,
+): Result<CantripSwing | null> {
+  const asked = command.cantrip;
+  if (asked === undefined) return ok(null);
+
+  // **The price, first.** Each of these three says something *else* paid for
+  // the swing — a Reaction somebody already spent, the Light property's
+  // allowance, a Monk's Bonus Action — and the casting is what pays here. A
+  // swing with two prices is a question with two answers.
+  if (command.free === true || command.lightAttack !== undefined || command.bonusAction === true) {
+    return err(
+      'cantrip_pays_for_the_swing',
+      `${id}'s swing is the casting's own Action; it cannot also be free, the Light property's extra attack or a Bonus Action strike`,
+    );
+  }
+  // **And the window a hold opens, which this swing has no way to carry
+  // through.** A held attack writes down what the damage roll will need and
+  // settles it in a second command; the substitution and the Radiant die are
+  // this casting's and are written on no hold, so a held cantrip swing would
+  // roll its damage with the Strength the spell replaced. Refused rather than
+  // half-kept.
+  if (command.hold === true) {
+    return err(
+      'cantrip_swing_not_held',
+      `${id}'s swing and its casting are one moment; the damage cannot be left for a second command`,
+    );
+  }
+
+  const definition = content.spell(asked.spellId);
+  if (definition === null) {
+    return err('no_definition', `${asked.spellId} has no executable definition`);
+  }
+  const effect = definition.effects.find((one) => one.kind === 'weapon-attack');
+  if (effect === undefined || effect.kind !== 'weapon-attack') {
+    return err(
+      'not_cast_with_a_swing',
+      `${definition.name} is not a spell cast with the weapon attack it makes`,
+    );
+  }
+
+  // SRD: the spell's Material component is "a weapon with which you have
+  // proficiency", and the attack is made "with the weapon used in the spell's
+  // casting". An Unarmed Strike is not a weapon and neither is a stat block's
+  // printed line, so there is nothing for the casting to be made with.
+  if (weapon === null) {
+    return err(
+      'no_weapon_for_the_casting',
+      `${definition.name} is cast with a weapon in hand, and ${id} is swinging none`,
+    );
+  }
+  if (!proficientWith(sheet, weapon)) {
+    return err(
+      'not_proficient',
+      `${definition.name} is cast with a weapon ${id} has proficiency with, and they have none with a ${weapon.name}`,
+    );
+  }
+
+  // The route decides two things here and both matter: whether this creature
+  // can cast the spell at all, and which ability the substitution puts on the
+  // roll. A class's own route wins over a feat's and two class routes are a
+  // refusal, which is `chooseRoute`'s rule and not a second copy of it.
+  const chosen = chooseRoute(attacker.spellcasting, asked.spellId, undefined);
+  if (!chosen.ok) return chosen;
+  const ability = chosen.value.ability;
+  if (ability === null) {
+    return err(
+      'no_spellcasting_ability',
+      `${definition.name} rolls its attack with the caster's spellcasting ability, and ${id}'s route has none`,
+    );
+  }
+
+  // "it can be Radiant damage **or** the weapon's normal damage type (your
+  // choice)": a type the spell does not offer is refused before anything is
+  // spent, exactly as a feature's offer is.
+  const offered = effect.damageTypes ?? [];
+  if (asked.damageType !== undefined && !offered.includes(asked.damageType)) {
+    return err(
+      'bad_damage_type',
+      offered.length === 0
+        ? `${definition.name} offers no damage type, and this swing named ${asked.damageType}`
+        : `${definition.name} deals ${offered.join(' or ')} damage or the weapon's own, not ${asked.damageType}`,
+    );
+  }
+
+  // The Cantrip Upgrade, off the **character's** level: a band table with
+  // nothing at or below it adds nothing at all, which is every caster below
+  // the first band.
+  const upgrade = effect.extraDamage;
+  const dice =
+    upgrade === undefined ? undefined : swungExtraDiceAt(upgrade.diceAtLevel, sheet.level);
+
+  return ok({
+    definition,
+    route: chosen.value,
+    ability,
+    damageType: asked.damageType ?? null,
+    ...(upgrade === undefined || dice === undefined
+      ? {}
+      : { extra: { source: definition.name, type: upgrade.damageType, dice } }),
+  });
+}
+
+/**
+ * Cast the cantrip the swing is made with, and spend what it costs.
+ *
+ * `resolveCastWith` rather than `resolveCast`, for `castOnHit`'s reason: the
+ * identity is this command's, which has already been established, and the
+ * half beneath the wrapper is what takes a casting apart from an id. The
+ * Action goes here — a Magic action, which is what every casting spends
+ * whatever its casting time — so a caster who has already acted is refused
+ * with the swing unmade.
+ */
+function castWithTheSwing(
+  state: GameState,
+  id: CharacterId,
+  swing: CantripSwing,
+): Result<readonly GameEvent[]> {
+  const definition = swing.definition;
+  return resolveCastWith(
+    state,
+    id,
+    {
+      spell: definition.name,
+      level: definition.level,
+      concentration: definition.concentration,
+      castingTime: definition.castingTime,
+      // A cantrip costs no slot, which is the one thing `slotless` says here.
+      slotless: 'cantrip',
+      route: routeLabel(swing.route),
+      // The printed text the book leaves to the table, pinned onto the event
+      // this casting writes — rule 5, on the third atomic path. No SRD spell
+      // of this kind hands anything over; a homebrew one can.
+      ...(definition.dmDecides === undefined ? {} : { dmDecides: definition.dmDecides }),
+    },
+    null,
+  );
 }
 
 /**
@@ -1320,6 +1550,15 @@ export function resolveAttack(
     const rider = hitRiderAsked(state, id, sheet, weapon, command.onHit);
     if (!rider.ok) return rider;
 
+    // And the cantrip this swing is cast with, for the third time the same
+    // reason: everything about it that can be known before the roll is known
+    // now — the spell, the route, the weapon, the proficiency, the type
+    // offered and the price — so a refusal costs neither the Action nor a die.
+    // The casting itself happens where the economy is spent, below.
+    const cantrip = cantripAsked(supply.content, id, attacker, sheet, weapon, command);
+    if (!cantrip.ok) return cantrip;
+    const castWithIt = cantrip.value;
+
     // **And the rider this creature's own block prints**, which nobody asks
     // for: SRD writes "you can" on every feature that buys one and writes a
     // stat block's as part of the Hit. Read here rather than at the landing
@@ -1430,12 +1669,35 @@ export function resolveAttack(
     // SRD Nick pays out of the Attack action the swing is already part of, so
     // it costs nothing here either — the same answer, for the same reason, as
     // Cleave's rider and an Opportunity Attack's Reaction.
+    // And a swing cast with a cantrip costs nothing *here* for the same
+    // reason a Cleave does: something else is the price. SRD True Strike is a
+    // Magic action, spent by the casting below — so this is not the Attack
+    // action, Extra Attack puts nothing in it, and a stat block's sequence has
+    // nothing to say about it.
     const free =
-      command.free === true || cleaving !== undefined || lightExtra === 'attack-action';
+      command.free === true ||
+      cleaving !== undefined ||
+      lightExtra === 'attack-action' ||
+      castWithIt !== null;
     // And the other price the property prints. Kept apart from
     // `command.bonusAction`, which is a Monk's Unarmed Strike and refuses a
     // weapon by name: one slot, two sentences, two fields.
     const bonusActionSwing = command.bonusAction === true || lightExtra === 'bonus-action';
+
+    // — the casting this swing is made through ————————————————————————————
+    //
+    // **Here, and this is where the Action goes.** After the ward, because an
+    // attacker the ward turned away has lost the attack and paid nothing for
+    // it — the owner's ruling of 2026-09-22, which this casting must not
+    // quietly overturn by spending the caster's Action on a swing that never
+    // happened. Before the roll, because the spell is what makes the roll:
+    // `spell-cast` stands ahead of it in the log, which is the order the book
+    // prints and the order a reader needs.
+    if (castWithIt !== null) {
+      const cast = castWithTheSwing(state, id, castWithIt);
+      if (!cast.ok) return cast;
+      events.push(...cast.value);
+    }
 
     // — the sequence this creature's block prints ——————————————————————————
     //
@@ -1680,6 +1942,11 @@ export function resolveAttack(
     // handed a Strength the book did not print.
     const ability = attackAbility(sheet, {
       weapon,
+      // SRD True Strike: "The attack uses your spellcasting ability for the
+      // attack and damage rolls **instead of** using Strength or Dexterity."
+      // Imposed rather than offered, so it is answered here and not weighed
+      // against the weapon's own — see `AttackOptions.imposedAbility`.
+      ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
       ...(style === null ? {} : { strikeStyle: inPlay(style) }),
       // Not read by `attackAbility`, and required by its options type: the
       // Armour Class belongs to the roll rather than to the question of which
@@ -1786,6 +2053,7 @@ export function resolveAttack(
     const swing: AttackOptions = {
       weapon,
       ...(stated === undefined ? {} : { statedAttack: stated }),
+      ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
       ...(style === null ? {} : { strikeStyle: inPlay(style) }),
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
       proficient: proficientWith(sheet, weapon),
@@ -1895,7 +2163,12 @@ export function resolveAttack(
     // reason the one-shot grants above it are spent there — the sentence
     // counts attack rolls and says nothing about whether one landed, and a
     // Hide that survived a miss would let one hider swing all day.
-    events.push(...hidingEndedBy(state, id));
+    //
+    // **Once, where the swing was cast with a cantrip.** The casting above
+    // ends the same hiding by the same builder — "or you cast a spell" is the
+    // other clause of the same sentence — and both read the world as it stood
+    // before either, so asking again here would write the removal twice.
+    events.push(...(castWithIt === null ? hidingEndedBy(state, id) : []));
 
     if (!attack.value.hit) {
       events.push({
@@ -2120,11 +2393,20 @@ export function resolveAttack(
                   ? stated
                   : { ...stated, damage: printedDamage.instead },
             }),
+        ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
         ...(style === null ? {} : { strikeStyle: inPlay(style) }),
         // "it can be Force damage or the weapon's normal damage type (your
         // choice)": the offer a casting hung on this weapon, answered on this
         // swing. Absent leaves the weapon's printed type alone.
-        ...(imbuedType === null ? {} : { weaponDamageType: imbuedType }),
+        //
+        // The cantrip cast **with** this swing makes the same offer in the
+        // same words and it is answered in its own request, so it lands in the
+        // same field: one type or the other, whichever of the two offered it.
+        ...(castWithIt?.damageType != null
+          ? { weaponDamageType: castWithIt.damageType }
+          : imbuedType === null
+            ? {}
+            : { weaponDamageType: imbuedType }),
         targetAc: attack.value.targetAc,
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
         ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
@@ -2143,6 +2425,11 @@ export function resolveAttack(
         extraDamage: [
           ...fromFeatures.extra,
           ...printedDamage.extra,
+          // The Cantrip Upgrade's own dice: a component of its own type, so
+          // it meets the target's defences separately and a Critical Hit
+          // doubles it — "the attack deals extra Radiant damage", which is
+          // extra damage on this attack and not a bigger weapon die.
+          ...(castWithIt?.extra === undefined ? [] : [castWithIt.extra]),
           ...(command.extraDamage ?? []),
         ],
         // SRD Great Weapon Fighting: "you can treat any 1 or 2 on a damage die

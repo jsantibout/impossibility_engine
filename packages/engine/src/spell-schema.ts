@@ -2914,6 +2914,92 @@ function checkEffect(
       return;
     }
 
+    // The swing the casting makes itself. Three things to judge and the
+    // definition-level rule is `checkWeaponAttack`'s: what is here is the
+    // substitution, the offer and the band table, held to exactly the rules
+    // the neighbouring `weapon-rider` holds its own offer and its own table
+    // to — one reader for both, so a Cantrip Upgrade keyed by character level
+    // cannot come to be validated two ways.
+    case 'weapon-attack': {
+      // Read back off an untyped shape, for the reason `againstType.outcome`
+      // is: the field is a union of one, so the compiler narrows it to
+      // `never` inside the branch that judges it — and what arrives here from
+      // JSON is whatever the author wrote.
+      const substituted = (effect as { readonly ability?: unknown }).ability;
+      if (substituted !== 'spellcasting') {
+        found.push({
+          field: `${path}.ability`,
+          code: 'bad_substitution',
+          reason: `"${String(substituted)}" is not an ability a casting substitutes into its own swing; the SRD names the caster's spellcasting ability`,
+        });
+      }
+      if (effect.damageTypes !== undefined && !Array.isArray(effect.damageTypes)) {
+        found.push({
+          field: `${path}.damageTypes`,
+          code: MALFORMED,
+          reason: `a list of damage types, and this is ${nameOf(effect.damageTypes)}`,
+        });
+      } else if (effect.damageTypes !== undefined) {
+        if (effect.damageTypes.length === 0) {
+          found.push({
+            field: `${path}.damageTypes`,
+            code: 'empty_damage_type_offer',
+            reason:
+              'a swing that offers no type at all writes no list; an empty one is a choice with nothing on it',
+          });
+        }
+        effect.damageTypes.forEach((type, i) => {
+          if (typeof type !== 'string' || !DAMAGE.has(type)) {
+            found.push({
+              field: `${path}.damageTypes[${i}]`,
+              code: 'bad_damage_type',
+              reason: `"${String(type)}" is not a damage type this engine knows`,
+            });
+          }
+        });
+      }
+      const extra = effect.extraDamage;
+      if (
+        extra !== undefined &&
+        readsAsObject(
+          extra,
+          `${path}.extraDamage`,
+          'extra damage on the swing is an object naming its type and the levels its dice arrive at',
+          found,
+        )
+      ) {
+        checkDamageType(extra.damageType, `${path}.extraDamage.damageType`, found);
+        const bands = readableBand(
+          extra.diceAtLevel,
+          `${path}.extraDamage.diceAtLevel`,
+          found,
+        );
+        checkBandKeys(bands, `${path}.extraDamage.diceAtLevel`, found);
+        // **A table with nothing in it adds nothing at every level**, which is
+        // the `rider_does_nothing` reading one member up: a definition that
+        // says it deals extra damage and names no level to deal it at is a
+        // sentence the reader would silently answer "none" to for ever.
+        if (bands !== undefined && Object.keys(bands).length === 0) {
+          found.push({
+            field: `${path}.extraDamage.diceAtLevel`,
+            code: 'empty_band_table',
+            reason:
+              'a band table with no band in it adds dice at no level at all; a swing that adds none writes no extra damage',
+          });
+        }
+        for (const [level, dice] of Object.entries(bands ?? {})) {
+          if (typeof dice !== 'string' || !parseNotation(dice).ok) {
+            found.push({
+              field: `${path}.extraDamage.diceAtLevel.${level}`,
+              code: 'bad_dice',
+              reason: `"${String(dice)}" is not dice notation`,
+            });
+          }
+        }
+      }
+      return;
+    }
+
     case 'dispel':
     case 'interrupt-casting':
       return;
@@ -4207,6 +4293,7 @@ export function checkSpellDefinition(
   checkSummonTargets(definition, found);
   checkKeptBesideADuration(definition, found);
   checkChanceTargets(definition, found);
+  checkWeaponAttack(definition, found);
 
   const activation = definition.activation;
   if (
@@ -5091,6 +5178,58 @@ function checkChanceTargets(
 }
 
 /**
+ * The shape a casting that makes its own weapon attack has to have.
+ *
+ * Three rules, and every one of them is a fact about the **definition** rather
+ * than about the effect, which is why they are here and not in `checkEffect`.
+ *
+ * - **A cantrip.** The dice this kind adds are a Cantrip Upgrade read off the
+ *   caster's level, and there is no slot in the request an attack command
+ *   sends: a levelled spell written this way would be cast for nothing.
+ * - **Range: Self.** The spell puts nothing anywhere; the *weapon* reaches
+ *   whatever the weapon reaches, and the attack command has always measured
+ *   that. A range in feet beside it would be a second reach nobody checks,
+ *   because `resolveSpell` never sees this casting.
+ * - **Nothing else on the effect list.** `resolveSpell` refuses a definition
+ *   carrying this kind outright, so any other effect beside it is an effect
+ *   that could never run — a sentence the catalogue promises and no command
+ *   keeps. The attack command resolves the swing and nothing else.
+ *
+ * Refused separately, so an author is told which of the three is wrong.
+ */
+function checkWeaponAttack(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!definition.effects.some((effect) => effect.kind === 'weapon-attack')) return;
+
+  if (definition.level !== 0) {
+    found.push({
+      field: 'level',
+      code: 'swing_not_a_cantrip',
+      reason:
+        'a casting that makes its own weapon attack scales off the caster’s level and spends no slot, so it is a cantrip',
+    });
+  }
+  if (definition.range.kind !== 'self') {
+    found.push({
+      field: 'range',
+      code: 'swing_not_on_its_caster',
+      reason:
+        'the spell reaches nobody: the weapon does, and the attack command measures that — so its Range is Self',
+    });
+  }
+  if (definition.effects.length > 1) {
+    found.push({
+      field: 'effects',
+      code: 'swing_beside_another_effect',
+      reason:
+        'the swing is resolved by the attack command and `resolveSpell` refuses the definition, so anything written beside it is an effect nothing would ever run',
+    });
+  }
+}
+
+/**
  * A kept creature on a casting that also leaves a record running.
  *
  * Two lifetimes: the summoner's, which `kept` declares, and the casting's,
@@ -5366,6 +5505,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'damage-reduction',
   'attack-rider',
   'weapon-rider',
+  'weapon-attack',
   'teleport',
   'summon',
   'turn-payout',

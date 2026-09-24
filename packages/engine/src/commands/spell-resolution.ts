@@ -645,6 +645,19 @@ export function castOrRelease(
       );
     }
 
+    // SRD True Strike is cast **as** a weapon attack — "you make one attack
+    // with the weapon used in the spell's casting" — so the swing is the
+    // casting and this command makes no swing. An `err` rather than a
+    // `needsContext`: nothing is missing that a caller could supply here, the
+    // door is simply the wrong one, and the right one takes the cantrip beside
+    // the weapon.
+    if (definition.effects.some((effect) => effect.kind === 'weapon-attack')) {
+      return err(
+        'cast_with_a_swing',
+        `${definition.name} is cast with the weapon attack it makes; name it on the attack instead`,
+      );
+    }
+
     // SRD "Spells Cast from Items": a wand's Fireball is a casting, and the
     // item supplies the route the way a class or a feat does. Read before the
     // route is chosen and refused before anything is spent — the attunement
@@ -2208,6 +2221,10 @@ function resolveOneEffect(
     // An on-hit spell never reaches here: `resolveSpell` refuses one up
     // front, because the attack it rides on is not this command's to give.
     case 'attack-damage':
+    // Nor a spell cast **as** a swing, refused by the same door one line
+    // below that one: the attack is the thing it is, and this command makes
+    // none.
+    case 'weapon-attack':
       return ok(world);
 
     default: {

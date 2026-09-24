@@ -113,11 +113,16 @@ describe('toolSchemas', () => {
     // casting-cost track's one published field. Re-pinned once more for
     // `take_action.using_feature` and `take_action.also_taking`, the two
     // fields the standing-kinds track published so a caller can say which of
-    // a creature's allowances is paying and what one spend buys.
+    // a creature's allowances is paying and what one spend buys. Re-pinned
+    // once more for `attack.cantrip`, the one field the True Strike track
+    // published: the spell a swing is cast with, and the damage type its offer
+    // takes. It is on **both** surfaces because the field is on the shared
+    // request — no stat block in the bestiary casts a spell this way, and one
+    // that printed such a line would reach it through the same door.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(103631);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(124553);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(105175);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(126097);
   });
 });
 
