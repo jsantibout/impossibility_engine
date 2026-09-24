@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 101 spells | 68 | 0 | 33 |
+| Spells in reach, not executed | 99 spells | 66 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 18 features | 12 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -51,7 +51,6 @@ hold at all. An executed spell with nothing left is not here.
 |---|---|---|
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-choice-made-at-the-casting` | 4 | 2 |
-| `an-area-that-filters-its-catch` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 4 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
@@ -138,11 +137,6 @@ sums to the population.
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
 - **Plant Growth** (level 3) — executed-partial
-
-#### `an-area-that-filters-its-catch` — blocks 2, finishes 2
-
-- **Entangle** (level 1) — no-definition
-- **Hypnotic Pattern** (level 3) — executed-partial
 
 #### `a-casting-ended-by-a-trigger` — blocks 5, finishes 1
 
