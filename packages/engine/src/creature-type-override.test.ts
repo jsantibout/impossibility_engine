@@ -109,7 +109,7 @@ const masked = (chosen = 'Humanoid'): GameState => {
     resolveSpell(
       base,
       WIZARD,
-      { spellId: 'arcanists-magic-aura', targets: [GOBLIN], slotLevel: 2, choice: chosen },
+      { spellId: 'arcanists-magic-aura', targets: [GOBLIN], slotLevel: 2, willing: [GOBLIN], choice: chosen },
       supply('mask'),
     ),
     'the mask',
@@ -213,7 +213,7 @@ describe("Arcanist's Magic Aura, the Mask", () => {
     const out = resolveSpell(
       base,
       WIZARD,
-      { spellId: 'arcanists-magic-aura', targets: [GOBLIN], slotLevel: 2, choice: 'Fey' },
+      { spellId: 'arcanists-magic-aura', targets: [GOBLIN], slotLevel: 2, willing: [GOBLIN], choice: 'Fey' },
       supply('mask'),
     );
     expect(isErr(out) && out.code).toBe('same_creature_type');

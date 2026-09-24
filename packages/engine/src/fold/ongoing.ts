@@ -29,6 +29,7 @@ export const ONGOING_EVENTS = [
   'area-effect-settled',
   'casting-save-recorded',
   'spell-origin-moved',
+  'spell-aim-changed',
   'concentration-started',
   'concentration-ended',
 ] as const;
@@ -183,6 +184,29 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
         ongoing: { ...state.ongoing, [event.castingId]: { ...record, origin: event.to } },
       };
       return raiseAreaArrivals(moved, event.castingId, from, event.to);
+    }
+
+    case 'spell-aim-changed': {
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      // A casting whose area was never pointed anywhere has no bearing to
+      // change. The command refuses this; a hand-built log that does it anyway
+      // is a log and a set of rules that disagree, which is loud rather than
+      // absorbed — the reading `spell-origin-moved` above takes of a casting
+      // that holds no point.
+      if (record.towards === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} has no direction to change`);
+      }
+      // **And nothing is raised.** The Line blasts from the caster, so turning
+      // it sweeps no floor: SRD Gust of Wind prints its recurring save at the
+      // end of a creature's turn, and that trigger reads this bearing when the
+      // moment arrives. See the event's own note.
+      return {
+        ...next,
+        ongoing: { ...state.ongoing, [event.castingId]: { ...record, towards: event.towards } },
+      };
     }
 
     case 'concentration-started': {

@@ -187,11 +187,21 @@ class Game {
     slotLevel?: number,
   ): string {
     const fought = ['charm-person', 'charm-monster'].includes(spellId) ? { fought: [] } : {};
+    // SRD Mage Armor is cast on "a **willing** creature": stated here, because
+    // what this file is about is which sentence ends a casting.
+    const consenting =
+      SRD_CONTENT.spell(spellId)?.targets.willing === true ? { willing: targets } : {};
     const out = unwrap(
       resolveSpell(
         this.state,
         who,
-        { spellId, targets, ...fought, ...(slotLevel === undefined ? {} : { slotLevel }) },
+        {
+          spellId,
+          targets,
+          ...fought,
+          ...consenting,
+          ...(slotLevel === undefined ? {} : { slotLevel }),
+        },
         supply(spellId),
       ),
       `${who} casting ${spellId}`,

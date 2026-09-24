@@ -619,6 +619,28 @@ describe('each rule refuses something', () => {
   );
 
   /**
+   * SRD Mage Armor's "a **willing** creature", held to the one rule that
+   * matters and to the one that keeps the field from meaning two things.
+   *
+   * The gate is asked where a caller **names** somebody, so a spell that names
+   * nobody at all would carry a clause nothing ever reads — the reason above
+   * with the sides swapped. And `true` is the only value, because absence is
+   * how a spell says it does not print the word.
+   */
+  it('refuses a consent gate on a spell that names no target', () => {
+    expect(only({ targets: { count: 0, willing: true } })).toEqual(['consent_without_a_target']);
+  });
+
+  it('accepts a consent gate on a spell that names one, and on an unlimited list', () => {
+    expect(only({ targets: { count: 1, willing: true } })).toEqual([]);
+    expect(only({ targets: { count: 0, unlimited: true, willing: true } })).toEqual([]);
+  });
+
+  it('refuses any value but true for the consent gate', () => {
+    expect(only({ targets: { count: 1, willing: false } })).toEqual(['malformed_field']);
+  });
+
+  /**
    * And the second reader that is missing, which is the one worth a guard of
    * its own: a **persistent** area re-derives its catch off the pinned record
    * at every boundary it triggers on, and that seam reads `unaffected` and
@@ -690,6 +712,78 @@ describe('each rule refuses something', () => {
         activation: { action: 'action', label: 'Fire Dart (again)', effects: [] },
       }),
     ).toEqual(['activation_does_nothing']);
+  });
+
+  /**
+   * SRD Levitate's "change the target's altitude by up to 20 feet in either
+   * direction", held to the one list it may be written in and to the lattice
+   * its cap is measured on.
+   *
+   * The placement rule is `checkTeleportPlacement`'s with the sides swapped:
+   * that kind reads a fact the casting stated and is refused outside the
+   * casting's list; this one reads a fact the **activation** states and is
+   * refused outside the activation's. A casting has no such request and an
+   * area trigger firing at a boundary has none, so either would move a
+   * creature by an amount nobody named.
+   */
+  it('refuses an altitude changed anywhere but an activation’s own list', () => {
+    // Through `checkSpellDefinitionValue`, because a placement rule belongs to
+    // the walk that knows **which list** an effect sits in — the seam
+    // `checkFoughtClause` is tested at, for the same reason.
+    const placed = (over: Record<string, unknown>): readonly string[] =>
+      codes(checkSpellDefinitionValue({ ...FIRE_DART, ...over }));
+
+    expect(placed({ effects: [{ kind: 'change-altitude', upTo: 20 }] })).toEqual([
+      'altitude_outside_an_activation',
+    ]);
+    expect(
+      placed({
+        durationSeconds: 60,
+        area: { kind: 'sphere', radius: 20, origin: 'point' },
+        areaTrigger: { at: 'start-of-turn', effects: [{ kind: 'change-altitude', upTo: 20 }] },
+      }),
+    ).toEqual(['altitude_outside_an_activation']);
+  });
+
+  it('refuses a cap the 5-foot lattice cannot hold, and takes one it can', () => {
+    const climbing = (upTo: unknown) =>
+      only({
+        durationSeconds: 60,
+        activation: {
+          action: 'action',
+          range: { kind: 'ranged', feet: 60 },
+          label: 'Fire Dart (higher)',
+          effects: [{ kind: 'change-altitude', upTo }],
+        },
+      });
+    expect(climbing(7)).toEqual(['bad_altitude_cap']);
+    expect(climbing(0)).toEqual(['bad_altitude_cap']);
+    expect(climbing(20)).toEqual([]);
+  });
+
+  /**
+   * SRD Gust of Wind's "you can change the direction in which the Line blasts
+   * from you", held to what the sentence needs to mean anything: a shape to
+   * turn, and one with a direction to be wrong about. A Sphere has no bearing,
+   * so a re-aim of one would write a fact the geometry never reads.
+   */
+  it('refuses a re-aim with no area, and one with no direction to change', () => {
+    const turning = (area: unknown) =>
+      only({
+        durationSeconds: 60,
+        ...(area === undefined ? {} : { area }),
+        activation: {
+          action: 'bonus-action',
+          redirects: true,
+          label: 'Fire Dart (the other way)',
+          effects: [],
+        },
+      });
+    expect(turning(undefined)).toEqual(['redirects_without_area']);
+    expect(turning({ kind: 'sphere', radius: 20, origin: 'self' })).toEqual([
+      'redirects_without_a_direction',
+    ]);
+    expect(turning({ kind: 'line', length: 60, width: 10, origin: 'self' })).toEqual([]);
   });
 
   it('refuses an action that moves an area the spell does not have', () => {
@@ -3816,6 +3910,16 @@ describe('every branch judges untyped input rather than throwing on it', () => {
      * is checking, and the junk sweep would pass for it.
      */
     readonly host?: Record<string, unknown>;
+    /**
+     * Which effect list this kind may be written in.
+     *
+     * Absent is the casting's own, which is every kind but one.
+     * `change-altitude` reads a fact the **activation** states — how far and
+     * which way, on the turn the later action is taken — so
+     * `checkAltitudePlacement` refuses it anywhere else, and a row driven
+     * through `effects` would refuse for that rather than for its junk.
+     */
+    readonly list?: 'activation';
   }[] = [
     {
       kind: 'attack',
@@ -4165,7 +4269,47 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       },
       host: { targets: { count: 1, self: true } },
     },
+    {
+      // SRD Levitate: "change the target's altitude by up to 20 feet in either
+      // direction." One printed number, required, and on the same 5-foot
+      // lattice the jump above it is measured on.
+      //
+      // **The one kind driven through an activation's list**, because that is
+      // the only list it may be written in — see `list`. Its host concentrates
+      // so that both lifetimes the junk sweep drives are legal definitions: an
+      // activation needs a casting that is still running, and the sweep's
+      // second pass supplies no duration.
+      kind: 'change-altitude',
+      base: { kind: 'change-altitude', upTo: 20 },
+      fields: { upTo: required(NUMBER_JUNK) },
+      host: { concentration: true },
+      list: 'activation',
+    },
   ];
+
+  /**
+   * The definition that carries one effect, in whichever list that kind lives
+   * in.
+   *
+   * One builder, two drivers: the base-validity check and the junk sweep both
+   * have to put the effect in the same place, and a second spelling of "wrap
+   * it in an activation" would be a second place for the wrapper to be wrong.
+   */
+  const carrying = (
+    effect: Record<string, unknown>,
+    list: 'activation' | undefined,
+  ): Record<string, unknown> =>
+    list === 'activation'
+      ? {
+          effects: [],
+          activation: {
+            action: 'action',
+            label: 'the later action',
+            range: { kind: 'ranged', feet: 30 },
+            effects: [effect],
+          },
+        }
+      : { effects: [effect] };
 
   /**
    * The fixtures are real, which is what makes every row below mean anything.
@@ -4173,15 +4317,15 @@ describe('every branch judges untyped input rather than throwing on it', () => {
    * A base that was itself malformed would make the sweep pass for the wrong
    * reason: every row would refuse, and none of them because of the junk.
    */
-  it.each(BRANCHES.map((b) => [b.kind, b.base, b.host ?? {}] as const))(
+  it.each(BRANCHES.map((b) => [b.kind, b.base, b.host ?? {}, b.list] as const))(
     'starts from a %s the validator accepts',
-    (_kind, base, host) => {
+    (_kind, base, host, list) => {
       expect(
         checkSpellDefinitionValue({
           ...FIRE_DART,
           durationSeconds: 60,
           ...host,
-          effects: [base],
+          ...carrying(base, list),
         }),
       ).toEqual([]);
     },
@@ -4233,7 +4377,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     for (const kind of READ_NO_FIELD) expect(covered.has(kind)).toBe(false);
   });
 
-  const rows = BRANCHES.flatMap(({ kind, base, fields, host }) =>
+  const rows = BRANCHES.flatMap(({ kind, base, fields, host, list }) =>
     Object.entries(fields).flatMap(([field, junk]) =>
       junk.map(
         (value) =>
@@ -4243,6 +4387,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
             field,
             value,
             host ?? {},
+            list,
           ] as const,
       ),
     ),
@@ -4253,7 +4398,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
   // before the junk is read, and `isErr` cannot tell the two apart — the
   // sweep would go on passing while testing nothing. `summon` is the one kind
   // with a rule about its host, and Fire Dart throws its dart at somebody else.
-  it.each(rows)('answers with a refusal for %s', (_label, base, field, value, host) => {
+  it.each(rows)('answers with a refusal for %s', (_label, base, field, value, host, list) => {
     // Both lifetimes, because the rule that reads a rider a second time
     // returns early the moment a casting persists — which is exactly what kept
     // `grantCarried`'s unguarded walk out of reach of the case that found it.
@@ -4262,7 +4407,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
         ...FIRE_DART,
         ...lifetime,
         ...host,
-        effects: [{ ...base, [field]: value }],
+        ...carrying({ ...base, [field]: value }, list),
       };
       let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
       expect(() => {
@@ -4866,6 +5011,64 @@ describe('the fought clause is refused everywhere it could not be read', () => {
   /** And a save that says nothing is the ordinary case. */
   it('accepts a saving throw that does not print it', () => {
     expect(inList('effects', SAVE)).toEqual([]);
+  });
+
+  /**
+   * SRD Levitate's "An **unwilling** creature that succeeds on a Constitution
+   * saving throw is unaffected" is the same shape of clause over the same kind
+   * of stated fact, so it is held to the same three rules and tested against
+   * the same three lists. What differs is only what the clause does to the
+   * roll: the fought clause changes it and this one withholds it.
+   */
+  it('accepts an unwilling save on the casting’s own effect list', () => {
+    expect(inList('effects', { ...SAVE, unlessWilling: true })).toEqual([]);
+  });
+
+  it('refuses an unwilling clause on a host that rolls no saving throw', () => {
+    expect(
+      inList('effects', {
+        kind: 'attack',
+        damage: { dice: '1d10' },
+        damageType: 'fire',
+        unlessWilling: true,
+      }),
+    ).toEqual(['consent_without_save']);
+  });
+
+  it('refuses an unwilling clause inside an area trigger and inside an activation', () => {
+    expect(inList('areaTrigger', { ...SAVE, unlessWilling: true })).toEqual([
+      'consent_outside_the_casting',
+    ]);
+    expect(inList('activation', { ...SAVE, unlessWilling: true })).toEqual([
+      'consent_outside_the_casting',
+    ]);
+  });
+
+  it('refuses any value but true for the unwilling clause', () => {
+    expect(inList('effects', { ...SAVE, unlessWilling: false })).toEqual(['malformed_field']);
+  });
+
+  /**
+   * And the pair that would have written something untrue cannot be authored
+   * at all, which is why no third rule guards it.
+   *
+   * SRD Zone of Truth's `recordsOutcome` keeps "whether a creature succeeds
+   * **or fails**", and a creature that consented was never offered a die to do
+   * either with — so a `save` carrying both clauses would record a verdict
+   * about a throw that never happened. The two existing rules already make it
+   * impossible from opposite ends: a verdict may be kept only in a list that
+   * fires off a record that exists, and consent may be read only in the
+   * casting's own list, which is the one list a verdict may not be kept in. A
+   * guard for the pair would be unreachable code claiming to be a rule; this
+   * is the assertion that says so instead.
+   */
+  it('cannot be written beside a verdict, because the two lists exclude it', () => {
+    expect(inList('effects', { ...SAVE, unlessWilling: true, recordsOutcome: true })).toEqual([
+      'verdict_before_the_record',
+    ]);
+    expect(
+      inList('areaTrigger', { ...SAVE, unlessWilling: true, recordsOutcome: true }),
+    ).toEqual(['consent_outside_the_casting']);
   });
 
   /**

@@ -2534,6 +2534,8 @@ export interface StatedFacts {
   readonly choice?: string;
   /** Which creatures the caster or their allies are fighting. */
   readonly fought?: readonly CharacterId[];
+  /** Which of the casting's targets consent to it. */
+  readonly willing?: readonly CharacterId[];
   /** Creatures the caster designated unaffected, for a spell that offers it. */
   readonly unaffected?: readonly CharacterId[];
   /** Where a teleporting spell puts its target. */
@@ -2787,6 +2789,7 @@ function statedOf(response: StatedFacts): StatedFacts {
     ...(response.damageType === undefined ? {} : { damageType: response.damageType }),
     ...(response.choice === undefined ? {} : { choice: response.choice }),
     ...(response.fought === undefined ? {} : { fought: response.fought }),
+    ...(response.willing === undefined ? {} : { willing: response.willing }),
     ...(response.unaffected === undefined ? {} : { unaffected: response.unaffected }),
     ...(response.teleportTo === undefined ? {} : { teleportTo: response.teleportTo }),
     ...(response.weapon === undefined ? {} : { weapon: response.weapon }),

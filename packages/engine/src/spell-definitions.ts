@@ -2089,6 +2089,28 @@ export type SpellEffect =
        */
       readonly advantageIfFought?: true;
       /**
+       * SRD Levitate: "An **unwilling** creature that succeeds on a
+       * Constitution saving throw is unaffected."
+       *
+       * The save is offered to the creature that objects and to nobody else,
+       * so a target the casting named in its `willing` list skips the roll and
+       * is affected — the mirror of {@link advantageIfFought}, which reads the
+       * same kind of stated fact and changes the roll rather than removing it.
+       *
+       * **And nothing is asked for here**, which is where it parts company
+       * with the target rule that spells consent as a gate
+       * ({@link TargetRule.willing}). Casting this at a creature that has not
+       * consented is exactly what the sentence is about: the unwilling reading
+       * is legal, the book hands the objector a die, and a casting that said
+       * nothing has said "unwilling", which is the SRD's own default rather
+       * than a fact the engine invented.
+       *
+       * The value is `true` and nothing else: absence is how a spell says it
+       * does not print the clause, and `false` would be a second way to say
+       * the same thing.
+       */
+      readonly unlessWilling?: true;
+      /**
        * A defence the target already has that makes the save for it.
        *
        * SRD Sleep: "Creatures that don't sleep, such as elves, or **that have
@@ -2731,6 +2753,35 @@ export type SpellEffect =
    * reading says nothing either.
    */
   | { readonly kind: 'jump-allowance'; readonly feet: number; readonly costsMovement: number }
+  /**
+   * A later action that moves a creature this casting is holding off the
+   * ground, up or down, by a stated number of feet.
+   *
+   * SRD *Levitate*: "You can change the target's altitude by up to 20 feet in
+   * either direction on your turn. … you can take a Magic action to move the
+   * target, which must remain within the spell's range."
+   *
+   * **The one effect kind that is only ever an activation's**, and the
+   * validator says so: it reads the feet off the *request* rather than off the
+   * definition, so a casting's own effect list has no such request to read and
+   * an area trigger firing a minute later has none either. What the definition
+   * prints is the cap; the direction and the distance are the caster's, stated
+   * now, and every other kind that takes a fact from the request takes it at
+   * the casting.
+   *
+   * **Not `movement`, the rider.** A `ForcedMovement` of kind `lift` hangs off
+   * a settled outcome, is performed once and is never declined; this is an
+   * action a caster spends, at a distance they choose, on a creature the
+   * casting is already holding — and it is refused rather than reported when
+   * the room, the cap or the Range will not have it, because a refusal here
+   * costs nothing and the action has not been spent.
+   *
+   * **Lowering to the ground is not the spell ending.** The lift stays granted
+   * and the casting goes on running, so a later turn may take the creature
+   * back up — which is the whole reason this moves a position rather than
+   * releasing a grant.
+   */
+  | { readonly kind: 'change-altitude'; readonly upTo: number }
   /**
    * An amount the spell takes off a hit **before** the target's defences meet
    * it — SRD Resistance: "When the creature takes damage of the chosen type
@@ -3907,6 +3958,37 @@ export interface TargetRule {
    */
   readonly mustBeFalling?: true;
   /**
+   * SRD *Mage Armor*: "You touch a **willing** creature who isn't wearing
+   * armor." A good many definitions in reach print the word; `willing.test.ts`
+   * reads the population out of the book rather than out of a sentence here.
+   *
+   * **A fact nobody but the table holds, so it is asked for rather than
+   * assumed.** A target the casting has not named in `CastSpellRequest.willing`
+   * comes back `needs-context` — never refused, and never waved through. The
+   * engine holds no rule that an ally consents: `side` is a different question
+   * (a Charmed ally is still on the party's side, and an enemy nobody has come
+   * to blows with is not), and "of course the cleric's friend agreed" is a
+   * table's assumption rather than a sentence in the book. Deriving it would
+   * be the engine answering, the same way every time, a question the SRD put
+   * to somebody else.
+   *
+   * **The caster is willing by being the caster**, which is the one consent
+   * nothing has to state: a creature that chose to cast a spell on itself has
+   * said so by casting it, and SRD writes "a willing creature you touch" of
+   * spells whose own note says the caster may be the target.
+   *
+   * **A gate, not a die.** {@link SpellEffect} `save.unlessWilling` is the
+   * other half of the book's vocabulary for the same fiction — Levitate hands
+   * the objector a saving throw instead of refusing the casting — and the two
+   * are read at different moments for that reason: this one before a slot is
+   * spent, that one at the roll.
+   *
+   * Checked only where a caller **names** targets, for
+   * {@link mustBeUnarmored}'s reason: an area filters rather than refuses, and
+   * no spell prints this clause over an area's catch.
+   */
+  readonly willing?: true;
+  /**
    * SRD *Entangle*: "Each creature (**other than you**) in the area".
    *
    * The first of three clauses that narrow what an **area** catches, and all
@@ -4891,6 +4973,30 @@ export interface SpellActivation {
    * declined.
    */
   readonly movesArea?: number;
+  /**
+   * Whether this action re-aims the Line, Cone or Cube the casting is blowing
+   * from its caster.
+   *
+   * SRD *Gust of Wind*: "As a Bonus Action on your later turns, you can change
+   * the direction in which the Line blasts from you." The area's origin is the
+   * caster, so nothing moves; what changes is the one fact about a persistent
+   * area that cannot be reconstructed — where it was pointed — and the request
+   * states the new bearing exactly as the casting stated the first.
+   *
+   * **Beside {@link movesArea} rather than inside it**, because the SRD writes
+   * two different sentences: Moonbeam's action *carries* a Cylinder to a new
+   * point and is measured in feet, and this one turns a shape that has not
+   * moved. A field that meant both would have nothing honest to put in the
+   * allowance.
+   *
+   * **And nothing is rolled by the turning**, which is what the printed text
+   * says: Gust of Wind's opening save is asked at the casting and the only one
+   * that recurs is "A creature that ends its turn in the Line must make the
+   * same save". So the Bonus Action changes the bearing and the spell's own
+   * `areaTrigger` catches whoever the new Line is over, at the moment the
+   * sentence names.
+   */
+  readonly redirects?: true;
   /** How the log reads: "Vampiric Touch (again)". */
   readonly label: string;
   /**
@@ -6093,6 +6199,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // own choice, stated at the casting, and no number about them decides it.
       case 'creature-type-override':
       case 'teleport':
+      // And an altitude changed reads nothing of the caster: how far and which
+      // way is the caster's own decision, stated at the activation, and no
+      // number about them decides whether it happens.
+      case 'change-altitude':
       case 'summon':
         break;
       default: {
@@ -6127,6 +6237,42 @@ export function statesFoughtFact(definition: SpellDefinition): boolean {
   return definition.effects.some(
     (effect) => effect.kind === 'save' && effect.advantageIfFought === true,
   );
+}
+
+/**
+ * Does this spell offer a saving throw an **unwilling** creature makes?
+ *
+ * SRD Levitate's "An unwilling creature that succeeds on a Constitution saving
+ * throw is unaffected", read off the definition for {@link statesFoughtFact}'s
+ * reason: the fact is stated once, at the casting, and the clause therefore
+ * belongs to the saving throw the casting itself calls for. A clause on an
+ * area trigger's save or an activation's would fire off a record that carries
+ * no such fact and would be silently unread; the validator refuses one there
+ * rather than leaving that to be discovered.
+ */
+export function offersAnUnwillingSave(definition: SpellDefinition): boolean {
+  return definition.effects.some(
+    (effect) => effect.kind === 'save' && effect.unlessWilling === true,
+  );
+}
+
+/**
+ * Does this spell ask its caster who among its targets consents?
+ *
+ * The ninth stated fact's `statesFoughtFact`, and it reads **two** clauses
+ * because the SRD writes consent two ways: a target rule that requires it
+ * ({@link TargetRule.willing}, SRD Mage Armor) and a saving throw offered to
+ * whoever does not ({@link offersAnUnwillingSave}, SRD Levitate). Either makes
+ * `CastSpellRequest.willing` a fact this spell can be told; neither makes it
+ * one the spell demands, which is the difference from the fought clause — a
+ * Mage Armor on its own caster states nothing and is right to.
+ *
+ * One reader for one question, asked where the symmetry is checked: **refused**
+ * for a spell that prints neither clause, exactly as `no_fought_clause` and
+ * `no_object_clause` are.
+ */
+export function statesWillingFact(definition: SpellDefinition): boolean {
+  return definition.targets.willing === true || offersAnUnwillingSave(definition);
 }
 
 /**

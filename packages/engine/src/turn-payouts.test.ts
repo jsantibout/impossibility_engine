@@ -417,7 +417,7 @@ describe('SRD Heroism runs both halves of its one sentence', () => {
         resolveSpell(
           state,
           BARD,
-          { spellId: 'heroism', targets: [FIGHTER], slotLevel: 1 },
+          { spellId: 'heroism', targets: [FIGHTER], slotLevel: 1, willing: [FIGHTER] },
           supplyFor(state),
         ),
       ).events,

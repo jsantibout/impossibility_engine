@@ -811,6 +811,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'sense-granted',
   'shape-assumed',
   'speed-modifier-granted',
+  // The direction an ongoing spell blows its Line in, changed on a later turn.
+  // Neither log was written when an activation could re-aim anything — SRD
+  // Gust of Wind's Bonus Action was in that spell's `unmodelled` list, an
+  // activation resolved an attack or walked an area along a route, and no
+  // record carried a bearing a later action could change — so both fixtures
+  // fold to exactly the states they always folded to, with every ongoing
+  // record's `towards` the one its casting wrote. `movement-rider.test.ts`
+  // folds it and drives it end to end: the Line re-aimed, the record saying
+  // which way, nothing rolled or moved by the turning, and a Bonus Action that
+  // named no direction refused.
+  'spell-aim-changed',
   // A line a stat block prints under **Actions** that the parser read nothing
   // out of, taken. Neither log was written when those lines reached a sheet as
   // anything but names, and nothing could spend one — so both fixtures fold to

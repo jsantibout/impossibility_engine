@@ -1,6 +1,12 @@
 import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  isErr,
+  expect as unwrap,
+  type CharacterId,
+  type Result,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -9,7 +15,13 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { altitudeOf, distanceBetween } from './positioning.js';
 import { movementLeftFor } from './standing.js';
-import { endConcentration, resolveDamage, resolveSpell } from './commands.js';
+import {
+  activateSpell,
+  endConcentration,
+  resolveDamage,
+  resolveSpell,
+  resolveTurn,
+} from './commands.js';
 import { extendContent } from './content.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import type { SpellDefinition } from './spell-definitions.js';
@@ -156,6 +168,9 @@ const turnPassesTo = (who: CharacterId, log: readonly GameEvent[] = SETUP): Game
   const steps = (seat - order.turnIndex + order.order.length) % order.order.length;
   return Array.from({ length: steps }, () => ({ type: 'turn-advanced' }));
 };
+
+const refusal = (out: Result<unknown>): string =>
+  isErr(out) ? (out as unknown as { readonly code: string }).code : 'not refused';
 
 const apart = (world: GameState, a: CharacterId, b: CharacterId): number =>
   unwrap(distanceBetween(world.scene!, a, b), 'a distance');
@@ -413,6 +428,415 @@ describe('Gust of Wind: a Strength save, and fifteen feet along the Line', () =>
       expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
       expect(out.events.some((e) => e.type === 'damage-rolled')).toBe(false);
     }
+  });
+});
+
+// — the two later actions SRD prints over a lift and a Line ————————————————
+
+/**
+ * A taller hall, and no fight in it.
+ *
+ * Both sentences under test are *later* actions, and the action economy is
+ * exactly what is not being tested: outside combat there is nothing to spend,
+ * so a casting and four activations fit into one fixture without walking the
+ * order round four times. The ceiling is two hundred feet because the Magic
+ * action climbs, and a rise refused by the room is a different refusal from a
+ * rise refused by the spell's Range.
+ */
+const HIGH: readonly GameEvent[] = SETUP.filter((e) => e.type !== 'combat-started').map((e) =>
+  e.type === 'scene-set' ? { ...e, extent: { width: 400, depth: 400, height: 200 } } : e,
+);
+
+/** Levitate on the target, who fails the save, in the tall hall. */
+const aloft = () => {
+  const out = levitate(-40, HIGH, 'high');
+  return { log: [...HIGH, ...out.events], castingId: out.castingId! };
+};
+
+describe('Levitate: the Magic action that changes the target’s altitude', () => {
+  /**
+   * SRD: "You can change the target's altitude by up to 20 feet in either
+   * direction on your turn. … you can take a Magic action to move the target,
+   * which must remain within the spell's range."
+   */
+  it('raises a levitating creature twenty feet, and again on a later turn', () => {
+    const { log, castingId } = aloft();
+    expect(height(fold('seed', log), TARGET)).toBe(20);
+
+    const up = unwrap(
+      activateSpell(
+        fold('seed', log),
+        CASTER,
+        { castingId, targets: [TARGET], altitude: 20 },
+        supply('up'),
+      ),
+      'raising the target',
+    );
+    const higher = [...log, ...up.events];
+    expect(height(fold('seed', higher), TARGET)).toBe(40);
+
+    const again = unwrap(
+      activateSpell(
+        fold('seed', higher),
+        CASTER,
+        { castingId, targets: [TARGET], altitude: 20 },
+        supply('up-again'),
+      ),
+      'raising it again',
+    );
+    expect(height(fold('seed', [...higher, ...again.events]), TARGET)).toBe(60);
+  });
+
+  /** "by up to 20 feet" is a cap, and twenty-five is past it. */
+  it('refuses more than the printed twenty feet', () => {
+    const { log, castingId } = aloft();
+    const out = activateSpell(
+      fold('seed', log),
+      CASTER,
+      { castingId, targets: [TARGET], altitude: 25 },
+      supply('too-far'),
+    );
+    expect(refusal(out)).toBe('altitude_beyond_the_cap');
+  });
+
+  /** And a Magic action that moves nobody anywhere is not what the book offers. */
+  it('refuses a change of nothing, and one the lattice cannot hold', () => {
+    const { log, castingId } = aloft();
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', log),
+          CASTER,
+          { castingId, targets: [TARGET], altitude: 0 },
+          supply('nothing'),
+        ),
+      ),
+    ).toBe('bad_altitude');
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', log),
+          CASTER,
+          { castingId, targets: [TARGET], altitude: 7 },
+          supply('odd'),
+        ),
+      ),
+    ).toBe('bad_altitude');
+  });
+
+  /** "which must remain within the spell's range" — sixty feet from the caster. */
+  it('refuses a rise that carries the target out of the spell’s range', () => {
+    const started = aloft();
+    const castingId = started.castingId;
+    let log = started.log;
+    for (const seed of ['a', 'b']) {
+      const out = unwrap(
+        activateSpell(
+          fold('seed', log),
+          CASTER,
+          { castingId, targets: [TARGET], altitude: 20 },
+          supply(seed),
+        ),
+        `raising (${seed})`,
+      );
+      log = [...log, ...out.events];
+    }
+    // Sixty feet up and ten along: exactly the Range, and the next twenty is
+    // past it.
+    expect(height(fold('seed', log), TARGET)).toBe(60);
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', log),
+          CASTER,
+          { castingId, targets: [TARGET], altitude: 20 },
+          supply('beyond'),
+        ),
+      ),
+    ).toBe('out_of_range');
+  });
+
+  /** A Magic action that named no distance has not said what it does. */
+  it('refuses an action that names no distance at all', () => {
+    const { log, castingId } = aloft();
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', log),
+          CASTER,
+          { castingId, targets: [TARGET] },
+          supply('silent'),
+        ),
+      ),
+    ).toBe('altitude_required');
+  });
+
+  /**
+   * And the symmetry the stated facts of a casting already keep, on the two
+   * facts a later action states: a distance through an action that moves
+   * nobody up or down, and a bearing through one that re-aims nothing.
+   */
+  it('refuses each fact through the action that does not ask for it', () => {
+    const { log, castingId } = aloft();
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', log),
+          CASTER,
+          { castingId, targets: [TARGET], altitude: 20, towards: { x: 200, y: 100, z: 0 } },
+          supply('turning-a-lift'),
+        ),
+      ),
+    ).toBe('not_directional');
+  });
+
+  /** The action moves the creature this casting is holding up, and nobody else. */
+  it('refuses a creature the casting is not holding aloft', () => {
+    const { log, castingId } = aloft();
+    const out = activateSpell(
+      fold('seed', log),
+      CASTER,
+      { castingId, targets: [BYSTANDER], altitude: 20 },
+      supply('wrong'),
+    );
+    expect(refusal(out)).toBe('not_held_aloft');
+  });
+
+  /**
+   * **And "not holding" is asked of the id exactly**, which is a distinction
+   * that costs nothing until a campaign passes ten castings.
+   *
+   * A `GrantedLift` is filed under `Levitate#cast:N`, so a reader that asked
+   * whether the source *contained* `cast:1` would answer yes for `cast:11`,
+   * `cast:12` and every one after them — and the first casting of the night
+   * would be able to raise and lower a creature somebody else's eleventh is
+   * holding. The bystander's hold is written into the log rather than cast,
+   * because reaching an eleventh casting id is not what is being tested: the
+   * fact under test is that `cast:1` cannot move a creature `cast:11` holds.
+   */
+  it('refuses a creature another casting is holding, whatever its id looks like', () => {
+    const { log, castingId } = aloft();
+    expect(castingId).toBe('cast:1');
+    const elsewhere: readonly GameEvent[] = [
+      ...log,
+      { type: 'creature-lifted', id: BYSTANDER, lift: { source: 'Levitate#cast:11' } },
+    ];
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', elsewhere),
+          CASTER,
+          { castingId, targets: [BYSTANDER], altitude: 20 },
+          supply('prefix'),
+        ),
+      ),
+    ).toBe('not_held_aloft');
+  });
+
+  /**
+   * "in either direction." Lowering the creature to the ground is not the
+   * spell ending: it is still running, still holding them, and a later turn
+   * may take them back up.
+   */
+  it('lowers the target to the ground and goes on holding it', () => {
+    const { log, castingId } = aloft();
+    const down = unwrap(
+      activateSpell(
+        fold('seed', log),
+        CASTER,
+        { castingId, targets: [TARGET], altitude: -20 },
+        supply('down'),
+      ),
+      'lowering the target',
+    );
+    const grounded = [...log, ...down.events];
+    const after = fold('seed', grounded);
+    expect(height(after, TARGET)).toBe(0);
+    expect(after.creatures[TARGET]!.lifts).toHaveLength(1);
+    expect(after.ongoing[castingId]).toBeDefined();
+    // And a later turn takes them back up.
+    const up = unwrap(
+      activateSpell(
+        fold('seed', grounded),
+        CASTER,
+        { castingId, targets: [TARGET], altitude: 20 },
+        supply('up-again'),
+      ),
+      'raising it again',
+    );
+    expect(height(fold('seed', [...grounded, ...up.events]), TARGET)).toBe(20);
+  });
+
+  /**
+   * "When the spell ends, the target floats gently to the ground if it is
+   * still aloft" — from whatever altitude the Magic action left it at, and
+   * still not a fall.
+   */
+  it('floats a raised creature down when the casting ends, with no fall', () => {
+    const { log, castingId } = aloft();
+    const up = unwrap(
+      activateSpell(
+        fold('seed', log),
+        CASTER,
+        { castingId, targets: [TARGET], altitude: 20 },
+        supply('up'),
+      ),
+      'raising the target',
+    );
+    const higher = [...log, ...up.events];
+    expect(height(fold('seed', higher), TARGET)).toBe(40);
+
+    const ended = unwrap(
+      endConcentration(fold('seed', higher), CASTER, 'voluntary'),
+      'letting go',
+    );
+    const after = fold('seed', [...higher, ...ended]);
+    expect(height(after, TARGET)).toBe(0);
+    expect(after.creatures[TARGET]!.falling).toBeNull();
+    expect(after.creatures[TARGET]!.conditions.instances).toHaveLength(0);
+  });
+});
+
+describe('Gust of Wind: the Bonus Action that re-aims the Line', () => {
+  /** A Line blown due east, in the hall with no fight in it. */
+  const blowing = () => {
+    const out = unwrap(
+      resolveSpell(
+        fold('seed', HIGH),
+        CASTER,
+        { spellId: 'gust-of-wind', targets: [], towards: { x: 200, y: 100, z: 0 }, slotLevel: 2 },
+        supply('wind', 40),
+      ),
+      'Gust of Wind',
+    );
+    return { log: [...HIGH, ...out.events], castingId: out.castingId! };
+  };
+
+  /**
+   * SRD: "As a Bonus Action on your later turns, you can change the direction
+   * in which the Line blasts from you." The direction is the one fact about a
+   * persistent area that cannot be reconstructed, so the record is where the
+   * change shows.
+   */
+  it('re-aims the Line, and the running record says which way', () => {
+    const { log, castingId } = blowing();
+    expect(fold('seed', log).ongoing[castingId]!.towards).toEqual({ x: 200, y: 100, z: 0 });
+
+    const turned = unwrap(
+      activateSpell(
+        fold('seed', log),
+        CASTER,
+        { castingId, targets: [], towards: { x: 100, y: 200, z: 0 } },
+        supply('turn'),
+      ),
+      're-aiming the Line',
+    );
+    expect(fold('seed', [...log, ...turned.events]).ongoing[castingId]!.towards).toEqual({
+      x: 100,
+      y: 200,
+      z: 0,
+    });
+  });
+
+  /**
+   * **And nothing is rolled by the turning**, which is what the 2024 text
+   * says: the opening save is "Each creature in the Line must succeed on a
+   * Strength saving throw" at the casting, and the only save that recurs is
+   * "A creature that ends its turn in the Line must make the same save". The
+   * Bonus Action prints neither, so re-aiming is the direction changing and
+   * nothing else.
+   */
+  it('rolls nothing and moves nobody by turning', () => {
+    const { log, castingId } = blowing();
+    const turned = unwrap(
+      activateSpell(
+        fold('seed', log),
+        CASTER,
+        { castingId, targets: [], towards: { x: 100, y: 200, z: 0 } },
+        supply('turn'),
+      ),
+      're-aiming the Line',
+    );
+    expect(turned.events.some((e) => e.type === 'roll-recorded')).toBe(false);
+    expect(turned.events.some((e) => e.type === 'creature-moved')).toBe(false);
+  });
+
+  /** And the other half of the same symmetry: a Line has no altitude to change. */
+  it('refuses a distance through the action that re-aims rather than lifts', () => {
+    const { log, castingId } = blowing();
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', log),
+          CASTER,
+          { castingId, targets: [], towards: { x: 100, y: 200, z: 0 }, altitude: 20 },
+          supply('lifting-a-line'),
+        ),
+      ),
+    ).toBe('no_altitude_clause');
+  });
+
+  /**
+   * **And the turning is what the end-of-turn save then reads**, which is the
+   * whole of what re-aiming is worth: "A creature that ends its turn in the
+   * Line must make the same save" is the spell's own `areaTrigger`, it catches
+   * whoever the Line is over at that moment, and the bearing it reads is the
+   * one the record now holds.
+   *
+   * Driven in the fight, because a turn has to end for the sentence to mean
+   * anything — and driven both ways round, so what is asserted is the
+   * difference the Bonus Action made rather than a save that would have
+   * happened anyway.
+   */
+  it('turns the Line off a creature that would otherwise have saved again', () => {
+    const cast = () =>
+      unwrap(
+        resolveSpell(
+          fold('seed', SETUP),
+          CASTER,
+          { spellId: 'gust-of-wind', targets: [], towards: { x: 200, y: 100, z: 0 }, slotLevel: 2 },
+          supply('east', 40),
+        ),
+        'Gust of Wind blowing east',
+      );
+
+    // The Line still points east, and the target standing in it is asked
+    // again when its turn ends.
+    const east = [...SETUP, ...cast().events];
+    const throughTarget = (log: readonly GameEvent[]): readonly string[] => {
+      let at = log;
+      const labels: string[] = [];
+      for (const seed of ['t1', 't2']) {
+        const turn = unwrap(resolveTurn(fold('seed', at), supply(seed, 40)), 'a turn');
+        at = [...at, ...turn.events];
+        for (const event of turn.events) {
+          if (event.type === 'roll-recorded') labels.push(event.label);
+        }
+      }
+      return labels;
+    };
+    expect(throughTarget(east).join(' | ')).toContain('vs Gust of Wind');
+
+    // The same fight, with the Bonus Action spent turning the Line north
+    // before anybody's turn ends. Nobody is standing north of the caster.
+    const turned = unwrap(
+      activateSpell(
+        fold('seed', east),
+        CASTER,
+        { castingId: cast().castingId!, targets: [], towards: { x: 100, y: 200, z: 0 } },
+        supply('north'),
+      ),
+      're-aiming the Line north',
+    );
+    expect(throughTarget([...east, ...turned.events])).toEqual([]);
+  });
+
+  /** A Bonus Action spent turning the Line nowhere is not what the book offers. */
+  it('refuses a re-aim that names no direction', () => {
+    const { log, castingId } = blowing();
+    expect(
+      refusal(activateSpell(fold('seed', log), CASTER, { castingId, targets: [] }, supply('none'))),
+    ).toBe('direction_required');
   });
 });
 

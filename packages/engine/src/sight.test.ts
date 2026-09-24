@@ -259,7 +259,7 @@ describe('SRD Darkvision, the spell', () => {
     const state = fold('seed', hall(made(WIZ, wizard()), WIZ));
     expect(sensesOf(state, ALLY)).toEqual([]);
     const cast = unwrap(
-      resolveSpell(state, WIZ, { spellId: 'darkvision', targets: [ALLY], slotLevel: 2 }, supply('dv')),
+      resolveSpell(state, WIZ, { spellId: 'darkvision', targets: [ALLY], slotLevel: 2, willing: [ALLY] }, supply('dv')),
       'darkvision',
     );
     const seeing = run(state, cast.events);
@@ -292,7 +292,7 @@ describe('SRD Darkvision, the spell', () => {
     );
     const before = sensesOf(state, ALLY);
     const cast = unwrap(
-      resolveSpell(state, WIZ, { spellId: 'darkvision', targets: [ALLY], slotLevel: 2 }, supply('dv')),
+      resolveSpell(state, WIZ, { spellId: 'darkvision', targets: [ALLY], slotLevel: 2, willing: [ALLY] }, supply('dv')),
       'darkvision',
     );
     const feet = sensesOf(run(state, cast.events), ALLY).find((s) => s.sense === 'darkvision')?.feet;

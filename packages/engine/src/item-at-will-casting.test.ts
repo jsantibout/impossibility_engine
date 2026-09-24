@@ -305,7 +305,7 @@ describe('an item may narrow the spell it casts to whoever is holding it', () =>
     const out = resolveSpell(
       fold('seed', wearing(STEP_RING)),
       WIELDER,
-      { spellId: 'water-walk', targets: [ALLY], item: STEP_RING },
+      { spellId: 'water-walk', targets: [ALLY], willing: [ALLY], item: STEP_RING },
       supply('narrowed'),
     );
     expect(isErr(out) && out.code).toBe('targets_only_yourself');
@@ -398,7 +398,7 @@ describe('an item may narrow the spell it casts to whoever is holding it', () =>
     const refused = resolveSpell(
       fold('seed', worn),
       WIELDER,
-      { spellId: 'water-walk', targets: [ALLY], item: STEP_WAND },
+      { spellId: 'water-walk', targets: [ALLY], willing: [ALLY], item: STEP_WAND },
       supply('costly'),
     );
     expect(isErr(refused) && refused.code).toBe('targets_only_yourself');

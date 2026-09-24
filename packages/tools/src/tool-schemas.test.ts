@@ -191,8 +191,13 @@ describe('toolSchemas', () => {
     // one tool both surfaces publish — grew both by the same amount. And
     // again for the options track: `cast_spell.option`, the tenth stated
     // fact, one field on one tool, both surfaces.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(118895);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(143025);
+    // And again for the consent track, twice. First `cast_spell.willing`, the
+    // ninth stated fact, on both surfaces and by the same 719 characters; then
+    // the two a **later action** states — `activate_spell.altitude` and the
+    // three spellings of `towards` — by the same 1,611. The tool count is
+    // unmoved by either: both are fields on calls that already existed.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(121225);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(145355);
   });
 });
 

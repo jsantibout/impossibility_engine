@@ -20,6 +20,7 @@ import { LONG_CASTING_SECONDS } from './spells.js';
 import {
   conditionRiderOf,
   CREATURE_TYPES,
+  DIRECTIONAL_AREAS,
   DM_DECIDES,
   modifierRidersOf,
   persists as castingPersists,
@@ -2990,6 +2991,21 @@ function checkEffect(
     // measured on, and both are refused at zero: a jump of nothing is not a
     // jump, and one that costs nothing is a sentence the book does not print
     // and would hand a creature an unlimited number of free leaps a turn.
+    // SRD Levitate: "change the target's altitude by up to 20 feet in either
+    // direction." One field, and the same lattice rule the jump above keeps: a
+    // cap of nothing is an action spent on nothing, and a cap the 5-foot cubes
+    // cannot express would refuse every honest request made against it.
+    case 'change-altitude': {
+      if (!Number.isInteger(effect.upTo) || effect.upTo <= 0 || effect.upTo % 5 !== 0) {
+        found.push({
+          field: `${path}.upTo`,
+          code: 'bad_altitude_cap',
+          reason: `an altitude changes by a whole number of 5-foot spaces, not ${String(effect.upTo)}`,
+        });
+      }
+      return;
+    }
+
     case 'jump-allowance': {
       if (!Number.isInteger(effect.feet) || effect.feet <= 0 || effect.feet % 5 !== 0) {
         found.push({
@@ -4374,6 +4390,37 @@ export function checkSpellDefinition(
     });
   }
 
+  /*
+   * SRD Mage Armor's "a **willing** creature", held to two rules.
+   *
+   * The value is `true` and nothing else, for the reason every other clause of
+   * this shape is: absence is how a spell says it does not print the word.
+   *
+   * **And it is read where a caller names somebody**, which is the rule that
+   * matters. `namedTargets` is the one seam that asks whose consent this is,
+   * so the clause on a spell that names nobody at all — an area picking its
+   * own catch, a Range: Self utility — would be a sentence the author believed
+   * they had said and nothing ever reads. `area_filter_without_area`'s reason
+   * with the sides swapped, and the same refusal rather than half a rule.
+   */
+  const willing = definition.targets.willing;
+  if (willing !== undefined) {
+    if (willing !== true) {
+      found.push({
+        field: 'targets.willing',
+        code: 'malformed_field',
+        reason: 'a spell either asks its targets to consent or does not; the only value is true',
+      });
+    } else if (definition.targets.count === 0 && definition.targets.unlimited !== true) {
+      found.push({
+        field: 'targets.willing',
+        code: 'consent_without_a_target',
+        reason:
+          '`willing` is asked of each creature a caller names, and this spell names nobody, so nothing would ever read it',
+      });
+    }
+  }
+
   // — geometry —————————————————————————————————————————————————————————————
 
   // One says the geometry chooses who is caught; the other says it bounds a
@@ -5077,7 +5124,12 @@ export function checkSpellDefinition(
           'a later action measures from the caster or from the point the casting holds, never both',
       });
     }
-    if (activation.range === undefined && definition.origin === undefined && activation.movesArea === undefined) {
+    if (
+      activation.range === undefined &&
+      definition.origin === undefined &&
+      activation.movesArea === undefined &&
+      activation.redirects !== true
+    ) {
       found.push({
         field: 'activation.range',
         code: 'activation_reaches_nothing',
@@ -5108,12 +5160,42 @@ export function checkSpellDefinition(
     );
     // SRD Moonbeam's later Magic action *is* the move; every other activation
     // does something. One that does neither spends an action on nothing.
-    if (resolves && activation.effects.length === 0 && activation.movesArea === undefined) {
+    if (
+      resolves &&
+      activation.effects.length === 0 &&
+      activation.movesArea === undefined &&
+      activation.redirects !== true
+    ) {
       found.push({
         field: 'activation.effects',
         code: 'activation_does_nothing',
         reason: 'an activation with no effects must be the one whose whole content is moving the area',
       });
+    }
+    /*
+     * SRD Gust of Wind's "you can change the direction in which the Line
+     * blasts from you", held to what the sentence needs to mean anything: a
+     * shape to turn, and one with a direction to be wrong about.
+     *
+     * A Sphere, a Cylinder and an Emanation have no bearing at all, so a
+     * re-aim of one would write a bearing the geometry never reads — the
+     * `area_filter_without_area` reading, applied to the field that says which
+     * way rather than to the one that says who is caught.
+     */
+    if (activation.redirects === true) {
+      if (definition.area === undefined) {
+        found.push({
+          field: 'activation.redirects',
+          code: 'redirects_without_area',
+          reason: 'an action that re-aims the spell’s area needs the spell to have one',
+        });
+      } else if (!DIRECTIONAL_AREAS.has(definition.area.kind)) {
+        found.push({
+          field: 'activation.redirects',
+          code: 'redirects_without_a_direction',
+          reason: `a ${definition.area.kind} has no direction to change; only a Cone, a Cube or a Line is aimed`,
+        });
+      }
     }
     if (!lasts && !definition.concentration) {
       found.push({
@@ -5471,9 +5553,11 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       // The two clause rules a *definition's* list has and a list hosted
       // anywhere else does not: both ask which of the lists the effect is in.
       checkFoughtClause(effect as object, entry.kind, where, at, found);
+      checkUnwillingSave(effect as object, entry.kind, where, at, found);
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkAreaBoundLifetime(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
+      checkAltitudePlacement(entry.kind, where, at, found);
       checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
@@ -5815,6 +5899,72 @@ function checkBranchPlacement(
 }
 
 /**
+ * Where SRD Levitate's "An **unwilling** creature that succeeds on a
+ * Constitution saving throw is unaffected" may be written.
+ *
+ * {@link checkFoughtClause}'s three rules, one for one, because it is the same
+ * kind of clause over the same kind of stated fact — the difference is only
+ * that this one *removes* the roll where the other changes it.
+ *
+ * **On a host that rolls a saving throw**, because the sentence is about who
+ * is offered one: an `attack` or a `heal` has none to withhold, and a field
+ * quietly ignored is an author who thinks they said something.
+ *
+ * **In the casting's own effect list, and nowhere nested.** Consent is stated
+ * once, at the casting, and pinned for a settlement to read back. An area
+ * trigger fires a minute later off an `OngoingSpell` that carries no such
+ * list, and an activation the same — so a clause written there would go unread
+ * and every creature the trigger caught would be saving when the book says
+ * some of them should not.
+ *
+ * The value is `true` and nothing else, for {@link checkFoughtClause}'s reason.
+ */
+function checkUnwillingSave(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const stated = (effect as { unlessWilling?: unknown }).unlessWilling;
+  if (stated === undefined) return;
+
+  if (where !== 'effects') {
+    found.push({
+      field: `${path}.unlessWilling`,
+      code: 'consent_outside_the_casting',
+      reason:
+        'the caster states who consents at the casting, so only the casting’s own saving throw can read it',
+    });
+    return;
+  }
+  if (kind !== 'save') {
+    found.push({
+      field: `${path}.unlessWilling`,
+      code: 'consent_without_save',
+      reason: 'SRD offers the saving throw to an unwilling creature, and this effect rolls none',
+    });
+    return;
+  }
+  if (stated !== true) {
+    found.push({
+      field: `${path}.unlessWilling`,
+      code: 'malformed_field',
+      reason: 'a spell either prints the clause or does not; the only value is true',
+    });
+  }
+  // **And a verdict about a die nobody threw is already impossible**, which is
+  // why there is no third rule here. SRD Zone of Truth's `recordsOutcome`
+  // keeps "whether a creature **succeeds or fails** on this save", and a
+  // creature that consented was never offered one — but the two clauses
+  // exclude each other from opposite ends: a verdict may be kept only in a
+  // list that fires off a record that already exists, and this may be read
+  // only in the casting's own list, which is the one list a verdict may not be
+  // kept in. A guard for the pair would be unreachable code claiming to be a
+  // rule; `spell-schema.test.ts` asserts the exclusion instead.
+}
+
+/**
  * Where a save's verdict may be said to be kept.
  *
  * **On a host that rolls a saving throw**, which is {@link checkFoughtClause}'s
@@ -5905,6 +6055,33 @@ function checkTeleportPlacement(
     code: 'teleport_outside_the_casting',
     reason:
       'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
+  });
+}
+
+/**
+ * Where a `change-altitude` may be written, which is exactly one list.
+ *
+ * {@link checkTeleportPlacement}'s mirror, and the mirroring is the point:
+ * that kind reads a fact the **casting** stated, so it is refused anywhere but
+ * the casting's own list; this one reads a fact the **activation** states —
+ * SRD Levitate's "You can change the target's altitude by up to 20 feet in
+ * either direction on your turn" — so it is refused anywhere but the
+ * activation's. A casting has no such request to read and an area trigger
+ * firing at a turn boundary has none either, so either would move a creature
+ * by an amount nobody named.
+ */
+function checkAltitudePlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'change-altitude' || where === 'activation.effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'altitude_outside_an_activation',
+    reason:
+      'the caster states how far and which way when they take the later action, so only an activation’s own effect list can read it',
   });
 }
 
@@ -6863,6 +7040,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'damage-reduction',
   'fall-ward',
   'jump-allowance',
+  'change-altitude',
   'attack-rider',
   'weapon-rider',
   'weapon-attack',

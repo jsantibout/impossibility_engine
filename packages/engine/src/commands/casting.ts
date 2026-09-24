@@ -567,6 +567,21 @@ export interface CastingPlan {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Which of this casting's targets consent to it.
+   *
+   * The ninth fact stated at the casting, beside the third and for the same
+   * reason: SRD Levitate offers its Constitution save to an **unwilling**
+   * creature only, and settlement takes no fresh request — so a declaration
+   * made over a willing ally must settle without the die the book does not
+   * give them.
+   *
+   * Sorted by `willingFor` and **elided when empty**, which is where it
+   * follows the designation rather than {@link CastingPlan.fought}: neither
+   * consent clause demands an answer, so an empty list and no list are the
+   * same casting.
+   */
+  readonly willing?: readonly CharacterId[];
+  /**
    * Creatures the caster designated unaffected, for a spell that offers it.
    *
    * Sorted and non-empty, or absent. Normalised once, where the request is
@@ -978,6 +993,7 @@ function castSpellWith(
         ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
         ...(command.hold.option === undefined ? {} : { option: command.hold.option }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
+        ...(command.hold.willing === undefined ? {} : { willing: command.hold.willing }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
         // And the mode an option hung on one target's saves, and whether the
         // casting can be perceived at all — the two marks a settlement and the

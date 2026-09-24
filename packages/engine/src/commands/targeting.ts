@@ -57,6 +57,7 @@ import {
   type SpellArea,
   type SpellDefinition,
   statesFoughtFact,
+  statesWillingFact,
   targetCountFor,
   teleportOf,
   weaponRiderOf,
@@ -554,6 +555,38 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly form?: string;
   /**
+   * Which of this casting's targets consent to it.
+   *
+   * SRD Mage Armor: "You touch a **willing** creature who isn't wearing
+   * armor"; SRD Levitate, from the other end: "An **unwilling** creature that
+   * succeeds on a Constitution saving throw is unaffected." Spell after spell
+   * in reach prints one sentence or the other, and the fact behind both is
+   * one the engine holds nothing to derive: allegiance is a different question
+   * — a Charmed ally is still on the party's side, an enemy nobody has come to
+   * blows with is not — and "the cleric's friend would of course agree" is a
+   * table's assumption rather than a rule in the book.
+   *
+   * The ninth fact a casting states rather than derives, and the shape of the
+   * eight before it: **refused** for a spell that prints neither clause, and
+   * refused for naming a creature this casting is not aimed at. What it is
+   * *not* is required — the two clauses want it at two different moments and
+   * neither demands an answer:
+   *
+   * | | |
+   * |---|---|
+   * | `TargetRule.willing` | a gate: a target nobody named comes back `needs-context`, before a slot is spent |
+   * | `save.unlessWilling` | a die: a target nobody named is unwilling, which is the book's own default, and rolls the save |
+   *
+   * **A list, because the SRD asks it of the creature.** An upcast Water
+   * Breathing names ten, and a Heroism cast on the caster and on somebody who
+   * has not answered has two answers. `willingFor` sorts it.
+   *
+   * **The caster is never named and never has to be**: choosing to cast a
+   * spell on yourself is the consent, and a casting that lists its own caster
+   * beside a target list they are in is simply saying something already true.
+   */
+  readonly willing?: readonly CharacterId[];
+  /**
    * How to pay for it.
    *
    * **Default:** a slot when `slotLevel` is given, and nothing at all for a
@@ -750,6 +783,27 @@ export const foughtFor = (request: {
   readonly fought?: readonly CharacterId[];
 }): readonly CharacterId[] | undefined =>
   request.fought === undefined ? undefined : [...request.fought].sort();
+
+/**
+ * The creatures a casting said consented, normalised once.
+ *
+ * Sorted for {@link foughtFor}'s reason: the answer reaches a declaration, so
+ * two castings that mean the same thing have to fold to the same bytes.
+ *
+ * **And elided when empty**, which is where it parts company with the list
+ * above it and joins the designation. An empty `fought` is an answer to a
+ * question the spell **insisted** on, so absence and emptiness are two
+ * different castings; neither consent clause insists on anything, so "nobody
+ * consented" and "nobody was named" are the same casting and produce the same
+ * outcomes — the save is rolled, or the gate asks. A record that kept them
+ * apart would be two spellings of one fact.
+ */
+export const willingFor = (request: {
+  readonly willing?: readonly CharacterId[];
+}): readonly CharacterId[] | undefined =>
+  request.willing === undefined || request.willing.length === 0
+    ? undefined
+    : [...request.willing].sort();
 
 /**
  * A casting that has already been paid for and is waiting to be let go.
@@ -995,6 +1049,48 @@ export function declaredFacts(
     return err(
       'no_fought_clause',
       `${definition.name} does not change its save for a creature you are fighting; which of them you are fighting is not a fact it asks for`,
+    );
+  }
+
+  // — who among them consents ——————————————————————————————————————————————
+  //
+  // The ninth stated fact. It takes **half** the symmetry the eight before it
+  // take: refused where the spell prints neither consent clause, and *not*
+  // required where it prints one. SRD Mage Armor cast on its own caster states
+  // nothing and is right to — the caster consents by casting — and SRD
+  // Levitate cast at a goblin states nothing either, because "unwilling" is
+  // the book's own default and the die is what the sentence gives them. What
+  // is missing where the gate applies is asked for at the target, in
+  // `namedTargets`, and is `needs-context` rather than a refusal.
+  //
+  // The three checks beside it are the fought list's, because it is the same
+  // kind of list: creatures the caller named, which the engine validates and
+  // never invents. The third is this fact's own — consent is said **about a
+  // creature this casting is aimed at**, so a name that is not in the target
+  // list is a caller who has lost track of which casting they are describing,
+  // and quietly ignoring it would be a caller who thinks they said something.
+  if (statesWillingFact(definition)) {
+    for (const who of request.willing ?? []) {
+      if (creatureOf(state, who) === null) return unknownCreature(who);
+    }
+    if (new Set(request.willing ?? []).size !== (request.willing ?? []).length) {
+      return err(
+        'duplicate_willing_target',
+        `${definition.name} may not be told the same creature consents twice`,
+      );
+    }
+    const aimed = new Set(request.targets);
+    const strangers = (request.willing ?? []).filter((who) => !aimed.has(who));
+    if (strangers.length > 0) {
+      return err(
+        'willing_not_a_target',
+        `${definition.name} is not being cast on ${strangers.join(', ')}, so whether they consent is not a fact about this casting`,
+      );
+    }
+  } else if (request.willing !== undefined) {
+    return err(
+      'no_willing_clause',
+      `${definition.name} neither asks its targets to consent nor offers a save to a creature that does not; who is willing is not a fact it asks for`,
     );
   }
 
@@ -1991,6 +2087,45 @@ export function namedTargets(
           `${definition.name} is cast on a creature who is not wearing armor; ${target} is wearing ${worn.name}`,
         );
       }
+    }
+
+    // SRD Mage Armor: "You touch a **willing** creature". The gate, and the
+    // one target clause that is a **question** rather than an answer.
+    //
+    // A creature type nobody stated is asked for because the fact is a thin
+    // record the table keeps; armour, size and falling are the engine's own to
+    // read, so each of those is a plain no. Consent is a fourth thing: nothing
+    // anywhere holds it, nothing could, and there is no declaration that would
+    // — so this is homework the **caller** does, by sending the casting again
+    // with the creature named. `route` is the kind for that, which is the
+    // reading SRD Alert's "one willing ally" already takes in `declarations.ts`
+    // and the reason `cast_spell` answers it on itself.
+    //
+    // **Never assumed.** The engine holds no rule that an ally consents: side
+    // is a different question and a table's habit is not a sentence in the
+    // book, so a silence here is asked about rather than read as a yes. And
+    // never refused either — the fact is merely missing, which is CLAUDE.md's
+    // rule 6 and the difference between a door and a wall.
+    //
+    // The caster is exempt because casting it *is* the consent.
+    if (
+      definition.targets.willing === true &&
+      target !== casterId &&
+      request.willing?.includes(target) !== true
+    ) {
+      return needsContext(
+        'consent_not_stated',
+        `${definition.name} is cast on a willing creature and nobody has said whether ${target} consents; send the same casting naming them willing`,
+        [
+          {
+            kind: 'route',
+            subject: target,
+            need: `whether ${target} consents to ${definition.name}`,
+            because: `${definition.name} is cast on a willing creature, and consent is the table’s fiction rather than anything the engine holds — allegiance is a different question`,
+            satisfyWith: `resolveSpell again with ${target} in its willing list`,
+          },
+        ],
+      );
     }
 
     // SRD Animal Messenger: "A **Tiny** Beast of your choice". A size the

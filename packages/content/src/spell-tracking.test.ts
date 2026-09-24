@@ -8,7 +8,7 @@ import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
-import { dropsAnObject } from '@ie/engine';
+import { dropsAnObject, statesWillingFact } from '@ie/engine';
 import { dmDecisionsIn } from '@ie/engine';
 import {
   advanceTime,
@@ -268,6 +268,7 @@ const cast = (
   // The eighth stated fact: a spell aimed at an object is refused until the
   // caster names which, and one that touches none is refused for naming one.
   const object = heats ? { object: HEATED } : {};
+
   // **A spell that fills an area needs somewhere to put it**, and a Cone, a
   // Cube or a Line needs somewhere to point it as well. No tracked definition
   // carries one — a tracked spell resolves nothing, so there is nothing for a
@@ -346,6 +347,15 @@ const cast = (
               : {}),
           }),
       ...over,
+      // And the ninth, **after** the override rather than before it: a spell
+      // whose target rule gates on consent asks about every creature nobody
+      // has spoken for, so the sweep states whoever this casting is actually
+      // aimed at — which a test that names its own targets has just changed.
+      // What this file claims is that each definition is *cast* rather than
+      // refused, not who agreed to it.
+      ...(statesWillingFact(definition)
+        ? { willing: (over as { readonly targets?: readonly CharacterId[] }).targets ?? targets }
+        : {}),
     },
     supply(),
   );
@@ -1960,9 +1970,11 @@ describe('every spell this batch added is cast for real', () => {
    * why, and the assertion below is the positive form of it. Aid was the
    * first; Expeditious Retreat is the second, once `ActionRule` grew the
    * member that hands a turn an extra action and its nineteen words became
-   * two effects.
+   * two effects. Resistance is the third: its one remaining sentence was "You
+   * touch a **willing** creature", and `TargetRule.willing` is the field that
+   * reads it, so the cantrip now prints nothing the engine leaves alone.
    */
-  const FINISHED_OUTRIGHT: readonly string[] = ['aid', 'expeditious-retreat'];
+  const FINISHED_OUTRIGHT: readonly string[] = ['aid', 'expeditious-retreat', 'resistance'];
 
   /**
    * The third end of a row, and it is a different claim from either of the

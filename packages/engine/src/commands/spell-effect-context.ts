@@ -225,6 +225,29 @@ export interface EffectContext {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Which of this casting's targets consent to it, where the spell asks.
+   *
+   * Absent where nobody was named, which is the same casting as a list that
+   * named nobody — see `willingFor`. Read by the saving throw SRD Levitate
+   * offers an **unwilling** creature and by nothing else: the consent gate the
+   * other clause writes is checked before a slot is spent and never reaches a
+   * resolver.
+   */
+  readonly willing?: readonly CharacterId[];
+  /**
+   * How far a `change-altitude` effect moves the creature, signed: positive is
+   * up and negative is down.
+   *
+   * Stated at the **activation** rather than at the casting, which is what
+   * makes it the one request fact a later action carries: SRD Levitate's "You
+   * can change the target's altitude by up to 20 feet in either direction on
+   * your turn" is a decision taken on the turn it is taken, and the definition
+   * prints only the cap. Refused at the command when the effect asks for one
+   * and none was given, so a resolver reaching here without it is the command
+   * layer and the definition disagreeing.
+   */
+  readonly altitude?: number;
+  /**
    * Where a `teleport` effect puts its target.
    *
    * Stated at the casting and refused there when a teleporting spell names

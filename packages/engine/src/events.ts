@@ -1882,6 +1882,33 @@ export type GameEvent =
       readonly to: Point;
     }
   /**
+   * The directional area an ongoing spell blows from its caster now points
+   * somewhere else.
+   *
+   * SRD Gust of Wind: "As a Bonus Action on your later turns, you can change
+   * the direction in which the Line blasts from you." Resolved history like
+   * its neighbour above: by the time this is written the Bonus Action has been
+   * spent and the caster has named the bearing.
+   *
+   * **Its own event rather than a second reading of `spell-origin-moved`**,
+   * because the two change different halves of one area and only one of them
+   * has a consequence. Moving a point sweeps the shape across the floor and
+   * the fold asks who it arrived on; turning a Line that blasts *from the
+   * caster* moves nothing at all — the SRD prints no save on the turning, and
+   * the one that recurs is the spell's own end-of-turn trigger, which reads
+   * this bearing when the moment comes. So this seam writes the fact and
+   * raises nothing, and the guard that says so is the absence of a sweep here
+   * rather than a comment.
+   *
+   * It carries the point aimed at rather than an angle, exactly as the casting
+   * that laid the area did, so the two readings of "which way" are one.
+   */
+  | {
+      readonly type: 'spell-aim-changed';
+      readonly castingId: string;
+      readonly towards: Point;
+    }
+  /**
    * An effect a persistent area owed a creature has been dealt.
    *
    * Resolved history: the save was rolled and the damage or the condition
