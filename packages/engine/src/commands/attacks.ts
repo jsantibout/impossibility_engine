@@ -57,6 +57,7 @@ import {
   multiattackOf,
   printedAttackOf,
   readPrintedRiders,
+  type PrintedChargeGate,
   type PrintedHitGate,
   statedBonusActionsUsed,
   unreadActionsOf,
@@ -400,10 +401,14 @@ function statedInPlay(
  * Advantage" is a fact about a roll that has not happened yet. So the swing
  * asks twice, at the two moments the two sentences are about.
  *
- * Nothing is reported to the table here. Both gates are facts the engine holds
- * outright — a roll's own mode and half a creature's Hit Points — so there is
- * no absence to own up to, which is the only thing the other reader's
- * `unverified` carries once a clause has been read.
+ * **Three of the four gates hold no absence and the fourth does.** A roll's own
+ * mode, half a creature's Hit Points and a grapple the engine filed are facts
+ * it holds outright, so there is nothing to own up to for any of them. The
+ * charge is not: outside a fight nothing keeps a turn, so nothing records the
+ * move that preceded the swing, and a Goat's smaller die going unrolled is a
+ * rule that did not fire rather than a rule that checked and found nothing.
+ * This reader owes the table the sentence its neighbour owes, which is why it
+ * carries an {@link PrintedDamageOnASwing.unverified} at all.
  */
 interface PrintedDamageOnASwing {
   /** SRD's "**plus** 2 (1d4) Slashing damage": a component of its own. */
@@ -413,9 +418,19 @@ interface PrintedDamageOnASwing {
    * its printed damage, or null where nothing replaces it.
    */
   readonly instead: readonly StatedDamage[] | null;
+  /**
+   * What this reader could not settle, in words a table can act on.
+   *
+   * Empty for every gate but the charge, and empty for that one inside a fight
+   * — see {@link chargeRun}. SRD Goat and SRD Giant Seahorse are the two lines
+   * whose charge gates a damage clause **and nothing else**, so without this
+   * channel a Goat swung outside combat would roll the smaller die and say
+   * nothing whatever about why.
+   */
+  readonly unverified: readonly string[];
 }
 
-const NO_PRINTED_DAMAGE: PrintedDamageOnASwing = { extra: [], instead: null };
+const NO_PRINTED_DAMAGE: PrintedDamageOnASwing = { extra: [], instead: null, unverified: [] };
 
 function printedDamageOnASwing(
   state: GameState,
@@ -427,6 +442,7 @@ function printedDamageOnASwing(
   if (printed?.rider == null) return NO_PRINTED_DAMAGE;
 
   const extra: ExtraDamage[] = [];
+  const unverified: string[] = [];
   let instead: readonly StatedDamage[] | null = null;
   // **Every damage clause the line prints, not the first one.** SRD Swarm of
   // Venomous Snakes rolls less when it is Bloodied *and* adds poison in the
@@ -437,7 +453,18 @@ function printedDamageOnASwing(
     if (read.ifNoLargerThan !== undefined && !sizeReaches(state, target, read.ifNoLargerThan).reaches) {
       continue;
     }
-    if (read.when !== undefined && !gateHolds(state, attacker, target, read.when, mode)) continue;
+    if (read.when !== undefined) {
+      // The charge is the one gate that can fail for want of a record rather
+      // than on the facts, and it says so — the same sentence the other reader
+      // puts on a condition clause the same charge would have bought.
+      if (read.when.kind === 'charged') {
+        const charged = chargeRun(state, attacker, target, read.when.feet);
+        if (charged.unverified !== null) unverified.push(charged.unverified);
+        if (!charged.met) continue;
+      } else if (!gateHolds(state, attacker, target, read.when, mode)) {
+        continue;
+      }
+    }
 
     if (read.how === 'instead') {
       instead = [{ dice: read.dice, flat: read.flat, type: read.type }];
@@ -451,15 +478,18 @@ function printedDamageOnASwing(
     });
   }
 
-  return { extra, instead };
+  return { extra, instead, unverified };
 }
 
 /**
  * Whether a printed gate holds, on the facts the engine keeps.
  *
- * Four gates and four records, and the closed list is the promise: a sentence
- * whose gate is not one of these never becomes a {@link PrintedHitGate} at all
- * and is handed to the table with the clause it gated.
+ * Three gates and three records, and the closed list is the promise: a
+ * sentence whose gate is not one of these never becomes a
+ * {@link PrintedHitGate} at all and is handed to the table with the clause it
+ * gated. The fourth — the charge — is {@link chargeRun}'s, because it is the
+ * one gate that can fail for want of a record and owes the table a sentence
+ * when it does; both callers ask it directly rather than through here.
  *
  * The mode is **the roll's as the pipeline settled it**, which is deliberately
  * not "somebody offered Advantage": a mode cancelled to `normal` by a
@@ -471,7 +501,7 @@ function gateHolds(
   state: GameState,
   attacker: CharacterId,
   target: CharacterId,
-  gate: PrintedHitGate,
+  gate: Exclude<PrintedHitGate, PrintedChargeGate>,
   mode: RollMode,
 ): boolean {
   switch (gate.kind) {
@@ -479,8 +509,6 @@ function gateHolds(
       return mode === 'advantage';
     case 'bloodied':
       return isBloodied(state.creatures[gate.who === 'target' ? target : attacker]);
-    case 'charged':
-      return chargeRun(state, attacker, target, gate.feet).met;
     case 'grappled-by-attacker':
       return grapplesOn(state, target).some((grapple) => grapple.grappler === attacker);
   }
@@ -703,9 +731,9 @@ function printedRiderOnASwing(
     switch (rider.kind) {
       // The damage clause is this reader's neighbour's, asked after the d20:
       // an amount is not an effect list, and whether the attack roll had
-      // Advantage is a fact about a roll that has not happened yet. Nothing is
-      // owed the table here, because both of its gates are facts the engine
-      // holds outright. See {@link printedDamageOnASwing}.
+      // Advantage is a fact about a roll that has not happened yet. That
+      // reader owns whatever it owes the table, the charge's own sentence
+      // included — see {@link printedDamageOnASwing}.
       case 'damage':
         break;
 
@@ -2034,6 +2062,10 @@ export function resolveAttack(
       printed,
       attack.value.roll.mode,
     );
+    // A charge gating a damage clause and nothing else — SRD Goat, SRD Giant
+    // Seahorse — owes the table the same sentence a charge gating a condition
+    // owes it, and this is the only channel it has.
+    unverified.push(...printedDamage.unverified);
 
     // The type a casting's offer puts on the weapon's own damage, named on
     // this swing rather than pinned at the casting — see `weaponRiderDamageType`.
@@ -2655,7 +2687,9 @@ export function resolveAttackDamage(
     // onto that hold above and `settleDamage` resolves it once the defender
     // has spoken.
     const bought: GameEvent[] = [];
-    const unverified: string[] = [];
+    // The charge's own sentence, on the half of a held swing that rolls the
+    // damage — see the unheld path's copy of this line.
+    const unverified: string[] = [...printedDamage.unverified];
     if (pending.rider !== undefined && hurt.value.offers.length === 0) {
       const paid = applyHitRider(
         [...landed, ...rider.value.events].reduce(applyEvent, state),

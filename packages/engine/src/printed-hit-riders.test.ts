@@ -562,7 +562,9 @@ const conditionsOn = (state: GameState, who: CharacterId): readonly string[] =>
   state.creatures[who]?.conditions.conditions ?? [];
 
 /** The slices a blow was made of, as the log recorded the faces. */
-const slices = (events: readonly GameEvent[]): readonly { source: string; type: string }[] =>
+const slices = (
+  events: readonly GameEvent[],
+): readonly { source: string; type: string; dice: readonly unknown[] }[] =>
   events.flatMap((e) => (e.type === 'damage-dice-recorded' ? [...e.components] : []));
 
 const apart = (state: GameState, a: CharacterId, b: CharacterId): number | null =>
@@ -650,6 +652,44 @@ describe('the move that preceded the swing', () => {
     expect(conditionsOn(out.state, BREN)).not.toContain('prone');
     expect(out.unverified.join(' ')).toContain('straight at bren before the hit');
     expect(out.unverified.join(' ')).toContain('outside a fight');
+  });
+
+  /**
+   * SRD Goat, Ram: "_Hit:_ 1 Bludgeoning damage, or 2 (1d4) Bludgeoning damage
+   * if the goat moved 20+ feet straight toward the target immediately before
+   * the hit." SRD Giant Seahorse writes the same shape.
+   *
+   * **The two lines whose charge gates a damage clause and nothing else**, and
+   * the reason the damage reader owes the table a sentence at all. Every other
+   * charge in the book also prints a condition, so the other reader's
+   * `unverified` carried the absence and this one's silence never showed.
+   */
+  it('says why a charge gating only the damage went unrolled outside a fight', () => {
+    const table = field('goat', 5, false);
+    const out = swing(table, 'Ram');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(out.unverified.join(' ')).toContain('straight at bren before the hit');
+    expect(out.unverified.join(' ')).toContain('outside a fight');
+  });
+
+  /** And inside one the budget is authoritative, so nothing is asked. */
+  it('asks nothing of a charge gating only the damage inside a fight', () => {
+    const table = field('goat', 25);
+    run(table, 20, 0, 'the goat charges');
+    const charged = swing(table, 'Ram');
+
+    expect(charged.attack?.hit).toBe(true);
+    expect(charged.unverified.join(' ')).not.toContain('straight at bren before the hit');
+    // The die the line rolls **instead** of its own flat point of damage: a
+    // 1d4 can come up 1, so what says the clause fired is that a die was
+    // thrown at all rather than that the total went up.
+    expect(slices(charged.events).flatMap((c) => c.dice)).not.toEqual([]);
+
+    // And a goat that did not charge rolls nothing at all: the line's own
+    // damage is a flat point, so an empty die list is the clause not firing.
+    const idle = field('goat', 5);
+    expect(slices(swing(idle, 'Ram').events).flatMap((c) => c.dice)).toEqual([]);
   });
 });
 
