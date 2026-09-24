@@ -511,36 +511,57 @@ comes from.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-feature-that-changes-what-a-casting-costs` | 1 | 1 |
 | `a-reroll-outside-the-test-window` | 1 | 1 |
+| `an-attack-the-class-redefines` | 2 | 0 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 |
+| `a-feature-that-changes-what-a-casting-costs` | 1 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 |
-| `an-attack-the-class-redefines` | 1 | 0 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 1 | 0 |
+| `a-stat-block-created-mid-fight` | 1 | 0 |
+| `an-option-re-chosen-on-a-rest` | 1 | 0 |
+| `movement-modes` | 1 | 0 |
 
 **Blocks** is every feature of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A feature can need more than one shape, so neither column
 sums to the population.
 
-#### `a-feature-that-changes-what-a-casting-costs` — blocks 1, finishes 1
-
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual)
-
 #### `a-reroll-outside-the-test-window` — blocks 1, finishes 1
 
 - `human:resourceful` — Resourceful (level 1, species, manual)
+
+#### `an-attack-the-class-redefines` — blocks 2, finishes 0
+
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+- `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
 
 #### `a-casting-ended-by-a-trigger` — blocks 1, finishes 0
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
 
+#### `a-feature-that-changes-what-a-casting-costs` — blocks 1, finishes 0
+
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+
 #### `a-rider-on-a-later-weapon-attack` — blocks 1, finishes 0
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
 
-#### `an-attack-the-class-redefines` — blocks 1, finishes 0
+#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 1, finishes 0
 
-- `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+
+#### `a-stat-block-created-mid-fight` — blocks 1, finishes 0
+
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+
+#### `an-option-re-chosen-on-a-rest` — blocks 1, finishes 0
+
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+
+#### `movement-modes` — blocks 1, finishes 0
+
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
 
 #### Waiting on a definition — 0
 

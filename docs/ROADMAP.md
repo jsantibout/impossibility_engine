@@ -1893,3 +1893,21 @@ Appended after wave six's first two tracks (2026-09-24):
   one because what they need is pinned. Levels 10 and 17 print more options
   and are out of reach; if wanted, two feature entries and the `option`
   choice's column.
+- **Eldritch Invocations, part one.** The feature asks a question sized by the
+  class table (`chooseByLevel` on an `option` question, with a `prerequisite`
+  per option — a level or another option), and eleven invocations a level-5
+  Warlock can take execute as gated grants: Agonizing Blast (an addend on
+  **every** damage roll of one named cantrip), Armor of Shadows, Mask of Many
+  Faces, Misty Visions, Otherworldly Leap, Ascendant Step and Master of Myriad
+  Forms at will, Devil's Sight, Eldritch Mind (a Concentration-save selector,
+  the query flag set where `resolveDamage` rolls it), Fiendish Vigor (the
+  grant's dice maximised, every die still thrown and recorded — twelve, because
+  5.2.1's False Life is 2d4 + 4), Lessons of the First Ones (a keyed feat
+  question), Pact of the Tome (three cantrips from any list and two level-1
+  Rituals, simply prepared — 5.2.1 prints no spellbook clause). **The feature
+  stays `manual`, honestly**: the invocations not yet built are refused rather
+  than offered, and each is filed. Part two: Eldritch Spear and Repelling
+  Blast (a casting's range and a push rider changed by a feature), Pact of the
+  Blade and Pact of the Chain, Gaze of Two Minds, One with Shadows, Gift of the
+  Depths, and the four invocations the book lets a Warlock take more than
+  once, which an `option` question has no word for.
