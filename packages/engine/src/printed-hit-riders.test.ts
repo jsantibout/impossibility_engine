@@ -494,6 +494,99 @@ describe('reading a printed rider as a sequence', () => {
     ]);
   });
 
+  /**
+   * SRD Stirge, Proboscis. An attach is a hold in which the **attacker** is
+   * fixed to the target: the target is not Grappled by it and may walk off
+   * with the stirge on them.
+   */
+  it('reads the stirge attaching, and what the attach owes each turn', () => {
+    const read = readPrintedRiders(
+      "and the stirge attaches to the target. While attached, the stirge can't make Proboscis attacks, and the target takes 5 (2d4) Necrotic damage at the start of each of the stirge's turns. The stirge can detach itself by spending 5 feet of its movement. The target or a creature within 5 feet of it can detach the stirge as an action.",
+    );
+    expect(read.riders).toEqual([
+      {
+        kind: 'attach',
+        payout: {
+          dice: '2d4',
+          flat: 0,
+          type: 'necrotic',
+          at: 'start-of-turn',
+          onTurnOf: 'attacker',
+        },
+      },
+    ]);
+    // The one half of the line nothing here executes: which of its own printed
+    // actions a creature may take while attached.
+    expect(read.handedOver).toEqual(["the stirge can't make Proboscis attacks"]);
+  });
+
+  /**
+   * SRD Darkmantle, Crush. The cover is gated twice — on the target's size and
+   * on the attack roll having had Advantage — and the second is a fact about a
+   * roll, which is why it is carried rather than evaluated here.
+   */
+  it('reads the darkmantle attaching, covering and pinning its own Speed', () => {
+    const read = readPrintedRiders(
+      "and the darkmantle attaches to the target. If the target is a Medium or smaller creature and the darkmantle had Advantage on the attack roll, it covers the target, which has the Blinded condition and is suffocating while the darkmantle is attached in this way. While attached to a target, the darkmantle can attack only the target but has Advantage on its attack rolls. Its Speed becomes 0, it can't benefit from any bonus to its Speed, and it moves with the target. A creature can take an action to try to detach the darkmantle from itself, doing so with a successful DC 13 Strength (Athletics) check. On its turn, the darkmantle can detach itself by using 5 feet of movement.",
+    );
+    expect(read.riders).toEqual([
+      {
+        kind: 'attach',
+        detachDc: 13,
+        holderSpeedBecomesZero: true,
+        covers: {
+          conditions: ['blinded'],
+          ifNoLargerThan: 'medium',
+          ifAttackHadAdvantage: true,
+        },
+      },
+    ]);
+    expect(read.handedOver).toEqual([
+      'is suffocating',
+      'While attached to a target, the darkmantle can attack only the target but has Advantage on its attack rolls.',
+      "it can't benefit from any bonus to its Speed, and it moves with the target",
+    ]);
+  });
+
+  /** An attach clause with nothing in front of it names a hold that is not there. */
+  it('hands back an attach detail that follows no attach', () => {
+    const read = readPrintedRiders(
+      'A creature can take an action to try to detach the darkmantle from itself, doing so with a successful DC 13 Strength (Athletics) check.',
+    );
+    expect(read.riders).toEqual([]);
+    expect(read.handedOver).toHaveLength(1);
+  });
+
+  /**
+   * SRD Animated Rug of Smothering, Smother: a hold the line offers **instead
+   * of dealing damage**, carrying two conditions and a payment each turn.
+   */
+  it('reads a grapple taken instead of damage, and what it costs each turn', () => {
+    const read = readPrintedRiders(
+      'If the target is a Medium or smaller creature, the rug can give it the Grappled condition (escape DC 13) instead of dealing damage. Until the grapple ends, the target has the Blinded and Restrained conditions, is suffocating, and takes 10 (2d6 + 3) Bludgeoning damage at the start of each of its turns. The rug can smother only one creature at a time.',
+    );
+    expect(read.riders).toEqual([
+      {
+        kind: 'grapple',
+        escapeDc: 13,
+        ifNoLargerThan: 'medium',
+        insteadOfDamage: true,
+        whileHeld: ['blinded', 'restrained'],
+        payout: {
+          dice: '2d6',
+          flat: 3,
+          type: 'bludgeoning',
+          at: 'start-of-turn',
+          onTurnOf: 'target',
+        },
+      },
+    ]);
+    expect(read.handedOver).toEqual([
+      'is suffocating',
+      'The rug can smother only one creature at a time.',
+    ]);
+  });
+
   /** The reader's own refusals, unchanged: a sentence it cannot read is the DM's. */
   it('still refuses what it never read', () => {
     const mummy =
