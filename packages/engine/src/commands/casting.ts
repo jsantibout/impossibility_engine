@@ -1628,6 +1628,16 @@ export function applySpellEffect(
     options.repeatSave,
     {},
     options.check,
+    undefined,
+    undefined,
+    // **Who is causing it**, for the one reader that asks: SRD Protection from
+    // Evil and Good refuses the Charmed and Frightened conditions "from them",
+    // and a narrowed Immunity has to be told what *them* is. The caster is
+    // already in hand here and is the only creature behind a casting, so this
+    // is where the fact arrives rather than being derived back out of the
+    // source — the record a casting leaves is written *after* its effects
+    // resolve, so there would be nothing to derive it from.
+    casterId,
   );
 }
 

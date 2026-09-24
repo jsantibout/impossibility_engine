@@ -34,31 +34,6 @@ const holderOf = (target: EffectTarget): string =>
   target.kind === 'casting' ? target.castingId : target.on;
 
 /**
- * The creature behind a source, where the source names one.
- *
- * A condition's source is a string — `Hold Person#cast:3`, `item:potion`,
- * `hazard:burning`, a DM's own ruling — and exactly one of those shapes has a
- * creature behind it that the engine can find: a casting, whose record names
- * its caster. `castingIdOf` is the engine's own reader of the format and not a
- * branch on a name.
- *
- * **A pending casting counts too**, because a casting of a minute or more
- * imposes conditions before it settles and its record is the pending one until
- * it does.
- *
- * Null for everything else, which is the honest answer rather than a guess: a
- * flask of poison is caused by no creature, and a narrowed Immunity that bit
- * on one would be the engine inventing a Fiend.
- */
-function causerOf(state: GameState, source: string): CharacterId | undefined {
-  const castingId = castingIdOf(source);
-  if (castingId === null) return undefined;
-  const caster =
-    state.ongoing[castingId]?.caster ?? state.pendingCastings[castingId]?.caster ?? null;
-  return caster === null ? undefined : (caster as CharacterId);
-}
-
-/**
  * Apply a condition, refusing one the creature cannot receive.
  *
  * Immunity is a rules-legal refusal rather than a silent no-op, so the DM can
@@ -124,13 +99,19 @@ export function applyConditionTo(
    * signature wants is a change to a DM-facing command that would move every
    * one of them.
    *
-   * **Derived from the source where the caller says nothing**, which is what
-   * makes a spell's own conditions answerable without threading a caster
-   * through four resolvers: a source carrying a casting mark names a casting,
-   * and a running casting's record names who cast it. See {@link causerOf}.
-   * Everything else — a hazard, a DM's bare ruling, a poison in a bottle — is
-   * a cause with no creature behind it, and a narrowed Immunity does not bite
-   * on one.
+   * **Stated rather than derived from the source**, and the casting's own
+   * record is why: a source carrying a casting mark does name a casting, but
+   * the record that would say who cast it is written *after* the casting's
+   * effects resolve — so at the moment a condition lands there is nothing to
+   * read it off. `applySpellEffect` already holds the caster and passes it,
+   * which is every condition a spell imposes.
+   *
+   * Absent is a cause with no creature behind it, or one nobody has named: a
+   * hazard, a DM's bare ruling, a poison in a bottle, a blow's own rider. A
+   * narrowed Immunity does not bite on one, which is the direction every
+   * unsettled fact here takes — the engine cannot show the creature is exempt,
+   * and sparing it on a fact nobody has stated would be the rule quietly doing
+   * more than the book says.
    */
   from?: CharacterId,
 ): Result<GameEvent[]> {
@@ -151,7 +132,7 @@ export function applyConditionTo(
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
     }
-    const immunities = conditionImmunitiesOf(state, id, from ?? causerOf(state, source));
+    const immunities = conditionImmunitiesOf(state, id, from);
     if (immuneTo.includes(condition) || immunities.includes(condition)) {
       return err('immune', `${id} is immune to the ${condition} condition`);
     }

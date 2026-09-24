@@ -80,6 +80,19 @@ const FIELD: readonly GameEvent[] = [
   ...[GHOUL, BANDIT].flatMap((who): readonly GameEvent[] => [
     { type: 'items-gained', id: who, items: [{ id: 'longsword', quantity: 1 }], source: 'kit' },
     { type: 'item-equipped', id: who, item: 'longsword', armor: null },
+    // Both of them can cast Fear, which is how the *spell* road is driven: a
+    // condition a casting imposes names no creature in its source, so the door
+    // reads the caster off the casting's own record.
+    {
+      type: 'spellcasting-declared',
+      id: who,
+      spellcasting: declaredCasting({ ability: 'cha', classId: 'warlock', prepared: ['fear'] }),
+    },
+    ...[1, 2, 3].map((level): GameEvent => ({
+      type: 'resource-pool-declared',
+      id: who,
+      pool: { key: `spell-slot:${level}`, label: `level ${level}`, max: 4, recovers: 'long-rest' },
+    })),
   ]),
   { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
   { type: 'landmark-added', name: 'the door', at: { x: 200, y: 200, z: 0 } },
@@ -171,6 +184,33 @@ class Game {
     return out.attack!.roll.mode;
   }
 
+  /**
+   * Somebody casts Fear over the cleric, and what the engine said about the
+   * Frightened it tried to impose.
+   *
+   * **The road that names no creature.** A condition a casting imposes is
+   * filed under `Fear#cast:N`, and the door reads the caster back off the
+   * casting's own record rather than being handed one — which is the whole of
+   * what makes a narrowed Immunity answerable without threading a caster
+   * through four resolvers.
+   */
+  fear(by: CharacterId): readonly string[] {
+    this.until(by);
+    const out = unwrap(
+      resolveSpell(
+        this.state,
+        by,
+        { spellId: 'fear', targets: [], towards: { x: 200, y: 200, z: 0 }, slotLevel: 3 },
+        { ...supply(this.state), bonuses: [{ source: 'the test insists', flat: -40 }] },
+      ),
+      `${by} casts Fear`,
+    );
+    this.push(out.events);
+    return (this.state.creatures[CLERIC]?.conditions.instances ?? []).map(
+      (held) => held.condition,
+    );
+  }
+
   /** Somebody makes the cleric Frightened, and what the engine said about it. */
   frighten(by: CharacterId): string | null {
     const out = applyConditionTo(
@@ -226,6 +266,14 @@ describe('a condition Immunity narrowed to its source', () => {
     const { game } = new Game().ward();
     expect(game.frighten(GHOUL)).toBe('immune');
     expect(game.frighten(BANDIT)).toBeNull();
+  });
+
+  it('reads the caster off a casting, so the Ghoul’s Fear is refused and the bandit’s is not', () => {
+    // Two games, because one Cone catches both of them and a Frightened
+    // creature may only Dash — the second caster would be refused its own
+    // Action by the first caster's spell.
+    expect(new Game().ward().game.fear(GHOUL)).not.toContain('frightened');
+    expect(new Game().ward().game.fear(BANDIT)).toContain('frightened');
   });
 
   it('is not read at all where nobody says what caused the condition', () => {

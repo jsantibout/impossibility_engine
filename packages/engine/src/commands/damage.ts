@@ -1151,12 +1151,19 @@ export function dealSpellDamage(
   // behind: SRD Hideous Laughter's "each time it takes damage, it makes
   // another Wisdom saving throw". See {@link repeatsRaisedByDamage} for why
   // this is rolled here rather than owed as a debt.
+  const issuedBeforeRaised = supply.issuer.count;
   const raised = repeatsRaisedByDamage(
     [...resolved.value.events, ...triggered.events].reduce(applyEvent, state),
     target,
     supply,
   );
   if (!raised.ok) return raised;
+  // **And the saves it threw are counted here**, by the rule the ward's d4
+  // above follows and for the same reason: five of the thirteen commands that
+  // reach this function take their generator delta *before* the call, so a die
+  // this road threw and nobody counted would leave `rollsIssued` short and let
+  // the next command reuse a roll id the log already holds.
+  const raisedCounted = rollsIssuedSince(supply, issuedBeforeRaised);
 
   return ok({
     // The faces, then the ward's own die, then what the two came to: the
@@ -1173,6 +1180,7 @@ export function dealSpellDamage(
       ...resolved.value.events,
       ...triggered.events,
       ...raised.value.events,
+      ...raisedCounted,
     ],
     // What landed, which is what the defences left of the roll *and* what a
     // damage threshold let through. `damageTakenIn` reads it off the event the

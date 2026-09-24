@@ -7,7 +7,8 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
-import { resolveAttack, resolveSpell, resolveTurn } from './commands.js';
+import type { ReactionFeature } from './reactions.js';
+import { resolveAttack, resolveSpell, resolveTurn, settleDamage } from './commands.js';
 
 /**
  * SRD Hideous Laughter, and the save a **blow** raises.
@@ -29,8 +30,27 @@ const id = (s: string) => asCharacterId(s);
 const WIZARD = id('wizard');
 const FIGHTER = id('fighter');
 const GOBLIN = id('goblin');
+const HOBGOBLIN = id('hobgoblin');
 
-const sheet = (): CharacterSheet => ({
+/**
+ * A goblin that can answer a damage roll, so the blow takes the **held** road.
+ *
+ * Compiled onto the creature rather than granted by a level, because what is
+ * under test is the window and not how anybody came by the feature — the
+ * reading `damage-dice-in-the-log.test.ts` already takes of the same feature.
+ */
+const CUTTING_WORDS: ReactionFeature = {
+  feature: 'bard:cutting-words',
+  name: 'Cutting Words',
+  window: 'damage-rolled',
+  costsReaction: true,
+  pool: null,
+  reach: { kind: 'within', feet: 60 },
+  requiresSight: true,
+  does: { kind: 'reduce-damage', amount: { dice: '1d6' } },
+};
+
+const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
   abilities: { str: 16, dex: 14, con: 12, int: 18, wis: 10, cha: 10 },
   skills: {},
@@ -41,23 +61,35 @@ const sheet = (): CharacterSheet => ({
   baseSpeed: 30,
   spellcastingAbility: 'int',
   weaponProficiencies: ['simple', 'martial'],
+  ...over,
 });
 
-const added = (who: CharacterId, side: string): GameEvent => ({
+const added = (
+  who: CharacterId,
+  side: string,
+  over: Partial<CharacterSheet> = {},
+): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
-  sheet: sheet(),
+  sheet: sheet(over),
   maxHp: 400,
   diesAtZero: false,
   creatureType: 'Humanoid',
   side,
 });
 
-const FIELD: readonly GameEvent[] = [
+const field = (withAlly: boolean): readonly GameEvent[] => [
   added(WIZARD, 'party'),
   added(FIGHTER, 'party'),
   added(GOBLIN, 'foes'),
+  // **The goblin's own Reaction is no use here**, which is the thing worth
+  // saying: a laughing creature is Incapacitated and takes none. So the
+  // window is opened by an ally standing beside it — the same road, reached
+  // by the creature the book would actually have answer for a helpless one.
+  // Present only for the test that drives the held road, because a window
+  // that is always open is a different fixture for every other test here.
+  ...(withAlly ? [added(HOBGOBLIN, 'foes', { reactions: [CUTTING_WORDS] })] : []),
   {
     type: 'spellcasting-declared',
     id: WIZARD,
@@ -92,6 +124,17 @@ const FIELD: readonly GameEvent[] = [
     id: GOBLIN,
     placement: { from: { creature: FIGHTER }, feet: 5, bearing: 90 },
   },
+  ...(withAlly
+    ? ([
+        {
+          type: 'creature-placed',
+          id: HOBGOBLIN,
+          placement: { from: { creature: GOBLIN }, feet: 5, bearing: 90 },
+        },
+        { type: 'sight-declared', from: HOBGOBLIN, to: FIGHTER, seen: true },
+        { type: 'sight-declared', from: FIGHTER, to: HOBGOBLIN, seen: true },
+      ] as readonly GameEvent[])
+    : []),
   ...[WIZARD, FIGHTER].flatMap((who): readonly GameEvent[] => [
     { type: 'sight-declared', from: who, to: GOBLIN, seen: true },
     { type: 'sight-declared', from: GOBLIN, to: who, seen: true },
@@ -102,6 +145,7 @@ const FIELD: readonly GameEvent[] = [
       { id: WIZARD, initiative: 20, speed: 30 },
       { id: FIGHTER, initiative: 15, speed: 30 },
       { id: GOBLIN, initiative: 10, speed: 30 },
+      ...(withAlly ? [{ id: HOBGOBLIN, initiative: 5, speed: 30 }] : []),
     ],
   },
 ];
@@ -130,7 +174,11 @@ const modesOf = (events: readonly GameEvent[]): readonly string[] =>
   (laughterSave(events)?.modes ?? []).map((mode) => mode.mode);
 
 class Game {
-  readonly events: GameEvent[] = [...FIELD];
+  readonly events: GameEvent[];
+
+  constructor(withAlly = false) {
+    this.events = [...field(withAlly)];
+  }
 
   get state(): GameState {
     return fold('laughter', this.events);
@@ -188,6 +236,13 @@ class Game {
     throw new Error(`the order never reached ${who}`);
   }
 
+  /** Settle a blow the goblin held open at its Reaction window. */
+  settle(): readonly GameEvent[] {
+    const out = unwrap(settleDamage(this.state, supply(this.state)), 'settle');
+    this.push(out.events);
+    return out.events;
+  }
+
   conditionsOn(who: CharacterId): readonly string[] {
     return (this.state.creatures[who]?.conditions.instances ?? []).map((held) => held.condition);
   }
@@ -215,6 +270,26 @@ describe('a repeat save raised by a trigger', () => {
     expect(laughterSave(struck)).toBeDefined();
     expect(game.conditionsOn(GOBLIN)).not.toContain('prone');
     expect(Object.keys(game.state.ongoing)).toHaveLength(0);
+  });
+
+  /**
+   * **One function, asked twice**, which is the rule `printedTypeTriggers`
+   * beside it already keeps: a blow somebody held open at a Reaction window is
+   * the same blow, and "each time it takes damage" is about the damage
+   * landing rather than about which road it landed by.
+   */
+  it('raises it on the road a Reaction held open too', () => {
+    const game = new Game(true).laugh(DOOMED);
+    game.until(FIGHTER);
+    const struck = game.strike(DOOMED);
+    // Held rather than dealt: the swing wrote a `damage-rolled` and no save.
+    expect(struck.some((event) => event.type === 'damage-rolled')).toBe(true);
+    expect(laughterSave(struck)).toBeUndefined();
+
+    const settled = game.settle();
+    const save = laughterSave(settled);
+    expect(save, 'the settled blow raised no save').toBeDefined();
+    expect(modesOf(settled)).toContain('advantage');
   });
 
   it('raises the same save at the end of the goblin’s turn, without Advantage', () => {

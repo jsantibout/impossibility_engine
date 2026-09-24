@@ -382,3 +382,30 @@ describe('an effect that fires when the casting ends', () => {
     expect(sources).toContain('Haste');
   });
 });
+
+describe('an ending outside combat, where there is no next turn to end', () => {
+  /**
+   * **The silence `CastingEndRider.lasts` argues, pinned rather than left as
+   * documentation.** "Until the end of its next turn" is a moment in the turn
+   * order, `resolveDuration` refuses it where there is no order to be a moment
+   * in, and `releaseCasting` runs in the fold with nobody to ask. So a Haste
+   * that outlasts the fight — a minute is ten rounds, and fights are shorter —
+   * lays no lethargy at all.
+   *
+   * It is a real gap rather than a reading: the fold cannot report an
+   * `unverified`, so the table is told nothing. Recorded here so the next
+   * reader meets it as a fact with a test rather than as a paragraph.
+   */
+  it('lays nothing, because the fold has nobody to ask what the moment is', () => {
+    const game = new Game().haste(FIGHTER);
+    expect(game.speed(FIGHTER)).toBe(60);
+
+    game.push([{ type: 'combat-ended' }]);
+    expect(game.state.combat).toBeNull();
+
+    game.letGo();
+    expect(game.state.ongoing).toEqual({});
+    expect(game.conditionsOn(FIGHTER)).not.toContain('incapacitated');
+    expect(game.speed(FIGHTER)).toBe(30);
+  });
+});

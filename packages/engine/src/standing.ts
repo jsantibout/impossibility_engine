@@ -4042,9 +4042,8 @@ export function rollModesFor(
   // **The two facts on the query this gathers rather than receives.** SRD Blood
   // Frenzy reads the Hit Points of the creature being swung at, and SRD
   // Protection from Evil and Good reads what the creature swinging **is** —
-  // both the engine's own record, and
-  // engine's own record and not something the site throwing the die knows any
-  // better than this does — so it is filled in here, once, and
+  // both the engine's own record and not something the site throwing the die
+  // knows any better than this does — so they are filled in here, once, and
   // `selectorMatches` stays the single predicate every mode is decided by. A
   // roll with no second creature is left silent, and a selector asking for it
   // reads that as a miss.
