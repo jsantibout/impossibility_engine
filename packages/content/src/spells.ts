@@ -3298,9 +3298,14 @@ export const DETECT_MAGIC: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 600,
-  unmodelled: [
-    'sensing magical effects within 30 feet, the Magic action to see an aura, and the school a spell belongs to, are all the DM’s to narrate',
-    'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s',
+  // **Handed over whole.** Knowing something changes no authoritative state,
+  // which is the line this spell and Identify are both on: the Magic action
+  // that sees an aura and the school it reports are narration, and the
+  // blocking rule is a wall nobody has modelled.
+  dmDecides: [
+    'For the duration, you sense the presence of magical effects within 30 feet of yourself.',
+    "If you sense such effects, you can take the Magic action to see a faint aura around any visible creature or object in the area that bears the magic, and if an effect was created by a spell, you learn the spell's school of magic.",
+    'The spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.',
   ],
 };
 
@@ -3418,10 +3423,24 @@ export const MAGE_HAND: SpellDefinition = {
   durationSeconds: 60,
   // SRD: "The hand vanishes ... if you cast this spell again."
   replacesPriorCasting: true,
-  unmodelled: [
-    'the hand itself is not a thing in the world: manipulating an object, opening a door, or moving the hand 30 feet on a later turn are the DM’s',
-    'the hand vanishing when it is ever more than 30 feet from the caster is the DM’s: the hand has no position of its own',
-    'the 10-pound carrying limit and the ban on attacking or activating magic items are the DM’s',
+  // **Handed over whole.** The hand is not a thing in the world: where it is,
+  // what it manipulates, the 30 feet it moves, the 10-pound limit and the ban
+  // on attacking or activating magic items are all measured against something
+  // that stands in no square.
+  //
+  // "The hand lasts for the duration" is **not** here, because the engine runs
+  // that clock. The vanishing sentence is, and it is the one line in this list
+  // the engine does half of: the book prints the 30 feet and the recast in one
+  // sentence, the format's unit is a sentence, and `replacesPriorCasting`
+  // above executes the recast. The table is told the printed text; the log
+  // says what the engine did with it.
+  dmDecides: [
+    'A spectral, floating hand appears at a point you choose within range.',
+    'The hand vanishes if it is ever more than 30 feet away from you or if you cast this spell again.',
+    'When you cast the spell, you can use the hand to manipulate an object, open an unlocked door or container, stow or retrieve an item from an open container, or pour the contents out of a vial.',
+    'As a Magic action on your later turns, you can control the hand thus again.',
+    'As part of that action, you can move the hand up to 30 feet.',
+    "The hand can't attack, activate magic items, or carry more than 10 pounds.",
   ],
 };
 
@@ -3704,9 +3723,17 @@ export const DISGUISE_SELF: SpellDefinition = {
   // (Investigation) check against your spell save DC." The table decides that
   // somebody looked closely; the engine owns the roll and the number it beats.
   check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
-  unmodelled: [
-    'what the caster looks like is the DM’s, and so is whether a creature thinks to inspect them',
-    'the illusion failing physical inspection — objects passing through a hat that is not there — is the DM’s',
+  // **Handed over whole**, minus the check above: what the caster looks like,
+  // and whether the illusion holds up to a hand passing through a hat that is
+  // not there, are the DM's; the Investigation check against the spell save DC
+  // is the engine's and is rolled.
+  dmDecides: [
+    'You make yourself—including your clothing, armor, weapons, and other belongings on your person—look different until the spell ends.',
+    'You can seem 1 foot shorter or taller and can appear heavier or lighter.',
+    'You must adopt a form that has the same basic arrangement of limbs as you have.',
+    'Otherwise, the extent of the illusion is up to you.',
+    'The changes wrought by this spell fail to hold up to physical inspection.',
+    'For example, if you use this spell to add a hat to your outfit, objects pass through the hat, and anyone who touches it would feel nothing.',
   ],
 };
 
@@ -3730,8 +3757,15 @@ export const COMPREHEND_LANGUAGES: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 3600,
-  unmodelled: [
-    'understanding a language is the DM’s; the engine records which languages a character knows but nothing reads them in play',
+  // **Handed over whole.** The sheet records which languages a character knows
+  // and nothing in play reads them, so understanding one more is a fact with
+  // no reader — `docs/design/content.md`'s test applied: a table fact a rule
+  // then reads is a debt, and nothing reads this one afterwards.
+  dmDecides: [
+    'For the duration, you understand the literal meaning of any language that you hear or see signed.',
+    'You also understand any written language that you see, but you must be touching the surface on which the words are written.',
+    'It takes about 1 minute to read one page of text.',
+    "This spell doesn't decode symbols or secret messages.",
   ],
 };
 
@@ -3932,9 +3966,15 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 600,
-  unmodelled: [
-    'what a Beast says is the DM’s: comprehending and verbally communicating with one is speech, and the engine holds no speech',
-    'the skill options widen nothing the engine narrows — `takeInfluence` rolls whichever of the Influence skills the caller names and has never asked what kind of creature it is aimed at — so what the spell buys is that the Beast understands, and the attitude the check argues against is the DM’s by the Influence entry’s own handover',
+  // **Handed over whole**, and the Influence half is why it took a second
+  // reading: `NAMED_ACTIONS` holds `influence` and `takeInfluence` never
+  // narrowed by the target's creature type, so an Influence attempt on a Beast
+  // was already legal and already rolled — there is nothing here for the spell
+  // to widen. What it buys is comprehension, which is speech, and the engine
+  // holds no speech.
+  dmDecides: [
+    "For the duration, you can comprehend and verbally communicate with Beasts, and you can use any of the Influence action's skill options with them.",
+    "Most Beasts have little to say about topics that don't pertain to survival or companionship, but at minimum, a Beast can give you information about nearby locations and monsters, including whatever it has perceived within the past day.",
   ],
 };
 
@@ -4173,10 +4213,15 @@ export const DETECT_EVIL_AND_GOOD: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 600,
-  unmodelled: [
-    'what the caster senses is narration: the engine knows a creature’s type but reports nothing, and a creature nobody has typed has nothing to report',
-    'sensing whether the Hallow spell is active is the DM’s',
-    'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s, because walls are declared rather than modelled',
+  // **Handed over whole.** The engine knows a creature's type and reports
+  // nothing off it, and a creature nobody has typed has nothing to report;
+  // whether Hallow is active, and the foot of stone or inch of metal that
+  // blocks the sense, are facts about a world that is declared rather than
+  // modelled.
+  dmDecides: [
+    'For the duration, you sense the location of any Aberration, Celestial, Elemental, Fey, Fiend, or Undead within 30 feet of yourself.',
+    'You also sense whether the _Hallow_ spell is active there and, if so, where.',
+    'The spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.',
   ],
 };
 
@@ -4201,9 +4246,13 @@ export const DETECT_POISON_AND_DISEASE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 600,
-  unmodelled: [
-    'poisons, venomous creatures and magical contagions are not modelled, and what the caster senses is narration',
-    'the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — is the DM’s',
+  // **Handed over whole.** Poisons, venomous creatures and magical contagions
+  // are not modelled, so what the caster senses is narration and the blocking
+  // rule is the same declared wall the other two Detects print.
+  dmDecides: [
+    'For the duration, you sense the location of poisons, poisonous or venomous creatures, and magical contagions within 30 feet of yourself.',
+    'You sense the kind of poison, creature, or contagion in each case.',
+    'The spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.',
   ],
 };
 
@@ -4251,9 +4300,19 @@ export const FLOATING_DISK: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 3600,
-  unmodelled: [
-    'the disk is an object and objects are not modelled: where it is, the 500 pounds it holds, and what is riding on it are the DM’s',
-    'the disk following the caster within 20 feet, refusing an elevation change of 10 feet or more, and the spell ending beyond 100 feet are all the DM’s',
+  // **Handed over whole.** The disk is an object: where it is, the 500 pounds
+  // it holds, what rides on it, the 20 feet it follows within, the elevation
+  // change it refuses and the 100 feet that end the spell are all measured
+  // against a thing that is not in the scene.
+  dmDecides: [
+    'This spell creates a circular, horizontal plane of force, 3 feet in diameter and 1 inch thick, that floats 3 feet above the ground in an unoccupied space of your choice that you can see within range.',
+    'The disk remains for the duration and can hold up to 500 pounds.',
+    'If more weight is placed on it, the spell ends, and everything on the disk falls to the ground.',
+    'The disk is immobile while you are within 20 feet of it.',
+    'If you move more than 20 feet away from it, the disk follows you so that it remains within 20 feet of you.',
+    "It can move across uneven terrain, up or down stairs, slopes and the like, but it can't cross an elevation change of 10 feet or more.",
+    "For example, the disk can't move across a 10-foot-deep pit, nor could it leave such a pit if it was created at the bottom.",
+    "If you move more than 100 feet from the disk (typically because it can't move around an obstacle to follow you), the spell ends.",
   ],
 };
 
@@ -4416,10 +4475,17 @@ export const MESSAGE: SpellDefinition = {
   targets: { count: 1 },
   effects: [],
   durationSeconds: 6,
-  unmodelled: [
-    'what is said, and what is whispered back, are the DM’s',
-    'SRD lets this one spell be cast through a solid object at a familiar target; the engine refuses a target behind Total Cover as it does for every spell, and the exception is not expressible',
-    'magical silence, and the foot of stone, metal or wood or thin sheet of lead that blocks it, are the DM’s',
+  // **Handed over whole.** What is said and what is whispered back are the
+  // DM's. So is the wall: SRD lets this one spell be cast through a solid
+  // object at a familiar target, and the engine's Total Cover is a *declared*
+  // fact rather than a modelled one — a table that does not declare the wall
+  // casts through it, which is the same reading the three Detect spells' own
+  // blocking rules get.
+  dmDecides: [
+    'You point toward a creature within range and whisper a message.',
+    'The target (and only the target) hears the message and can reply in a whisper that only you can hear.',
+    'You can cast this spell through solid objects if you are familiar with the target and know it is beyond the barrier.',
+    'Magical silence; 1 foot of stone, metal, or wood; or a thin sheet of lead blocks the spell.',
   ],
 };
 
@@ -5299,10 +5365,20 @@ export const MINOR_ILLUSION: SpellDefinition = {
   check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
   // SRD: "The illusion ends if you cast this spell again."
   replacesPriorCasting: true,
-  unmodelled: [
-    'what the sound or image is, and whether anybody thinks to examine it, are the DM’s',
-    'the image becoming faint to a creature that saw through it is narration; the engine records the roll and nothing else changes',
-    'physical interaction revealing the image, and the 5-foot Cube it fits in, are the DM’s — objects are not modelled',
+  // **Handed over whole**, minus the one sentence the engine rolls: the Study
+  // action's Intelligence (Investigation) check against the spell save DC is
+  // `check` above, so it is neither a gap nor a handover and appears in
+  // neither list.
+  dmDecides: [
+    'You create a sound or an image of an object within range that lasts for the duration.',
+    'See the descriptions below for the effects of each.',
+    'If a creature discerns the illusion for what it is, the illusion becomes faint to the creature.',
+    '_Sound._ If you create a sound, its volume can range from a whisper to a scream.',
+    "It can be your voice, someone else's voice, a lion's roar, a beating of drums, or any other sound you choose.",
+    'The sound continues unabated throughout the duration, or you can make discrete sounds at different times before the spell ends.',
+    '_Image._ If you create an image of an object—such as a chair, muddy footprints, or a small chest—it must be no larger than a 5-foot Cube.',
+    "The image can't create sound, light, smell, or any other sensory effect.",
+    'Physical interaction with the image reveals it to be an illusion, since things can pass through it.',
   ],
 };
 
@@ -5334,10 +5410,19 @@ export const SILENT_IMAGE: SpellDefinition = {
   effects: [],
   durationSeconds: 600,
   check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
-  unmodelled: [
-    'what the image is, where it stands, and whether anybody thinks to examine it are the DM’s',
-    'the Magic action that moves the image on a later turn needs an ongoing effect a turn can act through',
-    'seeing through the image is narration; the engine records the roll and nothing else changes',
+  // **Handed over whole**, minus the check `check` above rolls. The Magic
+  // action that moves the image is here rather than in a gap list: what it
+  // moves is the position of a thing that stands in no square, so there is
+  // nothing for a later turn to act *on* — a spender would have somewhere to
+  // put its cost and nothing to spend it against.
+  dmDecides: [
+    'You create the image of an object, a creature, or some other visible phenomenon that is no larger than a 15-foot Cube.',
+    "The image is purely visual; it isn't accompanied by sound, smell, or other sensory effects.",
+    'As a Magic action, you can cause the image to move to any spot within range.',
+    'As the image changes location, you can alter its appearance so that its movements appear natural for the image.',
+    'For example, if you create an image of a creature and move it, you can alter the image so that it appears to be walking.',
+    'Physical interaction with the image reveals it to be an illusion, since things can pass through it.',
+    'If a creature discerns the illusion for what it is, the creature can see through the image.',
   ],
 };
 
@@ -6085,11 +6170,22 @@ export const ALARM: SpellDefinition = {
   effects: [],
   // "Duration: 8 hours."
   durationSeconds: 28_800,
-  unmodelled: [
-    'the warded area is the DM’s: "a door, a window, or an area within range that is no larger than a 20-foot Cube" is a choice between two objects and a Cube whose size the caster picks, where a spell’s area is one fixed number — transcribing 20 would assert as the ward’s footprint a figure the book prints as a ceiling',
-    'the alarm is not raised: "an alarm alerts you whenever a creature touches or enters the warded area" changes no mechanically authoritative state — no roll, no resource, no condition, nothing about any creature — so there is nothing for the engine to decide, exactly as there is nothing for it to decide about Detect Magic’s "you sense the presence of any magical effects"',
-    'designating creatures that will not set off the alarm is not recorded, because there is no alarm for them to be exempt from: the exemption is from a warning the DM gives, so it is the DM’s along with the warning',
-    'whether the alarm is audible or mental, the handbell heard 60 feet off, the mental ping a mile away and being woken by it are all the DM’s',
+  // **Handed over whole**, and the `AreaTrigger` that looks like its home is
+  // the reason rather than an oversight: that vocabulary is *what a place does
+  // to whoever stands in it*, and every one of its clauses resolves effects
+  // against the creature entering. This alarm does nothing to the intruder at
+  // all — it tells the caster — so there is no outcome for a trigger to
+  // produce, and the Cube the ward fills is a ceiling the caster picks rather
+  // than a `SpellArea`'s one fixed size. Nothing reads any of it afterwards.
+  dmDecides: [
+    'You set an alarm against intrusion.',
+    'Choose a door, a window, or an area within range that is no larger than a 20-foot Cube.',
+    'Until the spell ends, an alarm alerts you whenever a creature touches or enters the warded area.',
+    "When you cast the spell, you can designate creatures that won't set off the alarm.",
+    'You also choose whether the alarm is audible or mental:',
+    '**Audible Alarm.** The alarm produces the sound of a handbell for 10 seconds within 60 feet of the warded area.',
+    '**Mental Alarm.** You are alerted by a mental ping if you are within 1 mile of the warded area.',
+    "This ping awakens you if you're asleep.",
   ],
 };
 
@@ -6350,9 +6446,19 @@ export const IDENTIFY: SpellDefinition = {
   targets: { count: 1, optional: true },
   effects: [],
   // "Duration: Instantaneous."
-  unmodelled: [
-    'what is learned about an object is the DM’s: its properties, how to use them, whether it requires Attunement, how many charges it has and which spell created it are all facts about a magic item, and magic items are not modelled',
-    'what is learned about a creature is not delivered as an effect: "you learn which ongoing spells, if any, are currently affecting it" is a fact the engine holds and already answers as a query, and no effect kind reports knowledge, because knowing something changes no authoritative state',
+  // **Handed over whole.** What is learned about an object is a fact about a
+  // magic item; what is learned about a creature the engine already answers as
+  // a query. No effect kind reports knowledge, and the one grant in the
+  // vocabulary that does — `FeatureGrant`'s `knowledge`, SRD Hunter's Lore —
+  // is a *feature's* standing fact about a creature its own casting marked,
+  // which no spell effect can hang and which reveals a damage table rather
+  // than an item's record. Knowing something changes no authoritative state.
+  dmDecides: [
+    "You touch an object throughout the spell's casting.",
+    'If the object is a magic item or some other magical object, you learn its properties and how to use them, whether it requires Attunement, and how many charges it has, if any.',
+    'You learn whether any ongoing spells are affecting the item and what they are.',
+    "If the item was created by a spell, you learn that spell's name.",
+    'If you instead touch a creature throughout the casting, you learn which ongoing spells, if any, are currently affecting it.',
   ],
 };
 
@@ -6393,10 +6499,20 @@ export const ILLUSORY_SCRIPT: SpellDefinition = {
   effects: [],
   // "Duration: 10 days."
   durationSeconds: 864_000,
-  unmodelled: [
-    'the writing is the DM’s: what the text says, what the illusion makes it say instead, and the altered "meaning, handwriting, and language" are all fiction, and so is the parchment it is written on',
-    'the creatures designated at the casting are not recorded, because what being designated buys is the ability to read, and reading is the DM’s',
-    'a creature with Truesight reading the hidden message is the DM’s; the engine has no senses beyond declared sight',
+  // **Handed over whole.** What the text says, what the illusion makes it say
+  // and the altered meaning, handwriting and language are fiction, and so is
+  // the parchment; what being designated buys is the ability to read, and
+  // reading is the DM's. The Truesight sentence is *not*
+  // `senses-beyond-declared-sight`, which is Mirage Arcane's sentence: there
+  // the sense excuses its holder from Difficult Terrain the engine would
+  // otherwise lay, and here it excuses them from a message nothing reads.
+  dmDecides: [
+    'You write on parchment, paper, or another suitable material and imbue it with an illusion that lasts for the duration.',
+    'To you and any creatures you designate when you cast the spell, the writing appears normal, seems to be written in your hand, and conveys whatever meaning you intended when you wrote the text.',
+    'To all others, the writing appears as if it were written in an unknown or magical script that is unintelligible.',
+    'Alternatively, the illusion can alter the meaning, handwriting, and language of the text, though the language must be one you know.',
+    'If the spell is dispelled, the original script and the illusion both disappear.',
+    'A creature that has Truesight can read the hidden message.',
   ],
 };
 
@@ -6562,9 +6678,14 @@ export const MENDING: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   // "Duration: Instantaneous."
-  unmodelled: [
-    'the repair is the DM’s: which break or tear was mended, and the limit that it be "no larger than 1 foot in any dimension", are facts about an object, and objects are not modelled — the engine tracks what a creature owns and wears and nothing about its condition',
-    'that the spell "can physically repair a magic item, but it can’t restore magic to such an object" forbids restoring something the engine never took away',
+  // **Handed over whole.** Which break was mended and the foot it may not
+  // exceed are facts about an object's *condition*, and the engine tracks what
+  // a creature owns and wears and nothing about the state of it; the ban on
+  // restoring magic forbids undoing something it never did.
+  dmDecides: [
+    'This spell repairs a single break or tear in an object you touch, such as a broken chain link, two halves of a broken key, a torn cloak, or a leaking wineskin.',
+    'As long as the break or tear is no larger than 1 foot in any dimension, you mend it, leaving no trace of the former damage.',
+    "This spell can physically repair a magic item, but it can't restore magic to such an object.",
   ],
 };
 
@@ -7603,9 +7724,19 @@ export const DRUIDCRAFT: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 0 },
   effects: [],
-  unmodelled: [
-    'which of the four effects is chosen is not recorded, because none of them is arithmetic: a weather sensor, a blossom, a sensory effect and a lit or snuffed flame are all the DM’s',
-    'the weather sensor’s round of existence is not a duration the engine runs: the spell is Instantaneous and the Tiny effect it leaves is fiction',
+  // **Handed over whole**, which is P3-S6's reading of every sentence against
+  // the book: four branches and no arithmetic in any of them, so which was
+  // chosen needs nowhere to be recorded, and the weather sensor's round is not
+  // a clock the engine runs on an Instantaneous casting.
+  dmDecides: [
+    'Whispering to the spirits of nature, you create one of the following effects within range.',
+    '_Weather Sensor._ You create a Tiny, harmless sensory effect that predicts what the weather will be at your location for the next 24 hours.',
+    'The effect might manifest as a golden orb for clear skies, a cloud for rain, falling snowflakes for snow, and so on.',
+    'This effect persists for 1 round.',
+    '_Bloom._ You instantly make a flower blossom, a seed pod open, or a leaf bud bloom.',
+    '_Sensory Effect._ You create a harmless sensory effect, such as falling leaves, spectral dancing fairies, a gentle breeze, the sound of an animal, or the faint odor of skunk.',
+    'The effect must fit in a 5-foot Cube.',
+    '_Fire Play._ You light or snuff out a candle, a torch, or a campfire.',
   ],
 };
 
@@ -7634,10 +7765,21 @@ export const ELEMENTALISM: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 0 },
   effects: [],
-  unmodelled: [
-    'which of the five effects is chosen is not recorded, because none of them is arithmetic: a breeze that closes shutters, a shroud of dust, a cloud of harmless embers, a spray of cool mist and a crude sculpted shape are all the DM’s',
-    'the 5-foot Cube each branch fits in is not a template: nothing is resolved over it, so the size is quoted rather than pinned',
-    'the minute the smoke’s scent lingers, the minute the cup of water takes to evaporate and the hour a sculpted shape holds are the DM’s; the spell itself is Instantaneous and runs no clock',
+  // **Handed over whole.** Five branches and no arithmetic in any of them; the
+  // 5-foot Cube each fits in is quoted rather than pinned because nothing is
+  // resolved over it, and the minute of scent, the minute of evaporation and
+  // the hour a shape holds run no clock on an Instantaneous casting.
+  dmDecides: [
+    'You exert control over the elements, creating one of the following effects within range.',
+    "_Beckon Air._ You create a breeze strong enough to ripple cloth, stir dust, rustle leaves, and close open doors and shutters, all in a 5-foot Cube.",
+    "Doors and shutters being held open by someone or something aren't affected.",
+    '_Beckon Earth._ You create a thin shroud of dust or sand that covers surfaces in a 5-foot-square area, or you cause a single word to appear in your handwriting in a patch of dirt or sand.',
+    '_Beckon Fire._ You create a thin cloud of harmless embers and colored, scented smoke in a 5-foot Cube.',
+    'You choose the color and scent, and the embers can light candles, torches, or lamps in that area.',
+    "The smoke's scent lingers for 1 minute.",
+    '_Beckon Water._ You create a spray of cool mist that lightly dampens creatures and objects in a 5-foot Cube.',
+    'Alternatively, you create 1 cup of clean water either in an open container or on a surface, and the water evaporates in 1 minute.',
+    '_Sculpt Element._ You cause dirt, sand, fire, smoke, mist, or water that can fit in a 1-foot Cube to assume a crude shape (such as that of a creature) for 1 hour.',
   ],
 };
 
@@ -7671,10 +7813,18 @@ export const CREATE_OR_DESTROY_WATER: SpellDefinition = {
   range: { kind: 'ranged', feet: 30 },
   targets: { count: 0 },
   effects: [],
-  unmodelled: [
-    'the water is not a thing in the world: ten gallons created in an open container, or destroyed in one, are the DM’s',
-    'the rain in a 30-foot Cube and the exposed flames it extinguishes are the DM’s, and so is the fog destroyed in a Cube of the same size — fog is not a state the engine holds, even where another spell made it',
-    'the higher slot buys gallons and feet — "You create or destroy 10 additional gallons of water, or the size of the Cube increases by 5 feet" — and neither is a number any effect of this definition reads',
+  // **Handed over whole.** Ten gallons in a container, rain in a Cube, exposed
+  // flames put out and fog destroyed are four facts about a world the engine
+  // holds none of — fog is not a state it keeps even where another spell made
+  // it — and the higher slot buys gallons and feet, neither of which is a
+  // number any effect of this definition reads.
+  dmDecides: [
+    'You do one of the following:',
+    '**Create Water.** You create up to 10 gallons of clean water within range in an open container.',
+    'Alternatively, the water falls as rain in a 30-foot Cube within range, extinguishing exposed flames there.',
+    '**Destroy Water.** You destroy up to 10 gallons of water in an open container within range.',
+    'Alternatively, you destroy fog in a 30-foot Cube within range.',
+    'You create or destroy 10 additional gallons of water, or the size of the Cube increases by 5 feet, for each spell slot level above 1.',
   ],
 };
 
@@ -7747,9 +7897,12 @@ export const PURIFY_FOOD_AND_DRINK: SpellDefinition = {
   range: { kind: 'ranged', feet: 10 },
   targets: { count: 0 },
   effects: [],
-  unmodelled: [
-    'the food and drink are objects and objects are not modelled: which of them were in the 5-foot-radius Sphere, and that they are no longer poisoned or rotten, are the DM’s',
-    'the Poisoned condition is a creature’s and is untouched by this spell — nothing here cures anybody, and a definition that removed one would be inventing a rule the sentence does not print',
+  // **Handed over whole.** The food and drink are objects; the Poisoned
+  // condition belongs to a creature and is untouched by this spell, and a
+  // definition that cured one — `end-condition` is right there — would be
+  // inventing a rule the sentence does not print.
+  dmDecides: [
+    'You remove poison and rot from nonmagical food and drink in a 5-foot-radius Sphere centered on a point within range.',
   ],
 };
 

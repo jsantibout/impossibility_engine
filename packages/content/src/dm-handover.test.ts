@@ -78,6 +78,30 @@ import {
  * place to put a creature; Prismatic Wall's light, which refuses lower-level
  * magic; Control Weather's stage tables, which wait on a delay nothing
  * schedules — the line stayed a debt and this comment is the record of why.
+ *
+ * ### P3-S6: the thirty-five the ledger was already calling finished
+ *
+ * The sweep above was anchored on the book naming the GM, which is a good
+ * anchor and not the whole population. `LEDGER.md` filed thirty-five spells in
+ * level-5 reach under *waits on no shape* — the column its own words define as
+ * "somebody read every sentence and every one left is the table's or the
+ * engine's" — while every one of those definitions went on printing its
+ * handover in `unmodelled`, the list `docs/design/content.md` calls a debt and
+ * `missing-shapes.ts` ranks. Thirty-five spells were therefore counted as
+ * finished business by one report and as work by another.
+ *
+ * P3-S6 read all thirty-five against `packages/srd/raw/spells.md` and moved
+ * what each hands over into `dmDecides`, in the book's own words. **Three did
+ * not survive the reading**, and that is the half that matters more than the
+ * re-filing: Magic Mouth's "you can have the spell end after it delivers its
+ * message" is `a-casting-dismissed-early` and its own `unmodelled` line already
+ * said so; Major Image's level 4+ slot is `a-duration-the-slot-changes`, whose
+ * description names Major Image as the one spell in the book that prints it;
+ * and Gentle Repose's extension of the time limit on raising the dead is
+ * arithmetic over `Vitals.diedAt`, which `healing-that-raises-the-dead` built
+ * and which a rule — `revive`'s window — really does read. Those three are
+ * debts, they are filed as debts, and they are the reason this file's
+ * population is not simply the ledger's column.
  */
 
 const HANDING_OVER: readonly string[] = SPELL_DEFINITIONS.filter(
@@ -136,10 +160,14 @@ const added = (who: CharacterId): GameEvent => ({
 const SETUP: readonly GameEvent[] = [
   added(CLERIC),
   added(SLEEPER),
-  // Every level the handed-over spells are cast at, because the sweep widened
-  // the population from three level-5-and-7 rites to eleven spells between
-  // level 2 and level 9.
-  ...[2, 4, 5, 6, 7, 8, 9].map(
+  // Every level the handed-over spells are cast at. The sweep widened the
+  // population from three level-5-and-7 rites to eleven spells between level 2
+  // and level 9; P3-S6 widened it again, to every tracked spell in level-5
+  // reach whose every printed sentence somebody read and found to be the
+  // table's — which reaches down to level 1 and to the cantrips, so the table
+  // is now every level the book has rather than the seven that happened to be
+  // needed.
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
       id: CLERIC,
@@ -166,11 +194,39 @@ const SETUP: readonly GameEvent[] = [
     spellcasting: declaredCasting({
       ability: 'wis',
       classId: 'cleric',
-      cantrips: [],
+      // Six of the spells read to the end are cantrips, and a cantrip is cast
+      // off this list rather than off a slot.
+      cantrips: SPELL_DEFINITIONS.filter((d) => d.level === 0).map((d) => d.id),
       prepared: SPELL_DEFINITIONS.filter((d) => d.level > 0).map((d) => d.id),
     }),
   },
 ];
+
+/**
+ * What one casting of a handing-over definition is aimed at.
+ *
+ * Derived from the definition rather than listed by spell id, for the reason
+ * `spell-tracking.test.ts`'s own sweep derives it: what this file claims is
+ * that each of these is *cast* rather than refused, and a table of ids would
+ * have to be extended by hand on the day a definition's target rule moved.
+ *
+ * Three facts and no more, because no definition in this population prints an
+ * area, a stated choice or a printed branch: whether it aims at anybody, which
+ * body it aims at, and whether it asks about consent.
+ */
+const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
+  const targets =
+    definition.targets.count === 0 ? [] : [definition.targets.self === true ? CLERIC : SLEEPER];
+  return {
+    targets,
+    // A cantrip is cast off the known list and spends no slot, so naming one
+    // is the refusal rather than the casting.
+    ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
+    // The ninth stated fact: a target rule that gates on consent asks about
+    // everybody nobody has spoken for.
+    ...(definition.targets.willing === true ? { willing: targets } : {}),
+  };
+};
 
 const supply = () => ({
   issuer: createRollIssuer('r'),
@@ -181,14 +237,8 @@ const supply = () => ({
 /** An Action casting, which lands in one breath and writes no pending record. */
 const atomic = (spellId: string, log: readonly GameEvent[] = SETUP) => {
   const definition = SRD_CONTENT.spell(spellId)!;
-  const targets = definition.targets.count === 0 ? [] : [SLEEPER];
   const cast = unwrap(
-    resolveSpell(
-      fold('seed', log),
-      CLERIC,
-      { spellId, targets, slotLevel: definition.level },
-      supply(),
-    ),
+    resolveSpell(fold('seed', log), CLERIC, { spellId, ...aimedAt(definition) }, supply()),
     `cast ${spellId}`,
   );
   return { cast, log: [...log, ...cast.events], unverified: [...cast.unverified] };
@@ -205,14 +255,8 @@ const atomic = (spellId: string, log: readonly GameEvent[] = SETUP) => {
  */
 const driven = (spellId: string, log: readonly GameEvent[] = SETUP) => {
   const definition = SRD_CONTENT.spell(spellId)!;
-  const targets = definition.targets.count === 0 ? [] : [SLEEPER];
   const declared = unwrap(
-    resolveSpell(
-      fold('seed', log),
-      CLERIC,
-      { spellId, targets, slotLevel: definition.level },
-      supply(),
-    ),
+    resolveSpell(fold('seed', log), CLERIC, { spellId, ...aimedAt(definition) }, supply()),
     `declare ${spellId}`,
   );
 
@@ -238,19 +282,54 @@ const driven = (spellId: string, log: readonly GameEvent[] = SETUP) => {
 };
 
 describe('the catalogue hands over exactly the text it means to', () => {
-  it('is the three the ruling named and the eight the sweep found', () => {
+  it('is the three the ruling named, the eight the sweep found and P3-S6’s reading', () => {
     expect([...HANDING_OVER].sort()).toEqual([
+      'alarm',
+      'arcane-lock',
       'augury',
+      'clairvoyance',
       'commune',
       'commune-with-nature',
+      'comprehend-languages',
       'contact-other-plane',
       'control-weather',
+      'create-food-and-water',
+      'create-or-destroy-water',
+      'detect-evil-and-good',
+      'detect-magic',
+      'detect-poison-and-disease',
+      'disguise-self',
       'divination',
       'dream',
+      'druidcraft',
+      'elementalism',
+      'find-traps',
+      'floating-disk',
       'gate',
+      'gentle-repose',
+      'identify',
+      'illusory-script',
       'legend-lore',
+      'locate-animals-or-plants',
+      'locate-object',
+      'mage-hand',
+      'magic-mouth',
+      'major-image',
+      'meld-into-stone',
+      'mending',
+      'message',
+      'minor-illusion',
       'mirage-arcane',
       'planar-ally',
+      'purify-food-and-drink',
+      'rope-trick',
+      'see-invisibility',
+      'silent-image',
+      'speak-with-animals',
+      'speak-with-dead',
+      'tongues',
+      'water-breathing',
+      'water-walk',
     ]);
     // And the Range half did not grow, because it was already complete: three
     // SRD spells print a Range that is not Self, Touch or a number of feet, and
@@ -313,12 +392,53 @@ describe('the catalogue hands over exactly the text it means to', () => {
    * throw, an ability check, an Armour Class, Hit Points, a defence, a
    * condition, a roll mode, a Speed, a percentage, a cost in feet, a teleport,
    * extra damage. A sentence naming one of those is a claim about mechanics,
-   * and mechanics are not handed over. Every sentence of every handover is
-   * clean of all thirteen.
+   * and mechanics are not handed over.
+   *
+   * ### The one way past it, and it is a reading rather than an exemption
+   *
+   * P3-S6 read thirty-five tracked spells to the end and found four sentences
+   * that trip a marker and are still the table's: Meld into Stone's expulsions
+   * and the five feet that walk out of a rock, See Invisibility's sight of the
+   * Invisible condition, Magic Mouth's "trigger condition". The marker is
+   * firing on a real word — the engine does hold the Prone condition, and does
+   * charge movement — and what makes the sentence the table's is the fact
+   * underneath it, which no marker can see.
+   *
+   * So a marked sentence may be handed over **only where the tracked map
+   * anchors a `'table'` reading to it**: somebody read that sentence, wrote
+   * down why it is the table's, and the note is there to be re-run. That is
+   * strictly more than the marker rule asked for — an unread marked sentence
+   * is still refused, and the escape cannot be taken by writing a definition
+   * alone — and it puts the argument in the map rather than in an exemption
+   * list somebody has to maintain.
    */
+  const readAsTheTable = (spellId: string, printed: string): boolean =>
+    (TRACKED_ADJUDICATED[spellId] ?? []).some(
+      (entry) => entry.why === 'table' && printed.includes(entry.clause),
+    );
+
   it.each(HANDING_OVER.map((s) => [s] as const))('names no mechanic in %s’s handover', (spellId) => {
     for (const printed of SRD_CONTENT.spell(spellId)!.dmDecides ?? []) {
+      if (readAsTheTable(spellId, printed)) continue;
       expect(mechanicalMarkersIn(printed), `${spellId}: "${printed}"`).toEqual([]);
+    }
+  });
+
+  /**
+   * And the escape is not free: it is asserted to be *used*, and used only by
+   * sentences a marker really does see. A rule with no consumer is a rule
+   * nobody can tell from a typo, and one whose consumers are all clean anyway
+   * would be a licence granted to nothing.
+   */
+  it('takes the map’s reading only for sentences a marker fires on', () => {
+    const marked = HANDING_OVER.flatMap((spellId) =>
+      (SRD_CONTENT.spell(spellId)!.dmDecides ?? [])
+        .filter((printed) => mechanicalMarkersIn(printed).length > 0)
+        .map((printed) => [spellId, printed] as const),
+    );
+    expect(marked.length).toBeGreaterThan(0);
+    for (const [spellId, printed] of marked) {
+      expect(readAsTheTable(spellId, printed), `${spellId}: "${printed}"`).toBe(true);
     }
   });
 
@@ -351,13 +471,32 @@ describe('the catalogue hands over exactly the text it means to', () => {
     ['mirage-arcane', 'in an area up to 1 mile square'],
   ];
 
+  /**
+   * **A debt, and not merely an entry.** The rule read every anchor in the map
+   * as one, which was true while the only spells here were ones the sweep had
+   * re-filed — and is exactly backwards for the thirty-five P3-S6 read to the
+   * end, whose entries say `'table'`. Such an entry is not a competing claim on
+   * the sentence; it is the *record of this very reading*, and refusing a
+   * handover because somebody wrote down why it is a handover would make the
+   * two halves of the ruling contradict each other.
+   *
+   * So the anchors this rule guards are the ones whose `why` is a **shape** —
+   * the entries `spellShapesOf` counts and the blocker table ranks. `'engine'`
+   * is excluded for the same reason from the other end: a clause the engine
+   * executes is not work anybody is owed either, and a spell may not hand it
+   * over — which is what the marker rule above catches, since every such
+   * sentence names the mechanic the engine rolls.
+   */
+  const debtAnchorsOf = (spellId: string): readonly string[] =>
+    (TRACKED_ADJUDICATED[spellId] ?? [])
+      .filter((entry) => entry.why !== 'table' && entry.why !== 'engine')
+      .map((entry) => entry.clause);
+
   it.each(HANDING_OVER.map((s) => [s] as const))(
     'hands over nothing %s files as a debt',
     (spellId) => {
       const recorded = BOTH.filter(([id]) => id === spellId).map(([, anchor]) => anchor);
-      const anchors = (TRACKED_ADJUDICATED[spellId] ?? [])
-        .map((entry) => entry.clause)
-        .filter((anchor) => !recorded.includes(anchor));
+      const anchors = debtAnchorsOf(spellId).filter((anchor) => !recorded.includes(anchor));
       for (const printed of SRD_CONTENT.spell(spellId)!.dmDecides ?? []) {
         expect(
           anchors.filter((anchor) => printed.includes(anchor)),
@@ -366,6 +505,16 @@ describe('the catalogue hands over exactly the text it means to', () => {
       }
     },
   );
+
+  /**
+   * And the rule has something to guard, which a narrowing has to prove: some
+   * of these spells really do file a debt beside what they hand over, so the
+   * loop above is not running over empty lists.
+   */
+  it('still guards spells that file a debt of their own', () => {
+    const owing = HANDING_OVER.filter((spellId) => debtAnchorsOf(spellId).length > 0);
+    expect(owing.length).toBeGreaterThan(1);
+  });
 
   /** And the record is a record: every entry in it is a real overlap. */
   it.each(BOTH)('records %s’s clause that is both', (spellId, anchor) => {
@@ -433,7 +582,20 @@ describe('the sweep re-filed lines and retired no debt', () => {
   });
 });
 
-describe('each of the eleven is cast, and hands its own text to the table', () => {
+/**
+ * What a slot pool should hold after one casting of this definition.
+ *
+ * Two of the spells read to the end are cantrips, and a cantrip spends
+ * nothing: asking `spellSlotKey(0)` would be asking after a pool the fixture
+ * never declared and the book never prints.
+ */
+const slotLeft = (level: number) => (level === 0 ? undefined : 1);
+
+/** Whether a casting of this definition is still standing when it settles. */
+const standsAfterwards = (definition: (typeof SPELL_DEFINITIONS)[number]): boolean =>
+  definition.durationSeconds !== undefined || definition.untilDispelled === true;
+
+describe('each of the forty-six is cast, and hands its own text to the table', () => {
   it.each(LONG.map((s) => [s] as const))(
     'carries every printed sentence of %s out of the casting',
     (spellId) => {
@@ -478,10 +640,10 @@ describe('each of the eleven is cast, and hands its own text to the table', () =
     const definition = SRD_CONTENT.spell(spellId)!;
     const out = driven(spellId);
     const after = fold('seed', out.log);
-    expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(1);
-    expect(Object.keys(after.ongoing)).toEqual(
-      definition.durationSeconds === undefined ? [] : [out.castingId],
+    expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(
+      slotLeft(definition.level),
     );
+    expect(Object.keys(after.ongoing)).toEqual(standsAfterwards(definition) ? [out.castingId] : []);
     // **Nothing landed on anybody**, which was ten of these spells and is now
     // ten of eleven: every one is a rite whose whole content is the text it
     // hands over. Augury is the exception and is the honest kind — its
@@ -497,7 +659,9 @@ describe('each of the eleven is cast, and hands its own text to the table', () =
     const definition = SRD_CONTENT.spell(spellId)!;
     const out = atomic(spellId);
     const after = fold('seed', out.log);
-    expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(1);
+    expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(
+      slotLeft(definition.level),
+    );
     expect(out.cast.outcomes).toEqual([]);
   });
 
