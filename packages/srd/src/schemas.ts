@@ -1696,11 +1696,14 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      * - the **moment**, because the book writes both and they are a round
      *   apart;
      * - the **radius**, which is five feet on three blocks and ten on another;
-     * - the **dice and the type**, which differ on every one of them;
+     * - the **dice**, which are 1d10, 2d6 and 3d8 across the blocks that print
+     *   it, and the **type**, which a homebrew line may vary;
      * - **whose choice it is**, because the Azer burns whom it likes and the
      *   Balor burns everybody, and a reader that assumed either would be
      *   playing somebody's creature for them;
-     * - the **Incapacitated clause**, which two of the four print.
+     * - the **Incapacitated clause**, which the Azer alone prints — so a
+     *   reader that assumed it would keep a Stunned Balor from burning, and one
+     *   that dropped it would have a Stunned Azer burning.
      *
      * The Fire Elemental's is refused whole, which is the anchoring rule doing
      * its work: its sentence ends "Creatures and flammable objects in the
@@ -1861,10 +1864,6 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      * is a substance this world does not hold.
      */
     kind: z.literal('is-hurt-by-water'),
-  }),
-  z.object({
-    /** SRD Confer Fire Resistance, on the Nightmare: a Resistance for a rider. */
-    kind: z.literal('grants-a-resistance-to-its-rider'),
   }),
   z.object({
     /** SRD Forbiddance, on the Vampire Spawn: a threshold and an invitation. */

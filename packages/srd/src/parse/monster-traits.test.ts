@@ -633,7 +633,6 @@ describe('the sentences that are fiction, read so the table gets them', () => {
     ['half-dragon', 'Draconic Origin', 'has-a-damage-type-the-gm-chooses'],
     ['fire-elemental', 'Water Susceptibility', 'is-hurt-by-water'],
     ['vampire-spawn', 'Running Water', 'is-hurt-by-water'],
-    ['nightmare', 'Confer Fire Resistance', 'grants-a-resistance-to-its-rider'],
     ['vampire-spawn', 'Forbiddance', 'cannot-enter-a-home-uninvited'],
     ['vampire-spawn', 'Vampire Weakness', 'a-heading-over-the-lines-that-follow'],
   ];

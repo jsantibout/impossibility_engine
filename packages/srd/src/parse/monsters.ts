@@ -993,14 +993,6 @@ const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
     'is-hurt-by-water',
   ],
 
-  // SRD Confer Fire Resistance.
-  [
-    new RegExp(
-      `^${SUBJECT} can grant Resistance to \\w+ damage to a rider while it is on the nightmare\\.$`,
-    ),
-    'grants-a-resistance-to-its-rider',
-  ],
-
   // SRD Forbiddance.
   [
     new RegExp(

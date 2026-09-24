@@ -250,6 +250,19 @@ function collectDueDamage(
  * every other reach in this engine gives — an aura, a carried light, a patch
  * of expensive ground. The hold needs no lattice at all, because a grapple is
  * a relation the engine holds outright.
+ *
+ * **The holder is re-read between lines**, so a block printing two of these
+ * asks the second one about the world the first left behind: a creature that
+ * was Incapacitated by its own aura dropping something on it would stop
+ * burning, which is the same re-reading `settleAreaEffects` does of its queue.
+ * No SRD block prints two, and the loop is written as though one did.
+ *
+ * **One answer serves the moment it was given for.** `burns` comes off the
+ * command that ended a turn, and this function is called twice — once for the
+ * finisher's end and once for the beginner's start. No SRD block prints a
+ * start-of-turn emanation with a choice in it, so the list is never asked of
+ * two creatures today; the day one is printed, the choice needs a creature
+ * beside it rather than a bare list, and this is where that would be read.
  */
 function settlePrintedBoundaryDamage(
   state: GameState,
@@ -279,7 +292,11 @@ function settlePrintedBoundaryDamage(
   let current = state;
 
   for (const line of owed) {
-    if (line.unlessIncapacitated && isIncapacitated(holder.conditions)) continue;
+    // Off `current` rather than the `holder` snapshot, so a second line is
+    // asked about the world the first left behind — see the note above.
+    const standing = current.creatures[who];
+    if (standing === undefined || standing.vitals.dead) break;
+    if (line.unlessIncapacitated && isIncapacitated(standing.conditions)) continue;
 
     for (const victim of caughtByBoundaryDamage(current, who, line, chosen)) {
       // The holder's own sheet, because the dice are the block's and the
@@ -1803,9 +1820,11 @@ export function resolvePendingSaves(
  * and never invents one — an absent or empty list burns nobody, which is a
  * legal way to play an azer.
  *
- * It rides on the command rather than beside it so that two different answers
- * are two different commands to `once`: re-sending an `end_turn` with a
- * different list is a second command and not a retry of the first.
+ * It rides on the command rather than beside it so that the answer is part of
+ * what the command *was*: `once` keys on the command id, and `identify`
+ * refuses `command_id_reused` for an id sent back with a different payload —
+ * so a second list under the first id is a refusal rather than a quiet
+ * second burning, which is the direction to be wrong in.
  */
 export interface TurnCommand extends CommandIdentity {
   /**

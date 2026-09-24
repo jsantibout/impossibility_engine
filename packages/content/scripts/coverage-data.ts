@@ -1247,14 +1247,28 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * **The breathing traits were the first three and are no longer alone.** The
  * test that admitted them admits every sentence below: each names planes,
- * minds, substances, sounds or a GM's choice, and not one of them names a
- * thing a rule consults. What is deliberately *not* here is the other half of
- * the residue — a sentence stating a mechanic the engine has no seam for. An
- * Amorphous that squeezes through an inch, an Incorporeal Movement that walks
- * through a wall, a Web Walker that ignores a web's restriction: each is a
- * rule, each would be executed the day the lattice held spaces, materials and
- * surfaces, and calling one fiction would retire a debt by renaming it. Those
- * stay unread and stay on the ledger's residue list.
+ * minds, sounds, a narrated substance or a GM's choice, and not one of them
+ * names a thing a rule consults.
+ *
+ * **What is deliberately *not* here is the other half of the residue**, and it
+ * is worth naming family by family, because a line with no note beside it
+ * looks like a line nobody read. Each of these states a mechanic the engine
+ * would execute the day it had one seam, so calling any of them fiction would
+ * retire a debt by renaming it. They stay unread and stay on the ledger's
+ * residue list:
+ *
+ * | Lines | The one seam each waits on |
+ * |---|---|
+ * | Amorphous ×4, Compression, Air Form, Fire Form, Water Form, Ooze Cube | a space narrower than the lattice's five feet, and a creature's space entered and stopped in |
+ * | Earth Glide ×2, Tunneler, Incorporeal Movement ×4, Ephemeral, Ice Walk | ground and walls as material rather than as declared regions |
+ * | Web Walker ×4, Adhesive, Spider Climb (the Swarm's) | a restriction with a *source*, so a web's Restrained can be told from a rope's |
+ * | Swarm ×7 | a healing rule a stat block states. `HealingRule` exists and `healingRuleOf` reads granted state; nothing writes one when a block arrives, so "can't regain Hit Points" has no door |
+ * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
+ * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
+ * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
+ * | Berserk, Vampire Spawn's Stake to the Heart | a creature somebody else is playing: a d6 and a compulsion, a coup de grâce a DM adjudicates |
+ * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
+ * | Succubus Form, Incubus Form, Troll Spawn, Soul Bag | one stat block becoming another, at a rest or on a 24-hour timer |
  */
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'a-heading-over-the-lines-that-follow':
@@ -1264,15 +1278,13 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'breathes-only-water':
     'SRD Water Breathing, the same sentence the other way round. A creature that can breathe only underwater is a fact about where the DM may put it; nothing in the engine happens when it is put somewhere else.',
   'cannot-enter-a-home-uninvited':
-    'SRD Forbiddance: "The vampire can\'t enter a residence without an invitation from an occupant." A residence is not a thing the scene holds — the lattice has spaces, landmarks and creatures, and no doorway that could be crossed or refused — so the threshold is the DM\'s to keep.',
+    'SRD Forbiddance: "The vampire can\'t enter a residence without an invitation from an occupant." Whose home a place is, and who has spoken from inside it, are facts about the story rather than about anything the engine could be told: there is no rule that would read them and no move that would be refused, because a vampire under this sentence is simply not sent in. It tells a DM what their vampire will not do.',
   'cannot-shape-shift':
     'SRD Immutable Form: "The golem can\'t shape-shift." A creature shape-shifts here by holding a feature that says so, and the golem holds none; the sentence forbids a thing nothing was going to offer it, which is a promise to the table rather than a rule the engine enforces.',
   'controls-a-kind-of-creature':
     'SRD Shark Telepathy: "can magically control sharks within 120 feet of itself". The engine has nothing that makes one creature act at another\'s word — a compulsion is a creature somebody else is playing — and no notion of what kind of animal a stat block is beyond its own type. Who the sharks obey is the table\'s.',
   'goes-unnoticed-until-it-moves':
     'SRD Transparent: a DC 15 Wisdom (Perception) check to notice the cube at all. Whether anybody has looked, and what they were looking for, is the table\'s to say; the engine rolls the check when a DM asks for one and nothing in it waits on the answer.',
-  'grants-a-resistance-to-its-rider':
-    'SRD Confer Fire Resistance: "can grant Resistance to Fire damage to a rider while it is on the nightmare." A Resistance is a rule and its span is not: nothing in the requirement vocabulary says "while riding this creature", so the grant would have no lifetime and the gift is the table\'s to remember.',
   'has-a-damage-type-the-gm-chooses':
     'SRD Draconic Origin: "a type of dragon associated with one of the following damage types (GM\'s choice)". The block states no type, so there is nothing to pin; the attack lines that read it already ask for the ruling and refuse to roll until somebody has answered.',
   'has-a-skill-the-gm-chooses':
@@ -1280,7 +1292,7 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'holds-its-breath':
     'SRD Hold Breath. A span with nothing at the end of it: the clock could count the hour, but there is no rule waiting for it to run out, so the number is the table\'s to narrate.',
   'is-hurt-by-water':
-    'SRD Water Susceptibility and SRD Running Water. Water is a substance this world does not hold: there is no wet square, no gallon and no river, so nothing could ever raise the damage. The day the lattice holds a material, this stops being a handover.',
+    'SRD Water Susceptibility and SRD Running Water. A gallon thrown and a river waded are things a DM narrates rather than rules anything sets off, and the damage that follows a ruling already has a door built for it: the DM states the amount and the engine applies it. So the sentence is the number to use through a door that exists, which is what a handover is.',
   'is-perceived-through-by-its-master':
     'SRD Vampiric Connection: a master who sees through the familiar\'s senses. Sight is asked of the creature rolling, and there is nothing that could borrow one creature\'s senses for another; what the vampire knows is narration.',
   'mimics-sounds':
