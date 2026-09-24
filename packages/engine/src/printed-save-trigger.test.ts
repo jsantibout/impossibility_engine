@@ -518,6 +518,64 @@ describe('an aura that asks at the start of a turn', () => {
     expect(said).not.toContain('nobody has said what bren is');
   });
 
+  it('says so too when nobody has said what the creature is', () => {
+    // The other half of the same honesty, and the one the engine is likeliest
+    // to owe: a creature the table put in the room without a stat block has no
+    // type, the aura catches it because the engine cannot show it is exempt,
+    // and the sentence names the command that settles it.
+    const table = new Table();
+    table.did('the hag arrives', (s) => addCreature(s, SRD_CONTENT, MONSTER, 'sea-hag'));
+    table.do('a stranger nobody has named the kind of', () =>
+      ok([
+        {
+          type: 'creature-added',
+          id: BREN,
+          name: 'the stranger',
+          sheet: {
+            level: 1,
+            abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            skills: {},
+            saveProficiencies: [],
+            armor: null,
+            shield: null,
+            armorTraining: { light: false, medium: false, heavy: false, shields: false },
+            baseSpeed: 30,
+            spellcastingAbility: null,
+          },
+          maxHp: 20,
+          diesAtZero: false,
+        },
+      ]),
+    );
+    table.do('the room', (s) => setScene(s, { width: 120, depth: 80, height: 20 }));
+    table.do('the brazier', (s) => addSceneLandmark(s, 'the brazier', { x: 40, y: 40, z: 0 }));
+    table.do('the hag at the brazier', (s) =>
+      placeCreatureInScene(s, MONSTER, { from: { landmark: 'the brazier' }, feet: 0 }),
+    );
+    table.do('the stranger beside her', (s) =>
+      placeCreatureInScene(s, BREN, { from: { creature: MONSTER }, feet: 5, bearing: 90 }),
+    );
+    table.do('the stranger’s side', (s) => declareCreatureSide(s, BREN, 'party'));
+    table.do('the hag’s side', (s) => declareCreatureSide(s, MONSTER, 'wild'));
+    table.do('the order', (s) =>
+      beginCombat(s, [
+        { id: MONSTER, initiative: 20, speed: 30 },
+        { id: BREN, initiative: 10, speed: 30 },
+      ]),
+    );
+    expect(table.state.creatures[BREN]?.creatureType).toBeNull();
+
+    const strangersTurn = table.did('the hag finishes', (s) => resolveTurn(s));
+    expect(owed(strangersTurn).map((d) => d.target)).toEqual([BREN]);
+    const rolled = unwrap(resolvePendingSaves(strangersTurn, supply('s1')), 'the glare');
+    const said = rolled.unverified.join(' ');
+    expect(said).toContain('nobody has said what bren is');
+    expect(said).toContain('declareCreatureType');
+    // And the sight half is owed on the same line, which is what makes the
+    // pair of sentences a pair rather than one written twice.
+    expect(said).toContain('nobody has said whether bren can');
+  });
+
   it('narrows a Sea Hag’s aura to the types the clause names', () => {
     // SRD Sea Hag: "any **Beast or Humanoid** that starts its turn within 30
     // feet of the hag and can see the hag's true form." Thirty feet reaches

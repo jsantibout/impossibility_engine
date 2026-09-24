@@ -1442,7 +1442,7 @@ function unstatedFacts(
     canSee(state, target, debt.by) === null
   ) {
     said.push(
-      `${debt.line} reaches a creature that can see ${debt.by}, and nobody has said whether ${target} can — the save was asked for anyway, because the engine cannot show they could not`,
+      `${debt.line} reaches a creature that can see ${debt.by}, and nobody has said whether ${target} can — the save was asked for anyway, because the engine cannot show they could not, and declareSightBetween settles it`,
     );
   }
   if (printed.onlyIfTargetType !== undefined && state.creatures[target]?.creatureType == null) {
