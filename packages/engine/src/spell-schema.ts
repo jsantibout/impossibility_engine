@@ -1334,6 +1334,7 @@ function checkSaveCastingRepeat(
   }
 
   checkDamageTrigger(repeats.alsoWhenDamaged, at, found);
+  checkRepeatGate(repeats.onlyIf, at, found);
 
   if (repeats.beforeTheSave !== undefined) {
     found.push({
@@ -1352,6 +1353,23 @@ function checkSaveCastingRepeat(
         'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
     });
   }
+}
+
+/**
+ * The gate a repeat save may carry — see `SpellRepeatSave.onlyIf`.
+ *
+ * One value, because the book prints one sentence of this shape: SRD Fear's
+ * "doesn't have line of sight to you". Anything else is a gate the fold has
+ * no reader for, and a definition writing one would promise a save no
+ * boundary would ever withhold.
+ */
+function checkRepeatGate(gate: unknown, at: string, found: SpellDefinitionProblem[]): void {
+  if (gate === undefined || gate === 'cannot-see-caster') return;
+  found.push({
+    field: `${at}.onlyIf`,
+    code: 'bad_repeat_gate',
+    reason: `"${String(gate)}" is not a fact a turn boundary can read before owing a save; the one the book prints is "cannot-see-caster"`,
+  });
 }
 
 function checkConditionRider(
@@ -1415,6 +1433,7 @@ function checkConditionRider(
   }
 
   checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
+  checkRepeatGate(rider?.repeats?.onlyIf, `${riderPath}.repeats`, found);
 
   // **And a repeat that ends the casting needs one the rider has not
   // disowned.** `outlivesCasting` is exactly the field that records the

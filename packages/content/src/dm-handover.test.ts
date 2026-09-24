@@ -413,6 +413,11 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'dream',
       'druidcraft',
       'elementalism',
+      // SRD Fear's compelled Dash — 'moves away from you by the safest route
+      // ... unless there is nowhere to move' — under the ruling that a
+      // compulsion is adjudicated and never performed: the Action is narrowed
+      // to the Dash by the engine and the route is the table's.
+      'fear',
       'find-traps',
       'floating-disk',
       'gate',

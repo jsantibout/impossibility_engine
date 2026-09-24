@@ -176,6 +176,10 @@ export function repeatSaveFrom(
     ...(repeats.alsoWhenDamaged === undefined
       ? {}
       : { alsoWhenDamaged: repeats.alsoWhenDamaged }),
+    // And SRD Fear's gate, carried the same way: what the boundary must find
+    // true before it owes the save is the book's, and the fold reads it off
+    // the timer.
+    ...(repeats.onlyIf === undefined ? {} : { onlyIf: repeats.onlyIf }),
     label: `${ABILITY_NAMES[ability]} save vs ${context.name}`,
   };
 }

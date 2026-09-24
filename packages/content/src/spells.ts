@@ -2300,7 +2300,23 @@ export const CHARM_PERSON: SpellDefinition = {
  * > Action. **Range:** Self. **Duration:** Concentration, up to 1 minute.
  * > "Each creature in a 30-foot Cone must succeed on a Wisdom saving throw or
  * > drop whatever it is holding and have the Frightened condition for the
- * > duration."
+ * > duration. A Frightened creature takes the Dash action and moves away from
+ * > you by the safest route on each of its turns unless there is nowhere to
+ * > move. If the creature ends its turn in a space where it doesn't have line
+ * > of sight to you, the creature makes a Wisdom saving throw. On a
+ * > successful save, the spell ends on that creature."
+ *
+ * Three sentences and three different answers. The first is a save, a drop
+ * and a condition, all of them the engine's: `drops.all` is Command's Drop
+ * — "whatever it is holding" names no object — and the Frightened is the
+ * casting's for the duration. The second is a compulsion, and the ruling on
+ * compulsions stands: the Action slot is narrowed to the Dash and fails
+ * closed, so the engine refuses everything else and walks nobody; the route
+ * and the "unless there is nowhere to move" are the table's, handed over in
+ * the book's words. The third is a repeat save with a **gate** — owed only
+ * where the creature cannot see the caster, which is `SpellRepeatSave.onlyIf`
+ * and the sight declaration the boundary reads — ending the spell on that
+ * creature alone.
  */
 export const FEAR: SpellDefinition = {
   id: 'fear',
@@ -2317,6 +2333,9 @@ export const FEAR: SpellDefinition = {
       kind: 'save',
       ability: 'wis',
       condition: 'frightened',
+      // "drop whatever it is holding": no object is named because there is
+      // none to name — SRD Command's Drop, on a failure this save settles.
+      drops: { all: true },
       // "A Frightened creature takes the Dash action" — written as the
       // legality it is, and never as an instruction that executes. The Action
       // slot is narrowed to the Dash and fails closed, so the engine refuses
@@ -2326,13 +2345,18 @@ export const FEAR: SpellDefinition = {
       modifiers: [
         { kind: 'action', rule: { kind: 'permits-only', slot: 'action', actions: ['dash'] } },
       ],
+      // "If the creature ends its turn in a space where it doesn't have line
+      // of sight to you, the creature makes a Wisdom saving throw. On a
+      // successful save, the spell ends on that creature." The repeat rides
+      // the Frightened it imposed and is owed only behind the gate.
+      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target', onlyIf: 'cannot-see-caster' },
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'a creature that fails drops whatever it is holding',
-    'the Dash away from you by the safest route, and the "unless there is nowhere to move" it stops at, are the DM’s: the engine narrows the Action to the Dash and moves nobody',
-    'the Wisdom save a Frightened creature makes when it ends its turn out of your line of sight, which would end the spell on that creature',
+  // The compulsion's route and its stop, in the book's words, under the
+  // ruling that a compelled Dash is adjudicated and never performed.
+  dmDecides: [
+    'A Frightened creature takes the Dash action and moves away from you by the safest route on each of its turns unless there is nowhere to move.',
   ],
 };
 

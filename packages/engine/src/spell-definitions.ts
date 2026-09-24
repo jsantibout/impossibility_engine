@@ -509,6 +509,30 @@ export interface SpellRepeatSave {
    */
   readonly alsoWhenDamaged?: { readonly mode: 'advantage' };
   /**
+   * A fact that must hold at the boundary for the save to be owed at all.
+   *
+   * SRD Fear: "If the creature ends its turn in a space where it doesn't have
+   * line of sight to you, the creature makes a Wisdom saving throw. On a
+   * successful save, the spell ends on that creature." Every other repeat in
+   * the book is owed at its moment unconditionally; this one is owed only
+   * where the creature cannot see the caster, and a boundary that raised it
+   * regardless would hand a cornered goblin a save the book withholds.
+   *
+   * **Read by the fold where the debt is raised, off the same pairwise sight
+   * the rest of the engine reads** — `canSee(target, caster)` — and the
+   * three-valued answer keeps its meaning: only a declared *no* raises the
+   * save. Nobody having said is not the creature having lost sight of the
+   * caster, and a boundary has nobody to ask; the table declares sight and
+   * the next boundary reads it. The caster is the casting's, found through
+   * the mark the condition carries, so a repeat under any other source is
+   * never gated — there is no caster for the sentence to be about.
+   *
+   * A union of one member, for {@link alsoWhenDamaged}'s reason: the field
+   * says what the gate *reads*, and a second sentence of this shape arrives
+   * as a second member rather than as a boolean.
+   */
+  readonly onlyIf?: 'cannot-see-caster';
+  /**
    * What a **failure** does, where the SRD writes a failure that acts.
    *
    * SRD Sleep: "at which point it must repeat the save. If the target fails

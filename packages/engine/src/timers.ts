@@ -320,6 +320,16 @@ export interface RepeatSave {
      */
     readonly mode: 'advantage';
   };
+  /**
+   * A fact that must hold at the boundary for the save to be owed at all —
+   * see `SpellRepeatSave.onlyIf`, where the shape and its reader are argued.
+   *
+   * SRD Fear, the one writer: the save is made only by a creature that "ends
+   * its turn in a space where it doesn't have line of sight to you". Pinned
+   * onto the hook at the casting so the boundary reads the gate off the timer
+   * and opens no catalogue; `raiseTurnSaves` is the one reader.
+   */
+  readonly onlyIf?: 'cannot-see-caster';
   /** How the roll reads in the log. */
   readonly label: string;
 }

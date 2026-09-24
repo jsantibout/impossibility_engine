@@ -24,7 +24,7 @@ import { isIncapacitated, sourceOfInstance } from '../conditions.js';
 import { printedLineSource, triggeredSavesOf } from '../monster.js';
 import { creaturesInArea, distanceBetween } from '../positioning.js';
 import { canSee } from '../standing.js';
-import { castingSource } from '../spells.js';
+import { castingIdOf, castingSource } from '../spells.js';
 import { isDue } from '../time.js';
 import { pendingSaveKey, printedSaveKey, type PendingSave } from '../timers.js';
 import { type CombatState } from '../combat.js';
@@ -115,6 +115,22 @@ export function raiseTurnSaves(
     // batch, and without the record there is no spell name for the mark a
     // success would be looked up by.
     if (host === null) continue;
+
+    // **And the one gate a repeat can carry.** SRD Fear: "If the creature
+    // ends its turn in a space where it doesn't have line of sight to you,
+    // the creature makes a Wisdom saving throw." The caster is the casting's,
+    // found through the mark the source carries; the sight is the pairwise
+    // declaration every other reader consults, and only a declared *no*
+    // raises the debt — nobody having said is not the creature having lost
+    // sight of the caster, and a boundary has nobody to ask. A repeat under a
+    // source that is no casting has no caster to be seen and is never owed.
+    if (hook.onlyIf === 'cannot-see-caster') {
+      const castingId = castingIdOf(host.source);
+      const caster = castingId === null ? undefined : state.ongoing[castingId]?.caster;
+      if (caster === undefined || canSee(state, host.target as CharacterId, caster as CharacterId) !== false) {
+        continue;
+      }
+    }
 
     raised[pendingSaveKey(key, after.turnsTaken)] = {
       effectKey: key,

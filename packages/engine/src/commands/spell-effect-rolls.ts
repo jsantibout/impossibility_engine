@@ -1177,6 +1177,7 @@ function castingHostedRepeat(
       ability: effect.ability,
       dc: saveDc,
       onSuccess: repeats.onSuccess,
+      ...(repeats.onlyIf === undefined ? {} : { onlyIf: repeats.onlyIf }),
       label: `${ctx.name} (${ABILITY_NAMES[effect.ability]} save)`,
     },
     // **Carried only where this event *replaces* the casting's own timer**,

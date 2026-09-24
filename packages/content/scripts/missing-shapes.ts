@@ -871,28 +871,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The commands the link carries are the target’s actions — not the slots they come out of, which a spell may now spend, but which action is taken and at what. That is a decision, and it is made by somebody who is not playing the creature.',
     },
   ],
-  fear: [
-    {
-      clause: 'drops whatever it is holding',
-      why: 'what-a-creature-is-holding',
-      note: 'SRD: a creature that fails must "drop whatever it is holding". A weapon does come out of a hand now — `OutcomeRiders.drops` is the verb and SRD Heat Metal is executed off it — and this clause names **no object**: the rider drops the one thing the caster stated at the casting, where Fear empties whatever the creature happens to be holding. The half that is left is the plural, and it is what the shape’s own description now says is left.',
-    },
-    // **The Dash itself is written now**, as the legality `ActionRule` was
-    // derived from this very sentence to say: the Action slot is narrowed to
-    // the Dash and fails closed. What the clause above used to hold was two
-    // gaps in one entry, and they are two entries because only one of them was
-    // ever about the action economy.
-    {
-      clause: 'by the safest route',
-      why: 'table',
-      note: 'SRD: "moves away from you by the safest route on each of its turns unless there is nowhere to move". A direction is fiction and an engine that walked the creature would be playing it; the narrowing the same sentence prints is executed, and where a Frightened creature goes — and whether there is anywhere to go at all — is the DM’s.',
-    },
-    {
-      clause: 'ends its turn out of your line of sight',
-      why: 'a-repeat-save-raised-by-a-trigger',
-      note: 'SRD: "If the creature ends its turn in a space where it doesn\'t have line of sight to you, the creature makes a Wisdom saving throw." A repeat save is raised by a turn boundary and owed by whoever holds the condition; this one is owed only where a pairwise sight declaration says the target cannot see the caster, which no boundary reads.',
-    },
-  ],
   'feather-fall': [
     {
       clause: 'a creature you can see',
