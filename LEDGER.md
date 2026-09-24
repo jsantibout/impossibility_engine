@@ -37,7 +37,7 @@ state is displayed as zero.
 | Features manual, or a pool with nothing to buy | 13 features | 7 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 199 items | on 121 of 244 blocks | 0 | 123 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 199 items | on 119 of 244 blocks | 0 | 125 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -52,9 +52,9 @@ hold at all. An executed spell with nothing left is not here.
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-choice-made-at-the-casting` | 4 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
-| `an-action-the-engine-has-no-spender-for` | 4 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
+| `an-action-the-engine-has-no-spender-for` | 3 | 1 |
 | `a-condition-benefit-an-effect-takes-away` | 2 | 1 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
@@ -70,6 +70,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-world-fact-nothing-can-represent` | 1 | 1 |
 | `an-armor-class-a-spell-floors` | 1 | 1 |
 | `an-outcome-that-breaks-concentration` | 1 | 1 |
+| `an-outcome-that-reads-the-targets-defences` | 1 | 1 |
 | `falling` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
 | `jumping` | 1 | 1 |
@@ -112,7 +113,6 @@ hold at all. An executed spell with nothing left is not here.
 | `an-area-trigger-on-the-casters-turn` | 1 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 1 | 0 |
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 |
-| `an-outcome-that-reads-the-targets-defences` | 1 | 0 |
 | `senses-beyond-declared-sight` | 1 | 0 |
 | `several-attack-rolls-from-one-casting` | 1 | 0 |
 | `the-effects-source-as-a-participant` | 1 | 0 |
@@ -145,13 +145,6 @@ sums to the population.
 - **Warding Bond** (level 2) — tracked — also waits on 1
 - **Tiny Hut** (level 3) — tracked — also waits on 2
 
-#### `an-action-the-engine-has-no-spender-for` — blocks 4, finishes 1
-
-- **Sleep** (level 1) — executed-partial — also waits on 1
-- **Speak with Animals** (level 1) — tracked
-- **Gaseous Form** (level 3) — executed-partial — also waits on 2
-- **Haste** (level 3) — executed-partial — also waits on 2
-
 #### `a-stat-block-created-mid-fight` — blocks 3, finishes 1
 
 - **Unseen Servant** (level 1) — tracked — also waits on 1
@@ -163,6 +156,12 @@ sums to the population.
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Animal Messenger** (level 2) — tracked
 - **Animate Dead** (level 3) — tracked — also waits on 1
+
+#### `an-action-the-engine-has-no-spender-for` — blocks 3, finishes 1
+
+- **Speak with Animals** (level 1) — tracked
+- **Gaseous Form** (level 3) — executed-partial — also waits on 2
+- **Haste** (level 3) — executed-partial — also waits on 2
 
 #### `a-condition-benefit-an-effect-takes-away` — blocks 2, finishes 1
 
@@ -230,6 +229,10 @@ sums to the population.
 #### `an-outcome-that-breaks-concentration` — blocks 1, finishes 1
 
 - **Sleet Storm** (level 3) — tracked
+
+#### `an-outcome-that-reads-the-targets-defences` — blocks 1, finishes 1
+
+- **Sleep** (level 1) — executed-partial
 
 #### `falling` — blocks 1, finishes 1
 
@@ -424,10 +427,6 @@ sums to the population.
 #### `an-effect-that-stabilises-a-dying-creature` — blocks 1, finishes 0
 
 - **Spare the Dying** (level 0) — tracked — also waits on 1
-
-#### `an-outcome-that-reads-the-targets-defences` — blocks 1, finishes 0
-
-- **Sleep** (level 1) — executed-partial — also waits on 1
 
 #### `senses-beyond-declared-sight` — blocks 1, finishes 0
 
@@ -628,7 +627,7 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 559 and hands over 179. Reading is not spending: a further 20 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 199 items over 244 blocks — 123 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 559 and hands over 179. Reading is not spending: a further 20 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 199 items over 244 blocks — 125 of which already carry none of them.
 
 **A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 199 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
@@ -643,8 +642,8 @@ overlap: one sentence can force a save and recharge.
 | A save a line forces | 20 | 20 | Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
 | An effect a hit buys | 20 | 20 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Black Pudding (CR 4) / Dissolving Pseudopod |
 | A use the block limits per day | 16 | 15 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
-| A save whose line says more than the engine spends | 10 | 10 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Brass Dragon Wyrmling (CR 1) / Sleep Breath; Ghost (CR 4) / Horrific Visage |
 | A recharge | 6 | 6 | Blink Dog (CR 0.25) / Teleport (Recharge 4–6); Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
+| A save whose line says more than the engine spends | 4 | 4 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Steam Mephit (CR 0.25) / Steam Breath (Recharge 6); Water Elemental (CR 5) / Whelm (Recharge 4–6) |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |
 | A creature that casts | 0 | 0 | — |

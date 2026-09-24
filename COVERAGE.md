@@ -455,7 +455,6 @@ of *Tracked* and is never added to it.
 | `a-creature-type-predicate-an-area-reads` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
-| `an-action-the-engine-has-no-spender-for` | 4 | 0 | 0 | 3 | 1 | 1 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 4 | 0 | 0 | 2 | 2 | 0 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
@@ -470,6 +469,7 @@ of *Tracked* and is never added to it.
 | `a-selector-for-every-d20-test` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-success-branch-that-does-something` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-world-fact-nothing-can-represent` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| `an-action-the-engine-has-no-spender-for` | 3 | 0 | 0 | 2 | 1 | 1 | 0 |
 | `an-area-that-moves-by-itself` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `an-area-trigger-measured-from-a-point` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
 | `an-effect-that-fires-when-the-casting-ends` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
@@ -1046,7 +1046,7 @@ and a bite whose hit buys a save.
 | A hit whose line says more than the engine applies | 50 | 51 |
 | An effect a hit buys | 40 | 41 |
 | A legendary action’s own economy | 30 | 82 |
-| A save whose line says more than the engine spends | 26 | 26 |
+| A save whose line says more than the engine spends | 17 | 17 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
 | A trait shape nothing spends | 0 | 0 |

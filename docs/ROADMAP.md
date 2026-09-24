@@ -1839,3 +1839,29 @@ Appended after wave five's first two tracks (2026-09-24):
   definition's `onFailure` into the engine's, and no SRD spell prints a
   deepening that repeats. A nested `end-casting` repeat has no backstop yet;
   nothing can write one today.
+
+Appended after wave six's first two tracks (2026-09-24):
+
+- **Cunning Strike executes.** A hit rider's price may be a sibling feature's
+  damage dice (`forgoesDiceOf`; `no_dice_to_forgo`), taken where the Sneak
+  Attack dice are gathered so the one loop that knows whether the feature
+  fired is the one that charges; a rider may require an item on the holder's
+  person (`item_not_carried`) and hand the turn a move (Withdraw, through
+  `movement-granted`, which already provokes nobody). Whether a blow was a
+  Sneak Attack depends on the die, so the price is not a refusal after the
+  roll — a rider that finds no dice is dropped unspent and reported. Improved
+  Cunning Strike, Devious Strikes and Supreme Sneak now wait on one shape: a
+  later feature lengthening an earlier rider's menu
+  (`a-feature-that-rewrites-another-features-rule`).
+- **The sleeper's door.** `wakeCreature` is an action a neighbour spends; what
+  it ends is **derived**, not commanded — `shaken-awake` joins the casting end
+  causes and a printed condition carries `endsOnDamage` / `endsWhenWoken` as
+  lists of condition names (the Pseudodragon's Unconscious ends while its
+  Poisoned runs on), so a shake and a blow reach one door. An immunity to one
+  printed line for a day is its own grant family, not a condition immunity — a
+  second ghost's visage still frightens. A printed hold may owe a payout at
+  its holder's boundary; the Vampire Spawn's bite lowers by the Necrotic alone
+  and feeds the vampire; a line that catches only the willing or the held asks
+  for consent (`undeclared_consent`) rather than refusing, and the DM's door
+  names the willing by id. The Trample lines now require a Prone target, which
+  the book always said.
