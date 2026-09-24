@@ -37,7 +37,7 @@ state is displayed as zero.
 | Features manual, or a pool with nothing to buy | 15 features | 9 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 202 items | on 124 of 244 blocks | 0 | 120 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 201 items | on 122 of 244 blocks | 0 | 122 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -102,7 +102,6 @@ hold at all. An executed spell with nothing left is not here.
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
 | `a-range-that-scales-with-caster-level` | 1 | 0 |
 | `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 |
-| `a-rule-that-couples-two-slots-of-a-turn` | 1 | 0 |
 | `a-selector-for-every-d20-test` | 1 | 0 |
 | `a-self-cure-a-spell-forbids` | 1 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 |
@@ -274,7 +273,7 @@ sums to the population.
 
 - **Enthrall** (level 2) — tracked — also waits on 1
 - **Pass without Trace** (level 2) — tracked — also waits on 1
-- **Slow** (level 3) — executed-partial — also waits on 3
+- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `a-check-another-creature-may-attempt` — blocks 3, finishes 0
 
@@ -384,11 +383,7 @@ sums to the population.
 
 #### `a-repeat-save-with-no-condition-to-hang-it-on` — blocks 1, finishes 0
 
-- **Slow** (level 3) — executed-partial — also waits on 3
-
-#### `a-rule-that-couples-two-slots-of-a-turn` — blocks 1, finishes 0
-
-- **Slow** (level 3) — executed-partial — also waits on 3
+- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `a-selector-for-every-d20-test` — blocks 1, finishes 0
 
@@ -408,7 +403,7 @@ sums to the population.
 
 #### `an-action-a-spell-compels-or-forbids` — blocks 1, finishes 0
 
-- **Slow** (level 3) — executed-partial — also waits on 3
+- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `an-activation-that-forces-a-saving-throw` — blocks 1, finishes 0
 
@@ -659,9 +654,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 556 and hands over 182. Reading is not spending: a further 20 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 202 items over 244 blocks — 120 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 557 and hands over 181. Reading is not spending: a further 20 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 201 items over 244 blocks — 122 of which already carry none of them.
 
-**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 202 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 201 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -671,10 +666,10 @@ overlap: one sentence can force a save and recharge.
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
 | A hit whose line says more than the engine applies | 28 | 28 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive |
-| A save a line forces | 23 | 23 | Brass Dragon Wyrmling (CR 1) / Sleep Breath; Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6) |
+| A save a line forces | 22 | 22 | Brass Dragon Wyrmling (CR 1) / Sleep Breath; Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6) |
 | An effect a hit buys | 20 | 20 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Black Pudding (CR 4) / Dissolving Pseudopod |
 | A use the block limits per day | 16 | 15 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
-| A save whose line says more than the engine spends | 10 | 10 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Dretch (CR 0.25) / Fetid Cloud (1/Day); Ghost (CR 4) / Horrific Visage |
+| A save whose line says more than the engine spends | 9 | 9 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Ghost (CR 4) / Horrific Visage; Incubus (CR 4) / Nightmare (Recharge 6) |
 | A recharge | 6 | 6 | Blink Dog (CR 0.25) / Teleport (Recharge 4–6); Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |

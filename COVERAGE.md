@@ -500,7 +500,6 @@ of *Tracked* and is never added to it.
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-rest-an-effect-gives-or-denies` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
-| `a-rule-that-couples-two-slots-of-a-turn` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-self-cure-a-spell-forbids` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
@@ -964,7 +963,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 906 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 910 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1024,7 +1023,7 @@ fact the book wrote for a person.
 | Line | Printed | Read |
 |---|---|---|
 | Traits | 337 | 137 |
-| Actions | 812 | 748 |
+| Actions | 812 | 752 |
 | Bonus actions | 75 | 21 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
@@ -1048,7 +1047,7 @@ and a bite whose hit buys a save.
 | A hit whose line says more than the engine applies | 50 | 51 |
 | An effect a hit buys | 40 | 41 |
 | A legendary action’s own economy | 30 | 82 |
-| A save whose line says more than the engine spends | 23 | 23 |
+| A save whose line says more than the engine spends | 22 | 22 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
 | A trait shape nothing spends | 0 | 0 |

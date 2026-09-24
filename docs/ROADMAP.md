@@ -1790,9 +1790,16 @@ Appended after wave five's first two tracks (2026-09-24):
   member, `one-of` over a *list* of slots ("spending any one forecloses the
   rest"), because SRD Ice Devil couples movement with the action where the
   Dretch, the Copper Wyrmling and Slow couple the action with the Bonus
-  Action; the spender reads the budget it already holds. In flight as W5-E,
-  which retires `a-rule-that-couples-two-slots-of-a-turn` and carries
-  `speed-halved` with it.
+  Action; the spender reads the budget it already holds. **Merged (W5-E):**
+  the four spenders ask `refuseForeclosed` of their own budget, so no command
+  changed; a printed failure may impose a rule about a turn or a halved Speed,
+  on a condition instance or under a timer; the Dretch, the four Copper
+  Dragons and Slow's coupling read whole, and the shape is retired. Left
+  standing, each said in place: the Brass Dragons' Scorching Sands is a
+  legendary action and that economy is unbuilt; the Ice Devil's coupling is a
+  hit rider the reader does not reach; a granted move (SRD Tactical Shift)
+  does not foreclose a later action, because `GrantedMove.feet` records what
+  is left rather than what has gone.
 - **Breath Weapon and Open Hand Technique execute.** A pool option may cost
   one attack of an Attack action already taken (`action: 'one-attack'`,
   emitting the same `attack-made` a swing does), derive its DC from the
