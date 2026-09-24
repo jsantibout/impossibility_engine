@@ -43,7 +43,7 @@ for exactly this reason.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
 | Spells in reach, not executed | 50 spells | 50 | 0 | 0 | 32 |
-| Features manual, or a pool with nothing to buy | 1 features | 1 | 0 | 0 | 0 |
+| Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
 | CR ≤ 5 stat-block items handed over or unapplied | 127 items | on 91 of 244 blocks | 0 | 153 blocks already clean | 0 |
@@ -452,7 +452,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 1, 0 are class or subclass features printed at level 5 or below, 1 are species or background traits and 0 are feats.
+Of the 0, 0 are class or subclass features printed at level 5 or below, 0 are species or background traits and 0 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -460,16 +460,11 @@ comes from.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-reroll-outside-the-test-window` | 1 | 1 |
 
 **Blocks** is every feature of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A feature can need more than one shape, so neither column
 sums to the population.
-
-#### `a-reroll-outside-the-test-window` — blocks 1, finishes 1
-
-- `human:resourceful` — Resourceful (level 1, species, manual)
 
 #### Waiting on a definition — 0
 

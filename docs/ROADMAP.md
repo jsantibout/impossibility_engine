@@ -2301,3 +2301,37 @@ Appended after wave seven's first spells track (2026-09-24):
   from the use that made it, the way a summoned creature's id is derived from
   its casting and an item copy's from its gain — a new primitive with a
   precedent, not a random number.
+- **A reroll elected before the die, and the last manual feature executes.**
+  SRD Heroic Inspiration's "reroll any die immediately after rolling it" was
+  blocked because a window on every die had been tried and withdrawn; the
+  ruling was an **election**, and it is built: `RollElection` — a pool and a
+  condition (`fails`, `misses`, a face at or below a number) stated on the
+  command that rolls, read by the engine against the die it threw, the first
+  face kept on the record and the pool spent only when the condition fires;
+  the damage election rethrows one die of the attack's own damage and keeps
+  the roll id. Only a reroll of "any die" is electable — Indomitable keeps the
+  window, because the pipeline rethrow carries no bonus and its Fighter level
+  would vanish. The failed-test window stays for the features that share it,
+  and electing then answering the window with the same pool is refused. The
+  election reaches dice a command the roller sent throws, and not a spell's
+  attack or damage, a boundary's save, Initiative or a death save — named in
+  Resourceful's note. `a-reroll-outside-the-test-window` is deleted rather
+  than amended, its ruling recorded in the note and the design note.
+  **Features manual, or a pool with nothing to buy: none in a level 5
+  character's reach.**
+- **Breath Weapon's price, and a conjured line's name.** `spendOneAttack`
+  (in `commands/features.ts`, not where the brief guessed) read "replace one
+  of your attacks" as the Attack action already taken with one left over, so
+  every Dragonborn below level 5 was refused its own species trait; it now
+  walks `spendAttack`'s road as Pact of the Chain's forgone attack always did
+  — the action taken if it has not been, the first attack spent — and the two
+  features read one sentence one way. A conjuring of **one thing** — a
+  casting's blade or a feature's pact weapon — now mints an item record
+  through the door a gained copy uses, so the pact Longsword can be named
+  beside a bought one; a handful (Goodberry's ten) stays a counted stack,
+  because a record stands for one copy and relaxing that is a decision. Two
+  consequences fixed with it: `dropConjured` names the copy it loses, and the
+  fold's `backs` predicate reads a wielding that names no copy as being about
+  the kind. **Left standing:** with two lines of a kind the bare kind is still
+  `ambiguous_copy` — falling to the unlabelled line would change `copyNamed`'s
+  contract, a follow-up if anyone wants it.

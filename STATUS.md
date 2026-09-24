@@ -53,7 +53,9 @@ homebrew.
   budget, the Unarmed Strike's three options, fighting styles, weapon
   masteries, and the defender answering first on both paths. A feature may
   carry several grants, each gated on one option of its choice; a species may
-  grant a spell; a feature may raise the hit point maximum. **The glossary's
+  grant a spell; a feature may raise the hit point maximum; a reroll may be **elected**
+  on the roll command — if it misses, fails, or shows a named face or lower —
+  which is how Heroic Inspiration reaches every die without a window. **The glossary's
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack carries Nick and Two-Weapon
   Fighting, and Savage Attacker, Luck, Relentless Endurance, Powerful
@@ -108,14 +110,11 @@ homebrew.
   engine still has no idea a language model exists, which is the point.
 - **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed,
   timed, effect left to the table. `LEDGER.md` names each and its shape.
-- **One feature in a level 5 character's reach is still `manual`** —
-  Resourceful's reroll window — and the Champion's second Fighting
-  Style at level 7. Every pool buys something.
-- **A Druid's known forms are the ones it was made with.** SRD lets one be
-  replaced when a Long Rest ends and no rest offers that yet; the form's limbs
-  decide nothing about what can be held; the block's senses are not carried;
-  and the monster side of the same swap (Doppelganger, Imp, Werewolf) is not
-  built.
+- **No feature in a level 5 character's reach is `manual`**; the Champion's
+  second Fighting Style at level 7 still is. Every pool buys something.
+- **A Druid's known forms are the ones it was made with**; no rest replaces
+  one yet, the form's limbs decide nothing about what can be held, and the
+  block's senses are not carried.
 - **A summons still carries one debt.** A casting raises a creature out of the bestiary, states its form and type
   and seats it; what no field can hold is a printed
   line whose numbers are the summoner's — the Otherworldly Steed's attack and

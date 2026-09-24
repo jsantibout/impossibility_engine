@@ -188,7 +188,15 @@ describe('the ledger measures the three populations of the roadmap', () => {
    * the activation that spends it.
    */
   it('holds only features a character of the level can hold', () => {
-    expect(ledger.features.length).toBeGreaterThan(0);
+    // **Empty in a level 5 character's reach, and held from both ends.** The
+    // wave that executed Resourceful was the last: nothing a level 1–5
+    // character holds is `manual` or a pool with nothing to buy. An empty
+    // list is a claim, so the guard also asks the derivation one level above
+    // the ledger's reach — the Champion's second Fighting Style at 7 is still
+    // `manual` — which proves the derivation still finds a feature when the
+    // level lets it.
+    expect(ledger.features).toEqual([]);
+    expect(auditLedger(7).features.length).toBeGreaterThan(0);
     for (const one of ledger.features) expect(one.level, one.id).toBeLessThanOrEqual(LEDGER_LEVEL);
     for (const id of [
       'druid:wild-shape',
