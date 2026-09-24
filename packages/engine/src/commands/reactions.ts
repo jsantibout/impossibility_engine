@@ -426,10 +426,15 @@ export function settleDamage(
     // SRD Dark One's Blessing reads the outcome rather than the swing, and this
     // road used to ask for itself; it is asked at `resolveDamage` now, which is
     // the funnel a spell's damage and a DM's adjudicated amount share with this
-    // one. The events therefore arrive with the damage rather than after the
-    // rider — a rider changes no side, no scene and no sheet, so it was never
-    // an input to the question, and the blow that dropped the creature is the
-    // moment the sentence names.
+    // one.
+    //
+    // **So the spoils arrive with the damage rather than after the rider, and
+    // that is the more faithful reading rather than a consequence to live
+    // with.** "Within 10 feet of you" is measured at the moment the enemy is
+    // reduced to 0 Hit Points, and a rider can move somebody afterwards — a
+    // hit's `shove` rider pushes a creature across the floor — so asking after
+    // the rider was asking about a room the sentence had already finished
+    // with. The question is now put at the instant the sentence names.
     const settled = [...all, ...riderEvents];
 
     return ok({

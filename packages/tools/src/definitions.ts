@@ -4894,6 +4894,14 @@ const END_TURN = tool({
         savesOutstanding: value.pending.length,
         duplicate: value.duplicate ?? false,
       }),
+      // **And what the boundary applied without being able to check it.** A
+      // boundary settles a scheduled hit, every persistent area that owes
+      // something, the payouts a running spell hands over and the repeat
+      // saves, and each of those can drop a creature — so it is the one
+      // command that can hand back four rules' worth of missing facts at
+      // once. `TurnResolution.unverified` gathers them; this is the door
+      // saying them out loud.
+      (value) => value.unverified,
     ),
 });
 

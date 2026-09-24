@@ -656,6 +656,12 @@ export function payCastingDamageCost(
   });
   if (!hurt.ok) return hurt;
 
+  // **The events only, and the funnel's report is dropped here.** This returns
+  // a bare list and has nowhere to put a sentence — the same shape, and the
+  // same named gap, as `beginCombat`'s payouts. Nothing is lost today: the
+  // backlash is typed, so Undead Fortitude is applied whole, and it names no
+  // dealer, so `rewardsForDropping` pays nobody for a caster who overchannelled
+  // themselves to death.
   return ok([...events, ...hurt.value.events]);
 }
 

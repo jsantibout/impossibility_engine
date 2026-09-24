@@ -12,6 +12,11 @@
  * them the test: `improvised_damage` hands `resolveDamage` an amount, and
  * `roll_improvised_damage` hands it dice. Both go through the one funnel, and
  * the funnel is where the watcher is paid.
+ *
+ * And `end_turn` below, which is the opposite case: nobody is holding the
+ * instrument at all. A boundary settles what the last round arranged, and the
+ * facts it could not check have to come home through the door that settled
+ * them or come home nowhere.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -176,5 +181,75 @@ describe('a drop nobody rolled for still pays the watcher', () => {
     expect(temporaryHpOf(t, 'kael')).toBe(0);
     expect(out.unverified.join(' ')).toContain('nobody has laid out a scene');
     expect(out.unverified.join(' ')).toContain("Dark One's Blessing");
+  });
+});
+
+/**
+ * **And the boundary, which is the road no tool call is standing on.**
+ *
+ * SRD Priest casts Spirit Guardians once a day, and the spirits deal their
+ * damage at the end of somebody else's turn — so what drops the goblin is
+ * `end_turn`, a round after the spell was cast. That is the one command that
+ * can settle four different rules at once, and until now it reported none of
+ * what they could not check.
+ */
+describe('a turn boundary says what it could not check', () => {
+  it('hands the watcher’s missing side back through end_turn', () => {
+    const campaign = createCampaign({ content: SRD_CONTENT, seed: 'the-spirits' });
+    const surface = createDmSurface(campaign);
+    let calls = 0;
+    const call = (tool: string, input: unknown = {}): ToolOutcome => {
+      calls += 1;
+      return surface.call({ tool, input, commandId: `toolu_${calls}` });
+    };
+
+    expectOk(call('create_character', { id: 'kael', choices: kael() }));
+    expectOk(call('add_creature', { id: 'zeal', monsterId: 'priest' }));
+    expectOk(call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    // Kael and the priest are the party; **nobody says what the goblin is**,
+    // which is the fact the boundary cannot check and now reports.
+    expectOk(call('declare_side', { who: 'kael', side: 'party' }));
+    expectOk(call('declare_side', { who: 'zeal', side: 'party' }));
+
+    expectOk(call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(call('add_landmark', { name: 'the altar', at: { x: 20, y: 20 } }));
+    expectOk(call('place_creature', { who: 'zeal', fromLandmark: 'the altar', feet: 0 }));
+    expectOk(call('place_creature', { who: 'kael', fromCreature: 'zeal', feet: 5, bearing: 0 }));
+    // Five feet from Kael and inside the priest's 15-foot Emanation.
+    expectOk(call('place_creature', { who: 'grish', fromCreature: 'kael', feet: 5, bearing: 90 }));
+
+    expectOk(
+      call('roll_initiative', {
+        combatants: [{ who: 'zeal' }, { who: 'kael' }, { who: 'grish' }],
+      }),
+    );
+
+    // Round the order until the priest is up, so the spirits are theirs to
+    // raise. Bounded, because a loop over a fight is a loop that must stop.
+    for (let step = 0; step < 6 && surface.observe().turnOf !== 'zeal'; step += 1) {
+      expectOk(call('end_turn', {}));
+    }
+    expect(surface.observe().turnOf).toBe('zeal');
+    expectOk(
+      call('cast_spell', {
+        caster: 'zeal',
+        spellId: 'spirit-guardians',
+        targets: [],
+        // "Radiant (if you are good or neutral) or Necrotic (if you are evil)"
+        // — an alignment the engine does not hold, so the caster states it.
+        damageType: 'radiant',
+        unaffected: ['kael'],
+      }),
+    );
+
+    for (let turn = 0; turn < 12; turn += 1) {
+      const ended = expectOk(call('end_turn', {}));
+      if (ended.unverified.length === 0) continue;
+      expect(ended.unverified.join(' ')).toContain('nobody has said whose side grish is on');
+      expect(ended.unverified.join(' ')).toContain("Dark One's Blessing");
+      expect(campaign.state().creatures['kael' as never]!.vitals.temporaryHp).toBe(0);
+      return;
+    }
+    throw new Error('the spirits never dropped the goblin');
   });
 });
