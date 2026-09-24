@@ -594,16 +594,16 @@ be the second spelling of one derivation.
 | `healing-modified-by-an-effect` | 2 | 2 |
 | `movement-modes` | 2 | 2 |
 | `a-feature-that-changes-what-a-casting-costs` | 5 | 1 |
-| `a-move-a-feature-hands-its-holder` | 5 | 1 |
+| `a-move-a-feature-hands-its-holder` | 4 | 1 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 3 | 1 |
 | `an-action-a-spell-compels-or-forbids` | 3 | 1 |
 | `an-attack-the-class-redefines` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-one-shot-roll-modifier` | 2 | 1 |
-| `a-reaction-effect-the-vocabulary-lacks` | 2 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
 | `a-creature-fact-an-effect-overrides` | 1 | 1 |
+| `a-reaction-effect-the-vocabulary-lacks` | 1 | 1 |
 | `a-reroll-outside-the-test-window` | 1 | 1 |
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
 | `a-stat-block-created-mid-fight` | 1 | 1 |
@@ -615,7 +615,6 @@ be the second spelling of one derivation.
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `heroic-inspiration` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 3 | 0 |
-| `a-speed-a-feature-reduces` | 2 | 0 |
 | `a-turn-boundary-payout-a-feature-owes` | 2 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `temporary-hit-points-a-feature-grants` | 2 | 0 |
@@ -623,9 +622,9 @@ be the second spelling of one derivation.
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 |
-| `a-rider-that-adds-damage-to-the-blow` | 1 | 0 |
 | `a-rule-the-engine-fixes-for-everybody` | 1 | 0 |
 | `a-second-place-to-put-a-creature` | 1 | 0 |
+| `a-speed-a-feature-reduces` | 1 | 0 |
 | `a-target-list-an-ability-modifier-sizes` | 1 | 0 |
 | `an-action-rule-a-feature-holds` | 1 | 0 |
 | `an-effect-that-ends-when-its-target-is-hurt` | 1 | 0 |
@@ -653,7 +652,7 @@ exactly like an entry nobody read:
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 33 |
+| 9 | 4 | 37 | 34 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
@@ -679,7 +678,7 @@ derived would be somebody’s opinion instead.
 | Dwarf | species | 4 | 4 |
 | Elf | species | 5 | 4 |
 | Gnome | species | 3 | 2 |
-| Goliath | species | 3 | 2 |
+| Goliath | species | 3 | 3 |
 | Halfling | species | 4 | 4 |
 | Human | species | 3 | 2 |
 | Orc | species | 3 | 3 |
@@ -963,7 +962,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 910 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 919 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1023,7 +1022,7 @@ fact the book wrote for a person.
 | Line | Printed | Read |
 |---|---|---|
 | Traits | 337 | 137 |
-| Actions | 812 | 752 |
+| Actions | 812 | 761 |
 | Bonus actions | 75 | 21 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
@@ -1047,7 +1046,7 @@ and a bite whose hit buys a save.
 | A hit whose line says more than the engine applies | 50 | 51 |
 | An effect a hit buys | 40 | 41 |
 | A legendary action’s own economy | 30 | 82 |
-| A save whose line says more than the engine spends | 22 | 22 |
+| A save whose line says more than the engine spends | 26 | 26 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
 | A trait shape nothing spends | 0 | 0 |

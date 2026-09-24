@@ -1816,3 +1816,26 @@ Appended after wave five's first two tracks (2026-09-24):
   The fix is the shape `castOnHit` already uses — a rider's dice folded into
   the blow's own components before the roll — filed as
   `a-rider-that-adds-damage-to-the-blow` and briefed as W5-G.
+- **Giant Ancestry executes, all six boons.** A hit rider's dice are a
+  **component of the blow** (`extraDamage` beside the effect list, gathered
+  where the smite's are, on the held blow too), so a critical doubles them,
+  the target's defences meet them by type and one `damage-rolled` carries the
+  whole; `rider_deals_damage` keeps refusing damage in the list itself. A
+  rider may be gated on the target's size; a pool option may teleport its
+  holder to a stated space; a Reaction may deal damage back to the creature
+  that dealt it (`damage-back`, Storm's Thunder — Hellish Rebuke is the
+  casting twin), through the funnel so the drop watcher sees it. **One hole,
+  said in place:** a pool drained inside a Reaction window between the swing's
+  gather and the rider's landing would let the dice ride unpaid; no SRD
+  content reaches it, and closing it means settling a rider's price at the
+  swing.
+- **A deepening may carry a lifetime of its own** — a span on the clock or a
+  repeat of its own — where the first rung may not, because the first rung's
+  deadline and its save are one moment and one pass eats the other, while a
+  deepening lands at a moment already arrived. The Brass and Silver
+  wyrmlings' breaths read whole (the Brass line's two early endings handed
+  over), and the Sphinx of Valor's Second Roar came with them. The content
+  side gains the span but not the nested repeat: `castOnHit` spreads a
+  definition's `onFailure` into the engine's, and no SRD spell prints a
+  deepening that repeats. A nested `end-casting` repeat has no backstop yet;
+  nothing can write one today.

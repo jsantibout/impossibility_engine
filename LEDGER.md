@@ -34,10 +34,10 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 99 spells | 66 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 15 features | 9 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 14 features | 8 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 201 items | on 122 of 244 blocks | 0 | 122 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 199 items | on 121 of 244 blocks | 0 | 123 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -504,7 +504,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 15, 11 are class or subclass features printed at level 5 or below, 4 are species or background traits and 0 are feats.
+Of the 14, 11 are class or subclass features printed at level 5 or below, 3 are species or background traits and 0 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -517,16 +517,13 @@ comes from.
 | `a-reroll-outside-the-test-window` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
-| `a-move-a-feature-hands-its-holder` | 2 | 0 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-feature-that-changes-who-a-casting-catches` | 1 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
-| `a-reaction-effect-the-vocabulary-lacks` | 1 | 0 |
+| `a-move-a-feature-hands-its-holder` | 1 | 0 |
 | `a-resource-traded-for-another` | 1 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 |
-| `a-rider-that-adds-damage-to-the-blow` | 1 | 0 |
-| `a-speed-a-feature-reduces` | 1 | 0 |
 | `an-attack-the-class-redefines` | 1 | 0 |
 
 **Blocks** is every feature of this population the shape touches;
@@ -555,11 +552,6 @@ sums to the population.
 
 - `elf:elven-lineage` — Elven Lineage (level 1, species, manual)
 
-#### `a-move-a-feature-hands-its-holder` — blocks 2, finishes 0
-
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
-- `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
-
 #### `a-casting-ended-by-a-trigger` — blocks 1, finishes 0
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
@@ -576,9 +568,9 @@ sums to the population.
 
 - `sorcerer:metamagic` — Metamagic (level 2, class, manual) — also waits on 3
 
-#### `a-reaction-effect-the-vocabulary-lacks` — blocks 1, finishes 0
+#### `a-move-a-feature-hands-its-holder` — blocks 1, finishes 0
 
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
+- `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
 
 #### `a-resource-traded-for-another` — blocks 1, finishes 0
 
@@ -587,14 +579,6 @@ sums to the population.
 #### `a-rider-on-a-later-weapon-attack` — blocks 1, finishes 0
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
-
-#### `a-rider-that-adds-damage-to-the-blow` — blocks 1, finishes 0
-
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
-
-#### `a-speed-a-feature-reduces` — blocks 1, finishes 0
-
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
 
 #### `an-attack-the-class-redefines` — blocks 1, finishes 0
 
@@ -654,9 +638,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 557 and hands over 181. Reading is not spending: a further 20 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 201 items over 244 blocks — 122 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 559 and hands over 179. Reading is not spending: a further 20 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 199 items over 244 blocks — 123 of which already carry none of them.
 
-**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 201 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 199 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -666,10 +650,10 @@ overlap: one sentence can force a save and recharge.
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
 | A hit whose line says more than the engine applies | 28 | 28 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive |
-| A save a line forces | 22 | 22 | Brass Dragon Wyrmling (CR 1) / Sleep Breath; Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6) |
+| A save a line forces | 20 | 20 | Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
 | An effect a hit buys | 20 | 20 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Black Pudding (CR 4) / Dissolving Pseudopod |
 | A use the block limits per day | 16 | 15 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
-| A save whose line says more than the engine spends | 9 | 9 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Ghost (CR 4) / Horrific Visage; Incubus (CR 4) / Nightmare (Recharge 6) |
+| A save whose line says more than the engine spends | 10 | 10 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Brass Dragon Wyrmling (CR 1) / Sleep Breath; Ghost (CR 4) / Horrific Visage |
 | A recharge | 6 | 6 | Blink Dog (CR 0.25) / Teleport (Recharge 4–6); Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |

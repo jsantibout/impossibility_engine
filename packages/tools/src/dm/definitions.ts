@@ -63,7 +63,7 @@
  *   whole result is the spend and the block's own sentence handed back
  *   unapplied, and adjudicating that sentence is the DM's in the same way the
  *   DC in `saving_throw` is. See {@link TAKE_PRINTED_ACTION}.
- * - `force_printed_save` — the eighteen CR ≤ 5 lines whose sentence the
+ * - `force_printed_save` — the CR ≤ 5 lines whose sentence the
  *   parser structured into an ability, a DC, dice and a `_Success:_` clause,
  *   which `forcePrintedSave` has rolled correctly since the batch that read
  *   them and which **no tool on either surface imported**. It is the same
@@ -1218,7 +1218,7 @@ const printedSaveOutcomes = (
  *
  * `_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone.
  * _Failure:_ 17 (5d6) Fire damage. _Success:_ Half damage.` is a template as
- * regular as `_Melee Attack Roll:_`, and eighteen CR ≤ 5 lines write it
+ * regular as `_Melee Attack Roll:_`, and the CR ≤ 5 lines write it
  * plainly enough that the parser structured an ability, a DC, dice and a
  * `_Success:_` clause out of every one. `forcePrintedSave` has rolled them
  * correctly since the batch that read them and **no tool on either surface
