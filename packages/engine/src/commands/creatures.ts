@@ -152,6 +152,11 @@ export function addCreature(
             // a fact the book already answered, and so that nobody above the
             // engine is asked to state one.
             size: adapted.size,
+            // And the rating the block prints beside it, for the same reason
+            // and to the same end: SRD Animal Messenger reads the *target's*
+            // Challenge Rating, and until it was pinned here the adapter read
+            // one off every block and the creature carried it nowhere.
+            cr: adapted.cr,
             ...(conditionImmunities.length === 0 ? {} : { conditionImmunities }),
             ...(stamp === null ? {} : { command: stamp }),
           },

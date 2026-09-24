@@ -2537,10 +2537,32 @@ function checkEffect(
       if (extra !== undefined) readsAsList(extra, `${path}.conditions`, RIDER_LIST, found);
       // SRD Sleep's "Immunity to the Exhaustion condition": one condition the
       // glossary names, read off the target rather than stated by the caster.
+      // **Or SRD Animal Messenger's Challenge Rating**, which is the other
+      // member and is checked as the other member: one sentence per spell, so
+      // a definition that wrote both would be claiming two, and a definition
+      // that wrote neither would be claiming nothing under a field that says
+      // it spares somebody.
       const spares = (effect as { readonly autoSucceedIf?: unknown }).autoSucceedIf;
       if (spares !== undefined) {
         const named = (spares as { readonly immuneTo?: unknown })?.immuneTo;
-        if (typeof named !== 'string' || !CONDITION_NAMES.has(named)) {
+        const rating = (spares as { readonly challengeRatingAbove?: unknown })
+          ?.challengeRatingAbove;
+        if (named !== undefined && rating !== undefined) {
+          found.push({
+            field: `${path}.autoSucceedIf`,
+            code: 'two_reasons_to_spare',
+            reason:
+              'a save is spared by a defence the target holds or by what the target is, and the book writes one sentence per spell; name the condition or the Challenge Rating, not both',
+          });
+        } else if (rating !== undefined) {
+          if (typeof rating !== 'number' || !Number.isFinite(rating) || rating < 0) {
+            found.push({
+              field: `${path}.autoSucceedIf.challengeRatingAbove`,
+              code: 'bad_challenge_rating',
+              reason: `"${String(rating)}" is not a Challenge Rating; the book's run starts at 0 and 1/8 is 0.125`,
+            });
+          }
+        } else if (typeof named !== 'string' || !CONDITION_NAMES.has(named)) {
           found.push({
             field: `${path}.autoSucceedIf.immuneTo`,
             code: 'unknown_condition',
