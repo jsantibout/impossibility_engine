@@ -166,8 +166,8 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
-    expect(toolSchemas(player())).toHaveLength(85);
-    expect(toolSchemas(dm())).toHaveLength(105);
+    expect(toolSchemas(player())).toHaveLength(86);
+    expect(toolSchemas(dm())).toHaveLength(106);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -229,10 +229,10 @@ describe('toolSchemas', () => {
     // and neither gained a tool; `ready.response.chosen` is the same field on
     // the door that holds a spell rather than casts one, and grew both by the
     // same 95, because a readied casting states the facts a cast one does.
-    expect(toolSchemas(player())).toHaveLength(85);
-    expect(toolSchemas(dm())).toHaveLength(105);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(128636);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(160788);
+    expect(toolSchemas(player())).toHaveLength(86);
+    expect(toolSchemas(dm())).toHaveLength(106);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(130140);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(162292);
   });
 });
 

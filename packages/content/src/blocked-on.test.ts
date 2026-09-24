@@ -319,8 +319,13 @@ describe('the blocked-on map covers the undefined population', () => {
    * retires it is the mechanism arriving rather than the claim being dropped.
    */
   it('retires the two shapes Spare the Dying was the only claimant of', () => {
-    expect(MISSING_SHAPES['a-range-that-scales-with-caster-level']).toBeUndefined();
-    expect(MISSING_SHAPES['an-effect-that-stabilises-a-dying-creature']).toBeUndefined();
+    // Asked of the keys rather than by indexing, because the type of
+    // `MISSING_SHAPES` is the record's own literal keys: a retired id is not a
+    // key any more, so an index expression naming one no longer compiles —
+    // which is the guard working at the type level and not a reason to widen it.
+    const shapes = new Set(Object.keys(MISSING_SHAPES));
+    expect(shapes.has('a-range-that-scales-with-caster-level')).toBe(false);
+    expect(shapes.has('an-effect-that-stabilises-a-dying-creature')).toBe(false);
     expect(BLOCKED_ON['spare-the-dying']).toBeUndefined();
     expect(SRD_CONTENT.spell('spare-the-dying')).not.toBeNull();
     expect(TRACKED_ADJUDICATED['spare-the-dying']).toBeUndefined();

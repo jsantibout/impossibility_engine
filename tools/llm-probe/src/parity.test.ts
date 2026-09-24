@@ -175,6 +175,9 @@ const AUDIT: readonly {
       hold: because(
         'opens a pending casting, and nothing on this surface settles a declared casting. Publishing it alone would wedge the fight, which is the deadlock this audit exists to have stopped repeating',
       ),
+      endsAfterTrigger: because(
+        'the caster choosing, at the casting, that this one can be ended early \u2014 SRD Magic Mouth\u2019s "you can have the spell end after it delivers its message". A real caster decision and a cheap one to publish, and `packages/tools`\u2019 `cast_spell` does publish it. Withheld here because the spell that prints it takes a **minute** to cast: it opens a pending casting, and nothing on this surface settles one \u2014 which is the reason `hold` and `ritual` are withheld two lines below. Publish it with the settlement command, never before',
+      ),
       ritual: because(
         'published on `packages/tools`’ `cast_spell` as `ritual` the day Ritual Adept landed, and excluded here for the reason `hold` is: a Ritual is ten minutes longer than the spell’s printed time, so it opens a pending casting settled off the clock, and nothing on this surface settles one. Publish it with the settlement command, never before',
       ),
