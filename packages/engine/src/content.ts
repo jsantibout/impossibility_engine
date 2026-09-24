@@ -1773,15 +1773,19 @@ const rollsASave = (record: Record<string, unknown>): boolean =>
  * casting that promised it. `applyRiders` reaches for all three through
  * `EffectContext.casting`, which a conferral has none of.
  *
- * **The shove is the fourth, and it needs a casting for a different reason
- * from the other three.** Nothing about a push is welded to a casting id: it
+ * **The movement is the fourth, and its two kinds need a casting for two
+ * different reasons.** Nothing about a *push* is welded to a casting id: it
  * writes one `creature-moved` and is over. What it needs is the road, and the
  * road is `applyRiders` — which only the casting arm of the two rolling
  * resolvers takes. Their conferral arms hand back the conditions a failure
  * imposed and nothing else, so a bottle or a pool use carrying this field
- * would carry one nothing would read. It lifts on the day a conferral executes
- * one, and the sentence that will want it is a feature's rather than an
- * item's: SRD Open Hand Technique pushes a failed saver fifteen feet.
+ * would carry one nothing would read. A *lift* needs the casting the way the
+ * other three do and more plainly than any of them: SRD Levitate holds the
+ * creature up "for the duration" and sets it down when the spell ends, and a
+ * potion that lifted somebody would have nothing to end. The field lifts for a
+ * push on the day a conferral executes one, and the sentence that will want it
+ * is a feature's rather than an item's: SRD Open Hand Technique pushes a
+ * failed saver fifteen feet.
  */
 const RIDER_FIELDS: readonly string[] = ['conditions', 'modifiers', 'delayed', 'movement'];
 

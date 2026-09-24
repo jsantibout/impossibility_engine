@@ -599,6 +599,14 @@ export function releaseOnTarget(
  *
  * Nothing here touches the casting itself. A casting whose grant has expired is
  * still running, still concentrated on, and still in `ongoing`.
+ *
+ * **It performs no landing, and nothing can reach it with a lift.** A
+ * `GrantedLift` is hung by a movement rider, which carries no `lasts` and so
+ * never gets a `grants` timer — the only thing that addresses a bare source.
+ * Said out loud because the omission would otherwise be invisible: a deadline
+ * that could end a lift here would leave a creature in the air with nothing
+ * holding it, and the day a rider learns to end sooner than its casting this
+ * function needs {@link landsWhenReleased} too.
  */
 export function releaseGrants(creature: CreatureState, source: string): CreatureState {
   return withoutGrants(creature, (held) => held === source);
