@@ -2101,3 +2101,29 @@ Appended after wave seven's first spells track (2026-09-24):
   room **refuses** rather than asks, because `declareLight` settles no context
   kind — the "no default ambient" ruling read from this end; making light a
   kind is the owner's call.
+- **Eleven trait sentences spent, and the residue sorted.** Agile is Flyby
+  asked of every mode; Running Leap is a second bound on a jump that was run;
+  Aura of Authority is Aura of Protection's shape worn by a stat block; Blood
+  Frenzy is a roll mode narrowed by a new `RollSelector.targetMissingHitPoints`
+  (the brief pointed at the `attack-damage` grant's field, which is not a
+  roll-mode axis); Siege Monster doubles beside the ward in `dealSpellDamage`,
+  multipliers first as the book orders; Aberrant Ground is `carriedLight`'s
+  twin on the ground (`carriedDifficultGround`, read by the terrain arithmetic
+  in `positioning.ts` rather than duplicated in `movement.ts`); Lightning and
+  Fire Absorption heal what the blow **rolled**, before Immunity, since both
+  holders are immune and the trait would otherwise be dead text — the ruling
+  is on the kind; Aversion to Fire and Freeze are a damage-type trigger with a
+  timer; Blurred Form is the first printed `against-holder` mode; Beast of
+  Burden is Powerful Build's grant; Fire Aura and Barbed Hide are settled by
+  `resolveTurn`, the finisher's end then the beginner's start, and **the
+  aura's "of the azer's choice" is the table's** — `end_turn.burns`, `fought`'s
+  twin, an empty answer burning nobody. Nineteen trait kinds are the **third
+  answer**, read so the table gets the sentence and never built, each with
+  its reason; the rest of the residue is a mechanic with a named seam, row by
+  row in `coverage-data.ts`. **Corrections to the brief, from the book:** the
+  Troll regains 15 and its Limb 5; the Gray Ooze prints no damage-back; the
+  Cat's Jumper substitutes Dexterity for the jump; Bloodied Fury narrows to
+  melee. **A gap found and left for the Reactions brief:** a blow held open at
+  a Reaction window settles through `applyDamage` directly, so a Bard within
+  60 feet costs an Earth Elemental its doubling — one call in `settleDamage`.
+  Main re-ingested.

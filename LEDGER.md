@@ -37,7 +37,7 @@ state is displayed as zero.
 | Features manual, or a pool with nothing to buy | 2 features | 2 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 180 items | on 115 of 244 blocks | 0 | 129 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 141 items | on 103 of 244 blocks | 0 | 141 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -520,9 +520,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 577 and hands over 161. Reading is not spending: a further 19 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 180 items over 244 blocks — 129 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 616 and hands over 122. Reading is not spending: a further 19 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 141 items over 244 blocks — 141 of which already carry none of them.
 
-**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 180 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 52 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 141 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -549,7 +549,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 140
+### Handed-over lines matching no enumerated shape — 101
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -564,10 +564,7 @@ of it off the ledger.
 
 - Air Elemental (CR 5) [trait] Air Form
 - Ankheg (CR 2) [trait] Tunneler
-- Azer Sentinel (CR 2) [trait] Fire Aura
 - Bandit Captain (CR 2) [reaction] Parry
-- Barbed Devil (CR 5) [trait] Barbed Hide
-- Barbed Devil (CR 5) [trait] Diabolical Restoration
 - Black Pudding (CR 4) [trait] Amorphous
 - Black Pudding (CR 4) [trait] Corrosive Form
 - Black Pudding (CR 4) [reaction] Split
@@ -575,27 +572,15 @@ of it off the ledger.
 - Bugbear Warrior (CR 1) [trait] Abduct
 - Bulette (CR 5) [bonus action] Leap
 - Cat (CR 0) [trait] Jumper
-- Chuul (CR 4) [trait] Sense Magic
-- Commoner (CR 0) [trait] Training
-- Couatl (CR 4) [trait] Shielded Mind
-- Deer (CR 0) [trait] Agile
 - Doppelganger (CR 3) [bonus action] Shape-Shift
-- Dryad (CR 1) [trait] Speak with Beasts and Plants
 - Dryad (CR 1) [bonus action] Tree Stride
 - Earth Elemental (CR 5) [trait] Earth Glide
-- Earth Elemental (CR 5) [trait] Siege Monster
 - Ettercap (CR 2) [bonus action] Reel
 - Ettercap (CR 2) [trait] Web Walker
 - Fire Elemental (CR 5) [trait] Fire Aura
 - Fire Elemental (CR 5) [trait] Fire Form
-- Fire Elemental (CR 5) [trait] Water Susceptibility
-- Flesh Golem (CR 5) [trait] Aversion to Fire
 - Flesh Golem (CR 5) [trait] Berserk
-- Flesh Golem (CR 5) [trait] Immutable Form
-- Flesh Golem (CR 5) [trait] Lightning Absorption
 - Gelatinous Cube (CR 2) [trait] Ooze Cube
-- Gelatinous Cube (CR 2) [trait] Transparent
-- Ghost (CR 4) [trait] Ethereal Sight
 - Ghost (CR 4) [action] Etherealness
 - Ghost (CR 4) [trait] Incorporeal Movement
 - Giant Boar (CR 2) [trait] Bloodied Fury
@@ -603,28 +588,20 @@ of it off the ledger.
 - Giant Seahorse (CR 0.5) [bonus action] Bubble Dash
 - Giant Spider (CR 1) [trait] Web Walker
 - Giant Toad (CR 1) [action] Swallow
-- Gibbering Mouther (CR 2) [trait] Aberrant Ground
 - Gladiator (CR 5) [reaction] Parry
 - Goblin Boss (CR 1) [reaction] Redirect Attack
 - Gray Ooze (CR 0.5) [trait] Amorphous
 - Gray Ooze (CR 0.5) [trait] Corrosive Form
 - Green Hag (CR 3) [trait] Coven Magic
-- Green Hag (CR 3) [trait] Mimicry
-- Half-Dragon (CR 5) [trait] Draconic Origin
 - Half-Dragon (CR 5) [bonus action] Leap
-- Hobgoblin Captain (CR 3) [trait] Aura of Authority
-- Homunculus (CR 0) [trait] Telepathic Bond
 - Imp (CR 1) [action] Invisibility
 - Imp (CR 1) [action] Shape-Shift
 - Incubus (CR 4) [trait] Succubus Form
 - Knight (CR 3) [reaction] Parry
 - Lamia (CR 4) [bonus action] Leap
-- Lemure (CR 0) [trait] Hellish Restoration
-- Lion (CR 1) [trait] Running Leap
 - Magmin (CR 0.5) [bonus action] Ignited Illumination
 - Mimic (CR 2) [trait] Adhesive (Object Form Only)
 - Mimic (CR 2) [bonus action] Shape-Shift
-- Mule (CR 0.125) [trait] Beast of Burden
 - Night Hag (CR 5) [trait] Coven Magic
 - Night Hag (CR 5) [bonus action] Shape-Shift
 - Night Hag (CR 5) [trait] Soul Bag
@@ -635,32 +612,22 @@ of it off the ledger.
 - Ochre Jelly (CR 2) [reaction] Split
 - Octopus (CR 0) [trait] Compression
 - Phase Spider (CR 3) [bonus action] Ethereal Jaunt
-- Phase Spider (CR 3) [trait] Ethereal Sight
 - Phase Spider (CR 3) [trait] Web Walker
 - Quasit (CR 1) [action] Invisibility
 - Quasit (CR 1) [action] Shape-Shift
-- Rat (CR 0) [trait] Agile
-- Raven (CR 0) [trait] Mimicry
 - Roper (CR 5) [action] Reel
 - Roper (CR 5) [action] Tentacle
 - Rust Monster (CR 0.5) [action] Destroy Metal
-- Rust Monster (CR 0.5) [trait] Iron Scent
 - Rust Monster (CR 0.5) [reaction] Reflexive Antennae
-- Saber-Toothed Tiger (CR 2) [trait] Running Leap
 - Sahuagin Warrior (CR 0.5) [bonus action] Aquatic Charge
-- Sahuagin Warrior (CR 0.5) [trait] Blood Frenzy
-- Sahuagin Warrior (CR 0.5) [trait] Shark Telepathy
-- Salamander (CR 5) [trait] Fire Aura
 - Sea Hag (CR 2) [trait] Coven Magic
 - Sea Hag (CR 2) [action] Illusory Appearance
 - Seahorse (CR 0) [action] Bubble Dash
 - Shadow (CR 0.5) [trait] Amorphous
-- Shambling Mound (CR 5) [trait] Lightning Absorption
 - Shrieker Fungus (CR 0) [reaction] Shriek
 - Specter (CR 1) [trait] Incorporeal Movement
 - Spider (CR 0) [trait] Web Walker
 - Sprite (CR 0.25) [action] Invisibility
-- Steam Mephit (CR 0.25) [trait] Blurred Form
 - Succubus (CR 4) [action] Charm
 - Succubus (CR 4) [trait] Incubus Form
 - Succubus (CR 4) [bonus action] Shape-Shift
@@ -678,14 +645,9 @@ of it off the ledger.
 - Troll Limb (CR 0.5) [trait] Troll Spawn
 - Unicorn (CR 5) [legendary action] Charging Horn
 - Unicorn (CR 5) [legendary action] Shimmering Shield
-- Vampire Familiar (CR 3) [trait] Vampiric Connection
-- Vampire Spawn (CR 5) [trait] Forbiddance
-- Vampire Spawn (CR 5) [trait] Running Water
 - Vampire Spawn (CR 5) [trait] Stake to the Heart
 - Vampire Spawn (CR 5) [trait] Sunlight
-- Vampire Spawn (CR 5) [trait] Vampire Weakness
 - Warrior Veteran (CR 3) [reaction] Parry
-- Water Elemental (CR 5) [trait] Freeze
 - Water Elemental (CR 5) [trait] Water Form
 - Werebear (CR 5) [bonus action] Shape-Shift
 - Wereboar (CR 4) [bonus action] Shape-Shift
@@ -701,4 +663,3 @@ of it off the ledger.
 - Wraith (CR 5) [trait] Incorporeal Movement
 - Xorn (CR 5) [bonus action] Charge
 - Xorn (CR 5) [trait] Earth Glide
-- Xorn (CR 5) [trait] Treasure Sense
