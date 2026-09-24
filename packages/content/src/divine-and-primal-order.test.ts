@@ -1,26 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId, type Skill } from '@ie/shared';
-import { createCharacter, type CharacterChoices } from '@ie/engine';
+import {
+  checkCharacter,
+  createCharacter,
+  proficientWith,
+  routesFor,
+  untrainedArmorPenalty,
+  type CharacterChoices,
+} from '@ie/engine';
 import { createRng, createRollIssuer, fold, resolveTest, type GameState } from '@ie/engine';
 
 /**
- * The Cleric's and the Druid's **level 1** feature, half executed.
+ * The Cleric's and the Druid's **level 1** feature, both options executed.
  *
- * SRD Divine Order (Thaumaturge) and Primal Order (Magician) print the same
- * sentence over different skills: "you have a bonus to the Intelligence
- * (Arcana) and Intelligence (Religion) checks you make. The bonus equals your
- * Wisdom modifier (minimum of +1)." Two writers of one shape, which is what
- * made `check-bonus` a member of the standing vocabulary rather than one
- * class's quirk.
+ * SRD Divine Order and Primal Order print one heading over two named options,
+ * and between them they ask the two questions a feature can ask: which order,
+ * and — of one of the two orders — which extra cantrip from the class list.
+ * That second question is why they were half-executed for as long as they
+ * were: a feature had one question, and this one had already spent it on the
+ * order.
  *
- * What is asserted here is the number a player would see on the sheet: a
- * Wisdom of 17 is a +3, it reaches exactly the two skills each feature names,
- * and a character who took the **other** option of the same choice has none of
- * it — which is what `onlyIfChoice` means and why the whole grant hangs on it.
- *
- * The other halves are not executed and the features say so: neither Order's
- * proficiencies are conferred and neither extra cantrip is granted.
+ * What is asserted here is what a player would see on the sheet. A Protector
+ * swings a longsword and wears plate with no penalty. A Thaumaturge casts the
+ * cantrip they named, off the cantrip route rather than a slot, and has the
+ * check bonus their Wisdom sizes — a 17 is a +3, over exactly the two skills
+ * the feature names. And each order has none of the other's: the gate is on
+ * every grant, so a Protector has no bonus and no cantrip and a Thaumaturge no
+ * training.
  */
 
 const id = (s: string): CharacterId => asCharacterId(s);
@@ -35,9 +42,20 @@ const common = {
   spellbook: [],
   backgroundEquipment: 'A' as const,
   classEquipment: 'A' as const,
-  equipped: [],
   hitPoints: { method: 'fixed' as const },
-  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+  // The plate and the longsword the Protector and the Warden are trained with,
+  // handed over by the DM: the training is the feature's and what it is
+  // training *for* has to be in the character's hands to be asserted about.
+  dmGrants: {
+    items: [
+      { id: 'plate-armor', quantity: 1 },
+      { id: 'longsword', quantity: 1 },
+    ],
+    goldPieces: 0,
+    magicItems: [],
+    note: 'standard',
+  },
+  equipped: ['plate-armor'],
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',
@@ -51,7 +69,10 @@ const common = {
 };
 
 /** Wisdom 15 and two points from the background: 17, a +3. */
-const cleric = (option: string): CharacterChoices => ({
+const cleric = (
+  option: string,
+  featureChoices: Record<string, readonly string[]> = {},
+): CharacterChoices => ({
   ...common,
   name: 'Brannor',
   classId: 'cleric',
@@ -68,10 +89,14 @@ const cleric = (option: string): CharacterChoices => ({
   featureChoices: {
     'human:skillful': ['perception'],
     'cleric:divine-order': [option],
+    ...featureChoices,
   },
 });
 
-const druid = (option: string): CharacterChoices => ({
+const druid = (
+  option: string,
+  featureChoices: Record<string, readonly string[]> = {},
+): CharacterChoices => ({
   ...common,
   name: 'Fenn',
   classId: 'druid',
@@ -88,11 +113,16 @@ const druid = (option: string): CharacterChoices => ({
   featureChoices: {
     'human:skillful': ['perception'],
     'druid:primal-order': [option],
+    ...featureChoices,
   },
 });
 
 const built = (who: CharacterId, choices: CharacterChoices): GameState =>
   fold('seed', unwrap(createCharacter(SRD_CONTENT, choices, who), 'create'));
+
+/** The codes `checkCharacter` reports, which is what a form would show. */
+const refusals = (choices: CharacterChoices): readonly string[] =>
+  checkCharacter(SRD_CONTENT, choices).map((problem) => problem.code);
 
 /**
  * What the log says contributed to one skill check.
@@ -121,50 +151,147 @@ const bonusOn = (state: GameState, who: CharacterId, skill: Skill): number => {
     .reduce((sum, one) => sum + one.amount, 0);
 };
 
+/** How this character would pay for a spell, if they can cast it at all. */
+const routeKinds = (state: GameState, who: CharacterId, spellId: string): readonly string[] => {
+  const spellcasting = state.creatures[who]?.spellcasting;
+  return spellcasting === undefined ? [] : routesFor(spellcasting, spellId).map((one) => one.kind);
+};
+
+const LONGSWORD = SRD_CONTENT.item('longsword')?.weapon ?? null;
+
+describe('Divine Order, Protector', () => {
+  const choices = cleric('Protector');
+
+  it('is proficient with Martial weapons and wears Heavy armour without the penalty', () => {
+    const sheet = built(BRANNOR, choices).creatures[BRANNOR]?.sheet;
+    expect(sheet?.weaponProficiencies).toContain('martial');
+    expect(proficientWith(sheet!, LONGSWORD)).toBe(true);
+    expect(sheet?.armorTraining.heavy).toBe(true);
+    expect(sheet?.armor?.category).toBe('heavy');
+    expect(untrainedArmorPenalty(sheet!)).toBe(false);
+  });
+
+  /** The other order's half, which a Protector has none of. */
+  it('has neither the check bonus nor an extra cantrip', () => {
+    const state = built(BRANNOR, choices);
+    expect(bonusOn(state, BRANNOR, 'arcana')).toBe(0);
+    expect(bonusOn(state, BRANNOR, 'religion')).toBe(0);
+    expect(state.creatures[BRANNOR]?.spellcasting?.classes[0]?.cantrips.length).toBe(3);
+  });
+
+  it('is refused a cantrip it was never asked for', () => {
+    expect(refusals(cleric('Protector', { 'cleric:divine-order:cantrip': ['thaumaturgy'] }))).toContain(
+      'choice_not_asked',
+    );
+  });
+});
+
 describe('Divine Order, Thaumaturge', () => {
+  const choices = cleric('Thaumaturge', { 'cleric:divine-order:cantrip': ['thaumaturgy'] });
+
+  it('knows the cantrip it named, as a cantrip', () => {
+    const state = built(BRANNOR, choices);
+    expect(state.creatures[BRANNOR]?.spellcasting?.classes[0]?.cantrips).toContain('thaumaturgy');
+    // A cantrip route and nothing else: a granted spell filed with the
+    // prepared ones would be a cantrip that costs a slot.
+    expect(routeKinds(state, BRANNOR, 'thaumaturgy')).toEqual(['cantrip']);
+  });
+
   it('adds the Wisdom modifier to Arcana and Religion, and to nothing else', () => {
-    const state = built(BRANNOR, cleric('Thaumaturge'));
+    const state = built(BRANNOR, choices);
     expect(bonusOn(state, BRANNOR, 'arcana')).toBe(3);
     expect(bonusOn(state, BRANNOR, 'religion')).toBe(3);
     expect(bonusOn(state, BRANNOR, 'nature')).toBe(0);
     expect(bonusOn(state, BRANNOR, 'history')).toBe(0);
   });
 
-  it('grants a Cleric who took Protector nothing at all', () => {
-    const state = built(BRANNOR, cleric('Protector'));
-    expect(bonusOn(state, BRANNOR, 'arcana')).toBe(0);
-    expect(bonusOn(state, BRANNOR, 'religion')).toBe(0);
-    expect(
-      (state.creatures[BRANNOR]?.sheet.standing ?? []).map((effect) => effect.feature),
-    ).not.toContain('cleric:divine-order');
+  it('has none of the Protector training, and wears plate at a penalty', () => {
+    const sheet = built(BRANNOR, choices).creatures[BRANNOR]?.sheet;
+    expect(sheet?.weaponProficiencies ?? []).not.toContain('martial');
+    expect(sheet?.armorTraining.heavy).toBe(false);
+    expect(untrainedArmorPenalty(sheet!)).toBe(true);
   });
 
-  /** The half that is not executed, asserted rather than assumed. */
-  it('confers neither the Protector training nor the extra cantrip', () => {
-    const protector = built(BRANNOR, cleric('Protector')).creatures[BRANNOR];
-    expect(protector?.sheet.armorTraining.heavy).toBe(false);
-    expect(protector?.sheet.weaponProficiencies ?? []).not.toContain('martial');
-    // The Cleric table allows three cantrips at level 3 and Thaumaturge's
-    // fourth is not among them.
-    const thaumaturge = built(BRANNOR, cleric('Thaumaturge')).creatures[BRANNOR];
-    expect(thaumaturge?.spellcasting?.classes[0]?.cantrips.length).toBe(3);
+  it('is asked for the cantrip, and refused without one', () => {
+    expect(refusals(cleric('Thaumaturge'))).toContain('missing_feature_choice');
+  });
+
+  /** The list is the feature's own class, at the one level a cantrip is. */
+  it('refuses a cantrip off another list and a spell that is not one', () => {
+    expect(
+      refusals(cleric('Thaumaturge', { 'cleric:divine-order:cantrip': ['fire-bolt'] })),
+    ).toContain('spell_not_on_class_list');
+    expect(
+      refusals(cleric('Thaumaturge', { 'cleric:divine-order:cantrip': ['bless'] })),
+    ).toContain('spell_level_not_allowed');
+  });
+});
+
+describe('Primal Order, Warden', () => {
+  const choices = druid('Warden');
+
+  it('is proficient with Martial weapons and trained with Medium armour', () => {
+    const sheet = built(FENN, choices).creatures[FENN]?.sheet;
+    expect(sheet?.weaponProficiencies).toContain('martial');
+    expect(proficientWith(sheet!, LONGSWORD)).toBe(true);
+    expect(sheet?.armorTraining.medium).toBe(true);
+    // And not a step further: the Warden's sentence stops at Medium, so the
+    // plate this Druid is wearing is still armour they are untrained in.
+    expect(sheet?.armorTraining.heavy).toBe(false);
+    expect(untrainedArmorPenalty(sheet!)).toBe(true);
+  });
+
+  it('has neither the check bonus nor an extra cantrip', () => {
+    const state = built(FENN, choices);
+    expect(bonusOn(state, FENN, 'arcana')).toBe(0);
+    expect(state.creatures[FENN]?.spellcasting?.classes[0]?.cantrips.length).toBe(2);
+  });
+
+  it('is refused a cantrip it was never asked for', () => {
+    expect(refusals(druid('Warden', { 'druid:primal-order:cantrip': ['druidcraft'] }))).toContain(
+      'choice_not_asked',
+    );
   });
 });
 
 describe('Primal Order, Magician', () => {
+  const choices = druid('Magician', { 'druid:primal-order:cantrip': ['druidcraft'] });
+
+  it('knows the cantrip it named, as a cantrip', () => {
+    const state = built(FENN, choices);
+    expect(state.creatures[FENN]?.spellcasting?.classes[0]?.cantrips).toContain('druidcraft');
+    expect(routeKinds(state, FENN, 'druidcraft')).toEqual(['cantrip']);
+  });
+
   it('adds the Wisdom modifier to Arcana and Nature, and to nothing else', () => {
-    const state = built(FENN, druid('Magician'));
+    const state = built(FENN, choices);
     expect(bonusOn(state, FENN, 'arcana')).toBe(3);
     expect(bonusOn(state, FENN, 'nature')).toBe(3);
     expect(bonusOn(state, FENN, 'religion')).toBe(0);
   });
 
-  it('grants a Druid who took Warden nothing at all', () => {
-    const state = built(FENN, druid('Warden'));
-    expect(bonusOn(state, FENN, 'arcana')).toBe(0);
-    expect(
-      (state.creatures[FENN]?.sheet.standing ?? []).map((effect) => effect.feature),
-    ).not.toContain('druid:primal-order');
-    expect(state.creatures[FENN]?.sheet.armorTraining.medium).toBe(false);
+  it('has none of the Warden training', () => {
+    const sheet = built(FENN, choices).creatures[FENN]?.sheet;
+    expect(sheet?.weaponProficiencies ?? []).not.toContain('martial');
+    expect(sheet?.armorTraining.medium).toBe(false);
+  });
+
+  it('is asked for the cantrip, and refused without one', () => {
+    expect(refusals(druid('Magician'))).toContain('missing_feature_choice');
+  });
+});
+
+describe('both features are executed rather than recorded', () => {
+  it('declares engine, and the note says what each order applies', () => {
+    for (const [classId, featureId] of [
+      ['cleric', 'cleric:divine-order'],
+      ['druid', 'druid:primal-order'],
+    ] as const) {
+      const feature = SRD_CONTENT.classById(classId)?.features.find((one) => one.id === featureId);
+      expect(feature?.automation, featureId).toBe('engine');
+      // Two questions, the second keyed and gated on the first.
+      expect(feature?.choices?.length, featureId).toBe(2);
+      expect(feature?.choices?.[1]?.key, featureId).toBe('cantrip');
+    }
   });
 });

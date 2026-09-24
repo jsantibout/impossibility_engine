@@ -92,6 +92,7 @@ const druid = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   featureChoices: {
     'human:skillful': ['perception'],
     'druid:primal-order': ['Magician'],
+    'druid:primal-order:cantrip': ['mending'],
   },
   ...over,
 });
@@ -225,6 +226,7 @@ describe('the Druid', () => {
         featureChoices: {
           'human:skillful': ['perception'],
           'druid:primal-order': ['Magician'],
+          'druid:primal-order:cantrip': ['mending'],
           'circle-of-the-land:spells': ['Arid'],
         },
       }),

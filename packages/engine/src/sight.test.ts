@@ -122,7 +122,7 @@ const druid = (): CharacterChoices => ({
   backgroundEquipment: 'A',
   equipped: [],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'], 'druid:primal-order': ['Magician'] },
+  featureChoices: { 'human:skillful': ['perception'], 'druid:primal-order': ['Magician'], 'druid:primal-order:cantrip': ['mending'] },
   feats: { ...MAGIC_INITIATE, 'human:versatile': { featId: 'alert' } },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
   knownForms: ['wolf', 'rat', 'spider', 'riding-horse'],

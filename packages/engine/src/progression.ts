@@ -72,7 +72,7 @@ export function levelForXp(xp: number): number {
 }
 
 /** What a feature asks the player to decide, when it asks anything. */
-export type FeatureChoice =
+export type FeatureQuestion =
   | { readonly kind: 'skill'; readonly choose: number; readonly from?: readonly Skill[] }
   | {
       readonly kind: 'spell';
@@ -183,6 +183,101 @@ export type FeatureChoice =
     };
 
 /**
+ * Which of a feature's questions this is, when a feature asks more than one.
+ *
+ * `GrantGate`'s twin, one field up: a feature's grants became plural the day
+ * SRD Draconic Resilience printed two mechanics under one heading, and its
+ * questions become plural for the same reason — SRD Divine Order asks which
+ * order **and**, for one of the two orders, which extra cantrip from the class
+ * list. Gate G1's argument arriving at the other field.
+ *
+ * **The key is where the answer is filed.** `CharacterChoices.featureChoices`
+ * is keyed by feature id and every answer ever written is keyed by the bare
+ * id, so a question with no key keeps that key and is the feature's *primary*
+ * question — the one a grant's `onlyIfChoice` reads. A keyed question is
+ * answered under `${feature.id}:${key}`, which splits unambiguously because a
+ * feature id is `namespace:name` and the validator holds it to exactly one
+ * colon.
+ *
+ * **`onlyIfChoice` is when the question is asked at all**, and it is the same
+ * word a grant uses because it is the same gate: a Protector is never asked
+ * which cantrip, so an answer from one is refused rather than ignored, and a
+ * Thaumaturge who names none is missing an answer rather than holding a
+ * question nobody printed.
+ */
+export interface ChoiceKey {
+  /** Absent on the feature's own first question, which is keyed by its id. */
+  readonly key?: string;
+  /** The option of the **primary** question that makes this one worth asking. */
+  readonly onlyIfChoice?: string;
+}
+
+/**
+ * One question, with the key its answer is filed under.
+ *
+ * The intersection rather than two optional fields on each of seven members,
+ * which is {@link GatedFeatureGrant}'s argument in the same file: the same
+ * type either way and one place to document it.
+ */
+export type FeatureChoice = FeatureQuestion & ChoiceKey;
+
+/**
+ * Where a question's answer lives in `CharacterChoices.featureChoices`.
+ *
+ * One function because creation, the validator and the content registry all
+ * have to agree about it, and three spellings of a key is how one of them
+ * comes to look for an answer nobody filed.
+ */
+export const choiceAnswerKey = (featureId: string, key: string | undefined): string =>
+  key === undefined ? featureId : `${featureId}:${key}`;
+
+/**
+ * The feature an answer key belongs to: the key above, undone.
+ *
+ * A feature id is `namespace:name` — one colon, enforced by
+ * `checkFeatureDefinition` — so everything from a third segment on is the
+ * question's own key. What this is for is the **gate**: `onlyIfChoice` always
+ * reads the primary answer of the feature a `choiceFrom` names, while the
+ * grant's content reads the full key it was given, and a `choiceFrom` naming a
+ * keyed question would otherwise look for an option inside the cantrip.
+ */
+export const featureOfAnswerKey = (answerKey: string): string =>
+  answerKey.split(':').slice(0, 2).join(':');
+
+/**
+ * Every question one feature asks, however it wrote them.
+ *
+ * {@link featureGrants}'s twin, and it exists for the same reason: a feature
+ * that writes only `choices` has `choice === undefined`, so a reader that went
+ * on asking for the singular would drop the whole feature out of validation
+ * and out of creation — silently, which is the one failure this repository
+ * refuses to build. **Every reader of a feature's question goes through here.**
+ */
+export const featureChoicesOf = (
+  feature:
+    | { readonly choice?: FeatureChoice; readonly choices?: readonly FeatureChoice[] }
+    | undefined,
+): readonly FeatureChoice[] => {
+  const plural = feature?.choices;
+  if (plural !== undefined) return plural;
+  const single = feature?.choice;
+  return single === undefined ? [] : [single];
+};
+
+/**
+ * The question whose answer is filed under the feature's own id.
+ *
+ * The one a gate reads, and the one every answer written before questions were
+ * plural is. Absent where a feature asks nothing.
+ */
+export const primaryChoiceOf = (
+  feature:
+    | { readonly choice?: FeatureChoice; readonly choices?: readonly FeatureChoice[] }
+    | undefined,
+): FeatureChoice | undefined =>
+  featureChoicesOf(feature).find((question) => question.key === undefined);
+
+/**
  * What one option of a feature's choice *means* to whatever is written in
  * terms of it.
  *
@@ -218,6 +313,24 @@ export interface FeatureDefinition {
   readonly note: string;
   /** What the player must decide when they gain it. */
   readonly choice?: FeatureChoice;
+  /**
+   * What the player must decide when a feature asks more than one thing.
+   *
+   * `grants`'s plural, one field up and normalised the same way: every reader
+   * goes through {@link featureChoicesOf}, so a feature writing one question
+   * writes `choice` exactly as it always did and one writing two writes them
+   * here. The first is the feature's own — answered under its id, read by
+   * every gate — and each one after it carries a {@link ChoiceKey}.
+   *
+   * SRD Divine Order is the sentence: "**Protector.** ... **Thaumaturge.** You
+   * know one extra cantrip from the Cleric spell list." Which order is one
+   * question and which cantrip is another, asked only of the Thaumaturge.
+   *
+   * Writing both fields is refused rather than merged: a `choice` beside a
+   * `choices` is a question the accessor would drop, and a dropped question is
+   * a feature that silently grants nothing.
+   */
+  readonly choices?: readonly FeatureChoice[];
   /**
    * What each option of that choice means to the features written in terms of
    * it — see {@link FeatureOptionMeaning}.
@@ -1136,6 +1249,37 @@ export type FeatureGrant =
    * written by hand, because that is how the two features read.
    */
   | { readonly kind: 'save-proficiency'; readonly abilities: readonly Ability[] | 'all' }
+  /**
+   * SRD Divine Order (Protector): "you gain proficiency with Martial weapons
+   * and training with Heavy armor"; Primal Order (Warden) prints the same
+   * sentence over Medium armour.
+   *
+   * **One grant because the book prints one sentence**, which is the argument
+   * `initiative` and `strike-style` already make: two grants would be two
+   * things a gate has to be written on twice and two readers looking for "the"
+   * grant of a kind on a feature that carries one of each.
+   *
+   * What it feeds is the two lists a class already declares — the weapon
+   * categories `proficientWith` reads and the `ArmorTraining` the armour
+   * penalty reads — folded in `creation.ts` beside a class's own and a
+   * multiclass's, so nothing downstream of the sheet learns that a feature can
+   * say this. Both fields are optional and a grant raising neither is refused:
+   * a sentence about training that trains nobody is one somebody meant to
+   * finish.
+   *
+   * **Named for both halves rather than "proficiency"**, because
+   * `readableGrantKinds` probes reader source for the kind's own literal and
+   * `content.ts` already writes `grant['proficiency']` for the Initiative
+   * grant's field — a kind spelled `proficiency` would read as executed
+   * whether or not anything executed it.
+   */
+  | {
+      readonly kind: 'weapon-and-armor-training';
+      /** The categories of weapon, exactly as a class's own list spells them. */
+      readonly weapons?: readonly ('simple' | 'martial')[];
+      /** The armour a holder is trained with, as `ArmorTraining`'s four flags. */
+      readonly armor?: readonly ('light' | 'medium' | 'heavy' | 'shields')[];
+    }
   /**
    * What the holder may do about Initiative, which SRD Alert prints twice.
    *

@@ -55,6 +55,22 @@ name, and `jump-bonus` lengthens a running Long Jump. A `reroll` Reaction names
 the D20 Tests it answers and answers a failure only; `progression.ts` says why
 Heroic Inspiration's "any die" is narrowed to that.
 
+**A feature may ask more than one question.** `choice` became `choices` the way
+`grants` did and for the same sentence: SRD Divine Order prints one heading over
+two orders and gives one of them an extra cantrip, so which order and which
+cantrip are two questions on one feature. The first carries no key and is
+answered under the feature's own id, which is what every answer ever written is
+keyed by and what a grant's `onlyIfChoice` reads; each one after it carries a
+`key` and is answered under `<feature id>:<key>`, and may print an
+`onlyIfChoice` of its own — a Protector is never asked which cantrip, so an
+answer from one is refused rather than filed where nothing reads it. Every
+reader goes through `featureChoicesOf`, because a feature that wrote only the
+plural would otherwise vanish from validation and from creation without a word.
+A grant written in terms of a keyed question names the whole key in
+`choiceFrom`: the gate reads the primary answer of the feature that key names
+and the grant's content reads the key itself, which is the one place the two
+jobs of that field come apart.
+
 Three words the species traits print and no class table could give. A pool
 may be sized `perProficiencyBonus` — "a number of times equal to your
 Proficiency Bonus" — at the *character's* level, grown by advancement like a

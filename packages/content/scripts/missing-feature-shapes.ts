@@ -102,8 +102,6 @@ export const FEATURE_SHAPES = {
     'a feature\'s conferred effect that runs to a **moment in the Initiative order** rather than for a printed span. What an option hangs is ended by a deadline it files itself, and `PoolOptionGrant` in packages/engine/src/progression.ts admits exactly one kind of it — "How long what it hangs lasts, in seconds" — because Channel Divinity\'s minute is what it was built from. An `activated` grant one member along carries a `TurnAnchor` instead and a `standing` grant needs none, so the vocabulary holds both spellings of a lifetime and this host holds one: SRD Nature\'s Veil gives the Invisible condition "until the end of your next turn", and there is no field to write that in. It is the mirror of the entry below rather than the same gap — that one is a switched-on feature wanting a span, and this is a conferred effect wanting a boundary.',
   'a-dc-a-feature-derives-from-its-own-abilities':
     'a saving throw DC a feature computes for itself. A feature\'s option rolls against its holder\'s spell save DC, and `PoolOption` in packages/engine/src/standing.ts says whose: "The **granting class\'s** ability, resolved at creation, because a multiclassed holder has more than one and the feature belongs to exactly one of them." A species trait belongs to no class and casts nothing — the same declaration goes on, "Null where the granting class casts nothing at all" — so SRD Breath Weapon\'s "DC 8 plus your Constitution modifier and Proficiency Bonus" is a formula the vocabulary cannot name, and what it would fall back to is an item\'s.',
-  'a-second-question-one-feature-asks':
-    'a feature that asks the player **two** things. packages/engine/src/progression.ts gives a feature one question — “What the player must decide when they gain it” — and the answer is stored under the feature’s own id, so one feature holds one answer list and every grant written in terms of a choice reads that one. SRD Divine Order and Primal Order each print two under one heading: which order, and — for one of the two orders — which extra cantrip from the class list. The gate that hangs a grant on the order chosen is built; the cantrip still cannot be granted, because the feature has already spent its question and a spells grant with no fixed list is compiled from the answer to it.',
   'a-feature-that-rewrites-another-features-rule':
     'a later feature that changes an earlier one. The engine allows exactly five restatements and each arrived with its sentence — a `critical-range` threshold restated, a `lifts-conditions` list lengthened, `widens-reaction` which packages/engine/src/progression.ts calls "A second feature restating the first rather than a second mechanism", `executedBy` for a step in another feature\'s table, and the pool field the same file calls "A **later feature** that rewrites this pool\'s recovery", declared on the pool and gated on the feature whose sentence moves it. A feature that changes another one\'s **duration**, or what its uses buy, is a sixth and has no member.',
   'an-option-re-chosen-on-a-rest':
@@ -375,23 +373,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Cleric —
-  'cleric:divine-order': [
-    {
-      clause: 'Protector grants Martial weapon proficiency and Heavy armor training',
-      why: 'a-language-or-a-proficiency-an-item-grants',
-      note: 'the item vocabulary’s own id for training a grant confers; a class feature reaches the same missing reader.',
-    },
-    {
-      clause: 'Thaumaturge grants an extra cantrip',
-      why: 'a-second-question-one-feature-asks',
-      note: 'the gate landed and this did not: a spells grant gated on Thaumaturge is expressible now, and which cantrip is a second question this feature has no room for — it has already asked which order.',
-    },
-    {
-      clause: 'That is a standing check bonus gated on the option chosen',
-      why: 'expressible',
-      note: 'the half that is applied: `check-bonus` sizes a bonus by a modifier on the holder’s own sheet, over the skills the feature names.',
-    },
-  ],
   'cleric:divine-intervention': [
     {
       clause: 'Casting any Cleric spell without components',
@@ -439,23 +420,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'recorded as a proficiency and read by nobody',
       why: 'table',
       note: 'a language and the messages it hides are narration; there is no rule here for the engine to own.',
-    },
-  ],
-  'druid:primal-order': [
-    {
-      clause: 'Warden grants Martial weapon proficiency and Medium armour training',
-      why: 'a-language-or-a-proficiency-an-item-grants',
-      note: 'Divine Order’s blocker on a second class, which is what makes it a shape.',
-    },
-    {
-      clause: 'Magician grants a cantrip',
-      why: 'a-second-question-one-feature-asks',
-      note: 'as Thaumaturge, and for the same reason on a second class: the gate exists and the second question does not.',
-    },
-    {
-      clause: 'That is a standing check bonus gated on the option chosen',
-      why: 'expressible',
-      note: 'the half that is applied, off the same `check-bonus` Thaumaturge’s reads — two writers, which is what made it a member.',
     },
   ],
   'druid:beast-spells': [
@@ -1062,8 +1026,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'One free casting each of a level 6, 7, 8 and 9 spell',
-      why: 'a-second-question-one-feature-asks',
-      note: 'four grants on one feature is expressible now, and four questions is not: the spell is the player’s at each of the four levels, and a feature asks one thing when it is gained.',
+      why: 'a-casting-paid-for-out-of-a-feature-pool',
+      note: 'the four questions are askable now — a feature carries a list of them and files each answer under its own key, which is what Divine Order’s extra cantrip is — so what is left of this clause is the casting the answer would pay for, which is the blocker the clause above names.',
     },
   ],
   'warlock:eldritch-master': [

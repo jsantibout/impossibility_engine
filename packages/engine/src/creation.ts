@@ -24,6 +24,7 @@ import {
   MAX_ABILITY_SCORE,
   abilityModifier,
   proficiencyBonusForLevel,
+  type ArmorTraining,
   type BudgetPurchase,
   type CharacterSheet,
   type UnarmoredDefense,
@@ -75,7 +76,11 @@ import {
   cumulativeFeatures,
   rowAt,
   slotsAt,
+  choiceAnswerKey,
+  featureChoicesOf,
   featureGrants,
+  featureOfAnswerKey,
+  primaryChoiceOf,
   type ClassDefinition,
   type EquipmentEntry,
   type ClassLevelRow,
@@ -514,8 +519,9 @@ function abilityPointsFrom(
   }
 
   const feat = choices.feats[feature.id];
-  if (feature.choice?.kind === 'ability-score' && feat === undefined) {
-    spend(choices.featureChoices[feature.id] ?? []);
+  const raises = featureChoicesOf(feature).find((question) => question.kind === 'ability-score');
+  if (raises !== undefined && feat === undefined) {
+    spend(choices.featureChoices[choiceAnswerKey(feature.id, raises.key)] ?? []);
   }
 
   if (feat !== undefined) {
@@ -856,9 +862,14 @@ function withGateMet(feature: FeatureDefinition, choices: CharacterChoices): Fea
       return false;
     }
     if (grant.onlyIfChoice === undefined) return true;
-    return (choices.featureChoices[grant.choiceFrom ?? feature.id] ?? []).includes(
-      grant.onlyIfChoice,
-    );
+    // **The gate reads a feature's primary answer**, whichever question the
+    // grant's content reads. A `choiceFrom` may name a keyed question — an
+    // answer filed under `<feature id>:<key>` — and an option was never inside
+    // that answer: it is the answer to the question the feature asked first,
+    // under its own id.
+    return (
+      choices.featureChoices[featureOfAnswerKey(grant.choiceFrom ?? feature.id)] ?? []
+    ).includes(grant.onlyIfChoice);
   });
   if (kept.length === all.length) return feature;
   return kept.length === 0 ? withoutGrant(feature) : { ...feature, grants: kept };
@@ -958,7 +969,15 @@ function choicesGranting(
       picked.push(...grant.fixed);
       continue;
     }
-    picked.push(...(choices.featureChoices[feature.id] ?? []));
+    // **A keyed `choiceFrom` is read as content; a bare one is not.** The
+    // field has two jobs and they part here: pointed at a *sibling* it says
+    // where the gate's option was answered and nothing more — `content.ts`
+    // says so in as many words, and reading a sibling's option names as spell
+    // ids is exactly what that invariant forbids — while pointed at a keyed
+    // question it names the second answer this grant is compiled from.
+    const from = grant.choiceFrom;
+    const keyed = from !== undefined && featureOfAnswerKey(from) !== from;
+    picked.push(...(choices.featureChoices[keyed ? from : feature.id] ?? []));
   }
   return picked;
 }
@@ -1007,14 +1026,15 @@ function unclaimedMasteries(
 ): CreationProblem[] {
   const warnings: CreationProblem[] = [];
   for (const feature of features) {
-    const asked = feature.choice;
-    if (asked?.kind !== 'weapon') continue;
-    const ceiling = weaponsAsked(asked, choices, feature);
-    const named = (choices.featureChoices[feature.id] ?? []).length;
-    if (named < ceiling) {
-      warnings.push(
-        problem('unclaimed_masteries', 'featureChoices', `${feature.name} unlocks the mastery properties of ${ceiling} kinds of weapon, and ${named} were named; the rest are the table's to pick, on this Long Rest or a later one`),
-      );
+    for (const asked of featureChoicesOf(feature)) {
+      if (asked.kind !== 'weapon') continue;
+      const ceiling = weaponsAsked(asked, choices, feature);
+      const named = (choices.featureChoices[choiceAnswerKey(feature.id, asked.key)] ?? []).length;
+      if (named < ceiling) {
+        warnings.push(
+          problem('unclaimed_masteries', 'featureChoices', `${feature.name} unlocks the mastery properties of ${ceiling} kinds of weapon, and ${named} were named; the rest are the table's to pick, on this Long Rest or a later one`),
+        );
+      }
     }
   }
   return warnings;
@@ -1073,6 +1093,60 @@ function checkFeatureSpellcasting(
   return problems;
 }
 
+/**
+ * The questions a feature really asks **this** character.
+ *
+ * A feature may ask more than one thing and gate the later ones on the answer
+ * to the first — SRD Divine Order asks which cantrip only of a Thaumaturge —
+ * so which questions were asked is a fact about the answers, and the gate is
+ * read here exactly as `withGateMet` reads a grant's.
+ */
+const askedOf = (
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): readonly FeatureChoice[] => {
+  const primary = choices.featureChoices[feature.id] ?? [];
+  return featureChoicesOf(feature).filter(
+    (question) => question.onlyIfChoice === undefined || primary.includes(question.onlyIfChoice),
+  );
+};
+
+/**
+ * Answers to questions this character was never asked.
+ *
+ * Two shapes and one refusal, because they are one mistake: a key nothing on
+ * the feature declares, and a key it declares but gates on an option this
+ * character did not take. Both are a list of spells or skills sitting on a
+ * sheet that nothing will ever read, which is worse than a refusal — the
+ * player believes they have it.
+ *
+ * Only a **keyed** answer is asked about. The bare feature id is the primary
+ * question's, and a feature that asks nothing at all is allowed to carry a
+ * leftover answer for the reason it always was: creation reads the choices a
+ * character was made with, and a level-up must not refuse a sheet over a
+ * question a subclass stopped asking.
+ */
+function unaskedAnswers(
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): CreationProblem[] {
+  const asked = new Set(
+    askedOf(choices, feature).flatMap((question) =>
+      question.key === undefined ? [] : [question.key],
+    ),
+  );
+  const problems: CreationProblem[] = [];
+  for (const [key, answer] of Object.entries(choices.featureChoices)) {
+    if (!key.startsWith(`${feature.id}:`) || answer.length === 0) continue;
+    const named = key.slice(feature.id.length + 1);
+    if (asked.has(named)) continue;
+    problems.push(
+      problem('choice_not_asked', 'featureChoices', `${feature.name} did not ask this character for ${named}, and ${answer.join(', ')} answers it`),
+    );
+  }
+  return problems;
+}
+
 function checkFeatureChoices(
   content: Content,
   choices: CharacterChoices,
@@ -1083,135 +1157,144 @@ function checkFeatureChoices(
   const problems: CreationProblem[] = [...checkFeatureSpellcasting(choices, features)];
 
   for (const feature of features) {
-    const asked = feature.choice;
-    // Subclasses are resolved in `resolveParts`, and feats in `checkFeats`,
-    // because both need more than a list of picked names.
-    if (asked === undefined || asked.kind === 'subclass' || asked.kind === 'feat') continue;
+    // An answer to a question this character was never asked — a Protector who
+    // named a cantrip, or a key nothing on the feature declares. Left alone it
+    // is a line on a sheet nobody reads, which is how a player comes to believe
+    // they have something; the same refusal covers both, because both are an
+    // answer with no question.
+    problems.push(...unaskedAnswers(choices, feature));
 
-    // Ability points are answered one ability per point and may be answered
-    // with a feat instead, so neither the length rule below nor the "one
-    // answer, in one place" assumption behind it holds.
-    if (asked.kind === 'ability-score') {
-      problems.push(...checkAbilityChoice(choices, feature, asked));
-      continue;
-    }
+    for (const asked of askedOf(choices, feature)) {
+      // Subclasses are resolved in `resolveParts`, and feats in `checkFeats`,
+      // because both need more than a list of picked names.
+      if (asked.kind === 'subclass' || asked.kind === 'feat') continue;
+      const answerKey = choiceAnswerKey(feature.id, asked.key);
 
-    const made = choices.featureChoices[feature.id];
+      // Ability points are answered one ability per point and may be answered
+      // with a feat instead, so neither the length rule below nor the "one
+      // answer, in one place" assumption behind it holds.
+      if (asked.kind === 'ability-score') {
+        problems.push(...checkAbilityChoice(choices, feature, asked));
+        continue;
+      }
 
-    // **A Weapon Mastery choice is a ceiling rather than a quota**, and the
-    // SRD's own sentence is why: "Whenever you finish a Long Rest, you can
-    // practice weapon drills and change one of those weapon choices." Which
-    // weapons a character has mastery with is a standing decision they revisit,
-    // not a proficiency frozen when the sheet was written — so a character who
-    // has named none has named none, and the properties do not run for them.
-    // Naming *more* than the column allows is still an answer the rules do not
-    // permit, and is refused.
-    if (asked.kind === 'weapon') {
-      const ceiling = weaponsAsked(asked, choices, feature);
-      // Under the ceiling is legal and reported as a **warning** instead — see
-      // {@link unclaimedMasteries}, which is where it is said, because a
-      // problem here would refuse the character.
-      if ((made ?? []).length > ceiling) {
+      const made = choices.featureChoices[answerKey];
+
+      // **A Weapon Mastery choice is a ceiling rather than a quota**, and the
+      // SRD's own sentence is why: "Whenever you finish a Long Rest, you can
+      // practice weapon drills and change one of those weapon choices." Which
+      // weapons a character has mastery with is a standing decision they revisit,
+      // not a proficiency frozen when the sheet was written — so a character who
+      // has named none has named none, and the properties do not run for them.
+      // Naming *more* than the column allows is still an answer the rules do not
+      // permit, and is refused.
+      if (asked.kind === 'weapon') {
+        const ceiling = weaponsAsked(asked, choices, feature);
+        // Under the ceiling is legal and reported as a **warning** instead — see
+        // {@link unclaimedMasteries}, which is where it is said, because a
+        // problem here would refuse the character.
+        if ((made ?? []).length > ceiling) {
+          problems.push(
+            problem('too_many_masteries', 'featureChoices', `${feature.id} (${feature.name}) unlocks ${ceiling} kinds of weapon, and ${(made ?? []).length} were named`),
+          );
+          continue;
+        }
+        if (made === undefined) continue;
+      }
+
+      // **A choice a rest re-asks is a standing decision too**, and it is the
+      // Weapon Mastery paragraph above with a different feature's name on it:
+      // SRD Circle of the Land Spells opens "Whenever you finish a Long Rest,
+      // choose one type of land", so the land follows the rest rather than the
+      // sheet, and a Druid who has named none has named none. An answer that
+      // *is* given is still held to the offer below.
+      if (
+        made === undefined &&
+        featureGrants(feature).some((one) => one.kind === 'rechosen-on-a-rest')
+      ) {
+        continue;
+      }
+
+      const wanted = asked.kind === 'weapon' ? (made ?? []).length : asked.choose;
+      if (made === undefined || made.length !== wanted) {
         problems.push(
-          problem('too_many_masteries', 'featureChoices', `${feature.id} (${feature.name}) unlocks ${ceiling} kinds of weapon, and ${(made ?? []).length} were named`),
+          problem('missing_feature_choice', 'featureChoices', `${answerKey} (${feature.name}) needs ${wanted} choice(s)`),
         );
         continue;
       }
-      if (made === undefined) continue;
-    }
 
-    // **A choice a rest re-asks is a standing decision too**, and it is the
-    // Weapon Mastery paragraph above with a different feature's name on it:
-    // SRD Circle of the Land Spells opens "Whenever you finish a Long Rest,
-    // choose one type of land", so the land follows the rest rather than the
-    // sheet, and a Druid who has named none has named none. An answer that
-    // *is* given is still held to the offer below.
-    if (
-      made === undefined &&
-      featureGrants(feature).some((one) => one.kind === 'rechosen-on-a-rest')
-    ) {
-      continue;
-    }
-
-    const wanted = asked.kind === 'weapon' ? (made ?? []).length : asked.choose;
-    if (made === undefined || made.length !== wanted) {
-      problems.push(
-        problem('missing_feature_choice', 'featureChoices', `${feature.id} (${feature.name}) needs ${wanted} choice(s)`),
-      );
-      continue;
-    }
-
-    if (asked.kind === 'option') {
-      for (const picked of made) {
-        if (!asked.from.includes(picked)) {
+      if (asked.kind === 'option') {
+        for (const picked of made) {
+          if (!asked.from.includes(picked)) {
+            problems.push(
+              problem('option_not_offered', 'featureChoices', `${feature.name} offers ${asked.from.join(', ')}, not ${picked}`),
+            );
+          }
+        }
+        for (const picked of duplicates(made)) {
           problems.push(
-            problem('option_not_offered', 'featureChoices', `${feature.name} offers ${asked.from.join(', ')}, not ${picked}`),
+            problem('duplicate_option', 'featureChoices', `${feature.name} takes ${picked} once`),
           );
         }
+        continue;
       }
-      for (const picked of duplicates(made)) {
-        problems.push(
-          problem('duplicate_option', 'featureChoices', `${feature.name} takes ${picked} once`),
-        );
-      }
-      continue;
-    }
 
-    if (asked.kind === 'weapon') {
-      for (const picked of duplicates(made)) {
-        problems.push(
-          problem('weapon_not_mastered', 'featureChoices', `${feature.name} unlocks ${picked} once`),
-        );
+      if (asked.kind === 'weapon') {
+        for (const picked of duplicates(made)) {
+          problems.push(
+            problem('weapon_not_mastered', 'featureChoices', `${feature.name} unlocks ${picked} once`),
+          );
+        }
+        for (const picked of made) {
+          const weapon = content.item(picked)?.weapon ?? null;
+          if (weapon === null) {
+            problems.push(
+              problem('weapon_not_mastered', 'featureChoices', `${picked} is not a weapon`),
+            );
+            continue;
+          }
+          // SRD Barbarian: "Simple or Martial **Melee** weapons".
+          if (asked.melee === true && weapon.kind !== 'melee') {
+            problems.push(
+              problem('weapon_not_mastered', 'featureChoices', `${feature.name} unlocks Melee weapons, and a ${weapon.name} is not one`),
+            );
+            continue;
+          }
+          // SRD Paladin, Ranger, Rogue: "weapons of your choice **with which you
+          // have proficiency**" — and the two classes whose sentence omits it are
+          // proficient with everything it offers, so asking all five says the
+          // same thing about each.
+          if (!proficientWithCategories(weaponCategories, weapon)) {
+            problems.push(
+              problem('weapon_not_mastered', 'featureChoices', `${feature.name} needs proficiency with a ${weapon.name} first`),
+            );
+          }
+        }
+        continue;
       }
-      for (const picked of made) {
-        const weapon = content.item(picked)?.weapon ?? null;
-        if (weapon === null) {
-          problems.push(
-            problem('weapon_not_mastered', 'featureChoices', `${picked} is not a weapon`),
-          );
-          continue;
-        }
-        // SRD Barbarian: "Simple or Martial **Melee** weapons".
-        if (asked.melee === true && weapon.kind !== 'melee') {
-          problems.push(
-            problem('weapon_not_mastered', 'featureChoices', `${feature.name} unlocks Melee weapons, and a ${weapon.name} is not one`),
-          );
-          continue;
-        }
-        // SRD Paladin, Ranger, Rogue: "weapons of your choice **with which you
-        // have proficiency**" — and the two classes whose sentence omits it are
-        // proficient with everything it offers, so asking all five says the
-        // same thing about each.
-        if (!proficientWithCategories(weaponCategories, weapon)) {
-          problems.push(
-            problem('weapon_not_mastered', 'featureChoices', `${feature.name} needs proficiency with a ${weapon.name} first`),
-          );
-        }
-      }
-      continue;
-    }
 
-    if (asked.kind === 'skill') {
-      for (const picked of made) {
-        if (!(SKILLS as readonly string[]).includes(picked)) {
-          problems.push(
-            problem('unknown_skill', 'featureChoices', `${picked} is not a skill`),
-          );
-          continue;
-        }
-        if (asked.from !== undefined && !asked.from.includes(picked as Skill)) {
-          problems.push(
-            problem('skill_not_offered', 'featureChoices', `${feature.name} offers ${asked.from.join(', ')}, not ${picked}`),
-          );
-        }
-        // SRD Expertise: "Choose one of the following skills **in which you
-        // have proficiency**." Expertise without proficiency is not a thing.
-        // Found by what the feature grants, not by its id: the Rogue's
-        // Expertise is the same rule under a different name.
-        if (grantOf(feature, 'expertise') !== null && !proficient.has(picked as Skill)) {
-          problems.push(
-            problem('expertise_without_proficiency', 'featureChoices', `${feature.name} needs proficiency in ${picked} first`),
-          );
+      if (asked.kind === 'skill') {
+        for (const picked of made) {
+          if (!(SKILLS as readonly string[]).includes(picked)) {
+            problems.push(
+              problem('unknown_skill', 'featureChoices', `${picked} is not a skill`),
+            );
+            continue;
+          }
+          if (asked.from !== undefined && !asked.from.includes(picked as Skill)) {
+            problems.push(
+              problem('skill_not_offered', 'featureChoices', `${feature.name} offers ${asked.from.join(', ')}, not ${picked}`),
+            );
+          }
+          // SRD Expertise: "Choose one of the following skills **in which you
+          // have proficiency**." Expertise without proficiency is not a thing.
+          // Found by what the feature grants, not by its id: the Rogue's
+          // Expertise is the same rule under a different name.
+          if (grantOf(feature, 'expertise') !== null && !proficient.has(picked as Skill)) {
+            problems.push(
+              problem('expertise_without_proficiency', 'featureChoices', `${feature.name} needs proficiency in ${picked} first`),
+            );
+          }
         }
       }
     }
@@ -1251,12 +1334,13 @@ function checkAbilityChoice(
   feature: FeatureDefinition,
   asked: Extract<FeatureChoice, { kind: 'ability-score' }>,
 ): CreationProblem[] {
-  const made = choices.featureChoices[feature.id] ?? [];
+  const answerKey = choiceAnswerKey(feature.id, asked.key);
+  const made = choices.featureChoices[answerKey] ?? [];
   const offers = asked.spreads.map(spreadOf).join(', or ');
 
   if (made.length === 0) {
     return [
-      problem('missing_feature_choice', 'featureChoices', `${feature.id} (${feature.name}) raises ${offers}, and nothing was chosen`),
+      problem('missing_feature_choice', 'featureChoices', `${answerKey} (${feature.name}) raises ${offers}, and nothing was chosen`),
     ];
   }
 
@@ -1808,36 +1892,42 @@ function checkFeatureSpellChoices(
 
   for (const caster of casters) {
     for (const feature of castingFeaturesOf(content, choices, caster)) {
-      if (feature.choice?.kind !== 'spell' || grantOf(feature, 'spells') === null) continue;
-      const picked = choices.featureChoices[feature.id];
-      if (picked === undefined) continue;
-      const field = caster.at('featureChoices');
+      for (const asked of askedOf(choices, feature)) {
+        if (asked.kind !== 'spell' || grantOf(feature, 'spells') === null) continue;
+        const picked = choices.featureChoices[choiceAnswerKey(feature.id, asked.key)];
+        if (picked === undefined) continue;
+        const field = caster.at('featureChoices');
 
-      for (const id of duplicates(picked)) {
-        problems.push(problem('duplicate_spell', field, `${feature.name} chose ${id} twice`));
-      }
-      for (const id of picked) {
-        problems.push(
-          ...checkSpellId(content, id, field, caster.definition.id, {
-            minLevel: 1,
-            ...(feature.choice.maxLevel === undefined ? {} : { maxLevel: feature.choice.maxLevel }),
-            ...(feature.choice.school === undefined ? {} : { school: feature.choice.school }),
-            what: feature.name,
-          }),
-        );
-      }
-
-      // A spellbook class writes the free spells into the book, so they must
-      // not already be in it; a class without a book has nothing to duplicate.
-      if (caster.definition.spellcasting?.style === 'spellbook') {
-        const fromLevels = new Set(
-          caster.spellbook.filter((e) => e.origin !== 'feature').map((e) => e.spellId),
-        );
+        for (const id of duplicates(picked)) {
+          problems.push(problem('duplicate_spell', field, `${feature.name} chose ${id} twice`));
+        }
         for (const id of picked) {
-          if (fromLevels.has(id)) {
-            problems.push(
-              problem('spell_already_known', field, `${id} is already in the spellbook, so ${feature.name} would grant nothing`),
-            );
+          problems.push(
+            // **A cantrip is level 0 and the floor follows the ceiling.** A
+            // feature that takes spells "no higher than level 2" takes levelled
+            // ones, and SRD Divine Order's "one extra cantrip" takes exactly the
+            // level a fixed floor of 1 refused.
+            ...checkSpellId(content, id, field, caster.definition.id, {
+              minLevel: asked.maxLevel === 0 ? 0 : 1,
+              ...(asked.maxLevel === undefined ? {} : { maxLevel: asked.maxLevel }),
+              ...(asked.school === undefined ? {} : { school: asked.school }),
+              what: feature.name,
+            }),
+          );
+        }
+
+        // A spellbook class writes the free spells into the book, so they must
+        // not already be in it; a class without a book has nothing to duplicate.
+        if (caster.definition.spellcasting?.style === 'spellbook') {
+          const fromLevels = new Set(
+            caster.spellbook.filter((e) => e.origin !== 'feature').map((e) => e.spellId),
+          );
+          for (const id of picked) {
+            if (fromLevels.has(id)) {
+              problems.push(
+                problem('spell_already_known', field, `${id} is already in the spellbook, so ${feature.name} would grant nothing`),
+              );
+            }
           }
         }
       }
@@ -1866,7 +1956,9 @@ function checkFeats(
 
   for (const feature of features) {
     const fixed = feature.grantsFeat;
-    const choice = feature.choice;
+    // The primary question's, because a feat is answered in `choices.feats`,
+    // which is keyed by the feature and has no room for a second answer.
+    const choice = primaryChoiceOf(feature);
     const asksForOne = choice?.kind === 'feat';
     const made = choices.feats[feature.id];
     if (fixed === undefined && !asksForOne) continue;
@@ -2633,10 +2725,12 @@ function gatherProficiencies(
   // proficiency from it would make "Expertise without proficiency" impossible
   // to refuse.
   for (const feature of grantedFeatures(content, choices, parts)) {
-    if (feature.choice?.kind !== 'skill') continue;
     if (grantOf(feature, 'expertise') !== null) continue;
-    for (const skill of choices.featureChoices[feature.id] ?? []) {
-      add(skill, feature.name, 'featureChoices');
+    for (const asked of askedOf(choices, feature)) {
+      if (asked.kind !== 'skill') continue;
+      for (const skill of choices.featureChoices[choiceAnswerKey(feature.id, asked.key)] ?? []) {
+        add(skill, feature.name, 'featureChoices');
+      }
     }
   }
   for (const feat of Object.values(choices.feats)) {
@@ -2653,11 +2747,18 @@ function gatherProficiencies(
  * class grants the subset its "As a Multiclass Character" section prints. One
  * function because the sheet and the Weapon Mastery check ask the same
  * question, and a second copy is how the two come to disagree.
+ *
+ * **And a feature may grant one.** SRD Divine Order (Protector): "you gain
+ * proficiency with Martial weapons" — folded in here rather than read beside
+ * the sheet, so `proficientWith` and the Weapon Mastery check both see it and
+ * nothing downstream learns that a feature can say this. The features are
+ * already gated, so a Cleric who took the other option brings nothing.
  */
 function weaponCategoriesOf(
   content: Content,
   choices: CharacterChoices,
   definition: ClassDefinition,
+  features: readonly FeatureDefinition[],
 ): readonly string[] {
   return [
     ...new Set([
@@ -2665,8 +2766,38 @@ function weaponCategoriesOf(
       ...(choices.multiclass ?? []).flatMap(
         (entry) => content.classById(entry.classId)?.multiclass.weapons ?? [],
       ),
+      ...[...grantsIn(features)].flatMap(([, grant]) =>
+        grant.kind === 'weapon-and-armor-training' ? (grant.weapons ?? []) : [],
+      ),
     ]),
   ].sort();
+}
+
+/**
+ * Armour training, with what a feature grants folded into what the classes do.
+ *
+ * `combinedArmorTraining`'s other side: the classes are `multiclass.ts`'s
+ * question — the first in full and the rest in part — and a feature's training
+ * is this file's, because only creation has the gated feature list. SRD Divine
+ * Order (Protector) trains with Heavy armour and Primal Order (Warden) with
+ * Medium, and a flag is set or it is not, so the union is the whole rule.
+ */
+function trainedArmor(
+  base: ArmorTraining,
+  features: readonly FeatureDefinition[],
+): ArmorTraining {
+  const granted = new Set(
+    [...grantsIn(features)].flatMap(([, grant]) =>
+      grant.kind === 'weapon-and-armor-training' ? (grant.armor ?? []) : [],
+    ),
+  );
+  if (granted.size === 0) return base;
+  return {
+    light: base.light || granted.has('light'),
+    medium: base.medium || granted.has('medium'),
+    heavy: base.heavy || granted.has('heavy'),
+    shields: base.shields || granted.has('shields'),
+  };
 }
 
 /** Every problem with a set of choices, so a caller can show them all at once. */
@@ -2700,7 +2831,7 @@ export function checkCharacter(
       choices,
       features,
       skills,
-      weaponCategoriesOf(content, choices, parts.definition),
+      weaponCategoriesOf(content, choices, parts.definition, features),
     ),
   );
   all.push(...checkFeats(content, choices, features));
@@ -2804,7 +2935,7 @@ export function planCharacter(
     // asks which ancestry, lineage or legacy you are and the later ones are
     // written in terms of it. The content validator has already held the name
     // to a sibling that asks something.
-    const chooser = byFeatureId.get(grant.choiceFrom ?? feature.id);
+    const chooser = byFeatureId.get(featureOfAnswerKey(grant.choiceFrom ?? feature.id));
     const picked = choices.featureChoices[chooser?.id ?? feature.id] ?? [];
 
     // SRD "You gain one of the following options of your choice" is not asked
@@ -3216,7 +3347,7 @@ export function planCharacter(
   for (const [feature, grant] of grantsIn(features)) {
     if (grant.kind !== 'casting-options') continue;
 
-    const asked = feature.choice?.kind === 'option';
+    const asked = primaryChoiceOf(feature)?.kind === 'option';
     const picked = choices.featureChoices[feature.id] ?? [];
 
     for (const option of grant.options) {
@@ -3550,18 +3681,21 @@ export function planCharacter(
     ].sort(),
     armor: worn,
     shield: held,
-    armorTraining: combinedArmorTraining(
-      definition,
-      (choices.multiclass ?? []).flatMap((entry) => {
-        const other = content.classById(entry.classId);
-        return other === null ? [] : [other];
-      }),
+    armorTraining: trainedArmor(
+      combinedArmorTraining(
+        definition,
+        (choices.multiclass ?? []).flatMap((entry) => {
+          const other = content.classById(entry.classId);
+          return other === null ? [] : [other];
+        }),
+      ),
+      features,
     ),
     baseSpeed: species.speed,
     // SRD: the starting class grants its weapon proficiencies in full, and a
     // later class grants the subset its "As a Multiclass Character" section
     // prints — which for most of them is nothing at all.
-    weaponProficiencies: weaponCategoriesOf(content, choices, definition),
+    weaponProficiencies: weaponCategoriesOf(content, choices, definition, features),
     // SRD Unarmored Defense and Draconic Resilience. Gathered from whatever
     // features grant one rather than by naming the three classes that do, so a
     // fourth needs no change here. A character with none carries none, and
@@ -3662,7 +3796,15 @@ export function planCharacter(
     const ability = caster.definition.spellcasting?.ability;
     if (ability === undefined) continue;
 
-    const fromFeatures = classFeatureSpells(content, choices, caster);
+    // **Partitioned by level, because a cantrip is not a prepared spell.**
+    // SRD Divine Order (Thaumaturge) grants "one extra cantrip from the Cleric
+    // spell list", and a granted spell filed with the prepared ones would
+    // reach `routesFor` as a `prepared` route — a cantrip that costs a slot,
+    // which is a price the book never prints. Every other feature that grants
+    // spells grants levelled ones and is untouched.
+    const granting = classFeatureSpells(content, choices, caster);
+    const fromFeatures = granting.filter((id) => (content.spellEntry(id)?.level ?? 1) > 0);
+    const grantedCantrips = granting.filter((id) => content.spellEntry(id)?.level === 0);
     const style = caster.definition.spellcasting?.style ?? 'spellbook';
 
     // And the castings this class's features pay for themselves, on the
@@ -3696,7 +3838,10 @@ export function planCharacter(
     classes.push({
       classId: caster.definition.id,
       ability,
-      cantrips: caster.cantrips,
+      cantrips: [
+        ...caster.cantrips,
+        ...grantedCantrips.filter((id) => !caster.cantrips.includes(id)),
+      ],
       prepared: [...caster.preparedSpells, ...alwaysPrepared],
       slotKind: pactMagic(content, caster.definition.id) ? 'pact' : 'spell',
       // The book, for the one feature that reads it — SRD Ritual Adept casts

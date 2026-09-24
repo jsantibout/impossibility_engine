@@ -25,7 +25,10 @@ import type {
 } from './origins.js';
 import {
   MAX_LEVEL,
+  featureChoicesOf,
   featureGrants,
+  featureOfAnswerKey,
+  primaryChoiceOf,
   type ClassDefinition,
   type FeatureDefinition,
   type FeatureGrant,
@@ -236,6 +239,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'strike-style',
   'trade',
   'unarmored-defense',
+  'weapon-and-armor-training',
   'weapon-mastery',
   'widens-reaction',
 ]);
@@ -275,6 +279,7 @@ const FEAT_GRANT_KINDS: ReadonlySet<string> = new Set([
 /** The optional `FeatureDefinition` fields a reader dereferences — see {@link READABLE_GRANT_KINDS}. */
 export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
   'choice',
+  'choices',
   'grants',
   'grantsFeat',
   'optionMeans',
@@ -2502,7 +2507,7 @@ function castingOptionProblems(
   // The menu the player is offered. A feature that asks nothing grants all of
   // its options, and a feature that asks for something *other* than an option
   // has no answer creation could filter the menu by.
-  const asks = feature.choice;
+  const asks = primaryChoiceOf(feature);
   const offered =
     asks === undefined ? null : asks.kind === 'option' ? new Set(asks.from) : new Set<string>();
   if (asks !== undefined && asks.kind !== 'option') {
@@ -4563,18 +4568,39 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
         // `standing` grant reads one.
         {
           const from = grant.choiceFrom;
-          const chooser = from === undefined ? feature : own.get(from);
-          if (from !== undefined && (chooser === undefined || chooser.id === feature.id)) {
+          // **A key is the other half of the name.** A feature that asks more
+          // than one thing files each answer after the first under
+          // `<feature id>:<key>`, so a grant written in terms of one names the
+          // whole key — SRD Divine Order's cantrip is read off the question
+          // Divine Order itself asked second. The feature is the first two
+          // segments and everything past them is the question's own key.
+          const named = from === undefined ? feature.id : featureOfAnswerKey(from);
+          const key = from === undefined || named === from ? undefined : from.slice(named.length + 1);
+          const chooser = named === feature.id ? feature : own.get(named);
+          // Naming itself is still what leaving the field out says — unless a
+          // key is what it names, which is a second question on the same
+          // feature and the only way to reach one.
+          if (from !== undefined && (chooser === undefined || (chooser.id === feature.id && key === undefined))) {
             problems.push({
               field: `${grantsAt}.choiceFrom`,
               code: 'bad_choice_from',
               reason:
                 chooser === undefined
-                  ? `${feature.id} reads the choice made on ${from}, and ${source.where} has no such feature — a choice is read from a sibling of the same source, because that is the only place one is guaranteed to have been asked`
+                  ? `${feature.id} reads the choice made on ${named}, and ${source.where} has no such feature — a choice is read from a sibling of the same source, because that is the only place one is guaranteed to have been asked`
                   : `${feature.id} names itself as where its choice was made, which is what leaving the field out already says`,
             });
           } else if (chooser !== undefined) {
-            if (from !== undefined && chooser.choice === undefined) {
+            if (
+              key !== undefined &&
+              !featureChoicesOf(chooser).some((question) => question.key === key)
+            ) {
+              problems.push({
+                field: `${grantsAt}.choiceFrom`,
+                code: 'unknown_choice_key',
+                reason: `${feature.id} reads the answer ${chooser.id} files under "${key}", and ${chooser.id} asks no question by that key — so the grant would be compiled from an answer nobody was asked for`,
+              });
+            }
+            if (from !== undefined && featureChoicesOf(chooser).length === 0) {
               problems.push({
                 field: `${grantsAt}.choiceFrom`,
                 code: 'choice_from_asks_nothing',
@@ -4624,9 +4650,13 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             // And the gate, against the options the chooser really offers. A
             // gate naming an option nobody can pick is never an error at any
             // moment: the grant is simply never compiled, and nothing says why.
+            // The **primary** question's options, whichever question the
+            // grant's content reads: a gate is answered by the one thing a
+            // feature asks under its own id.
+            const asks = primaryChoiceOf(chooser);
             const gate = grant.onlyIfChoice;
-            const offered = chooser.choice?.kind === 'option' ? chooser.choice.from : [];
-            if (gate !== undefined && chooser.choice !== undefined && !offered.includes(gate)) {
+            const offered = asks?.kind === 'option' ? asks.from : [];
+            if (gate !== undefined && asks !== undefined && !offered.includes(gate)) {
               problems.push({
                 field: `${grantsAt}.onlyIfChoice`,
                 code: 'option_not_offered',

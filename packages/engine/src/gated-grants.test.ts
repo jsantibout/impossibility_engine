@@ -171,16 +171,25 @@ describe('a gate on a grant that is not a standing benefit', () => {
 
   /**
    * And the list a **casting class** builds for itself, which is a different
-   * pass with a different feature list: an always-prepared spell belonging to
-   * one option is prepared for that option alone.
+   * pass with a different feature list: a spell a feature grants outright
+   * belongs to the option that took it alone.
+   *
+   * Guidance is a cantrip, so it joins the cantrips rather than the prepared
+   * list — a granted level 0 spell filed with the prepared ones would resolve
+   * as a route that spends a slot, which is a price the book never prints.
    */
-  it('prepares a class’s own gated spell for the option that took it', () => {
+  it('knows a class’s own gated cantrip for the option that took it', () => {
+    const known = (calling: string) =>
+      unwrap(planCharacter(CONTENT, oracle(calling)), 'plan').spellcasting.classes.flatMap(
+        (one) => [...one.cantrips, ...one.prepared],
+      );
+    expect(known('Seer')).toContain('guidance');
+    expect(known('Sentinel')).not.toContain('guidance');
     const prepared = (calling: string) =>
       unwrap(planCharacter(CONTENT, oracle(calling)), 'plan').spellcasting.classes.flatMap(
         (one) => one.prepared,
       );
-    expect(prepared('Seer')).toContain('guidance');
-    expect(prepared('Sentinel')).not.toContain('guidance');
+    expect(prepared('Seer')).not.toContain('guidance');
   });
 
   /** Read off the sibling that asked, which is how a species is written. */

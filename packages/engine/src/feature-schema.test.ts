@@ -611,6 +611,163 @@ describe('rule 8 — a table of what each option means, and a grant that reads o
   });
 });
 
+describe('rule 8b — a feature may ask more than one question', () => {
+  /**
+   * SRD Divine Order's shape, in the abstract: which order, and — only of the
+   * one order that gets it — which extra cantrip.
+   *
+   * The first question carries no key and is answered under the feature's own
+   * id, which is what every answer ever written is keyed by; the second is
+   * answered under `<feature id>:<key>` and says which option of the first
+   * makes it worth asking.
+   */
+  const asksTwice: FeatureDefinition = {
+    ...sound,
+    id: 'wizard:two-questions',
+    level: 1,
+    choices: [
+      { kind: 'option', choose: 1, from: ['Protector', 'Thaumaturge'] },
+      { key: 'cantrip', kind: 'spell', choose: 1, maxLevel: 0, onlyIfChoice: 'Thaumaturge' },
+    ],
+  };
+
+  it('accepts two questions, the second keyed and gated on the first', () => {
+    expect(codes(asksTwice)).toEqual([]);
+  });
+
+  it('reports a feature that writes both the singular and the plural', () => {
+    const both: FeatureDefinition = {
+      ...asksTwice,
+      choice: { kind: 'skill', choose: 1 },
+    };
+    expect(codes(both)).toContain('choice_asked_twice');
+  });
+
+  /**
+   * The key is where an answer is filed, and the first question's answer is
+   * filed under the feature's own id — so a key on it is a key nothing reads.
+   */
+  it('reports a key on the question a feature asks first', () => {
+    const keyed: FeatureDefinition = {
+      ...sound,
+      id: asksTwice.id,
+      choice: { key: 'order', kind: 'option', choose: 1, from: ['Protector'] },
+    };
+    expect(codes(keyed)).toContain('keyed_first_choice');
+  });
+
+  it('reports a second question with no key of its own', () => {
+    const unkeyed: FeatureDefinition = {
+      ...asksTwice,
+      choices: [
+        { kind: 'option', choose: 1, from: ['Protector', 'Thaumaturge'] },
+        { kind: 'spell', choose: 1, maxLevel: 0, onlyIfChoice: 'Thaumaturge' },
+      ],
+    };
+    expect(codes(unkeyed)).toContain('unkeyed_later_choice');
+  });
+
+  it('reports two questions filed under one key', () => {
+    const shared: FeatureDefinition = {
+      ...asksTwice,
+      choices: [
+        { kind: 'option', choose: 1, from: ['Protector', 'Thaumaturge'] },
+        { key: 'cantrip', kind: 'spell', choose: 1, maxLevel: 0, onlyIfChoice: 'Thaumaturge' },
+        { key: 'cantrip', kind: 'skill', choose: 1, onlyIfChoice: 'Protector' },
+      ],
+    };
+    expect(codes(shared)).toContain('duplicate_choice_key');
+  });
+
+  /** A gate naming an option nobody can pick is a question nobody is ever asked. */
+  it('reports a question gated on an option the first one does not offer', () => {
+    const wrong: FeatureDefinition = {
+      ...asksTwice,
+      choices: [
+        { kind: 'option', choose: 1, from: ['Protector', 'Thaumaturge'] },
+        { key: 'cantrip', kind: 'spell', choose: 1, maxLevel: 0, onlyIfChoice: 'Magician' },
+      ],
+    };
+    expect(codes(wrong)).toContain('option_not_offered');
+  });
+
+  /** And a gate on a first question has no earlier answer to read at all. */
+  it('reports a gate on the question a feature asks first, and one on a choice with no options', () => {
+    const first: FeatureDefinition = {
+      ...sound,
+      id: asksTwice.id,
+      choice: { kind: 'option', choose: 1, from: ['Protector'], onlyIfChoice: 'Protector' },
+    };
+    expect(codes(first)).toContain('gate_without_a_choice');
+
+    const notOptions: FeatureDefinition = {
+      ...asksTwice,
+      choices: [
+        { kind: 'skill', choose: 1 },
+        { key: 'cantrip', kind: 'spell', choose: 1, maxLevel: 0, onlyIfChoice: 'Thaumaturge' },
+      ],
+    };
+    expect(codes(notOptions)).toContain('gate_without_a_choice');
+  });
+
+  /**
+   * Every rule a lone question is held to is asked of a keyed one, which is
+   * the whole reason the readers go through one accessor: a weapon choice
+   * sized neither way is refused wherever it is written.
+   */
+  it('holds a keyed question to the rules the singular one is held to', () => {
+    const unsized: FeatureDefinition = {
+      ...asksTwice,
+      choices: [
+        { kind: 'option', choose: 1, from: ['Protector', 'Thaumaturge'] },
+        { key: 'kinds', kind: 'weapon', onlyIfChoice: 'Protector' },
+      ],
+    };
+    expect(codes(unsized)).toContain('unsized_weapon_choice');
+  });
+});
+
+describe('the training a feature grants', () => {
+  /** SRD Divine Order (Protector): Martial weapons and Heavy armour. */
+  const trains: FeatureDefinition = {
+    ...sound,
+    id: 'wizard:trained-for-battle',
+    level: 1,
+    automation: 'engine',
+    grants: { kind: 'weapon-and-armor-training', weapons: ['martial'], armor: ['heavy'] },
+  };
+
+  it('accepts a grant that names weapons, armour, or either alone', () => {
+    expect(codes(trains)).toEqual([]);
+    expect(codes({ ...trains, grants: { kind: 'weapon-and-armor-training', weapons: ['martial'] } })).toEqual([]);
+    expect(codes({ ...trains, grants: { kind: 'weapon-and-armor-training', armor: ['medium'] } })).toEqual([]);
+  });
+
+  it('reports a grant that trains nobody in anything', () => {
+    expect(codes({ ...trains, grants: { kind: 'weapon-and-armor-training' } })).toContain(
+      'empty_training_grant',
+    );
+  });
+
+  it('reports a category of weapon or armour no sheet has', () => {
+    const weapon = {
+      ...trains,
+      grants: { kind: 'weapon-and-armor-training', weapons: ['exotic'] },
+    } as never as FeatureDefinition;
+    expect(codes(weapon)).toContain('bad_training_grant');
+    const armor = {
+      ...trains,
+      grants: { kind: 'weapon-and-armor-training', armor: ['plate'] },
+    } as never as FeatureDefinition;
+    expect(codes(armor)).toContain('bad_training_grant');
+    const empty = {
+      ...trains,
+      grants: { kind: 'weapon-and-armor-training', weapons: [] },
+    } as never as FeatureDefinition;
+    expect(codes(empty)).toContain('bad_training_grant');
+  });
+});
+
 describe('rule 7 — no FeatureGrant member sits unwritten', () => {
   /**
    * Every writer of the vocabulary, which is no longer only the class tables.
@@ -776,6 +933,7 @@ describe('rule 7 — no FeatureGrant member sits unwritten', () => {
     // Not vacuous: the fields that *are* read are read.
     expect([...READABLE_FIELDS].sort()).toEqual([
       'choice',
+      'choices',
       'grants',
       'grantsFeat',
       'optionMeans',

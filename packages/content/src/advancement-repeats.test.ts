@@ -122,7 +122,7 @@ const FEATURE_CHOICES: Readonly<Record<string, Readonly<Record<string, readonly 
     'college-of-lore:bonus-proficiencies': ['arcana', 'history', 'insight'],
   },
   cleric: { 'cleric:divine-order': ['Protector'] },
-  druid: { 'druid:primal-order': ['Magician'] },
+  druid: { 'druid:primal-order': ['Magician'], 'druid:primal-order:cantrip': ['mending'] },
   fighter: {},
   monk: {},
   paladin: {},

@@ -52,6 +52,7 @@ const druid = (over: Record<string, unknown> = {}): Record<string, unknown> => (
   featureChoices: {
     'human:skillful': ['acrobatics'],
     'druid:primal-order': ['Magician'],
+    'druid:primal-order:cantrip': ['mending'],
   },
   feats: {
     'acolyte:magic-initiate-cleric': {
