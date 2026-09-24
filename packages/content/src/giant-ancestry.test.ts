@@ -7,6 +7,7 @@ import {
   currentCombatant,
   remaining,
   resolveAttack,
+  resolveAttackDamage,
   resolveDamage,
   resolveTurn,
   settleDamage,
@@ -565,6 +566,49 @@ describe("Fire's Burn is a component of the blow rather than a roll after it", (
       scripted({ 20: [10], 6: [3, 4], 10: [8] }),
     );
     expect(lost(bare.state, THUG)).toBe(17);
+  });
+
+  /**
+   * **And the other road to the same dice.** A swing may be *held* — SRD
+   * Divine Smite is taken "immediately after hitting a target" — so the blow's
+   * damage is rolled by a second command, and the rider the hold pinned has to
+   * ride on that roll too. A gather written at one of the two sites would be a
+   * boon that worked or did not depending on whether anybody held the blow.
+   */
+  it('rides on a held blow, rolled a command later', () => {
+    const start = table("Fire's Burn");
+    const held = unwrap(
+      resolveAttack(
+        fold('seed', start),
+        KOTH,
+        {
+          target: THUG,
+          weapon: 'greatsword',
+          twoHanded: true,
+          onHit: BURN,
+          hold: true,
+          attackBonuses: [{ source: 'forced', flat: 40 }],
+        },
+        supply(scripted({ 20: [10] })),
+      ),
+      'held swing',
+    );
+    const waiting = [...start, ...held.events];
+    expect(fold('seed', waiting).pendingAttack).not.toBeNull();
+
+    const settled = unwrap(
+      resolveAttackDamage(
+        fold('seed', waiting),
+        KOTH,
+        {},
+        supply(scripted({ 6: [3, 4], 10: [7] })),
+      ),
+      'held damage',
+    );
+    const fire = componentsOf(settled.events).filter((one) => one.type === 'fire');
+    expect(fire).toHaveLength(1);
+    expect(fire[0]!.total).toBe(7);
+    expect(uses(fold('seed', [...waiting, ...settled.events]))).toBe(2);
   });
 
   /** A swing that missed buys nothing and rolls no Fire at all. */
