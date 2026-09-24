@@ -118,12 +118,36 @@ export const HitPointsSchema = z.object({
  * expression in the SRD bestiary agrees with its dice, so one that does not
  * is a misread line rather than a rounding argument.
  */
+/**
+ * The word that stands where a damage type would, when the block does not
+ * print one.
+ *
+ * SRD Half-Dragon: "28 (8d6) damage of the type chosen for the **Draconic
+ * Origin** trait", and that trait ends "(GM's choice)". So the type is a fact
+ * only the table holds, and this is the reader saying so out loud rather than
+ * guessing a type or refusing the line.
+ *
+ * **It is not a damage type and nothing may treat it as one.** Every engine
+ * reader that meets it asks the table for the real one — `declareDamageType`
+ * records a ruling on the creature — and refuses to roll until somebody has
+ * answered. A sentinel rather than an absent field because
+ * {@link MonsterDamageSchema.type} is what every reader of a printed amount
+ * already looks at: a reader that forgot an optional flag would deal the
+ * damage typeless, and a reader that meets this word cannot go on by accident.
+ */
+export const DECLARED_DAMAGE_TYPE = 'declared';
+
 export const MonsterDamageSchema = z.object({
   /** `1d6`, or null where the block prints a flat number and no dice. */
   dice: z.string().regex(/^\d+d\d+$/).nullable(),
   /** The modifier inside the parenthesis; 0 where there is none. */
   flat: z.number().int(),
-  /** Lower-cased, in the engine's own vocabulary: `piercing`, `necrotic`. */
+  /**
+   * Lower-cased, in the engine's own vocabulary: `piercing`, `necrotic`.
+   *
+   * Or {@link DECLARED_DAMAGE_TYPE}, where the block prints no type at all
+   * and names a trait the table fills in.
+   */
   type: z.string().min(1),
   /** The average the block prints outside the parenthesis. */
   average: z.number().int().min(0),
@@ -905,6 +929,76 @@ export type PrintedSaveEffect = z.infer<typeof PrintedSaveEffectSchema>;
 /** Everything a branch's `then` arm may hold — see {@link PRINTED_SAVE_CLAUSES}. */
 export type PrintedSaveClause = z.infer<typeof PrintedSaveClauseSchema>;
 
+/**
+ * The further thing a start-of-turn aura asks before it catches anybody.
+ *
+ * Two sentences and two words, both of them about the creature the aura
+ * belongs to rather than about who walked into it:
+ *
+ * - `holder-not-incapacitated` — SRD Gibbering Mouther: "The mouther babbles
+ *   incoherently **while it doesn't have the Incapacitated condition**", and
+ *   then "any creature that starts its turn within 20 feet of the mouther
+ *   **while it is babbling**." The second sentence names the first, so the two
+ *   are read together or neither is; the babbling *is* the Incapacitated
+ *   check, which is why there is no third word for it.
+ * - `can-see-holder` — SRD Sea Hag: "any Beast or Humanoid that starts its
+ *   turn within 30 feet of the hag **and can see the hag's true form**." A
+ *   question about sight, which the engine already answers.
+ *
+ * A closed list rather than the book's own words, because a string nobody can
+ * branch on is prose: a sentence this does not hold refuses the trigger and
+ * the line stays where it was.
+ */
+export const PrintedAuraConditionSchema = z.enum(['holder-not-incapacitated', 'can-see-holder']);
+export type PrintedAuraCondition = z.infer<typeof PrintedAuraConditionSchema>;
+
+/**
+ * The **moment** that forces a line's save, where a moment forces it rather
+ * than a creature spending something.
+ *
+ * Eight CR ≤ 5 lines print one, and the reason they were refused whole for two
+ * batches is in `printed-save.ts`'s own docstring: "a trigger or a movement
+ * printed before the save … half of each is a rule nobody printed." A save
+ * that a caller could set off on purpose is a Death Burst a creature detonates
+ * at will, and an aura with no moment is a save nobody ever rolls.
+ *
+ * So the moment is read, and the engine's own split does the rest:
+ * **raising is derived; rolling is commanded.** The fold raises the save the
+ * moment settles — a death, a turn beginning inside the aura — and the command
+ * that already rolls the saves a boundary owes rolls this one too.
+ *
+ * - `dies` — SRD Magmin: "The magmin explodes when it dies." The five Death
+ *   Bursts at this tier print it word for word, each with its own DC, its own
+ *   Emanation and its own damage type.
+ * - `starts-turn-within` — SRD Ghast: "any creature that starts its turn in a
+ *   5-foot Emanation originating from the ghast."
+ *
+ * Absent on every line whose save a creature *spends*, which is most of them:
+ * a breath weapon, a gaze, a Trample. Those are `forcePrintedSave`'s and
+ * always were.
+ */
+export const PrintedSaveTriggerSchema = z.discriminatedUnion('kind', [
+  /** SRD's "The X explodes when it dies", read off the sentence before the opening. */
+  z.object({ kind: z.literal('dies') }),
+  z.object({
+    kind: z.literal('starts-turn-within'),
+    /** How far the aura reaches, in feet, off the targeting clause. */
+    feet: z.number().int().min(5),
+    /**
+     * Whether the book wrote it as an Emanation rather than as a plain radius.
+     *
+     * Carried because the two are not the same measurement: an Emanation is
+     * measured from the creature's **space** outward and so takes its size
+     * into account, and "within 20 feet of the mouther" is a ruler between two
+     * creatures. The engine holds both and picks by this flag.
+     */
+    emanation: z.literal(true).optional(),
+    /** The further question the sentence asks — see {@link PrintedAuraConditionSchema}. */
+    onlyIf: PrintedAuraConditionSchema.optional(),
+  }),
+]);
+export type PrintedSaveTrigger = z.infer<typeof PrintedSaveTriggerSchema>;
+
 export const MonsterSaveSchema = z.object({
   /** Which save, by the engine's own key: `con` for "Constitution". */
   ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
@@ -912,6 +1006,30 @@ export const MonsterSaveSchema = z.object({
   dc: z.number().int().min(1),
   /** Who the line catches, verbatim: "each creature in a 15-foot Cone". */
   targets: z.string().min(1),
+  /**
+   * The moment that forces this save, where a moment forces it rather than a
+   * creature spending an Action — see {@link PrintedSaveTriggerSchema}.
+   *
+   * Absent is what every line read before this batch had, and it means the
+   * line is spent: `forcePrintedSave` takes it, the heading says what it
+   * costs, and the caller names who it caught.
+   */
+  trigger: PrintedSaveTriggerSchema.optional(),
+  /**
+   * The creature **types** the targeting clause narrows the line to.
+   *
+   * SRD Sea Hag's Vile Appearance: "any **Beast or Humanoid** that starts its
+   * turn within 30 feet of the hag". The book's own capitalised words, because
+   * a creature's type is a string the engine carries rather than an enum it
+   * owns — `creature-type-declared` writes exactly this vocabulary.
+   *
+   * Beside {@link onlyIfTargetHas} rather than inside it, and for the same
+   * reason that field sits where it does: both are facts about **who the line
+   * may be forced on** rather than about what a failure does, and this one is
+   * a fact the engine may not know — a creature nobody has typed is asked
+   * about rather than spared.
+   */
+  onlyIfTargetType: z.array(z.string().min(1)).min(1).optional(),
   /**
    * What a failure costs in damage, where the line prints damage at all. The
    * same four fields a printed attack's damage has. Absent on a line whose

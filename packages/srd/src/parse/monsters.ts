@@ -1332,17 +1332,35 @@ export function parsePerDay(name: string): number | null {
   return uses > 0 ? uses : null;
 }
 
+/**
+ * Whether a save this reader read may live on the section it was printed
+ * under.
+ *
+ * **The question the heading answers is what a line costs**, and a save
+ * answers it two ways. A save with no {@link MonsterSave.trigger} is one a
+ * creature *spends*: `forcePrintedSave` takes the Action or the Bonus Action
+ * the heading names, and a trait carrying one would be a save nothing could
+ * ever roll — which is why traits were held away from this reader entirely for
+ * two batches. A save with a trigger is forced by a **moment** — a death, a
+ * turn beginning inside an aura — and the fold raises it wherever it is
+ * printed, so the heading is not its gate.
+ *
+ * So the gate is the trigger and not the section, and the SRD agrees from
+ * both sides: every triggered line at this tier is a trait, and no trait
+ * prints an untriggered save.
+ */
+function spendableSave(save: MonsterSave | null, spendable: boolean): MonsterSave | null {
+  if (save === null) return null;
+  return save.trigger !== undefined || spendable ? save : null;
+}
+
 function parseFeatures(
   lines: readonly string[],
   printedAttacks: readonly string[] = [],
   printedBonusActions: readonly string[] = [],
   /**
    * Whether a line under this heading is one a creature *spends* — Actions
-   * and Bonus Actions — which is the only kind of line a printed save may be
-   * read off. A trait's save (a Ghast's Stench, a Sea Hag's Vile Appearance)
-   * is forced by a moment in somebody else's turn and not by a use, so the
-   * door that spends a line cannot reach it; reading it would count it as
-   * executed when nothing can execute it.
+   * and Bonus Actions. See {@link spendableSave}, which is what reads it.
    */
   spendable = false,
 ): Feature[] {
@@ -1362,7 +1380,7 @@ function parseFeatures(
       // **Only where the line prints no attack roll.** A save printed after a
       // hit is that attack's rider, and the swing's own reader is the one
       // reader of it; a second here would be two answers to one clause.
-      const save = attack === null && spendable ? parseSaveLine(text) : null;
+      const save = attack === null ? spendableSave(parseSaveLine(text), spendable) : null;
       // **The one detector the heading is part of.** A sequence is the
       // composition of *the Attack action*, and the only line that says so is
       // the one the book prints it under: three legendary actions write the
