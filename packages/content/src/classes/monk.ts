@@ -138,25 +138,61 @@ export const MONK: ClassDefinition = {
       name: "Monk's Focus",
       level: 2,
       automation: 'engine',
-      note: 'Declared as a pool of Focus Points sized by the class table, refilling on a **Short** Rest — SRD: "unavailable until you finish a Short or Long Rest, at the end of which you regain all your expended points", which is all-or-nothing and needs nothing the pool system lacks. One of the three things the points buy is executed: Flurry of Blows, "expend 1 Focus Point to make two Unarmed Strikes as a Bonus Action" — a Bonus Action and a point buy two attacks that no weapon may take and that cost no Attack action. Patient Defense and Step of the Wind are still the table’s: each is an action taken out of a cheaper slot, which the vocabulary can say, at a price in points, which it cannot — an allowance is derived on every read and nothing can charge for one.',
-      grants: {
-        kind: 'pool',
-        key: 'focus-points',
-        label: 'Focus Points',
-        usesByLevel: FOCUS_POINTS,
-        recovers: 'short-rest',
-        buysBudget: [
-          {
-            id: 'flurry-of-blows',
-            name: 'Flurry of Blows',
-            // "as a Bonus Action", which is the whole of what it costs beside
-            // the point itself.
-            action: 'bonus-action',
-            // "two Unarmed Strikes" — two, and no weapon takes one of them.
-            extraAttacks: { count: 2, unarmedOnly: true },
-          },
-        ],
-      },
+      note: 'Declared as a pool of Focus Points sized by the class table, refilling on a **Short** Rest — SRD: "unavailable until you finish a Short or Long Rest, at the end of which you regain all your expended points", which is all-or-nothing and needs nothing the pool system lacks. All three things the points buy are executed. Flurry of Blows is "expend 1 Focus Point to make two Unarmed Strikes as a Bonus Action" — a Bonus Action and a point buy two attacks that no weapon may take and that cost no Attack action. Patient Defense and Step of the Wind are four allowances beside the pool, because each prints two sentences: the free half moves one action to the Bonus Action, and the priced half spends a point and buys **two** actions with one spend, the second of which is handed to the turn and taken for nothing. One clause is still the table’s and it is Step of the Wind’s "your jump distance is doubled for the turn": a jump-bonus grant adds a modifier’s worth of feet to a Long Jump rather than doubling one, and nothing hangs a standing grant on a turn.',
+      grants: [
+        {
+          kind: 'pool',
+          key: 'focus-points',
+          label: 'Focus Points',
+          usesByLevel: FOCUS_POINTS,
+          recovers: 'short-rest',
+          buysBudget: [
+            {
+              id: 'flurry-of-blows',
+              name: 'Flurry of Blows',
+              // "as a Bonus Action", which is the whole of what it costs beside
+              // the point itself.
+              action: 'bonus-action',
+              // "two Unarmed Strikes" — two, and no weapon takes one of them.
+              extraAttacks: { count: 2, unarmedOnly: true },
+            },
+          ],
+        },
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            // SRD Patient Defense: "You can take the Disengage action as a
+            // Bonus Action." The free half, which costs no point — and is
+            // what `allowsPrice` takes when nobody asks for the other.
+            {
+              kind: 'action-rule',
+              rule: { kind: 'allows', action: 'disengage', from: 'bonus-action' },
+            },
+            // "Alternatively, you can expend 1 Focus Point to take both the
+            // Disengage and the Dodge actions as a Bonus Action."
+            {
+              kind: 'action-rule',
+              rule: { kind: 'allows', actions: ['disengage', 'dodge'], from: 'bonus-action' },
+              spends: 'focus-points',
+            },
+            // SRD Step of the Wind: "You can take the Dash action as a Bonus
+            // Action."
+            {
+              kind: 'action-rule',
+              rule: { kind: 'allows', action: 'dash', from: 'bonus-action' },
+            },
+            // "Alternatively, you can expend 1 Focus Point to take both the
+            // Disengage and Dash actions as a Bonus Action." The jump doubling
+            // in the same sentence is the note's, and the table's.
+            {
+              kind: 'action-rule',
+              rule: { kind: 'allows', actions: ['dash', 'disengage'], from: 'bonus-action' },
+              spends: 'focus-points',
+            },
+          ],
+        },
+      ],
     },
     {
       id: 'monk:unarmored-movement',

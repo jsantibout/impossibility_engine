@@ -1719,7 +1719,24 @@ export type GameEvent =
    * turn**, and the log that results looks perfectly well-formed.
    */
   | { readonly type: 'turn-advanced'; readonly command?: CommandStamp }
-  | { readonly type: 'action-spent'; readonly id: CharacterId }
+  | {
+      readonly type: 'action-spent';
+      readonly id: CharacterId;
+      /**
+       * The extra action this was spent out of, where it came out of one.
+       *
+       * `movement-spent`'s `grant` exactly, one slot along and for the same
+       * reason: `TurnBudget.extraActions` holds actions something handed the
+       * turn, and only the command knows whether a spend is coming out of one
+       * of those or out of the turn's own. SRD Patient Defense buys the Dodge
+       * with the Disengage's Bonus Action and hands it over; the Monk then
+       * names `monk:focus` and the turn's own Action is untouched.
+       *
+       * Absent is the turn's own action, which is what every log written
+       * before a bundle could hand one over says.
+       */
+      readonly grant?: string;
+    }
   | { readonly type: 'bonus-action-spent'; readonly id: CharacterId }
   | { readonly type: 'reaction-spent'; readonly id: CharacterId }
   | {

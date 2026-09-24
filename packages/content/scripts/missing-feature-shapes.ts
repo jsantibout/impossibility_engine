@@ -527,26 +527,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Monk —
-  /**
-   * The pool that buys one of the three things its page prints.
-   *
-   * Not a bare pool — Focus Points really do buy Flurry of Blows — which is
-   * why it is declared in {@link POOLS_ONLY_PARTLY_BOUGHT} rather than
-   * derived: how many options the book offers is a fact about the page and
-   * the grant says only what it holds.
-   */
-  'monk:focus': [
-    {
-      clause: 'each is an action taken out of a cheaper slot, which the vocabulary can say',
-      why: 'expressible',
-      note: 'the same `action-rule` a Rogue’s Cunning Action is written through; Disengage, Dodge and Dash out of a Bonus Action is a sentence the catalogue can already write.',
-    },
-    {
-      clause: 'at a price in points, which it cannot',
-      why: 'a-resource-traded-for-another',
-      note: 'a purchase buys an extra action or extra attacks and there is no member for buying an action rule, so a Focus Point cannot be charged for the cheaper slot the vocabulary can otherwise state.',
-    },
-  ],
   'monk:empowered-strikes': [
     {
       clause: 'carries no damage type for a second feature to change',
@@ -1301,7 +1281,13 @@ export const barePoolFeatureIds = (): readonly string[] =>
  * carry an entry whose clauses anchor in its own note, which is the same
  * discipline every other line in this map is written under.
  */
-export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
+export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = [];
+// **The arm is empty and the machinery stays**, which is the discipline the
+// origin sweep's breach record keeps and the feats arm below keeps too. Monk's
+// Focus was the one entry it ever held: the points bought Flurry of Blows and
+// not the other two thirds of the page, and an allowance that can carry a
+// price and buy two actions with one spend retired both. A pool whose page
+// prints more than its grant buys is recorded here rather than argued about.
 
 /**
  * The fourth arm: **feats**, which had no population at all until gate G1.

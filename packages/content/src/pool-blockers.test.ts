@@ -35,12 +35,13 @@ import {
 } from '../scripts/missing-feature-shapes.js';
 
 /**
- * The five the owner's ruling of 2026-09-21 named, less the three that were
- * built: Font of Magic and Arcane Recovery are `trade` grants now, and Wild
- * Shape is a `shape-shift` grant, so the derivation below no longer finds any
- * of them and their blocked-on lines are gone.
+ * The five the owner's ruling of 2026-09-21 named, less the four that were
+ * built: Font of Magic and Arcane Recovery are `trade` grants now, Wild Shape
+ * is a `shape-shift` grant, and Monk's Focus buys all three thirds of its page
+ * — so the derivation below no longer finds any of them and their blocked-on
+ * lines are gone.
  */
-const WIDENED = ['monk:focus', 'paladin:channel-divinity'];
+const WIDENED = ['paladin:channel-divinity'];
 
 /** A pool grant with only the fields that say how big it is and when it refills. */
 const barePool = (id: string, automation: 'engine' | 'manual' = 'engine') =>
@@ -136,8 +137,8 @@ describe('a pool with nothing to buy is a shape, so it is derived', () => {
  * entry whose clauses anchor in its own note.
  */
 describe('a pool that buys some of what its page prints is declared', () => {
-  it('is these, and no others', () => {
-    expect(POOLS_ONLY_PARTLY_BOUGHT).toEqual(['monk:focus']);
+  it('is empty, and the arm that would hold one stays', () => {
+    expect(POOLS_ONLY_PARTLY_BOUGHT).toEqual([]);
   });
 
   it('declares nothing the bare-pool derivation already finds', () => {
@@ -287,11 +288,16 @@ describe('what the rest wait on', () => {
     expect(ledgerFeatureIds()).not.toContain('druid:wild-shape');
   });
 
-  it('files what is left of the trade gap under the pool that still waits', () => {
-    expect(featureBlockersOf('monk:focus')).toContain('a-resource-traded-for-another');
-    // And the two that were built are off the map entirely, in both
+  it('files what is left of the trade gap under the option that still waits', () => {
+    // Monk's Focus was the pool that carried it and no longer does: an
+    // allowance takes a price now and one spend buys two actions, so Patient
+    // Defense and Step of the Wind are executed. What is left of the gap is
+    // Cunning Strike, whose Sneak Attack dice are neither a pool nor a slot.
+    expect(featureBlockersOf('rogue:cunning-strike')).toContain('a-resource-traded-for-another');
+    expect(featureBlockersOf('monk:focus')).toEqual([]);
+    // And the three that were built are off the map entirely, in both
     // directions: no blockers, and nothing claiming they have any.
-    for (const id of ['sorcerer:font-of-magic', 'wizard:arcane-recovery']) {
+    for (const id of ['sorcerer:font-of-magic', 'wizard:arcane-recovery', 'monk:focus']) {
       expect(featureBlockersOf(id), id).toEqual([]);
       expect(ledgerFeatureIds(), id).not.toContain(id);
     }

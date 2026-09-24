@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DRACONIC_SORCERY, METAMAGIC_OPTIONS, SORCERER, SRD_CONTENT } from '@ie/content';
 import { classCasting, type SpellcastingState } from '@ie/engine';
-import { asCharacterId, type CharacterId, isErr, expect as unwrap } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, armorClassCalculation, proficiencyBonusForLevel } from '@ie/engine';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { cumulativeFeatures } from '@ie/engine';

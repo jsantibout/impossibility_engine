@@ -3656,6 +3656,20 @@ const TAKE_ACTION = tool({
         .describe(
           'Which slot to pay a Dash, a Disengage, a Hide or a Utilize out of, where something running on the creature has made a cheaper one available — SRD Cunning Action’s "Dash, Disengage, or Hide" as a Bonus Action, SRD Adrenaline Rush’s Dash, SRD Fast Hands’ Utilize. `sheet` lists the features a character holds. Omit for what the book charges, which is an Action. A slot nothing has granted this creature is refused, and so is one no command charges at all. A Dodge and a Help take none.',
         ),
+      using_feature: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Which of this creature’s allowances is paying, by the feature’s id — for the case where more than one reaches the same action and slot. An Orc Rogue holds SRD Adrenaline Rush and SRD Cunning Action, both of which offer a Dash as a Bonus Action; omit this and the free one is taken, name the trait to spend a use of it for the Temporary Hit Points it pays. It is also how the second half of a bought pair is taken: a Monk who spent a Focus Point on `also_taking` names `monk:focus` on the second action, which then costs nothing. A feature this creature does not hold is refused.',
+        ),
+      also_taking: z
+        .array(z.enum(['dodge', 'dash', 'disengage', 'hide', 'utilize']))
+        .min(1)
+        .optional()
+        .describe(
+          'The other actions this one spend is buying together — SRD Patient Defense’s "expend 1 Focus Point to take both the Disengage and the Dodge actions as a Bonus Action", and SRD Step of the Wind’s Dash and Disengage. Naming them is what asks for the priced pair rather than the free single sentence beside it. They are handed to the turn and each is then taken by its own call with `using_feature` naming the feature that bought it, at no further cost. Nothing that allows the whole set is refused.',
+        ),
       obscured: z
         .boolean()
         .optional()
@@ -3686,6 +3700,19 @@ const TAKE_ACTION = tool({
     .refine((value) => value.from === undefined || !['dodge', 'help'].includes(value.kind), {
       error: 'a Dodge and a Help cost an Action and cannot be paid for out of a named slot',
       path: ['from'],
+    })
+    .refine((value) => value.also_taking === undefined || value.from !== undefined, {
+      error:
+        'a pair bought with one spend names the slot that spend comes out of; `from` is how the cheaper price is asked for',
+      path: ['also_taking'],
+    })
+    .refine((value) => value.also_taking === undefined || !(value.also_taking as readonly string[]).includes(value.kind), {
+      error: 'the action being taken is `kind`; name only the *other* actions the spend buys',
+      path: ['also_taking'],
+    })
+    .refine((value) => value.using_feature === undefined || value.kind !== 'help', {
+      error: 'a Help costs an Action and no feature allowance moves it',
+      path: ['using_feature'],
     })
     .refine((value) => value.obscured === undefined || value.kind === 'hide', {
       error: 'only a Hide asks whether the creature is Heavily Obscured',
@@ -3723,10 +3750,20 @@ const TAKE_ACTION = tool({
   run: (context, args) => {
     const state = context.campaign.state();
     const id = who(args.who);
-    const slot = args.from === undefined ? {} : { from: args.from };
+    // Which allowance is paying and what else the one spend buys — see
+    // `AllowanceChoice` in the engine. Both travel with the slot, because
+    // between them they answer one question: which of this creature's
+    // allowances the command should take.
+    const slot = {
+      ...(args.from === undefined ? {} : { from: args.from }),
+      ...(args.using_feature === undefined ? {} : { usingFeature: args.using_feature }),
+      ...(args.also_taking === undefined ? {} : { alsoTaking: args.also_taking }),
+    };
     const took = {
       took: args.kind,
       ...(args.from === undefined ? {} : { paidFrom: args.from }),
+      ...(args.using_feature === undefined ? {} : { paidBy: args.using_feature }),
+      ...(args.also_taking === undefined ? {} : { alsoBought: args.also_taking }),
     };
     // Hide is the one of the four that answers with more than its events — the
     // engine's own check — so it settles through `settle` rather than the
@@ -3782,7 +3819,12 @@ const TAKE_ACTION = tool({
     }
     const command =
       args.kind === 'dodge'
-        ? takeDodge(state, id, identity(context))
+        ? takeDodge(
+            state,
+            id,
+            identity(context),
+            args.using_feature === undefined ? {} : { usingFeature: args.using_feature },
+          )
         : args.kind === 'utilize'
           ? takeUtilize(state, id, {
               ...slot,

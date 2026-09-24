@@ -29,6 +29,7 @@ import {
 } from '@ie/shared';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
 import {
+  allowedActions,
   allowsPrice,
   dash,
   isStatablePrice,
@@ -39,6 +40,7 @@ import {
   useFreeInteraction,
   type ActionSlot,
   type GrantedActionRule,
+  type NamedAction,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type StatedAction, type StatedBonusAction } from '../character.js';
@@ -125,8 +127,51 @@ import {
  * anyway — which is the defect `STATABLE_PRICES` was written to close, found
  * once already on this file's other command.
  */
-export interface DashOptions {
+export interface DashOptions extends AllowanceChoice {
   readonly from?: ActionSlot;
+}
+
+/**
+ * Which of the allowances a creature holds the caller means, and what else the
+ * one spend is buying.
+ *
+ * **Both fields exist because a creature really holds more than one.** An Orc
+ * Rogue 2 holds SRD Adrenaline Rush and SRD Cunning Action, each of which
+ * offers a Dash as a Bonus Action and only one of which charges for it; a Monk
+ * 2 holds Monk's Focus, which offers the Disengage free *and* in a priced pair
+ * with the Dodge. Unsaid, `allowsPrice` takes the cheapest — the only default
+ * that can never spend a resource for something the book gives away — so the
+ * two fields are how a caller asks for the other thing on purpose.
+ *
+ * They are on the same object because they answer one question between them:
+ * *which allowance*. `usingFeature` names it outright and `alsoTaking` names
+ * it by what it buys, and a caller may write both.
+ */
+export interface AllowanceChoice {
+  /**
+   * The feature whose allowance to take, by the source `actionRulesOn` gives
+   * it — a feature's own id, or a casting's source.
+   *
+   * SRD Adrenaline Rush pays Temporary Hit Points for the use it charges, so
+   * an Orc who wants them says so rather than having the price chosen for
+   * them. A feature that grants no such allowance is `no_such_allowance`.
+   *
+   * **And it is how a bundle's second action is taken.** Where the price is
+   * the book's — a Dodge costs an Action — this names the extra action a
+   * bundle handed the turn, which is spent instead of the turn's own. See
+   * {@link alsoTaking}.
+   */
+  readonly usingFeature?: string;
+  /**
+   * The other actions this one spend is buying — SRD Patient Defense's "both
+   * the Disengage and the Dodge actions as a Bonus Action".
+   *
+   * The allowance taken must reach every one of them, so naming the Dodge here
+   * is what tells the priced pair from the free Disengage beside it. The
+   * others are handed to the turn as granted actions, narrowed to themselves,
+   * and are spent for nothing before the turn ends.
+   */
+  readonly alsoTaking?: readonly NamedAction[];
 }
 
 /**
@@ -147,6 +192,8 @@ function priceOfAllowance(
   resources: Parameters<typeof remaining>[0],
   id: CharacterId,
   held: GrantedActionRule,
+  /** The action being taken now, so the rest of a bundle can be handed over. */
+  taking: NamedAction,
 ): Result<GameEvent[]> {
   const events: GameEvent[] = [];
   if (held.spends !== undefined) {
@@ -157,6 +204,22 @@ function priceOfAllowance(
   }
   if (held.temporaryHitPoints !== undefined && held.temporaryHitPoints > 0) {
     events.push({ type: 'temporary-hp-granted', id, amount: held.temporaryHitPoints });
+  }
+  // **The rest of the bundle, handed to the turn.** SRD Patient Defense's one
+  // Bonus Action and one Focus Point buy two actions, and the second is a
+  // `GrantedAction` narrowed to itself — the existing vocabulary, so nothing
+  // new can be spent on the wrong thing and nothing survives the turn. The
+  // Monk names the grant when they take it; see `AllowanceChoice.usingFeature`.
+  if (held.rule.kind === 'allows') {
+    for (const also of allowedActions(held.rule)) {
+      if (also === taking) continue;
+      events.push({
+        type: 'turn-budget-granted',
+        id,
+        source: held.source,
+        action: { only: [also] },
+      });
+    }
   }
   return ok(events);
 }
@@ -193,9 +256,9 @@ export function takeDash(
     const rules = actionRulesOn(state, id);
     const priced: GameEvent[] = [];
     if (from !== 'action') {
-      const allowed = allowsPrice(id, 'dash', from, rules);
+      const allowed = allowsPrice(id, 'dash', from, rules, choiceOf(options));
       if (!allowed.ok) return allowed;
-      const price = priceOfAllowance(creature.resources, id, allowed.value);
+      const price = priceOfAllowance(creature.resources, id, allowed.value, 'dash');
       if (!price.ok) return price;
       priced.push(...price.value);
     }
@@ -204,24 +267,39 @@ export function takeDash(
     // to be there to spend, and the increase has to be one this creature can
     // actually receive.
     const spend = { rules, as: 'dash' as const };
+    const granted = from === 'action' ? options.usingFeature : undefined;
     const spent =
       from === 'bonus-action'
         ? spendBonusAction(state.combat, id, creature.conditions, spend)
-        : spendAction(state.combat, id, creature.conditions, spend);
+        : spendAction(state.combat, id, creature.conditions, spend, granted);
     if (!spent.ok) return spent;
     const dashed = dash(spent.value, id, speedOf(state, id));
     if (!dashed.ok) return dashed;
 
     return ok([
-      { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
+      from === 'bonus-action'
+        ? { type: 'bonus-action-spent', id }
+        : { type: 'action-spent', id, ...(granted === undefined ? {} : { grant: granted }) },
       ...priced,
       { type: 'dash-taken', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
 }
 
+/**
+ * What the caller said about which allowance pays for this, where they said
+ * anything — see {@link AllowanceChoice}.
+ *
+ * A helper rather than the object itself, so a command with no such option
+ * still passes the same empty answer and `allowsPrice` has one signature.
+ */
+const choiceOf = (options: AllowanceChoice): AllowanceChoice => ({
+  ...(options.usingFeature === undefined ? {} : { usingFeature: options.usingFeature }),
+  ...(options.alsoTaking === undefined ? {} : { alsoTaking: options.alsoTaking }),
+});
+
 /** Which slot the caller is offering to pay a Disengage out of. */
-export interface DisengageOptions {
+export interface DisengageOptions extends AllowanceChoice {
   /**
    * SRD Conjure Woodland Beings: "you can take the Disengage action **as a
    * Bonus Action** for the spell's duration."
@@ -282,24 +360,33 @@ export function takeDisengage(
     }
     const priced: GameEvent[] = [];
     if (from !== 'action') {
-      const allowed = allowsPrice(id, 'disengage', from, actionRulesOn(state, id));
+      const allowed = allowsPrice(
+        id,
+        'disengage',
+        from,
+        actionRulesOn(state, id),
+        choiceOf(options),
+      );
       if (!allowed.ok) return allowed;
-      const price = priceOfAllowance(creature.resources, id, allowed.value);
+      const price = priceOfAllowance(creature.resources, id, allowed.value, 'disengage');
       if (!price.ok) return price;
       priced.push(...price.value);
     }
 
     const spend = { rules: actionRulesOn(state, id), as: 'disengage' as const };
+    const granted = from === 'action' ? options.usingFeature : undefined;
     const spent =
       from === 'bonus-action'
         ? spendBonusAction(state.combat, id, creature.conditions, spend)
-        : spendAction(state.combat, id, creature.conditions, spend);
+        : spendAction(state.combat, id, creature.conditions, spend, granted);
     if (!spent.ok) return spent;
     const taken = disengage(spent.value, id);
     if (!taken.ok) return taken;
 
     return ok([
-      { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
+      from === 'bonus-action'
+        ? { type: 'bonus-action-spent', id }
+        : { type: 'action-spent', id, ...(granted === undefined ? {} : { grant: granted }) },
       ...priced,
       { type: 'disengage-taken', id, ...(stamp === null ? {} : { command: stamp }) },
     ]);
@@ -1076,10 +1163,24 @@ export function forcePrintedSave(
  * already has, including the turn-anchored deadline and the end when the
  * dodger is Incapacitated.
  */
+/**
+ * Which extra action a Dodge is coming out of, where it is coming out of one.
+ *
+ * A Dodge costs an Action and no allowance moves it — `STATABLE_PRICES` holds
+ * no entry for one — so this command takes no slot. What it does take is the
+ * other half of {@link AllowanceChoice}: SRD Patient Defense buys the Dodge
+ * with the Disengage's Bonus Action and hands it to the turn, and this is how
+ * the Monk spends what they already paid for.
+ */
+export interface DodgeOptions {
+  readonly usingFeature?: string;
+}
+
 export function takeDodge(
   state: GameState,
   id: CharacterId,
   command: CommandIdentity,
+  options: DodgeOptions = {},
 ): Result<GameEvent[]> {
   return once(state, `dodge:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
@@ -1095,12 +1196,35 @@ export function takeDodge(
 
     const events: GameEvent[] = [];
     if (state.combat !== null && state.combat.budgets[id] !== undefined) {
-      const spent = spendAction(state.combat, id, creature.conditions, {
-        rules: actionRulesOn(state, id),
-        as: 'dodge',
-      });
+      // A grant named by a caller who holds none is a refusal rather than a
+      // free Dodge, and one whose narrowing does not reach a Dodge is refused
+      // here rather than in the reducer — which folds the spend and cannot
+      // know which action it was.
+      const granted = options.usingFeature;
+      if (granted !== undefined) {
+        const held = state.combat.budgets[id]!.extraActions.filter(
+          (extra) => extra.source === granted,
+        );
+        if (held.length > 0 && !held.some((extra) => (extra.only ?? ['dodge']).includes('dodge'))) {
+          return err(
+            'action_forbidden',
+            `the extra action ${granted} handed ${id} is not the Dodge action`,
+          );
+        }
+      }
+      const spent = spendAction(
+        state.combat,
+        id,
+        creature.conditions,
+        { rules: actionRulesOn(state, id), as: 'dodge' },
+        granted,
+      );
       if (!spent.ok) return spent;
-      events.push({ type: 'action-spent', id });
+      events.push({
+        type: 'action-spent',
+        id,
+        ...(granted === undefined ? {} : { grant: granted }),
+      });
     }
 
     events.push({
@@ -1164,7 +1288,7 @@ function largerCreatureBeside(state: GameState, hider: CharacterId): CharacterId
  */
 export const HIDE = 'action:hide';
 
-export interface HideCommand extends CommandIdentity {
+export interface HideCommand extends CommandIdentity, AllowanceChoice {
   /**
    * SRD Cunning Action: "you can take the Hide action as a Bonus Action."
    *
@@ -1308,9 +1432,9 @@ export function takeHide(
       const rules = actionRulesOn(state, id);
       const priced: GameEvent[] = [];
       if (from !== 'action') {
-        const allowed = allowsPrice(id, 'hide', from, rules);
+        const allowed = allowsPrice(id, 'hide', from, rules, choiceOf(command));
         if (!allowed.ok) return allowed;
-        const price = priceOfAllowance(creature.resources, id, allowed.value);
+        const price = priceOfAllowance(creature.resources, id, allowed.value, 'hide');
         if (!price.ok) return price;
         priced.push(...price.value);
       }
@@ -1531,7 +1655,7 @@ export function useFreeObjectInteraction(
 // which is the rule `NAMED_ACTIONS` is kept by.
 
 /** Which slot the caller is offering to pay a Utilize out of, and on what. */
-export interface UtilizeCommand extends CommandIdentity {
+export interface UtilizeCommand extends CommandIdentity, AllowanceChoice {
   /**
    * SRD Fast Hands: "you can use the Utilize action as a Bonus Action."
    *
@@ -1596,9 +1720,9 @@ export function takeUtilize(
     const rules = actionRulesOn(state, id);
     const priced: GameEvent[] = [];
     if (from !== 'action') {
-      const allowed = allowsPrice(id, 'utilize', from, rules);
+      const allowed = allowsPrice(id, 'utilize', from, rules, choiceOf(command));
       if (!allowed.ok) return allowed;
-      const price = priceOfAllowance(creature.resources, id, allowed.value);
+      const price = priceOfAllowance(creature.resources, id, allowed.value, 'utilize');
       if (!price.ok) return price;
       priced.push(...price.value);
     }

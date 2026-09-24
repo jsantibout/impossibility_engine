@@ -44,6 +44,7 @@ import {
   takeHide,
   type MoveResolution,
 } from './commands.js';
+import { allowedActions } from './combat.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster } from './monster.js';
@@ -119,7 +120,11 @@ const away = (mode: 'walk' | 'fly' | 'climb', feet = 30) => ({
 /** The named actions a creature may pay for out of something cheaper. */
 const allowances = (state: GameState, who: CharacterId): readonly string[] =>
   actionRulesOn(state, who)
-    .map((granted) => (granted.rule.kind === 'allows' ? granted.rule.action : granted.rule.kind))
+    // An allowance says what it buys, and a bundle buys more than one — see
+    // `allowedActions`, which is the one reader of the two spellings.
+    .flatMap((granted) =>
+      granted.rule.kind === 'allows' ? [...allowedActions(granted.rule)] : [granted.rule.kind],
+    )
     .sort();
 
 describe('SRD Flyby: an Opportunity Attack a flier does not provoke', () => {

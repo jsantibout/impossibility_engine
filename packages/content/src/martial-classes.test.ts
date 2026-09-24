@@ -6,6 +6,7 @@ import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { carrying } from '@ie/engine';
 import { createCharacter, planCharacter, type CharacterChoices } from '@ie/engine';
 import { createRng, createRollIssuer, useRecovery } from '@ie/engine';
+import { takeDash, takeDisengage, takeDodge } from '@ie/engine';
 import { repeatImprovements } from './advancement-slots.js';
 
 /**
@@ -223,6 +224,195 @@ describe('the Monk', () => {
     const carried = carrying(built(monk(), SHAN), SHAN);
     expect(carried).toContainEqual({ id: 'dagger', quantity: 5 });
     expect(carried.map((l) => l.id)).toContain('spear');
+  });
+});
+
+/**
+ * SRD Patient Defense and SRD Step of the Wind — the two thirds of Monk's
+ * Focus that were the table's until an allowance could carry a price and a
+ * slot could buy **two** actions.
+ *
+ * > Patient Defense: "You can take the Disengage action as a Bonus Action.
+ * > Alternatively, you can expend 1 Focus Point to take both the Disengage and
+ * > the Dodge actions as a Bonus Action."
+ * > Step of the Wind: "You can take the Dash action as a Bonus Action.
+ * > Alternatively, you can expend 1 Focus Point to take both the Disengage and
+ * > Dash actions as a Bonus Action, and your jump distance is doubled for the
+ * > turn."
+ *
+ * Four allowances, because the book prints four sentences: a free one and a
+ * priced pair each. The free halves cost the Bonus Action and nothing else;
+ * the priced halves charge the point once and hand the **second** action to
+ * the turn, where it is spent for nothing and dies with the turn.
+ *
+ * The jump doubling is still the table's and the feature's note says so: a
+ * `jump-bonus` grant is a modifier's worth of feet added to a Long Jump, not a
+ * doubling, and nothing hangs a standing grant on a turn.
+ */
+describe('a Monk spends the Bonus Action, and sometimes a Focus Point with it', () => {
+  const fighting = (choices: CharacterChoices = monk()): readonly GameEvent[] => [
+    ...(unwrap(createCharacter(SRD_CONTENT, choices, SHAN), 'create') as GameEvent[]),
+    { type: 'combat-started', combatants: [{ id: SHAN, initiative: 20, speed: 30 }] },
+  ];
+
+  const budgetOf = (state: GameState) => state.combat!.budgets[SHAN]!;
+  const focusOf = (state: GameState) => state.creatures.shan!.resources.pools['focus-points']!;
+
+  const step = (
+    log: readonly GameEvent[],
+    run: (state: GameState) => ReturnType<typeof takeDodge>,
+  ): readonly GameEvent[] => [...log, ...unwrap(run(fold('seed', log)), 'action')];
+
+  const focusGrant = () => {
+    const feature = MONK.features.find((one) => one.id === 'monk:focus');
+    const grants = feature?.grants;
+    const list = Array.isArray(grants) ? grants : grants === undefined ? [] : [grants];
+    return list.find((one) => one.kind === 'standing');
+  };
+
+  it('writes the four sentences as four allowances beside the pool', () => {
+    const standing = focusGrant();
+    expect(standing?.kind).toBe('standing');
+    if (standing === undefined || standing.kind !== 'standing') throw new Error('unreachable');
+    expect(standing.effects).toEqual([
+      { kind: 'action-rule', rule: { kind: 'allows', action: 'disengage', from: 'bonus-action' } },
+      {
+        kind: 'action-rule',
+        rule: { kind: 'allows', actions: ['disengage', 'dodge'], from: 'bonus-action' },
+        spends: 'focus-points',
+      },
+      { kind: 'action-rule', rule: { kind: 'allows', action: 'dash', from: 'bonus-action' } },
+      {
+        kind: 'action-rule',
+        rule: { kind: 'allows', actions: ['dash', 'disengage'], from: 'bonus-action' },
+        spends: 'focus-points',
+      },
+    ]);
+    expect(MONK.features.find((one) => one.id === 'monk:focus')?.automation).toBe('engine');
+  });
+
+  /**
+   * The free half, and the defect it was found beside: an unpriced allowance
+   * and a priced one for the same pair both match, and the cheaper one is the
+   * default. A Monk who merely Disengages spends no Focus Point.
+   */
+  it('Disengages as a Bonus Action for nothing at all', () => {
+    const after = fold(
+      'seed',
+      step(fighting(), (state) =>
+        takeDisengage(state, SHAN, { commandId: 'out' }, { from: 'bonus-action' }),
+      ),
+    );
+    expect(budgetOf(after).bonusAction).toBe(false);
+    expect(budgetOf(after).action).toBe(true);
+    expect(focusOf(after).spent).toBe(0);
+    expect(budgetOf(after).disengaged).toBe(true);
+  });
+
+  /**
+   * The priced half: one Bonus Action and one point buy **both** actions, and
+   * the second one costs no second slot. The caller names the other action it
+   * is buying, which is what tells the pair from the free sentence above.
+   */
+  it('spends a Focus Point to Disengage and Dodge out of one Bonus Action', () => {
+    const disengaged = step(fighting(), (state) =>
+      takeDisengage(state, SHAN, { commandId: 'out' }, {
+        from: 'bonus-action',
+        alsoTaking: ['dodge'],
+      }),
+    );
+    const between = fold('seed', disengaged);
+    expect(focusOf(between).spent).toBe(1);
+    expect(budgetOf(between).bonusAction).toBe(false);
+    // The Dodge is waiting on the turn, narrowed to itself and to nothing else.
+    expect(budgetOf(between).extraActions).toEqual([
+      { source: 'monk:focus', only: ['dodge'] },
+    ]);
+
+    const dodged = fold(
+      'seed',
+      step(disengaged, (state) =>
+        takeDodge(state, SHAN, { commandId: 'guard' }, { usingFeature: 'monk:focus' }),
+      ),
+    );
+    // The Action is untouched, the extra is gone, and one point paid for both.
+    expect(budgetOf(dodged).action).toBe(true);
+    expect(budgetOf(dodged).extraActions).toEqual([]);
+    expect(focusOf(dodged).spent).toBe(1);
+    expect(dodged.creatures.shan!.activeFeatures).toContain('action:dodge');
+  });
+
+  /** SRD Step of the Wind's pair, invoked from the Dash end. */
+  it('spends a Focus Point to Dash and Disengage out of one Bonus Action', () => {
+    const dashed = step(fighting(), (state) =>
+      takeDash(state, SHAN, { commandId: 'run' }, {
+        from: 'bonus-action',
+        alsoTaking: ['disengage'],
+      }),
+    );
+    const between = fold('seed', dashed);
+    expect(focusOf(between).spent).toBe(1);
+    expect(budgetOf(between).extraActions).toEqual([
+      { source: 'monk:focus', only: ['disengage'] },
+    ]);
+
+    const both = fold(
+      'seed',
+      step(dashed, (state) =>
+        takeDisengage(state, SHAN, { commandId: 'away' }, { usingFeature: 'monk:focus' }),
+      ),
+    );
+    expect(both.combat!.budgets[SHAN]!.action).toBe(true);
+    expect(both.combat!.budgets[SHAN]!.disengaged).toBe(true);
+    expect(both.combat!.budgets[SHAN]!.extraActions).toEqual([]);
+  });
+
+  /** An empty pool refuses the pair, and the refusal costs nothing at all. */
+  it('refuses the priced pair with the pool empty, and charges nothing', () => {
+    const drained: readonly GameEvent[] = [
+      ...fighting(),
+      { type: 'resource-spent', id: SHAN, key: 'focus-points', amount: 5 },
+    ];
+    const state = fold('seed', drained);
+    expect(focusOf(state).max - focusOf(state).spent).toBe(0);
+
+    const refused = takeDisengage(state, SHAN, { commandId: 'out' }, {
+      from: 'bonus-action',
+      alsoTaking: ['dodge'],
+    });
+    expect(isErr(refused) && refused.code).toBe('exhausted');
+    // Nothing moved: the Bonus Action is still there and so is the Dodge.
+    expect(budgetOf(state).bonusAction).toBe(true);
+    expect(budgetOf(state).extraActions).toEqual([]);
+  });
+
+  /** And the free sentence still works when the points are gone. */
+  it('still Disengages for nothing once the Focus Points are spent', () => {
+    const drained: readonly GameEvent[] = [
+      ...fighting(),
+      { type: 'resource-spent', id: SHAN, key: 'focus-points', amount: 5 },
+    ];
+    const after = fold(
+      'seed',
+      step(drained, (state) =>
+        takeDisengage(state, SHAN, { commandId: 'out' }, { from: 'bonus-action' }),
+      ),
+    );
+    expect(after.combat!.budgets[SHAN]!.disengaged).toBe(true);
+  });
+
+  /** A grant nobody was handed is a refusal rather than a free Dodge. */
+  it('refuses a Dodge that names a grant this turn never got', () => {
+    const refused = takeDodge(fold('seed', fighting()), SHAN, { commandId: 'guard' }, {
+      usingFeature: 'monk:focus',
+    });
+    expect(isErr(refused) && refused.code).toBe('no_such_grant');
+  });
+
+  /** The jump doubling is the one clause still handed over. */
+  it('says in its own note that the doubled jump is the table’s', () => {
+    const note = MONK.features.find((one) => one.id === 'monk:focus')?.note ?? '';
+    expect(note).toContain('jump');
   });
 });
 

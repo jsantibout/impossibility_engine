@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId } from '@ie/shared';
-import { SKILL_ABILITY } from './character.js';
+import { asCharacterId, SKILL_ABILITY } from '@ie/shared';
 import { checkContent } from './content.js';
 import {
   rollSelectorProblems,
