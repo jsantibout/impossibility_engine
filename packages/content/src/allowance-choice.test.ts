@@ -3,10 +3,15 @@ import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import {
   createCharacter,
+  createRng,
+  createRollIssuer,
   fold,
   takeDash,
+  takeHide,
+  takeUtilize,
   type CharacterChoices,
   type GameEvent,
+  type NamedAction,
   type GameState,
 } from '@ie/engine';
 
@@ -86,6 +91,99 @@ const dashing = (
   ...log,
   ...unwrap(takeDash(fold('seed', log), KRUSK, { commandId }, options), 'dash'),
 ];
+
+/**
+ * The other half of `usingFeature`: an action paid for out of an extra the
+ * turn was handed, rather than out of a cheaper slot.
+ *
+ * All five commands that can name a grant read it the same way — `takeDash`,
+ * `takeDisengage`, `takeDodge`, `takeHide` and `takeUtilize` — and the last two
+ * are here because they are the two the tool door publishes the field for and
+ * the two that had quietly ignored it. The grant is written directly, through
+ * the event a bought pair emits, because no SRD allowance bundles a Hide or a
+ * Utilize yet and the branch is the same code either way.
+ */
+describe('an action spent out of an extra the turn was handed', () => {
+  const handed = (only: readonly NamedAction[]): readonly GameEvent[] => [
+    ...fighting(),
+    { type: 'turn-budget-granted', id: KRUSK, source: 'a-feature', action: { only } },
+  ];
+
+  const supply = (state: GameState) => ({
+    issuer: createRollIssuer('r', state.rollsIssued),
+    rng: createRng('hide'),
+    content: SRD_CONTENT,
+  });
+
+  it('spends the grant on a Utilize and leaves the turn’s own Action', () => {
+    const log = handed(['utilize']);
+    const events = unwrap(
+      takeUtilize(fold('seed', log), KRUSK, {
+        commandId: 'lever',
+        object: 'the lever',
+        usingFeature: 'a-feature',
+      }),
+      'utilize',
+    );
+    // The spend names the grant, so the reducer performs the same one.
+    expect(events.find((one) => one.type === 'action-spent')).toEqual({
+      type: 'action-spent',
+      id: KRUSK,
+      grant: 'a-feature',
+    });
+    const after = fold('seed', [...log, ...events]);
+    expect(after.combat!.budgets[KRUSK]!.action).toBe(true);
+    expect(after.combat!.budgets[KRUSK]!.extraActions).toEqual([]);
+  });
+
+  it('refuses a Utilize that names a grant narrowed to something else', () => {
+    const state = fold('seed', handed(['hide']));
+    const refused = takeUtilize(state, KRUSK, { commandId: 'lever', usingFeature: 'a-feature' });
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+    expect(state.combat!.budgets[KRUSK]!.action).toBe(true);
+  });
+
+  it('spends the grant on a Hide and leaves the turn’s own Action', () => {
+    const log = handed(['hide']);
+    const state = fold('seed', log);
+    const out = unwrap(
+      takeHide(
+        state,
+        KRUSK,
+        { commandId: 'duck', obscured: true, usingFeature: 'a-feature' },
+        supply(state),
+      ),
+      'hide',
+    );
+    expect(out.events.find((one) => one.type === 'action-spent')).toEqual({
+      type: 'action-spent',
+      id: KRUSK,
+      grant: 'a-feature',
+    });
+    const after = fold('seed', [...log, ...out.events]);
+    expect(after.combat!.budgets[KRUSK]!.action).toBe(true);
+    expect(after.combat!.budgets[KRUSK]!.extraActions).toEqual([]);
+  });
+
+  it('refuses a Hide that names a grant narrowed to something else', () => {
+    const state = fold('seed', handed(['utilize']));
+    const refused = takeHide(
+      state,
+      KRUSK,
+      { commandId: 'duck', obscured: true, usingFeature: 'a-feature' },
+      supply(state),
+    );
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+    expect(state.combat!.budgets[KRUSK]!.action).toBe(true);
+  });
+
+  /** A grant nobody handed over is the other refusal, and says so. */
+  it('refuses either when nothing handed the turn anything', () => {
+    const state = fold('seed', fighting());
+    const refused = takeUtilize(state, KRUSK, { commandId: 'lever', usingFeature: 'a-feature' });
+    expect(isErr(refused) && refused.code).toBe('no_such_grant');
+  });
+});
 
 describe('a creature holding a free allowance and a priced one for the same pair', () => {
   it('really holds both, which is what makes the question real', () => {

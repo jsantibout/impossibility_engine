@@ -463,6 +463,12 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     // opposite answer — so the tail is added only by a selector that writes
     // one. Every key an existing log holds is therefore byte-identical to what
     // it was, and the only keys that gained a segment are keys nothing had yet.
+    //
+    // The residue of writing them conditionally is that a homebrew class id
+    // spelled exactly `only-spell-attacks` would key as the marker does. That
+    // is a collision between two grants of one source, which is the only thing
+    // this key decides, and it needs somebody to name a class after a field of
+    // this module — the cheaper price than reordering a persisted list.
     ...(selector.onlySpellAttacks === true ? ['only-spell-attacks'] : []),
     ...(selector.onlyThroughClass === undefined ? [] : [selector.onlyThroughClass]),
   ].join('|');

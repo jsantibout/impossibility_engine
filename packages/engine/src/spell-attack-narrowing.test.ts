@@ -195,6 +195,32 @@ describe('what a selector may not say', () => {
  * casting was made through, and the three answers that are not one.
  */
 describe('what a spell-save-dc-bonus adds, and to whose casting', () => {
+  /** The caster, carrying whatever standing effects a case hands them. */
+  const caster = (standing: readonly unknown[]): GameEvent =>
+    ({
+      type: 'creature-added',
+      id: CASTER,
+      name: 'a caster',
+      sheet: {
+        level: 5,
+        abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 16 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: false, medium: false, heavy: false, shields: false },
+        baseSpeed: 30,
+        spellcastingAbility: 'cha',
+        standing,
+      },
+      maxHp: 30,
+      diesAtZero: false,
+      creatureType: 'Humanoid',
+    }) as GameEvent;
+
+  /** The same caster, carrying nothing of their own. */
+  const bare = (): readonly GameEvent[] => [caster([])];
+
   const holding = (grant: StandingGrant): GameState =>
     fold('seed', [
       {
@@ -300,6 +326,73 @@ describe('what a spell-save-dc-bonus adds, and to whose casting', () => {
       } as GameEvent,
     ]);
     expect(standingSpellSaveDcBonus(state, CASTER, null)).toBe(5);
+  });
+
+  /**
+   * **And an aura reaches whoever stands in it**, which is what `standingFor`
+   * already answers and what this reader was quietly throwing away: a filter
+   * on the holder would have validated a homebrew aura and then dropped it,
+   * which is the benefit-nothing-reads failure the validator beside it exists
+   * to refuse. A flat bonus is read the same way.
+   */
+  it('reads a grant another creature radiates, and stops at its edge', () => {
+    const radiating = (feet: number): readonly GameEvent[] => [
+      {
+        type: 'creature-added',
+        id: TARGET,
+        name: 'an abbot',
+        sheet: {
+          level: 5,
+          abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: false, medium: false, heavy: false, shields: false },
+          baseSpeed: 30,
+          spellcastingAbility: null,
+          standing: [
+            {
+              feature: 'an-abbots-blessing',
+              name: "An Abbot's Blessing",
+              reach: { kind: 'aura', feet },
+              grant: { kind: 'spell-save-dc-bonus', flat: 1 },
+            },
+          ],
+        },
+        maxHp: 30,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+      } as GameEvent,
+      // SRD: "You and your allies in the aura" — so both sides are declared,
+      // because an aura reaches nobody the record has not put on one.
+      { type: 'creature-side-declared', id: TARGET, side: 'the order' },
+      { type: 'creature-side-declared', id: CASTER, side: 'the order' },
+      { type: 'scene-set', extent: { width: 200, depth: 200, height: 20 } },
+      { type: 'landmark-added', name: 'the cloister', at: { x: 50, y: 50, z: 0 } },
+      {
+        type: 'creature-placed',
+        id: TARGET,
+        placement: { from: { landmark: 'the cloister' }, feet: 0 },
+      },
+      {
+        type: 'creature-placed',
+        id: CASTER,
+        placement: { from: { creature: TARGET }, feet: 20, bearing: 0 },
+      },
+    ];
+
+    const inside = fold('seed', [
+      ...bare(),
+      ...radiating(30),
+    ]);
+    expect(standingSpellSaveDcBonus(inside, CASTER, null)).toBe(1);
+
+    const outside = fold('seed', [
+      ...bare(),
+      ...radiating(10),
+    ]);
+    expect(standingSpellSaveDcBonus(outside, CASTER, null)).toBe(0);
   });
 });
 
