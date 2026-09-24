@@ -1340,7 +1340,8 @@ Appended after Phase 1 (2026-09-21):
   two were P1-T10's and P1-T9's and are now free. **Scope is Starry Wisp
   alone.** Faerie Fire additionally needs `save.condition` made optional and
   its Cube resolved as an area; Mind Spike's denial is narrowed to the caster,
-  which is `the-effects-source-as-a-participant`.
+  which was filed as `the-effects-source-as-a-participant` (an id since
+  retired: `RollSelector.counterpart` was already the mechanism).
 - **P1-T13 is to be re-scoped, not re-run.** Every reader a movement mode
   needs lives in a file its brief forbade it: `MoveCommand` and `chargeTerrain`
   (`commands/movement.ts`), `speedOf` (`standing.ts`), the Prone hook
@@ -1418,8 +1419,8 @@ a shape; 400 CR ≤ 5 items, 186 of 242 blocks waiting, 56 clean.**
   there; a replay cannot tell a 40-foot flight from a 40-foot walk.
 - **Faerie Fire, Mind Spike and Shining Smite** all still want the benefit
   denial that Starry Wisp now has: Faerie Fire needs optional `save.condition`
-  and its Cube as an area, Mind Spike and Shining Smite need
-  `the-effects-source-as-a-participant`.
+  and its Cube as an area, Mind Spike and Shining Smite need the caster as a
+  participant (an id since retired in favour of `RollSelector.counterpart`).
 
 - **For the owner: may the engine hold a fact that only the table reads, and
   on which door is it published?** Zone of Truth's failed save buys "can't
@@ -2335,3 +2336,25 @@ Appended after wave seven's first spells track (2026-09-24):
   the kind. **Left standing:** with two lines of a kind the bare kind is still
   `ambiguous_copy` — falling to the unlabelled line would change `copyNamed`'s
   contract, a follow-up if anyone wants it.
+- **A curse that rides later blows.** Hex is whole out of four mechanisms the
+  engine already had — Hunter's Mark's `attack-rider` with `marksTarget`,
+  `choiceStated` of `ability` over an ability-check selector, `durationAtSlot`
+  — plus one new: `SpellActivation.reAims`, a Bonus Action that resolves the
+  definition's **own** effects at a new creature once the marked one is at 0
+  Hit Points or dead (read off `GrantedAttackRider.target`, the only record
+  of who is marked), releasing the old one through `spell-ended` under a
+  fifth `OngoingEndReason`, `re-aimed`; Hunter's Mark moves the same way.
+  Bestow Curse is executed-partial as four `options` branches each carrying
+  its own save; faces one, two and four resolve. **Two brief claims were
+  wrong:** `RollSelector.counterpart` already was "the caster as a
+  participant", so `the-effects-source-as-a-participant` is **retired**
+  rather than built; and a rider inside a branch is not gated by the branch's
+  save, so face four is a `later-blow` `ModifierRider` writing the same
+  `attack-rider-granted` event with `alsoSpells` on the rider, never on the
+  effect kind. **Face three stopped on four decisions, not one:** a
+  casting-hosted repeat save from an ordinary definition (the only host is
+  `attack-damage.repeats`), a third `RepeatSave.onSuccess` meaning "nothing",
+  an `onFailure` with no condition, and a one-turn action rule applied from
+  the boundary — filed under `a-repeat-save-that-does-something-on-a-failure`
+  with the four named, and the odds-and-ends brief that owns Slow's repeat
+  reads the same list.

@@ -151,9 +151,12 @@ when only half of it was.
 
 Left open, and worth knowing before somebody meets it: **Counterspell
 triggers on components, an item's spell requires none, and a
-`SpellDefinition` holds no components at all** — so today's reaction window
-would open on a wand. Whether the window reads components or the item route
-refuses it is a rules decision nobody has taken.
+`SpellDefinition` holds one component fact and no more** — `noVerbalComponent`,
+a negative marker Silence reads (absent means the spell has a V, the book's
+own default; `spell-catalogue.test.ts` checks every definition against the
+parsed book in both directions) — so today's reaction window would open on a
+wand. Whether the window reads components or the item route refuses it is a
+rules decision nobody has taken.
 
 A feature's pool use is the third host of an effect list. It confers without
 casting exactly as a potion does — no casting id, no ongoing record, filed

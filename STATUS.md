@@ -79,7 +79,8 @@ homebrew.
   its own running copies, ward a fall, or lift a creature a save did not spare;
   a spell may print branches and run the one named, hang a rider on a made
   save, make a creature subtract from its own damage rolls, or pick out D20
-  Tests by ability; Shield answers both its triggers; a tracked spell read to
+  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a
+  later turn and a slot may drop its Concentration; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
@@ -98,11 +99,10 @@ homebrew.
 - **Two doors above the engine** (`@ie/tools`) — the player's and, under `dm/`,
   the DM's, partitioned by **authority** rather than by species of caller: a
   DM's door takes a decision the rules leave open, and neither takes a die face.
-- **Measurement, as tests rather than claims** — `COVERAGE.md` and `LEDGER.md`
-  are generated and go stale loudly; `reachability.test.ts` fails on an engine
-  feature no door reaches, for a level 5 character of every path; and
-  `level-five-session.test.ts` plays a party through a fight, two rests and a
-  level-up, counting what the engine handed to the DM.
+- **Measurement, as tests rather than claims** — `COVERAGE.md` and
+  `LEDGER.md` are generated and go stale loudly; `reachability.test.ts` fails
+  on an engine feature no door reaches; `level-five-session.test.ts` plays a
+  party through a fight, two rests and a level-up.
 
 ## What does not
 

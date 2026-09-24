@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 50 spells | 50 | 0 | 0 | 32 |
+| Spells in reach, not executed | 49 spells | 49 | 0 | 0 | 32 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -70,19 +70,18 @@ exactly the silently-missing entry this report’s header refuses.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
+| `a-fact-only-the-table-can-declare` | 4 | 2 |
 | `a-target-rule-the-format-cannot-state` | 4 | 2 |
 | `difficult-terrain-an-area-creates` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
-| `a-fact-only-the-table-can-declare` | 4 | 1 |
 | `a-barrier-that-blocks-passage` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `movement-modes` | 3 | 1 |
 | `a-casting-dismissed-early` | 2 | 1 |
 | `a-choice-made-at-the-casting` | 2 | 1 |
+| `a-duration-the-slot-changes` | 2 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
-| `a-duration-the-slot-changes` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
-| `a-rider-on-a-later-weapon-attack` | 4 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
@@ -91,11 +90,11 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
+| `a-rider-on-a-later-weapon-attack` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `an-action-the-engine-has-no-spender-for` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
-| `an-outcome-that-reads-the-targets-hit-points` | 2 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
@@ -120,7 +119,6 @@ exactly the silently-missing entry this report’s header refuses.
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 |
 | `senses-beyond-declared-sight` | 1 | 0 |
 | `several-attack-rolls-from-one-casting` | 1 | 0 |
-| `the-effects-source-as-a-participant` | 1 | 0 |
 | `what-a-creature-is-holding` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
@@ -135,6 +133,13 @@ sums to the population.
 - **Nondetection** (level 3) — tracked
 - **Sending** (level 3) — no-definition — also waits on 2
 - **Tiny Hut** (level 3) — tracked — also waits on 2
+
+#### `a-fact-only-the-table-can-declare` — blocks 4, finishes 2
+
+- **Hunter's Mark** (level 1) — executed-partial
+- **Sleep** (level 1) — executed-partial
+- **Enthrall** (level 2) — tracked — also waits on 1
+- **Call Lightning** (level 3) — tracked — also waits on 1
 
 #### `a-target-rule-the-format-cannot-state` — blocks 4, finishes 2
 
@@ -155,13 +160,6 @@ sums to the population.
 - **Phantasmal Force** (level 2) — no-definition — also waits on 2
 - **Warding Bond** (level 2) — tracked — also waits on 1
 - **Tiny Hut** (level 3) — tracked — also waits on 2
-
-#### `a-fact-only-the-table-can-declare` — blocks 4, finishes 1
-
-- **Hunter's Mark** (level 1) — executed-partial — also waits on 1
-- **Sleep** (level 1) — executed-partial
-- **Enthrall** (level 2) — tracked — also waits on 1
-- **Call Lightning** (level 3) — tracked — also waits on 1
 
 #### `a-barrier-that-blocks-passage` — blocks 3, finishes 1
 
@@ -191,24 +189,18 @@ sums to the population.
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
 - **Plant Growth** (level 3) — executed-partial
 
+#### `a-duration-the-slot-changes` — blocks 2, finishes 1
+
+- **Bestow Curse** (level 3) — executed-partial — also waits on 1
+- **Major Image** (level 3) — tracked
+
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 
 - **Command** (level 1) — executed-partial
 
-#### `a-duration-the-slot-changes` — blocks 1, finishes 1
-
-- **Major Image** (level 3) — tracked
-
 #### `healing-that-raises-the-dead` — blocks 1, finishes 1
 
 - **Gentle Repose** (level 2) — tracked
-
-#### `a-rider-on-a-later-weapon-attack` — blocks 4, finishes 0
-
-- **Hex** (level 1) — tracked — also waits on 1
-- **Alter Self** (level 2) — tracked — also waits on 1
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Bestow Curse** (level 3) — tracked — also waits on 2
 
 #### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 4, finishes 0
 
@@ -253,7 +245,12 @@ sums to the population.
 #### `a-repeat-save-that-does-something-on-a-failure` — blocks 2, finishes 0
 
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Bestow Curse** (level 3) — tracked — also waits on 2
+- **Bestow Curse** (level 3) — executed-partial — also waits on 1
+
+#### `a-rider-on-a-later-weapon-attack` — blocks 2, finishes 0
+
+- **Alter Self** (level 2) — tracked — also waits on 1
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 
 #### `a-spells-effects-applied-to-different-targets` — blocks 2, finishes 0
 
@@ -274,11 +271,6 @@ sums to the population.
 
 - **Dragon's Breath** (level 2) — tracked — also waits on 1
 - **Call Lightning** (level 3) — tracked — also waits on 1
-
-#### `an-outcome-that-reads-the-targets-hit-points` — blocks 2, finishes 0
-
-- **Hex** (level 1) — tracked — also waits on 1
-- **Hunter's Mark** (level 1) — executed-partial — also waits on 1
 
 #### `a-condition-a-spell-suppresses` — blocks 1, finishes 0
 
@@ -375,10 +367,6 @@ sums to the population.
 #### `several-attack-rolls-from-one-casting` — blocks 1, finishes 0
 
 - **Chromatic Orb** (level 1) — executed-partial — also waits on 1
-
-#### `the-effects-source-as-a-participant` — blocks 1, finishes 0
-
-- **Bestow Curse** (level 3) — tracked — also waits on 2
 
 #### `what-a-creature-is-holding` — blocks 1, finishes 0
 

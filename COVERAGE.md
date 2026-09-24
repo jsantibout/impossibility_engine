@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 171 (50.4%) | 162 (47.8%) | 44 | 123 (36.3%) |
+| 339 | 169 (49.9%) | 164 (48.4%) | 45 | 125 (36.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -49,6 +49,7 @@ a plain statement of what the table decides.
 - **Barkskin** (level 2) — verified
 - **Beacon of Hope** (level 3) — verified
 - **Befuddlement** (level 8) — untested, partial — a clause the engine owns is still unbuilt
+- **Bestow Curse** (level 3) — verified, partial — a clause the engine owns is still unbuilt
 - **Black Tentacles** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Bless** (level 1) — verified
 - **Blight** (level 4) — verified
@@ -119,6 +120,7 @@ a plain statement of what the table decides.
 - **Heat Metal** (level 2) — verified
 - **Hellish Rebuke** (level 1) — untested
 - **Heroism** (level 1) — verified
+- **Hex** (level 1) — verified
 - **Hideous Laughter** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Hold Monster** (level 5) — verified
 - **Hold Person** (level 2) — verified
@@ -232,7 +234,6 @@ every casting; only one of them is waiting for anything.
 - **Astral Projection** (level 9) — 5 noted
 - **Aura of Life** (level 4) — 3 noted
 - **Awaken** (level 5) — 4 noted
-- **Bestow Curse** (level 3) — 6 noted
 - **Blade Barrier** (level 6) — 4 noted
 - **Blink** (level 3) — 3 noted, 2 read
 - **Call Lightning** (level 3) — 4 noted
@@ -300,7 +301,6 @@ every casting; only one of them is waiting for anything.
 - **Hallow** (level 5) — 7 noted, 2 read
 - **Hallucinatory Terrain** (level 4) — 3 noted
 - **Heroes' Feast** (level 6) — 3 noted
-- **Hex** (level 1) — 4 noted
 - **Holy Aura** (level 8) — 3 noted
 - **Identify** (level 1) — 0 noted, 1 read, 5 handed to the DM
 - **Illusory Script** (level 1) — 0 noted, 1 read, 6 handed to the DM
@@ -445,11 +445,9 @@ of *Tracked* and is never added to it.
 | `difficult-terrain-an-area-creates` | 7 | 0 | 0 | 4 | 3 | 2 | 0 |
 | `a-barrier-that-blocks-passage` | 6 | 0 | 0 | 1 | 5 | 1 | 0 |
 | `a-creature-somebody-else-is-playing` | 6 | 0 | 0 | 5 | 1 | 0 | 0 |
-| `an-outcome-that-reads-the-targets-hit-points` | 6 | 0 | 0 | 1 | 5 | 0 | 0 |
 | `a-casting-dismissed-early` | 5 | 0 | 0 | 2 | 3 | 2 | 0 |
 | `a-fact-only-the-table-can-declare` | 5 | 0 | 0 | 2 | 3 | 0 | 0 |
-| `a-repeat-save-that-does-something-on-a-failure` | 5 | 0 | 0 | 2 | 3 | 0 | 0 |
-| `a-rider-on-a-later-weapon-attack` | 5 | 0 | 0 | 0 | 5 | 0 | 0 |
+| `a-repeat-save-that-does-something-on-a-failure` | 5 | 0 | 0 | 3 | 2 | 0 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 4 | 0 | 1 |
 | `movement-modes` | 5 | 0 | 0 | 3 | 2 | 0 | 0 |
 | `a-check-another-creature-may-attempt` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
@@ -459,18 +457,20 @@ of *Tracked* and is never added to it.
 | `an-activation-taken-by-somebody-other-than-the-caster` | 4 | 0 | 0 | 2 | 2 | 0 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
+| `an-outcome-that-reads-the-targets-hit-points` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `healing-that-raises-the-dead` | 4 | 0 | 0 | 0 | 4 | 1 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 | 0 | 1 | 2 | 2 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-deadline-anchored-to-a-rest` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
+| `a-duration-the-slot-changes` | 3 | 0 | 0 | 1 | 2 | 1 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
+| `a-rider-on-a-later-weapon-attack` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `an-area-that-moves-by-itself` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `a-dc-the-caster-does-not-set` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
-| `a-duration-the-slot-changes` | 2 | 0 | 0 | 0 | 2 | 1 | 0 |
 | `a-flat-amount-with-no-dice` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-success-branch-that-does-something` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
@@ -511,7 +511,6 @@ of *Tracked* and is never added to it.
 | `light-and-obscurement-the-scene-holds` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `several-attack-rolls-from-one-casting` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `targeting-rules-that-differ-within-one-casting` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `the-effects-source-as-a-participant` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 
 A spell can need more than one shape, so the columns do not sum to the
 population. A spell blocked on **nothing** — genuinely the table’s, and the
@@ -1066,26 +1065,26 @@ never added.
 
 | Level | Held | Executed | In reach | Tracked | Executed |
 |---|---|---|---|---|---|
-| 1 | 32 | 32 | 211 | 74 | 137 |
-| 2 | 53 | 53 | 211 | 74 | 137 |
-| 3 | 91 | 91 | 345 | 115 | 227 |
-| 4 | 104 | 104 | 345 | 115 | 227 |
-| 5 | 120 | 120 | 481 | 170 | 305 |
-| 6 | 132 | 127 | 481 | 170 | 305 |
-| 7 | 144 | 133 | 562 | 213 | 343 |
-| 8 | 156 | 145 | 562 | 213 | 343 |
-| 9 | 165 | 149 | 668 | 286 | 374 |
-| 10 | 176 | 153 | 668 | 286 | 374 |
-| 11 | 183 | 155 | 727 | 322 | 395 |
-| 12 | 195 | 167 | 727 | 322 | 395 |
-| 13 | 200 | 168 | 784 | 368 | 406 |
-| 14 | 211 | 174 | 784 | 368 | 406 |
-| 15 | 218 | 177 | 821 | 389 | 421 |
-| 16 | 230 | 189 | 821 | 389 | 421 |
-| 17 | 235 | 189 | 859 | 424 | 422 |
-| 18 | 245 | 191 | 859 | 424 | 422 |
-| 19 | 257 | 203 | 859 | 424 | 422 |
-| 20 | 269 | 207 | 859 | 424 | 422 |
+| 1 | 32 | 32 | 211 | 73 | 138 |
+| 2 | 53 | 53 | 211 | 73 | 138 |
+| 3 | 91 | 91 | 345 | 114 | 228 |
+| 4 | 104 | 104 | 345 | 114 | 228 |
+| 5 | 120 | 120 | 481 | 166 | 309 |
+| 6 | 132 | 127 | 481 | 166 | 309 |
+| 7 | 144 | 133 | 562 | 209 | 347 |
+| 8 | 156 | 145 | 562 | 209 | 347 |
+| 9 | 165 | 149 | 668 | 282 | 378 |
+| 10 | 176 | 153 | 668 | 282 | 378 |
+| 11 | 183 | 155 | 727 | 318 | 399 |
+| 12 | 195 | 167 | 727 | 318 | 399 |
+| 13 | 200 | 168 | 784 | 364 | 410 |
+| 14 | 211 | 174 | 784 | 364 | 410 |
+| 15 | 218 | 177 | 821 | 385 | 425 |
+| 16 | 230 | 189 | 821 | 385 | 425 |
+| 17 | 235 | 189 | 859 | 420 | 426 |
+| 18 | 245 | 191 | 859 | 420 | 426 |
+| 19 | 257 | 203 | 859 | 420 | 426 |
+| 20 | 269 | 207 | 859 | 420 | 426 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1146,11 +1145,11 @@ something other than its heading.
 
 | Path | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Bard (College of Lore) | 21/12/33 | 21/12/33 | 32/23/56 | 32/23/56 | 39/32/73 | 39/32/73 | 44/37/83 | 44/37/83 | 47/50/100 | 47/50/100 | 48/56/108 | 48/56/108 | 50/65/119 | 50/65/119 | 53/68/125 | 53/68/125 | 53/73/130 | 53/73/130 | 53/73/130 | 53/73/130 |
-| Cleric (Life Domain) | 14/8/22 | 14/8/22 | 25/14/39 | 25/14/39 | 33/24/58 | 33/24/58 | 34/32/67 | 34/32/67 | 38/41/80 | 38/41/80 | 41/49/91 | 41/49/91 | 42/56/99 | 42/56/99 | 43/60/104 | 43/60/104 | 43/65/109 | 43/65/109 | 43/65/109 | 43/65/109 |
+| Bard (College of Lore) | 21/12/33 | 21/12/33 | 32/23/56 | 32/23/56 | 40/31/73 | 40/31/73 | 45/36/83 | 45/36/83 | 48/49/100 | 48/49/100 | 49/55/108 | 49/55/108 | 51/64/119 | 51/64/119 | 54/67/125 | 54/67/125 | 54/72/130 | 54/72/130 | 54/72/130 | 54/72/130 |
+| Cleric (Life Domain) | 14/8/22 | 14/8/22 | 25/14/39 | 25/14/39 | 34/23/58 | 34/23/58 | 35/31/67 | 35/31/67 | 39/40/80 | 39/40/80 | 42/48/91 | 42/48/91 | 43/55/99 | 43/55/99 | 44/59/104 | 44/59/104 | 44/64/109 | 44/64/109 | 44/64/109 | 44/64/109 |
 | Druid (Circle of the Land) | 18/11/29 | 18/11/29 | 33/17/50 | 33/17/50 | 40/23/63 | 40/23/63 | 47/34/81 | 47/34/81 | 51/45/96 | 51/45/96 | 55/51/106 | 55/51/106 | 56/56/112 | 56/56/112 | 59/61/120 | 59/61/120 | 59/65/124 | 59/65/124 | 59/65/124 | 59/65/124 |
 | Paladin (Oath of Devotion) | 8/5/13 | 8/5/13 | 8/5/13 | 8/5/13 | 16/8/24 | 16/8/24 | 16/8/24 | 16/8/24 | 20/10/30 | 20/10/30 | 20/10/30 | 20/10/30 | 21/13/34 | 21/13/34 | 21/13/34 | 21/13/34 | 21/17/38 | 21/17/38 | 21/17/38 | 21/17/38 |
 | Ranger (Hunter) | 8/5/13 | 8/5/13 | 8/5/13 | 8/5/13 | 17/11/28 | 17/11/28 | 17/11/28 | 17/11/28 | 23/17/40 | 23/17/40 | 23/17/40 | 23/17/40 | 26/19/45 | 26/19/45 | 26/19/45 | 26/19/45 | 26/22/48 | 26/22/48 | 26/22/48 | 26/22/48 |
 | Sorcerer (Draconic Sorcery) | 28/9/37 | 28/9/37 | 48/15/64 | 48/15/64 | 63/21/85 | 63/21/85 | 73/24/98 | 73/24/98 | 78/31/110 | 78/31/110 | 84/36/121 | 84/36/121 | 85/43/129 | 85/43/129 | 88/46/135 | 88/46/135 | 88/50/140 | 88/50/140 | 88/50/140 | 88/50/140 |
-| Warlock (Fiend Patron) | 10/9/19 | 10/9/19 | 19/10/29 | 19/10/29 | 27/13/40 | 27/13/40 | 31/14/45 | 31/14/45 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 |
-| Wizard (Evoker) | 30/15/45 | 30/15/45 | 54/26/81 | 54/26/81 | 70/38/110 | 70/38/110 | 81/53/136 | 81/53/136 | 85/72/160 | 85/72/160 | 92/83/179 | 92/83/179 | 94/96/194 | 94/96/194 | 99/102/206 | 99/102/206 | 100/112/218 | 100/112/218 | 100/112/218 | 100/112/218 |
+| Warlock (Fiend Patron) | 11/8/19 | 11/8/19 | 20/9/29 | 20/9/29 | 28/12/40 | 28/12/40 | 32/13/45 | 32/13/45 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 | 33/19/52 |
+| Wizard (Evoker) | 30/15/45 | 30/15/45 | 54/26/81 | 54/26/81 | 71/37/110 | 71/37/110 | 82/52/136 | 82/52/136 | 86/71/160 | 86/71/160 | 93/82/179 | 93/82/179 | 95/95/194 | 95/95/194 | 100/101/206 | 100/101/206 | 101/111/218 | 101/111/218 | 101/111/218 | 101/111/218 |
