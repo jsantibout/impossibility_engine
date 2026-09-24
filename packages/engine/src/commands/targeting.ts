@@ -55,6 +55,7 @@ import {
   namesAnObject,
   optionEffects,
   ranged,
+  rangeFeetAt,
   type SpellArea,
   type SpellDefinition,
   statedChoiceReaches,
@@ -69,6 +70,7 @@ import { type SlotlessReason } from '../spells.js';
 import { type ConcentrationConsequence } from './casting.js';
 import { type CastingResolution } from './casting-options.js';
 import { creatureOf, unknownCreature } from './command.js';
+import { dyingProblem } from './spell-effect-creatures.js';
 
 /** What happened to one target of one casting. */
 export interface SpellTargetOutcome {
@@ -224,6 +226,21 @@ export interface AimedRolls {
 
 export interface CastSpellRequest extends CommandIdentity {
   readonly spellId: string;
+  /**
+   * The eleventh stated fact: the caster chooses, **at the casting**, that
+   * this casting can be ended early.
+   *
+   * > SRD Magic Mouth: "When you cast this spell, you can have the spell end
+   * > after it delivers its message, or it can remain and repeat its message
+   * > whenever the trigger occurs."
+   *
+   * Refused where the spell prints no such choice, required nowhere, and
+   * pinned on the ongoing record where it was said — see
+   * `SpellDefinition.offersEndAfterTrigger`, which is the printed clause it
+   * answers. `false` and absent mean the same thing and both leave the casting
+   * with no ending its caster can reach, which is what the book prints.
+   */
+  readonly endsAfterTrigger?: boolean;
   /**
    * Who to aim at. Empty for an area spell, which picks its own.
    *
@@ -1093,6 +1110,20 @@ export function declaredFacts(
         );
       }
     }
+  }
+
+  // — the ending the caster chooses at the casting —————————————————————————
+  //
+  // SRD Magic Mouth's "you can have the spell end after it delivers its
+  // message", which takes the shape the designation above takes: **refused**
+  // where the spell prints no such clause, and never required, because the
+  // other half of the sentence — "or it can remain and repeat its message" —
+  // is what a casting that says nothing has chosen.
+  if (request.endsAfterTrigger !== undefined && definition.offersEndAfterTrigger !== true) {
+    return err(
+      'no_early_ending',
+      `${definition.name} does not let its caster choose at the casting that it can be ended early`,
+    );
   }
 
   // — is the caster fighting the target ————————————————————————————————————
@@ -2259,6 +2290,27 @@ export function namedTargets(
       );
     }
 
+    // SRD Spare the Dying: "a creature within range that has 0 Hit Points and
+    // isn't dead". The fourth clause of this kind and the first that reads
+    // **vitals** — `dyingProblem` is the one reading of it, asked here so the
+    // refusal costs no action and asked again in the resolver so the rule sits
+    // where the event is written.
+    if (definition.targets.mustBeDying === true) {
+      const dying = dyingProblem(state, target, definition.name);
+      if (!dying.ok) return dying;
+    }
+
+    // SRD Gentle Repose: "You touch a corpse or other remains." The twin, and
+    // the only target clause in the book that wants the creature every other
+    // one walks past. A plain no, for the reason the three above are: whether
+    // a creature is dead is the engine's own to read.
+    if (definition.targets.mustBeDead === true && state.creatures[target]?.vitals.dead !== true) {
+      return err(
+        'target_not_dead',
+        `${definition.name} is cast on a corpse, and ${target} is alive`,
+      );
+    }
+
     // A creature is always within reach of itself and can always see itself,
     // so a touch laid on the caster's own hand — SRD Light on the torch they
     // hold — measures nothing and asks for no scene to measure it in. What it
@@ -2550,16 +2602,40 @@ export function eligibleTargets(
   // shortlist checks — Total Cover, sight, creature type, the dead — still
   // applies, because none of those is the Range.
   const bounded = definition.range.kind !== 'dm';
+  // **The band the caster has reached, not the printed number.** SRD Spare the
+  // Dying's range doubles at levels 5, 11 and 17, and `rangeFeetAt` is the one
+  // reader — so the shortlist a caller is shown and the casting they then send
+  // agree about how far the spell goes. Five for a Range that is not a
+  // distance, which is what this line has always answered for a Touch.
   const reach =
-    (definition.range.kind === 'ranged' ? definition.range.feet : 5) +
-    (definition.origin?.reach ?? 0);
+    (rangeFeetAt(definition, caster.sheet.level) ?? 5) + (definition.origin?.reach ?? 0);
 
   for (const key of Object.keys(state.creatures).sort()) {
     const target = state.creatures[key];
     if (target === undefined) continue;
     if (target.id === casterId && definition.targets.self !== true) continue;
-    if (target.vitals.dead) {
+    // **Unless the spell is about a body**, which is the reason `mustBeDead`
+    // exists: a spell cast on a corpse and on nobody else would be offered an
+    // empty shortlist for every legal casting. `namedTargets` has never
+    // refused a corpse, so this is the shortlist catching up with the cast
+    // rather than a new permission — and it reaches the spells whose target
+    // rule says so and no others, which is why the flag is a target rule and
+    // not a guess about what raising the dead looks like.
+    if (target.vitals.dead && definition.targets.mustBeDead !== true) {
       excluded.push({ target: target.id, reason: `${target.name} is dead` });
+      continue;
+    }
+    if (definition.targets.mustBeDead === true && !target.vitals.dead) {
+      excluded.push({ target: target.id, reason: `${target.name} is alive` });
+      continue;
+    }
+    // SRD Spare the Dying: "0 Hit Points and isn't dead". The same reading the
+    // cast takes, so the shortlist offers exactly whom the casting would reach.
+    if (definition.targets.mustBeDying === true && !dyingProblem(state, target.id, definition.name).ok) {
+      excluded.push({
+        target: target.id,
+        reason: target.vitals.dead ? `${target.name} is dead` : `${target.name} is not dying`,
+      });
       continue;
     }
 

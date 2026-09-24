@@ -237,7 +237,7 @@ export type AreaSpeedStanding = WhollyInside & {
    * not a patch of ground — so admitting it here would be a member the area
    * loop ignores and an author could write.
    */
-  readonly change: Exclude<SpeedChange, 'match-walk' | 'double'>;
+  readonly change: Exclude<SpeedChange, 'match-walk' | 'double' | 'only'>;
   /** Signed feet, required by `add` and refused by the other two. */
   readonly feet?: number;
 };
@@ -1774,7 +1774,7 @@ export type HungGrant =
        * Narrowed for {@link AreaStanding}'s reason: a hung grant carries no
        * mode, so it has nowhere to give a Speed in.
        */
-      readonly change: Exclude<SpeedChange, 'match-walk'>;
+      readonly change: Exclude<SpeedChange, 'match-walk' | 'only'>;
       /** Signed feet, for an `add`; absent for the other two — see {@link GrantedSpeed}. */
       readonly feet?: number;
       readonly lasts: HungSpan;
@@ -5287,6 +5287,23 @@ export type SpeedChange =
    * observable and is therefore decided rather than left.
    */
   | 'double'
+  /**
+   * A Speed in one mode that is the creature's **only** method of movement.
+   *
+   * > SRD Gaseous Form: "the target's **only** method of movement is a Fly
+   * > Speed of 10 feet, and it can hover."
+   *
+   * Not `add` with the other four zeroed, which is the shape it looks like and
+   * would be wrong twice over: `zero` is unqualified and would take the Fly
+   * Speed away with the rest, and a Longstrider standing on the same creature
+   * would put ten feet of walking back into a body that has no legs. So it is
+   * one operation — a Speed *replaced*, in a named mode — and {@link speedOf}
+   * answers 0 for every other mode before any of the accumulators run.
+   *
+   * Carries the feet, because the sentence prints them, and may carry
+   * {@link GrantedSpeed.hover} beside them, because the same sentence does.
+   */
+  | 'only'
   /** SRD Slow. Presence and not count, so two halvings are one halving. */
   | 'halve'
   /** SRD Hypnotic Pattern. Last, and it beats every addition. */
@@ -6073,6 +6090,16 @@ export function speedOf(
   const walking =
     state.combat?.order.find((c) => c.id === who)?.speed ?? creature.sheet.baseSpeed;
 
+  // **A Speed that is the creature's *only* method of movement, read before
+  // everything below.** SRD Gaseous Form: "the target's only method of
+  // movement is a Fly Speed of 10 feet." Every other mode is 0 and stays 0 —
+  // an unqualified Longstrider reaching a walking Speed the spell has taken
+  // away is not a sentence the book prints — and the mode it names takes its
+  // feet as the base, so the reductions below still reach it: a Slowed cloud
+  // drifts at five.
+  const only = onlyMovement(creature);
+  if (only !== null && (only.mode ?? 'walk') !== mode) return 0;
+
   // **A mode nothing gives this creature is 0, and stays 0 through everything
   // below**: nothing adds a Fly Speed to a creature that has none, and
   // {@link hasSpeedInModeOn} is the question a rule asks when it needs to tell
@@ -6086,7 +6113,12 @@ export function speedOf(
   // it: see {@link SpeedChange}, where the alternative halves a Slowed
   // spider's climb twice.
   const matched = matchesWalkingSpeed(state, who, creature, mode);
-  const base = mode === 'walk' ? walking : Math.max(speedInMode(creature.sheet, mode), matched ? walking : 0);
+  const base =
+    only !== null
+      ? (only.feet ?? 0)
+      : mode === 'walk'
+        ? walking
+        : Math.max(speedInMode(creature.sheet, mode), matched ? walking : 0);
 
   // **Feet reach the mode they were granted in; an unqualified increase
   // reaches walking alone and an unqualified reduction reaches every mode.**
@@ -6175,6 +6207,25 @@ export function speedOf(
 }
 
 /**
+ * The grant that says this creature's Speed in one mode is the whole of how it
+ * moves, or null where none does.
+ *
+ * SRD Gaseous Form is the only writer, and the **first** of them wins where a
+ * log somehow holds two: a second sentence of this shape would be two answers
+ * to one question, and taking the earliest is the reading `speedModifiers`'
+ * own order already gives — the store is keyed by source and sorted, so two
+ * readers of one state agree.
+ *
+ * A stored grant only. The derived half — a feature's `StandingGrant` — has no
+ * writer for this operation: no class feature in the SRD replaces a creature's
+ * movement with one mode, and a shape that could be written and never read is
+ * the thing `docs/design/spell-definitions.md` refuses by name.
+ */
+function onlyMovement(creature: CreatureState): GrantedSpeed | null {
+  return creature.speedModifiers.find((granted) => granted.change === 'only') ?? null;
+}
+
+/**
  * Whether any grant on this creature says its Speed in a mode is its walking
  * Speed.
  *
@@ -6228,7 +6279,12 @@ export function hasSpeedInModeOn(state: GameState, who: CharacterId, mode: Movem
   if (hasSpeedInMode(creature.sheet, mode)) return true;
   if (matchesWalkingSpeed(state, who, creature, mode)) return true;
 
-  if (creature.speedModifiers.some((g) => g.change === 'add' && g.mode === mode && (g.feet ?? 0) > 0)) {
+  if (
+    creature.speedModifiers.some(
+      (g) =>
+        (g.change === 'add' || g.change === 'only') && g.mode === mode && (g.feet ?? 0) > 0,
+    )
+  ) {
     return true;
   }
   return (creature.sheet.standing ?? []).some(

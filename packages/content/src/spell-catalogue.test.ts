@@ -221,6 +221,22 @@ const logFor = (spellId: string): readonly GameEvent[] => {
     ? [...typed, { type: 'creature-died', id: TARGET, cause: 'the fixture' } as GameEvent]
     : typed;
 
+  // **And a target on the floor**, where the spell's own target rule wants
+  // one: SRD Spare the Dying reaches "a creature that has 0 Hit Points and
+  // isn't dead" and refuses anybody else, which is the behaviour rather than
+  // an obstacle — so the fixture puts the creature there. The twin clause
+  // wants a corpse and `creature-died` above already supplies one, because the
+  // only spell in the book that prints it raises nobody.
+  const withTheDying: readonly GameEvent[] =
+    definition?.targets.mustBeDying === true
+      ? [
+          ...withTheDead,
+          { type: 'hit-points-dropped-to-zero', id: TARGET, source: 'the fixture' } as GameEvent,
+        ]
+      : definition?.targets.mustBeDead === true
+        ? [...withTheDead, { type: 'creature-died', id: TARGET, cause: 'the fixture' } as GameEvent]
+        : withTheDead;
+
   // **And an Attunement, where the spell breaks one.** SRD Remove Curse
   // refuses an object its target is not attuned to, and that refusal is the
   // behaviour: the fixture supplies the relation rather than the spell being
@@ -232,11 +248,11 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   );
   const withTheAttunement: readonly GameEvent[] = unbinds
     ? [
-        ...withTheDead,
+        ...withTheDying,
         { type: 'items-gained', id: TARGET, items: [{ id: ATTUNED, quantity: 1 }], source: 'the fixture' } as GameEvent,
         { type: 'attuned', id: TARGET, item: ATTUNED } as GameEvent,
       ]
-    : withTheDead;
+    : withTheDying;
 
   // **And a thing in the target's hand, where the spell heats one.** SRD Heat
   // Metal refuses an object its target is neither wearing nor wielding, and
@@ -702,6 +718,14 @@ describe('every definition in the catalogue actually casts', () => {
     } else if (run.length === 0) {
       expect(out.outcomes).toEqual([]);
       expect(out.unverified.length).toBeGreaterThan(0);
+    } else if (run.every((effect) => effect.kind === 'preserves')) {
+      // The fourth case, and it is a spell rather than a stub too: SRD Gentle
+      // Repose's mark is a fact about the **casting** — how long it has been
+      // running on this body — and nothing about the creature changes. So it
+      // reports no outcome by design, and what it leaves is the record
+      // `revive` reads: the casting is on the body, which is `aimed`.
+      expect(out.outcomes).toEqual([]);
+      expect(out.castingId).not.toBeNull();
     } else {
       expect(out.outcomes.length).toBeGreaterThan(0);
     }

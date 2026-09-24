@@ -145,6 +145,7 @@ const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
 const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>([
   'add',
   'double',
+  'only',
   'halve',
   'zero',
   'match-walk',
@@ -1011,6 +1012,23 @@ function checkSpeedChange(
 
   checkSpeedMode(value, change, path, found, carries);
 
+  // **The two operations that carry feet**, and the second carries them for a
+  // different sentence: `add` is signed and changes what is there, while
+  // `only` states the whole of what is left — SRD Gaseous Form's "a Fly Speed
+  // of 10 feet" — so it is a distance rather than a difference and zero is not
+  // one.
+  if (change === 'only') {
+    if (!Number.isInteger(feet) || (feet as number) <= 0) {
+      found.push({
+        field: `${path}.feet`,
+        code: 'bad_speed_change',
+        reason:
+          'a Speed that replaces every other one is a distance rather than a difference; the SRD prints "a Fly Speed of 10 feet" and a Speed of nothing is not a method of movement',
+      });
+    }
+    return;
+  }
+
   if (change === 'add') {
     if (!Number.isInteger(feet) || feet === 0) {
       found.push({
@@ -1066,12 +1084,11 @@ function checkSpeedMode(
         reason: `only the standalone \`speed\` effect names a mode; a rider and an area both say "its Speed" and nothing reads a ${field} here`,
       });
     }
-    if (change === 'match-walk') {
+    if (change === 'match-walk' || change === 'only') {
       found.push({
         field: `${path}.change`,
         code: 'bad_speed_change',
-        reason:
-          '"match-walk" gives a Speed in a mode, and a rider and an area have no mode to give it in',
+        reason: `"${change}" gives a Speed in a mode, and a rider and an area have no mode to give it in`,
       });
     }
     return;
@@ -1082,7 +1099,9 @@ function checkSpeedMode(
   // Grappled's 0, Slow's halving and Ray of Frost's ten feet about the
   // creature rather than about a mode, so a `halve` naming one would promise
   // a narrowing no reader performs.
-  const gives = change === 'add' || change === 'match-walk';
+  // `only` gives a Speed too — it gives the *whole* of one — so a mode is not
+  // merely legal on it but required, which the clause below says.
+  const gives = change === 'add' || change === 'match-walk' || change === 'only';
   if (mode !== undefined && change === 'double') {
     // **The one member that neither gives a Speed nor takes one away**, so it
     // is refused a mode in its own words: SRD Haste says "the target's Speed
@@ -1115,6 +1134,19 @@ function checkSpeedMode(
       code: 'bad_speed_change',
       reason:
         '"a Climb Speed equal to its Speed" names the mode it gives; matching the walking Speed to itself changes nothing',
+    });
+  }
+
+  // **And the only method of movement names which one it is**, for the reason
+  // the match above does: `speedOf` answers 0 for every mode but the one this
+  // grant names, and a grant naming none would take every Speed away and give
+  // none back.
+  if (change === 'only' && mode === undefined) {
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_speed_change',
+      reason:
+        '"the target\u2019s only method of movement is a Fly Speed of 10 feet" names the mode it leaves; a replacement naming none leaves nothing at all',
     });
   }
 
@@ -1745,8 +1777,18 @@ export function checkActionRule(
     // **A rule that forbids nothing is a sentence somebody meant to finish.**
     // It would validate, load, land on a creature and refuse nothing at all,
     // which is the silent wrong answer this whole file exists to refuse.
-    if ((rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0) {
-      bad('a rule that forbids no slot and no action forbids nothing; name what the spell takes away');
+    // **And a casting is the third thing a sentence of this shape may take**
+    // — SRD Gaseous Form: "the target can't attack or cast spells" — so it
+    // counts here, and a rule whose whole content is the casting forbids
+    // something.
+    if (rule.casting !== undefined && rule.casting !== true) {
+      bad('a rule either forbids casting or says nothing about it; `casting` is `true` or absent');
+    }
+    if (
+      (rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0 &&
+      rule.casting !== true
+    ) {
+      bad('a rule that forbids no slot, no action and no casting forbids nothing; name what the spell takes away');
     }
     return;
   }
@@ -4128,6 +4170,16 @@ function checkEffect(
 
     case 'dispel':
     case 'interrupt-casting':
+    // SRD Spare the Dying's whole content is one word and it carries no
+    // fields, so there is nothing here to be wrong. Who it may be aimed at is
+    // `TargetRule.mustBeDying`, checked where every other target rule is.
+    case 'stabilise':
+    // And SRD Gentle Repose's mark carries none either: the span it takes back
+    // is the casting's own, which is on the record rather than on the effect.
+    // What it *does* need is a casting to be the span of, and that is a fact
+    // about the definition rather than about this effect — checked beside the
+    // durations, with `preserves_without_a_casting`.
+    case 'preserves':
       return;
 
     // **Its own arm rather than a third name on the fall-through above**,
@@ -5037,6 +5089,65 @@ export function checkSpellDefinition(
     });
   }
 
+  /*
+   * The one clause in the book that grows a **reach** with the caster — SRD
+   * Spare the Dying's "The range doubles when you reach levels 5 (30 feet), 11
+   * (60 feet), and 17 (120 feet)" — held to four rules.
+   *
+   * The Cantrip Upgrade applies to cantrips, which is `checkScaling`'s fork
+   * word for word and the same code: a levelled spell scales with its slot,
+   * and `rangeFeetAt` reads a character level that would silently mean nothing
+   * on one. Then the shape, which is a band table read exactly as
+   * `durationAtSlot`'s is: a whole character level for a key and a distance
+   * for a value. And then the reachability rule the rest of this file keeps —
+   * Touch, Self and a Range the DM decides have no printed number for a band
+   * to replace, so a table beside one is a sentence nothing could ever apply.
+   */
+  if (definition.rangeAtLevel !== undefined) {
+    if (definition.level !== 0) {
+      found.push({
+        field: 'rangeAtLevel',
+        code: 'cantrip_scaling_on_spell',
+        reason: 'the Cantrip Upgrade applies to cantrips; a levelled spell scales with its slot',
+      });
+    }
+    if (definition.range.kind !== 'ranged') {
+      found.push({
+        field: 'rangeAtLevel',
+        code: 'range_without_a_distance',
+        reason: `a band replaces a printed distance, and this spell's Range is ${definition.range.kind}`,
+      });
+    }
+    if (
+      readsAsObject(
+        definition.rangeAtLevel,
+        'rangeAtLevel',
+        'a growing range is a table of character level to feet',
+        found,
+      )
+    ) {
+      const bands = definition.rangeAtLevel as Record<string, unknown>;
+      for (const key of Object.keys(bands)) {
+        const level = Number(key);
+        if (!Number.isInteger(level) || level < 1 || level > 20) {
+          found.push({
+            field: `rangeAtLevel.${key}`,
+            code: 'bad_caster_level',
+            reason: `a band begins at a character level, 1 to 20; "${key}" is not one`,
+          });
+        }
+        const feet = bands[key];
+        if (typeof feet !== 'number' || !Number.isInteger(feet) || feet <= 0) {
+          found.push({
+            field: `rangeAtLevel.${key}`,
+            code: 'bad_range',
+            reason: `a band reaches a whole number of feet, more than nothing; got ${String(feet)}`,
+          });
+        }
+      }
+    }
+  }
+
   /**
    * A Range the DM decides is a Range the engine measures nothing against, so
    * the printed words have to reach the table or nobody ever learns there was
@@ -5786,6 +5897,108 @@ export function checkSpellDefinition(
     }
   }
 
+  /*
+   * The two endings the SRD prints as exceptions to the free dismissal, held
+   * to the reachability rule the rest of this file keeps.
+   *
+   * Both need a casting to end: an Instantaneous spell leaves nothing running,
+   * so an ending offered on one is a permission nothing could ever use. And a
+   * target's ending needs a target — SRD Gaseous Form is cast on a creature,
+   * and a spell aimed at nobody has nobody to take the Magic action.
+   */
+  if (definition.offersEndAfterTrigger === true && !castingPersists(definition)) {
+    found.push({
+      field: 'offersEndAfterTrigger',
+      code: 'dismissal_without_a_casting',
+      reason:
+        'an Instantaneous casting is over already, so there is nothing for its caster to have chosen to end',
+    });
+  }
+
+  if (definition.dismissibleBy !== undefined) {
+    if (definition.dismissibleBy !== 'target') {
+      found.push({
+        field: 'dismissibleBy',
+        code: 'bad_dismissal',
+        reason: `"${String(definition.dismissibleBy)}" is not somebody who may end a casting; the SRD names the target and nobody else`,
+      });
+    }
+    if (!castingPersists(definition)) {
+      found.push({
+        field: 'dismissibleBy',
+        code: 'dismissal_without_a_casting',
+        reason:
+          'an Instantaneous casting is over already, so there is nothing for its target to end',
+      });
+    }
+    if (definition.targets.count === 0 && definition.targets.unlimited !== true) {
+      found.push({
+        field: 'dismissibleBy',
+        code: 'dismissal_without_a_target',
+        reason: 'this spell is cast on nobody, so there is no target to take the action',
+      });
+    }
+  }
+
+  // **A mark on a body needs a casting to be the span of.** SRD Gentle Repose
+  // takes its own *running* span back out of a resurrection's window, so an
+  // Instantaneous casting of it would keep the body for no time at all — the
+  // reachability rule `cap_without_a_casting` states one field along, arriving
+  // at the one effect kind whose whole content is how long it has been there.
+  if (
+    definition.effects.some(
+      (effect) => (effect as { readonly kind?: unknown })?.kind === 'preserves',
+    ) &&
+    !castingPersists(definition)
+  ) {
+    found.push({
+      field: 'effects',
+      code: 'preserves_without_a_casting',
+      reason:
+        'an Instantaneous casting leaves no record, so a body it kept would be kept for no span at all',
+    });
+  }
+
+  // **And the third half of the same sentence.** SRD Major Image's level 4+
+  // slot takes the deadline away altogether, which is neither a longer span
+  // nor a Concentration dropped — so it is held to the two rules its
+  // neighbours are held to, a *higher* slot than the spell's own level and one
+  // of the nine, plus the two reachability rules that are its own: a spell
+  // that already runs until dispelled has no deadline for a higher slot to
+  // take, and an Instantaneous one leaves no casting for a higher slot to
+  // leave running.
+  if (definition.untilDispelledAtSlot !== undefined) {
+    const from = definition.untilDispelledAtSlot;
+    if (!Number.isInteger(from) || from < 1 || from > 9) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'bad_slot_level',
+        reason: `"${String(from)}" is not one of the nine spell slot levels`,
+      });
+    } else if (from <= definition.level) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'bad_slot_level',
+        reason: `a band at level ${from} is not a *higher* slot than this level ${definition.level} spell`,
+      });
+    }
+    if (definition.untilDispelled === true) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'already_until_dispelled',
+        reason:
+          'this spell already lasts until dispelled at every slot, so there is no deadline for a higher one to take away',
+      });
+    } else if (definition.durationSeconds === undefined && definition.durationUntil === undefined) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'ending_without_duration',
+        reason:
+          'an Instantaneous casting leaves nothing running, so a higher slot has no ending to change',
+      });
+    }
+  }
+
   // **A band lengthens a printed duration; it does not supply one.** Every SRD
   // spell that writes this clause prints a Duration of its own first — "up to
   // 1 hour", then "level 3–4 (up to 8 hours)" — and `durationSecondsAt` falls
@@ -6434,6 +6647,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkAltitudePlacement(entry.kind, where, at, found);
       checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
+      checkPreservesPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
       checkBranchPlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
@@ -7734,6 +7948,34 @@ function checkChancePlacement(
  * change deliberately does not widen by guarding one kind in two places and
  * its neighbour in one.
  */
+/**
+ * Where SRD Gentle Repose's mark on a body may be written.
+ *
+ * **In the casting's own effect list and nowhere else**, which is
+ * {@link checkSummonPlacement}'s rule for {@link checkSummonPlacement}'s
+ * reason: what the mark does is written onto the casting's own ongoing record
+ * — `preserving`, the moment the keeping began — and that record is built once
+ * for the whole casting from `SpellDefinition.effects`. A branch is chosen per
+ * casting and read at resolution, so a mark inside one would run its own no-op
+ * resolver, pin nothing and change no answer anywhere; an area trigger's list
+ * and an activation's are a minute later still. No SRD spell prints such a
+ * sentence in a branch, so it is refused at authoring rather than plumbed.
+ */
+function checkPreservesPlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'preserves' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'preserves_outside_the_casting',
+    reason:
+      'a body a casting keeps is pinned onto the casting\u2019s own record, which only the casting\u2019s own effect list is resolved in time to write',
+  });
+}
+
 function checkSummonPlacement(
   kind: unknown,
   where: string,
@@ -8005,6 +8247,8 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'buff',
   'heal',
   'revive',
+  'stabilise',
+  'preserves',
   'attack-damage',
   'save',
   'condition',

@@ -49,6 +49,7 @@ import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
+  ABILITY_NAMES,
   type CharacterId,
   type ContextRequest,
   contextRequestsOf,
@@ -88,6 +89,7 @@ import {
   handedOver,
   onCaster,
   persists,
+  untilDispelledAt,
   riderDuration,
   anchoredOnTarget,
   riderDurations,
@@ -165,6 +167,8 @@ import {
   resolveCreatureTypeOverrideEffect,
   resolveEndAttunementEffect,
   resolveReviveEffect,
+  resolvePreservesEffect,
+  resolveStabiliseEffect,
   reviveProblem,
 } from './spell-effect-creatures.js';
 import {
@@ -512,6 +516,19 @@ export function resolveDeclaredCast(
               // And the branch the declaration named, read back off the record
               // rather than from a fresh request there is none of.
               ...(pending.option === undefined ? {} : { option: pending.option }),
+              // And the three the atomic path pins one function along: the
+              // moment a body began being kept, the ending the caster chose,
+              // and the ending the spell gives its target. A rite of a minute
+              // leaves the same record a breath of an Action leaves.
+              ...(definition.effects.some((effect) => effect.kind === 'preserves')
+                ? { preserving: state.elapsed }
+                : {}),
+              ...(pending.endsAfterTrigger === undefined
+                ? {}
+                : { endsAfterTrigger: pending.endsAfterTrigger }),
+              ...(definition.dismissibleBy === undefined
+                ? {}
+                : { dismissibleBy: definition.dismissibleBy }),
               // The designation and the stated type reach the record the area
               // detectors read, exactly as they do on the atomic path: without
               // them a held Spirit Guardians catches a creature its caster
@@ -890,21 +907,26 @@ export function castOrRelease(
     // two readings are the same sheet and this is the cheaper of them.
     const elected = electedCastingOptions(caster.sheet, casterId, request.usingOptions);
     if (!elected.ok) return elected;
+    // The two numbers `alteredCasting` reads off the caster, from one call:
+    // the head count two of the ten options are measured in — SRD's "up to
+    // your Charisma modifier" — and the level the one growing **reach** in the
+    // book is read off, SRD Spare the Dying's Cantrip Upgrade. Both off the
+    // same numbers every other derivation of this casting reads, and therefore
+    // off the sheet as it stands — and both the *item's* where an item is
+    // casting it, exactly as its dice are.
+    const asCast = numbersFor(
+      state,
+      casterId,
+      sheetAsItStands(state, casterId) ?? caster.sheet,
+      route,
+    );
     const altered = alteredCasting(
       definition,
       {
         castLevel: paidLevel,
         castingTime: casting.value.castingTime,
-        // The head count two of the ten options are measured in — SRD's "up to
-        // your Charisma modifier" — read off the same numbers every other
-        // derivation of this casting reads, and therefore off the sheet as it
-        // stands.
-        spellcastingModifier: numbersFor(
-          state,
-          casterId,
-          sheetAsItStands(state, casterId) ?? caster.sheet,
-          route,
-        ).spellcastingModifier,
+        spellcastingModifier: asCast.spellcastingModifier,
+        casterLevel: asCast.casterLevel,
       },
       elected.value,
     );
@@ -937,6 +959,18 @@ export function castOrRelease(
       // was told about.
       ...(route.kind === 'granted' && route.grant.handOver !== undefined
         ? [handedOver(definition.name, route.grant.handOver)]
+        : []),
+      // **A check that had nowhere to hang, said out loud.** `SpellCheck`
+      // rides on the casting's own timer — which is why the validator refuses
+      // one on an Instantaneous spell — and a slot that makes this casting run
+      // until dispelled leaves no timer to ride. It is a fact about *this*
+      // casting rather than about the spell, so it is said here rather than in
+      // an `unmodelled` line that would also reach the castings where the
+      // check is offered.
+      ...(definition.check !== undefined && untilDispelledAt(definition, castLevel)
+        ? [
+            `${definition.name}: cast at level ${castLevel} it lasts until dispelled, and the ${ABILITY_NAMES[definition.check.ability]}${definition.check.skill === undefined ? '' : ` (${definition.check.skill})`} check against it rides on a deadline this casting has none of — a creature examining it is the table's`,
+          ]
         : []),
     ];
     const needs: ContextRequest[] = [];
@@ -2108,6 +2142,25 @@ function resolveOnTargets(
     // in the definition an activation already holds, so there is no second
     // half for the record to lose. See `OngoingSpell.option`.
     ...(request.option === undefined ? {} : { option: request.option }),
+    // **And the moment a body began being kept**, for the one spell in the
+    // book whose running span is subtracted from another casting's window —
+    // SRD Gentle Repose. Read off the clock at the cast, because that is the
+    // fact, and pinned for the reason every other field here is pinned: the
+    // fold opens no catalogue, so a `revive` a week later must be able to ask
+    // the record rather than the book.
+    ...(definition.effects.some((effect) => effect.kind === 'preserves')
+      ? { preserving: state.elapsed }
+      : {}),
+    // **And the two endings the SRD prints as exceptions to the free
+    // dismissal.** One is the caster's word at the casting — SRD Magic Mouth's
+    // "you can have the spell end after it delivers its message" — and the
+    // other is the definition's own — SRD Gaseous Form's Magic action taken by
+    // the target. Both are pinned rather than looked up again, for the reason
+    // `endOngoingSpell` reads a timer rather than a printed Duration: a book
+    // corrected next month must not decide whether a casting made today can be
+    // let go.
+    ...(request.endsAfterTrigger === true ? { endsAfterTrigger: true as const } : {}),
+    ...(definition.dismissibleBy === undefined ? {} : { dismissibleBy: definition.dismissibleBy }),
   });
 
   /**
@@ -2518,7 +2571,16 @@ function resolveOnTargets(
       // 3–4 (up to 8 hours) or 5+ (up to 24 hours)." `durationSecondsAt` is
       // the one reader, so this and the readied-spell path cannot disagree
       // about which band a slot reaches.
-      ...(definition.durationSeconds !== undefined
+      //
+      // **And a slot may take the deadline away rather than move it.** SRD
+      // Major Image: "The spell lasts until dispelled … if cast with a level
+      // 4+ spell slot" — which is the absence of a moment to schedule, so the
+      // casting writes no duration at all and `schedule` is never reached.
+      // Read through `untilDispelledAt`, beside the `concentrationAt` five
+      // lines above that reads the other half of the same sentence.
+      ...(untilDispelledAt(definition, castLevel)
+        ? {}
+        : definition.durationSeconds !== undefined
         ? {
             // The band this casting's level falls in, as the elected options
             // leave it — SRD Extended Spell doubles what the band printed.
@@ -2573,6 +2635,10 @@ function resolveOnTargets(
               // And the word spoken, for the same reason: a Command declared
               // as Halt settles as Halt and as no other word.
               ...(request.option === undefined ? {} : { option: request.option }),
+              // And the ending chosen, for the same reason: SRD Magic Mouth is
+              // a rite of a minute, so the choice is made before there is a
+              // casting to put it on.
+              ...(request.endsAfterTrigger === true ? { endsAfterTrigger: true as const } : {}),
               // The fourth, and the one settlement could not possibly work
               // out again: where the caster said they were going.
               ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -2845,6 +2911,10 @@ function resolveOneEffect(
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'revive':
       return resolveReviveEffect(ctx, effect, target, world);
+    case 'stabilise':
+      return resolveStabiliseEffect(ctx, target, world);
+    case 'preserves':
+      return resolvePreservesEffect(ctx, target, world);
     case 'turn-payout':
       return resolveTurnPayoutEffect(ctx, effect, target, world);
     case 'healing-rule':
@@ -3210,6 +3280,15 @@ export function resolveEffects(
         // And the branch the casting ran, so a later activation acts through
         // the word its caster spoke — see `OngoingSpell.option`.
         ...(becomes.option === undefined ? {} : { option: becomes.option }),
+        // And the moment the body began being kept — see
+        // `OngoingSpell.preserving`, which `revive` is the one reader of.
+        ...(becomes.preserving === undefined ? {} : { preserving: becomes.preserving }),
+        // And the two endings that are exceptions to the free dismissal — see
+        // `OngoingSpell.endsAfterTrigger` and `OngoingSpell.dismissibleBy`.
+        ...(becomes.endsAfterTrigger === undefined
+          ? {}
+          : { endsAfterTrigger: becomes.endsAfterTrigger }),
+        ...(becomes.dismissibleBy === undefined ? {} : { dismissibleBy: becomes.dismissibleBy }),
       },
     });
   }
@@ -3719,6 +3798,12 @@ interface OngoingRecordPlan {
   readonly choice?: StatedChoicePin;
   /** The branch the casting ran, where the spell prints branches. */
   readonly option?: string;
+  /** When this casting began keeping a body — see `OngoingSpell.preserving`. */
+  readonly preserving?: number;
+  /** The ending its caster chose — see `OngoingSpell.endsAfterTrigger`. */
+  readonly endsAfterTrigger?: true;
+  /** Who else may end it — see `OngoingSpell.dismissibleBy`. */
+  readonly dismissibleBy?: 'target';
 }
 
 /**

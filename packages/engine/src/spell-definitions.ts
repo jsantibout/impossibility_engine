@@ -1022,7 +1022,7 @@ export type ModifierRider =
        * Speed in. `checkSpeedChange` refuses the member at the door too, for
        * untyped input.
        */
-      readonly change: Exclude<SpeedChange, 'match-walk'>;
+      readonly change: Exclude<SpeedChange, 'match-walk' | 'only'>;
       /** Signed feet, required by `add` and refused by the other two. */
       readonly feet?: number;
       /**
@@ -1942,6 +1942,52 @@ export type SpellEffect =
        */
       readonly hitPoints: number;
     }
+  /**
+   * A dying creature stopped from dying — SRD Spare the Dying, whole: "Choose
+   * a creature within range that has 0 Hit Points and isn't dead. The creature
+   * becomes **Stable**."
+   *
+   * **Not `heal` with a zero in it and not {@link revive} with a smaller
+   * window**: being Stable is neither hit points nor life restored. It is the
+   * one fact `stabiliseCreature` writes and `Vitals.stable` holds — a creature
+   * that stops making death saves and stays at 0 — and the event it emits is
+   * the same `stabilised` a DM's declaration emits, so every reader of the
+   * fact is reached by the route it always was.
+   *
+   * **It carries nothing**, which is the whole shape of the sentence: no
+   * amount, no window, no scaling. Who it may be aimed at is the target rule
+   * beside it ({@link TargetRule.mustBeDying}), because "has 0 Hit Points and
+   * isn't dead" selects a target rather than describing an outcome — and the
+   * refusal is therefore free, before an action is spent.
+   */
+  | { readonly kind: 'stabilise' }
+  /**
+   * A body the casting keeps, so the time it lies there does not count against
+   * a resurrection's window.
+   *
+   * > SRD Gentle Repose: "The spell also effectively extends the time limit on
+   * > raising the target from the dead, since **days spent under the influence
+   * > of this spell don't count against the time limit** of spells such as
+   * > _Raise Dead_."
+   *
+   * **The only sentence in the book where one casting changes another
+   * casting's arithmetic.** {@link revive}'s window is subtraction over
+   * `Vitals.diedAt` and `state.elapsed`, and this takes its own running span
+   * back out of the difference — so a corpse that died a minute before the
+   * repose began is still within Revivify's minute a week later.
+   *
+   * **It carries nothing and it writes nothing**, which is what makes it a
+   * mark rather than a grant: the fact `revive` reads is *that this casting is
+   * running on this body, and since when*, and both halves are on the ongoing
+   * record the casting already leaves (`OngoingSpell.preserving`). A grant
+   * would have needed a holder, a release and a reader, and there is nothing
+   * about the creature to change — being preserved is a fact about the
+   * casting.
+   *
+   * So it is refused on a definition that leaves no casting running: a spell
+   * with no duration would mark a body for no time at all.
+   */
+  | { readonly kind: 'preserves' }
   /**
    * Something handed over at every one of the target's turn boundaries, for as
    * long as the casting runs.
@@ -4220,6 +4266,43 @@ export interface TargetRule {
    */
   readonly mustBeFalling?: true;
   /**
+   * SRD *Spare the Dying*: "Choose a creature within range that **has 0 Hit
+   * Points and isn't dead**."
+   *
+   * The fourth clause of this kind and the first that reads **vitals**, which
+   * is the reading `a-target-rule-the-format-cannot-state` lost on its way
+   * through the three facts it does name: this is neither a type, nor armour,
+   * nor a size, nor a moment — it is the state a creature is in while it is on
+   * the floor, and the engine holds it authoritatively in two fields.
+   *
+   * **Both halves, because the sentence has two and each alone is wrong.** A
+   * creature above 0 Hit Points is not dying; a corpse is past being saved and
+   * is Raise Dead's business, which is the rule `stabiliseCreature` and
+   * `healCreature` both already state. {@link mustBeDead} is the twin with the
+   * opposite reading.
+   *
+   * Like `mustBeUnarmored` and unlike `mustBeType`, a plain **no** rather than
+   * a question: hit points and death are the engine's own to read, and there
+   * is no declaration a caller could invent to widen the spell.
+   */
+  readonly mustBeDying?: true;
+  /**
+   * SRD *Gentle Repose*: "You touch a **corpse** or other remains."
+   *
+   * {@link mustBeDying}'s twin, and the one target clause that admits a
+   * creature every other spell's targeting would walk past: `eligibleTargets`
+   * drops the dead from every shortlist, because all but a handful of spells
+   * are cast on somebody who can be affected by them. A spell whose whole
+   * subject is a body says so here, and the shortlist then offers the bodies
+   * and nobody else.
+   *
+   * "Or other remains" is the table's: the engine holds a dead creature and
+   * holds no severed hand.
+   *
+   * A plain no rather than a question, for {@link mustBeDying}'s reason.
+   */
+  readonly mustBeDead?: true;
+  /**
    * SRD *Mage Armor*: "You touch a **willing** creature who isn't wearing
    * armor." A good many definitions in reach print the word; `willing.test.ts`
    * reads the population out of the book rather than out of a sentence here.
@@ -4494,6 +4577,37 @@ export interface SpellDefinition {
   readonly ritual?: true;
   readonly concentration: boolean;
   readonly range: SpellRange;
+  /**
+   * How far the spell reaches at this **character level**, by band.
+   *
+   * > SRD Spare the Dying, _Cantrip Upgrade._: "The range doubles when you
+   * > reach levels 5 (30 feet), 11 (60 feet), and 17 (120 feet)."
+   *
+   * The key is the lowest character level of the band and the value is the
+   * whole reach in feet — not an increase — so `{ 5: 30, 11: 60, 17: 120 }` is
+   * the sentence transcribed, and {@link range} is what a caster below every
+   * band still gets. {@link rangeFeetAt} is the one reader, so the cast and
+   * the shortlist a caller is shown cannot disagree about how far the spell
+   * goes.
+   *
+   * **The caster's level, not the slot**, which is the fork
+   * `docs/design/spell-definitions.md` keeps open on purpose: "Cantrips scale
+   * by caster level and levelled spells by slot, and they are separate fields
+   * rather than one overloaded number." Both the other two axes of that fork —
+   * `DiceScaling.cantripUpgradesAt` and `AttackRollCount.cantripUpgradesAt` —
+   * reach dice, and this is the one clause in the book that reaches *reach*.
+   * A levelled spell is refused it, exactly as they refuse one.
+   *
+   * **A table rather than a doubling**, though the SRD's own word is "doubles"
+   * and the printed numbers happen to double: what the engine must obey is the
+   * three numbers in the parentheses, and a spell whose next printing rounds
+   * one of them would be silently wrong under an arithmetic rule. This is
+   * `durationAtSlot`'s argument at the other axis, and it is the same one.
+   *
+   * Refused on a Range that is not a distance: Touch, Self and a Range the DM
+   * decides have no number for a band to replace.
+   */
+  readonly rangeAtLevel?: Readonly<Record<number, number>>;
   readonly targets: TargetRule;
   /**
    * The area it fills, for a spell that picks its own targets.
@@ -4937,6 +5051,79 @@ export interface SpellDefinition {
    * the SRD prints both under "Using a Higher-Level Spell Slot".
    */
   readonly concentrationEndsAtSlot?: number;
+  /**
+   * The slot from which the casting **stops having a deadline at all**.
+   *
+   * > SRD Major Image: "The spell lasts **until dispelled**, without requiring
+   * > Concentration, if cast with a level 4+ spell slot."
+   *
+   * The third field of the sentence {@link durationAtSlot} and
+   * {@link concentrationEndsAtSlot} share, and the one that docstring named as
+   * the thing a table of seconds deliberately cannot say: those two move *how
+   * long* and *who holds it*, and this moves **what kind of ending the casting
+   * has**. A span and its absence are not two numbers, so there was nothing to
+   * put in the table.
+   *
+   * **A band at this level or above**, read by {@link untilDispelledAt}, which
+   * is the reading its two neighbours already take of their own keys — and the
+   * same three refusals: a whole slot level, strictly above the spell's own,
+   * and not on a definition that already runs {@link untilDispelled} (there is
+   * no deadline for a higher slot to take away) or Instantaneous (there is no
+   * casting for it to leave running).
+   *
+   * **Written beside `concentrationEndsAtSlot` rather than instead of it.**
+   * One SRD sentence prints both halves at one slot, and they are still two
+   * facts: Bestow Curse drops the Concentration at level 5 and keeps a
+   * deadline, so a field that meant both would have made that spell wrong.
+   */
+  readonly untilDispelledAtSlot?: number;
+  /**
+   * The spell offers its caster, **at the casting**, an ending the book
+   * otherwise gives them none of.
+   *
+   * > SRD Magic Mouth: "When you cast this spell, you can have the spell end
+   * > after it delivers its message, or it can remain and repeat its message
+   * > whenever the trigger occurs."
+   *
+   * The free dismissal `endOngoingSpell` performs is printed for a **Time
+   * Span** duration, and this spell lasts until dispelled — so without the
+   * caster's word at the casting there is no way out of it at all, which is
+   * the refusal `not_dismissible` states. This is the offer; the answer is
+   * `CastSpellRequest.endsAfterTrigger`, and it is pinned on the ongoing
+   * record because a definition corrected next month must not decide whether
+   * a casting made today can be let go.
+   *
+   * **The trigger itself is the table's.** The engine holds no mouth and no
+   * message, so nothing here fires: what the fact buys is the *permission*,
+   * and the DM ends the casting when the mouth has spoken.
+   *
+   * Refused on a definition that leaves no casting running, which is the
+   * reachability rule every other field of this shape keeps.
+   */
+  readonly offersEndAfterTrigger?: true;
+  /**
+   * Somebody other than the caster may end the casting, and pays for it.
+   *
+   * > SRD Gaseous Form: "The spell ends on the target if it drops to 0 Hit
+   * > Points **or if it takes a Magic action to end the spell on itself**."
+   *
+   * Both exceptions to the general dismissal in one clause: the **target**
+   * ends it rather than the caster, and the book charges a Magic action where
+   * a dismissal costs none. `endOngoingSpellOnSelf` is the door, and it ends
+   * the casting **on that target** rather than everywhere — which is the half
+   * a higher slot makes visible, exactly as the `target-drops-to-0` trigger
+   * beside it in the same sentence does.
+   *
+   * **A bare `'target'` rather than a record with a price in it**, because
+   * both SRD spells that print the clause print the same price: Animal Shapes
+   * and Gaseous Form each charge a Magic action. A spell that charged
+   * something else would be a second field rather than a second value, for
+   * the reason `concentrationEndsAtSlot` is not folded into `durationAtSlot`.
+   *
+   * Refused on a definition that leaves no casting running, and on one that is
+   * cast at nobody: a target's ending needs a target.
+   */
+  readonly dismissibleBy?: 'target';
   /**
    * Parts of the printed spell this definition does **not** do.
    *
@@ -5628,6 +5815,29 @@ export function concentrationAt(definition: SpellDefinition, castLevel: number):
 }
 
 /**
+ * Whether a casting of this spell at this slot runs **until dispelled**.
+ *
+ * The third of the family {@link durationSecondsAt} and {@link concentrationAt}
+ * make, and the one reader of {@link SpellDefinition.untilDispelledAtSlot} —
+ * so the place that decides whether to schedule a deadline and any later
+ * reader of the same question cannot come to disagree about which band a slot
+ * falls in.
+ *
+ * SRD Major Image: "The spell lasts until dispelled … if cast with a level 4+
+ * spell slot." So the answer is the definition's own flag until the band is
+ * reached and true from there up — "at this level or above", which is the
+ * reading its two neighbours take of their own keys.
+ *
+ * Identity for every spell that prints no such clause, which is all but one of
+ * them.
+ */
+export function untilDispelledAt(definition: SpellDefinition, castLevel: number): boolean {
+  if (definition.untilDispelled === true) return true;
+  const from = definition.untilDispelledAtSlot;
+  return from !== undefined && castLevel >= from;
+}
+
+/**
  * The value of the band this level falls in, or the base where it falls below
  * every band.
  *
@@ -5704,6 +5914,28 @@ export const swungExtraDiceAt = (
 /** How far a range reaches in feet, or null where it is not a distance at all. */
 export const ranged = (range: SpellRange): number | null =>
   range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
+
+/**
+ * How far this spell reaches for a caster of this character level, in feet.
+ *
+ * The one reader of {@link SpellDefinition.rangeAtLevel}, so the two places a
+ * distance is measured — the casting, where the options may then multiply it,
+ * and the shortlist a caller is shown — cannot come to disagree about which
+ * band a caster has reached. `bandAt` again, with the printed Range as the
+ * base, which is what SRD Spare the Dying's fifteen feet is: the reach of a
+ * caster who has reached none of the three levels.
+ *
+ * Null where the Range is not a distance at all, exactly as {@link ranged} is,
+ * and identity for every spell that prints no such clause — which is all but
+ * one of them.
+ */
+export const rangeFeetAt = (
+  definition: SpellDefinition,
+  casterLevel: number,
+): number | null => {
+  const printed = ranged(definition.range);
+  return printed === null ? null : bandAt(definition.rangeAtLevel, casterLevel, printed);
+};
 
 /**
  * The shortest reach any swing in this list states, or null where none does.
@@ -6754,6 +6986,12 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // points are the spell's own printed numbers, and whose spell it was
       // changes neither.
       case 'revive':
+      // And a stabilising reads nothing at all: it carries no number, so there
+      // is none of anybody's for it to pin.
+      case 'stabilise':
+      // Nor does a body kept: the span it takes back is the casting's own and
+      // the clock's, and nothing about the caster decides any of it.
+      case 'preserves':
       case 'turn-payout':
       case 'action-rule':
       case 'healing-rule':

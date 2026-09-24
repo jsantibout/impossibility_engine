@@ -246,6 +246,17 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'flame-blade',
   'flame-strike',
   'fog-cloud',
+  // `dismissals-and-the-cloud.test.ts` (engine): the Fly Speed of 10 that is
+  // the whole of how the cloud moves, the walking and swimming Speeds it
+  // takes away, the hovering that keeps a stopped cloud up, the Attack
+  // action and the casting it refuses, and the Magic action its target
+  // spends to end it — which its caster's ally may not spend at all.
+  'gaseous-form',
+  // `gentle-repose.test.ts` (engine): a corpse ninety seconds dead raised
+  // because eighty of them were under the repose, the same corpse refused
+  // without it, a repose laid seventy seconds late taking back only what it
+  // ran for, a living target refused, and the record on the body.
+  'gentle-repose',
   'goodberry',
   'grease',
   'greater-invisibility',
@@ -307,6 +318,17 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // slot, the caster's own uneven split, a Sanctuary ward turning them away
   // and a Resistance halving each dart rather than the pool.
   'magic-missile',
+  // `dismissals-and-the-cloud.test.ts` (engine): the rite of a minute
+  // declared with the ending its caster chose, settled, and then ended by
+  // that caster — and the same rite with nothing said refused
+  // `not_dismissible`, because the book prints a casting that runs until
+  // dispelled no ending at all.
+  'magic-mouth',
+  // `slot-changes-the-ending.test.ts` (engine): the illusion cast at a level 3
+  // slot with a Concentration and a deadline, the same illusion at a level 4
+  // slot with neither and still findable, and the Investigation check it could
+  // not offer said out loud on the casting that has no timer to hang it on.
+  'major-image',
   'mass-cure-wounds',
   'mind-blank',
   'mind-spike',
@@ -428,6 +450,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // recorded as the second. Saying "untested" of a spell with its own suite
   // would be the same report telling a different lie.
   'sorcerous-burst',
+  // `spare-the-dying.test.ts` (engine): the dying ally made Stable, the hale
+  // one and the corpse refused, the shortlist offering the first and excluding
+  // the other two, thirty feet reached by a level 5 cleric and refused to a
+  // level 4 one, and the shortlist bounded by the same band.
+  'spare-the-dying',
   // Driven end to end by `casting-terrain.test.ts`: the Sphere conjured at a
   // point through `resolveSpell`, and the glossary's rate charged over it.
   // The move that costs twice the ground it crosses is Grease's in the same

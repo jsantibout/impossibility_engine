@@ -155,7 +155,7 @@ export const MISSING_SHAPES = {
   'an-exhaustion-level-a-spell-changes':
     'Exhaustion is a level rather than a condition that is simply on or off — `docs/rules/srd-policy.md`: "**Exhaustion is a flat -2 per level, not Disadvantage**" — and `end-condition` takes a list of condition names, so it removes the condition and cannot remove *one level* of it. `setExhaustionLevel` is a DM-declared command, among the nine `docs/rules/srd-policy.md` records as reachable from a command and from no spell effect.',
   'healing-that-raises-the-dead':
-    '**Built.** PROGRESS.md ranked "Healing that lifts a condition, **raises the dead**, or raises the maximum", and `docs/design/spell-definitions.md` stated the refusal it had to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot". The refusal stands and the shape goes round it: a `revive` effect and a `creature-revived` event of their own, because lifting death is not hit points with a small number in them, and `Vitals.diedAt` — stamped by the vitals seam on the transition rather than by any one of the four events that can kill somebody — is what makes the minute a spell reaches back into subtraction. SRD Revivify is executed off it. **Four undefined claimants are left**, and each prints a longer window, a bigger price or a body the engine has no shape for; the id stays because they are still owed and the mechanism they would reuse is now here. **And a fifth claimant that is none of those three**, which P3-S6 found by reading Gentle Repose to the end: that spell widens the window rather than reaching through one — "days spent under the influence of this spell don’t count against the time limit of spells such as _Raise Dead_" — so what it wants is a *second casting* altering the arithmetic `revive` does over `Vitals.diedAt`, and no effect kind in the vocabulary does that. It is filed here because the window is this shape’s own mechanism and the description already names it, and because a spell whose only debt is an unbuildable sentence had to stop being counted as finished business; whether that sentence deserves a blocker id of its own is a vocabulary decision for the owner rather than a reading, and until it is taken this id does **not** finish Gentle Repose.',
+    '**Built.** PROGRESS.md ranked "Healing that lifts a condition, **raises the dead**, or raises the maximum", and `docs/design/spell-definitions.md` stated the refusal it had to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot". The refusal stands and the shape goes round it: a `revive` effect and a `creature-revived` event of their own, because lifting death is not hit points with a small number in them, and `Vitals.diedAt` — stamped by the vitals seam on the transition rather than by any one of the four events that can kill somebody — is what makes the minute a spell reaches back into subtraction. SRD Revivify is executed off it. **Four undefined claimants are left**, and each prints a longer window, a bigger price or a body the engine has no shape for; the id stays because they are still owed and the mechanism they would reuse is now here. **And the fifth claimant is paid.** P3-S6 found it by reading Gentle Repose to the end: that spell widens the window rather than reaching through one — “days spent under the influence of this spell don’t count against the time limit of spells such as _Raise Dead_” — so what it wanted was a *second casting* altering the arithmetic `revive` does over `Vitals.diedAt`. The `preserves` effect is that, and it carries no field at all: its whole content is the moment the casting began keeping the body, pinned on the ongoing record as `preserving`, and `preservedSpan` takes the union of what the running castings covered back out of the difference. It was filed here because the window is this shape’s own mechanism, and it is finished here for the same reason — Gentle Repose is executed, and the decay, the Undead and remains that are not a creature are the table’s.',
   'a-hit-point-maximum-a-spell-moves':
     'PROGRESS.md ranked "Healing that lifts a condition, raises the dead, or raises the maximum" and the audit named Harm’s reduction as debt: the maximum was set when a creature is added and by advancement, and no effect moved it. **The raise is built**: `hit-point-maximum` is a twelfth sourced grant, `settleHitPointMaximum` reconciles `Vitals.hpMax` in the fold’s derived pass so every ending gives it back, and `advanceCharacter` subtracts the *unadjusted* maximum so a level taken mid-spell is worth the whole of its level — which is Aid and its slot scaling whole. Three things are still missing under this name and each is its own sentence. **A reduction**: Harm’s, the Berserker Axe’s, and Greater Restoration ending one — every SRD sentence that lowers a maximum is fastened to damage already taken, so the clause that makes it mean something is the half that is absent. **A maximum that cannot be reduced**, which is Aura of Life and is a refusal rather than an amount. **And a rolled one**: Heroes’ Feast’s 2d10, refused at authoring (`rolled_hit_point_maximum`) because a die thrown once and then carried for hours is a number the log cannot account for. A *feature* that raises a maximum is a different absence again — see the feature ledger.',
   'difficult-terrain-an-area-creates':
@@ -204,12 +204,10 @@ export const MISSING_SHAPES = {
     '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
   'a-rider-on-a-later-weapon-attack':
     '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. **And the weapon half is built too**: a casting now names the particular weapon it was aimed at (`CastSpellRequest.weapon`), the `weapon-rider` grant hangs on whoever holds it keyed by that weapon’s id, and what it may change is the **substituted ability**, the **replaced damage die** and a **flat** plus of the weapon’s own type reaching the attack roll and the damage roll alike — with a band table apiece, off the slot and off the caster’s level. Shillelagh and Magic Weapon are what that finished. **And the type a swing chooses is built too**: `weapon-rider.damageTypes` is the offer Shillelagh’s second sentence makes, answered on the attack command under the spell’s own name rather than pinned at the casting, and it replaces the weapon’s own type where it is taken. What is left is every rider that is neither of those builds: a damage type chosen at the moment of the attack on a rider that is **not** keyed to one weapon (Conjure Minor Elementals), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse), and a substitution on an **Unarmed Strike**, which is not a weapon and so is not a thing a casting can name (Alter Self). **And the casting that *makes* the attack it rides is built**: `weapon-attack` is the door no effect kind opened — the attack command takes the cantrip beside the weapon, spends the Action as the casting’s, substitutes the spellcasting ability into the attack and damage rolls, adds the Cantrip Upgrade’s dice off a band table keyed by character level and offers the type the sentence prints, with nothing granted and nothing left standing. True Strike is what that finished.',
-  'a-range-that-scales-with-caster-level':
-    '`SpellDefinition.range` in spell-definitions.ts is one fixed `SpellRange`, and `ranged(definition.range)` is checked on every casting — tracked or executed, before a target is looked at. `docs/design/spell-definitions.md` keeps the two scaling axes apart on purpose — "**Cantrips scale by caster level and levelled spells by slot**, and they are separate fields rather than one overloaded number" — and both of them reach *dice*. Exactly one spell in the book prints a range that grows with the caster, and the engine would refuse the casting the SRD allows.',
   'a-cap-on-how-many-castings-run-at-once':
     '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
-    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. What is left is the *last* half of the sentence PROGRESS.md quotes: a slot that changes what kind of **ending** a casting has. Major Image and Bestow Curse’s level 9 arm are the two that print it, and a table of seconds says a length rather than an ending.',
+    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. **And the ending half is built now too**: `untilDispelledAtSlot` is the slot from which a casting stops having a deadline at all, which SRD Major Image prints at level 4 beside its Concentration clause — so that spell is executed and the field it wanted is the third of the family, read by `untilDispelledAt` where the deadline would have been scheduled. What is left under this id is an ending that is **not** the absence of one: SRD Bestow Curse’s level 9 slot prints the same "lasts until dispelled" and has not been written yet, and SRD Geas’s level 9 slot makes the spell last "until it is ended by one of the spells mentioned above" — one spell naming another as its ending, which no field here says and a table of seconds could not.',
   'a-deadline-anchored-to-a-rest':
     '`docs/design/time-and-turns.md`: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
@@ -258,7 +256,7 @@ export const MISSING_SHAPES = {
   'an-activation-taken-by-somebody-other-than-the-caster':
     '`docs/design/casting.md`, on acting through a spell on a later turn: "Pinned at the casting | ... **the caster — nobody else may act through it**". A spell that hands its *target* the later action inverts exactly that rule, and the pinned numbers are still the caster’s.',
   'a-casting-dismissed-early':
-    'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration. What is left is what each claimant prints instead — `docs/design/casting.md`: "every one of those three prints an exception to it". Animal Shapes and Gaseous Form are ended by the **target** rather than by the caster; all three cost an action the book names where a dismissal costs none; and a casting that runs "Until dispelled" is refused outright, because the book gives its caster no ending at all.',
+    'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration, and `docs/design/casting.md` is where the three exceptions to it are described — “every one of those three prints an exception to it”. Two of them are built now, and by this id’s own claimants: SRD Gaseous Form’s **target** ends the casting on itself and pays the Magic action the book charges (`dismissibleBy`, `endOngoingSpellOnSelf`), and SRD Magic Mouth’s caster may choose at the casting that a spell running “until dispelled” can be ended at all (`offersEndAfterTrigger`). What the three spells still filed here want is the same ending at a **price the built fields do not carry**: SRD Dream’s messenger “can emerge from the trance at any time, ending the spell” — a creature the casting is on, which `dismissibleBy` says, and for nothing, where that field charges the Magic action both its printings charge; SRD Magic Jar’s caster ends a casting that runs until dispelled by returning to their living body, which no fact stated at the casting unlocks because the book offers its caster no choice to state; and SRD Dispel Evil and Good’s Break Enchantment is the casting spending **itself** to end, which is a cause rather than a door.',
   'a-dc-the-caster-does-not-set':
     'every saving throw a spell forces is measured against the casting’s pinned `saveDc`. The audit names the asymmetry from the other side — "**Three members of the definition format have zero catalogue users**, not one: `roll-mode.save` ..., `SpellCheck.dc` ..., and `’end-casting’` as a `save.repeats.onSuccess` value" — so an *ability check* may already name a printed DC and a *saving throw* may not.',
   'a-condition-benefit-an-effect-takes-away':
@@ -277,8 +275,6 @@ export const MISSING_SHAPES = {
     '`docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." An ally reaching in to cut somebody free, or shaking a sleeper awake, is neither, and the derivation has no third branch.',
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
-  'an-effect-that-stabilises-a-dying-creature':
-    '`PROGRESS.md`: "**Every one of the event types the union declares is now emitted by a command**", and `stabilised` is one of the nine a DM declares. The command exists, the event exists, and no `SpellEffect` reaches either — the recurring finding in this repository that a pure function nothing calls is a rule nothing enforces, arriving on the cantrip whose whole content is that one word.',
   'a-distance-a-creature-travels-inside-an-area':
     '`docs/design/space-and-areas.md`, on what a persistent area cannot see: "**The path.** Movement records where a move started and where it ended and nothing in between", and `docs/design/casting.md`: "Distance travelled inside an area, which no move records | Spike Growth". Inferring the crossing from a straight line would be the engine inventing a route nobody took.',
   'light-and-obscurement-the-scene-holds':
@@ -975,19 +971,16 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // casting — which a level 4 slot is what makes visible.
   'gaseous-form': [
     {
-      clause: 'the target ending it "as a Magic action" is not offered',
-      why: 'a-casting-dismissed-early',
-      note: 'SRD: "or if it takes a Magic action to end the spell on itself." The general dismissal is built — `endOngoingSpell` ends a casting by id — and this sentence prints both of the exceptions it does not carry: the creature ending it is the **target** rather than the caster, and the book charges a Magic action where a dismissal costs none.',
-    },
-    {
-      clause: 'a Fly Speed of 10 feet',
-      why: 'movement-modes',
-      note: 'SRD: "the target’s only method of movement is a Fly Speed of 10 feet, and it can hover." The engine tracks one Speed and no modes, so there is no way to say that walking is gone and flying is not — the target simply keeps the Speed it had.',
-    },
-    {
       clause: 'the things the cloud cannot do are not forbidden',
       why: 'an-action-the-engine-has-no-spender-for',
-      note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." Forbidding a named action is `ActionRule`’s `forbids` and four definitions write it; what this sentence forbids is **talking** and **handling an object**, and no command takes either — the second is the Utilize action, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one. Gate G1 read it as mis-filed for that reason, and the gap it names is the feature book’s.',
+      note: 'two of the four, and the other two are built: "Finally, the target can\u2019t attack or cast spells" is one `forbids` rule naming the Attack action and, through the field this track gave that arm, the casting. What is left is "The target can\u2019t talk or manipulate objects" and "any objects it was carrying or holding can\u2019t be dropped, used, or otherwise interacted with" \u2014 talking is not an action anything spends, and what is in a creature\u2019s hands is a fact the engine does not hold. The Magic action its target takes to end the spell is no longer here either: `endOngoingSpellOnSelf` is that door and it charges that price.',
+    },
+  ],
+  'gentle-repose': [
+    {
+      clause: 'the days are taken back only while this casting is still running',
+      why: 'healing-that-raises-the-dead',
+      note: 'the sentence is executed while the casting runs — `preserves` marks the body, the record pins the moment, and `preservedSpan` takes the span back out of the time since `Vitals.diedAt`. What is left is the word **spent**: the span is read off the castings running on the body now, so a repose that has ended hands the window back, and a corpse ten days under one and then dispelled is refused a resurrection the book allows. Carrying that needs a span accumulated on the creature and written by an event, which is a primitive the vocabulary has not got — and the window is this shape\u2019s own mechanism, which is why the residue is filed here rather than anywhere new.',
     },
   ],
   'gust-of-wind': [
@@ -1657,12 +1650,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       why: 'table',
       note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds. **P3-S6 read this spell to the end**: eight of its nine sentences are in the definition’s `dmDecides` now, and the ninth is the entry beside this one.',
     },
-    {
-      marker: null,
-      clause: 'you can have the spell end after it delivers its message',
-      why: 'a-casting-dismissed-early',
-      note: 'the choice the caster makes at the casting is not offered, and it is the one sentence of this spell that is a debt rather than fiction: `endOngoingSpell` ends a casting of the caster’s own by id and refuses this one, because SRD prints the free dismissal for a **time span** and this spell lasts until dispelled. So there is no way to end it early however the choice went, which is the very exception the shape’s own description names. The definition’s `unmodelled` line has said so since it was written and no map entry carried it, which is the hole P3-S6 closed.',
-    },
   ],
   'see-invisibility': [
     {
@@ -1890,13 +1877,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'ability-check',
       clause: 'determine that it is an illusion with a successful Intelligence (Investigation) check',
       why: 'engine',
-      note: 'Silent Image’s sentence two levels up, and the same answer: the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against a Concentration casting timer that ends with the Concentration. **P3-S6 read this spell to the end**: eight sentences went to the definition’s `dmDecides`, and the one that is a debt is the entry beside this one.',
-    },
-    {
-      marker: null,
-      clause: 'The spell lasts until dispelled, without requiring Concentration',
-      why: 'a-duration-the-slot-changes',
-      note: 'the shape’s own description names this spell as the one in the book that prints the sentence — a slot that changes **what kind** of duration a casting has rather than how long it runs, which `durationAtSlot`’s table of seconds cannot say. It is a debt and not fiction because Concentration is a rule the engine really holds: cast at a level 4 slot, the engine takes a Concentration the book says this casting does not require, which is a wrong answer rather than a missing narration. The definition’s `unmodelled` line had said so since it was written and no map entry carried it.',
+      note: 'Silent Image’s sentence two levels up, and the same answer: the Intelligence (Investigation) check against the spell save DC is rolled by resolveEffectCheck against a Concentration casting timer that ends with the Concentration. **P3-S6 read this spell to the end**: eight sentences went to the definition’s `dmDecides`, and the debt beside this one — the level 4+ slot — is paid, so this is the whole of what is left. A casting made at a level 4+ slot has no timer for the check to ride and says so in its own `unverified` line rather than in the definition, because it is a fact about that casting and not about the spell.',
     },
   ],
   'meld-into-stone': [
@@ -3305,26 +3286,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the third outcome by creature type the book prints and the union does not have, beside the automatic failure and the Disadvantage it does — and the sentence is eight words with no mechanical marker in any of them.',
     },
   ],
-  'spare-the-dying': [
-    {
-      marker: 'hit-points',
-      clause: "Choose a creature within range that has 0 Hit Points and isn't dead",
-      why: 'an-effect-that-stabilises-a-dying-creature',
-      note: 'the target rule reads a fact about vitals, which a rule counting targets and naming creature types cannot state — and it selects for an effect no spell can reach, so neither half of the sentence has a reader.',
-    },
-    {
-      marker: null,
-      clause: 'The creature becomes Stable',
-      why: 'an-effect-that-stabilises-a-dying-creature',
-      note: 'four words, no marker, and the whole content of the cantrip: the command exists and the event exists and no spell effect reaches either, which is the gap this shape was named for.',
-    },
-    {
-      marker: null,
-      clause: 'The range doubles when you reach levels 5',
-      why: 'a-range-that-scales-with-caster-level',
-      note: 'the only spell in the book whose reach grows with the caster, printed as a Cantrip Upgrade that names no mechanic the markers know — and a definition holds one fixed range, checked before a target is looked at.',
-    },
-  ],
   // — the two the same derivation named ——————————————————————————————————————
   //
   // The pass above derived its three from the **shapes** — hold this map to the
@@ -3438,7 +3399,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: null,
       clause: 'The messenger can emerge from the trance at any time, ending the spell',
       why: 'a-casting-dismissed-early',
-      note: 'the general dismissal is built and ends a casting of the caster’s own by id. This one is ended by the messenger, who may be "a willing creature you touch" and so need not be the caster at all — the exception Animal Shapes and Gaseous Form already print, arriving on a third spell. The sentence trips no marker, so no guard could have asked for it.',
+      note: 'the general dismissal is built and ends a casting of the caster’s own by id. This one is ended by the messenger, who may be "a willing creature you touch" and so need not be the caster at all — the exception SRD Gaseous Form prints, and that one is built (`dismissibleBy: \'target\'`). What is left is the **price**: that field charges the Magic action both its printings charge, and the messenger emerges for nothing. The sentence trips no marker, so no guard could have asked for it.',
     },
     {
       marker: null,
@@ -3692,20 +3653,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'This spell creates a circular, horizontal plane of force',
       why: 'table',
       note: 'the disk is an object: where it is, the 500 pounds it holds, what rides on it, the 20 feet it follows within, the elevation change it refuses and the 100 feet that end the spell are all measured against a thing that is not in the scene. **P3-S6 read this spell to the end**: every printed sentence is the table’s or the engine’s, so what the table is left with is in the definition’s `dmDecides` rather than in `unmodelled` — handed over whole, and no clause of it is expressible with the kinds the engine has today.',
-    },
-  ],
-  'gentle-repose': [
-    {
-      marker: null,
-      clause: 'You touch a corpse or other remains',
-      why: 'table',
-      note: 'a corpse is an object rather than a creature in state, so which remains were touched, the decay they are protected from and the Undead they cannot become have nothing in state to read. **P3-S6 read this spell to the end**: these two sentences are in the definition’s `dmDecides` now, and the third is the entry beside this one.',
-    },
-    {
-      marker: null,
-      clause: 'extends the time limit on raising the target from the dead',
-      why: 'healing-that-raises-the-dead',
-      note: 'the note this entry replaces said "no spell the engine executes raises anybody", and that stopped being true when the shape was built: `revive` reaches back a printed window, `Vitals.diedAt` is stamped by the vitals seam, and the window is subtraction over it and `state.elapsed`. So a rule the engine runs really does read the time limit this spell widens — a corpse seven days under this casting is refused by a resurrection the book would allow — and no effect kind in the vocabulary alters another casting’s window. A debt, by `docs/design/content.md`’s own test: a table fact a rule then reads.',
     },
   ],
   identify: [

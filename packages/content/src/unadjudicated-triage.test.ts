@@ -79,14 +79,6 @@ import {
  */
 const FILED: Readonly<Record<string, readonly string[]>> = {
   'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
-  // **Re-read on 2026-09-24 and moved off {@link HANDOVERS}.** This pass filed
-  // the whole spell as fiction on the grounds that "no spell the engine
-  // executes raises anybody", and that stopped being true when
-  // `healing-that-raises-the-dead` was built: `revive` reaches back a printed
-  // window, the window is subtraction over `Vitals.diedAt`, and the sentence
-  // this spell prints widens exactly that window. A rule reads it, so it is a
-  // debt — `docs/design/content.md`'s own test, applied the other way round.
-  'gentle-repose': ['healing-that-raises-the-dead'],
   knock: ['an-effect-that-suppresses-other-magic'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
   'speak-with-plants': ['difficult-terrain-an-area-creates'],
@@ -221,6 +213,14 @@ const EXECUTES: readonly string[] = [
   'arcanists-magic-aura',
   'darkvision',
   'expeditious-retreat',
+  // **And the shortest round trip this file has recorded.** Gentle Repose came
+  // onto {@link FILED} on 2026-09-24, off {@link HANDOVERS}, because
+  // `healing-that-raises-the-dead` had been built and the sentence this spell
+  // prints widens exactly the window `revive` reads. The `preserves` mark is
+  // that debt paid: the casting's own running span comes back out of the time
+  // since `Vitals.diedAt`, and what is left of the paragraph — the decay, the
+  // Undead, and remains that are not a creature — is the table's.
+  'gentle-repose',
   'magic-weapon',
   // And the one the area-standing track finished: the +10 on Dexterity
   // (Stealth) checks of whoever is in the aura is derived from the scene on

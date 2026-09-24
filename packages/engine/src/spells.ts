@@ -602,6 +602,59 @@ export interface OngoingSpell {
    * other casting in the book.
    */
   readonly negates?: { readonly casting: string; readonly spell: string };
+  /**
+   * The moment on the clock at which this casting began keeping its target's
+   * body — SRD Gentle Repose.
+   *
+   * > "days spent under the influence of this spell **don't count against the
+   * > time limit** of spells such as _Raise Dead_."
+   *
+   * The whole of what `revive` needs to obey that sentence, and both halves of
+   * it are here: *which bodies* is `isOn`, and *since when* is this number.
+   * `preservedSpan` is the one reader, and it takes the span from the earliest
+   * such casting running on the creature — so two reposes laid over each other
+   * take back the union of what they covered rather than the sum.
+   *
+   * **A moment rather than a running total**, for the reason every other field
+   * on this record is what it is: a total would have to be updated by
+   * something, and nothing ticks. The span is `state.elapsed` minus this,
+   * computed where it is asked.
+   *
+   * Pinned at the cast, and absent on every other casting in the book —
+   * including every record written before the field existed, which is a
+   * casting that was keeping nothing.
+   */
+  readonly preserving?: number;
+  /**
+   * The caster said at the casting that this one could be ended early — SRD
+   * Magic Mouth.
+   *
+   * > "When you cast this spell, you can have the spell end after it delivers
+   * > its message."
+   *
+   * The free dismissal is printed for a **Time Span** duration and this
+   * casting runs until dispelled, so without this it has no ending at all;
+   * `endOngoingSpell` reads it and is the only reader. What fires it is the
+   * table's — the engine holds no mouth and no message — so the fact buys the
+   * permission and the DM spends it when the mouth has spoken.
+   *
+   * Pinned at the cast rather than read back out of the definition, for the
+   * reason `endOngoingSpell` reads a *timer* rather than a duration: a
+   * definition corrected next month must not decide whether a casting made
+   * today can be let go.
+   */
+  readonly endsAfterTrigger?: true;
+  /**
+   * Somebody other than the caster may end this casting, and pays for it —
+   * SRD Gaseous Form's "if it takes a Magic action to end the spell on
+   * itself".
+   *
+   * `endOngoingSpellOnSelf` is the door and the only reader. Pinned at the
+   * cast for {@link endsAfterTrigger}'s reason, and absent on every other
+   * casting in the book — which is what every record written before the field
+   * existed means by saying nothing.
+   */
+  readonly dismissibleBy?: 'target';
 }
 
 /**

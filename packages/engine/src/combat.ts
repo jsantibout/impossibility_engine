@@ -370,6 +370,28 @@ export type ActionRule =
       readonly kind: 'forbids';
       readonly slots?: readonly ActionSlot[];
       readonly actions?: readonly NamedAction[];
+      /**
+       * SRD Gaseous Form: "the target can't attack or **cast spells**."
+       *
+       * **Not a slot and not one of {@link NAMED_ACTIONS}**, which is why it
+       * is a field of its own rather than a member of either list. A casting
+       * comes out of an Action, a Bonus Action or a Reaction depending on the
+       * spell, and the Magic action is not it: SRD Misty Step is a Bonus
+       * Action and nothing about it is a Magic action, so forbidding `magic`
+       * would forbid three quarters of the sentence and permit the rest.
+       *
+       * The same fact one host along from `activated.forbidsCasting` and
+       * `shapeShifts.forbidsCasting` — SRD Rage and SRD Wild Shape print it
+       * about a feature that is running, and this prints it about an effect
+       * that is on you. `castSpell` reads all three in the same three lines,
+       * so a fourth sentence of this shape needs no fourth reader.
+       *
+       * {@link governs} does not read it, for the reason `grants` is not read
+       * there: it is not about a *spend* at all. What refuses the casting is
+       * the casting command, which is the only place that knows one is being
+       * made.
+       */
+      readonly casting?: true;
     }
   /**
    * SRD Wind Walk, Fear, Magic Jar: one slot narrowed to a named few.

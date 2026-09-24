@@ -4373,6 +4373,15 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     // `checkShape` has already established is the whole effect.
     'fall-ward',
     'end-attunement',
+    // The fifth, and the plainest of them: SRD Spare the Dying's whole content
+    // is "The creature becomes Stable", so `stabilise` carries no field
+    // either. Who it may be aimed at is `TargetRule.mustBeDying`, which is
+    // swept where every other target rule is.
+    'stabilise',
+    // And the sixth: SRD Gentle Repose's mark carries no field either. What
+    // `revive` reads is the casting's own running span, which is on the
+    // ongoing record rather than on the effect.
+    'preserves',
   ]);
 
   /**

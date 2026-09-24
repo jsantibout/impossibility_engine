@@ -4440,7 +4440,10 @@ export const FLOATING_DISK: SpellDefinition = {
  * > protected from decay and can't become Undead."
  *
  * Ten days is 864,000 seconds. The clock counts seconds precisely so that a
- * duration this long is subtraction rather than a special case.
+ * duration this long is subtraction rather than a special case — which is
+ * exactly what the third sentence needs: `preserves` marks the body, the
+ * ongoing record pins the moment the marking began, and `revive` takes the
+ * span back out of the time since `Vitals.diedAt`.
  */
 export const GENTLE_REPOSE: SpellDefinition = {
   id: 'gentle-repose',
@@ -4451,23 +4454,28 @@ export const GENTLE_REPOSE: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 0 },
-  effects: [],
+  // "You touch a corpse" — a dead creature, which is the only remains the
+  // engine holds. "Or other remains" is the table's and is handed over below.
+  targets: { count: 1, mustBeDead: true },
+  // "days spent under the influence of this spell don't count against the time
+  // limit of spells such as _Raise Dead_" — the whole of the third sentence,
+  // and the one clause in the book where a casting changes another casting's
+  // arithmetic.
+  effects: [{ kind: 'preserves' }],
   durationSeconds: 864_000,
-  // **Two sentences handed over and one that is not**, which is P3-S6's
-  // reading of this spell and the reason it did not leave the ledger with the
-  // other thirty-two. A corpse is an object rather than a creature in state,
-  // and decay and becoming Undead are the DM's. The third sentence is not:
-  // `healing-that-raises-the-dead` was **built**, `Vitals.diedAt` is stamped by
-  // the vitals seam and `revive.within` is subtraction over it, so a rule the
-  // engine runs really does read the time limit this spell extends — and
-  // nothing in the effect vocabulary widens another casting's window.
+  // **Two sentences handed over and one that is executed**, which was P3-S6's
+  // reading of this spell and is now its whole content. Decay and becoming
+  // Undead are the DM's, and so is a heap of remains that is not a creature
+  // the engine holds. The third sentence was the debt this definition named:
+  // `revive.within` is subtraction over `Vitals.diedAt`, so a rule the engine
+  // runs really does read the time limit this spell extends — and now the
+  // `preserves` mark takes the repose's own running span back out of it.
   dmDecides: [
     'You touch a corpse or other remains.',
     "For the duration, the target is protected from decay and can't become Undead.",
   ],
   unmodelled: [
-    'the days this spell buys back are not counted: "days spent under the influence of this spell don’t count against the time limit of spells such as _Raise Dead_" is arithmetic over `Vitals.diedAt`, which `revive` already reads — so a corpse under this casting is refused by a resurrection the book would allow, and no effect kind widens another casting’s window',
+    'the days are taken back only while this casting is still running: `preservedSpan` reads the castings on the body **now**, so a repose that has ended — its ten days run out, a Dispel Magic, the caster dead — gives the window back and a corpse the book would still raise is refused. SRD says "days **spent** under the influence of this spell", which is a fact about days elapsed rather than about the casting standing, and nothing accumulates a span on a creature',
   ],
 };
 
@@ -6846,15 +6854,23 @@ export const MAGIC_MOUTH: SpellDefinition = {
   effects: [],
   // "Duration: Until dispelled" — no deadline, so no timer.
   untilDispelled: true,
-  // **Eight sentences handed over and one that is not.** The object, the
+  // "When you cast this spell, you can have the spell end after it delivers
+  // its message, or it can remain and repeat its message whenever the trigger
+  // occurs." The free dismissal is printed for a **time span** and this spell
+  // has none, so without the caster's word at the casting there is no way out
+  // of it at all. What fires it is the table's — the engine holds no mouth and
+  // no message — so what the fact buys is the permission, and the DM spends it
+  // when the mouth has spoken.
+  offersEndAfterTrigger: true,
+  // **Eight sentences handed over and one that is executed.** The object, the
   // message, the mouth and the circumstance somebody watches for are fiction —
   // "condition" here means circumstance rather than any of the fifteen the
   // engine applies, which is what the tracked map's `'table'` reading of the
-  // opening sentence says. What is left is the caster's choice at the casting,
-  // and it is a debt this definition's own note already named: SRD prints the
-  // free dismissal for a **time span** and this spell lasts until dispelled, so
-  // `endOngoingSpell` refuses it and there is no way to end it early whichever
-  // way the choice went.
+  // opening sentence says. What was left is the caster's choice at the
+  // casting, and it is written now: `offersEndAfterTrigger` is the printed
+  // offer, `CastSpellRequest.endsAfterTrigger` is the answer, and the record
+  // keeps it so `endOngoingSpell` stops refusing a casting whose caster said
+  // it could end.
   dmDecides: [
     'You implant a message within an object in range—a message that is uttered when a trigger condition is met.',
     "Choose an object that you can see and that isn't being worn or carried by another creature.",
@@ -6865,9 +6881,7 @@ export const MAGIC_MOUTH: SpellDefinition = {
     'The trigger can be as general or as detailed as you like, though it must be based on visual or audible conditions that occur within 30 feet of the object.',
     'For example, you could instruct the mouth to speak when any creature moves within 30 feet of the object or when a silver bell rings within 30 feet of it.',
   ],
-  unmodelled: [
-    'the choice the caster makes at the casting — "When you cast this spell, you can have the spell end after it delivers its message" — is not offered: `endOngoingSpell` ends a casting by id and refuses this one, because SRD prints the free dismissal for a **time span** and this spell lasts until dispelled, so there is no way for the caster to end it early however the choice went (`a-casting-dismissed-early`, the same duration form Instant Summons carries)',
-  ],
+
 };
 
 /**
@@ -7122,8 +7136,27 @@ export const GASEOUS_FORM: SpellDefinition = {
       kind: 'roll-mode',
       modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'con' } },
     },
+    // "While in this form, the target's **only** method of movement is a Fly
+    // Speed of 10 feet, and it can hover." One operation rather than a Speed
+    // granted beside four taken away: `speedOf` answers 0 for every other
+    // mode, so a Longstrider standing on the same creature does not put ten
+    // feet of walking back into a body that has no legs. The hovering is what
+    // `flightLost` reads, so a cloud that stops does not fall.
+    { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true },
+    // "Finally, the target can't attack or cast spells." Two halves of one
+    // sentence in one rule: the Attack action is one of the twelve a spender
+    // names itself as, and a casting is the third thing a `forbids` may take —
+    // read by `castSpell`, because a casting comes out of three different
+    // slots and no one of them names it.
+    { kind: 'action-rule', rule: { kind: 'forbids', actions: ['attack'], casting: true } },
   ],
   durationSeconds: 3600,
+  // "or if it takes a Magic action to end the spell on itself" — both
+  // exceptions to the free dismissal in one clause: the **target** ends it,
+  // and the book charges an action. `endOngoingSpellOnSelf` is the door, and
+  // it ends the casting on that target alone, exactly as the trigger below
+  // does for the same sentence's other half.
+  dismissibleBy: 'target',
   // "The spell ends on the target if it drops to 0 Hit Points" — on that
   // target, which is the half of the sentence a higher slot makes visible:
   // level 4 puts two creatures in mist and one of them falling leaves the
@@ -7131,10 +7164,8 @@ export const GASEOUS_FORM: SpellDefinition = {
   endsEarly: [{ on: 'target-drops-to-0', ends: 'target' }],
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
-    'the target ending it "as a Magic action" is not offered: `endOngoingSpell` is the caster’s door and costs nothing, and this sentence prints both exceptions — the **target** ends it, and the book charges a Magic action for the ending',
-    'the movement is not changed: "the target’s only method of movement is a Fly Speed of 10 feet, and it can hover" needs a movement mode, and the engine tracks one Speed and no modes — so the target keeps the Speed it had',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
-    'the things the cloud cannot do are not forbidden: "The target can’t talk or manipulate objects", "any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with", and "the target can’t attack or cast spells" are an action economy rider and a fact about what is in a creature’s hands, and the engine has neither',
+    'two of the things the cloud cannot do are not forbidden: "The target can’t talk or manipulate objects" and "any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with" — talking is nothing anybody spends, and what is in a creature’s hands is a fact the engine does not hold. The other two of that sentence are taken away: the Attack action and the casting',
   ],
 };
 
@@ -9998,16 +10029,23 @@ export const MAJOR_IMAGE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 600,
+  // _Using a Higher-Level Spell Slot._ "The spell lasts until dispelled,
+  // **without requiring Concentration**, if cast with a level 4+ spell slot."
+  // One sentence, two facts the SRD moves independently, so two fields: the
+  // deadline goes away and the Concentration goes with it. Both bands are the
+  // same level here and are still written apart, because Bestow Curse prints
+  // the second without the first.
+  untilDispelledAtSlot: 4,
+  concentrationEndsAtSlot: 4,
   check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
   // **Everything but the slot is handed over**, and the slot is the reason this
   // spell did not leave the ledger with Silent Image. What the image is, the
   // Cube it fits in, its sounds and smells, and the Magic action that moves a
   // thing standing in no square are the DM's; the Investigation check is
-  // `check` and is rolled. The level 4+ sentence is a **debt** and
-  // `a-duration-the-slot-changes` names this spell as the one in the book that
-  // prints it — a slot that changes what *kind* of duration the casting has,
-  // which `durationAtSlot`'s table of seconds cannot say, and Concentration is
-  // a rule the engine really does hold.
+  // `check` and is rolled. The level 4+ sentence is the arithmetic, and it is
+  // written now: `untilDispelledAtSlot` is the ending the slot changes and
+  // `concentrationEndsAtSlot` is the hold it drops, the two halves
+  // `durationAtSlot`'s table of seconds could say neither of.
   dmDecides: [
     'You create the image of an object, a creature, or some other visible phenomenon that is no larger than a 20-foot Cube.',
     "It seems real, including sounds, smells, and temperature appropriate to the thing depicted, but it can't deal damage or cause conditions.",
@@ -10017,9 +10055,6 @@ export const MAJOR_IMAGE: SpellDefinition = {
     'Similarly, you can cause the illusion to make different sounds at different times, even making it carry on a conversation, for example.',
     'Physical interaction with the image reveals it to be an illusion, for things can pass through it.',
     'If a creature discerns the illusion for what it is, the creature can see through the image, and its other sensory qualities become faint to the creature.',
-  ],
-  unmodelled: [
-    'a level 4+ slot is not honoured: "The spell lasts until dispelled, without requiring Concentration" changes what kind of duration the spell has rather than how long it runs, which is the one sentence the slot-banded duration table declines to express',
   ],
 };
 
@@ -14902,12 +14937,13 @@ export const TSUNAMI: SpellDefinition = {
  * > creature becomes Stable. _Cantrip Upgrade._ The range doubles when you
  * > reach levels 5 (30 feet), 11 (60 feet), and 17 (120 feet)."
  *
- * Three sentences, and two of them are debt. `stabilised` is one of the events
- * a DM declares and no `SpellEffect` reaches it; and this is **the one spell in
- * the book whose range grows with the caster**, where `range` is a single fixed
- * `SpellRange` checked on every casting, so a level 5 cleric aiming thirty feet
- * away is refused the reach the SRD gives them. The definition prints the
- * fifteen feet the book prints for a level 1 caster and says the rest.
+ * Three sentences and three mechanisms, all three of them written. `stabilise`
+ * is the effect kind, and the event it emits is the one `stabiliseCreature`
+ * emits when a DM declares the same fact; `mustBeDying` is the target rule,
+ * which selects by a fact about **vitals** and is the reading
+ * `a-target-rule-the-format-cannot-state` had lost; and `rangeAtLevel` is the
+ * one clause in the book that grows a *reach* with the caster, read by
+ * `rangeFeetAt` at the cast and at the shortlist alike.
  */
 export const SPARE_THE_DYING: SpellDefinition = {
   id: 'spare-the-dying',
@@ -14916,17 +14952,17 @@ export const SPARE_THE_DYING: SpellDefinition = {
   school: 'necromancy',
   castingTime: 'action',
   concentration: false,
-  // "Range: 15 feet" — the range a level 1 caster has, and the only one a
-  // fixed `SpellRange` can hold.
+  // "Range: 15 feet" — the reach of a caster who has reached none of the
+  // three levels below.
   range: { kind: 'ranged', feet: 15 },
-  targets: { count: 1 },
-  effects: [],
-  unmodelled: [
-    'nobody is stabilised: `stabilised` is an event a DM declares and no spell effect reaches it, so the one word this cantrip consists of is the table’s to say',
-    'and the target rule goes with it — "a creature within range that has 0 Hit Points and isn’t dead" selects by a fact about vitals, and a target rule counts targets and names creature types',
-    'the range does not double at levels 5, 11 and 17: a definition holds one fixed range, checked before a target is looked at, and the two scaling axes the format has reach dice rather than reach',
-    'so a caster above level 4 is refused a casting the book allows, and the DM stabilises the ally at thirty feet themselves',
-  ],
+  // _Cantrip Upgrade._ "The range doubles when you reach levels 5 (30 feet),
+  // 11 (60 feet), and 17 (120 feet)." The three numbers in the parentheses
+  // rather than the doubling, for `rangeAtLevel`'s own reason.
+  rangeAtLevel: { 5: 30, 11: 60, 17: 120 },
+  // "Choose a creature within range that has 0 Hit Points and isn't dead."
+  targets: { count: 1, mustBeDying: true },
+  // "The creature becomes Stable." The whole of the spell.
+  effects: [{ kind: 'stabilise' }],
 };
 
 /**

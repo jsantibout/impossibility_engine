@@ -184,6 +184,7 @@ import {
   endConcentration,
   endFeature,
   endOngoingSpell,
+  endOngoingSpellOnSelf,
   endRest,
   equipItem,
   extendFeature,
@@ -2454,6 +2455,12 @@ const CAST_SPELL = tool({
       .describe(
         'How a named creature rolls the saving throws this casting forces on it, for a casting that has bought the right to say so — SRD Heightened Spell’s "give one target of the spell Disadvantage on saves against the spell". Refused outright unless an option in `usingOptions` offers it, refused for a mode that option does not offer, and refused for more creatures than it reaches. This is not a roll and never could be: the engine still throws every die.',
       ),
+    endsAfterTrigger: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Choose, at the casting, that this one can be ended early \u2014 SRD Magic Mouth\u2019s "When you cast this spell, you can have the spell end after it delivers its message, or it can remain and repeat its message whenever the trigger occurs." The spell lasts until dispelled, and the book gives a caster no way out of a casting like that, so this is the whole of the permission: say it here and `end_ongoing_spell` will end this casting; leave it out and it will not. What the mouth does, and when it has spoken, is yours. Naming it for a spell that prints no such choice is refused.',
+      ),
     ritual: z
       .literal(true)
       .optional()
@@ -2522,6 +2529,7 @@ const CAST_SPELL = tool({
               args.saveModes.map((one) => [who(one.target), one.mode]),
             ),
           }),
+      ...(args.endsAfterTrigger === true ? { endsAfterTrigger: true } : {}),
       ...(args.hold === true ? { hold: true } : {}),
       ...(args.ritual === true ? { ritual: true as const } : {}),
       ...(args.answers === undefined ? {} : { answers: args.answers }),
@@ -2810,6 +2818,28 @@ const WAKE_CREATURE = tool({
       context,
       wakeCreature(context.campaign.state(), who(args.who), { target: who(args.target) }, identity(context)),
       { woke: args.target },
+    ),
+});
+
+const END_SPELL_ON_SELF = tool({
+  name: 'end_spell_on_self',
+  description:
+    'Spend a Magic action ending a spell that is running on you \u2014 SRD Gaseous Form\u2019s "The spell ends on the target if it drops to 0 Hit Points or if it takes a Magic action to end the spell on itself". Not the caster\u2019s dismissal, which is `end_ongoing_spell` and costs nothing: this is the **target** letting go, it costs the action, and it ends the casting on that creature alone \u2014 anybody else the same casting caught stays caught. A spell whose text gives its target no such ending is refused, and so is a creature the casting is not on.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The creature the spell is on, spending the action.'),
+    castingId: z.string().min(1).describe('From the cast_spell that started it.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      endOngoingSpellOnSelf(
+        context.campaign.state(),
+        who(args.who),
+        args.castingId,
+        identity(context),
+      ),
+      { ended: args.castingId },
     ),
 });
 
@@ -5462,6 +5492,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   END_FEATURE,
   END_ATTUNEMENT,
   END_ONGOING_SPELL,
+  END_SPELL_ON_SELF,
   END_REST,
   END_TURN,
   EQUIP_ITEM,

@@ -145,6 +145,7 @@ export {
   continueCasting,
   endConcentration,
   endOngoingSpell,
+  endOngoingSpellOnSelf,
   nextCastingId,
   resolveDamage,
 } from './commands/casting.js';

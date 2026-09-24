@@ -100,9 +100,17 @@ import {
  * description names Major Image as the one spell in the book that prints it;
  * and Gentle Repose's extension of the time limit on raising the dead is
  * arithmetic over `Vitals.diedAt`, which `healing-that-raises-the-dead` built
- * and which a rule — `revive`'s window — really does read. Those three are
- * debts, they are filed as debts, and they are the reason this file's
- * population is not simply the ledger's column.
+ * and which a rule — `revive`'s window — really does read.
+ *
+ * **All three have since been paid**, which is the reading holding rather than
+ * the reading being dropped: `offersEndAfterTrigger` is Magic Mouth's choice,
+ * `untilDispelledAtSlot` is Major Image's level 4+ slot, and `preserves` marks
+ * the body Gentle Repose keeps so `revive` takes the span back out of its own
+ * window. Each spell still hands over what it always handed over, which is why
+ * all three are still in this file's population — and that population is still
+ * not simply the ledger's column, because a spell whose every debt is paid and
+ * whose fiction is the table's is finished business the ledger stops counting
+ * and this file goes on checking.
  */
 
 const HANDING_OVER: readonly string[] = SPELL_DEFINITIONS.filter(
@@ -136,6 +144,7 @@ const id = (s: string) => asCharacterId(s);
 const CLERIC = id('cleric');
 const SLEEPER = id('sleeper');
 const RAVEN = id('raven');
+const CORPSE = id('corpse');
 
 const sheet = (): CharacterSheet => ({
   level: 13,
@@ -186,6 +195,11 @@ const SETUP: readonly GameEvent[] = [
   // rule and its save read are all here — and 0 is the one rating that leaves
   // the die something to decide.
   added(RAVEN, { creatureType: 'Beast', size: 'tiny', cr: 0 }),
+  added(CORPSE),
+  // **And a body**, for SRD Gentle Repose: "You touch a corpse or other
+  // remains" is a target rule now, and refusing the sleeper is the spell
+  // working rather than the fixture being in the way.
+  { type: 'creature-died', id: CORPSE, cause: 'the fixture' },
   // Every level the handed-over spells are cast at. The sweep widened the
   // population from three level-5-and-7 rites to eleven spells between level 2
   // and level 9; P3-S6 widened it again, to every tracked spell in level-5
@@ -220,6 +234,12 @@ const SETUP: readonly GameEvent[] = [
   },
   { type: 'sight-declared', from: CLERIC, to: SLEEPER, seen: true },
   { type: 'sight-declared', from: CLERIC, to: RAVEN, seen: true },
+  {
+    type: 'creature-placed',
+    id: CORPSE,
+    placement: { from: { creature: CLERIC }, feet: 5, bearing: 90 },
+  },
+  { type: 'sight-declared', from: CLERIC, to: CORPSE, seen: true },
   {
     type: 'spellcasting-declared',
     id: CLERIC,
@@ -285,7 +305,13 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
   const targets =
     definition.targets.count === 0
       ? []
-      : [definition.targets.self === true ? CLERIC : bodyFor(definition)];
+      : [
+          definition.targets.self === true
+            ? CLERIC
+            : definition.targets.mustBeDead === true
+              ? CORPSE
+              : bodyFor(definition),
+        ];
   return {
     targets,
     // **An area the caster puts somewhere needs the point.** A `self` origin
