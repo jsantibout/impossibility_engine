@@ -1682,6 +1682,67 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     /**
+     * SRD Fire Aura, on the Azer Sentinel and the Salamander: "At the end of
+     * each of the azer's turns, each creature of the azer's choice in a 5-foot
+     * Emanation originating from the azer takes 5 (1d10) Fire damage unless the
+     * azer has the Incapacitated condition."
+     *
+     * **The sibling of the start-of-turn saves the boundary already settles**,
+     * and a damage roll rather than a save: nobody rolls anything but the dice.
+     *
+     * Every part of the sentence that varies between the blocks that print it
+     * is carried, which is the rule {@link MonsterTraitSchema} states:
+     *
+     * - the **moment**, because the book writes both and they are a round
+     *   apart;
+     * - the **radius**, which is five feet on three blocks and ten on another;
+     * - the **dice and the type**, which differ on every one of them;
+     * - **whose choice it is**, because the Azer burns whom it likes and the
+     *   Balor burns everybody, and a reader that assumed either would be
+     *   playing somebody's creature for them;
+     * - the **Incapacitated clause**, which two of the four print.
+     *
+     * The Fire Elemental's is refused whole, which is the anchoring rule doing
+     * its work: its sentence ends "Creatures and flammable objects in the
+     * Emanation start burning", and there is no burning here.
+     */
+    kind: z.literal('damages-creatures-in-an-emanation'),
+    /** "At the **end** of each of the azer's turns". */
+    moment: z.enum(['start', 'end']),
+    /** "a 5-foot Emanation originating from the azer". */
+    feet: z.number().int().min(0),
+    /** "5 (**1d10**) Fire damage" — the notation, which is what is rolled. */
+    dice: z.string().regex(/^\d+d\d+$/),
+    /** Lower-cased, in the engine's own vocabulary. */
+    damageType: z.string().min(1),
+    /**
+     * "each creature **of the azer's choice**".
+     *
+     * A choice the engine has nobody to make, so the command that ends the
+     * turn takes the creatures the table names and an empty answer burns
+     * nobody. False is the Balor's sentence: everybody inside, no choice.
+     */
+    chosen: z.boolean(),
+    /** "unless the azer has the Incapacitated condition". */
+    unlessIncapacitated: z.boolean(),
+  }),
+  z.object({
+    /**
+     * SRD Barbed Hide, on the Barbed Devil: "At the start of each of its turns,
+     * the devil deals 5 (1d10) Piercing damage to any creature it is grappling
+     * or any creature grappling it."
+     *
+     * The same moment read the same way, caught by the grapple relation rather
+     * than by feet — so there is no radius and no choice, and both directions
+     * of the hold are in the sentence.
+     */
+    kind: z.literal('damages-creatures-it-is-holding'),
+    moment: z.enum(['start', 'end']),
+    dice: z.string().regex(/^\d+d\d+$/),
+    damageType: z.string().min(1),
+  }),
+  z.object({
+    /**
      * SRD Blurred Form, on the Steam Mephit: "Attack rolls against the mephit
      * are made with Disadvantage unless the mephit has the Incapacitated
      * condition."

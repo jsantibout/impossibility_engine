@@ -502,6 +502,70 @@ describe('a trait a damage type sets off', () => {
   });
 });
 
+describe('a trait a turn boundary owes', () => {
+  /**
+   * SRD Fire Aura, printed four ways: the Azer's choice and its Incapacitated
+   * clause, the Salamander's choice without one, the Balor's no choice at all.
+   * Every part that varies is carried.
+   */
+  it('reads the moment, the radius, the dice, the choice and the gate', () => {
+    expect(traitOf('azer-sentinel', 'Fire Aura')).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 5,
+      dice: '1d10',
+      damageType: 'fire',
+      chosen: true,
+      unlessIncapacitated: true,
+    });
+    expect(traitOf('salamander', 'Fire Aura')).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 5,
+      dice: '2d6',
+      damageType: 'fire',
+      chosen: true,
+      unlessIncapacitated: false,
+    });
+    expect(traitOf('balor', 'Fire Aura')).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 5,
+      dice: '3d8',
+      damageType: 'fire',
+      chosen: false,
+      unlessIncapacitated: false,
+    });
+  });
+
+  /**
+   * And the Fire Elemental's, which is the anchoring rule doing its work: its
+   * sentence ends "Creatures and flammable objects in the Emanation start
+   * burning", and there is no burning here.
+   */
+  it('refuses the aura whose sentence sets the room alight', () => {
+    expect(traitOf('fire-elemental', 'Fire Aura')).toBeNull();
+  });
+
+  /** SRD Barbed Hide: the same moment, caught by the hold rather than by feet. */
+  it('reads the damage a hold owes at the start of a turn', () => {
+    expect(traitOf('barbed-devil', 'Barbed Hide')).toEqual({
+      kind: 'damages-creatures-it-is-holding',
+      moment: 'start',
+      dice: '1d10',
+      damageType: 'piercing',
+    });
+  });
+
+  it('refuses a hold sentence that names only one direction', () => {
+    expect(
+      parseTraitShape(
+        'At the start of each of its turns, the devil deals 5 (1d10) Piercing damage to any creature it is grappling.',
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('three more sentences the engine already had a seam for', () => {
   /**
    * SRD Freeze: the same trigger SRD Aversion to Fire prints, with a Speed on

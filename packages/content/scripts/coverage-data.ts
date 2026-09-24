@@ -1182,6 +1182,8 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Freeze | the same again, with a Speed on the end of it |
  * | SRD Blurred Form | `adaptMonster`, as the first printed `against-holder` mode |
  * | SRD Beast of Burden | `capacitySizeOf`, which reads SRD Powerful Build's own grant |
+ * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named |
+ * | SRD Barbed Hide | the same, at the start, caught by the hold rather than by feet |
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1197,6 +1199,8 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'allies-in-emanation-have-advantage',
   'carries-as-a-larger-creature',
   'climbs-without-a-check',
+  'damages-creatures-in-an-emanation',
+  'damages-creatures-it-is-holding',
   'deals-double-damage-to-objects',
   'disadvantage-in-sunlight',
   'disadvantage-on-attacks-against-it',

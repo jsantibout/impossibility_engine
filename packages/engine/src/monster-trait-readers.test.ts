@@ -40,6 +40,7 @@ import {
   declareObject,
   placeCreatureInScene,
   resolveMove,
+  resolveTurn,
   setScene,
   takeDash,
   takeDisengage,
@@ -1030,6 +1031,198 @@ describe('a trait a damage type sets off', () => {
     expect(struck.amount).toBe(11);
     const after = fold(SEED, [...log, ...struck.events]);
     expect(rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes).toEqual([]);
+  });
+});
+
+describe('SRD Fire Aura and SRD Barbed Hide: what a stat block owes at a boundary', () => {
+  const AZER = id('azer');
+  const GOBLIN_A = id('goblin-a');
+  const GOBLIN_B = id('goblin-b');
+  const FRIEND = id('friend');
+
+  /**
+   * An azer with two goblins and a friend all within its five feet, and the
+   * azer going first so that ending its turn is what the test does.
+   */
+  const around = (block = 'azer-sentinel'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const add = (who: CharacterId, id_: string): void => {
+      log.push(...unwrap(addCreature(state(), SRD_CONTENT, who, id_), id_).events);
+    };
+    const step = (what: string, produce: () => ReturnType<typeof declareCreatureSide>): void => {
+      log.push(...unwrap(produce(), what));
+    };
+
+    add(AZER, block);
+    add(GOBLIN_A, 'goblin-warrior');
+    add(GOBLIN_B, 'goblin-warrior');
+    add(FRIEND, 'goblin-warrior');
+    step('the azer takes a side', () => declareCreatureSide(state(), AZER, 'monsters'));
+    for (const who of [GOBLIN_A, GOBLIN_B, FRIEND]) {
+      step(`${who} takes the other`, () => declareCreatureSide(state(), who, 'party'));
+    }
+    step('the field', () => setScene(state(), { width: 400, depth: 400, height: 200 }));
+    step('a stone on it', () => addSceneLandmark(state(), 'the stone', { x: 100, y: 100, z: 0 }));
+    step('the azer on the stone', () =>
+      placeCreatureInScene(state(), AZER, { from: { landmark: 'the stone' }, feet: 0 }),
+    );
+    const bearings = { [GOBLIN_A]: 0, [GOBLIN_B]: 90, [FRIEND]: 180 } as Record<string, number>;
+    for (const who of [GOBLIN_A, GOBLIN_B, FRIEND]) {
+      step(`${who} beside it`, () =>
+        placeCreatureInScene(state(), who, {
+          from: { landmark: 'the stone' },
+          feet: 5,
+          bearing: bearings[who]!,
+        }),
+      );
+    }
+    log.push({
+      type: 'combat-started',
+      combatants: [
+        { id: AZER, initiative: 20, speed: 30 },
+        { id: GOBLIN_A, initiative: 15, speed: 30 },
+        { id: GOBLIN_B, initiative: 10, speed: 30 },
+        { id: FRIEND, initiative: 5, speed: 30 },
+      ],
+    });
+    return log;
+  };
+
+  /** How much each creature lost when the azer's turn ended. */
+  const burnt = (log: readonly GameEvent[], burns?: readonly CharacterId[]): Record<string, number> => {
+    const before = at(log);
+    const turned = unwrap(
+      resolveTurn(before, supply(), burns === undefined ? {} : { burns }),
+      'the turn',
+    );
+    const after = fold(SEED, [...log, ...turned.events]);
+    const lost: Record<string, number> = {};
+    for (const who of [AZER, GOBLIN_A, GOBLIN_B, FRIEND]) {
+      lost[who] = before.creatures[who]!.vitals.hp - after.creatures[who]!.vitals.hp;
+    }
+    return lost;
+  };
+
+  /**
+   * "At the end of each of the azer's turns, each creature of the azer's
+   * choice in a 5-foot Emanation originating from the azer takes 5 (1d10) Fire
+   * damage." The choice is the DM's and the engine never makes it.
+   */
+  it('burns the creatures the table named and nobody else', () => {
+    const lost = burnt(around(), [GOBLIN_A, GOBLIN_B]);
+    expect(lost[GOBLIN_A]).toBeGreaterThan(0);
+    expect(lost[GOBLIN_B]).toBeGreaterThan(0);
+    expect(lost[FRIEND]).toBe(0);
+    // SRD: an Emanation "ignores the creature it originates from".
+    expect(lost[AZER]).toBe(0);
+  });
+
+  /**
+   * **And an answer that names nobody burns nobody**, which is the only safe
+   * default: picking for the DM would be the engine playing somebody's azer.
+   */
+  it('burns nobody where the table named nobody', () => {
+    const lost = burnt(around());
+    expect(lost[GOBLIN_A]).toBe(0);
+    expect(lost[GOBLIN_B]).toBe(0);
+  });
+
+  /** "unless the azer has the Incapacitated condition." */
+  it('burns nobody while the azer is Incapacitated', () => {
+    const log = [
+      ...around(),
+      {
+        type: 'condition-applied' as const,
+        id: AZER,
+        condition: 'incapacitated' as const,
+        source: 'the test',
+      },
+    ];
+    expect(burnt(log, [GOBLIN_A, GOBLIN_B])[GOBLIN_A]).toBe(0);
+  });
+
+  /** A block that prints no such sentence burns nobody however it is asked. */
+  it('burns nobody for a block that prints no such sentence', () => {
+    expect(burnt(around('bandit'), [GOBLIN_A, GOBLIN_B])[GOBLIN_A]).toBe(0);
+  });
+
+  /**
+   * And a boundary asked to advance with no generator refuses rather than
+   * skipping the aura — the fourth member of the family `payout_owed`,
+   * `damage_owed`, `death_save_owed` and `recharge_owed` already belong to.
+   * Forgetting a rule has to stop the game rather than quietly drop it.
+   */
+  it('refuses to advance without a generator to roll the aura', () => {
+    const refused = resolveTurn(at(around()), undefined, { burns: [GOBLIN_A] });
+    expect(isErr(refused) && refused.code).toBe('boundary_damage_owed');
+  });
+});
+
+describe('SRD Barbed Hide: the damage a hold owes at the start of a turn', () => {
+  const DEVIL = id('devil');
+  const FIGHTER = id('fighter');
+
+  /**
+   * A devil grappling a fighter, with the fighter's turn about to end so that
+   * the devil's is the one that begins.
+   */
+  const holding = (block = 'barbed-devil'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const add = (who: CharacterId, id_: string): void => {
+      log.push(...unwrap(addCreature(state(), SRD_CONTENT, who, id_), id_).events);
+    };
+
+    add(DEVIL, block);
+    add(FIGHTER, 'goblin-warrior');
+    log.push(
+      ...unwrap(declareCreatureSide(state(), DEVIL, 'monsters'), 'a side'),
+      ...unwrap(declareCreatureSide(state(), FIGHTER, 'party'), 'the other'),
+      {
+        type: 'condition-applied',
+        id: FIGHTER,
+        condition: 'grappled',
+        source: `grapple:${DEVIL}`,
+      },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: FIGHTER, initiative: 20, speed: 30 },
+          { id: DEVIL, initiative: 5, speed: 30 },
+        ],
+      },
+    );
+    return log;
+  };
+
+  const hurtAtTheStart = (log: readonly GameEvent[]): number => {
+    const before = at(log);
+    const turned = unwrap(resolveTurn(before, supply()), 'the turn');
+    const after = fold(SEED, [...log, ...turned.events]);
+    return before.creatures[FIGHTER]!.vitals.hp - after.creatures[FIGHTER]!.vitals.hp;
+  };
+
+  /**
+   * "At the start of each of its turns, the devil deals 5 (1d10) Piercing
+   * damage to any creature it is grappling or any creature grappling it." No
+   * choice, no feet, and the hold is the whole of the reach.
+   */
+  it('hurts the creature it is holding when its turn begins', () => {
+    expect(hurtAtTheStart(holding())).toBeGreaterThan(0);
+  });
+
+  /** And nobody at all where there is no hold. */
+  it('hurts nobody where nothing is held', () => {
+    const loose = holding().filter(
+      (event) => !(event.type === 'condition-applied' && event.condition === 'grappled'),
+    );
+    expect(hurtAtTheStart(loose)).toBe(0);
+  });
+
+  /** And a block that prints no such sentence hurts nobody it is holding. */
+  it('hurts nobody for a block that prints no such sentence', () => {
+    expect(hurtAtTheStart(holding('bandit'))).toBe(0);
   });
 });
 

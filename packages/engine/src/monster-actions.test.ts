@@ -203,8 +203,9 @@ describe('the adapter carries what a block says it does', () => {
     const spider = adaptMonster(statBlock('giant-spider'), id('spider'));
     // A block whose every trait is still English, which is most of them.
     const ogre = adaptMonster(statBlock('ogre'), id('ogre'));
-    // And one whose two traits are both read now: Heated Body is prose and
-    // Illumination is the sentence the light model added.
+    // And one whose three traits are all read now: Heated Body is prose,
+    // Illumination is the sentence the light model added, and Fire Aura is the
+    // one the turn boundary settles.
     const azer = adaptMonster(statBlock('azer-sentinel'), id('azer'));
 
     expect(wolf.sheet.stated?.traits).toEqual([
@@ -215,6 +216,15 @@ describe('the adapter carries what a block says it does', () => {
     expect(spider.sheet.stated?.traits).toEqual([{ kind: 'climbs-without-a-check' }]);
     expect(ogre.sheet.stated?.traits ?? []).toEqual([]);
     expect(azer.sheet.stated?.traits).toEqual([
+      {
+        kind: 'damages-creatures-in-an-emanation',
+        moment: 'end',
+        feet: 5,
+        dice: '1d10',
+        damageType: 'fire',
+        chosen: true,
+        unlessIncapacitated: true,
+      },
       { kind: 'sheds-light', brightRadiusFeet: 10, dimBeyondFeet: 10 },
     ]);
   });

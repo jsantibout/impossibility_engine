@@ -5179,11 +5179,32 @@ const END_TURN = tool({
   description:
     'End the current creature’s turn and advance the order. The engine raises and rolls whatever the boundary owes — repeated saves, scheduled damage, effects expiring. It refuses while a debt is outstanding, and the refusal says which.',
   mutates: true,
-  input: z.object({}),
-  run: (context) =>
+  input: z.object({
+    /**
+     * SRD Fire Aura: "each creature of the azer's choice in a 5-foot Emanation
+     * originating from the azer takes 5 (1d10) Fire damage."
+     *
+     * **A decision the rules leave open, which is what a DM's door is for.**
+     * The engine rolls the dice and measures the emanation; whom an azer picks
+     * out of the creatures standing in it is not a fact the engine holds, and
+     * inventing one would be the engine playing somebody's creature. Naming
+     * nobody burns nobody, which is a legal way to play an azer; naming
+     * somebody the emanation does not reach simply catches nobody.
+     */
+    burns: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Whom the creature whose turn is ending chooses to catch with a printed aura that says "of its choice". Omit it and nobody is caught.',
+      ),
+  }),
+  run: (context, args) =>
     settle(
       context,
-      resolveTurn(context.campaign.state(), context.campaign.supply(), identity(context)),
+      resolveTurn(context.campaign.state(), context.campaign.supply(), {
+        ...identity(context),
+        ...(args.burns === undefined ? {} : { burns: args.burns.map(who) }),
+      }),
       (value) => value.events,
       (value) => ({
         savesRolled: value.saves.map((save) => ({ label: save.label, success: save.success })),

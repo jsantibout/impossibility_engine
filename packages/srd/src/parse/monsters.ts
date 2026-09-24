@@ -760,6 +760,39 @@ const damageTypeOf = (printed: string): string | null => {
 };
 
 /**
+ * SRD Fire Aura: "At the end of each of the azer's turns, each creature of the
+ * azer's choice in a 5-foot Emanation originating from the azer takes 5 (1d10)
+ * Fire damage unless the azer has the Incapacitated condition."
+ *
+ * The choice clause and the Incapacitated clause are **captured** rather than
+ * matched loosely, because the book prints each of them on some blocks and not
+ * on others and either read away is a rule nobody printed: a Balor that chose
+ * its victims, or an Azer that burned while Stunned.
+ *
+ * Anchored end to end like everything else, which is what refuses the Fire
+ * Elemental: its sentence ends "Creatures and flammable objects in the
+ * Emanation start burning", and there is no burning here.
+ */
+const EMANATION_DAMAGE = new RegExp(
+  `^At the (start|end) of each of ${SUBJECT} turns, each creature (of ${SUBJECT} choice )?` +
+    `in a (\\d+)-foot Emanation originating from ${SUBJECT} takes \\d+ \\((\\d+d\\d+)\\) (\\w+) damage` +
+    `( unless ${SUBJECT} has the Incapacitated condition)?\\.$`,
+);
+
+/**
+ * SRD Barbed Hide: "At the start of each of its turns, the devil deals 5
+ * (1d10) Piercing damage to any creature it is grappling or any creature
+ * grappling it."
+ *
+ * Both directions of the hold, because the sentence prints both and a reader
+ * that took one would be enforcing half of it.
+ */
+const HELD_CREATURE_DAMAGE = new RegExp(
+  `^At the (start|end) of each of its turns, ${SUBJECT} deals \\d+ \\((\\d+d\\d+)\\) (\\w+) damage ` +
+    `to any creature it is grappling or any creature grappling it\\.$`,
+);
+
+/**
  * SRD Freeze: "If the elemental takes Cold damage, its Speed decreases by 20
  * feet until the end of its next turn."
  *
@@ -1144,6 +1177,35 @@ export function parseTraitShape(text: string): MonsterTrait | null {
     const damageType = damageTypeOf(slowed[1]!);
     if (damageType !== null) {
       return { kind: 'speed-cut-after-taking-a-damage-type', damageType, feet: Number(slowed[2]) };
+    }
+  }
+
+  const burns = EMANATION_DAMAGE.exec(text);
+  if (burns !== null) {
+    const damageType = damageTypeOf(burns[5]!);
+    if (damageType !== null) {
+      return {
+        kind: 'damages-creatures-in-an-emanation',
+        moment: burns[1] as 'start' | 'end',
+        feet: Number(burns[3]),
+        dice: burns[4]!,
+        damageType,
+        chosen: burns[2] !== undefined,
+        unlessIncapacitated: burns[6] !== undefined,
+      };
+    }
+  }
+
+  const barbs = HELD_CREATURE_DAMAGE.exec(text);
+  if (barbs !== null) {
+    const damageType = damageTypeOf(barbs[3]!);
+    if (damageType !== null) {
+      return {
+        kind: 'damages-creatures-it-is-holding',
+        moment: barbs[1] as 'start' | 'end',
+        dice: barbs[2]!,
+        damageType,
+      };
     }
   }
 

@@ -1103,6 +1103,64 @@ export const printedTypeSlow = (
   return null;
 };
 
+/** One printed sentence that hurts somebody when a turn begins or ends. */
+export interface PrintedBoundaryDamage {
+  readonly moment: TurnMoment;
+  readonly dice: string;
+  readonly damageType: string;
+  /**
+   * Who it catches: a radius round the holder, or whoever the hold reaches.
+   *
+   * Two shapes rather than an optional radius, because they are two questions
+   * and the boundary asks a different thing of each — `distanceBetween` for
+   * the first and `grapplesOn` for the second.
+   */
+  readonly catches:
+    | { readonly kind: 'emanation'; readonly feet: number; readonly chosen: boolean }
+    | { readonly kind: 'held' };
+  /** SRD Fire Aura's "unless the azer has the Incapacitated condition". */
+  readonly unlessIncapacitated: boolean;
+}
+
+/**
+ * SRD Fire Aura and SRD Barbed Hide: what a block's own turn boundary owes.
+ *
+ * Both sentences are the same moment — "at the end of each of the azer's
+ * turns", "at the start of each of its turns" — and differ in whom they catch,
+ * so they are one reader over two shapes rather than two readers that would
+ * have to agree about the moment.
+ *
+ * **In printed order, and all of them**, because a block may print two: the
+ * list is what the boundary walks, and returning the first would be a rule
+ * silently dropped by a stat block that happened to print a second.
+ */
+export const printedBoundaryDamage = (
+  sheet: CharacterSheet,
+): readonly PrintedBoundaryDamage[] => {
+  const found: PrintedBoundaryDamage[] = [];
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'damages-creatures-in-an-emanation') {
+      found.push({
+        moment: trait.moment === 'start' ? 'start-of-turn' : 'end-of-turn',
+        dice: trait.dice,
+        damageType: trait.damageType,
+        catches: { kind: 'emanation', feet: trait.feet, chosen: trait.chosen },
+        unlessIncapacitated: trait.unlessIncapacitated,
+      });
+    }
+    if (trait.kind === 'damages-creatures-it-is-holding') {
+      found.push({
+        moment: trait.moment === 'start' ? 'start-of-turn' : 'end-of-turn',
+        dice: trait.dice,
+        damageType: trait.damageType,
+        catches: { kind: 'held' },
+        unlessIncapacitated: false,
+      });
+    }
+  }
+  return found;
+};
+
 /**
  * The Speeds a block prints beside its walking one, onto the sheet.
  *
