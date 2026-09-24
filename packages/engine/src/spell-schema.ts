@@ -33,6 +33,7 @@ import type {
   DiceScaling,
   LightRider,
   ModifierRider,
+  OutcomeRiders,
   SequencedBurst,
   RiderDuration,
   SpellArea,
@@ -1065,6 +1066,87 @@ function checkCastingRepeat(
   }
 }
 
+/**
+ * A repeat save on a `save` whose failure imposed no condition.
+ *
+ * SRD Ray of Enfeeblement: "On a failed save, the target has Disadvantage on
+ * Strength-based D20 Tests for the duration — The target repeats the save at
+ * the end of each of its turns, ending the spell on a success." One saving
+ * throw, a failure that hands out grants and imposes nothing, and a repeat.
+ *
+ * **The second host a casting may carry a repeat on**, and the first was SRD
+ * Searing Smite — see {@link checkCastingRepeat}, whose three rules this
+ * shares because the hook rides on the same timer: a success ends the casting
+ * because there is no condition instance for `end-on-target` to release, a
+ * failure deepens nothing because there is no condition to deepen, and
+ * {@link checkCastingRepeatLifetime} insists on the span the deadline is.
+ *
+ * **The one rule it does not share is the ability**, and the fork is the one
+ * {@link SpellRepeatSave.ability} draws: Searing Smite's host rolls no save,
+ * so the repeat has to name one; this host rolled the very save being
+ * repeated, so naming a second would be a second answer to one sentence. It is
+ * refused in the same words a rider's is.
+ *
+ * `beforeTheSave` is refused for the reason a rider's is: the payout is read
+ * off the hook by the boundary and pinned onto it by the command that hangs
+ * it, and the resolver that hangs *this* hook pins no amount — so a
+ * definition writing one here would be promising damage nothing would deal.
+ */
+function checkSaveCastingRepeat(
+  repeats: SpellRepeatSave,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const at = `${path}.repeats`;
+  if (!readsAsObject(repeats, at, 'a repeat save is an object naming when it fires', found)) {
+    return;
+  }
+
+  if (!TURN_MOMENT_NAMES.has(repeats.at as unknown as string)) {
+    found.push({
+      field: `${at}.at`,
+      code: 'bad_moment',
+      reason: `"${String(repeats.at)}" is not a moment in a turn`,
+    });
+  }
+
+  if (repeats.onSuccess !== 'end-casting') {
+    found.push({
+      field: `${at}.onSuccess`,
+      code: 'repeat_without_condition',
+      reason:
+        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so there is nothing on the target for a success to end, and the hook rides on the casting instead; SRD writes "ending the spell on a success", which is "end-casting"',
+    });
+  }
+
+  if (repeats.ability !== undefined) {
+    found.push({
+      field: `${at}.ability`,
+      code: 'repeat_states_an_ability',
+      reason:
+        'SRD writes "the target repeats the save" — the one this effect already rolled — so a repeat on a saving throw names no ability of its own',
+    });
+  }
+
+  if (repeats.beforeTheSave !== undefined) {
+    found.push({
+      field: `${at}.beforeTheSave`,
+      code: 'repeat_deals_no_damage',
+      reason:
+        'damage before a repeat save is pinned onto the hook by the command that hangs it, and a save’s own hook pins no amount; written here it would be dealt by nothing',
+    });
+  }
+
+  if (repeats.onFailure !== undefined) {
+    found.push({
+      field: `${at}.onFailure`,
+      code: 'deepening_without_a_condition',
+      reason:
+        'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
+    });
+  }
+}
+
 function checkConditionRider(
   rider: ConditionRider | undefined,
   namePath: string,
@@ -1288,14 +1370,7 @@ function checkSaveWithoutCondition(
     });
   }
 
-  if (effect.repeats !== undefined) {
-    found.push({
-      field: `${path}.repeats`,
-      code: 'repeat_without_condition',
-      reason:
-        'a repeat save is filed on the condition instance the failure created, and this failure creates none, so no turn boundary would ever raise it',
-    });
-  }
+  if (effect.repeats !== undefined) checkSaveCastingRepeat(effect.repeats, path, found);
 
   for (const field of ['lasts', 'check', 'outlivesCasting'] as const) {
     if (effect[field] === undefined) continue;
@@ -1924,6 +1999,82 @@ function checkShedLight(
  * know would land as a push.
  */
 const MOVEMENT_KINDS: ReadonlySet<string> = new Set(['push', 'lift']);
+
+/**
+ * The four things a **success** may carry, and the four it may not.
+ *
+ * SRD Ray of Enfeeblement is the one spell in reach whose success costs the
+ * target something: "On a successful save, the target has Disadvantage on the
+ * next attack roll it makes until the start of your next turn." So
+ * {@link save.onSuccessRiders} reuses {@link OutcomeRiders} whole and this is
+ * where the half of it a success may write is decided.
+ *
+ * | Allowed | Because the book writes it |
+ * |---|---|
+ * | `modifiers` | Ray of Enfeeblement's Disadvantage |
+ * | `conditions` | Flesh to Stone's "its Speed is 0" is the same position |
+ * | `movement` | a success that still moves the creature is a sentence of the same shape |
+ * | `spends` | and so is one that costs it a slot of its turn |
+ *
+ * **`delayed` is refused on the book's authority**: no printed success deals
+ * damage, and a definition able to say so would be a spell rewarding a save
+ * with a hit. The other three are refused because nothing in the book hangs
+ * them on a success either, and a slot no sentence writes is the guess this
+ * file exists to refuse — `light`, `drops` and `breaksConcentration` each ride
+ * a failure in every sentence that prints them.
+ *
+ * Everything that *is* allowed is then held to the ordinary rules by
+ * {@link checkRiders}, so a mode on a success is judged exactly as a mode on a
+ * failure is.
+ */
+function checkSuccessRiders(
+  riders: OutcomeRiders,
+  level: number,
+  path: string,
+  host: RiderHost,
+  found: SpellDefinitionProblem[],
+): void {
+  if (
+    !readsAsObject(
+      riders,
+      path,
+      'what a success carries is an object holding the rider slots it fills',
+      found,
+    )
+  ) {
+    return;
+  }
+
+  if (riders.delayed !== undefined) {
+    found.push({
+      field: `${path}.delayed`,
+      code: 'damage_on_a_success',
+      reason:
+        'no saving throw in the book rewards a success with damage; a hit a success still takes is the failure branch, or the host\u2019s own onSuccess',
+    });
+  }
+  for (const slot of ['light', 'drops', 'breaksConcentration'] as const) {
+    if (riders[slot] === undefined) continue;
+    found.push({
+      field: `${path}.${slot}`,
+      code: 'rider_off_a_success',
+      reason: `every sentence the book prints hangs "${slot}" on a failure; a success may grant a mode, impose a condition, move the creature or use up a slot of its turn`,
+    });
+  }
+
+  checkRiders(
+    {
+      ...(riders.conditions === undefined ? {} : { conditions: riders.conditions }),
+      ...(riders.modifiers === undefined ? {} : { modifiers: riders.modifiers }),
+      ...(riders.movement === undefined ? {} : { movement: riders.movement }),
+      ...(riders.spends === undefined ? {} : { spends: riders.spends }),
+    },
+    level,
+    path,
+    host,
+    found,
+  );
+}
 
 function checkRiders(
   riders: {
@@ -2622,6 +2773,19 @@ function checkEffect(
         );
       }
       checkRiders(source, level, path, host(true), found);
+      // And what a **success** carries, where the sentence gives it something
+      // — SRD Ray of Enfeeblement. The slot is narrowed before it is walked,
+      // so an author is told which rider a success may not hang as well as
+      // what is wrong with the ones it may. See {@link checkSuccessRiders}.
+      if (effect.onSuccessRiders !== undefined) {
+        checkSuccessRiders(
+          effect.onSuccessRiders,
+          level,
+          `${path}.onSuccessRiders`,
+          host(true),
+          found,
+        );
+      }
       return;
     }
 
@@ -6332,9 +6496,34 @@ function checkCastingRepeatLifetime(
   found: SpellDefinitionProblem[],
 ): void {
   const hosted = definition.effects.some(
-    (effect) => effect.kind === 'attack-damage' && effect.repeats !== undefined,
+    (effect) =>
+      (effect.kind === 'attack-damage' && effect.repeats !== undefined) ||
+      // **The second host**, and it is the same timer underneath: a `save`
+      // whose failure imposes no condition has no instance to file a repeat
+      // on, so the hook rides on the casting's deadline exactly as a smite's
+      // does — see {@link checkSaveCastingRepeat}.
+      (effect.kind === 'save' && effect.condition === undefined && effect.repeats !== undefined),
   );
   if (!hosted) return;
+
+  // **And one creature, because one timer holds one hook.** A casting has a
+  // single deadline, so the repeat it carries names the single creature whose
+  // turns raise it; a spell that caught three would file three hooks on one
+  // key and keep the last. Every SRD sentence of this shape is about one
+  // target, so the shape is refused rather than the mechanism owed.
+  if (
+    definition.area !== undefined ||
+    definition.targets.count !== 1 ||
+    definition.targets.extraPerSlotLevelAbove !== undefined
+  ) {
+    found.push({
+      field: 'targets',
+      code: 'casting_repeat_over_several_targets',
+      reason:
+        'a repeat save hosted by the casting rides on the casting’s one deadline and names the one creature whose turns raise it, so a spell that can catch more than one has nowhere to file the rest',
+    });
+  }
+
   if (definition.durationSeconds !== undefined || definition.durationAtSlot !== undefined) return;
 
   found.push({

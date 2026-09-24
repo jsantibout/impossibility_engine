@@ -71,6 +71,7 @@ import {
 } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 import { applyRiders, conditionLanding, repeatSaveFrom } from './spell-effect-riders.js';
+import { timerKey } from '../timers.js';
 
 /**
  * What the spell being resolved says about its own damage dice, as effects.
@@ -1067,6 +1068,73 @@ export function resolveSaveDamageEffect(
  *   success would end a casting — so neither arm has anything to translate and
  *   neither reaches for one.
  */
+/**
+ * A repeat save the **casting** hosts, hung by a failure that imposed nothing.
+ *
+ * SRD Ray of Enfeeblement: "The target repeats the save at the end of each of
+ * its turns, ending the spell on a success." The failure hands out grants and
+ * imposes no condition, so there is no condition instance for the hook to be
+ * filed on — which is exactly SRD Searing Smite's position, and the answer is
+ * the same one: `raiseTurnSaves` raises a repeat from a `condition` timer and
+ * from a `casting` timer, and this is the second.
+ *
+ * **The deadline is read back rather than derived again.** The casting's own
+ * timer is already standing by the time an effect resolves — `runEffects`
+ * folds the casting's events onto the state before the first die — so the
+ * moment the spell ends at is a fact the log holds, and re-resolving the
+ * spell's duration here would be `keptRunning`'s "two derivations of one
+ * number" arriving one command along. `timerKey` files the event under the key
+ * the deadline already has, so this *replaces* that timer with itself plus the
+ * hook rather than standing a second one beside it; whatever else the timer
+ * carried travels with it.
+ *
+ * **Nothing at all where the casting has no deadline**, which no definition
+ * the validator admits can produce: `checkCastingRepeatLifetime` refuses a
+ * spell that prints no span. A casting that somehow reaches here without one
+ * says so on its own `unverified` rather than refusing a casting whose slot is
+ * already spent.
+ *
+ * The ability and the DC are the save's own — "the target repeats **the**
+ * save" — and the creature is the one that failed it, which is whose turns
+ * the boundary raises it on.
+ */
+function castingHostedRepeat(
+  ctx: EffectContext,
+  effect: EffectOfKind<'save'>,
+  target: CharacterId,
+  castingId: string,
+  saveDc: number,
+  world: GameState,
+): GameEvent | null {
+  const repeats = effect.repeats;
+  if (repeats === undefined || effect.condition !== undefined) return null;
+
+  const key = timerKey({ kind: 'casting', castingId });
+  const standing = world.timers[key];
+  if (standing === undefined) {
+    ctx.unverified.push(
+      `${ctx.name}: the spell is repeated at a turn boundary and this casting has no deadline for the repeat to ride on, so nobody will be asked again`,
+    );
+    return null;
+  }
+
+  return {
+    type: 'effect-scheduled',
+    target: standing.target,
+    deadline: standing.deadline,
+    repeatSave: {
+      at: repeats.at,
+      of: target,
+      ability: effect.ability,
+      dc: saveDc,
+      onSuccess: repeats.onSuccess,
+      label: `${ctx.name} (${ABILITY_NAMES[effect.ability]} save)`,
+    },
+    ...(standing.check === undefined ? {} : { check: standing.check }),
+    ...(standing.endsEarly === undefined ? {} : { endsEarly: standing.endsEarly }),
+  };
+}
+
 export function resolveSaveEffect(
   ctx: EffectContext,
   effect: EffectOfKind<'save'>,
@@ -1191,6 +1259,41 @@ export function resolveSaveEffect(
   }
 
   if (save.value.success) {
+    // **And what the success itself carries, where the sentence gives it
+    // something.** SRD Ray of Enfeeblement: "On a successful save, the target
+    // has Disadvantage on the next attack roll it makes until the start of
+    // your next turn." The riders are the same riders and `applyRiders` is
+    // handed them without being told which branch it is serving — the slot
+    // name is the branch, which is what keeps the rider design's invariant.
+    //
+    // **A casting, like every other rider slot.** `checkContent` refuses riders
+    // on an item's or a feature's conferral, so this arm has one whenever the
+    // slot is filled; the accessor is loud rather than absent when it is not.
+    //
+    // **The creature is still `affected: false`.** It made its save, which is
+    // what the outcome word means — and what it is carrying is a grant the
+    // casting hung, which `spellOn` reads off the world exactly as it reads a
+    // failure's.
+    const carried = effect.onSuccessRiders;
+    if (carried !== undefined && ctx.origin.kind === 'casting') {
+      const { definition, castingId } = ctx.casting();
+      const hung = applyRiders(current, target, carried, {
+        definition,
+        castingId,
+        casterId,
+        saveDc,
+        castLevel,
+        casterLevel: numbers.casterLevel,
+        unverified,
+        held,
+        content: supply.content,
+        ...(ctx.object === undefined ? {} : { object: ctx.object }),
+        saveAbility: effect.ability,
+      });
+      if (!hung.ok) return hung;
+      events.push(...hung.value.events);
+      current = hung.value.events.reduce(applyEvent, current);
+    }
     outcomes.push({ target, save: save.value, affected: false });
     return ok(current);
   }
@@ -1296,6 +1399,20 @@ export function resolveSaveEffect(
 
   events.push(...landed.value.events);
   current = landed.value.events.reduce(applyEvent, current);
+
+  // **And the repeat, where the failure imposed no condition to file it on.**
+  // SRD Ray of Enfeeblement's "The target repeats the save at the end of each
+  // of its turns, ending the spell on a success" — hung on the casting's own
+  // deadline, which is the road SRD Searing Smite already takes. A failure
+  // that *did* impose a condition files its repeat on the instance, which
+  // `conditionRiderOf` carried into `applyRiders` above, so exactly one of the
+  // two roads is ever taken. See {@link castingHostedRepeat}.
+  const hook = castingHostedRepeat(ctx, effect, target, castingId, saveDc, current);
+  if (hook !== null) {
+    events.push(hook);
+    current = applyEvent(current, hook);
+  }
+
   outcomes.push({
     target,
     save: save.value,

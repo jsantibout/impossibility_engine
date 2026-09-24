@@ -1078,11 +1078,20 @@ export type ModifierRider =
  * writes one slot per sentence shape. The cost is one `applyRiders` with three
  * loops, which is smaller than a dispatch.
  *
- * **Which branch a rider rides is the host's, never the author's.** There is
- * no miss-branch slot and no success-branch slot: the affirmative outcome is
- * the only one that carries riders, which is why the slot name *is* the
- * branch. A spell whose success clause does something — Flesh to Stone's
- * "its Speed is 0" — is one consumer and a different shape.
+ * **Which branch a rider rides is the host's, never the author's, and the
+ * slot name is what says so.** This value is the *affirmative* outcome's — a
+ * hit, a failed save — and there is nothing in it that could name a branch,
+ * which is the invariant `applyRiders` rests on: it is handed a settled
+ * outcome's riders and never asked which one.
+ *
+ * **A success has its own slot and not a member here**, which is the shape
+ * that sentence was one consumer short of. SRD Ray of Enfeeblement: "On a
+ * successful save, the target has Disadvantage on the next attack roll it
+ * makes until the start of your next turn." {@link save.onSuccessRiders} is a
+ * second value of this type, written under a name that says which branch it
+ * rides, so the vocabulary is shared and the branch is still the host's.
+ * There is still no *miss*-branch slot: a miss's only printed consequence is
+ * damage, which `attack.onMiss` says already.
  */
 /**
  * A thing taken out of a creature's hands against its will, and what happens
@@ -2279,6 +2288,45 @@ export type SpellEffect =
        * object if it can**".
        */
       readonly drops?: DropRider;
+      /**
+       * What a **successful** save carries with it, where the sentence gives a
+       * success a consequence.
+       *
+       * SRD Ray of Enfeeblement: "**On a successful save**, the target has
+       * Disadvantage on the next attack roll it makes until the start of your
+       * next turn." One Constitution save, and both branches cost the target
+       * something — which is the sentence {@link OutcomeRiders} said it had
+       * no slot for: "there is no miss-branch slot and no success-branch slot:
+       * the affirmative outcome is the only one that carries riders."
+       *
+       * **The slot name is the branch, which is why this is a second slot
+       * rather than a flag.** Everything the flat fields above and
+       * {@link save.modifiers} hang rides the *failure*, because that is a
+       * saving throw's affirmative outcome; this rides the other one, and a
+       * reader of the definition can see which is which by the name they are
+       * written under. `applyRiders` is handed one or the other and never
+       * learns there were two, so the rider vocabulary is not forked.
+       *
+       * **It reuses {@link OutcomeRiders} whole and the validator narrows
+       * it**, rather than a type of its own with four members copied out: a
+       * success may hang a mode, impose a condition, move the creature or use
+       * up a slot of its turn, and `checkSuccessRiders` refuses the rest. The
+       * one refused on the book's authority rather than on the plumbing's is
+       * `delayed` — **no printed success deals damage**, and a definition that
+       * could say so would be a spell rewarding a save with a hit.
+       *
+       * **A success hangs nothing on the casting's record.** The creature is
+       * still `affected: false` in the outcome, because it made its save;
+       * what it is carrying is a grant the casting hung, which `spellOn`
+       * reads off the world exactly as it reads a failure's.
+       *
+       * There is no `onSuccessRiders` on `save-damage`, for the reason there
+       * is no `onSuccess` here: that host's `onSuccess` already says what a
+       * success buys, no SRD sentence in reach hangs a rider on one, and a
+       * member no definition can use is the guess this format's unused-member
+       * sweep exists to catch.
+       */
+      readonly onSuccessRiders?: OutcomeRiders;
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
