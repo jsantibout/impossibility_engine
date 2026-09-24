@@ -16,7 +16,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { CONFERRED_LEVEL } from '../catalogue.js';
+import { CONFERRED_LEVEL, itemChargePool } from '../catalogue.js';
 import {
   modifierFor,
   proficiencyBonus,
@@ -65,7 +65,7 @@ import {
 import { weaponNarrowingHolds } from '../attack.js';
 import { type Content } from '../content.js';
 import { type Supply } from './casting.js';
-import { quantityOf } from './inventory.js';
+import { featureConjuredLine, quantityOf } from './inventory.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
@@ -161,6 +161,12 @@ export function activateFeature(
       if (requirement === 'heavy-armor' && wearsHeavyArmor(creature)) {
         return err('heavy_armor', `${definition.name} cannot be entered in Heavy armour`);
       }
+      // SRD Pact of the Blade: "Your bond with the weapon ends ... if you
+      // die." The same clause that ends it is what stops it starting, which is
+      // the rule this whole list is read under.
+      if (requirement === 'death' && creature.vitals.dead) {
+        return err('dead', `${id} is dead and cannot enter ${definition.name}`);
+      }
     }
 
     // SRD Steady Aim: "You can use this feature only if you haven't moved
@@ -211,6 +217,22 @@ export function activateFeature(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
+    // **What the use puts in a hand**, after the activation so the line names a
+    // feature the log has already switched on, and before the rider so the
+    // weapon the rider is hung on is a weapon the holder has. SRD Pact of the
+    // Blade's "you can conjure a pact weapon in your hand": pinned from the
+    // sheet, taken away by nothing, and gone the read after the bond is — see
+    // `InventoryLine.feature`, whose lifetime is derived because a bond ends by
+    // three doors and writes an event about a weapon at none of them.
+    if (definition.conjuresWeapon === true && imbuing.value !== null) {
+      events.push({
+        type: 'items-gained',
+        id,
+        items: [featureConjuredLine(imbuing.value, definition.feature)],
+        source: `${definition.name}, conjured`,
+      });
+    }
+
     if (imbuing.value !== null) {
       events.push({
         type: 'weapon-rider-granted',
@@ -234,6 +256,18 @@ export function activateFeature(
           ...(definition.imbuesWeapon?.damageTypes === undefined
             ? {}
             : { damageTypes: definition.imbuesWeapon.damageTypes }),
+          // SRD Pact of the Blade's two clauses beside the type offer: the
+          // modifier the swing may use instead of the weapon's own, and the
+          // training in **that** weapon. Both ride the record a casting
+          // already writes — `ability` is Shillelagh's own field, and
+          // `strikeStyleFor` sends it to the attack roll and the damage roll
+          // together, which is exactly the pair the sentence names.
+          ...(definition.imbuesWeapon?.offersAbility === undefined
+            ? {}
+            : { ability: definition.imbuesWeapon.offersAbility }),
+          ...(definition.imbuesWeapon?.grantsProficiency === undefined
+            ? {}
+            : { proficient: definition.imbuesWeapon.grantsProficiency }),
         },
       });
     }
@@ -869,7 +903,12 @@ export function extendFeature(
     if (typeof definition.lasts === 'object') {
       return err(
         'not_extendable',
-        `${definition.name} runs for ${describeElapsed(definition.lasts.seconds)} and is not maintained round by round`,
+        definition.lasts.kind === 'seconds'
+          ? `${definition.name} runs for ${describeElapsed(definition.lasts.seconds)} and is not maintained round by round`
+          : // SRD Pact of the Blade prints no deadline at all, so there is
+            // nothing to push out: the same refusal for the same reason, and
+            // the one thing a caller could be told that is true.
+            `${definition.name} runs until something ends it, so there is no deadline to maintain`,
       );
     }
 
@@ -1030,8 +1069,9 @@ function imbuedWeapon(
     );
   }
 
-  const weapon = content.item(named)?.weapon;
-  if (weapon === undefined || weapon === null) {
+  const item = content.item(named);
+  const weapon = item?.weapon;
+  if (item === null || weapon === undefined || weapon === null) {
     return err('unknown_weapon', `${named} is not a weapon the SRD lists`);
   }
   if (imbues.weapons !== undefined && !weaponNarrowingHolds(imbues.weapons, { weapon })) {
@@ -1039,6 +1079,26 @@ function imbuedWeapon(
       'weapon_not_of_kind',
       `${definition.name} does not imbue a ${weapon.name}`,
     );
+  }
+  // **Unless the use is what makes it.** SRD Pact of the Blade conjures the
+  // weapon it bonds, so there is nothing to be holding: what the narrowing
+  // above has already refused is the only question the book asks of the name,
+  // and the line appears in the same batch as the rider.
+  if (definition.conjuresWeapon === true) {
+    // The one rule a conjuring keeps that an imbuing does not, in the words
+    // `checkContent` keeps it for a spell: a thing that lasts exactly as long
+    // as the bond has nothing to remember, and a conjured line is a stack
+    // rather than a labelled copy — so a weapon with a charge pool of its own
+    // would arrive with a pool nobody declared and lose it the moment the
+    // bond ended. Refused here because a feature names its weapon at the use
+    // and the catalogue is only reachable from a command.
+    if (itemChargePool(item) !== null) {
+      return err(
+        'conjured_item_has_charges',
+        `${named} keeps charges of its own, and a weapon that lasts only as long as ${definition.name} has nothing to remember`,
+      );
+    }
+    return ok(named);
   }
   if (quantityOf(state, id, named) < 1) {
     return err('weapon_not_held', `${id} has no ${weapon.name} for ${definition.name} to imbue`);
@@ -1094,6 +1154,11 @@ export function featureTimer(
   // clock a form's hours run on — and carries no cap: the span is the cap. The
   // `feature` target is what the expiry pass drops from `activeFeatures`.
   if (typeof definition.lasts === 'object') {
+    // A feature the book gives no deadline — SRD Pact of the Blade — is
+    // scheduled against nothing at all. The endings it does print are the
+    // second use, the `endsOn` list and whatever takes the imbued weapon away,
+    // and every one of them is already a door out of `activeFeatures`.
+    if (definition.lasts.kind === 'until-ended') return ok(null);
     return schedule(
       state,
       { kind: 'feature', on: id, feature: definition.feature },

@@ -494,17 +494,24 @@ describe('the doors a copy is gained through are the doors that label it', () =>
    * claim is unchanged — **every copy with a record is labelled where it is
    * gained** — and the population that can produce one is still three.
    *
-   * **There are two conjuring emissions and they are in two files**, one of
-   * which also labels: the casting's, in `spell-resolution.ts`, and the
-   * re-evocation's, in `inventory.ts` beside `equipItem`'s. So the emissions
-   * are counted per *call* rather than per file — a file-granular excuse would
-   * have let `inventory.ts` sit in the labelling list on the strength of a
-   * compiler it calls somewhere else, which is exactly the hole this sweep
-   * exists to keep shut. `conjuredLine` is the marker, because it is the one
-   * spelling both conjurings write.
+   * **A feature's conjuring is the same excuse and the same rule.** SRD Pact of
+   * the Blade puts one weapon in a hand for as long as the bond lasts, and
+   * `activateFeature` refuses one that keeps charges of its own in the very
+   * words `checkContent` refuses a spell's — so there is still no copy with a
+   * record arriving unlabelled, which is the whole of what this sweep claims.
+   *
+   * **There are three conjuring emissions and they are in three files**, one of
+   * which also labels: the casting's, in `spell-resolution.ts`, the
+   * re-evocation's, in `inventory.ts` beside `equipItem`'s, and the
+   * activation's, in `features.ts`. So the emissions are counted per *call*
+   * rather than per file — a file-granular excuse would have let
+   * `inventory.ts` sit in the labelling list on the strength of a compiler it
+   * calls somewhere else, which is exactly the hole this sweep exists to keep
+   * shut. The two compilers are the marker, because between them they are the
+   * only spellings a conjuring writes.
    */
   const conjurings = (source: string): number =>
-    (source.match(/items: \[conjuredLine\(/g) ?? []).length;
+    (source.match(/items: \[(?:feature)?[cC]onjuredLine\(/g) ?? []).length;
 
   /** Every `items-gained` written in a file, however it is laid out. */
   const emissions = (source: string): number =>
@@ -533,11 +540,12 @@ describe('the doors a copy is gained through are the doors that label it', () =>
    * And the emissions that do **not** label are pinned by count, so a fourth
    * cannot arrive quietly by sitting next to a conjuring.
    */
-  it('has two emissions that hand over a stack, and both conjure it', () => {
+  it('has three emissions that hand over a thing with no record, and all conjure it', () => {
     const conjured = emitters
       .map((file) => [file, conjurings(readFileSync(`${SRC}${file}`, 'utf8'))] as const)
       .filter(([, count]) => count > 0);
     expect(conjured).toEqual([
+      ['commands/features.ts', 1],
       ['commands/inventory.ts', 1],
       ['commands/spell-resolution.ts', 1],
     ]);

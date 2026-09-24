@@ -232,7 +232,10 @@ describe('the count the Invocations column prints', () => {
           'Eldritch Mind',
           "Devil's Sight",
           'Fiendish Vigor',
-          'Pact of the Blade',
+          // Gaze of Two Minds is printed by the book and is not offered here:
+          // what it does — one creature borrowing another's senses — has no
+          // state to sit in, and an option that does nothing is forbidden.
+          'Gaze of Two Minds',
         ]),
       ),
     ).toContain('option_not_offered');

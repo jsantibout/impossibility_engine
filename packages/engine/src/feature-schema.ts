@@ -412,6 +412,30 @@ export function imbuedWeaponProblems(
     found.push(...weaponDamageTypeProblems(imbues as { readonly damageTypes?: unknown }, at));
   }
 
+  // The ability the imbuing offers in place of the weapon's own — SRD Pact of
+  // the Blade's Charisma. A word that is not an ability is a modifier
+  // `attackAbility` would have to weigh and cannot find.
+  const offered = imbues['offersAbility'];
+  if (offered !== undefined && !(ABILITIES as readonly string[]).includes(offered as string)) {
+    found.push({
+      field: `${at}.offersAbility`,
+      code: 'bad_imbued_weapon',
+      reason: `"${String(offered)}" is not one of the six abilities`,
+    });
+  }
+
+  // And the training — SRD Pact of the Blade's "you have proficiency with the
+  // weapon". Printed or not, on `endsWhenLetGo`'s rule below.
+  const trained = imbues['grantsProficiency'];
+  if (trained !== undefined && trained !== true) {
+    found.push({
+      field: `${at}.grantsProficiency`,
+      code: 'bad_imbued_weapon',
+      reason:
+        'SRD’s "you have proficiency with the weapon" is printed or it is not; `false` is a clause that says nothing, so the field is omitted instead',
+    });
+  }
+
   // The clause is printed or it is not; `false` is a sentence that says
   // nothing, which is the reading `heldInTwoHands` above already takes.
   const letGo = imbues['endsWhenLetGo'];
@@ -1569,23 +1593,56 @@ function grantProblems(
     if (grant.imbuesWeapon !== undefined) {
       found.push(...imbuedWeaponProblems(grant.imbuesWeapon, 'grants.imbuesWeapon'));
     }
-    // Rule 6b. One lifetime, in one of two spellings: a turn anchor (SRD Rage,
-    // pushed round by round) or a printed span (SRD Innate Sorcery's minute).
-    // Both is two deadlines for one activation; neither is a feature that
-    // never ends. Asked of the values, because the other door is JSON.
-    const span = grant as { readonly lasts?: unknown; readonly lastsSeconds?: unknown };
-    if (span.lasts !== undefined && span.lastsSeconds !== undefined) {
+    // Rule 6b. One lifetime, in one of **three** spellings: a turn anchor (SRD
+    // Rage, pushed round by round), a printed span (SRD Innate Sorcery's
+    // minute), or none at all (SRD Pact of the Blade, which prints three
+    // endings and no deadline). More than one is more than one deadline for
+    // one activation; none of the three is a feature whose lifetime nobody
+    // wrote down, which is what the third member exists to tell apart from a
+    // typo. Asked of the values, because the other door is JSON.
+    const span = grant as {
+      readonly lasts?: unknown;
+      readonly lastsSeconds?: unknown;
+      readonly lastsUntilEnded?: unknown;
+    };
+    const spans = [span.lasts, span.lastsSeconds, span.lastsUntilEnded].filter(
+      (one) => one !== undefined,
+    );
+    if (spans.length > 1) {
       found.push({
         field: 'grants.lasts',
         code: 'ambiguous_activation_span',
-        reason: 'an activation runs to a turn anchor or for a printed span, not both',
+        reason:
+          'an activation runs to a turn anchor, for a printed span, or until something ends it — one of the three',
       });
     }
-    if (span.lasts === undefined && span.lastsSeconds === undefined) {
+    if (spans.length === 0) {
       found.push({
         field: 'grants.lasts',
         code: 'no_activation_span',
-        reason: 'an activation says how long it runs: "lasts" names a turn anchor, "lastsSeconds" a printed span',
+        reason:
+          'an activation says how long it runs: "lasts" names a turn anchor, "lastsSeconds" a printed span, "lastsUntilEnded" says the book prints neither',
+      });
+    }
+    if (span.lastsUntilEnded !== undefined && span.lastsUntilEnded !== true) {
+      found.push({
+        field: 'grants.lastsUntilEnded',
+        code: 'bad_activation_span',
+        reason: `an activation either prints no deadline or does not say so, and "${String(span.lastsUntilEnded)}" is neither`,
+      });
+    }
+    // Rule 6b(ii). A conjuring hangs on an imbuing. SRD Pact of the Blade
+    // conjures the weapon it is about to bond, and a use that made a weapon
+    // and hung nothing on it would hand its holder an ordinary Glaive out of
+    // the air — which is a feature the book does not print and which
+    // `activateFeature` has no narrowing to hold the named weapon to, because
+    // the narrowing lives on the imbuing.
+    if (grant.conjuresWeapon !== undefined && grant.imbuesWeapon === undefined) {
+      found.push({
+        field: 'grants.conjuresWeapon',
+        code: 'conjuring_without_an_imbuing',
+        reason:
+          'an activation conjures the weapon it imbues; with no imbuing beside it there is nothing to hold the named weapon to and nothing hung on what appears',
       });
     }
     if (span.lasts !== undefined && !(TURN_ANCHORS as readonly unknown[]).includes(span.lasts)) {

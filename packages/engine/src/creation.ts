@@ -3729,6 +3729,9 @@ export function planCharacter(
       // it, so there is no column to read here — `activateFeature` names the
       // weapon and pins the rider.
       ...(grant.imbuesWeapon === undefined ? {} : { imbuesWeapon: grant.imbuesWeapon }),
+      // And where the weapon comes from, where the use makes one — SRD Pact of
+      // the Blade's "conjure a pact weapon in your hand".
+      ...(grant.conjuresWeapon === undefined ? {} : { conjuresWeapon: grant.conjuresWeapon }),
     });
 
     for (const declared of grant.whileActive ?? []) {
@@ -5164,10 +5167,17 @@ const withDiceCountOf = (die: string, count: number): string => {
 function activationSpanOf(grant: {
   readonly lasts?: TurnAnchor;
   readonly lastsSeconds?: number;
+  readonly lastsUntilEnded?: true;
 }): ActivationSpan {
   if (grant.lastsSeconds !== undefined) return { kind: 'seconds', seconds: grant.lastsSeconds };
   if (grant.lasts !== undefined) return grant.lasts;
-  throw new TypeError('an activated grant runs to a turn anchor or for a printed span');
+  // SRD Pact of the Blade prints three endings and no deadline. Declared
+  // rather than inferred from the other two being absent — see the grant's
+  // own `lastsUntilEnded`.
+  if (grant.lastsUntilEnded === true) return { kind: 'until-ended' };
+  throw new TypeError(
+    'an activated grant runs to a turn anchor, for a printed span, or until something ends it',
+  );
 }
 
 function usesOf(

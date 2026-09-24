@@ -309,6 +309,13 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
               // arrived, a lost condition — and what it may do is end a
               // casting, which the `drop*` passes above are the safety net
               // for.
+              // Immediately outside `settleWeaponRiders`, because it is the
+              // same fact about the same use read on the other side: the
+              // rider the bond hung, and the weapon the bond made. Outside
+              // rather than inside so that a rider whose weapon was let go —
+              // which ends the *activation* — has already taken the feature
+              // out of `activeFeatures` by the time this looks.
+              settleConjuredLines(
               settleWeaponRiders(
               expireEffects(
                 endLostFeatures(
@@ -344,6 +351,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
                     event,
                   ),
                 ),
+              ),
               ),
               ),
             ),
@@ -643,6 +651,54 @@ function settleWeaponRiders(state: GameState): GameState {
 }
 
 /**
+ * A thing a feature conjured, whose feature has stopped running.
+ *
+ * SRD Pact of the Blade: "A conjured weapon disappears when the bond ends."
+ * The sibling of {@link settleWeaponRiders} one pass up, written for exactly
+ * the reason that one is: a bond ends by three doors — a second use of the
+ * Bonus Action, the `endsOn` list, a condition that takes the feature away —
+ * and not one of them knows a weapon was conjured, so a removal hung on any
+ * of them would miss the other two.
+ *
+ * **Folded rather than derived at read time**, which is the one place this
+ * differs from the line a *casting* conjures. A casting's line is filtered by
+ * `carrying`, because the casting is looked up in `state.ongoing` and a
+ * casting id is unique: a second Goodberry is a second casting with a second
+ * id, so a lapsed handful and a fresh one never wear the same name. An
+ * activation has no such id — the second use of Pact of the Blade is the same
+ * feature — so a derived filter would keep the old Glaive alive beside the new
+ * Longsword the moment the feature came back on. Dropping it here, in the
+ * batch where `feature-ended` was applied and before `feature-activated`
+ * reaches the reducer, is what makes "you use this feature's Bonus Action
+ * again" end the first bond rather than double it.
+ *
+ * Nothing is emitted, for `settleShapes`' reason: a pass that also wrote an
+ * event would be a second authority on a fact `activeFeatures` answers for.
+ */
+function settleConjuredLines(state: GameState): GameState {
+  // Nobody is carrying anything a feature made, which is almost every state.
+  if (!anyCreature(state, (c) => c.inventory.some((line) => line.feature !== undefined))) {
+    return state;
+  }
+
+  const creatures: Record<string, CreatureState> = { ...state.creatures };
+  let moved = false;
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[key];
+    if (creature === undefined) continue;
+    const kept = creature.inventory.filter(
+      (line) => line.feature === undefined || creature.activeFeatures.includes(line.feature),
+    );
+    if (kept.length === creature.inventory.length) continue;
+    creatures[key] = { ...creature, inventory: kept };
+    moved = true;
+  }
+
+  return moved ? { ...state, creatures } : state;
+}
+
+/**
  * Readied actions whose hold has stopped holding.
  *
  * Two ways it ends without being released, and neither is anybody's decision:
@@ -743,6 +799,10 @@ function sustains(creature: CreatureState, feature: string): boolean {
   for (const requirement of definition.endsOn ?? []) {
     if (requirement === 'incapacitated' && isIncapacitated(creature.conditions)) return false;
     if (requirement === 'heavy-armor' && wearsHeavyArmor(creature)) return false;
+    // SRD Pact of the Blade: "Your bond with the weapon ends ... if you die."
+    // Read here rather than raised anywhere, so the bond, its rider and the
+    // weapon it conjured all go on the same pass a dropped condition takes.
+    if (requirement === 'death' && creature.vitals.dead) return false;
   }
   return true;
 }

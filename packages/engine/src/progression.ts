@@ -1196,6 +1196,40 @@ export interface ImbuedWeapon {
    */
   readonly attackBonusFrom?: { readonly ability: Ability; readonly minimum: number };
   /**
+   * SRD Pact of the Blade: "Whenever you attack with the bonded weapon, you
+   * **can** use your Charisma modifier for the attack and damage rolls instead
+   * of using Strength or Dexterity."
+   *
+   * **Not {@link attackBonusFrom} beside it**, and the difference is the whole
+   * sentence: Sacred Weapon *adds* a modifier to the attack roll and leaves
+   * the damage alone; this *replaces* the modifier the weapon would have used,
+   * on both rolls.
+   *
+   * **And offered rather than imposed**, which is what the book's "can" says
+   * and what this engine has read that word as since SRD Dexterous Attacks:
+   * `attackAbility` weighs an offered ability against the weapon's own and
+   * takes the better, or the one the attacker named. So a Warlock with a
+   * higher Strength than Charisma swings with Strength, which is the whole
+   * point of a permission. The imposition is `AttackOptions.imposedAbility` —
+   * SRD True Strike's "The attack **uses** your spellcasting ability" — and
+   * nothing a feature imbues reaches it.
+   *
+   * Carried onto `GrantedWeaponRider.ability`, which SRD Shillelagh has
+   * written since it landed and which `strikeStyleFor` already reads for both
+   * rolls: one sentence, two writers, one field.
+   */
+  readonly offersAbility?: Ability;
+  /**
+   * SRD Pact of the Blade: "Until the bond ends, you have proficiency with the
+   * weapon."
+   *
+   * On the imbuing rather than on the sheet, because the sentence is about
+   * **that** weapon: a Warlock who bonds a Glaive is not thereby trained in
+   * Glaives. See `GrantedWeaponRider.proficient`, which is what the use hangs
+   * and what the swing reads.
+   */
+  readonly grantsProficiency?: true;
+  /**
    * SRD Sacred Weapon: "each time you hit with it, you cause it to deal its
    * normal damage type or Radiant damage."
    *
@@ -1654,6 +1688,52 @@ export type FeatureGrant =
        * validator refuses both and neither.
        */
       readonly lastsSeconds?: number;
+      /**
+       * The third answer: the feature prints **no** deadline at all.
+       *
+       * SRD Pact of the Blade: "Your bond with the weapon ends if you use this
+       * feature's Bonus Action again, if the weapon is more than 5 feet away
+       * from you for 1 minute or more, or if you die." Three endings and not a
+       * span among them — so a `lastsSeconds` here would be a number the book
+       * does not print, and a `lasts` would end the bond at a turn boundary
+       * nothing in the sentence names.
+       *
+       * Written as a flag rather than as the absence of the other two, because
+       * the absence is how a feature loses its deadline to a typo: exactly one
+       * of the three is declared and the validator says which are missing.
+       */
+      readonly lastsUntilEnded?: true;
+      /**
+       * The use **makes** the weapon it imbues, rather than finding it in the
+       * holder's hands.
+       *
+       * SRD Pact of the Blade: "you can conjure a pact weapon in your hand — a
+       * Simple or Martial Melee weapon of your choice with which you bond".
+       * Which weapon is the use's own answer, named on the activation and held
+       * to {@link ImbuedWeapon.weapons} — the book writes one clause over both
+       * halves of the sentence, so there is one narrowing.
+       *
+       * A flag, and it carries no hand count, which is where this differs from
+       * a spell's {@link ConjuredItems}. Goodberry's ten berries are a
+       * *handful* and the number of hands is the spell's to print; a weapon's
+       * hands are the weapon's own, answered by `handsFor` off the catalogue
+       * record, and a Glaive out of the air is swung with two hands for the
+       * same reason a Glaive off the rack is. So the line is an ordinary owned
+       * line with a lifetime, and "in your hand" is `equipItem`'s door and its
+       * `no_free_hand`.
+       *
+       * Declared beside `imbuesWeapon` and never instead of it: what is
+       * conjured is a weapon the use has already decided to hang a rider on,
+       * and a conjuring with nothing hung on it would be a feature that hands
+       * its holder an ordinary Glaive out of the air.
+       * `checkFeatureDefinition` refuses one without the other.
+       *
+       * **The line's lifetime is the activation's**, derived in the fold the
+       * way a casting's conjured line is derived from its casting: "A conjured
+       * weapon disappears when the bond ends", and the bond ends by three
+       * doors that write no event about a weapon.
+       */
+      readonly conjuresWeapon?: true;
       /**
        * SRD Large Form: "you can change your size to Large" — the size the
        * holder is while the feature runs. The fold keeps the map's copy in

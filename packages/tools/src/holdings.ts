@@ -914,9 +914,16 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       pool: one.pool,
       left: leftIn(state, who, one.pool),
       active: active.includes(one.feature),
-      // A turn anchor as the sheet spells it, or a printed span as a length
-      // of time — "10 minutes" — which is what the book printed.
-      lasts: typeof one.lasts === 'string' ? one.lasts : describeElapsed(one.lasts.seconds),
+      // A turn anchor as the sheet spells it, a printed span as a length of
+      // time — "10 minutes" — which is what the book printed, or the third
+      // answer: SRD Pact of the Blade prints no deadline at all, and a holder
+      // reading their own sheet is told that rather than a number.
+      lasts:
+        typeof one.lasts === 'string'
+          ? one.lasts
+          : one.lasts.kind === 'seconds'
+            ? describeElapsed(one.lasts.seconds)
+            : 'until something ends it',
       ...(one.endsOn === undefined ? {} : { endsOn: one.endsOn }),
       ...(one.forbidsCasting === undefined ? {} : { forbidsCasting: one.forbidsCasting }),
       ...(one.capSeconds === undefined ? {} : { capSeconds: one.capSeconds }),

@@ -1297,6 +1297,28 @@ export function conjuredLine(
 }
 
 /**
+ * The line a **feature's** conjuring puts in a hand — SRD Pact of the Blade's
+ * "you can conjure a pact weapon in your hand".
+ *
+ * Beside {@link conjuredLine} rather than inside it, because the two differ in
+ * both of the fields that one exists to pin. The lifetime is an *activation*
+ * rather than a casting, which is a different question asked of a different
+ * part of state. And there is no hand count: a spell conjures a **handful**
+ * whose hands the spell prints, and a feature conjures one weapon whose hands
+ * are the weapon's own — `handsFor` answers that off the catalogue record, and
+ * a number pinned here would be a second answer to a question the equipment
+ * table has already answered.
+ *
+ * Here rather than in `commands/features.ts` for the reason its sibling is
+ * here: one spelling of what a conjuring puts in a hand, in the module that
+ * owns what a creature is carrying, so the sweep in `item-instances.test.ts`
+ * has one thing to count.
+ */
+export function featureConjuredLine(itemId: string, feature: string): InventoryLine {
+  return { id: itemId, quantity: 1, feature };
+}
+
+/**
  * Which copy a charge question is about, given a kind of thing or a copy.
  *
  * The copy in hand first, because "while holding it" is the sentence every

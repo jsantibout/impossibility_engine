@@ -150,6 +150,7 @@ export const WARLOCK: ClassDefinition = {
             'Misty Visions',
             'One with Shadows',
             'Otherworldly Leap',
+            'Pact of the Blade',
             'Pact of the Chain',
             'Pact of the Tome',
             'Repelling Blast',
@@ -333,6 +334,57 @@ export const WARLOCK: ClassDefinition = {
           fixed: ['invisibility'],
           atWill: true,
           requires: [{ kind: 'in-dim-light-or-darkness' }],
+        },
+        // Pact of the Blade: "As a Bonus Action, you can conjure a pact weapon
+        // in your hand — a Simple or Martial Melee weapon of your choice with
+        // which you bond ... Until the bond ends, you have proficiency with the
+        // weapon ... Whenever you attack with the bonded weapon, you can use
+        // your Charisma modifier for the attack and damage rolls instead of
+        // using Strength or Dexterity; and you can cause the weapon to deal
+        // Necrotic, Psychic, or Radiant damage or its normal damage type."
+        //
+        // An activation that makes the object it imbues. The bond has **no
+        // deadline** — the sentence prints three endings and not one of them is
+        // a span — which is what `lastsUntilEnded` says; a second use of the
+        // Bonus Action is the activation's own "or until you use this feature
+        // again", and death is the `endsOn` clause beside it.
+        {
+          kind: 'activated',
+          onlyIfChoice: 'Pact of the Blade',
+          action: 'bonus-action',
+          // Nothing is rationed: the book prints no count and no rest.
+          pool: null,
+          lastsUntilEnded: true,
+          // "if you die" — the third of the three endings, and the only one
+          // besides the second use that is a fact about state.
+          endsOn: ['death'],
+          conjuresWeapon: true,
+          imbuesWeapon: {
+            // "a Simple or Martial Melee weapon of your choice" — both
+            // categories written out, because that is how the book prints it
+            // and because a reader should not have to know that the two are
+            // between them every weapon there is.
+            weapons: {
+              weapons: [
+                { category: 'simple', kind: 'melee' },
+                { category: 'martial', kind: 'melee' },
+              ],
+            },
+            // "you have proficiency with the weapon" — with **that** weapon,
+            // which is why it rides the imbuing and not the sheet's list of
+            // categories.
+            grantsProficiency: true,
+            // "you can use your Charisma modifier for the attack and damage
+            // rolls instead of using Strength or Dexterity" — offered, which
+            // is what "can" means, so a Warlock with the better Strength keeps
+            // it. Shillelagh's field, and it reaches both rolls.
+            offersAbility: 'cha',
+            // "you can cause the weapon to deal Necrotic, Psychic, or Radiant
+            // damage or its normal damage type" — three offered instead of the
+            // weapon's own, answered per hit, and naming none leaves the
+            // Glaive slashing.
+            damageTypes: ['necrotic', 'psychic', 'radiant'],
+          },
         },
         // Pact of the Chain: "You learn the Find Familiar spell and can cast it
         // as a Magic action without expending a spell slot. When you cast the
