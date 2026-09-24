@@ -545,6 +545,62 @@ export function releaseGrants(creature: CreatureState, source: string): Creature
 }
 
 /**
+ * The condition instances one change took off a creature, by id.
+ *
+ * The difference between two condition states rather than the name on an
+ * event, because a removal by name lifts every instance of that name *and*
+ * whatever each of them implied — so the population is what actually left, and
+ * a reader working from the event's own word would miss the implied ones.
+ *
+ * Shared by the two doors a condition can leave through, which is the reason
+ * it is a function: `condition-removed` in `fold/vitals.ts` and
+ * {@link endTimedCondition} below. A second copy of this line would be
+ * correct until the day somebody fixed one of them.
+ */
+export const instancesLifted = (
+  before: readonly { readonly id: string }[],
+  after: readonly { readonly id: string }[],
+): readonly string[] =>
+  before
+    .filter((instance) => !after.some((kept) => kept.id === instance.id))
+    .map((instance) => instance.id);
+
+/**
+ * Every grant sourced to a condition **instance** that has just lifted.
+ *
+ * **A lifetime the vocabulary did not have, built out of the source string
+ * rather than out of a new kind of deadline.** SRD Swarm of Ravens: "The
+ * target has the Deafened condition until the start of the swarm's next turn.
+ * While Deafened, the target also has Disadvantage on ability checks and
+ * attack rolls." The mode lasts exactly as long as *that* Deafened — not the
+ * condition in general, and not a span of its own — so the clause that lands
+ * it uses `conditionInstanceId(condition, source)` as the grant's source, and
+ * the instance leaving is the whole of its ending.
+ *
+ * That works because `conditionInstanceId` is deterministic and because the
+ * fold already knows, at both doors a condition leaves by, exactly which
+ * instances went: no new event, no new field on `CreatureState`, and no new
+ * member of `EffectTarget`. A grant so sourced must carry **no `grants`
+ * deadline of its own** — the instance is its deadline, and a second one could
+ * only disagree with it — and nothing writes one: `applyPrintedClauses` hangs
+ * the timer for a *spanned* clause and never for a hosted one, and no content
+ * route can reach this source at all, because a definition's grants are
+ * sourced to a casting id.
+ *
+ * Quiet where nothing lifted, and {@link withoutGrants} hands the creature
+ * back by reference where nothing matched — which is what keeps a removal that
+ * touched no grant from marking the creature changed.
+ */
+export function releaseInstanceGrants(
+  creature: CreatureState,
+  instances: readonly string[],
+): CreatureState {
+  if (instances.length === 0) return creature;
+  const gone = new Set(instances);
+  return withoutGrants(creature, (held) => gone.has(held));
+}
+
+/**
  * One source's hold on a **Hit Point maximum**, taken off and nothing else.
  *
  * The one narrow release in this module, and deliberately not
@@ -591,6 +647,12 @@ export function releaseHitPointMaximum(creature: CreatureState, source: string):
  * to say so. A shrink written here would be half a rule, exactly as the one
  * this branch used to carry was.
  *
+ * **And whatever was sourced to the instance goes with it**, which is
+ * {@link releaseInstanceGrants} — the second of the two doors a condition
+ * leaves by, the first being `condition-removed` in `fold/vitals.ts`. SRD
+ * Swarm of Ravens' Disadvantage lasts as long as the Deafened it names, so a
+ * span running out has to take it exactly as a cure does.
+ *
  * A condition whose creature has left is the deletion and nothing else, which
  * is the right answer rather than a missing case: there is nobody to take it
  * off.
@@ -606,13 +668,17 @@ export function endTimedCondition(
 
   const creature = current.creatures[target.on];
   if (creature === undefined) return current;
+  const conditions = removeConditionInstance(creature.conditions, target.instance);
   return {
     ...current,
     creatures: {
       ...current.creatures,
       [target.on]: {
-        ...creature,
-        conditions: removeConditionInstance(creature.conditions, target.instance),
+        ...releaseInstanceGrants(
+          creature,
+          instancesLifted(creature.conditions.instances, conditions.instances),
+        ),
+        conditions,
       },
     },
   };

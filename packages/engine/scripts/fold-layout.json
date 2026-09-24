@@ -64,6 +64,8 @@
     "casterOf",
     "releaseOnTarget",
     "releaseGrants",
+    "instancesLifted",
+    "releaseInstanceGrants",
     "releaseHitPointMaximum",
     "endTimedCondition",
     "holdsNothingOf",
