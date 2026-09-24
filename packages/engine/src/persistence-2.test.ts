@@ -609,6 +609,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // on the chosen skill, and the helper's next turn ending what nobody spent.
   'help-given',
   'hit-point-maximum-adjusted',
+  // A reduction to a Hit Point maximum let go of. Neither log was written
+  // when anything gave one back: the engine had no sentence for SRD's
+  // "If your Hit Point maximum was reduced, it returns to normal" at all,
+  // so a drain was permanent and both fixtures fold to exactly the states
+  // they always folded to — neither holds a lowering, and the rest emits
+  // this only for one it can see. `maximum-restored.test.ts` drives it end
+  // to end: a Specter's drain and a Wight's through their own commands, a
+  // Short Rest leaving both standing, a Long Rest taking them off and
+  // refilling to the restored ceiling, and Aid's raise surviving the night.
+  'hit-point-maximum-restored',
   // Something put down, and something picked up. Neither log was written
   // when an item could be anywhere but in somebody's pack: the scene held
   // creatures and landmarks and nothing else, `dropConjured` said in as many

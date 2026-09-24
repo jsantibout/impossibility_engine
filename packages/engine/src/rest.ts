@@ -14,7 +14,10 @@ import type { GameEvent, GameState } from './events.js';
 import { once, type CommandIdentity } from './idempotency.js';
 import { hitDieSides, remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
+import { castingIdOf } from './spells.js';
 import { sheetAsItStands } from './standing.js';
+import type { CreatureState } from './state.js';
+import { settleHitPointMaximum, type GrantedHitPointMaximum } from './vitals.js';
 
 /**
  * Short and Long Rests.
@@ -362,6 +365,47 @@ function rechoiceEvents(
   });
 }
 
+/**
+ * The reductions a completed Long Rest lets go of.
+ *
+ * SRD rules glossary, Long Rest, *Regain All HP*: "If your Hit Point maximum
+ * was reduced, it returns to normal." A rule about **the rest** rather than
+ * about any line that lowers a maximum, which is why it is read here and not
+ * in the three commands that write one — a Specter's Life Drain, a Wraith's,
+ * a Wight's, and a homebrew that prints the same sentence tomorrow.
+ *
+ * Two questions, and the creature's own list answers both:
+ *
+ * - **Downwards only.** A raise belongs to what raised it: SRD Aid's five
+ *   points run the casting's eight hours, through the night and out the other
+ *   side. A rest gives back what was taken; it does not take back what was
+ *   given.
+ * - **Nothing with a lifetime of its own.** A source carrying a casting id is
+ *   a casting's, and a source a `grants` deadline stands over ends when that
+ *   deadline arrives. Either way somebody else is already coming for it, and
+ *   two owners of one ending is how a grant comes to be released twice.
+ * **A third question has no field to ask yet**, and this is where it would be
+ * asked. SRD Mummy's Rotting Fist prints the exception in as many words — "its
+ * Hit Point maximum doesn't return to normal when finishing a Long Rest" — and
+ * that line is handed to the table whole today, so no adjustment in any log
+ * this engine writes is marked to survive. The mark is
+ * `GrantedHitPointMaximum`'s to grow when a reader for the line is built; a
+ * clause for it in the filter before then would be a guard over a fact
+ * nothing can state.
+ */
+function loweringsALongRestEnds(
+  state: GameState,
+  id: CharacterId,
+  creature: CreatureState,
+): readonly GrantedHitPointMaximum[] {
+  return creature.hitPointMaxima.filter(
+    (held) =>
+      held.amount < 0 &&
+      castingIdOf(held.source) === null &&
+      state.timers[timerKey({ kind: 'grants', on: id, source: held.source })] === undefined,
+  );
+}
+
 /** What a retry is told, and the whole of what it is told. */
 const ALREADY_SETTLED: RestResolution = {
   events: [],
@@ -533,8 +577,41 @@ export function endRest(
       }
 
       case 'long': {
-        // SRD: "You regain all lost Hit Points and all spent Hit Point Dice."
-        const missing = creature.vitals.hpMax - creature.vitals.hp;
+        // SRD rules glossary, Long Rest, *Regain All HP*: "You regain all lost
+        // Hit Points and all spent Hit Point Dice. **If your Hit Point maximum
+        // was reduced, it returns to normal.**"
+        //
+        // **The ceiling before the refill**, because the first sentence's "all
+        // lost Hit Points" are measured against the maximum the second gives
+        // back: a fighter a Specter drained wakes at the maximum he had before
+        // he met it, and not at the lowered one.
+        const released = loweringsALongRestEnds(state, id, creature);
+        for (const held of released) {
+          events.push({ type: 'hit-point-maximum-restored', id, source: held.source });
+        }
+
+        // What the release leaves, worked out by **the same function the
+        // fold's derived pass will run** rather than by arithmetic of this
+        // command's own, so the healing is never counted against a ceiling the
+        // fold is about to move.
+        //
+        // For a rester it answers what the old subtraction answered, and
+        // deliberately by a different route: a maximum that rises carries the
+        // hit points up with it, so `hpMax - hp` is unchanged by the release
+        // and both readings agree. They part over the one creature whose total
+        // a rising maximum does **not** carry — 0 hit points, or dead — which
+        // no rest can reach today, because `beginRest` refuses a creature with
+        // none and damage during the night interrupts the rest before it can
+        // pay out as a long one. Asking `settleHitPointMaximum` costs a line
+        // and means the refill is right by construction rather than by that
+        // coincidence, which is a reading of SRD Aid and could be settled the
+        // other way for a drain.
+        const stillHeld = creature.hitPointMaxima
+          .filter((held) => !released.includes(held))
+          .reduce((sum, held) => sum + held.amount, 0);
+        const restored = settleHitPointMaximum(creature.vitals, stillHeld);
+
+        const missing = restored.hpMax - restored.hp;
         if (missing > 0) events.push({ type: 'healed', id, amount: missing });
 
         // SRD: "Temporary Hit Points last until they're depleted or you finish a

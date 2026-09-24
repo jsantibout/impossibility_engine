@@ -5,6 +5,14 @@
  * is stamped with `elapsed` when it begins, pays out against `elapsed` when
  * it ends, and what it pays out is a pool. Splitting the three would put the
  * two halves of one SRD sentence in three modules.
+ *
+ * **And `hit-point-maximum-restored` for the same reason**, though the region
+ * it writes is the grants seam's. SRD's *Regain All HP* is one paragraph —
+ * "You regain all lost Hit Points and all spent Hit Point Dice. If your Hit
+ * Point maximum was reduced, it returns to normal" — and the sentence before
+ * this one is `resources-restored`, which is already here and already writes a
+ * region of its own. What a rest gives back is this seam's question whatever
+ * the giving back touches.
  */
 import {
   declarePool,
@@ -17,6 +25,7 @@ import {
 } from '../resources.js';
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
+import { releaseHitPointMaximum } from './release.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -40,6 +49,7 @@ export const UPKEEP_EVENTS = [
   'time-advanced',
   'rest-begun',
   'rest-ended',
+  'hit-point-maximum-restored',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -202,6 +212,25 @@ export function applyUpkeep({ state, next }: Applying, event: UpkeepEvent): Game
           // earned rather than what it set out to be.
           ...(event.benefit === 'short' ? { lastShortRestAt: state.elapsed } : {}),
         },
+        creature,
+      );
+    }
+
+    case 'hit-point-maximum-restored': {
+      const creature = creatureOf(state, event, event.id);
+      // **Nothing here touches the vitals**, the rule `hit-point-maximum-adjusted`
+      // states on the way in: the grant goes, and `settleHitPointMaximum` in
+      // the derived pass is the one arithmetic that moves `Vitals.hpMax` —
+      // which is what keeps the way out agreeing with the way in.
+      //
+      // A source holding nothing here is not a corrupt log: `endRest` reads
+      // the list it is releasing out of the same state, so the only way to
+      // reach this is a hand-written log, and the answer to "let go of what
+      // you are not holding" is that nothing happens.
+      return withCreature(
+        next,
+        event.id,
+        releaseHitPointMaximum(creature, event.source),
         creature,
       );
     }
