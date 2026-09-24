@@ -49,18 +49,31 @@
  * it, read onto the repeat the first rung scheduled — which is the engine's
  * `RepeatSave.onFailure` word for word. Where the second rung says anything
  * the vocabulary has no field for, the whole line stays prose, because a first
- * rung standing alone is a Restrained nothing ever lifts. **That is the test
- * the two dragon wyrmlings fail and the Pseudodragon passes**, and the
- * difference is an ending rather than a wording: SRD Brass Dragon Wyrmling
- * deepens into an Unconscious "for 1 minute" and SRD Silver Dragon Wyrmling
- * into a Paralyzed that repeats its own save, and `RepeatSave.onFailure` is a
- * bare condition name — so the deeper rung would stand for ever. SRD
- * Pseudodragon's `_Failure by 5 or More:_` is the same failure with one more
- * thing riding on the condition it already imposed, so its Unconscious lifts
- * with the Poisoned that carries it, at the printed hour; what is missing is
- * only the *early* endings, and those are carried rather than dropped. An
- * effect that would never end is refused; one that ends later than the book
- * says is applied and the difference is handed to the table.
+ * rung standing alone is a Restrained nothing ever lifts.
+ *
+ * **A rung is a heading and not a word**, which is the other half of that: the
+ * two Brass Dragon families print their first rung under a plain `_Failure:_`
+ * and then grade it, so what makes a section graded is that the line has a
+ * second rung at all. Read any other way, "until the end of its next turn, at
+ * which point it repeats the save" would be a save the boundary raised for
+ * ever — the rule {@link REPEATS_NEXT_TURN} already keeps for the wording the
+ * Gorgon prints.
+ *
+ * **And a deepening may carry a lifetime of its own.** SRD Brass Dragon
+ * Wyrmling deepens into an Unconscious "for 1 minute" and SRD Silver Dragon
+ * Wyrmling into a Paralyzed that repeats its own save until it succeeds or the
+ * minute is up; `RepeatSave.onFailure` carries a span and a repeat now, so
+ * both are read where before the deeper rung would have stood for ever and the
+ * lines stayed prose. The Brass line's "This effect ends … if it takes damage
+ * or a creature within 5 feet of it takes an action to wake it" is not a
+ * vocabulary this side has, so it is carried under its own heading: the
+ * condition ends *later* than the book says and the difference is handed to
+ * the table. SRD Pseudodragon's `_Failure by 5 or More:_` is the same failure
+ * with one more thing riding on the condition it already imposed, so its
+ * Unconscious lifts with the Poisoned that carries it, at the printed hour;
+ * what is missing there is only the *early* endings, and those are carried in
+ * the same way. An effect that would never end is refused; one that ends later
+ * than the book says is applied and the difference is handed over.
  *
  * **A sentence may name a lifetime that is another clause's**, and two of them
  * do. "While Poisoned, the target has the Paralyzed condition" is read onto
@@ -222,10 +235,13 @@ const BY_MARGIN = /^Failure by (\d+) or More$/;
  * SRD Gorgon, SRD Basilisk and SRD Medusa: "The target has the Petrified
  * condition instead of the Restrained condition."
  *
- * The whole of what a `_Second Failure:_` may say. A rung that says anything
- * else — a span, a repeat of its own, a second effect — refuses the line, and
- * the two dragon wyrmlings that print one are why: see
- * `PrintedSaveEffectSchema`'s `repeats.onFailure`.
+ * The one spelling of a second rung that names **which** condition it
+ * replaces, and therefore the one this reads on its own rather than through
+ * {@link readSection}: "instead of the Restrained condition" is a phrase no
+ * clause in the grammar below can start on, and naming the shallow condition
+ * is the only thing it adds. Every other rung the book prints is an ordinary
+ * sentence about a condition — see {@link deepenBy}, which reads those the way
+ * a failure clause is read anywhere else.
  */
 const SECOND_FAILURE =
   /^The target has the ([A-Z][a-z]+) condition instead of the ([A-Z][a-z]+) condition$/;
@@ -380,8 +396,19 @@ const PUSHED = new RegExp(
 const SPEED_CUT = /^[Tt]he target's Speed decreases by (\d+) feet (until .+)$/;
 const HP_MAX_CUT =
   /^[Tt]he target's Hit Point maximum decreases by an amount equal to the damage taken$/;
+/**
+ * "repeats the save at the end of each of its turns, ending the effect on
+ * itself on a success" — a standing obligation, wherever the condition it is
+ * about was printed.
+ *
+ * The subject is optional twice over, because the book writes this clause both
+ * as a continuation of the sentence before it ("…, and repeats the save…") and
+ * with its own pronoun: SRD Silver Dragon Wyrmling's second rung is "The
+ * target has the Paralyzed condition, **and it** repeats the save at the end
+ * of each of its turns".
+ */
 const REPEATS_AFTER =
-  /^(?:and )?repeats the save at the end of each of its turns, ending the effect on itself on a success$/;
+  /^(?:and )?(?:it )?repeats the save at the end of each of its turns, ending the effect on itself on a success$/;
 /**
  * SRD Gorgon: "and repeats the save at the end of **its next** turn if it is
  * still Restrained, ending the effect on itself on a success."
@@ -400,6 +427,29 @@ const REPEATS_AFTER =
  */
 const REPEATS_NEXT_TURN =
   /^(?:and )?repeats the save at the end of its next turn(?: if it is still [A-Z][a-z]+)?, ending the effect on itself on a success$/;
+/**
+ * SRD Brass Dragon Wyrmling: "The target has the Incapacitated condition until
+ * the end of its next turn, **at which point it repeats the save**." SRD
+ * Silver Dragon Wyrmling writes "…, **when** it repeats the save".
+ *
+ * **One moment said twice, and it is the repeat's rather than a span of its
+ * own.** What arrives at the end of that turn is the save, and what the save
+ * does is end the condition on a success or deepen it on a failure — so a
+ * `lasts` beside the repeat would be a second, silent ending for the same
+ * moment, which is the race the engine refuses a first rung outright (see
+ * `RepeatSave.onFailure`). The span is therefore consumed by the repeat and
+ * the clause carries none.
+ *
+ * A whole sentence rather than a tail, because the connector is neither of the
+ * two {@link HAS_CONDITION} knows and the span in front of it has to be read
+ * and dropped in the same breath. Read **only inside a graded failure**, which
+ * is {@link REPEATS_NEXT_TURN}'s rule and for its reason: the repeat is
+ * one-shot, and a line with no second rung would leave a condition a failure
+ * never lifts.
+ */
+const CONDITION_UNTIL_REPEAT = new RegExp(
+  `^${SUBJECT}has the ([A-Z][a-z]+) condition until the end of its next turn, (?:at which point|when) it repeats the save$`,
+);
 const REPEATS_BEFORE =
   /^At the end of each of its turns, the target repeats the save, ending the effect on itself on a success$/;
 const CAPPED = /^After (\d+) minutes?, it succeeds automatically$/;
@@ -741,6 +791,24 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
       into.effects[i] = { ...effect, whileCondition: host };
     }
     return true;
+  }
+
+  // Before `HAS_CONDITION`, which would read the span and then refuse the
+  // sentence on a connector it does not know. The span is the repeat's moment
+  // rather than the condition's ending — see {@link CONDITION_UNTIL_REPEAT} —
+  // so the clause keeps no `lasts` of its own.
+  if (graded) {
+    const untilRepeat = CONDITION_UNTIL_REPEAT.exec(words);
+    if (untilRepeat !== null) {
+      const name = CONDITIONS[untilRepeat[1]!];
+      if (name === undefined) return false;
+      into.effects.push({
+        kind: 'condition',
+        condition: name,
+        repeats: { at: 'end', of: 'target' },
+      });
+      return true;
+    }
   }
 
   // Before `HAS_CONDITION`, which reads "for 1 hour, until it takes damage, …"
@@ -1103,30 +1171,94 @@ function headOf(head: string): { readonly targets: string; readonly carried: rea
   return { targets: split[1]!, carried: [carried.endsWith('.') ? carried : `${carried}.`] };
 }
 
+/** What a `_Second Failure:_` turned out to say, before it is hung. */
+interface Rung {
+  /** The deepening itself, in the words `RepeatSave.onFailure` is written in. */
+  readonly deepening: Deepening;
+  /** The condition the rung named as the one replaced, where it named one. */
+  readonly instead?: ConditionEffect['condition'];
+  /** Sentences of the rung this reader does not model — carried, never dropped. */
+  readonly carried: readonly string[];
+}
+
+type Deepening = NonNullable<NonNullable<ConditionEffect['repeats']>['onFailure']>;
+
+/**
+ * What one `_Second Failure:_` says, or null where it says something this
+ * cannot hold.
+ *
+ * **Two spellings and the book prints both.** SRD Gorgon names the condition
+ * it replaces — "The target has the Petrified condition **instead of** the
+ * Restrained condition" — and nothing else; that phrase is one no clause in
+ * the grammar can start on, so it is matched whole. Everything else the book
+ * prints here is an ordinary sentence about a condition, so it is read the way
+ * a failure clause is read anywhere else, against a scratch of its own: SRD
+ * Brass Dragon Wyrmling's "The target has the Unconscious condition for 1
+ * minute" and SRD Silver Dragon Wyrmling's "The target has the Paralyzed
+ * condition, and it repeats the save at the end of each of its turns…" are
+ * {@link HAS_CONDITION} and the two clauses that amend it.
+ *
+ * Held to exactly one condition and nothing else, because that is the whole of
+ * what a deepening is: a second clause here would be a rule riding on the
+ * deeper condition with nowhere to be written, and a turn-anchored span would
+ * be the moment the repeat already fires on.
+ */
+function readRung(second: string): Rung | null {
+  const text = second.trim();
+  const named = SECOND_FAILURE.exec(text.replace(/\.$/, ''));
+  if (named !== null) {
+    const deeper = CONDITIONS[named[1]!];
+    const shallow = CONDITIONS[named[2]!];
+    if (deeper === undefined || shallow === undefined) return null;
+    return { deepening: { condition: deeper }, instead: shallow, carried: [] };
+  }
+
+  const read = readSection(text, { graded: true });
+  if (!read.readSomething || read.damage !== null) return null;
+  const [only] = read.effects;
+  if (read.effects.length !== 1 || only === undefined || only.kind !== 'condition') return null;
+  // Every field a `condition` clause can carry that a deepening has no room
+  // for — a grapple's escape DC, a size gate, a condition it carries — is a
+  // rule that would be dropped in silence, so its presence refuses the rung.
+  if (only.escapeDc !== undefined || only.ifNoLargerThan !== undefined || only.implies !== undefined) {
+    return null;
+  }
+  if (only.lasts !== undefined && only.lasts.kind !== 'seconds') return null;
+  return {
+    deepening: {
+      condition: only.condition,
+      ...(only.lasts === undefined ? {} : { lasts: only.lasts }),
+      ...(only.repeats === undefined ? {} : { repeats: only.repeats }),
+    },
+    carried: read.handedOver,
+  };
+}
+
 /**
  * Hang the second rung of a graded failure on the first, or refuse the line.
  *
- * SRD Gorgon's `_Second Failure:_` says exactly one thing — "The target has
- * the Petrified condition **instead of** the Restrained condition" — and the
- * engine's `RepeatSave.onFailure` says exactly that: the deeper condition
- * lands under the same source and the shallow one goes. So the rung is read
- * onto the clause it replaces, which must be the one the first rung told to
- * repeat; anything else is a rule this vocabulary cannot hold, and a graded
- * failure read down to its first rung is a creature Restrained forever.
+ * The rung is read onto the clause it replaces, which must be the one the
+ * first rung told to repeat: the deeper condition lands under the same source,
+ * the shallow one goes, and the timer that raised the save goes with it. A
+ * rung that finds no such clause is a rule this vocabulary cannot hold, and a
+ * graded failure read down to its first rung is a creature Restrained forever
+ * — so it refuses the line rather than keeping half of it.
  */
-function deepenBy(second: string, effects: readonly PrintedSaveEffect[]): PrintedSaveEffect[] | null {
-  const rung = SECOND_FAILURE.exec(second.replace(/\.$/, '').trim());
+function deepenBy(
+  second: string,
+  effects: readonly PrintedSaveEffect[],
+): { readonly effects: PrintedSaveEffect[]; readonly carried: readonly string[] } | null {
+  const rung = readRung(second);
   if (rung === null) return null;
-  const deeper = CONDITIONS[rung[1]!];
-  const shallow = CONDITIONS[rung[2]!];
-  if (deeper === undefined || shallow === undefined) return null;
   const amended = [...effects];
   const hung = amendCondition(
     amended,
-    (effect) => effect.condition === shallow && effect.repeats !== undefined,
-    (last) => ({ ...last, repeats: { ...last.repeats!, onFailure: { condition: deeper } } }),
+    (effect) =>
+      effect.repeats !== undefined &&
+      (rung.instead === undefined || effect.condition === rung.instead),
+    (last) => ({ ...last, repeats: { ...last.repeats!, onFailure: rung.deepening } }),
   );
-  return hung ? amended : null;
+  return hung ? { effects: amended, carried: rung.carried } : null;
 }
 
 /**
@@ -1177,7 +1309,13 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     (section) => section.kind === 'failure' || section.kind === 'first-failure',
   );
   if (failure === undefined) return null;
-  const graded = failure.kind === 'first-failure';
+  // **A line is graded when it has a second rung**, whatever its first one is
+  // printed under: the two Brass Dragon families write `_Failure:_` and then
+  // `_Second Failure:_`, so reading the heading alone would leave their first
+  // rung's one-shot repeat as a save the boundary raised for ever.
+  const graded =
+    failure.kind === 'first-failure' ||
+    sections.some((section) => section.kind === 'second-failure');
   const read = readSection(failure.text, { graded });
   if (!read.readSomething) return null;
 
@@ -1204,7 +1342,12 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     } else if (section.kind === 'second-failure') {
       const deepened = deepenBy(section.text, onFailure);
       if (deepened === null) return null;
-      onFailure = deepened;
+      onFailure = deepened.effects;
+      // Under its own heading, as the margin rung's residue is: the Brass
+      // Dragon's "This effect ends for the target if it takes damage…" reaching
+      // a table with no antecedent names neither the condition it ends nor the
+      // rung it was printed under.
+      handedOver.push(...deepened.carried.map((sentence) => `_Second Failure:_ ${sentence}`));
     } else if (section.kind === 'by-margin') {
       // The same failure with one more thing said about it, so the rung is
       // read **against** what the first one imposed: "While Poisoned, the

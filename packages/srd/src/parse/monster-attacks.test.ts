@@ -1129,8 +1129,7 @@ describe('what a stat block’s sections print, and what is read', () => {
       // other unread line here is unread for its own reason. Three more again
       // when a graded failure became readable — the Gorgon's and the Medusa's
       // Petrifying sentences and the Pseudodragon's Sting, which grades by
-      // margin — while the two dragon wyrmlings that deepen into a span stay
-      // prose, which is the count saying the second rung is read or nothing is.
+      // margin.
       // One more again with the branch on a target's Hit Points — the Sea
       // Hag's Death Glare — while the Solar's Slaying Bow prints the same
       // shape over "it dies" and stays prose.
@@ -1139,7 +1138,15 @@ describe('what a stat block’s sections print, and what is read', () => {
       // three clauses under one span printed beneath them all. The Dretch
       // prints the same rule on the condition it imposed and was already
       // counted here; what it was carrying is now applied.
-      actions: { printed: 811, read: 751 },
+      // And nine more when a deepening was given a lifetime of its own: the
+      // four Brass Dragons' Sleep Breath, which deepens into an Unconscious
+      // for a span, and the four Silver Dragons' Paralyzing Breath, which
+      // deepens into a Paralyzed that repeats its own save. The ninth is the
+      // Sphinx of Valor's Second Roar, which prints the Silver Dragon's second
+      // rung as a plain failure of its own — "the target has the Paralyzed
+      // condition, **and it** repeats the save at the end of each of its
+      // turns" — and was unread only for the pronoun.
+      actions: { printed: 811, read: 760 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
