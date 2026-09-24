@@ -381,6 +381,40 @@ describe('SRD Cunning Strike — the price is Sneak Attack dice', () => {
     expect(own.events.some((event) => event.type === 'movement-declared')).toBe(true);
   });
 
+  it('says so when Withdraw fires on a turn that is not its holder’s', () => {
+    // SRD Sneak Attack is "Once per turn" and not once per *your* turn, so a
+    // Rogue's Opportunity Attack on the thug's turn qualifies again and may
+    // buy a Cunning Strike. Feet a feature hands over belong to a turn budget,
+    // and this swing happens inside somebody else's — so there is no budget to
+    // hand them to, and that is said out loud rather than refused: the blow
+    // has landed.
+    const theirs = turn(alley(), DOOMED);
+    expect(fold('seed', theirs).combat?.order[fold('seed', theirs).combat!.turnIndex]?.id).toBe(
+      THUG,
+    );
+
+    const out = unwrap(
+      resolveAttack(
+        fold('seed', theirs),
+        NYX,
+        {
+          target: THUG,
+          weapon: 'dagger',
+          attackBonuses: [{ source: 'forced', flat: 40 }],
+          modes: [{ source: 'hidden', mode: 'advantage' as const }],
+          free: true,
+          onHit: { feature: CUNNING, option: 'withdraw' },
+        },
+        supply('opportunity'),
+      ),
+      'opportunity attack',
+    );
+    expect(out.events.some((event) => event.type === 'movement-granted')).toBe(false);
+    expect(out.unverified.join(' ')).toContain('it is not their turn');
+    // And the price was still paid, because the Sneak Attack still happened.
+    expect(sliceDice(out.events, 'Sneak Attack')).toBe(2);
+  });
+
   it('drops the rider on a hit that dealt no Sneak Attack damage, and deals ordinary damage', () => {
     // No Advantage and no ally within five feet of the target: the blow is a
     // dagger and nothing more. The rider cannot be paid for, so it is dropped
