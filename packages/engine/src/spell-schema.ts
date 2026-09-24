@@ -708,11 +708,21 @@ function checkChoiceOption(
  * | `condition` | Silence | one of the SRD's conditions |
  * | `damage-defense` | Silence | one of the three defences, over damage types the engine holds |
  * | `no-verbal-casting` | Silence | nothing: it is a fact with no fields |
+ * | `bars-passage` | Tiny Hut, Magic Circle, Wind Wall | whom it bars, which crossing, the pinned exception, and the ability a teleport saves with |
+ * | `wards-magic` | Tiny Hut | a spell level the ward stops at |
+ * | `deflects-projectiles` | Wind Wall | nothing: it is a fact with no fields |
+ * | `attack-mode` | Magic Circle | Advantage or Disadvantage, and the attacker's types it reaches |
+ * | `condition-immunity` | Magic Circle | the SRD's conditions, and the causer's types it holds against |
+ *
+ * `statesTypes` is whether the definition prints a choice of types for the
+ * casting to fill in: a clause saying `'stated'` on a spell that prints none
+ * would wait for an answer nobody is asked for, and is refused.
  */
 function checkAreaStanding(
   value: unknown,
   path: string,
   found: SpellDefinitionProblem[],
+  statesTypes = false,
 ): void {
   if (
     !readsAsObject(
@@ -831,14 +841,217 @@ function checkAreaStanding(
     case 'no-verbal-casting':
       return;
 
+    case 'deflects-projectiles':
+      return;
+
+    case 'wards-magic': {
+      const level = standing['maxLevel'];
+      if (typeof level !== 'number' || !Number.isInteger(level) || level < 0 || level > 9) {
+        found.push({
+          field: `${path}.maxLevel`,
+          code: 'bad_ward_level',
+          reason: `a ward stops spells of some level or lower, and a spell's level runs from 0 to 9; this is ${nameOf(level)}`,
+        });
+      }
+      return;
+    }
+
+    case 'bars-passage': {
+      checkBarredCreatures(standing['to'], `${path}.to`, statesTypes, found);
+      if (!['in', 'out', 'either'].includes(standing['crossing'] as string)) {
+        found.push({
+          field: `${path}.crossing`,
+          code: 'bad_barrier_crossing',
+          reason: `a barrier forbids entering, leaving or either; this is ${nameOf(standing['crossing'])}`,
+        });
+      }
+      if (standing['except'] !== undefined && standing['except'] !== 'inside-at-the-cast') {
+        found.push({
+          field: `${path}.except`,
+          code: 'bad_barrier_exception',
+          reason: `the one exception a barrier prints is the creatures inside when it was cast, and this is ${nameOf(standing['except'])}`,
+        });
+      }
+      if (
+        standing['saveToCross'] !== undefined &&
+        !(ABILITIES as readonly string[]).includes(standing['saveToCross'] as string)
+      ) {
+        found.push({
+          field: `${path}.saveToCross`,
+          code: 'unknown_ability',
+          reason: `"${String(standing['saveToCross'])}" is not one of the six abilities a save is made with`,
+        });
+      }
+      return;
+    }
+
+    case 'attack-mode': {
+      if (standing['mode'] !== 'advantage' && standing['mode'] !== 'disadvantage') {
+        found.push({
+          field: `${path}.mode`,
+          code: 'bad_area_mode',
+          reason: `an area puts Advantage or Disadvantage on a roll, and this is ${nameOf(standing['mode'])}`,
+        });
+      }
+      checkTypeList(standing['attackerType'], `${path}.attackerType`, statesTypes, found);
+      checkOutside(standing, path, found);
+      return;
+    }
+
+    case 'condition-immunity': {
+      const conditions = standing['conditions'];
+      if (
+        readsAsList(
+          conditions,
+          `${path}.conditions`,
+          'the conditions an area refuses are a list',
+          found,
+        )
+      ) {
+        if (conditions.length === 0) {
+          found.push({
+            field: `${path}.conditions`,
+            code: 'unknown_condition',
+            reason: 'an Immunity to no condition at all is a sentence about nothing',
+          });
+        }
+        conditions.forEach((name, i) => {
+          if (typeof name !== 'string') {
+            found.push({
+              field: `${path}.conditions[${i}]`,
+              code: 'unknown_condition',
+              reason: `a condition is named, and this is ${nameOf(name)}`,
+            });
+          } else {
+            checkCondition(name, `${path}.conditions[${i}]`, found);
+          }
+        });
+      }
+      checkTypeList(standing['fromTypes'], `${path}.fromTypes`, statesTypes, found);
+      checkOutside(standing, path, found);
+      return;
+    }
+
     default:
       found.push({
         field: `${path}.kind`,
         code: 'unknown_area_standing',
-        reason: `"${String(standing['kind'])}" is not something an area does to a creature standing in it; the engine derives a Speed, a bonus, a condition and a defence, and refuses a Verbal casting`,
+        reason: `"${String(standing['kind'])}" is not something an area does to a creature standing in it; the engine derives a Speed, a bonus, a condition, a defence, an attack mode and a condition Immunity, refuses a Verbal casting, a crossing and a warded casting, and deflects a projectile`,
       });
   }
 }
+
+/**
+ * A clause's `outside` marker — SRD Magic Circle's reverse — is printed or it
+ * is not, so the only value is `true`.
+ */
+function checkOutside(
+  standing: Record<string, unknown>,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (standing['outside'] !== undefined && standing['outside'] !== true) {
+    found.push({
+      field: `${path}.outside`,
+      code: 'bad_area_side',
+      reason: `a clause protects whoever is outside the area or it does not, so the only value is true, and this is ${nameOf(standing['outside'])}`,
+    });
+  }
+}
+
+/**
+ * A list of creature types a clause narrows by, or the word `'stated'` for a
+ * list the casting fills in — legal only where the definition prints the
+ * choice.
+ */
+function checkTypeList(
+  value: unknown,
+  path: string,
+  statesTypes: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  if (value === undefined) return;
+  if (value === 'stated') {
+    if (!statesTypes) {
+      found.push({
+        field: path,
+        code: 'stated_types_unprinted',
+        reason:
+          'this clause waits for the types the casting states, and the spell prints no `typesStated` for a caster to answer',
+      });
+    }
+    return;
+  }
+  if (!readsAsList(value, path, 'creature types a clause narrows by are a list, or the word "stated"', found)) {
+    return;
+  }
+  if (value.length === 0) {
+    found.push({
+      field: path,
+      code: 'type_filters_nothing',
+      reason: 'a list of no creature types reads as a filter and is none',
+    });
+  }
+  value.forEach((type, i) => {
+    if (typeof type !== 'string' || type.length === 0) {
+      found.push({
+        field: `${path}[${i}]`,
+        code: MALFORMED,
+        reason: `a creature type is a name, and this is ${nameOf(type)}`,
+      });
+    }
+  });
+}
+
+/** Whom a barrier bars — see `BarredCreatures` in `standing.ts`. */
+function checkBarredCreatures(
+  value: unknown,
+  path: string,
+  statesTypes: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  if (value === 'all' || value === 'gaseous') return;
+  if (!readsAsObject(value, path, 'a barrier bars all creatures, gaseous ones, named types, or small fliers', found)) {
+    return;
+  }
+  const to = value as Record<string, unknown>;
+  if ('types' in to) {
+    checkTypeList(to['types'], `${path}.types`, statesTypes, found);
+    return;
+  }
+  if ('sizeAtMost' in to) {
+    if (!SIZES.has(to['sizeAtMost'] as string)) {
+      found.push({
+        field: `${path}.sizeAtMost`,
+        code: 'unknown_size',
+        reason: `"${String(to['sizeAtMost'])}" is not one of the SRD's six sizes`,
+      });
+    }
+    if (to['flying'] !== true) {
+      found.push({
+        field: `${path}.flying`,
+        code: 'bad_barrier_target',
+        reason: 'the one size-bounded barrier the SRD prints is against flying creatures, so the clause says so',
+      });
+    }
+    return;
+  }
+  found.push({
+    field: path,
+    code: 'bad_barrier_target',
+    reason: 'a barrier bars all creatures, gaseous ones, a list of types, or fliers up to a size; this names none of the four',
+  });
+}
+
+/** The six sizes, for the one clause here that bounds one. */
+const SIZES: ReadonlySet<string> = new Set([
+  'tiny',
+  'small',
+  'medium',
+  'large',
+  'huge',
+  'gargantuan',
+]);
 
 function checkCondition(
   name: string,
@@ -4428,6 +4641,7 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   'target-drops-to-0',
   'summon-takes-damage',
   'shaken-awake',
+  'caster-leaves-the-area',
 ]);
 
 /** What a trigger may end: the casting, or the casting on one creature. */
@@ -4443,7 +4657,12 @@ const END_TRIGGER_SCOPES: ReadonlySet<string> = new Set(['casting', 'target']);
  * rather than tested by hand so that the next cause of this shape joins it in
  * one place.
  */
-const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set(['summon-takes-damage']);
+const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set([
+  'summon-takes-damage',
+  // The caster holds nothing of their own Tiny Hut either: the cause is about
+  // them and a place, and `ends: 'target'` would find nothing to release.
+  'caster-leaves-the-area',
+]);
 
 /**
  * What a casting leaves behind when it ends, and the four ways it can be a
@@ -5271,8 +5490,74 @@ export function checkSpellDefinition(
       });
     } else {
       definition.areaStanding.forEach((standing, i) =>
-        checkAreaStanding(standing, `areaStanding[${i}]`, found),
+        checkAreaStanding(
+          standing,
+          `areaStanding[${i}]`,
+          found,
+          definition.typesStated !== undefined,
+        ),
       );
+    }
+  }
+
+  // — a choice of one or more creature types the casting states ——————————
+  //
+  // SRD Magic Circle's "Choose one or more of the following types". The list
+  // is checked as `choiceStated`'s creature types are, and it has to reach a
+  // clause: a choice the caster is refused until they answer, whose answer
+  // then goes nowhere, is the silent failure every reachability rule here
+  // exists to catch.
+  if (definition.typesStated !== undefined) {
+    if (
+      readsAsObject(
+        definition.typesStated,
+        'typesStated',
+        'a stated choice of types is an object naming the types the spell prints',
+        found,
+      )
+    ) {
+      const printed = definition.typesStated.options;
+      if (
+        readsAsList(
+          printed,
+          'typesStated.options',
+          'the creature types a spell prints for its caster to choose among are a list',
+          found,
+        )
+      ) {
+        if (printed.length === 0) {
+          found.push({
+            field: 'typesStated.options',
+            code: 'stated_choice_needs_choice',
+            reason: 'this records a spell printing a choice of types; none is not a choice',
+          });
+        }
+        printed.forEach((option, i) => {
+          if (typeof option !== 'string') {
+            found.push({
+              field: `typesStated.options[${i}]`,
+              code: MALFORMED,
+              reason: `a creature type is a name, and this is ${nameOf(option)}`,
+            });
+          } else {
+            checkChoiceOption('creature-type', option, `typesStated.options[${i}]`, found);
+          }
+        });
+      }
+    }
+    const clauses = [
+      ...(Array.isArray(definition.areaStanding) ? definition.areaStanding : []),
+      ...Object.values(definition.options ?? {}).flatMap((branch) =>
+        Array.isArray(branch?.areaStanding) ? branch.areaStanding : [],
+      ),
+    ];
+    if (!clauses.some((clause) => JSON.stringify(clause).includes('"stated"'))) {
+      found.push({
+        field: 'typesStated',
+        code: 'stated_types_reach_nothing',
+        reason:
+          'nothing in this spell’s area clauses says "stated" for the casting’s types to replace',
+      });
     }
   }
 
@@ -6690,12 +6975,48 @@ function checkOptions(
       checkEffect(effect as SpellEffect, definition.level, `options.${key}.effects[${i}]`, found),
     );
 
-    if (effects.length === 0 && handsOver.length === 0 && notes.length === 0) {
+    // **A branch's standing clauses**, SRD Magic Circle's two directions: read
+    // by the rules the common list's are, and refused on a spell with no area
+    // for them to stand in.
+    const standing =
+      branch.areaStanding === undefined
+        ? []
+        : readsAsList(
+              branch.areaStanding,
+              `options.${key}.areaStanding`,
+              'what an area does to whoever stands in it is a list of clauses',
+              found,
+            )
+          ? branch.areaStanding
+          : [];
+    if (branch.areaStanding !== undefined && definition.area === undefined) {
+      found.push({
+        field: `options.${key}.areaStanding`,
+        code: 'standing_without_area',
+        reason:
+          'a standing effect an area has needs an area to stand in; nothing derives it from a spell with no volume',
+      });
+    }
+    standing.forEach((clause, i) =>
+      checkAreaStanding(
+        clause,
+        `options.${key}.areaStanding[${i}]`,
+        found,
+        definition.typesStated !== undefined,
+      ),
+    );
+
+    if (
+      effects.length === 0 &&
+      handsOver.length === 0 &&
+      notes.length === 0 &&
+      standing.length === 0
+    ) {
       found.push({
         field: `options.${key}`,
         code: 'option_says_nothing',
         reason:
-          'a branch a casting may run resolves something, hands its sentence to the DM, or declares what the engine leaves out; this one does none of the three',
+          'a branch a casting may run resolves something, hands its sentence to the DM, declares what the engine leaves out, or says what its area does; this one does none of the four',
       });
     }
   }
@@ -7030,14 +7351,14 @@ function checkAltitudePlacement(
  * it to the length. The thickness is not a field, because the smallest thing
  * this engine holds is a space.
  *
- * **And a wall answers at the cast and nothing later**, which is the rule this
- * function exists for. The path is the one thing about a template that cannot
- * be reconstructed from the book and a point, the ongoing record does not store
- * it, and `areaShapeOf` therefore answers null for a wall — so a trigger, a
- * standing effect, terrain, light or obscurement written here would be a clause
- * that silently did nothing. Refused at authoring, which is where a
- * definition's defects belong, and the refusal is where the conversation starts
- * on the day Wall of Fire wants its second sentence.
+ * **And a wall answers at the cast and to its standing clauses, and nothing
+ * else later**, which is the rule this function exists for. The path is the one
+ * thing about a template that cannot be reconstructed from the book and a
+ * point. The ongoing record pins it now (`OngoingSpell.path`), which is what
+ * lets SRD Wind Wall's own barrier and deflection — `areaStanding` — be read
+ * against the wall after the cast; a trigger, terrain, light or obscurement
+ * written here would still be a clause nothing settles against a wall, and
+ * each is refused at authoring, which is where a definition's defects belong.
  */
 function checkWall(
   area: { readonly kind: string; readonly origin?: unknown },
@@ -7066,18 +7387,12 @@ function checkWall(
   }
 
   if (key !== 'area') return;
-  for (const clause of [
-    'areaTrigger',
-    'areaStanding',
-    'areaTerrain',
-    'areaLight',
-    'areaObscurement',
-  ] as const) {
+  for (const clause of ['areaTrigger', 'areaTerrain', 'areaLight', 'areaObscurement'] as const) {
     if (definition[clause] === undefined) continue;
     found.push({
       field: clause,
       code: 'wall_answers_once',
-      reason: `a wall's path is drawn at the casting and is not pinned on the record, so nothing can ask about it again; \`${clause}\` would be read against no shape at all`,
+      reason: `a wall is drawn at the casting and settles nothing later but what it does to a creature standing in it; \`${clause}\` would be read against no shape at all`,
     });
   }
 }

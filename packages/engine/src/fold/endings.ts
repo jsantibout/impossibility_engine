@@ -24,7 +24,8 @@
 import type { CharacterId } from '@ie/shared';
 import { instancesEndingEarly } from '../conditions.js';
 import { type EffectEndCause, timerKey } from '../timers.js';
-import { castingNumber, type OngoingSpell } from '../spells.js';
+import { castingNumber, creaturesStandingInCastingArea, type OngoingSpell } from '../spells.js';
+import { positionOf } from '../positioning.js';
 
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -117,6 +118,20 @@ type EndingFact =
   | {
       readonly cause: 'shaken-awake';
       readonly woken: CharacterId;
+    }
+  /**
+   * A creature whose authoritative position just changed — a walk or a
+   * teleport, which write the same `creature-moved`.
+   *
+   * `mover` rather than `who`, for the reason `to` and `woken` are not: the
+   * `who` field is the discriminant {@link endTriggeredEffects} narrows on,
+   * and a timer has no area for anybody to leave. Whether the mover is the
+   * casting's caster, and whether they are now outside its area, is
+   * {@link subjectOf}'s question — the fact says only that somebody moved.
+   */
+  | {
+      readonly cause: 'caster-leaves-the-area';
+      readonly mover: CharacterId;
     };
 
 /**
@@ -151,6 +166,12 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
     // `wakeCreature`; what is left is the fact, and it names one creature.
     case 'creature-woken':
       return [{ cause: 'shaken-awake', woken: event.id }];
+    // SRD Tiny Hut: "The spell ends early if you leave the Emanation." A walk
+    // and a teleport both write this event, so both are read here; which
+    // casting it is the caster of, and whether they are now outside, is asked
+    // per record below.
+    case 'creature-moved':
+      return [{ cause: 'caster-leaves-the-area', mover: event.id }];
     case 'damage-taken':
       return [
         // **The three that read the creature the blow landed on**, so a trap
@@ -248,9 +269,30 @@ function subjectOf(
     case 'shaken-awake':
       return isOn(state, record, fact.woken) ? fact.woken : null;
 
+    // The one cause about the caster and a place: this casting's own caster,
+    // and the area it pinned no longer holding them.
+    case 'caster-leaves-the-area':
+      return fact.mover === record.caster && casterOutsideArea(state, record) ? fact.mover : null;
+
     default:
       return isOn(state, record, fact.who) ? fact.who : null;
   }
+}
+
+/**
+ * Whether a casting's caster is standing outside the area it pinned.
+ *
+ * Off the record's own geometry — the stationary Emanation's pinned point, its
+ * distance — through the same reader every standing clause uses, so the dome
+ * the barrier refuses a goblin at is the dome the wizard has to leave. A
+ * casting whose area cannot be located, or a caster nobody has placed, is
+ * nowhere in particular and has left nothing: the withholding direction.
+ */
+function casterOutsideArea(state: GameState, record: OngoingSpell): boolean {
+  const scene = state.scene;
+  if (scene === null || positionOf(scene, record.caster as CharacterId) === null) return false;
+  const inside = creaturesStandingInCastingArea(scene, record);
+  return inside !== null && !inside.has(record.caster as CharacterId);
 }
 
 /** One casting to end, and whether it ends outright or on one creature. */

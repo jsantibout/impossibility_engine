@@ -2360,6 +2360,13 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the branches a spell prints this casting runs, for the spells that print several and leave the pick to the caster — Command’s "Choose the command from these options: Approach, Drop, Flee, Grovel, Halt", Thaumaturgy’s six wonders, Enlarge/Reduce’s two halves. Named by the branch’s own key: `halt`, `booming-voice`, `enlarge`. Leaving it out for one of those is refused and comes back listing them; naming one for a spell that prints no branches is refused too. Not the same field as `choice`, which names a value substituted into the effects a spell already has.',
       ),
+    types: z
+      .array(z.string().min(1))
+      .min(1)
+      .optional()
+      .describe(
+        'The creature types this casting is drawn against, for a spell that prints "choose one or more" of a list — Magic Circle’s Celestials, Elementals, Fey, Fiends, or Undead. One or more of the printed names. Leaving it out for such a spell is refused and comes back listing them; naming any for a spell that prints no such choice is refused too. Not `choice`, which is one value: this is a list.',
+      ),
     fought: z
       .array(creatureId)
       .optional()
@@ -2491,6 +2498,7 @@ const CAST_SPELL = tool({
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),
       ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
       ...(args.choice === undefined ? {} : { choice: args.choice }),
+      ...(args.types === undefined ? {} : { types: args.types }),
       ...(args.option === undefined ? {} : { option: args.option }),
       // **An empty `fought` is an answer and is never elided.** "We are
       // fighting none of them" is a fact the caster stated; absence is a

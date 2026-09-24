@@ -124,6 +124,7 @@
     "isBodyArmor",
     "endingFactsOf",
     "subjectOf",
+    "casterOutsideArea",
     "Ending",
     "nextEnding",
     "endingKey",

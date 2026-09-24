@@ -1803,8 +1803,23 @@ describe('every spell this batch added is cast for real', () => {
     // first: its own Sphere, centred on the space the shard reached, its own
     // effect list, and one level deep. Nothing of the spell is left.
     'ice-knife',
+    // **Knock and Nondetection leave by being read to the end.** Every
+    // sentence of Knock is about an object the engine has no state for, and
+    // Nondetection refuses a Divination spell none of which this engine can
+    // aim at a creature — so both are handed over whole, in the book's words,
+    // and neither is a debt any longer.
+    'knock',
+    // **Magic Circle leaves on four shapes at once**: a barrier the movement
+    // command refuses a chosen type at, with the Charisma save the book prints
+    // rolled on a teleport in; Disadvantage on that type's attacks against
+    // whoever stands inside, off the target's place; an Immunity to Charmed and
+    // Frightened narrowed to that type; and the reverse as a second branch. The
+    // types are stated at the casting and pinned into every clause. Possession
+    // and interplanar travel are the table's, so it is executed-partial.
+    'magic-circle',
     'magic-jar',
     'mirror-image',
+    'nondetection',
     // **The two the area-standing track wrote, and they left together.** SRD
     // Pass without Trace's whole content is a +10 on the Stealth checks of
     // whoever is in a 30-foot Emanation, and SRD Silence's is three sentences
@@ -1879,6 +1894,13 @@ describe('every spell this batch added is cast for real', () => {
     // What is left is Booming Voice's Advantage, which is an ordinary mode
     // with no creature to land on: the spell names no target at all.
     'thaumaturgy',
+    // **Tiny Hut leaves on three shapes**: a barrier that bars every creature
+    // but those inside when it rose — a list the record pins — a ward a casting
+    // of level three or lower is refused across and an area effect does not
+    // reach into, and a casting the caster's own step out of the dome ends,
+    // derived in the fold off `creature-moved`. The Emanation stays where it
+    // rose, which is the one Emanation in the book that does.
+    'tiny-hut',
     // **True Strike leaves by a door no effect kind opened.** Its swing *is*
     // the casting — "you make one attack with the weapon used in the spell's
     // casting" — so `weapon-attack` is resolved by the attack command, which
@@ -1893,10 +1915,10 @@ describe('every spell this batch added is cast for real', () => {
     // judged at the cast against the fifty feet, the continuity, the single
     // ground and the Range to the space it rises from. The Strength save and
     // the 4d8 are the most ordinary shape there is, once there is somewhere to
-    // resolve them. What the spell still owes is the **barrier** — an arrow
-    // deflected upward, a Small flier turned back — so it leaves the tracked
-    // bucket as executed-partial rather than clean, and
-    // `a-barrier-that-blocks-passage` keeps it.
+    // resolve them. The **barrier** is built now — the record pins the path,
+    // so the wall can be asked about again: an arrow is deflected with the die
+    // on the record, a Small flier and a creature in gaseous form are turned
+    // back. Objects are not in the scene, so it stays executed-partial.
     'wind-wall',
     // The last of the tracked spells to be blocked on a *publication* rather
     // than on a mechanic. The Charisma save was always ordinary and both

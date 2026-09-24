@@ -214,7 +214,10 @@ const WRITTEN: Readonly<Record<string, 'tracked' | 'executed'>> = {
   scrying: 'tracked',
   telekinesis: 'tracked',
   teleport: 'tracked',
-  'tiny-hut': 'tracked',
+  // Tracked when this batch wrote it and executed since: the dome is a barrier
+  // the movement command refuses, a ward the casting pipeline refuses across,
+  // and a casting the caster's own step out ends.
+  'tiny-hut': 'executed',
 };
 
 describe('the spells the eighteen items were waiting for', () => {

@@ -1371,13 +1371,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Reverting takes 1 minute, during which the target has the Stunned condition." The Magic action that begins it is taken by the target rather than by the caster, so the minute of Stunned hangs off an activation belonging to somebody the casting reached rather than to whoever cast it.',
     },
   ],
-  'wind-wall': [
-    {
-      clause: 'deflected upward',
-      why: 'a-barrier-that-blocks-passage',
-      note: 'the geometry is built and the obstacle is not: the wall is a template the casting resolves over, and stopping a Small flying creature, an arrow or a creature in gaseous form is the half `docs/design/space-and-areas.md` keeps out — a shape that refuses a crossing is where a rules engine becomes a VTT.',
-    },
-  ],
   'zone-of-truth': [
     {
       clause: 'the engine holds no speech',
@@ -2810,32 +2803,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the check is against a glyph whose whole configuration — explosive rune or spell glyph, trigger, damage type, stored spell — is chosen when it is inscribed, so there is nothing inscribed for anybody to notice.',
     },
   ],
-  'magic-circle': [
-    {
-      marker: 'teleport',
-      clause: 'If the creature tries to use teleportation or interplanar travel',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'the ward stops a teleport arriving rather than performing one, which is how this clause was re-filed when the teleportation shape was retired: an area that refuses a casting resolved somewhere else has no state to sit in.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'it must first succeed on a Charisma saving throw',
-      why: 'a-barrier-that-blocks-passage',
-      note: 'the save exists only to answer the attempt to cross, so it is raised by the boundary rather than by the casting, and there is no boundary.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'Disadvantage on attack rolls against targets within the Cylinder',
-      why: 'a-filter-on-the-attackers-creature-type',
-      note: 'the penalty falls on one creature type attacking whoever is inside, and a selector reaches a roll by family, ability and skill — the roll-and-damage note names this spell in the table of what the vocabulary does not reach.',
-    },
-    {
-      marker: 'condition',
-      clause: 'be possessed by or gain the Charmed or Frightened condition from the creature',
-      why: 'a-condition-immunity-narrowed-to-its-source',
-      note: 'the immunity holds against that one creature and against nobody else, and a condition immunity is refused to everybody or to nobody rather than narrowed to who is trying to apply it.',
-    },
-  ],
   confusion: [
     {
       marker: 'saving-throw',
@@ -3523,26 +3490,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'turn Difficult Terrain caused by plant growth',
       why: 'difficult-terrain-an-area-creates',
       note: 'the clause after it — turning ordinary ground into Difficult Terrain — is writable now, and this one is the direction that is not: **removing** it. Nothing in the lattice subtracts, because `terrainAt` takes the dearest rate lying over a space and a patch cancelling its neighbours is the one thing a rate cannot say.'
-    },
-  ],
-  'tiny-hut': [
-    {
-      marker: null,
-      clause: 'All other creatures and objects are barred from passing through it',
-      why: 'a-barrier-that-blocks-passage',
-      note: 'the dome stops a creature crossing it, and movement consults no walls — which `docs/design/space-and-areas.md` keeps out on purpose, because ray-casting a barrier is where a rules engine becomes a VTT. The template that describes the Emanation is a different thing from a surface that refuses a mover.',
-    },
-    {
-      marker: null,
-      clause: "Spells of level 3 or lower can't be cast through it",
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'an area that refuses another casting rather than ending one. `spell-ended` built the ending half and this is the half it did not: no state says a casting is being refused, and a level cap read off the dome has nowhere to be checked.',
-    },
-    {
-      marker: null,
-      clause: 'The spell ends early if you leave the Emanation',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'this spell is the shape’s own example of leaving an area, named in its description. The other half of the same sentence — casting it again — is `replacesPriorCasting` and is applied; what has no cause the log holds is the caster stepping out of their own dome.',
     },
   ],
   'animate-dead': [

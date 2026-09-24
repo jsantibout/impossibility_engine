@@ -85,7 +85,9 @@ import {
   distanceBetween,
   distanceBetweenPoints,
   positionOf,
+  segmentCrossesRegion,
   sizeAtMost,
+  type Point,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
 import {
@@ -112,6 +114,7 @@ import {
   sheetAsItStands,
   standingAttackDamage,
   standingBonuses,
+  deflectingAreas,
   standingDamageEffects,
   standingWeaponRollRule,
   strikeStyleFor,
@@ -1910,6 +1913,7 @@ export function resolveAttack(
       return err('total_cover', `${command.target} is behind Total Cover`);
     }
 
+
     // A damage type a feature does not offer is refused here, before the action
     // is spent and before a die is thrown — the same validate-before-rolling
     // rule the rest of the engine keeps.
@@ -2462,6 +2466,42 @@ export function resolveAttack(
       );
     }
 
+    // SRD Wind Wall: "Arrows, bolts, and other ordinary projectiles launched
+    // at targets behind the wall are deflected upward and miss automatically.
+    // Boulders hurled by Giants or siege engines, and similar projectiles, are
+    // unaffected."
+    //
+    // A ranged **weapon** attack whose line from the attacker's space to the
+    // target's crosses such an area misses whatever the die shows — the die is
+    // thrown and recorded all the same, as it is for an automatic success on a
+    // save. A catalogue weapon's ranged attack is an arrow, a bolt or a thrown
+    // dagger, all of them ordinary; a stat block's printed ranged line may be a
+    // Giant's rock, and the line does not say which, so it is reported rather
+    // than ruled on. A spell attack is not a projectile and never reaches
+    // this. The line is read between the centres of the two anchor cubes,
+    // through the one segment test the lattice offers.
+    let autoMiss: string | undefined;
+    if (state.scene !== null && carry.range !== null) {
+      const fromSpace = positionOf(state.scene, id);
+      const toSpace = positionOf(state.scene, command.target);
+      if (fromSpace !== null && toSpace !== null) {
+        const centre = (p: Point): Point => ({ x: p.x + 2.5, y: p.y + 2.5, z: p.z + 2.5 });
+        for (const { spell, region } of deflectingAreas(state)) {
+          if (!segmentCrossesRegion(state.scene, region, centre(fromSpace), centre(toSpace))) {
+            continue;
+          }
+          if (printed !== null) {
+            unverified.push(
+              `${attackName} was launched through ${spell}, which deflects arrows, bolts and other ordinary projectiles and not boulders; a stat block's line does not say which it is, so the roll was made without it`,
+            );
+          } else {
+            autoMiss = `${spell} deflects ${weapon?.name ?? 'the projectile'} upward`;
+          }
+          break;
+        }
+      }
+    }
+
     const swing: AttackOptions = {
       weapon,
       ...(stated === undefined ? {} : { statedAttack: stated }),
@@ -2498,6 +2538,7 @@ export function resolveAttack(
       ...(targetCanSeeAttacker === null ? {} : { attackerContext: { targetCanSeeAttacker } }),
       ...(attackerCanSeeTarget === null ? {} : { targetContext: { attackerCanSeeTarget } }),
       ...(withinFiveFeet === undefined ? {} : { withinFiveFeet }),
+      ...(autoMiss === undefined ? {} : { autoMiss }),
     };
 
     const attack = rollAttack(supply.issuer, supply.rng, sheet, swing);
@@ -2520,7 +2561,10 @@ export function resolveAttack(
     events.push({
       type: 'roll-recorded',
       who: id,
-      label: `${attackName} attack`,
+      // A deflected arrow says so on the record, because the face did not
+      // decide the miss and a reader comparing it to the Armour Class would
+      // otherwise find a hit the outcome denies.
+      label: `${attackName} attack${attack.value.autoMissed === undefined ? '' : ', deflected'}`,
       natural: attack.value.roll.natural,
       total: attack.value.total,
       // The modifier, less every flat bonus that can name itself, and then

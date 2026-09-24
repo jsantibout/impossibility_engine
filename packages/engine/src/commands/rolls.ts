@@ -46,6 +46,7 @@ import {
   electableCastingDamage,
   rollModesFor,
   sensesPerceiving,
+  areaAttackModesAgainst,
   standingBonuses,
   standingCheckBonuses,
   standingSaveBonuses,
@@ -915,7 +916,7 @@ export function defendingModes(
    */
   spell?: { readonly through?: string },
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
-  return rollModesFor(
+  const gathered = rollModesFor(
     state,
     {
       family: 'attack',
@@ -942,6 +943,15 @@ export function defendingModes(
     },
     { seenByHolder: canSee(state, target, attacker) },
   );
+  // SRD Magic Circle: "The creature has Disadvantage on attack rolls against
+  // targets within the Cylinder." A mode the **target's** place confers,
+  // narrowed by what the attacker is — gathered here, at the one gatherer both
+  // a weapon's swing and a spell's attack already go through, so neither site
+  // learns anything new. See `areaAttackModesAgainst`.
+  return {
+    modes: [...gathered.modes, ...areaAttackModesAgainst(state, target, attacker)],
+    unverified: gathered.unverified,
+  };
 }
 
 /**

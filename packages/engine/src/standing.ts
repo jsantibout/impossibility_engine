@@ -53,16 +53,25 @@ import {
   sensesReaching,
   sightBetween,
   SIGHT_SENSES,
+  sizeAtMost,
+  sizeOf,
+  spaceInRegion,
   type CreatureSense,
   type LightLevel,
   type Point,
   type PositionState,
   type SenseName,
+  type TerrainRegion,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
 import { typeMagicSees } from './creature-type.js';
 import type { EquippedItem } from './state.js';
-import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
+import {
+  creaturesStandingInCastingArea,
+  regionOfCastingArea,
+  spellOfSource,
+  type CastingTime,
+} from './spells.js';
 import type { OutcomeRiders, SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import { tallied, type Recovery } from './resources.js';
@@ -172,13 +181,23 @@ export type StandingReach =
  * | Silence, "creatures have the Deafened condition while entirely inside it" | {@link AreaConditionStanding} |
  * | Silence, "has Immunity to Thunder damage" | {@link AreaDefenseStanding} |
  * | Silence, "Casting a spell that includes a Verbal component is impossible there" | {@link AreaSilenceStanding} |
+ * | Tiny Hut, "All other creatures and objects are barred from passing through it" | {@link AreaBarrierStanding} |
+ * | Tiny Hut, "Spells of level 3 or lower can't be cast through it" | {@link AreaWardStanding} |
+ * | Wind Wall, "ordinary projectiles … are deflected upward and miss automatically" | {@link AreaDeflectionStanding} |
+ * | Magic Circle, "Disadvantage on attack rolls against targets within the Cylinder" | {@link AreaAttackModeStanding} |
+ * | Magic Circle, "Targets within the Cylinder can't … gain the Charmed or Frightened condition from the creature" | {@link AreaConditionImmunityStanding} |
  */
 export type AreaStanding =
   | AreaSpeedStanding
   | AreaBonusStanding
   | AreaConditionStanding
   | AreaDefenseStanding
-  | AreaSilenceStanding;
+  | AreaSilenceStanding
+  | AreaBarrierStanding
+  | AreaWardStanding
+  | AreaDeflectionStanding
+  | AreaAttackModeStanding
+  | AreaConditionImmunityStanding;
 
 /**
  * How much of a creature has to be in the area for a clause to reach it.
@@ -340,6 +359,163 @@ export type AreaDefenseStanding = WhollyInside & {
  */
 export type AreaSilenceStanding = {
   readonly kind: 'no-verbal-casting';
+};
+
+/**
+ * Which side of the area a clause protects.
+ *
+ * SRD Magic Circle: "Each time you cast this spell, you can cause its magic to
+ * operate in the reverse direction, preventing a creature of the specified type
+ * from leaving the Cylinder and **protecting targets outside it**." Every other
+ * clause in this file reaches whoever is standing *in* the area; the reversed
+ * circle is the one sentence in the book that reaches whoever is standing
+ * anywhere else. So it is a marker on the two clauses that sentence turns
+ * round, read by {@link areaStandingOn} as the complement of the catch — a
+ * placed creature the geometry does not catch — and absent everywhere else.
+ */
+interface AreaSide {
+  /** The clause reaches a placed creature **outside** the area rather than inside it. */
+  readonly outside?: true;
+}
+
+/**
+ * Whom a barrier stops.
+ *
+ * Four SRD sentences and a member for each: Tiny Hut bars "all other creatures
+ * and objects"; Magic Circle bars "a creature of the chosen type" — chosen at
+ * the casting, so a definition writes `'stated'` and the record carries the
+ * list the caster gave; Wind Wall bars "Small or smaller flying creatures" and,
+ * in its last sentence, "creatures in gaseous form".
+ *
+ * **Gaseous form is a mark on the creature and not a name.** SRD Gaseous Form
+ * makes "the target's only method of movement … a Fly Speed of 10 feet, and it
+ * can hover", and that is what the grant it hangs says: a granted Fly Speed
+ * that {@link GrantedSpeed.replaces} every other Speed and hovers.
+ * {@link isGaseousOn} reads that pair and nothing named after a spell.
+ */
+export type BarredCreatures =
+  | 'all'
+  | { readonly types: readonly string[] | 'stated' }
+  | { readonly sizeAtMost: CreatureSize; readonly flying: true }
+  | 'gaseous';
+
+/**
+ * SRD Tiny Hut: "Creatures and objects within the Emanation when you cast the
+ * spell can move through it freely. **All other creatures and objects are
+ * barred from passing through it.**" SRD Magic Circle: "The creature can't
+ * willingly enter the Cylinder by nonmagical means. If the creature tries to
+ * use teleportation or interplanar travel to do so, it must first succeed on a
+ * Charisma saving throw." SRD Wind Wall: "Small or smaller flying creatures or
+ * objects can't pass through the wall. … Creatures in gaseous form can't pass
+ * through it."
+ *
+ * **A surface the movement command consults, and the first one.** Every area
+ * before this was a template a casting resolved over; a creature walked through
+ * a Wind Wall as if it were open floor, because movement asked the lattice
+ * about cost and occupancy and never about a boundary. This is the boundary:
+ * `resolveMove` reads which barriers stand against the mover and refuses a step
+ * that crosses one (`barred`), before any movement is spent, and `teleportTo`
+ * reads the one clause the book writes about a teleport.
+ *
+ * **Derived on every read, like every clause here**, because which side of the
+ * dome a goblin is on is a fact about where the goblin is standing.
+ *
+ * `crossing` is the direction the sentence forbids: Tiny Hut's "passing
+ * through" is either way, Magic Circle's "enter" is inward and its reverse is
+ * outward. `except` is the list the casting pinned — SRD Tiny Hut's "creatures
+ * within the Emanation when you cast the spell" — read off
+ * `OngoingSpell.insideAtTheCast`. `saveToCross` is the ability SRD Magic
+ * Circle names for a teleport across; a clause without it lets a teleport by,
+ * because a teleport passes through nothing — the reading `commands/teleport.ts`
+ * has always taken of a Web.
+ */
+export type AreaBarrierStanding = {
+  readonly kind: 'bars-passage';
+  readonly to: BarredCreatures;
+  readonly crossing: 'in' | 'out' | 'either';
+  readonly except?: 'inside-at-the-cast';
+  readonly saveToCross?: Ability;
+};
+
+/**
+ * SRD Tiny Hut: "**Spells of level 3 or lower can't be cast through it, and
+ * the effects of such spells can't extend into it.**"
+ *
+ * The other thing an area can refuse: not a creature's step but another
+ * casting. Two readers, and both are pre-existing seams rather than new
+ * doors. `resolveSpell`'s pre-flight refuses a casting of a level at or below
+ * `maxLevel` whose caster and named target — or the point it is cast at — stand
+ * on opposite sides of the boundary (`warded`), before anything is spent; and
+ * `areaCatch` takes out of an area's catch every creature the boundary
+ * separates from the caster, the way `chosen` and `notTheCaster` already
+ * narrow it.
+ *
+ * **The level is the casting's**, which is the slot's when upcast — SRD: "the
+ * spell assumes the higher level for that casting" — so a Cone of Cold at level
+ * 5 leaves the dome and a Fireball at level 3 does not.
+ *
+ * **Sides, not a line.** Whether a casting is "through" the dome is read as the
+ * two ends being on different sides of it, which is exact for a casting that
+ * begins or ends inside and an approximation for one that begins and ends
+ * outside with the dome between — the same approximation declared cover makes
+ * of every area of effect, and made for the same reason.
+ */
+export type AreaWardStanding = {
+  readonly kind: 'wards-magic';
+  /** The highest spell level the ward stops; a higher casting passes. */
+  readonly maxLevel: number;
+};
+
+/**
+ * SRD Wind Wall: "**Arrows, bolts, and other ordinary projectiles launched at
+ * targets behind the wall are deflected upward and miss automatically.**
+ * Boulders hurled by Giants or siege engines, and similar projectiles, are
+ * unaffected."
+ *
+ * Read by `resolveAttack` for a ranged **weapon** attack whose line from the
+ * attacker's space to the target's crosses the area: the die is still thrown
+ * and recorded — as it is for an automatic success on a save — and the roll
+ * misses whatever it shows. A spell attack is not a projectile and passes; a
+ * stat block's printed ranged line may be an arrow or a boulder, so it is
+ * reported in `unverified` rather than ruled on.
+ */
+export type AreaDeflectionStanding = {
+  readonly kind: 'deflects-projectiles';
+};
+
+/**
+ * SRD Magic Circle: "The creature has **Disadvantage on attack rolls against
+ * targets within the Cylinder**."
+ *
+ * A roll mode the *target's* position confers, narrowed by what the attacker
+ * is. The hung version of the same sentence is SRD Protection from Evil and
+ * Good's `RollSelector.attackerType`, and this reads a type the same way —
+ * through `typeMagicSees`, because a ward is a spell. Gathered into
+ * `defendingModes` beside the modes the target holds, so the attack site learns
+ * nothing new.
+ */
+export type AreaAttackModeStanding = AreaSide & {
+  readonly kind: 'attack-mode';
+  readonly mode: RollMode;
+  /** The attacker's creature types the mode reaches; `'stated'` until the casting fills it. */
+  readonly attackerType?: readonly string[] | 'stated';
+};
+
+/**
+ * SRD Magic Circle: "**Targets within the Cylinder can't be possessed by or
+ * gain the Charmed or Frightened condition from the creature.**"
+ *
+ * The Immunity SRD Protection from Evil and Good hangs on one creature, read
+ * off a place instead: `conditionImmunitiesOf` gathers it beside the granted
+ * ones and narrows it by the causer's type exactly as
+ * `GrantedConditionImmunity.fromTypes` is narrowed — a cause nobody has named
+ * is not filtered out, and the possession is the table's.
+ */
+export type AreaConditionImmunityStanding = AreaSide & {
+  readonly kind: 'condition-immunity';
+  readonly conditions: readonly ConditionName[];
+  /** The causer's creature types the Immunity holds against; `'stated'` until the casting fills it. */
+  readonly fromTypes?: readonly string[] | 'stated';
 };
 
 /**
@@ -4271,6 +4447,23 @@ export function conditionImmunitiesOf(
     }
     for (const condition of granted.conditions) names.add(condition);
   }
+  // And what the place the creature is standing in refuses — SRD Magic
+  // Circle's "Targets within the Cylinder can't … gain the Charmed or
+  // Frightened condition from the creature" — narrowed by the causer's type
+  // exactly as a granted one is. `'stated'` never reaches a record, because the
+  // casting substitutes the list before pinning; a clause that somehow still
+  // says it names nobody, which is the withholding direction.
+  for (const { standing } of areaStandingOn(state, who)) {
+    if (standing.kind !== 'condition-immunity') continue;
+    const from = standing.fromTypes;
+    if (
+      from !== undefined &&
+      (from === 'stated' || causerType === null || !from.includes(causerType))
+    ) {
+      continue;
+    }
+    for (const condition of standing.conditions) names.add(condition);
+  }
   return [...names].sort();
 }
 
@@ -5375,6 +5568,18 @@ export interface GrantedSpeed {
    * a creature that cannot fly cannot hover either.
    */
   readonly hover?: true;
+  /**
+   * SRD Gaseous Form: "the target's **only** method of movement is a Fly Speed
+   * of 10 feet, and it can hover."
+   *
+   * A granted Speed that stands in for every Speed the creature had rather
+   * than beside them. Written by the grant that transcribes that sentence, and
+   * read by {@link isGaseousOn}, which is how SRD Wind Wall's "creatures in
+   * gaseous form can't pass through it" finds such a creature without either
+   * spell naming the other: the mark is the pair the book prints — a replacing
+   * Fly Speed that hovers — and nothing named after a spell.
+   */
+  readonly replaces?: true;
 }
 
 /**
@@ -5847,14 +6052,22 @@ export function areaStandingOn(
     let wholly: ReadonlySet<CharacterId> | null | undefined;
     for (const standing of standings) {
       let inside: ReadonlySet<CharacterId> | null;
-      if (standing.kind !== 'no-verbal-casting' && standing.whollyInside === true) {
+      if ((standing as WhollyInside).whollyInside === true) {
         wholly ??= creaturesStandingInCastingArea(scene, record, { whollyInside: true });
         inside = wholly;
       } else {
         ordinary ??= creaturesStandingInCastingArea(scene, record);
         inside = ordinary;
       }
-      if (inside === null || !inside.has(who)) continue;
+      if (inside === null) continue;
+      // SRD Magic Circle's reverse, "protecting targets outside it": the
+      // complement of the catch, over placed creatures only — a creature nobody
+      // has placed is nowhere, and nowhere is not outside. See {@link AreaSide}.
+      const reaches =
+        (standing as AreaSide).outside === true
+          ? !inside.has(who) && positionOf(scene, who) !== null
+          : inside.has(who);
+      if (!reaches) continue;
       found.push({ spell: record.spell, standing });
     }
   }
@@ -5990,6 +6203,207 @@ export function silencedBy(state: GameState, who: CharacterId): string | null {
     if (standing.kind === 'no-verbal-casting') return spell;
   }
   return null;
+}
+
+/**
+ * Whether a creature is in gaseous form.
+ *
+ * SRD Gaseous Form: "the target's only method of movement is a Fly Speed of 10
+ * feet, and it can hover." That is the mark — a granted Fly Speed that
+ * {@link GrantedSpeed.replaces} every other and hovers — and this reads the
+ * pair rather than a spell's name, so SRD Wind Wall's "creatures in gaseous
+ * form can't pass through it" finds the creature without either spell knowing
+ * the other exists. A Fly spell's granted Speed hovers and replaces nothing,
+ * and is not this.
+ */
+export function isGaseousOn(state: GameState, who: CharacterId): boolean {
+  const creature = state.creatures[who];
+  if (creature === undefined) return false;
+  return creature.speedModifiers.some(
+    (granted) => granted.mode === 'fly' && granted.hover === true && granted.replaces === true,
+  );
+}
+
+/** One barrier standing against a creature: where it stands and what it forbids. */
+export interface BarrierAgainst {
+  readonly castingId: string;
+  /** The casting's pinned display name, for the refusal. */
+  readonly spell: string;
+  /** The area, in the vocabulary the lattice answers about. */
+  readonly region: TerrainRegion;
+  readonly crossing: 'in' | 'out' | 'either';
+  /**
+   * SRD Magic Circle's "it must first succeed on a Charisma saving throw", at
+   * the DC the casting pinned. Absent for a barrier no teleport may cross at
+   * all — and for one a teleport passes freely, because a teleport crosses
+   * nothing: see {@link AreaBarrierStanding}.
+   */
+  readonly saveToCross?: { readonly ability: Ability; readonly dc: number };
+}
+
+/**
+ * Every barrier that stands against this creature right now.
+ *
+ * The casting's half of a question `resolveMove` and `teleportTo` ask, derived
+ * on every read for {@link AreaStanding}'s reason: which barriers bar a goblin
+ * depends on what the goblin is and how it is moving, and the list the casting
+ * pinned of who was inside at the cast. The geometry — which step crosses which
+ * boundary — is the caller's, asked of the region returned here.
+ *
+ * `flying` is whether the move is being made with a Fly Speed, which is what
+ * SRD Wind Wall's "flying creatures" means for a step; a teleport says `false`,
+ * because nobody flies through a Misty Step.
+ */
+export function barriersAgainst(
+  state: GameState,
+  who: CharacterId,
+  movement: { readonly flying: boolean },
+): readonly BarrierAgainst[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+  const creature = state.creatures[who];
+  if (creature === undefined) return [];
+
+  const found: BarrierAgainst[] = [];
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record?.areaStanding === undefined) continue;
+    const region = regionOfCastingArea(record);
+    if (region === null) continue;
+    for (const standing of record.areaStanding) {
+      if (standing.kind !== 'bars-passage') continue;
+      // SRD Tiny Hut: "Creatures and objects within the Emanation when you cast
+      // the spell can move through it freely" — the list the cast pinned.
+      if (
+        standing.except === 'inside-at-the-cast' &&
+        (record.insideAtTheCast ?? []).includes(who)
+      ) {
+        continue;
+      }
+      if (!barsCreature(standing.to, state, scene, creature, movement)) continue;
+      found.push({
+        castingId,
+        spell: record.spell,
+        region,
+        crossing: standing.crossing,
+        ...(standing.saveToCross === undefined
+          ? {}
+          : { saveToCross: { ability: standing.saveToCross, dc: record.numbers.saveDc } }),
+      });
+    }
+  }
+  return found;
+}
+
+/** Whether a barrier's `to` names this creature, moving this way. */
+function barsCreature(
+  to: BarredCreatures,
+  state: GameState,
+  scene: PositionState,
+  creature: CreatureState,
+  movement: { readonly flying: boolean },
+): boolean {
+  if (to === 'all') return true;
+  if (to === 'gaseous') return isGaseousOn(state, creature.id);
+  if ('types' in to) {
+    // A ward is a spell, so it reads the type through the Mask; `'stated'` on
+    // a record is a list nobody filled and names nobody.
+    if (to.types === 'stated') return false;
+    const seen = typeMagicSees(creature);
+    return seen !== null && to.types.includes(seen);
+  }
+  return movement.flying && sizeAtMost(sizeOf(scene, creature.id) ?? 'medium', to.sizeAtMost);
+}
+
+/**
+ * The ward a casting of this level would cross between a caster and a target
+ * or a point, or null.
+ *
+ * SRD Tiny Hut: "Spells of level 3 or lower can't be cast through it." A ward
+ * stops a casting whose two ends are on different sides of its boundary; the
+ * caster inside and the goblin inside is no crossing, and so is both outside.
+ * A caster or a target nobody has placed is on no side, and the ward does not
+ * bite — the withholding direction every unsettled fact here takes. See
+ * {@link AreaWardStanding}.
+ */
+export function wardBetween(
+  state: GameState,
+  caster: CharacterId,
+  other: CharacterId | Point,
+  level: number,
+): string | null {
+  const scene = state.scene;
+  if (scene === null || positionOf(scene, caster) === null) return null;
+
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    const ward = record?.areaStanding?.find((standing) => standing.kind === 'wards-magic');
+    if (record === undefined || ward === undefined || ward.kind !== 'wards-magic') continue;
+    if (ward.maxLevel < level) continue;
+
+    const inside = creaturesStandingInCastingArea(scene, record);
+    if (inside === null) continue;
+    let otherInside: boolean;
+    if (typeof other === 'string') {
+      if (positionOf(scene, other) === null) continue;
+      otherInside = inside.has(other);
+    } else {
+      const region = regionOfCastingArea(record);
+      if (region === null) continue;
+      otherInside = spaceInRegion(scene, region, other);
+    }
+    if (inside.has(caster) !== otherInside) return record.spell;
+  }
+  return null;
+}
+
+/**
+ * Every running area that deflects projectiles, with where it stands.
+ *
+ * SRD Wind Wall's sentence, gathered for `resolveAttack` to draw the line from
+ * attacker to target across. The geometry is the caller's, off the region.
+ */
+export function deflectingAreas(
+  state: GameState,
+): readonly { readonly spell: string; readonly region: TerrainRegion }[] {
+  const found: { spell: string; region: TerrainRegion }[] = [];
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = state.ongoing[castingId];
+    if (record?.areaStanding?.some((standing) => standing.kind === 'deflects-projectiles') !== true) {
+      continue;
+    }
+    const region = regionOfCastingArea(record);
+    if (region !== null) found.push({ spell: record.spell, region });
+  }
+  return found;
+}
+
+/**
+ * The modes an area the **target** stands in puts on an attacker's roll.
+ *
+ * SRD Magic Circle: "The creature has Disadvantage on attack rolls against
+ * targets within the Cylinder." Gathered into `defendingModes` beside the modes
+ * the target holds, and narrowed by the attacker's type the way
+ * `RollSelector.attackerType` is — through `typeMagicSees`, a roller nobody has
+ * typed being in no list. `'stated'` on a record names nobody.
+ */
+export function areaAttackModesAgainst(
+  state: GameState,
+  target: CharacterId,
+  attacker: CharacterId,
+): readonly ModeSource[] {
+  const swinger = state.creatures[attacker];
+  const type = swinger === undefined ? null : typeMagicSees(swinger);
+  const modes: ModeSource[] = [];
+  for (const { spell, standing } of areaStandingOn(state, target)) {
+    if (standing.kind !== 'attack-mode') continue;
+    const types = standing.attackerType;
+    if (types !== undefined && (types === 'stated' || type === null || !types.includes(type))) {
+      continue;
+    }
+    modes.push({ source: spell, mode: standing.mode });
+  }
+  return modes;
 }
 
 /**

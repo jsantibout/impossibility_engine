@@ -623,6 +623,18 @@ export interface AttackOptions {
   /** The attacker is within 5 feet — flips Prone, and enables automatic crits. */
   readonly withinFiveFeet?: boolean;
   /**
+   * Why this attack misses whatever the die shows.
+   *
+   * SRD Wind Wall: "Arrows, bolts, and other ordinary projectiles launched at
+   * targets behind the wall are deflected upward and **miss automatically**."
+   * The mirror of `D20TestOptions.autoSucceed` on the attack pipeline: the die
+   * is still thrown and recorded, the total is still computed, and the
+   * outcome is overridden — a natural 20 included, because the sentence is
+   * about the arrow and not about the roll. Supplied by the caller that
+   * measured the line; the roll learns only that it misses, and why.
+   */
+  readonly autoMiss?: string;
+  /**
    * A reroll of the **attack roll** the attacker elected before it was thrown
    * — see {@link RollElection}.
    *
@@ -843,6 +855,13 @@ export interface AttackResult {
   readonly targetAc: number;
   readonly hit: boolean;
   readonly critical: boolean;
+  /**
+   * Why the attack missed regardless of the roll — SRD Wind Wall's "deflected
+   * upward and miss automatically". The die was thrown and is in {@link roll},
+   * as it is for an automatic success on a save; this says the face did not
+   * decide. See {@link AttackOptions.autoMiss}.
+   */
+  readonly autoMissed?: string;
 }
 
 export function rollAttack(
@@ -941,7 +960,10 @@ export function rollAttack(
           mode,
           modifier,
           stated.value.total + added,
-          election === undefined
+          // A deflected arrow misses whatever the die shows, so a reroll bought
+          // against a miss would be a pool spent on a face that decided
+          // nothing; the election is not offered one.
+          election === undefined || options.autoMiss !== undefined
             ? null
             : {
                 pool: election.pool,
@@ -953,7 +975,10 @@ export function rollAttack(
         )
       : stated.value;
   const total = roll.total + added;
-  const { naturalCritical, hit } = lands(roll, total);
+  const landed = lands(roll, total);
+  // SRD Wind Wall's "miss automatically": the outcome overridden, the die kept
+  // — see {@link AttackOptions.autoMiss}.
+  const hit = options.autoMiss === undefined && landed.hit;
 
   // SRD Paralyzed and Unconscious: "Any attack roll that hits you is a Critical
   // Hit if the attacker is within 5 feet of you." A hit that was not a natural
@@ -971,7 +996,8 @@ export function rollAttack(
     total,
     targetAc: options.targetAc,
     hit,
-    critical: naturalCritical || automaticCritical,
+    critical: hit && (landed.naturalCritical || automaticCritical),
+    ...(options.autoMiss === undefined ? {} : { autoMissed: options.autoMiss }),
   });
 }
 

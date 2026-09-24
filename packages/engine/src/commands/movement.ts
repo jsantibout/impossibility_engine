@@ -16,6 +16,7 @@ import {
   actionRulesOn,
   canSee,
   abilityScoresOf,
+  barriersAgainst,
   fliesWithoutFallingOn,
   hasSpeedInModeOn,
   sheetAsItStands,
@@ -49,7 +50,9 @@ import {
   mountingCost,
   type MountOptions,
   moveCreature,
+  moverInRegionAt,
   mustCrossSomebody,
+  mustEnterRegion,
   occupantsBetween,
   type Placement,
   type Point,
@@ -418,6 +421,16 @@ export function moveWithin(
     const passage = checkPassage(state, scene.value, id, from, to, command.route, charging);
     if (!passage.ok) return passage;
 
+    // **And the barriers a casting has put in the way**, which is the third
+    // thing a route says and the first surface movement has ever consulted.
+    // SRD Tiny Hut bars "all other creatures" from passing through its dome,
+    // Magic Circle bars a chosen type from entering, Wind Wall bars a Small
+    // flier and a creature in gaseous form. Asked after the passage question
+    // and before any cost, so a step the dome stops costs nothing to be told
+    // about.
+    const barred = checkBarriers(state, scene.value, id, from, to, command.route, mode, charging);
+    if (!barred.ok) return barred;
+
     const difficult = command.difficultFeet ?? 0;
     if (!Number.isInteger(difficult) || difficult < 0 || difficult > feet) {
       return err(
@@ -623,6 +636,7 @@ export function moveWithin(
           ...opportunity.unverified,
           ...ground.value.unverified,
           ...passage.value.unverified,
+          ...barred.value.unverified,
           ...jumped.value.unverified,
           ...climbing,
         ],
@@ -650,12 +664,104 @@ export function moveWithin(
         ...opportunity.unverified,
         ...ground.value.unverified,
         ...passage.value.unverified,
+        ...barred.value.unverified,
         ...jumped.value.unverified,
         ...climbing,
       ],
       duplicate: false,
     });
   });
+}
+
+/**
+ * Whether this move crosses a barrier a casting has raised against the mover.
+ *
+ * SRD Tiny Hut: "All other creatures and objects are barred from passing
+ * through it." SRD Magic Circle: "The creature can't willingly enter the
+ * Cylinder by nonmagical means." SRD Wind Wall: "Small or smaller flying
+ * creatures … can't pass through the wall. … Creatures in gaseous form can't
+ * pass through it."
+ *
+ * `barriersAgainst` says which barriers stand against *this* mover moving *this*
+ * way — the type, the size, the mark, the list pinned at the cast — and this is
+ * the geometry: a **crossing** is a step from a space on one side of the region
+ * to a space on the other, in the direction the clause forbids. Three cases,
+ * on the pattern `checkPassage` set:
+ *
+ * - **a route was stated** — every step is read, and the first that crosses is
+ *   the refusal;
+ * - **no route** — the endpoints decide where they can: a move that begins
+ *   outside and ends inside crossed, whatever way it went. Where both ends are
+ *   outside, the move is refused only if **every** shortest way in goes
+ *   through the region, because then no route the caller could state would
+ *   make it legal — and let through otherwise, since a route around the edge
+ *   exists. That is `mustEnterRegion`, which is `mustCrossSomebody` with a
+ *   barrier where the occupants were;
+ * - **a shove** — not the creature's own move, and a rider on a settled
+ *   outcome never refuses. The crossing is reported in `unverified`, which is
+ *   where a forced move into a wall already goes.
+ *
+ * Refused as `barred`, before any cost and before anything is spent.
+ */
+function checkBarriers(
+  state: GameState,
+  scene: PositionState,
+  id: CharacterId,
+  from: Point,
+  to: Point,
+  route: readonly Point[] | undefined,
+  mode: MovementMode,
+  charging: Charging,
+): Result<{ readonly unverified: readonly string[] }> {
+  const barriers = barriersAgainst(state, id, { flying: mode === 'fly' });
+  if (barriers.length === 0) return ok({ unverified: [] });
+
+  const unverified: string[] = [];
+  for (const barrier of barriers) {
+    const inside = (p: Point): boolean => moverInRegionAt(scene, barrier.region, id, p);
+    const crossed = (a: Point, b: Point): boolean => {
+      const inA = inside(a);
+      const inB = inside(b);
+      return barrier.crossing === 'in'
+        ? !inA && inB
+        : barrier.crossing === 'out'
+          ? inA && !inB
+          : inA !== inB;
+    };
+
+    let crossing = false;
+    if (route !== undefined && route.length > 0) {
+      let previous = from;
+      for (const space of route) {
+        if (crossed(previous, space)) {
+          crossing = true;
+          break;
+        }
+        previous = space;
+      }
+    } else if (crossed(from, to)) {
+      crossing = true;
+    } else if (
+      barrier.crossing !== 'out' &&
+      !inside(from) &&
+      !inside(to) &&
+      mustEnterRegion(scene, id, from, to, barrier.region)
+    ) {
+      crossing = true;
+    }
+    if (!crossing) continue;
+
+    const verb =
+      barrier.crossing === 'in' ? 'entering' : barrier.crossing === 'out' ? 'leaving' : 'passing through';
+    if (charging === 'none') {
+      unverified.push(
+        `${id} was moved through ${barrier.spell}, which bars ${verb} it; forced movement is not the creature's own and the engine stops nobody's shove, so where ${id} comes to rest against it is the table's`,
+      );
+      continue;
+    }
+    return err('barred', `${id} is barred from ${verb} ${barrier.spell}, and this move would`);
+  }
+  return ok({ unverified });
 }
 
 /**

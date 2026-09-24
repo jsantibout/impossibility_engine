@@ -47,6 +47,7 @@
  */
 
 import {
+  type Ability,
   type CharacterId,
   type ContextRequest,
   err,
@@ -58,10 +59,11 @@ import { type CommandStamp, type GameEvent, type GameState } from '../events.js'
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   moveCreature,
+  moverInRegionAt,
   type Placement,
   positionOf,
 } from '../positioning.js';
-import { canSee } from '../standing.js';
+import { barriersAgainst, canSee } from '../standing.js';
 import { anchorNeeded, creatureOf, sceneFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 
@@ -94,7 +96,24 @@ export interface RelocateOutcome {
   readonly feet: number;
   /** Facts the engine could not check — see `AttackResolution.unverified`. */
   readonly unverified: readonly string[];
-  readonly duplicate: boolean;
+  /**
+   * A saving throw the destination demands **before** the creature arrives.
+   *
+   * SRD Magic Circle: "If the creature tries to use teleportation or
+   * interplanar travel to do so, it must first succeed on a Charisma saving
+   * throw." `teleportTo` is pure and rolls nothing — it is the pre-flight as
+   * well as the move — so it hands the demand back and the caller that holds
+   * the dice rolls it: the `teleport` effect's resolver, which records the save
+   * and moves the creature only on a success. `relocateCreature` holds no dice
+   * and refuses the crossing instead. Absent for every destination no barrier
+   * prints a save for.
+   */
+  readonly saveToCross?: {
+    readonly ability: Ability;
+    readonly dc: number;
+    /** The casting's pinned display name, for the roll's label. */
+    readonly spell: string;
+  };
 }
 
 /**
@@ -144,6 +163,15 @@ export function relocateCreature(
 
       const done = teleportTo(state, who, command, stamp);
       if (!done.ok) return done;
+      // SRD Magic Circle's save is rolled by the road that has dice — a spell's
+      // `teleport` effect — and this door has none, so a relocation across such
+      // a barrier is refused rather than performed with the save skipped.
+      if (done.value.saveToCross !== undefined) {
+        return err(
+          'barred',
+          `${who} is barred from crossing ${done.value.saveToCross.spell} by anything but a teleport that first succeeds on a saving throw, and a bare relocation rolls none; cast the spell instead`,
+        );
+      }
       return ok({ ...done.value, duplicate: false });
     },
   );
@@ -247,6 +275,33 @@ export function teleportTo(
     );
   }
 
+  // **A teleport crosses nothing, so a barrier that bars passage does not
+  // bar it** — except the one the book writes a sentence about. SRD Magic
+  // Circle: "If the creature tries to use teleportation or interplanar travel
+  // to do so, it must first succeed on a Charisma saving throw." Only a clause
+  // that prints a save reaches a teleport, and what it demands is handed back
+  // for the caller with dice to roll. The first in casting order, which is the
+  // order every walk over `ongoing` takes.
+  const from = positionOf(scene.value, who);
+  const to = positionOf(moved.value.state, who);
+  let saveToCross: RelocateOutcome['saveToCross'];
+  if (from !== null && to !== null) {
+    for (const barrier of barriersAgainst(state, who, { flying: false })) {
+      if (barrier.saveToCross === undefined) continue;
+      const inFrom = moverInRegionAt(scene.value, barrier.region, who, from);
+      const inTo = moverInRegionAt(scene.value, barrier.region, who, to);
+      const crossed =
+        barrier.crossing === 'in'
+          ? !inFrom && inTo
+          : barrier.crossing === 'out'
+            ? inFrom && !inTo
+            : inFrom !== inTo;
+      if (!crossed) continue;
+      saveToCross = { ...barrier.saveToCross, spell: barrier.spell };
+      break;
+    }
+  }
+
   return ok({
     events: [
       {
@@ -258,6 +313,7 @@ export function teleportTo(
     ],
     feet,
     unverified,
+    ...(saveToCross === undefined ? {} : { saveToCross }),
   });
 }
 

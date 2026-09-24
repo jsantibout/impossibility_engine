@@ -319,30 +319,32 @@ describe('the whole spell, end to end through the public API', () => {
   });
 
   /**
-   * **And nothing asks about the wall again.**
+   * **And the wall can be asked about again, off the path the record pins.**
    *
-   * `spell-resolution.ts` pins an area's point only where one of the four
-   * clauses that read it later is written — a trigger, terrain, light,
-   * obscurement — and Wind Wall writes none of them, so the record keeps the
-   * casting and nothing geometric at all. That is the honest consequence of a
-   * shape being *drawn* rather than printed: the path could not be
-   * reconstructed from the book and a point, so nothing pretends it can, and
-   * `checkSpellDefinition` refuses every clause that would want to ask.
+   * This test once asserted the opposite — that the record kept the casting
+   * and nothing geometric, because a path could not be reconstructed from the
+   * book and a point. It still cannot; what changed is that the path is
+   * *written down*: `OngoingSpell.path` is the one fact about the template
+   * that was a decision, and SRD Wind Wall's own barrier and deflection are
+   * what read it. A trigger, terrain, light and obscurement are still refused
+   * on a wall by `checkSpellDefinition`.
    */
-  it('keeps the casting and nothing about the shape it was drawn in', () => {
+  it('keeps the casting and the path it was drawn along', () => {
     const out = unwrap(cast(CORNER), 'wind wall');
     const after = fold('s', [...TABLE, ...out.events]);
     const record = Object.values(after.ongoing).find((one) => one.spellId === 'wind-wall');
     expect(record).toBeDefined();
     // The printed bounds are pinned like every other template's dimensions —
     // they reconstruct themselves off the page — and the two facts that were
-    // decisions are not there at all: where it rose, and the shape it was
-    // drawn in.
+    // decisions are pinned beside them: where it rose, which is the first
+    // space of the path, and the path itself.
     expect(record?.area).toEqual({ kind: 'wall', length: 50, height: 15, origin: 'point' });
-    expect(record?.origin).toBeUndefined();
+    expect(record?.origin).toEqual(CORNER[0]);
+    expect(record?.path).toEqual(CORNER);
     expect(record?.areaTrigger).toBeUndefined();
-    // Which is what `areaShapeOf` answers null for, so no later question about
-    // this casting has a shape to be asked of.
-    expect(creaturesStandingInCastingArea(after.scene!, record!)).toBeNull();
+    // So a later question about this casting has a shape to be asked of, and
+    // the answer is whoever is standing in the wall's own spaces: nobody, once
+    // the casting has flung them clear or they have stepped out.
+    expect(creaturesStandingInCastingArea(after.scene!, record!)).not.toBeNull();
   });
 });

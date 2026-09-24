@@ -592,6 +592,8 @@ export interface CastingPlan {
     readonly towards?: Point;
     /** Absent means `space`, so a log written before intersections existed folds unchanged. */
     readonly anchoring?: PointAnchoring;
+    /** The spaces a wall runs through, for the one template the caster draws. */
+    readonly path?: readonly Point[];
   };
   /**
    * The damage type the caster stated, where the spell prints a choice.
@@ -611,6 +613,12 @@ export interface CastingPlan {
    * request to ask again.
    */
   readonly choice?: string;
+  /**
+   * The creature types the caster chose, where the spell prints a choice of
+   * one or more — SRD Magic Circle's. Beside {@link choice} and carried the
+   * same way, so a circle declared against Fiends settles against Fiends.
+   */
+  readonly types?: readonly string[];
   /**
    * Which of the spell's printed branches this casting runs.
    *
@@ -1091,6 +1099,7 @@ function castSpellWith(
         // disagrees with the first.
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
         ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
+        ...(command.hold.types === undefined ? {} : { types: command.hold.types }),
         ...(command.hold.option === undefined ? {} : { option: command.hold.option }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.willing === undefined ? {} : { willing: command.hold.willing }),
