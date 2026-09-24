@@ -1131,7 +1131,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Petrifying sentences and the Pseudodragon's Sting, which grades by
       // margin — while the two dragon wyrmlings that deepen into a span stay
       // prose, which is the count saying the second rung is read or nothing is.
-      actions: { printed: 811, read: 746 },
+      // One more again with the branch on a target's Hit Points — the Sea
+      // Hag's Death Glare — while the Solar's Slaying Bow prints the same
+      // shape over "it dies" and stays prose.
+      actions: { printed: 811, read: 747 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
@@ -1152,8 +1155,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // the graded failure: the Basilisk's Petrifying Gaze is a Bonus Action,
       // where the Gorgon's identical sentence is an Action. And one more with
       // the only failure in the book that kills outright — the Will-o'-Wisp's
-      // Consume Life, a Bonus Action too.
-      bonusActions: { printed: 75, read: 20 },
+      // Consume Life, a Bonus Action too. And one more with the branch: the
+      // Incubus' Nightmare, whose ceiling holds an Unconscious for the hour
+      // the book prints, with its two early endings carried.
+      bonusActions: { printed: 75, read: 21 },
       reactions: { printed: 24, read: 0 },
       legendaryActions: { printed: 82, read: 0 },
     });

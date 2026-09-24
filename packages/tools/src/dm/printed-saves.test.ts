@@ -267,6 +267,26 @@ describe('`look` says which printed lines the engine will roll', () => {
     expect(trample.engineRollsTheSave).toBe(true);
   });
 
+  /**
+   * SRD Sea Hag's Death Glare and SRD Incubus' Nightmare each print a failure
+   * that branches on the target's Hit Points — "If the target has 20 Hit
+   * Points or fewer, … . Otherwise, …" — and each stood on the other side of
+   * this flag until the branch was read.
+   */
+  it('says true for the two lines that branch on the target’s Hit Points', () => {
+    const hag = fight('the-hag-is-read', 'sea-hag');
+    const glare = blockOf(hag, 'fang').actions.find((one) =>
+      one.name.startsWith('Death Glare'),
+    )!;
+    expect(glare.engineRollsTheSave).toBe(true);
+
+    const incubus = fight('the-incubus-is-read', 'incubus');
+    const nightmare = blockOf(incubus, 'fang').bonusActions.find((one) =>
+      one.name.startsWith('Nightmare'),
+    )!;
+    expect(nightmare.engineRollsTheSave).toBe(true);
+  });
+
   it('says false for a printed Bonus Action that forces nothing', () => {
     const t = fight('the-goblin-is-read');
     const block = blockOf(t, 'grish');

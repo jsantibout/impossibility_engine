@@ -68,7 +68,7 @@ import {
   withFlatAddend,
 } from './rolls.js';
 import { dealSpellDamage } from './damage.js';
-import { applyPrintedClauses } from './printed-save-clauses.js';
+import { applyPrintedClauses, takeBranches } from './printed-save-clauses.js';
 import {
   applyEvent,
   type GameEvent,
@@ -1072,12 +1072,40 @@ export function forcePrintedSave(
         // a made Dexterity save, which is a fact about what was printed.
         const evading = evadesHalfDamage(current, target, ability, printed.onSuccess === 'half');
 
+        // **How far the save missed**, where the line grades its failure by
+        // that and not by a second roll. SRD Pseudodragon: "_Failure by 5 or
+        // More:_ While Poisoned, the target also has the Unconscious
+        // condition." The margin is the engine's own — it threw the save and
+        // the block printed the DC — so the deeper list is chosen here and
+        // nothing is asked of a caller. It *replaces* the failure's list
+        // rather than adding to it, which is what the reader wrote: a rung is
+        // the whole failure said again with one more thing in it.
+        const missedBy = printed.dc - save.value.total;
+        const failure =
+          printed.onFailureBy !== undefined && missedBy >= printed.onFailureBy.by
+            ? printed.onFailureBy.effects
+            : (printed.onFailure ?? []);
+
+        // **And which arm of a Hit Point ceiling the target stands on, before
+        // anything is rolled.** SRD Sea Hag: "If the target has 20 Hit Points
+        // or fewer, it drops to 0 Hit Points. Otherwise, the target takes 13
+        // (3d8) Psychic damage." The `otherwise` dice must not be thrown on
+        // the arm the book did not take, so the branch is settled here rather
+        // than in the clause executor, which runs after the damage.
+        const taken = takeBranches(victim.vitals.hp, [
+          ...(save.value.success ? [] : failure),
+          ...(printed.either ?? []),
+        ]);
+
         let dealt = 0;
         let concentration: ConcentrationConsequence = { kind: 'none' };
         // Nothing at all on a success means no damage roll either: the line
         // did nothing there, and rolling would move the generator for no
         // reason. A line that prints no damage — a Lion's Roar — rolls none.
-        const damage = printed.damage;
+        // A branch's `otherwise` arm is this line's damage for this target,
+        // and it exists only on a failure, so the clause below is unchanged.
+        const damage = taken.damage ?? printed.damage;
+        const plus = taken.damage === null ? printed.plus : (taken.plus ?? undefined);
         if (
           damage !== undefined &&
           !(save.value.success && (printed.onSuccess === 'none' || evading))
@@ -1095,16 +1123,16 @@ export function forcePrintedSave(
           let parts = withFlatAddend(rolled.value, damage.flat);
           // "5 (1d4 + 3) Piercing damage plus 10 (3d6) Necrotic damage": a
           // second component of the same blow, meeting the defences with it.
-          if (printed.plus !== undefined) {
+          if (plus !== undefined) {
             const more = rollSpellDice(
               supply,
               creature.sheet,
               line.name,
-              printed.plus.type,
-              printed.plus.dice ?? undefined,
+              plus.type,
+              plus.dice ?? undefined,
             );
             if (!more.ok) return more;
-            parts = [...parts, ...withFlatAddend(more.value, printed.plus.flat)];
+            parts = [...parts, ...withFlatAddend(more.value, plus.flat)];
           }
 
           // SRD: "The halved damage is equal to half the damage that would be
@@ -1126,36 +1154,26 @@ export function forcePrintedSave(
           current = hurt.value.events.reduce(applyEvent, current);
           dealt = hurt.value.amount;
           concentration = hurt.value.concentration;
+          // What a feature watching the blow could not settle — a side nobody
+          // has declared, a holder nobody has placed. The `drops-to-zero`
+          // clause reports the same thing through `applyPrintedClauses`, so a
+          // line's two arms would otherwise say different amounts about the
+          // same missing fact.
+          unsettled.push(...hurt.value.unverified);
         }
-
-        // **How far the save missed**, where the line grades its failure by
-        // that and not by a second roll. SRD Pseudodragon: "_Failure by 5 or
-        // More:_ While Poisoned, the target also has the Unconscious
-        // condition." The margin is the engine's own — it threw the save and
-        // the block printed the DC — so the deeper list is chosen here and
-        // nothing is asked of a caller. It *replaces* the failure's list
-        // rather than adding to it, which is what the reader wrote: a rung is
-        // the whole failure said again with one more thing in it.
-        const missedBy = printed.dc - save.value.total;
-        const failure =
-          printed.onFailureBy !== undefined && missedBy >= printed.onFailureBy.by
-            ? printed.onFailureBy.effects
-            : (printed.onFailure ?? []);
 
         // What the line does besides the damage: its failure clauses on a
         // failure, and its `_Failure or Success:_` coda either way — each
-        // through the primitive the casting path uses for the same sentence.
-        const clauses = [
-          ...(save.value.success ? [] : failure),
-          ...(printed.either ?? []),
-        ];
+        // through the primitive the casting path uses for the same sentence,
+        // and with every Hit Point ceiling already resolved to the arm the
+        // target stood on.
         const landed = applyPrintedClauses(
           current,
           id,
           target,
           line.name,
           printed,
-          clauses,
+          taken.clauses,
           dealt,
           supply.issuer.count,
           supply,

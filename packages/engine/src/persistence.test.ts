@@ -260,6 +260,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'hit-point-maximum-adjusted',
   'hit-point-maximum-raised',
   'hit-point-maximum-restored',
+  'hit-points-dropped-to-zero',
   'initiative-swapped',
   'item-dropped',
   'item-equipped',

@@ -411,7 +411,15 @@ export const PrintedConditionSchema = z.enum([
   'unconscious',
 ]);
 
-export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
+/**
+ * Every clause but the branch, which is the one member that holds others.
+ *
+ * Split out rather than made recursive, and the split *is* the rule: a branch
+ * may hold clauses and a clause may not hold a branch. No SRD line prints a
+ * ceiling under a ceiling, and `z.lazy` would buy a shape nobody wrote at the
+ * cost of the inference every reader of this union depends on.
+ */
+const PRINTED_SAVE_CLAUSES = [
   z.object({
     kind: z.literal('condition'),
     condition: PrintedConditionSchema,
@@ -509,8 +517,65 @@ export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
       })
       .optional(),
   }),
+  /**
+   * SRD Sea Hag: "_Failure:_ If the target has 20 Hit Points or fewer, **it
+   * drops to 0 Hit Points**."
+   *
+   * **A creature reaching 0 that was not hurt to get there.** Damage is the
+   * wrong instrument and the difference is observable four ways: Temporary Hit
+   * Points would soak it, a Concentration save would answer it, SRD Relentless
+   * Endurance and SRD Undead Fortitude would each stand in front of it, and
+   * none of that is in the sentence. The engine's `hit-points-dropped-to-zero`
+   * is the instrument, and it is not `dies` either — a character that drops is
+   * Unconscious and dying, and may still be healed back up.
+   *
+   * **Read only inside a {@link PrintedSaveEffectSchema} branch**, which is
+   * the same gate a `dies` has for the same reason: a sentence that takes a
+   * creature to 0 with no ceiling on who it may reach would be a rule nobody
+   * printed.
+   */
+  z.object({ kind: z.literal('drops-to-zero') }),
+] as const;
+
+const PrintedSaveClauseSchema = z.discriminatedUnion('kind', PRINTED_SAVE_CLAUSES);
+
+export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
+  ...PRINTED_SAVE_CLAUSES,
+  /**
+   * SRD Sea Hag: "_Failure:_ If the target has 20 Hit Points or fewer, it
+   * drops to 0 Hit Points. **Otherwise**, the target takes 13 (3d8) Psychic
+   * damage." SRD Incubus prints the same shape over an Unconscious and 4d8.
+   *
+   * **Two sentences that are one rule**, and which of them happens is decided
+   * by a number the engine already holds: the target's *current* Hit Points,
+   * Temporary Hit Points excluded, read before anything is rolled. So the
+   * reader keeps the pair together rather than letting half of it stand — a
+   * ceiling with no arm under it decides nothing, and an arm with no ceiling
+   * always fires.
+   *
+   * **The damage lives on the `otherwise` arm rather than on
+   * {@link MonsterSaveSchema.damage}**, because it is not the line's damage:
+   * it is what happens *instead*, and a total sitting in the line's own field
+   * would be rolled on both arms. It is the only thing the corpus prints
+   * there — SRD prints no "Otherwise" that is a condition — so that is the
+   * whole of the arm.
+   */
+  z.object({
+    kind: z.literal('branch'),
+    /** SRD's "If the target has 20 Hit Points or fewer". */
+    ifHitPointsAtMost: z.number().int().min(0),
+    /** What happens at or below the ceiling. */
+    then: z.array(PrintedSaveClauseSchema).min(1),
+    /** SRD's "Otherwise, the target takes …", with its `plus` where one is printed. */
+    otherwise: z.object({
+      damage: MonsterDamageSchema,
+      plus: MonsterDamageSchema.optional(),
+    }),
+  }),
 ]);
 export type PrintedSaveEffect = z.infer<typeof PrintedSaveEffectSchema>;
+/** Everything a branch's `then` arm may hold — see {@link PRINTED_SAVE_CLAUSES}. */
+export type PrintedSaveClause = z.infer<typeof PrintedSaveClauseSchema>;
 
 export const MonsterSaveSchema = z.object({
   /** Which save, by the engine's own key: `con` for "Constitution". */

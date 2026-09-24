@@ -70,8 +70,10 @@ import {
 import { creatureOf, unknownCreature } from './command.js';
 import {
   adjustmentsFor,
+  droppedToZeroBy,
   heldDamageTotal,
   reactionContributions,
+  rewardsForDropping,
   rollsIssuedSince,
   spendReactionCost,
   standingReductionOf,
@@ -417,7 +419,19 @@ export function settleDamage(
       }
     }
 
-    const settled = [...all, ...riderEvents];
+    // **And what the blow bought whoever was watching it.** SRD Dark One's
+    // Blessing reads the outcome rather than the swing, so it is asked here
+    // too: `dealSpellDamage` is the other road to a creature reaching 0, and a
+    // reader wired into one of them would be a rule that stops working the
+    // moment somebody answers with a Reaction. It fires after the rider, on
+    // the world the whole settlement has already made.
+    const world = [...all, ...riderEvents].reduce(applyEvent, state);
+    const spoils = droppedToZeroBy(state, world, pending.target)
+      ? rewardsForDropping(world, pending.target, pending.by)
+      : { events: [], unverified: [] };
+    unverified.push(...spoils.unverified);
+
+    const settled = [...all, ...riderEvents, ...spoils.events];
 
     return ok({
       // A move that was waiting on an Opportunity Attack whose damage was held

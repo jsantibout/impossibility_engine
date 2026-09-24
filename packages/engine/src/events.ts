@@ -885,6 +885,42 @@ export type GameEvent =
       /** The command that caused it, so a retry is recognised as one. */
       readonly command?: CommandStamp;
     }
+  /**
+   * A creature reaching 0 Hit Points without being hurt to get there.
+   *
+   * SRD Sea Hag, Death Glare: "_Failure:_ If the target has 20 Hit Points or
+   * fewer, **it drops to 0 Hit Points**. Otherwise, the target takes 13 (3d8)
+   * Psychic damage." The book prints the two arms side by side, which is what
+   * says this arm is not damage: if it were, the other one would not need
+   * saying.
+   *
+   * **Its own event because `damage-taken` would be four wrong answers.**
+   * Temporary Hit Points stand in front of damage and the book says the
+   * creature *drops*, not that it is hurt; a Concentration save answers
+   * damage; SRD Relentless Endurance and SRD Undead Fortitude each stand in
+   * front of a blow that would take a creature to 0. None of that is in the
+   * sentence, and every one of them reads `damage-taken`. **So no damage
+   * reader fires here**: no save is raised, no floor is offered, no pool is
+   * spent, and nothing that watches for a blow sees one.
+   *
+   * **It is not `creature-died` either.** A character that drops is
+   * Unconscious and dying and may be healed back up; only a creature whose
+   * block says it dies the instant it drops does, and that is `diesAtZero`
+   * answering as it always does. The Unconscious that follows is applied by
+   * the command beside this event, exactly as `damageCreature` applies it,
+   * because the fold does not decide who is Unconscious.
+   *
+   * `source` is the line that said so — "Death Glare (Recharge 5–6)" — prose
+   * for the audit trail, the same field and the same use `damage-taken.source`
+   * has.
+   */
+  | {
+      readonly type: 'hit-points-dropped-to-zero';
+      readonly id: CharacterId;
+      /** What said so, for the log: the printed line, the spell, the feature. */
+      readonly source: string;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'healed';
       readonly id: CharacterId;
@@ -895,6 +931,19 @@ export type GameEvent =
       readonly type: 'temporary-hp-granted';
       readonly id: CharacterId;
       readonly amount: number;
+      /**
+       * What paid them, for the audit trail — `damage-taken.source`'s field
+       * and `damage-taken.source`'s use.
+       *
+       * The fold reads none of it: a pool is a number and its lifetime is the
+       * rule every unstated pool has. It is here because SRD Dark One's
+       * Blessing pays a Warlock for a kill somebody **else** made ten feet
+       * away, and a log that said only "six Temporary Hit Points appeared" is
+       * a log nobody can narrate from. Absent on every grant written before
+       * one could come from that far off, and absent means what it always
+       * meant.
+       */
+      readonly source?: string;
       readonly command?: CommandStamp;
     }
   /**

@@ -123,7 +123,7 @@ export const FEATURE_SHAPES = {
   'a-turn-boundary-payout-a-feature-owes':
     'a feature that pays out at the start or the end of a turn. The queue is real and it is a casting\'s: `docs/design/time-and-turns.md` says "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes", and every debt it raises belongs to an ongoing spell. A Champion who regenerates at the start of each of their turns and a Monk who sheds a condition at the end of theirs have nothing in that queue.',
   'temporary-hit-points-a-feature-grants':
-    'Temporary Hit Points a feature pays at a *moment*. The state is real — `Vitals.temporaryHp` — and a feature writes it now: an allowance carries `temporaryHitPoints` in packages/engine/src/standing.ts and pays it the moment its price is taken, which is SRD Adrenaline Rush. What SRD Dark One’s Blessing prints is the same number at a moment no feature route opens — "when you reduce an enemy to 0 Hit Points" — and a kill is an outcome of damage rather than a price anybody takes.',
+    'Temporary Hit Points a feature pays at a *moment*. The state is real — `Vitals.temporaryHp` — and a feature writes it now: an allowance carries `temporaryHitPoints` in packages/engine/src/standing.ts and pays it the moment its price is taken, which is SRD Adrenaline Rush. SRD Dark One’s Blessing used to stand here too and no longer does: the `on-dropping-a-hostile` grant pays at the moment an enemy reaches 0 Hit Points, which both damage roads and the sentence that drops a creature without damage now ask. What is left under this name is a **moment neither route opens** — SRD Step of the Wind’s two rolls of the Martial Arts die, paid for a Bonus Action the holder simply takes.',
   'heroic-inspiration':
     'Heroic Inspiration regained by a feature mid-fight. The resource itself exists now: a pool of one on the sheet, `human:heroic-inspiration`, which a `reaction` grant declares, a Long Rest refills and the `test-rolled` window spends on a failed ability check or saving throw. What a feature that grants it in combat still has nothing for is the **grant**: SRD Heroic Warrior refills it at the start of each of the holder’s turns, and `recovers` — the field on a pool in packages/engine/src/progression.ts — knows a Short Rest and a Long Rest and no turn boundary.',
   'a-reroll-outside-the-test-window':
@@ -1006,18 +1006,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'Regaining all Mystic Arcanum castings on a Long Rest',
       why: 'a-casting-paid-for-out-of-a-feature-pool',
       note: 'inherited whole: there are no Arcanum pools for a recovery to refill.',
-    },
-  ],
-  'fiend-patron:dark-ones-blessing': [
-    {
-      clause: 'nothing watches for a creature dropping and attributes it to a killer',
-      why: 'an-outcome-of-a-spells-own-damage',
-      note: 'the spell map’s own id: a target reaching 0 Hit Points because of you is an outcome nothing may hang on.',
-    },
-    {
-      clause: 'Temporary Hit Points when you reduce an enemy to 0 are not granted',
-      why: 'temporary-hit-points-a-feature-grants',
-      note: 'and the payout, which no feature grant reaches.',
     },
   ],
   'fiend-patron:fiendish-resilience': [

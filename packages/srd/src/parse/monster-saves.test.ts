@@ -437,12 +437,115 @@ describe('a failure the line grades', () => {
   });
 });
 
+/**
+ * "If the target has N Hit Points or fewer, … . Otherwise, the target takes …"
+ *
+ * Two sentences that are one rule: which of them happens is decided by a
+ * number the engine already holds about the target, so the reader keeps them
+ * together as a single `branch` clause and refuses both where it cannot read
+ * either arm. Three lines in the corpus print it — SRD Sea Hag, SRD Incubus
+ * and SRD Solar — and the first two are read here.
+ */
+describe('a failure that branches on the target’s Hit Points', () => {
+  it('reads the Sea Hag’s glare: a drop to 0 under the ceiling, damage over it', () => {
+    expect(lineOf('sea-hag', 'Death Glare').save).toEqual({
+      ability: 'wis',
+      dc: 11,
+      targets: 'one Frightened creature the hag can see within 30 feet',
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'branch',
+          ifHitPointsAtMost: 20,
+          then: [{ kind: 'drops-to-zero' }],
+          otherwise: { damage: { dice: '3d8', flat: 0, type: 'psychic', average: 13 } },
+        },
+      ],
+    });
+  });
+
+  it('reads the Incubus’ nightmare, and hands its early endings over', () => {
+    expect(lineOf('incubus', 'Nightmare').save).toEqual({
+      ability: 'wis',
+      dc: 15,
+      targets: 'one creature the incubus can see within 60 feet',
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'branch',
+          ifHitPointsAtMost: 20,
+          then: [
+            {
+              kind: 'condition',
+              condition: 'unconscious',
+              lasts: { kind: 'seconds', seconds: 3600 },
+            },
+          ],
+          otherwise: { damage: { dice: '4d8', flat: 0, type: 'psychic', average: 18 } },
+        },
+      ],
+      // The printed hour is applied; the two early endings are not, and reach
+      // the table with the noun the book's own clause hangs on — the same
+      // rule the Pseudodragon's carried sentence follows.
+      handedOver: [
+        'The Unconscious condition ends early: until it takes damage, or until a creature within 5 feet of it takes an action to wake it.',
+      ],
+    });
+  });
+
+  /**
+   * The same clause outside a branch, which is where the reader gained it:
+   * SRD Nalfeshnee's Horror Nimbus prints "the Frightened condition **for 1
+   * minute, until it takes damage, or until it ends its turn with the
+   * nalfeshnee out of line of sight**", and the minute used to be handed over
+   * with the two early endings rather than applied.
+   */
+  it('applies a printed span and carries the early endings beside it', () => {
+    const nimbus = lineOf('nalfeshnee', 'Horror Nimbus').save!;
+    expect(nimbus.onFailure).toEqual([
+      { kind: 'condition', condition: 'frightened', lasts: { kind: 'seconds', seconds: 60 } },
+    ]);
+    expect(nimbus.handedOver).toContain(
+      'The Frightened condition ends early: until it takes damage, or until it ends its turn with the nalfeshnee out of line of sight.',
+    );
+  });
+
+  it('refuses the pair where the "Otherwise" sentence is not damage', () => {
+    // Half a branch is worse than none: a ceiling with no arm under it is a
+    // rule that decides nothing, and an arm with no ceiling is a rule that
+    // always fires. Both sentences are carried instead.
+    const read = parseSaveLine(
+      '_Wisdom Saving Throw:_ DC 11, one creature. _Failure:_ If the target has 20 Hit Points or fewer, it drops to 0 Hit Points. Otherwise, the target is sad.',
+    );
+    expect(read).toBeNull();
+  });
+
+  it('refuses a ceiling whose own arm it cannot read', () => {
+    const read = parseSaveLine(
+      '_Wisdom Saving Throw:_ DC 11, one creature. _Failure:_ If the target has 20 Hit Points or fewer, it is sad. Otherwise, the target takes 13 (3d8) Psychic damage.',
+    );
+    expect(read).toBeNull();
+  });
+});
+
 describe('the lines the reader does not reach', () => {
   it('refuses a clause it cannot start on, rather than rolling a save for nothing', () => {
-    // SRD Sea Hag's Death Glare: "If the target has 20 Hit Points or fewer, it
-    // drops to 0 Hit Points." SRD Copper Dragon Wyrmling's Slowing Breath.
-    expect(lineOf('sea-hag', 'Death Glare').save).toBeUndefined();
+    // SRD Copper Dragon Wyrmling's Slowing Breath. SRD Sea Hag's Death Glare
+    // used to stand here too; it is read now, one describe block up.
     expect(lineOf('copper-dragon-wyrmling', 'Slowing Breath').save).toBeUndefined();
+  });
+
+  /**
+   * SRD Solar's Slaying Bow prints the same branch the Sea Hag and the Incubus
+   * do — "If the creature has 100 Hit Points or fewer, it dies. It otherwise
+   * takes 24 (4d8 + 6) Piercing damage plus 36 (8d8) Radiant damage" — and it
+   * stays prose, because its `then` arm is "it dies" and {@link DIES} reads
+   * only "The target dies". Widening that word is a decision about where a
+   * kill's gate may come from, and a kill is the last sentence to read on a
+   * guess; the line is handed over whole until somebody makes it.
+   */
+  it('refuses a branch whose first arm is a clause it does not read', () => {
+    expect(lineOf('solar', 'Slaying Bow').save).toBeUndefined();
   });
 
   it('refuses a graded failure whose second rung it cannot hold', () => {

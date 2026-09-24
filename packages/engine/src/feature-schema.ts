@@ -1663,6 +1663,49 @@ function grantProblems(
     }
   }
 
+  // What a feature pays when an enemy falls, and the three ways it could be a
+  // sentence nobody could act on.
+  //
+  // An ability nobody has is a modifier read off a sheet that has no such
+  // score; a minimum below zero is a floor under a number that cannot go
+  // there, and SRD's own floor is one; and a distance that is not a positive
+  // whole number of feet is a reach the scene cannot answer — a zero would be
+  // an ally who has to be standing *inside* the body, which is not a sentence
+  // the book prints and is worse than leaving the field out, which already
+  // means "your own kills only".
+  if (grant.kind === 'on-dropping-a-hostile') {
+    const points = grant.temporaryHitPoints;
+    if (points === null || typeof points !== 'object') {
+      found.push({
+        field: 'grants.temporaryHitPoints',
+        code: 'bad_drop_reward',
+        reason: `${feature.id} pays its holder when an enemy falls and says nothing about how much`,
+      });
+    } else {
+      if (!ABILITY_NAMES.has(String(points.ability))) {
+        found.push({
+          field: 'grants.temporaryHitPoints.ability',
+          code: 'bad_drop_reward',
+          reason: `a sheet holds ${[...ABILITY_NAMES].join(', ')}, not "${String(points.ability)}"`,
+        });
+      }
+      if (!Number.isInteger(points.minimum) || points.minimum < 0) {
+        found.push({
+          field: 'grants.temporaryHitPoints.minimum',
+          code: 'bad_drop_reward',
+          reason: `a minimum number of Temporary Hit Points is a whole number of none or more, not ${String(points.minimum)}`,
+        });
+      }
+    }
+    if (grant.within !== undefined && !isCount(grant.within)) {
+      found.push({
+        field: 'grants.within',
+        code: 'bad_drop_reward',
+        reason: `"within N feet of you" is a whole number of feet of at least one, not ${String(grant.within)}; leave the field out for a feature that pays only its holder's own kills`,
+      });
+    }
+  }
+
   if (grant.kind === 'long-rest-length') {
     if (!isCount(grant.seconds)) {
       found.push({
