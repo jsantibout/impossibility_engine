@@ -37,7 +37,7 @@ state is displayed as zero.
 | Features manual, or a pool with nothing to buy | 18 features | 12 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 213 items | on 125 of 244 blocks | 0 | 119 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 209 items | on 124 of 244 blocks | 0 | 120 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -694,9 +694,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 550 and hands over 188. Reading is not spending: a further 25 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 213 items over 244 blocks — 119 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 554 and hands over 184. Reading is not spending: a further 25 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 209 items over 244 blocks — 120 of which already carry none of them.
 
-**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 213 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 209 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -706,11 +706,11 @@ overlap: one sentence can force a save and recharge.
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
 | A hit whose line says more than the engine applies | 30 | 30 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive |
-| A save a line forces | 29 | 28 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Brass Dragon Wyrmling (CR 1) / Sleep Breath; Bulette (CR 5) / Deadly Leap |
 | An effect a hit buys | 25 | 25 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive |
+| A save a line forces | 25 | 24 | Brass Dragon Wyrmling (CR 1) / Sleep Breath; Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6) |
 | A use the block limits per day | 16 | 15 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
-| A save whose line says more than the engine spends | 12 | 12 | Chuul (CR 4) / Paralyzing Tentacles; Couatl (CR 4) / Constrict; Dretch (CR 0.25) / Fetid Cloud (1/Day) |
-| A recharge | 10 | 10 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Blink Dog (CR 0.25) / Teleport (Recharge 4–6); Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6) |
+| A save whose line says more than the engine spends | 10 | 10 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Dretch (CR 0.25) / Fetid Cloud (1/Day); Ghost (CR 4) / Horrific Visage |
+| A recharge | 8 | 8 | Blink Dog (CR 0.25) / Teleport (Recharge 4–6); Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |
 | A creature that casts | 0 | 0 | — |
