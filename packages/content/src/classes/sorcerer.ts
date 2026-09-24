@@ -67,22 +67,96 @@ export const METAMAGIC_OPTIONS: readonly string[] = [
 ];
 
 /**
- * The four Metamagic options the engine executes, priced as the SRD prices
- * them.
+ * SRD's six damage types for Transmuted Spell, in the order the book prints
+ * them: "Acid, Cold, Fire, Lightning, Poison, Thunder."
+ */
+const TRANSMUTED_TYPES = ['acid', 'cold', 'fire', 'lightning', 'poison', 'thunder'] as const;
+
+/**
+ * "Up to your Charisma modifier (minimum of one)", which the SRD writes on two
+ * of the ten and means the same way twice.
  *
- * Each of them rewrites one number the casting command works out before it
- * spends anything, which is what `casting-options` is for. The other six are
- * transcribed on the menu above and are the DM's, for three different reasons:
+ * Charisma is the Sorcerer's spellcasting ability and the option says it that
+ * way rather than naming the score: a feature naming an ability would be
+ * content deciding which one a homebrew class's version of the same option
+ * counted off.
+ */
+const OFF_CHARISMA = { of: 'spellcasting-modifier', minimum: 1 } as const;
+
+/**
+ * The ten Metamagic options, priced as the SRD prices them.
  *
- * | SRD | What it wants |
+ * Four of them rewrite one number the casting command works out before it
+ * spends anything — the range, the span, the part of the turn, the level it
+ * counts as. The other six are carried past that half to the seam each belongs
+ * to, which is what `CastingCostAlteration`'s own declaration sets out:
+ *
+ * | SRD | Where it lands |
  * |---|---|
- * | Empowered, Seeking | a damage die rerolled, a d20 rerolled: the dice layer's `rerollDice`, which nothing passes through a casting |
- * | Careful | creatures that automatically succeed on a save this casting is about to roll |
- * | Heightened | Disadvantage on one target's saves against this casting |
- * | Subtle | components, which a `SpellDefinition` does not carry at all |
- * | Transmuted | a damage type the caster restates, which is what a casting deals rather than what it costs |
+ * | Careful | the casting's catch, through the designation `CastSpellRequest.unaffected` already carries |
+ * | Heightened | the modes on the save the casting forces, with the option named as the source |
+ * | Empowered | the first damage roll the casting makes, lowest dice first, through `rerollDice` |
+ * | Seeking | the spell attack roll, on a miss, with both throws in the log |
+ * | Subtle | the `casting-a-spell` window, which does not open |
+ * | Transmuted | the damage type, through `statedDamageType` |
  */
 const METAMAGIC_EXECUTED = [
+  {
+    id: 'careful-spell',
+    name: 'Careful Spell',
+    cost: 1,
+    // SRD: "choose a number of those creatures up to your Charisma modifier
+    // (minimum of one creature). A chosen creature automatically succeeds on
+    // its saving throw against the spell, and it takes no damage if it would
+    // normally take half damage on a successful save."
+    alters: { kind: 'spare-from-saves', upTo: OFF_CHARISMA },
+  },
+  {
+    id: 'empowered-spell',
+    name: 'Empowered Spell',
+    cost: 1,
+    // SRD: "reroll a number of the damage dice up to your Charisma modifier
+    // (minimum of one), and you must use the new rolls."
+    alters: { kind: 'reroll-damage-dice', upTo: OFF_CHARISMA },
+  },
+  {
+    id: 'heightened-spell',
+    name: 'Heightened Spell',
+    cost: 2,
+    // SRD: "give one target of the spell Disadvantage on saves against the
+    // spell." The book prints the number here rather than deriving it, which
+    // is the whole difference between this count and the other two.
+    alters: {
+      kind: 'save-mode',
+      mode: 'disadvantage',
+      upTo: { of: 'printed', count: 1 },
+    },
+  },
+  {
+    id: 'seeking-spell',
+    name: 'Seeking Spell',
+    cost: 1,
+    // SRD: "If you make an attack roll for a spell and miss, you can spend 1
+    // Sorcery Point to reroll the d20, and you must use the new roll."
+    alters: { kind: 'reroll-a-missed-attack' },
+  },
+  {
+    id: 'subtle-spell',
+    name: 'Subtle Spell',
+    cost: 1,
+    // SRD: "cast it without any Verbal, Somatic, or Material components." What
+    // the engine holds of that is the consequence the rules attach: a spell
+    // with nothing perceivable about its casting cannot be Counterspelled.
+    alters: { kind: 'unperceived' },
+  },
+  {
+    id: 'transmuted-spell',
+    name: 'Transmuted Spell',
+    cost: 1,
+    // SRD: "change that damage type to one of the other listed types: Acid,
+    // Cold, Fire, Lightning, Poison, Thunder."
+    alters: { kind: 'restate-damage-type', among: TRANSMUTED_TYPES },
+  },
   {
     id: 'distant-spell',
     name: 'Distant Spell',
@@ -245,8 +319,8 @@ export const SORCERER: ClassDefinition = {
       id: 'sorcerer:metamagic',
       name: 'Metamagic',
       level: 2,
-      automation: 'manual',
-      note: 'Two options are chosen and recorded, and more at levels 10 and 17. Four of the ten are executed — Distant, Extended, Quickened and Twinned each rewrite one number the casting works out before it spends anything, and the Sorcery Points go inside that casting’s own batch. The other six are not: Empowered Spell and Seeking Spell are `rerollDice` in the dice layer, which a caller opts into per roll; Careful Spell needs creatures that automatically succeed on a save the casting is about to roll; Heightened Spell needs Disadvantage hung on one target’s saves against this casting; Subtle Spell has nothing to remove, because a spell definition carries no components; and Transmuted Spell needs the caster to restate a damage type the spell printed. The "only one option on a spell" limit is enforced; the clause that stops a level 1+ spell later in the turn a Quickened one was cast on is not, and the engine’s own one-slot-per-turn rule stands in its place.',
+      automation: 'engine',
+      note: 'Two options are chosen and recorded, and all ten are executed. Four of them rewrite one number the casting works out before it spends anything — Distant, Extended, Quickened and Twinned — and six reach further in: Careful Spell spares up to a Charisma modifier of creatures from the save and the damage, through the designation a casting already carries; Heightened Spell hangs Disadvantage on one named target’s saves against this casting, with the option named on the roll’s record; Empowered Spell throws the lowest dice of the casting’s first damage roll again and both sets of faces reach the log; Seeking Spell throws a missed spell attack again and spends its point only then; Subtle Spell marks the casting unperceivable, so the Counterspell window does not open for it; Transmuted Spell restates the damage type among the six the option prints. The Sorcery Points go inside that casting’s own batch. Two rulings the SRD leaves to a player are taken here and stated: Empowered rerolls the **lowest** dice, because picking the lowest is the only choice a player who wants more damage makes; and a creature Careful Spell spares is left out of the casting’s catch, which is what "automatically succeeds" comes to for every save the book prints. The "only one option on a spell" limit is enforced; the clause that stops a level 1+ spell later in the turn a Quickened one was cast on is not, and the engine’s own one-slot-per-turn rule stands in its place. Empowered and Seeking are refused on a casting held open for a Counterspell, because a declaration records no election for their rerolls to be rebuilt from — the same sentence `election_on_a_declaration` already says of an elected feature.',
       choice: { kind: 'option', choose: 2, from: METAMAGIC_OPTIONS },
       grants: {
         kind: 'casting-options',

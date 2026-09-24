@@ -42,6 +42,8 @@ const TARGET = id('target');
 const SECOND = id('second');
 const THIRD = id('third');
 const FOURTH = id('fourth');
+const ARMOURED = id('armoured');
+const EXPOSED = id('exposed');
 const WIZARD = id('wizard');
 
 const SKILLS = [
@@ -209,6 +211,7 @@ const dummy = (
   from: CharacterId,
   bearing: number,
   feet: number,
+  armorClass = 12,
 ): readonly GameEvent[] => [
   {
     type: 'creature-added',
@@ -227,7 +230,7 @@ const dummy = (
       armorTraining: { light: true, medium: true, heavy: true, shields: true },
       baseSpeed: 30,
       spellcastingAbility: null,
-      stated: { armorClass: 12, proficiencyBonus: 2, initiative: 0 },
+      stated: { armorClass, proficiencyBonus: 2, initiative: 0 },
     },
   },
   { type: 'creature-placed', id: who, placement: { from: { creature: from }, feet, bearing } },
@@ -256,6 +259,15 @@ const table = (choices: CharacterChoices, extra: readonly GameEvent[] = []): Gam
   ...dummy(SECOND, TARGET, 90, 5),
   ...dummy(THIRD, TARGET, 180, 5),
   ...dummy(FOURTH, TARGET, 270, 5),
+  // A fifth, sixty feet the other way and behind an Armour Class no spell
+  // attack in this file can reach: the miss branch Seeking Spell is entirely
+  // about is then reached by the rules rather than by a seed that happened to
+  // roll low, and the Sphere above never touches it.
+  ...dummy(ARMOURED, CASTER, 180, 60, 30),
+  // And its opposite, for the other half of the same sentence: an Armour Class
+  // a spell attack cannot fail to reach, so the hit branch is reached by the
+  // rules too. Sixty feet to the side, well clear of the Sphere.
+  ...dummy(EXPOSED, CASTER, 90, 60, 2),
   ...extra,
 ];
 
@@ -474,10 +486,10 @@ describe('Empowered Spell throws the lowest damage dice again', () => {
 describe('Seeking Spell throws a missed spell attack again', () => {
   const who = () => sorcerer(['Seeking Spell', 'Subtle Spell']);
 
-  const orb = (over: Record<string, unknown> = {}): Request =>
+  const orb = (at: CharacterId, over: Record<string, unknown> = {}): Request =>
     ({
       spellId: 'chromatic-orb',
-      targets: [TARGET],
+      targets: [at],
       slotLevel: 1,
       damageType: 'fire',
       ...over,
@@ -487,34 +499,45 @@ describe('Seeking Spell throws a missed spell attack again', () => {
   const attacksIn = (events: readonly GameEvent[]) =>
     events.flatMap((event) =>
       event.type === 'roll-recorded' && event.label.includes('attack')
-        ? [{ natural: event.natural, outcome: event.outcome }]
+        ? [
+            {
+              natural: event.natural,
+              total: event.total,
+              outcome: event.outcome,
+              supersedes: event.supersedes,
+            },
+          ]
         : [],
     );
 
-  /**
-   * A seed whose first spell attack misses, found once and pinned: the whole
-   * option is about what happens **after** a miss, so the branch has to be
-   * reached rather than hoped for.
-   */
-  const MISSES = 'miss-seed';
-  const HITS = 'hit-seed';
-
   it('records one attack roll and spends nothing without the option', () => {
-    const { events, state } = cast(table(who()), orb(), MISSES);
+    const { events, state } = cast(table(who()), orb(ARMOURED));
     expect(attacksIn(events).length).toBe(1);
+    expect(attacksIn(events)[0]!.outcome).toBe('miss');
     expect(points(state)).toBe(5);
   });
 
+  /**
+   * Both throws are in the log and the second names the first, which is what
+   * "you must use the new roll" needs a reader to be able to check.
+   */
   it('throws the missed d20 again and spends the point only then', () => {
-    const { events, state } = cast(table(who()), orb({ usingOptions: ['seeking-spell'] }), MISSES);
+    const { events, state } = cast(
+      table(who()),
+      orb(ARMOURED, { usingOptions: ['seeking-spell'] }),
+    );
     const thrown = attacksIn(events);
     expect(thrown.length).toBe(2);
     expect(thrown[0]!.outcome).toBe('miss');
+    expect(thrown[1]!.supersedes).toEqual({
+      natural: thrown[0]!.natural,
+      total: thrown[0]!.total,
+    });
     expect(points(state)).toBe(4);
   });
 
   it('spends nothing at all when the first attack hits', () => {
-    const { events, state } = cast(table(who()), orb({ usingOptions: ['seeking-spell'] }), HITS);
+    const { events, state } = cast(table(who()), orb(EXPOSED, { usingOptions: ['seeking-spell'] }));
     const thrown = attacksIn(events);
     expect(thrown.length).toBe(1);
     expect(thrown[0]!.outcome).toBe('hit');
@@ -706,6 +729,7 @@ describe('what an election of these six may not do', () => {
       slotLevel: 1,
       damageType: 'fire',
       usingOptions: ['seeking-spell'],
+      targets: [ARMOURED],
     } as Request);
     expect(isErr(refused) && refused.code).toBe('no_points');
   });

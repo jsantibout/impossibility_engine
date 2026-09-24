@@ -1217,6 +1217,39 @@ export interface PendingCasting {
    */
   readonly unaffected?: readonly CharacterId[];
   /**
+   * A mode on the saves this casting forces on a named creature, and what
+   * bought it.
+   *
+   * SRD Heightened Spell: "give one target of the spell Disadvantage on saves
+   * against the spell." Beside the designation above and pinned for its
+   * reason: the caster named the creature at the casting and the settlement
+   * takes no fresh request — and the source is pinned with it because it came
+   * out of a catalogue, so a corrected option name next month does not rewrite
+   * what a log already recorded.
+   *
+   * Absent for every casting that bought no such option, which is all but one
+   * in the book, so a declaration written before this folds to exactly the
+   * state it always did.
+   */
+  readonly saveModes?: Readonly<
+    Record<string, { readonly mode: RollMode; readonly source: string }>
+  >;
+  /**
+   * Whether this casting can be perceived being made.
+   *
+   * SRD Subtle Spell: cast "without any Verbal, Somatic, or Material
+   * components", which a spell with no components cannot be identified or
+   * Counterspelled through. So it is pinned on the record the Counterspell
+   * window reads, and nothing is offered against it.
+   *
+   * **The only one of the six carried-through options that a declaration must
+   * record**, and the reason is the option itself: a casting nobody held open
+   * has no window to close, so this field *is* what Subtle Spell buys.
+   *
+   * Absent means an ordinary casting, which is every one written until now.
+   */
+  readonly subtle?: true;
+  /**
    * Where a teleporting spell puts its target.
    *
    * The fourth stated fact, beside the other three and for the same reason:

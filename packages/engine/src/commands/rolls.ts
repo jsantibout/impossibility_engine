@@ -20,8 +20,9 @@ import {
   type Skill,
 } from '@ie/shared';
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
-import { type DieEffect, explodeOnMax, parseNotation } from '../dice.js';
+import { type DieEffect, explodeOnMax, parseNotation, rerollDice, type Rng } from '../dice.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
+import { type RecordedRoll } from '../rolls.js';
 import { abilityModifier, type CharacterSheet } from '../character.js';
 import { type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState, isIncapacitated } from '../conditions.js';
@@ -180,6 +181,37 @@ export interface CastingAlterations {
   halfWhenAvoided: boolean;
   /** Not yet taken by any roll of this casting. Zeroed by the first that does. */
   addend: number;
+  /**
+   * SRD Heightened Spell: a mode on the saves this casting forces on one named
+   * creature, keyed by that creature.
+   *
+   * **Here rather than on the request the save site can no longer see**, and
+   * beside the three features above for the same reason they are here: this is
+   * the bag of what the caster's own election is doing to *this* casting, and
+   * a save resolver already reads it for `halfWhenAvoided`. Empty for every
+   * casting that bought no such option, which is all but one.
+   */
+  saveModes: Readonly<Record<string, { readonly mode: RollMode; readonly source: string }>>;
+  /**
+   * SRD Empowered Spell: how many of the next damage roll's dice go back in
+   * the cup, lowest first, and what bought it.
+   *
+   * **Taken once**, exactly as {@link addend} is and for the same sentence —
+   * the book says "when you roll damage for a spell", and a Fireball catching
+   * six goblins rolls six times here. {@link takeCastingReroll} is the taking.
+   */
+  reroll: { readonly count: number; readonly source: string } | null;
+  /**
+   * SRD Seeking Spell: one missed spell attack of this casting thrown again,
+   * and the price the miss then pays.
+   *
+   * Nulled by the throw that uses it, for {@link reroll}'s reason: the book
+   * buys one reroll and a Scorching Ray misses five times.
+   */
+  rerollMissedAttack: {
+    readonly source: string;
+    readonly cost: { readonly key: string; readonly amount: number };
+  } | null;
 }
 
 /** What a casting with no such feature behind it carries. */
@@ -188,6 +220,9 @@ export const NO_ALTERATIONS = (): CastingAlterations => ({
   maximum: false,
   halfWhenAvoided: false,
   addend: 0,
+  saveModes: {},
+  reroll: null,
+  rerollMissedAttack: null,
 });
 
 /**
@@ -206,6 +241,79 @@ export function takeCastingAddend(alterations: CastingAlterations): number {
   const taken = alterations.addend;
   alterations.addend = 0;
   return taken;
+}
+
+/**
+ * Take the "when you roll damage" reroll, once.
+ *
+ * {@link takeCastingAddend} on the option beside it, written to the same
+ * sentence and null every time after the first: SRD Empowered Spell buys one
+ * damage roll's worth of rerolls and the engine's Fireball rolls once per
+ * goblin, so the first roll of the casting takes it.
+ */
+export function takeCastingReroll(
+  alterations: CastingAlterations,
+): { readonly count: number; readonly source: string } | null {
+  const taken = alterations.reroll;
+  alterations.reroll = null;
+  return taken;
+}
+
+/**
+ * Throw the lowest dice of a casting's damage again, and use the new rolls.
+ *
+ * SRD Empowered Spell, applied across **every component of one damage roll**,
+ * because "the damage dice" is the spell's damage and SRD Ice Knife's
+ * Piercing and Cold are one roll of one spell. The dice are chosen from the
+ * bottom — see the `reroll-damage-dice` arm for why a stated count is the
+ * whole of the player's choice — and ties break on the order thrown, so a
+ * replay picks the same dice.
+ *
+ * A die a keep clause already dropped is left alone: it is not damage this
+ * roll is dealing, and `rerollDice` would keep it dropped anyway. The
+ * component's total is recomputed off the roll it now holds, so the number
+ * that reaches the target is the number the faces add up to.
+ */
+export function rerollLowestDamageDice(
+  rng: Rng,
+  components: readonly DamageComponent[],
+  count: number,
+  source: string,
+): Result<readonly DamageComponent[]> {
+  const candidates = components.flatMap((component, at) =>
+    (component.roll?.dice ?? [])
+      .filter((die) => die.disposition === 'counted')
+      .map((die) => ({ at, index: die.index, value: die.value })),
+  );
+  if (candidates.length === 0 || count <= 0) return ok(components);
+
+  const chosen = [...candidates]
+    .sort((a, b) => a.value - b.value || a.at - b.at || a.index - b.index)
+    .slice(0, count);
+
+  const out = [...components];
+  for (const at of new Set(chosen.map((one) => one.at))) {
+    const component = out[at]!;
+    const thrown = rerollDice(
+      rng,
+      component.roll!,
+      chosen.filter((one) => one.at === at).map((one) => one.index),
+      source,
+    );
+    if (!thrown.ok) return thrown;
+    // The provenance is the one the engine stamped on this component's throw
+    // and the rerolled dice are inside it, so the log has one roll with every
+    // face it ever showed rather than two rolls a reader has to join up — and
+    // the stamp cannot be laundered on the way through, which is what
+    // `checkExternalSource` is for.
+    const roll: RecordedRoll = { ...thrown.value, provenance: component.roll!.provenance };
+    // The **difference** the new faces made, rather than a second derivation
+    // of what a component's total is made of: `withFlatAddend` may already
+    // have put a printed addend on this component, and re-deriving would drop
+    // it.
+    out[at] = { ...component, roll, total: component.total + roll.total - component.roll!.total };
+  }
+  return ok(out);
 }
 
 /**

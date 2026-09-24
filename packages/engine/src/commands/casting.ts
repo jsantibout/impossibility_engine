@@ -247,7 +247,14 @@ export function answeredCasting(
   definition: SpellDefinition,
   request: CastSpellRequest,
 ): Result<PendingCasting> {
-  const open = pendingCastingsOf(state);
+  // **A casting nobody can perceive is not one this sentence reaches.** SRD
+  // Counterspell answers "a creature in the process of casting a spell" and
+  // SRD Subtle Spell removes every component there is to see or hear, so a
+  // subtle casting is filtered out here rather than refused three branches
+  // down. One reading, two readers: `reactionOpportunities` skips exactly these
+  // records, so a caller is never offered a window this function would then
+  // close.
+  const open = pendingCastingsOf(state).filter((casting) => casting.subtle !== true);
   if (open.length === 0) {
     return err(
       'no_trigger',
@@ -557,6 +564,25 @@ export interface CastingPlan {
    * read; this is the copy that carries it to the declaration.
    */
   readonly unaffected?: readonly CharacterId[];
+  /**
+   * A mode on the saves this casting forces on a named creature, with the
+   * option that bought it — SRD Heightened Spell.
+   *
+   * Beside the designation and carried verbatim: the layer above validated the
+   * creature and the mode against the elected option, and a second check here
+   * would be a second place for one sentence to be got wrong.
+   */
+  readonly saveModes?: Readonly<
+    Record<string, { readonly mode: RollMode; readonly source: string }>
+  >;
+  /**
+   * Whether this casting can be perceived being made — SRD Subtle Spell.
+   *
+   * The one mark a declaration *must* carry, because it is the only one whose
+   * whole effect is on the window a declaration opens: see
+   * `PendingCasting.subtle`.
+   */
+  readonly subtle?: true;
   /**
    * Where a teleporting spell puts its target.
    *
@@ -943,6 +969,11 @@ function castSpellWith(
         ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
+        // And the mode an option hung on one target's saves, and whether the
+        // casting can be perceived at all — the two marks a settlement and the
+        // Counterspell window respectively read off the record.
+        ...(command.hold.saveModes === undefined ? {} : { saveModes: command.hold.saveModes }),
+        ...(command.hold.subtle === undefined ? {} : { subtle: command.hold.subtle }),
         // And where the teleport goes, which is the one fact a settlement
         // could not possibly work out again.
         ...(command.hold.teleportTo === undefined ? {} : { teleportTo: command.hold.teleportTo }),

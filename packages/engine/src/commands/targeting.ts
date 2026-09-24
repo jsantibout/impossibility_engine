@@ -21,6 +21,7 @@ import {
   needsContext,
   ok,
   type Result,
+  type RollMode,
 } from '@ie/shared';
 import { type AttackResult } from '../attack.js';
 import { type D20TestResult } from '../checks.js';
@@ -60,6 +61,7 @@ import {
 } from '../spell-definitions.js';
 import { type SlotlessReason } from '../spells.js';
 import { type ConcentrationConsequence } from './casting.js';
+import { type CastingResolution } from './casting-options.js';
 import { creatureOf, unknownCreature } from './command.js';
 
 /** What happened to one target of one casting. */
@@ -341,8 +343,31 @@ export interface CastSpellRequest extends CommandIdentity {
    *
    * **Never inferred from allegiance.** A cleric may spare an enemy and may
    * decline to spare an ally; `side` answers a different question.
+   *
+   * **And the field SRD Careful Spell buys for a spell that prints no such
+   * clause.** "Choose a number of those creatures up to your Charisma modifier
+   * (minimum of one creature). A chosen creature automatically succeeds on its
+   * saving throw" is the same decision on the same list, offered by the caster
+   * instead of by the spell — so an elected option unlocks this field, caps how
+   * many may be named, and the refusal for a spell that offers neither stands.
    */
   readonly unaffected?: readonly CharacterId[];
+  /**
+   * How a named creature rolls the saves this casting forces on it.
+   *
+   * SRD Heightened Spell: "give one target of the spell Disadvantage on saves
+   * against the spell." **Meaningless unless an elected option offers it**,
+   * which is the refusal that makes this field safe: what a caller states is
+   * *which creature* an option they have already bought and are already paying
+   * for applies to, and the mode has to be the one that option prints. The
+   * engine reads the price, the count and the mode off the sheet, exactly as
+   * {@link CastSpellRequest.usingOptions} promises.
+   *
+   * A map rather than a list because the mode belongs to the entry: a homebrew
+   * option could offer Advantage on an ally's save against its own caster's
+   * spell, and two entries of one map say which creature got which.
+   */
+  readonly saveModes?: Readonly<Record<string, RollMode>>;
   /**
    * Which of the damage types the spell prints this casting deals.
    *
@@ -782,10 +807,26 @@ export function declaredFacts(
   definition: SpellDefinition,
   request: CastSpellRequest,
   fixedChoice?: string,
+  /**
+   * What the caster's elected options let this casting say, already settled
+   * and already refused where the spell offered them nothing.
+   *
+   * Three of the six reach here, and each of them **widens** one of the facts
+   * below rather than adding a fourth: SRD Careful Spell offers the
+   * designation to a spell that prints none, SRD Transmuted Spell offers the
+   * damage type to a spell that prints one, and SRD Heightened Spell is the
+   * one that has no printed clause to widen and so stands alone. Absent for
+   * every casting that bought nothing, which is what keeps this function's
+   * answer for every other spell exactly what it was.
+   */
+  bought: CastingResolution = {},
 ): Result<null> {
   const named = request.unaffected ?? [];
   if (named.length > 0) {
-    if (definition.designatesUnaffected !== true) {
+    // SRD Careful Spell's "choose a number of those creatures" is the same
+    // choice Spirit Guardians prints, bought instead of printed — so an option
+    // that offers it satisfies the clause the spell does not.
+    if (definition.designatesUnaffected !== true && bought.spares === undefined) {
       return err(
         'no_designation',
         `${definition.name} does not let its caster designate creatures unaffected by it`,
@@ -796,6 +837,52 @@ export function declaredFacts(
     }
     if (new Set(named).size !== named.length) {
       return err('duplicate_designation', `${definition.name} may not designate the same creature twice`);
+    }
+    // "up to your Charisma modifier (minimum of one creature)", counted off the
+    // caster at the casting. Only the option's own head count is capped: a
+    // spell that prints the clause prints no number with it.
+    if (bought.spares !== undefined && definition.designatesUnaffected !== true) {
+      if (named.length > bought.spares.upTo) {
+        return err(
+          'too_many_spared',
+          `${bought.spares.name} spares up to ${bought.spares.upTo} creature${bought.spares.upTo === 1 ? '' : 's'} on this casting of ${definition.name}, and ${named.length} were named`,
+        );
+      }
+    }
+  }
+
+  // — a mode on the saves this casting forces ——————————————————————————————
+  //
+  // The one stated fact with no printed clause behind it: nothing in a
+  // `SpellDefinition` offers a caster a mode on somebody's save, so the whole
+  // of the permission is the option the caster bought. A caller who states one
+  // with no option behind it is refused rather than obeyed — which is what
+  // keeps this field from being a caller writing a rule.
+  const modes = Object.entries(request.saveModes ?? {});
+  if (modes.length > 0) {
+    const offered = bought.saveMode;
+    if (offered === undefined) {
+      return err(
+        'save_mode_not_offered',
+        `nothing this casting of ${definition.name} bought puts a mode on anybody's saving throw`,
+      );
+    }
+    if (modes.length > offered.upTo) {
+      return err(
+        'too_many_save_modes',
+        `${offered.name} reaches ${offered.upTo} target${offered.upTo === 1 ? '' : 's'} of this casting of ${definition.name}, and ${modes.length} were named`,
+      );
+    }
+    for (const [who, mode] of modes) {
+      if (creatureOf(state, who as CharacterId) === null) return unknownCreature(who as CharacterId);
+      // The mode is the option's, and a caller who names another has asked for
+      // something they have not bought.
+      if (mode !== offered.mode) {
+        return err(
+          'save_mode_not_offered',
+          `${offered.name} gives ${offered.mode} on a saving throw, not ${mode}`,
+        );
+      }
     }
   }
 
@@ -943,7 +1030,12 @@ export function declaredFacts(
     );
   }
 
-  const types = definition.damageTypeStated;
+  // SRD Transmuted Spell prints its own list — "Acid, Cold, Fire, Lightning,
+  // Poison, Thunder" — and the caster restates the type out of it. Where both
+  // the spell and the option print one, the spell's is the narrower question
+  // and answers first: a Chromatic Orb already offers its caster the choice and
+  // the option has bought nothing it did not have.
+  const types = definition.damageTypeStated ?? bought.restatesDamageType?.among;
   if (types === undefined) {
     if (request.damageType !== undefined) {
       return err(
@@ -951,6 +1043,13 @@ export function declaredFacts(
         `${definition.name} prints one damage type; naming another is not a choice the spell offers`,
       );
     }
+    return ok(null);
+  }
+  // An option that bought the restatement did not buy a *requirement* to make
+  // it: SRD's "you can spend 1 Sorcery Point to change that damage type" is a
+  // permission, and a caster who elects it and names nothing has simply cast
+  // the spell as printed. Only a spell that prints a list demands an answer.
+  if (definition.damageTypeStated === undefined && request.damageType === undefined) {
     return ok(null);
   }
 

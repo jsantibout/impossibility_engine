@@ -853,33 +853,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Sorcerer —
-  'sorcerer:metamagic': [
-    {
-      clause: 'Empowered Spell and Seeking Spell are `rerollDice` in the dice layer',
-      why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the spell map’s own id: the behaviours are built and nothing passes them.',
-    },
-    {
-      clause: 'Careful Spell needs creatures that automatically succeed on a save the casting is about to roll',
-      why: 'a-feature-that-changes-who-a-casting-catches',
-      note: 'the shape’s own sentence — "sparing creatures from your own Evocation" — with the number counted off a Charisma modifier.',
-    },
-    {
-      clause: 'Heightened Spell needs Disadvantage hung on one target’s saves against this casting',
-      why: 'a-mode-on-the-save-a-spell-forces',
-      note: 'the spell map’s own id: "nothing records what a save was against", so a mode cannot be narrowed to the saves one casting forces.',
-    },
-    {
-      clause: 'Subtle Spell has nothing to remove, because a spell definition carries no components',
-      why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'one of the two parts of this shape the built member does not reach: the shape names "its components" and a SpellDefinition has none to name.',
-    },
-    {
-      clause: 'Transmuted Spell needs the caster to restate a damage type the spell printed',
-      why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'the other: the shape’s own line is that "nothing stands between the caster’s sheet and that pinning", and the type a casting pins is one of the things nothing stands between — the built member rewrites the range, the duration, the action and the level. A feature may print the choice over **its own option’s** effects, which `PoolOption.damageTypeStated` does and `statedTypeFor` reads; what none may do is hand the caster one over a spell whose definition printed none. The arm that would say it belongs to `CastingDamageAlteration`, beside the four that alter what a casting deals — this shape is where the clause is blocked, not where the member would go.',
-    },
-  ],
   'sorcerer:sorcery-incarnate': [
     {
       clause: 'Using two Metamagic options on one spell',

@@ -38,7 +38,12 @@ import {
   type SubclassDefinition,
 } from './progression.js';
 import { parseNotation } from './dice.js';
-import { SEES_THROUGH, type StandingGrant, type StandingRequirement } from './standing.js';
+import {
+  SEES_THROUGH,
+  type CastingOptionCount,
+  type StandingGrant,
+  type StandingRequirement,
+} from './standing.js';
 import { SENSE_NAMES } from './positioning.js';
 import { dawnRollProblem } from './resources.js';
 import { EFFECT_END_CAUSES } from './timers.js';
@@ -2922,9 +2927,72 @@ function castingAlterationProblems(
         : bad(
             `${featureId} raises a casting's level by ${String(alters.by)}, and a level goes up by whole levels`,
           );
+    // The three arms that count a head off the caster share one check, because
+    // it is one question: a count the engine can derive, and a floor that is a
+    // whole number of whatever is being counted.
+    case 'spare-from-saves':
+    case 'save-mode':
+    case 'reroll-damage-dice':
+      return countProblems(featureId, option.id, alters.upTo, bad).concat(
+        alters.kind === 'save-mode' && alters.mode !== 'advantage' && alters.mode !== 'disadvantage'
+          ? bad(
+              `${featureId} rolls a save at ${String(alters.mode)}, and an option that changed nothing about the roll would be a price paid for nothing`,
+            )
+          : [],
+      );
+    // SRD Seeking Spell and SRD Subtle Spell print a sentence with no number
+    // in it at all: what they buy is a behaviour, and there is nothing here
+    // that could be malformed.
+    case 'reroll-a-missed-attack':
+    case 'unperceived':
+      return [];
+    case 'restate-damage-type':
+      return Array.isArray(alters.among) && alters.among.length >= 2 && alters.among.every(isString)
+        ? []
+        : bad(
+            `${featureId} moves "${option.id}" between damage types and lists fewer than two; a list of one is a substitution with nowhere to go`,
+          );
     default:
       return bad(`${featureId} offers "${option.id}", which alters nothing the engine reads`);
   }
+}
+
+/**
+ * What a {@link CastingOptionCount} has to be to be countable.
+ *
+ * One derivation and an optional floor, which is the whole of SRD's "up to
+ * your Charisma modifier (minimum of one creature)". A derivation the engine
+ * cannot make is a number nothing could ever produce, and a floor below one is
+ * an option that buys nothing on a caster with a negative modifier — which the
+ * SRD's own minimum exists to prevent.
+ */
+function countProblems(
+  featureId: string,
+  optionId: string,
+  count: CastingOptionCount | undefined,
+  bad: (reason: string) => readonly ContentProblem[],
+): readonly ContentProblem[] {
+  if (count === null || typeof count !== 'object') {
+    return bad(`${featureId} says how many "${optionId}" reaches with no number at all`);
+  }
+  if (count.of === 'printed') {
+    return Number.isInteger(count.count) && count.count >= 1
+      ? []
+      : bad(
+          `${featureId} prints ${String(count.count)} for "${optionId}", and an option that reaches nobody is a price paid for nothing`,
+        );
+  }
+  if (count.of !== 'spellcasting-modifier') {
+    return bad(
+      `${featureId} counts "${optionId}" off ${String((count as { readonly of?: unknown }).of)}, and the only number an option may count off is the caster's spellcasting modifier`,
+    );
+  }
+  if (count.minimum !== undefined && (!Number.isInteger(count.minimum) || count.minimum < 1)) {
+    return bad(
+      `${featureId} floors "${optionId}" at ${String(count.minimum)}, and a floor is a whole number of at least one`,
+    );
+  }
+  return [];
 }
 
 /**
