@@ -1706,6 +1706,17 @@ describe('every spell this batch added is cast for real', () => {
     // finished total if it came out under seventeen, which is read last and
     // through plate. Nothing is left but willingness and the bark.
     'barkskin',
+    // **Bestow Curse leaves by its four faces being four branches.** Each
+    // carries the Wisdom save that gates it, because a save in the common list
+    // would be one roll no branch could read; the ability the first face
+    // prints is `choiceStated` substituted into two `mode` riders on that
+    // save, asked for by that branch alone; "attack rolls against you" is
+    // `ModifierRider.counterpart`, the field written for this sentence; and
+    // the slot table is `durationAtSlot` beside the new
+    // `concentrationEndsAtSlot`. Two faces and the level 9 ending are what it
+    // leaves, and it leaves them as an executed-partial spell rather than a
+    // tracked one.
+    'bestow-curse',
     // **Command leaves by the second arm of a choice made at the casting.**
     // Three of its five words were each writable alone — a drop, a Prone, a
     // rule forbidding three slots — and what none of them had was a way to

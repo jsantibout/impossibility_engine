@@ -100,7 +100,7 @@ const table = (
     spellcasting: declaredCasting({
       ability: 'wis',
       cantrips: ['fire-bolt'],
-      prepared: ['hex', 'hunters-mark'],
+      prepared: ['hex', 'hunters-mark', 'bestow-curse'],
     }),
   },
   {
@@ -135,20 +135,26 @@ const table = (
   { type: 'sight-declared', from: CASTER, to: UNSEEN, seen: false },
 ];
 
-const supply = (seed = 'curse') => ({
+const supply = (seed = 'curse', flat?: number) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   content: SRD_CONTENT,
+  ...(flat === undefined ? {} : { bonuses: [{ source: 'the test insists', flat }] }),
 });
+
+/** Certain to fail a save, and certain to make one. */
+const DOOMED = -40;
+const CERTAIN = 40;
 
 const must = <T,>(result: Result<T>): T => unwrap(result, 'later blows');
 
 const cast = (
   log: readonly GameEvent[],
   request: Parameters<typeof resolveSpell>[2],
+  flat?: number,
 ): readonly GameEvent[] => [
   ...log,
-  ...must(resolveSpell(fold('seed', log), CASTER, request, supply(request.spellId))).events,
+  ...must(resolveSpell(fold('seed', log), CASTER, request, supply(request.spellId, flat))).events,
 ];
 
 /** Swing with the attack roll forced to land, so the test is about the rider. */
@@ -426,5 +432,126 @@ describe('checkSpellDefinition on a re-aiming activation', () => {
       },
     };
     expect(codes(resolves)).toContain('re_aim_resolves_effects');
+  });
+});
+
+// — Bestow Curse: four faces, of which a casting runs one —————————————————
+
+describe('Bestow Curse picks one of the four the book prints', () => {
+  const curse = (option: string, over: Record<string, unknown> = {}, flat = DOOMED) =>
+    cast(table(), { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 3, option, ...over }, flat);
+
+  /**
+   * "Choose one ability. The target has Disadvantage on ability checks **and
+   * saving throws** made with that ability." Two families and one ability,
+   * which is two riders on the save that gates them.
+   */
+  it('gives Disadvantage on checks and saves with the chosen ability', () => {
+    const log = curse('ability', { choice: 'dex' });
+    expect(modes(log, { family: 'ability-check', roller: QUARRY, ability: 'dex' })).toContain(
+      'disadvantage',
+    );
+    expect(modes(log, { family: 'saving-throw', roller: QUARRY, ability: 'dex' })).toContain(
+      'disadvantage',
+    );
+    expect(
+      modes(log, { family: 'ability-check', roller: QUARRY, ability: 'str' }),
+    ).not.toContain('disadvantage');
+  });
+
+  /** "or become cursed" — a creature that makes the save is cursed with nothing. */
+  it('curses nobody on a made save', () => {
+    const log = curse('ability', { choice: 'dex' }, CERTAIN);
+    expect(
+      modes(log, { family: 'ability-check', roller: QUARRY, ability: 'dex' }),
+    ).not.toContain('disadvantage');
+  });
+
+  /**
+   * "The target has Disadvantage on attack rolls **against you**" — the
+   * counterpart, which is the sentence `ModifierRider.counterpart` was written
+   * for and named after.
+   */
+  it('narrows the attack Disadvantage to the caster', () => {
+    const log = curse('attacks-against-you');
+    expect(
+      modes(log, { family: 'attack', roller: QUARRY, against: CASTER }),
+    ).toContain('disadvantage');
+    expect(
+      modes(log, { family: 'attack', roller: QUARRY, against: SECOND }),
+    ).not.toContain('disadvantage');
+  });
+
+  /**
+   * The branch decides whether the ability is asked for: the first bullet
+   * prints "Choose one ability" and the other three print no such words.
+   */
+  it('asks for the ability on the branch that prints it and on no other', () => {
+    const state = fold('seed', table());
+    const unanswered = resolveSpell(
+      state,
+      CASTER,
+      { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 3, option: 'ability' },
+      supply('bestow-curse', DOOMED),
+    );
+    expect(unanswered.ok).toBe(false);
+    expect(unanswered.ok === false && unanswered.code).toBe('choice_required');
+
+    const unwanted = resolveSpell(
+      state,
+      CASTER,
+      {
+        spellId: 'bestow-curse',
+        targets: [QUARRY],
+        slotLevel: 3,
+        option: 'attacks-against-you',
+        choice: 'dex',
+      },
+      supply('bestow-curse', DOOMED),
+    );
+    expect(unwanted.ok).toBe(false);
+    expect(unwanted.ok === false && unwanted.code).toBe('no_choice_clause');
+  });
+});
+
+describe('Bestow Curse’s slot table', () => {
+  const deadline = (log: readonly GameEvent[]): number => {
+    const state = fold('seed', log);
+    const timer = Object.values(state.timers).find((one) => one.target.kind === 'casting');
+    if (timer?.deadline.kind !== 'elapsed') throw new Error('the casting kept no deadline');
+    return timer.deadline.at;
+  };
+  const concentrating = (log: readonly GameEvent[]): boolean =>
+    fold('seed', log).creatures[CASTER]?.concentration !== null;
+
+  it('runs a minute of Concentration out of a level 3 slot', () => {
+    const log = cast(
+      table(),
+      { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 3, option: 'attacks-against-you' },
+      DOOMED,
+    );
+    expect(deadline(log)).toBe(60);
+    expect(concentrating(log)).toBe(true);
+  });
+
+  it('runs ten minutes of Concentration out of a level 4 slot', () => {
+    const log = cast(
+      table(),
+      { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 4, option: 'attacks-against-you' },
+      DOOMED,
+    );
+    expect(deadline(log)).toBe(600);
+    expect(concentrating(log)).toBe(true);
+  });
+
+  /** "If you use a level 5+ spell slot, the spell doesn’t require Concentration." */
+  it('runs eight hours and holds nothing out of a level 5 slot', () => {
+    const log = cast(
+      table(),
+      { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 5, option: 'attacks-against-you' },
+      DOOMED,
+    );
+    expect(deadline(log)).toBe(28800);
+    expect(concentrating(log)).toBe(false);
   });
 });

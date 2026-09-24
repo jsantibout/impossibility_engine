@@ -4629,18 +4629,43 @@ export interface SpellDefinition {
    * level", "eight hours from level 3" — would have made one of the two wrong
    * silently, and there is no arithmetic that produces both.
    *
-   * **Five definitions write it** — Hunter's Mark, the three Dominates and
-   * Mass Suggestion — and SRD Hex prints a sixth table that this field would
-   * take whole, which is what makes it a member rather than a guess. Hex has
-   * no definition to write it in: it is blocked on the ability chosen at its
-   * casting and on the Bonus Action that re-marks a dropped target.
+   * **Seven definitions write it** — Hunter's Mark, Hex, the three Dominates,
+   * Mass Suggestion and Bestow Curse. Hex's was the sixth table this docstring
+   * named as unwritten, and it is written now; Bestow Curse's is the seventh
+   * and prints the other half of the sentence beside it, which is
+   * {@link concentrationEndsAtSlot}.
    *
-   * What it deliberately does *not* express is SRD Major Image's "lasts until
-   * dispelled, **without requiring Concentration**, if cast with a level 4+
-   * spell slot" — one spell in the whole book, and a different sentence: it
-   * changes what kind of duration the spell has rather than how long it runs.
+   * What it deliberately does *not* express is SRD Major Image's "lasts
+   * **until dispelled**, without requiring Concentration, if cast with a level
+   * 4+ spell slot" — a table of seconds cannot say "until dispelled", which is
+   * an ending rather than a length. The Concentration half of that sentence is
+   * the neighbouring field.
    */
   readonly durationAtSlot?: Readonly<Record<number, number>>;
+  /**
+   * The slot from which the spell **stops requiring Concentration**.
+   *
+   * > SRD Bestow Curse: "If you use a level 5+ spell slot, the spell doesn't
+   * > require Concentration, and the duration becomes 8 hours (level 5–6 slot)
+   * > or 24 hours (level 7–8 slot)."
+   *
+   * The other half of the sentence {@link durationAtSlot} writes, and a
+   * separate field because it says something a table of seconds cannot: how
+   * long the spell runs and whether the caster has to hold it are two facts,
+   * and the SRD moves them independently — a level 4 Bestow Curse is ten
+   * minutes *of Concentration*, and a level 5 one is eight hours of none.
+   *
+   * **A band at this level or above**, which is how the SRD writes every clause
+   * of this shape and how the table beside it is read: one number rather than a
+   * per-slot record, because no spell in the book turns Concentration back on
+   * at a higher slot. {@link concentrationAt} is the one reader.
+   *
+   * **Refused on a definition that does not require Concentration in the first
+   * place** (`concentration_drop_without_concentration`) and on a band at or
+   * below the spell's own level, for the reason the duration table refuses one:
+   * the SRD prints both under "Using a Higher-Level Spell Slot".
+   */
+  readonly concentrationEndsAtSlot?: number;
   /**
    * Parts of the printed spell this definition does **not** do.
    *
@@ -5257,6 +5282,28 @@ export function statedFormOf(
  * falls below every band by construction — the validator refuses a band on a
  * cantrip rather than leaving that to arithmetic.
  */
+/**
+ * Whether a casting of this spell at this slot requires Concentration.
+ *
+ * {@link durationSecondsAt}'s sibling and the one reader of
+ * {@link SpellDefinition.concentrationEndsAtSlot}, so the place that writes the
+ * casting's `concentration` and any later reader cannot come to disagree about
+ * which band a slot falls in.
+ *
+ * SRD Bestow Curse: "If you use a level 5+ spell slot, the spell **doesn't
+ * require Concentration**." So the answer is the definition's own flag until
+ * the band is reached and false from there up — "at this level or above",
+ * which is the reading the duration table takes of its own keys.
+ *
+ * Identity for every spell that prints no such clause, which is all but two of
+ * them.
+ */
+export function concentrationAt(definition: SpellDefinition, castLevel: number): boolean {
+  if (!definition.concentration) return false;
+  const drops = definition.concentrationEndsAtSlot;
+  return drops === undefined || castLevel < drops;
+}
+
 export function durationSecondsAt(
   definition: SpellDefinition,
   castLevel: number,
@@ -5524,6 +5571,42 @@ export function statedChoice(
     if (effect.kind === 'buff' && effect.only?.[key] !== undefined) {
       return { ...effect, only: { ...effect.only, [key]: chosen } } as SpellEffect;
     }
+    // **And the same selector where a settled outcome hangs it**, which is the
+    // third host and the one SRD Bestow Curse writes: "Choose one ability. The
+    // target has Disadvantage on ability checks **and saving throws** made with
+    // that ability", off a Wisdom save the same sentence asks for. Written as
+    // two `roll-mode` effects the modes would land on a creature that made the
+    // save, so they are {@link ModifierRider}s on the save that gates them —
+    // and a substitution that could not reach a rider would have left the
+    // ability the caster named on the placeholder the definition prints.
+    //
+    // `modifiers` is one field name on the three hosts that carry it, which is
+    // what lets this be one arm rather than three — see {@link
+    // modifierRidersOf}, which reads the same three.
+    //
+    // **The `mode` rider and not the `bonus` one beside it**, because the
+    // `bonus` rider carries no narrowing at all: the standalone `buff` has
+    // `only` and the rider is the arithmetic without it, so there is no field
+    // here for a skill or an ability to be substituted into.
+    if (
+      (effect.kind === 'save' || effect.kind === 'attack' || effect.kind === 'save-damage') &&
+      effect.modifiers !== undefined
+    ) {
+      const riders = effect.modifiers.map((rider) =>
+        rider.kind === 'mode' && rider.modifier.selector[key] !== undefined
+          ? {
+              ...rider,
+              modifier: {
+                ...rider.modifier,
+                selector: { ...rider.modifier.selector, [key]: chosen },
+              },
+            }
+          : rider,
+      );
+      if (riders.some((rider, i) => rider !== effect.modifiers![i])) {
+        return { ...effect, modifiers: riders } as SpellEffect;
+      }
+    }
     return effect;
   });
 }
@@ -5550,15 +5633,17 @@ export function statedChoiceCollides(
 ): boolean {
   if (of === 'condition' || of === 'creature-type') return false;
   const sibling = of === 'ability' ? 'skill' : 'ability';
+  const pinned = (
+    pair: { readonly ability?: string; readonly skill?: string } | undefined,
+  ): boolean => pair !== undefined && pair[of] !== undefined && pair[sibling] !== undefined;
   return effects.some((effect) => {
-    if (effect.kind === 'roll-mode') {
-      const selector = effect.modifier.selector;
-      return selector[of] !== undefined && selector[sibling] !== undefined;
-    }
-    if (effect.kind === 'buff' && effect.only !== undefined) {
-      return effect.only[of] !== undefined && effect.only[sibling] !== undefined;
-    }
-    return false;
+    if (effect.kind === 'roll-mode') return pinned(effect.modifier.selector);
+    if (effect.kind === 'buff') return pinned(effect.only);
+    // The third host, for {@link statedChoice}'s reason: a rider carries the
+    // same pair and the same rule about it.
+    return modifierRidersOf(effect).some(
+      (rider) => rider.kind === 'mode' && pinned(rider.modifier.selector),
+    );
   });
 }
 

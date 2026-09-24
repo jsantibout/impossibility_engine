@@ -24,6 +24,7 @@ import {
   DM_DECIDES,
   modifierRidersOf,
   persists as castingPersists,
+  optionEffectLists,
   statedChoiceCollides,
   statedChoiceReaches,
 } from './spell-definitions.js';
@@ -5119,11 +5120,20 @@ export function checkSpellDefinition(
     // — silent, because the casting is refused until the caster answers and
     // then the answer goes nowhere. Probed with the first printed value, which
     // is the one the definition itself is written around.
+    //
+    // **Over the branches as well as the common list**, because a spell that
+    // prints branches may print the choice inside one of them: SRD Bestow
+    // Curse's "Choose one ability" is the first of four bullets and the other
+    // three hold no slot for it. Read as "somewhere a casting of this spell
+    // could put it", which is the union — `declaredFacts` then asks the
+    // narrower question of the branch actually named, off the same two
+    // functions, so a choice this accepts is one some casting really is asked.
+    const everywhere = [...definition.effects, ...optionEffectLists(definition).flat()];
     if (
       known &&
       Array.isArray(choice.options) &&
       choice.options.length > 0 &&
-      !statedChoiceReaches(definition.effects, choice.of, choice.options[0]!)
+      !statedChoiceReaches(everywhere, choice.of, choice.options[0]!)
     ) {
       found.push({
         field: 'choiceStated',
@@ -5138,7 +5148,7 @@ export function checkSpellDefinition(
     // one of them to the caster validates here and then contradicts itself at
     // the table, which is the one way "the definition declares the slot and
     // the casting fills it" could still land a selector nothing matches.
-    if (known && statedChoiceCollides(definition.effects, choice.of)) {
+    if (known && statedChoiceCollides(everywhere, choice.of)) {
       found.push({
         field: 'choiceStated',
         code: 'stated_choice_collides',
@@ -5304,6 +5314,40 @@ export function checkSpellDefinition(
         code: 'cap_without_a_casting',
         reason:
           'an Instantaneous casting leaves no record, so a cap on how many run at once would count a population that is always empty',
+      });
+    }
+  }
+
+  // **And the other half of the same sentence.** SRD Bestow Curse's level 5+
+  // slot drops the Concentration as well as lengthening the duration, and the
+  // two are separate fields because the book moves them separately — so this
+  // is held to the same two rules the table beside it is: a *higher* slot than
+  // the spell's own level, and one of the nine.
+  //
+  // **And a spell that does not require Concentration has none to drop**,
+  // which is the reachability rule every other field here keeps: a number no
+  // casting could ever act on is a sentence somebody meant to finish.
+  if (definition.concentrationEndsAtSlot !== undefined) {
+    const drops = definition.concentrationEndsAtSlot;
+    if (!definition.concentration) {
+      found.push({
+        field: 'concentrationEndsAtSlot',
+        code: 'concentration_drop_without_concentration',
+        reason:
+          'this spell does not require Concentration, so there is none for a higher slot to drop',
+      });
+    }
+    if (!Number.isInteger(drops) || drops < 1 || drops > 9) {
+      found.push({
+        field: 'concentrationEndsAtSlot',
+        code: 'bad_slot_level',
+        reason: `"${String(drops)}" is not one of the nine spell slot levels`,
+      });
+    } else if (drops <= definition.level) {
+      found.push({
+        field: 'concentrationEndsAtSlot',
+        code: 'bad_slot_level',
+        reason: `a band at level ${drops} is not a *higher* slot than this level ${definition.level} spell`,
       });
     }
   }
