@@ -163,6 +163,7 @@ const druid = {
   featureChoices: {
     'human:skillful': ['acrobatics'],
     'druid:primal-order': ['Magician'],
+    'druid:primal-order:cantrip': ['mending'],
   },
   feats: {
     'acolyte:magic-initiate-cleric': {

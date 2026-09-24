@@ -52,7 +52,7 @@ const DRUID: Record<string, unknown> = {
   backgroundEquipment: 'A',
   equipped: [],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'], 'druid:primal-order': ['Magician'] },
+  featureChoices: { 'human:skillful': ['perception'], 'druid:primal-order': ['Magician'], 'druid:primal-order:cantrip': ['mending'] },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',

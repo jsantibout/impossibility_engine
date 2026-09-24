@@ -125,22 +125,43 @@ export const DRUID: ClassDefinition = {
       id: 'druid:primal-order',
       name: 'Primal Order',
       level: 1,
-      automation: 'manual',
-      note: 'Half of one option is applied. SRD Magician: "you have a bonus to the Intelligence (Arcana) and Intelligence (Nature) checks you make. The bonus equals your Wisdom modifier (minimum of +1)." That is a standing check bonus gated on the option chosen, so it reaches the two named skills and a Druid who took the other option has nothing. The rest is the DM’s: Warden grants Martial weapon proficiency and Medium armour training, which no grant confers, and Magician grants a cantrip as well, which a spells grant gated on the option could say and which this feature has nowhere left to ask: a feature asks the player one thing when it is gained, and Primal Order has asked which order.',
-      choice: { kind: 'option', choose: 1, from: ['Magician', 'Warden'] },
-      grants: {
-        kind: 'standing',
-        reach: 'self',
-        onlyIfChoice: 'Magician',
-        effects: [
-          {
-            kind: 'check-bonus',
-            fromAbility: 'wis',
-            minimum: 1,
-            skills: ['arcana', 'nature'],
-          },
-        ],
-      },
+      automation: 'engine',
+      note: 'Both options are executed, and the feature asks two questions to do it. SRD Magician: "You know one extra cantrip from the Druid spell list. In addition, your connection to nature gives you a bonus to the Intelligence (Arcana) and Intelligence (Nature) checks you make. The bonus equals your Wisdom modifier (minimum of +1)." The cantrip is the second question - asked only of a Magician, answered under this feature’s own key, checked against the Druid list at level 0 and granted as a cantrip rather than as a prepared spell - and the bonus is a standing check bonus over the two named skills. SRD Warden: "you gain proficiency with Martial weapons and training with Medium armor" - a training grant, folded into the weapon categories and the armour training the sheet already carries. Each grant is gated on the order chosen, so a Druid holds one order’s benefits and none of the other’s.',
+      choices: [
+        { kind: 'option', choose: 1, from: ['Magician', 'Warden'] },
+        // "You know one extra cantrip from the Druid spell list", asked of
+        // nobody who took the other order.
+        { key: 'cantrip', kind: 'spell', choose: 1, maxLevel: 0, onlyIfChoice: 'Magician' },
+      ],
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Magician',
+          effects: [
+            {
+              kind: 'check-bonus',
+              fromAbility: 'wis',
+              minimum: 1,
+              skills: ['arcana', 'nature'],
+            },
+          ],
+        },
+        // The cantrip the second question named, read off its own key.
+        {
+          kind: 'spells',
+          choiceFrom: 'druid:primal-order:cantrip',
+          onlyIfChoice: 'Magician',
+        },
+        // "Trained for battle, you gain proficiency with Martial weapons and
+        // training with Medium armor."
+        {
+          kind: 'weapon-and-armor-training',
+          onlyIfChoice: 'Warden',
+          weapons: ['martial'],
+          armor: ['medium'],
+        },
+      ],
     },
     {
       id: 'druid:wild-shape',

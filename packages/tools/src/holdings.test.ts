@@ -53,6 +53,23 @@ const grantsOf = (feature: {
   }[];
 };
 
+/**
+ * Every question a feature asks, and where its answer is filed.
+ *
+ * `featureGrants`'s neighbour, normalised here for the same reason: a feature
+ * may ask more than one thing — SRD Divine Order asks which order and, of one
+ * order, which extra cantrip — and this file imports no engine. Generic, so
+ * the catalogue's own question type comes through untouched.
+ */
+const questionsOf = <Q,>(feature: {
+  readonly choice?: Q;
+  readonly choices?: readonly Q[];
+}): readonly Q[] => feature.choices ?? (feature.choice === undefined ? [] : [feature.choice]);
+
+/** The key an answer is filed under: the feature's id, or its id and the question's key. */
+const answerKey = (featureId: string, key: string | undefined): string =>
+  key === undefined ? featureId : `${featureId}:${key}`;
+
 // — a character of any class at any level ——————————————————————————————————
 
 const SKILLS = [
@@ -124,28 +141,41 @@ const autoChoices = (
   const used = new Set<string>(taken);
   const known = new Set(bookFor(classId, level, needs).map((entry) => entry.spellId));
   for (const feature of featuresUpTo(classId, level)) {
-    const choice = feature.choice;
-    if (choice === undefined) continue;
-    if (choice.kind === 'skill') {
-      const expertise = grantsOf(feature).some((grant) => grant.kind === 'expertise');
-      const from = expertise ? [...used] : (choice.from ?? SKILLS).filter((one) => !used.has(one));
-      const picked = from.slice(0, choice.choose);
-      if (!expertise) for (const one of picked) used.add(one);
-      out[feature.id] = picked;
-    } else if (choice.kind === 'option') {
-      out[feature.id] = choice.from.slice(0, choice.choose);
-    } else if (choice.kind === 'spell') {
-      out[feature.id] = SRD_CONTENT.spells
-        .filter((spell) => !known.has(spell.id))
-        .filter((spell) => (SRD_CONTENT.spellEntry(spell.id)?.classes ?? []).includes(classId))
-        .filter(
-          (spell) =>
-            (choice.school === undefined || spell.school === choice.school) &&
-            (choice.maxLevel === undefined || spell.level <= choice.maxLevel) &&
-            spell.level > 0,
-        )
-        .map((spell) => spell.id)
-        .slice(0, choice.choose);
+    for (const choice of questionsOf(feature)) {
+      // A question asked only of whoever took a named option is answered only
+      // where this character took it — the answer to the first question, which
+      // the loop has already written.
+      if (
+        choice.onlyIfChoice !== undefined &&
+        !(out[feature.id] ?? []).includes(choice.onlyIfChoice)
+      ) {
+        continue;
+      }
+      const at = answerKey(feature.id, choice.key);
+      if (choice.kind === 'skill') {
+        const expertise = grantsOf(feature).some((grant) => grant.kind === 'expertise');
+        const from = expertise ? [...used] : (choice.from ?? SKILLS).filter((one) => !used.has(one));
+        const picked = from.slice(0, choice.choose);
+        if (!expertise) for (const one of picked) used.add(one);
+        out[at] = picked;
+      } else if (choice.kind === 'option') {
+        out[at] = choice.from.slice(0, choice.choose);
+      } else if (choice.kind === 'spell') {
+        // A cantrip where the question caps the level at 0, and a levelled
+        // spell everywhere else.
+        const wantsCantrip = choice.maxLevel === 0;
+        out[at] = SRD_CONTENT.spells
+          .filter((spell) => !known.has(spell.id))
+          .filter((spell) => (SRD_CONTENT.spellEntry(spell.id)?.classes ?? []).includes(classId))
+          .filter(
+            (spell) =>
+              (choice.school === undefined || spell.school === choice.school) &&
+              (choice.maxLevel === undefined || spell.level <= choice.maxLevel) &&
+              (wantsCantrip ? spell.level === 0 : spell.level > 0),
+          )
+          .map((spell) => spell.id)
+          .slice(0, choice.choose);
+      }
     }
   }
   return out;

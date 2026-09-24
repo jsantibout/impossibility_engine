@@ -62,6 +62,8 @@ interface Granted {
   readonly feature?: string;
   readonly options?: readonly { readonly id: string }[];
   readonly amends?: readonly { readonly option: string }[];
+  /** The option of the feature's own question this grant belongs to. */
+  readonly onlyIfChoice?: string;
 }
 
 const grantsOf = (feature: { readonly grants?: unknown }): readonly Granted[] => {
@@ -69,6 +71,22 @@ const grantsOf = (feature: { readonly grants?: unknown }): readonly Granted[] =>
   if (grants === undefined) return [];
   return (Array.isArray(grants) ? grants : [grants]) as readonly Granted[];
 };
+
+/**
+ * Every question a feature asks, and where its answer is filed.
+ *
+ * {@link grantsOf}'s neighbour, normalised here for the same reason: a feature
+ * may ask more than one thing — SRD Divine Order asks which order and, of one
+ * order, which extra cantrip — and this file imports no engine.
+ */
+const questionsOf = <Q,>(feature: {
+  readonly choice?: Q;
+  readonly choices?: readonly Q[];
+}): readonly Q[] => feature.choices ?? (feature.choice === undefined ? [] : [feature.choice]);
+
+/** The key an answer is filed under: the feature's id, or its id and the question's key. */
+const answerKey = (featureId: string, key: string | undefined): string =>
+  key === undefined ? featureId : `${featureId}:${key}`;
 
 // — a character of any path at level 5 —————————————————————————————————————
 
@@ -146,28 +164,40 @@ const autoChoices = (
   const used = new Set<string>(taken);
   const known = new Set(bookFor(path.classId, level).map((entry) => entry.spellId));
   for (const feature of featuresUpTo(path, level)) {
-    const choice = feature.choice;
-    if (choice === undefined) continue;
-    if (choice.kind === 'skill') {
-      const expertise = grantsOf(feature).some((grant) => grant.kind === 'expertise');
-      const from = expertise ? [...used] : (choice.from ?? SKILLS).filter((one) => !used.has(one));
-      const picked = from.slice(0, choice.choose);
-      if (!expertise) for (const one of picked) used.add(one);
-      out[feature.id] = picked;
-    } else if (choice.kind === 'option') {
-      out[feature.id] = choice.from.slice(0, choice.choose);
-    } else if (choice.kind === 'spell') {
-      out[feature.id] = SRD_CONTENT.spells
-        .filter((spell) => !known.has(spell.id))
-        .filter((spell) => (SRD_CONTENT.spellEntry(spell.id)?.classes ?? []).includes(path.classId))
-        .filter(
-          (spell) =>
-            (choice.school === undefined || spell.school === choice.school) &&
-            (choice.maxLevel === undefined || spell.level <= choice.maxLevel) &&
-            spell.level > 0,
-        )
-        .map((spell) => spell.id)
-        .slice(0, choice.choose);
+    for (const choice of questionsOf(feature)) {
+      // Asked only of whoever took the option it names, which is the answer to
+      // the first question — already written by the time this one is reached.
+      if (
+        choice.onlyIfChoice !== undefined &&
+        !(out[feature.id] ?? []).includes(choice.onlyIfChoice)
+      ) {
+        continue;
+      }
+      const at = answerKey(feature.id, choice.key);
+      if (choice.kind === 'skill') {
+        const expertise = grantsOf(feature).some((grant) => grant.kind === 'expertise');
+        const from = expertise ? [...used] : (choice.from ?? SKILLS).filter((one) => !used.has(one));
+        const picked = from.slice(0, choice.choose);
+        if (!expertise) for (const one of picked) used.add(one);
+        out[at] = picked;
+      } else if (choice.kind === 'option') {
+        out[at] = choice.from.slice(0, choice.choose);
+      } else if (choice.kind === 'spell') {
+        const wantsCantrip = choice.maxLevel === 0;
+        out[at] = SRD_CONTENT.spells
+          .filter((spell) => !known.has(spell.id))
+          .filter((spell) =>
+            (SRD_CONTENT.spellEntry(spell.id)?.classes ?? []).includes(path.classId),
+          )
+          .filter(
+            (spell) =>
+              (choice.school === undefined || spell.school === choice.school) &&
+              (choice.maxLevel === undefined || spell.level <= choice.maxLevel) &&
+              (wantsCantrip ? spell.level === 0 : spell.level > 0),
+          )
+          .map((spell) => spell.id)
+          .slice(0, choice.choose);
+      }
     }
   }
   return out;
@@ -319,6 +349,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'critical-range': 'SRD Improved Critical: the natural roll a hit crits on, read by the attack pipeline',
   'ability-score-increase': 'an ability score raised at creation; every modifier derived from it follows',
   'save-proficiency': 'saving throws this character is proficient in, read by every save it rolls',
+  'weapon-and-armor-training':
+    'weapon categories and armour training added when the character was made, which `proficientWith` and every armour check read',
   initiative: 'a bonus the engine adds when Initiative is rolled, which no caller states',
   'lifts-conditions': 'conditions a feature ends, lifted by the engine at the moment it names',
   'long-rest-length':
@@ -379,7 +411,16 @@ function reachOf(
   // Every grant the feature carries, because a feature may carry more than one
   // — and a second grant nobody can reach is the same room with no door as a
   // first one would be.
-  const grants = grantsOf(feature);
+  //
+  // **Except one belonging to an option this character did not take.** SRD
+  // Divine Order prints two orders and this party's Cleric is a Protector, so
+  // the Thaumaturge's benefits are not on their sheet to be reached: asking
+  // this sheet for them would report a room with no door in a house nobody
+  // built. The gate is read off the answers the character was made with.
+  const taken = new Set(autoChoices(path, LEVEL, [])[feature.id] ?? []);
+  const grants = grantsOf(feature).filter(
+    (one) => one.onlyIfChoice === undefined || taken.has(one.onlyIfChoice),
+  );
 
   // A menu compiled onto somebody else's line: SRD Preserve Life is a door
   // onto Channel Divinity's menu, so it is spent by naming the *host* feature

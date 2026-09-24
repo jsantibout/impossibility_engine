@@ -90,7 +90,7 @@ const druid = (): CharacterChoices => ({
   cantrips: ['druidcraft', 'guidance'],
   spellbook: [],
   preparedSpells: ['cure-wounds', 'faerie-fire', 'fog-cloud', 'goodberry', 'healing-word'],
-  featureChoices: { ...common.featureChoices, 'druid:primal-order': ['Magician'] },
+  featureChoices: { ...common.featureChoices, 'druid:primal-order': ['Magician'], 'druid:primal-order:cantrip': ['mending'] },
   knownForms: ['wolf', 'rat', 'spider', 'riding-horse'],
 });
 

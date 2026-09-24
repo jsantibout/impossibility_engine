@@ -2,11 +2,19 @@ import { ABILITIES, DAMAGE_TYPES, err, ok, type Ability, type Result } from '@ie
 import { CREATURE_SIZES, WEAPON_PROPERTIES } from '@ie/srd/schemas';
 import { WEAPON_CATEGORIES, WEAPON_KINDS, type WeaponSelector } from './attack.js';
 import { RESERVED_LEDGER_NAMESPACES } from './combat.js';
-import { ABILITY_SCORE_MAXIMUM, MOVEMENT_MODES, type MovementMode } from './character.js';
+import {
+  ABILITY_SCORE_MAXIMUM,
+  MOVEMENT_MODES,
+  type ArmorTraining,
+  type MovementMode,
+} from './character.js';
 import { parseNotation } from './dice.js';
 import {
   MAX_LEVEL,
+  featureChoicesOf,
   featureGrants,
+  primaryChoiceOf,
+  type FeatureChoice,
   type FeatureDefinition,
   type GatedFeatureGrant,
   type FeatureOptionMeaning,
@@ -32,6 +40,34 @@ import { hours, TURN_ANCHORS } from './time.js';
  * scope — a checked copy rather than a second opinion.
  */
 export const LONGEST_LONG_REST = hours(8);
+
+/**
+ * What a `weapon-and-armor-training` grant may name, on each of its two sides.
+ *
+ * **Exhaustive by construction rather than by eye.** A list typed as "an array
+ * of the grant's own union" would go on compiling the day the union grew, and
+ * the word nobody added here would be refused as unknown for ever — so each
+ * side is the keys of a `Record` over its union, which fails to compile when a
+ * member is added *or* invented. `ArmorTraining`'s four flags are the sheet's
+ * own; the weapons are the two whole categories a class grants, and the two
+ * narrowed ones (`martial-light`, `martial-finesse-or-light`) are a class's own
+ * proficiency list that no feature prints.
+ */
+type TrainedWeapon = NonNullable<
+  Extract<GatedFeatureGrant, { kind: 'weapon-and-armor-training' }>['weapons']
+>[number];
+
+const TRAINABLE_WEAPONS = Object.keys({
+  simple: true,
+  martial: true,
+} satisfies Record<TrainedWeapon, true>) as readonly TrainedWeapon[];
+
+const TRAINABLE_ARMOR = Object.keys({
+  light: true,
+  medium: true,
+  heavy: true,
+  shields: true,
+} satisfies Record<keyof ArmorTraining, true>) as readonly (keyof ArmorTraining)[];
 
 /**
  * Whether a feature definition is *coherent*, asked of a value rather than of a
@@ -520,13 +556,161 @@ export function abilitySpreadProblems(
   return found;
 }
 
+/**
+ * One question, and the path a problem with it is reported under.
+ *
+ * The shape {@link featureGrants}'s readers already use for a grant: a feature
+ * that writes one question reports `choice.x` exactly as it always did, and
+ * one that writes a list reports `choices[1].x`, so a problem can be found in
+ * the file it came from.
+ */
+interface AskedQuestion {
+  readonly question: FeatureChoice;
+  readonly at: string;
+}
+
+const questionsIn = (feature: FeatureDefinition): readonly AskedQuestion[] =>
+  featureChoicesOf(feature).map((question, index) => ({
+    question,
+    at: feature.choices === undefined ? 'choice' : `choices[${index}]`,
+  }));
+
+/**
+ * Rule 8b: the questions a feature asks, held to the shape a plural one takes.
+ *
+ * Five ways a second question is one nobody could ever answer, and every one
+ * of them is silent at every later moment — creation would file an answer
+ * under a key nothing reads, or ask for one it never offered, and the feature
+ * would compile and grant nothing.
+ *
+ * | | |
+ * |---|---|
+ * | `choice` **and** `choices` | {@link featureChoicesOf} returns the plural, so the singular is a question quietly dropped |
+ * | a key on the first question | the first answer is filed under the feature's own id, which is what every answer ever written uses |
+ * | a later question with no key | two questions filed under one id, and the second answer would be read as the first's |
+ * | two questions sharing a key | the same, one step along |
+ * | a gate naming no option the first question offers | a question nobody is ever asked |
+ *
+ * The gate is the primary question's alone: `onlyIfChoice` on the first is a
+ * gate with nothing before it to read, and a first question that is not a list
+ * of options has no named answers for a later one to name.
+ */
+function choiceProblems(
+  feature: FeatureDefinition,
+  context: FeatureContext,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+
+  if (feature.choice !== undefined && feature.choices !== undefined) {
+    found.push({
+      field: 'choices',
+      code: 'choice_asked_twice',
+      reason: `${feature.id} writes a question in "choice" and a list of them in "choices", and the list is what every reader takes — so the single one would be asked by nobody`,
+    });
+  }
+
+  const asked = questionsIn(feature);
+  const primary = asked[0];
+  const offered =
+    primary !== undefined && primary.question.kind === 'option' ? primary.question.from : [];
+  const keys = new Set<string>();
+
+  asked.forEach(({ question, at }, index) => {
+    if (index === 0) {
+      if (question.key !== undefined) {
+        found.push({
+          field: `${at}.key`,
+          code: 'keyed_first_choice',
+          reason: `the first question a feature asks is answered under ${feature.id} itself, so the key "${question.key}" would be looked for by nothing`,
+        });
+      }
+    } else if (question.key === undefined) {
+      found.push({
+        field: `${at}.key`,
+        code: 'unkeyed_later_choice',
+        reason: `${feature.id} asks a second question and files its answer under the feature's own id, where the first question's answer already is`,
+      });
+    } else if (keys.has(question.key)) {
+      found.push({
+        field: `${at}.key`,
+        code: 'duplicate_choice_key',
+        reason: `${feature.id} asks two questions under the key "${question.key}", and one answer cannot be both`,
+      });
+    }
+    if (question.key !== undefined) keys.add(question.key);
+
+    // A Weapon Mastery choice is sized by a printed number or by a column of
+    // the class table, and exactly one of the two. Neither is a ceiling of zero
+    // wearing a feature's name — a character who could never unlock anything —
+    // and both is a count sized twice, which is the rule `usesRolled` keeps
+    // beside `uses` on a charge pool.
+    if (question.kind === 'weapon') {
+      const shapes = [
+        question.choose === undefined ? null : 'choose',
+        question.chooseByLevel === undefined ? null : 'chooseByLevel',
+      ].filter((shape): shape is string => shape !== null);
+
+      if (shapes.length !== 1) {
+        found.push({
+          field: at,
+          code: shapes.length === 0 ? 'unsized_weapon_choice' : 'ambiguous_weapon_choice',
+          reason:
+            shapes.length === 0
+              ? 'a weapon choice says how many kinds it unlocks through `choose` or through `chooseByLevel`, and this says neither'
+              : 'a weapon choice is sized by a number or by a column of the class table, not by both',
+        });
+      }
+
+      if (question.chooseByLevel !== undefined && question.chooseByLevel.length !== context.levels) {
+        found.push({
+          field: `${at}.chooseByLevel`,
+          code: 'not_a_table_column',
+          reason: `a column of this source's table has ${context.levels} entries, not ${question.chooseByLevel.length}`,
+        });
+      }
+
+      const counts =
+        question.chooseByLevel ?? (question.choose === undefined ? [] : [question.choose]);
+      const bad = counts.findIndex((count) => !Number.isInteger(count) || count < 0);
+      if (bad !== -1) {
+        found.push({
+          field: at,
+          code: 'bad_weapon_choice',
+          reason: `a feature unlocks a whole number of kinds of weapon, not ${String(counts[bad])}`,
+        });
+      }
+    }
+
+    const gate = question.onlyIfChoice;
+    if (gate === undefined) return;
+    if (index === 0 || offered.length === 0) {
+      found.push({
+        field: `${at}.onlyIfChoice`,
+        code: 'gate_without_a_choice',
+        reason:
+          index === 0
+            ? `${feature.id} asks this question only of whoever chose ${gate}, and it is the first thing it asks, so there is no earlier answer to read`
+            : `${feature.id} asks this question only of whoever chose ${gate}, and the question it asks first offers no named options`,
+      });
+    } else if (!offered.includes(gate)) {
+      found.push({
+        field: `${at}.onlyIfChoice`,
+        code: 'option_not_offered',
+        reason: `${feature.id} asks this question only of whoever chose ${gate} and offers ${offered.join(' or ')}, so nobody would ever be asked it`,
+      });
+    }
+  });
+
+  return found;
+}
+
 /** The feature half of {@link abilitySpreadProblems}: its own path, its own field. */
 function abilityChoiceProblems(
   feature: FeatureDefinition,
 ): readonly FeatureDefinitionProblem[] {
-  const asked = feature.choice;
-  if (asked === undefined || asked.kind !== 'ability-score') return [];
-  return abilitySpreadProblems(asked.spreads, undefined, 'choice');
+  return questionsIn(feature).flatMap(({ question, at }) =>
+    question.kind === 'ability-score' ? abilitySpreadProblems(question.spreads, undefined, at) : [],
+  );
 }
 
 /**
@@ -755,7 +939,11 @@ function grantProblems(
   // and the ceiling it lifts for them. The other half — the spread the feature
   // offers — is the feature's own and is asked once, beside rule 8.
   found.push(
-    ...abilityGrantProblemsOf(grant, feature.choice?.kind === 'ability-score', feature.id),
+    ...abilityGrantProblemsOf(
+      grant,
+      featureChoicesOf(feature).some((question) => question.kind === 'ability-score'),
+      feature.id,
+    ),
   );
 
   // Rule 5. A fixed grant is the feature's own answer rather than the
@@ -821,48 +1009,6 @@ function grantProblems(
         code: 'free_casting_without_a_pool',
         reason:
           'a casting without a slot is paid for out of a pool, named here — its own through "declares", or one another feature of the same class declares',
-      });
-    }
-  }
-
-  // A Weapon Mastery choice is sized by a printed number or by a column of the
-  // class table, and exactly one of the two. Neither is a ceiling of zero
-  // wearing a feature's name — a character who could never unlock anything —
-  // and both is a count sized twice, which is the rule `usesRolled` keeps
-  // beside `uses` on a charge pool.
-  if (feature.choice?.kind === 'weapon') {
-    const asked = feature.choice;
-    const shapes = [
-      asked.choose === undefined ? null : 'choose',
-      asked.chooseByLevel === undefined ? null : 'chooseByLevel',
-    ].filter((shape): shape is string => shape !== null);
-
-    if (shapes.length !== 1) {
-      found.push({
-        field: 'choice',
-        code: shapes.length === 0 ? 'unsized_weapon_choice' : 'ambiguous_weapon_choice',
-        reason:
-          shapes.length === 0
-            ? 'a weapon choice says how many kinds it unlocks through `choose` or through `chooseByLevel`, and this says neither'
-            : 'a weapon choice is sized by a number or by a column of the class table, not by both',
-      });
-    }
-
-    if (asked.chooseByLevel !== undefined && asked.chooseByLevel.length !== context.levels) {
-      found.push({
-        field: 'choice.chooseByLevel',
-        code: 'not_a_table_column',
-        reason: `a column of this source's table has ${context.levels} entries, not ${asked.chooseByLevel.length}`,
-      });
-    }
-
-    const counts = asked.chooseByLevel ?? (asked.choose === undefined ? [] : [asked.choose]);
-    const bad = counts.findIndex((count) => !Number.isInteger(count) || count < 0);
-    if (bad !== -1) {
-      found.push({
-        field: 'choice',
-        code: 'bad_weapon_choice',
-        reason: `a feature unlocks a whole number of kinds of weapon, not ${String(counts[bad])}`,
       });
     }
   }
@@ -1478,6 +1624,45 @@ function grantProblems(
   // past the eight hours the engine holds for everybody is a trait that
   // compiles onto the sheet and changes nothing — or lengthens a rest, which
   // no printed trait does and which the field was not built to say.
+  // The training a feature grants, held to the two lists it feeds. A category
+  // no sheet carries trains nobody — `proficientWithCategories` answers false
+  // for a word it does not know and `ArmorTraining` has four flags and no
+  // fifth — so a typo would be a Protector who is not proficient with a
+  // longsword and nothing at all would say why.
+  if (grant.kind === 'weapon-and-armor-training') {
+    const { weapons, armor } = grant;
+    if (weapons === undefined && armor === undefined) {
+      found.push({
+        field: 'grants',
+        code: 'empty_training_grant',
+        reason: `${feature.id} grants training and names neither weapons nor armour, so it trains nobody in anything`,
+      });
+    }
+    for (const [field, named, allowed] of [
+      ['weapons', weapons, TRAINABLE_WEAPONS],
+      ['armor', armor, TRAINABLE_ARMOR],
+    ] as const) {
+      if (named === undefined) continue;
+      if (!Array.isArray(named) || named.length === 0) {
+        found.push({
+          field: `grants.${field}`,
+          code: 'bad_training_grant',
+          reason: `${feature.id} trains its holder with ${field} and names none; leave the field out instead`,
+        });
+        continue;
+      }
+      (named as readonly string[]).forEach((one, index) => {
+        if (!(allowed as readonly string[]).includes(one)) {
+          found.push({
+            field: `grants.${field}[${index}]`,
+            code: 'bad_training_grant',
+            reason: `a sheet knows ${allowed.join(', ')}, not "${String(one)}", so this training would reach nothing`,
+          });
+        }
+      });
+    }
+  }
+
   if (grant.kind === 'long-rest-length') {
     if (!isCount(grant.seconds)) {
       found.push({
@@ -1517,7 +1702,7 @@ function grantProblems(
     }
     const rechooses = grant.rechooses;
     if (rechooses?.kind === 'this-features-choice') {
-      if (feature.choice === undefined) {
+      if (featureChoicesOf(feature).length === 0) {
         found.push({
           field: 'grants.rechooses',
           code: 'rechooses_nothing',
@@ -1549,7 +1734,10 @@ function grantProblems(
   // says why. The other half — a gate reading a **sibling's** choice — is
   // `checkContent`'s, because it needs the source this feature belongs to.
   if (grant.onlyIfChoice !== undefined && grant.choiceFrom === undefined) {
-    const asked = feature.choice;
+    // The **primary** question, which is the one an answer is filed under the
+    // feature's own id — a keyed question's answer is a cantrip or a skill and
+    // never an option a grant could be gated on.
+    const asked = primaryChoiceOf(feature);
     if (asked === undefined || asked.kind !== 'option') {
       found.push({
         field: 'grants.onlyIfChoice',
@@ -1700,7 +1888,10 @@ export function checkFeatureDefinition(
   // this feature belongs to, which a feature does not know.
   const table = feature.optionMeans;
   if (table !== undefined) {
-    const asked = feature.choice;
+    // The primary question's, for the reason the gate above reads that one:
+    // the table is the other column of the table the book prints beside the
+    // options, and only an option question has options.
+    const asked = primaryChoiceOf(feature);
     if (asked === undefined || asked.kind !== 'option') {
       found.push({
         field: 'optionMeans',
@@ -1766,6 +1957,9 @@ export function checkFeatureDefinition(
   // and the scores its grant raises or lifts a ceiling for.
   found.push(...abilityChoiceProblems(feature));
 
+  // Rule 8b. The questions themselves, where there is more than one.
+  found.push(...choiceProblems(feature, context));
+
   // Rule 12. Two grants of one kind on one feature, and whether that kind
   // composes.
   //
@@ -1782,7 +1976,7 @@ export function checkFeatureDefinition(
   // the ambiguity back in an option's clothes — two grants under the *same*
   // gate, a choice that takes two answers (SRD Metamagic is `choose: 2`), and
   // a gate read off a sibling, whose answers this definition cannot see.
-  const asked = feature.choice;
+  const asked = primaryChoiceOf(feature);
   const exclusive = asked !== undefined && asked.kind === 'option' && asked.choose === 1;
   const byKind = new Map<string, GatedFeatureGrant[]>();
   for (const grant of featureGrants(feature)) {

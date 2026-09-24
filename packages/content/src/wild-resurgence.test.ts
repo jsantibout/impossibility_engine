@@ -58,6 +58,7 @@ const druid = (): CharacterChoices => ({
   featureChoices: {
     'human:skillful': ['perception'],
     'druid:primal-order': ['Magician'],
+    'druid:primal-order:cantrip': ['mending'],
     'druid:ability-score-improvement': [],
   },
   feats: {

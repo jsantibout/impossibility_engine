@@ -138,14 +138,20 @@ describe('the feature blocked-on map covers the population it answers for', () =
 });
 
 describe('a clause names one thing the feature’s note says', () => {
-  /** The anchoring guard, driven by a phrase the note says twice. */
+  /**
+   * The anchoring guard, driven by a phrase the note says twice.
+   *
+   * On the {@link SPECIMEN}'s own note, which is the shortest in the
+   * catalogue: it was driven by Divine Order's until Divine Order was
+   * executed and its note rewritten, which is exactly the drift the guard is
+   * for and exactly why the specimen should be a feature nothing is going to
+   * build.
+   */
   it('reports a phrase the note prints more than once', () => {
-    const twice = unanchoredFeatureClauses('cleric:divine-order', [
-      { clause: 'grants', why: 'table', note: 'synthetic' },
+    const twice = unanchoredFeatureClauses(SPECIMEN, [
+      { clause: 'and', why: 'table', note: 'synthetic' },
     ]);
-    expect(twice).toEqual([
-      { spell: 'cleric:divine-order', clause: 'grants', matches: 2 },
-    ]);
+    expect(twice).toEqual([{ spell: SPECIMEN, clause: 'and', matches: 2 }]);
   });
 
   /** And by one it prints nowhere, which is a reworded or invented sentence. */

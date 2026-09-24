@@ -276,6 +276,9 @@ describe('spell slots come from the combined rule only when two classes cast', (
         'wizard:scholar': ['arcana'],
         'evoker:evocation-savant': ['burning-hands', 'thunderwave'],
         'cleric:divine-order': ['Thaumaturge'],
+        // The second question Divine Order asks a Thaumaturge, answered off
+        // the Cleric list: the extra cantrip is this class's, not the Wizard's.
+        'cleric:divine-order:cantrip': ['mending'],
       },
       cantrips: ['fire-bolt', 'ray-of-frost', 'light'],
       spellbook: [
