@@ -392,34 +392,75 @@ export type PrintedSpan = z.infer<typeof PrintedSpanSchema>;
  * - `hit-point-maximum-decrease`: "the target's Hit Point maximum decreases
  *   by an amount equal to the damage taken".
  */
+/** The conditions a printed clause may name, by the engine's own keys. */
+export const PrintedConditionSchema = z.enum([
+  'blinded',
+  'charmed',
+  'deafened',
+  'exhaustion',
+  'frightened',
+  'grappled',
+  'incapacitated',
+  'invisible',
+  'paralyzed',
+  'petrified',
+  'poisoned',
+  'prone',
+  'restrained',
+  'stunned',
+  'unconscious',
+]);
+
 export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('condition'),
-    condition: z.enum([
-      'blinded',
-      'charmed',
-      'deafened',
-      'exhaustion',
-      'frightened',
-      'grappled',
-      'incapacitated',
-      'invisible',
-      'paralyzed',
-      'petrified',
-      'poisoned',
-      'prone',
-      'restrained',
-      'stunned',
-      'unconscious',
-    ]),
+    condition: PrintedConditionSchema,
     lasts: PrintedSpanSchema.optional(),
     escapeDc: z.number().int().min(1).optional(),
     ifNoLargerThan: CreatureSizeSchema.optional(),
+    /**
+     * Conditions **this** cause carries for exactly as long as it lasts.
+     *
+     * SRD Couatl: "The target has the Grappled condition (escape DC 13), and
+     * it has the Restrained condition until the grapple ends." SRD Chuul:
+     * "While Poisoned, the target has the Paralyzed condition." One sentence
+     * naming a lifetime that is another condition's, which is the lifetime
+     * `ConditionInstance.impliedBy` already has — so the executor hands it to
+     * `applyConditionTo` and the implied condition lifts with the cause that
+     * carried it, through the doors that already exist.
+     *
+     * **Per source rather than a fact about the condition.** A Wolf's grapple
+     * carries nothing and a Couatl's carries Restrained, so this cannot live
+     * in the engine's static `IMPLIES` table; it is the printed half of the
+     * same sentence a hit's `whileHeld` reads.
+     */
+    implies: z.array(PrintedConditionSchema).min(1).optional(),
     repeats: z
       .object({
         at: z.literal('end'),
         of: z.literal('target'),
         capSeconds: z.number().int().min(1).optional(),
+        /**
+         * What a **failed** repeat leaves behind, where the line grades its
+         * failures.
+         *
+         * SRD Gorgon: "_First Failure:_ The target has the Restrained
+         * condition and repeats the save at the end of its next turn…
+         * _Second Failure:_ The target has the Petrified condition instead of
+         * the Restrained condition." The engine's `RepeatSave.onFailure` is
+         * this field word for word: the deeper condition lands under the same
+         * source, the shallow one goes, and the timer that raised the save
+         * goes with it — so the save is repeated once, which is the book's
+         * "second" failure.
+         *
+         * **A bare condition name and nothing else**, which is what refuses
+         * the two wyrmlings: SRD Brass Dragon Wyrmling deepens to an
+         * Unconscious *for 1 minute* and SRD Silver Dragon Wyrmling to a
+         * Paralyzed that repeats its own save, and neither a span nor a second
+         * repeat can be said here. Those lines stay prose rather than being
+         * read down to a rung that would never end.
+         */
+        onFailure: z.object({ condition: PrintedConditionSchema }).optional(),
       })
       .optional(),
   }),
@@ -459,6 +500,30 @@ export const MonsterSaveSchema = z.object({
   onSuccess: z.enum(['half', 'none']),
   /** What a failure does besides the damage, in the order the line prints it. */
   onFailure: z.array(PrintedSaveEffectSchema).optional(),
+  /**
+   * What the failure does instead, where the save missed by a margin the line
+   * grades.
+   *
+   * SRD Pseudodragon: "_Failure:_ … the target has the Poisoned condition for
+   * 1 hour. _Failure by 5 or More:_ While Poisoned, the target also has the
+   * Unconscious condition…" The margin is a fact the engine already has — it
+   * rolled the save and the block printed the DC — so this needs nothing from
+   * a caller.
+   *
+   * **The whole list rather than a delta.** `effects` replaces
+   * {@link MonsterSave.onFailure} when the margin is reached, so the executor
+   * chooses one list and applies it; a delta would need a rule for merging
+   * two clauses about one condition, which is a rule nobody printed. The
+   * damage is the failure's either way: no SRD line prints a second amount
+   * under this heading, and one that did would leave this absent.
+   */
+  onFailureBy: z
+    .object({
+      /** SRD's "Failure by 5 or More": the margin at or beyond which it bites. */
+      by: z.number().int().min(1),
+      effects: z.array(PrintedSaveEffectSchema).min(1),
+    })
+    .optional(),
   /** What happens whichever way the save went — the `_Failure or Success:_` coda. */
   either: z.array(PrintedSaveEffectSchema).optional(),
   /**

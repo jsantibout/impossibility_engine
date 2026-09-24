@@ -245,15 +245,15 @@ describe('the clauses a failure prints besides the damage', () => {
       ],
       handedOver: ["_Success:_ The target is immune to this mummy's Dreadful Glare for 24 hours."],
     });
-    // SRD Couatl's Constrict: the damage is read; a Grappled tied to a
-    // Restrained "until the grapple ends" is one sentence, carried whole
-    // rather than half-applied.
-    const constrict = lineOf('couatl', 'Constrict').save;
-    expect(constrict?.damage).toEqual({ dice: '1d6', flat: 5, type: 'bludgeoning', average: 8 });
-    expect(constrict?.onFailure).toBeUndefined();
-    expect(constrict?.handedOver).toEqual([
-      'The target has the Grappled condition (escape DC 13), and it has the Restrained condition until the grapple ends.',
+    // SRD Water Elemental's Whelm: the Grappled is read, and the sentence
+    // after it says three things at once — a Restrained, a suffocation and
+    // damage at a turn boundary — so it is carried whole rather than read
+    // down to the third of it this vocabulary could hold.
+    const whelm = lineOf('water-elemental', 'Whelm').save;
+    expect(whelm?.onFailure).toEqual([
+      { kind: 'condition', condition: 'grappled', escapeDc: 14, ifNoLargerThan: 'large' },
     ]);
+    expect(whelm?.handedOver?.[0]).toMatch(/^Until the grapple ends, the target has the Restrained/);
   });
 
   it('reads a second damage component after "plus"', () => {
@@ -265,12 +265,141 @@ describe('the clauses a failure prints besides the damage', () => {
     expect(bite?.handedOver).toHaveLength(1);
   });
 
+  it('reads a grapple that carries a condition for as long as it holds', () => {
+    // SRD Couatl: "The target has the Grappled condition (escape DC 13), and
+    // it has the Restrained condition until the grapple ends." One sentence
+    // and one lifetime — the hold's — so the Restrained is filed as something
+    // the grapple *implies* rather than as a condition of its own.
+    expect(lineOf('couatl', 'Constrict').save).toEqual({
+      ability: 'str',
+      dc: 15,
+      targets: 'one Medium or smaller creature the couatl can see within 5 feet',
+      damage: { dice: '1d6', flat: 5, type: 'bludgeoning', average: 8 },
+      onSuccess: 'none',
+      onFailure: [
+        { kind: 'condition', condition: 'grappled', escapeDc: 13, implies: ['restrained'] },
+      ],
+    });
+    // SRD Salamander prints the same sentence at its own numbers, after two
+    // damage components.
+    const constrict = lineOf('salamander', 'Constrict').save;
+    expect(constrict?.plus).toEqual({ dice: '2d6', flat: 0, type: 'fire', average: 7 });
+    expect(constrict?.onFailure).toEqual([
+      { kind: 'condition', condition: 'grappled', escapeDc: 14, implies: ['restrained'] },
+    ]);
+    expect(constrict?.handedOver).toBeUndefined();
+  });
+
+  it('reads a condition another condition carries', () => {
+    // SRD Chuul: "While Poisoned, the target has the Paralyzed condition." A
+    // sentence about the Poisoned this line imposed, not about the condition,
+    // so it is read onto the instance that carries it.
+    expect(lineOf('chuul', 'Paralyzing Tentacles').save).toEqual({
+      ability: 'con',
+      dc: 13,
+      targets: 'one creature Grappled by the chuul',
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'poisoned',
+          implies: ['paralyzed'],
+          repeats: { at: 'end', of: 'target', capSeconds: 60 },
+        },
+      ],
+    });
+  });
+
+  it('reads a curse that is only conditions as those conditions, for the curse’s span', () => {
+    // SRD Lamia: "the target is cursed for 1 hour. Until the curse ends, the
+    // target has the Charmed and Poisoned conditions." Two sentences and one
+    // rule; read together or carried together.
+    expect(lineOf('lamia', 'Corrupting Touch').save).toEqual({
+      ability: 'wis',
+      dc: 13,
+      targets: 'one creature the lamia can see within 5 feet',
+      damage: { dice: '3d8', flat: 0, type: 'psychic', average: 13 },
+      onSuccess: 'none',
+      onFailure: [
+        { kind: 'condition', condition: 'charmed', lasts: { kind: 'seconds', seconds: 3600 } },
+        { kind: 'condition', condition: 'poisoned', lasts: { kind: 'seconds', seconds: 3600 } },
+      ],
+    });
+  });
+
   it('reads no save off a trait, whose moment is not a use', () => {
     // SRD Ghast's Stench is the template word for word, forced on "any
     // creature that starts its turn" in the aura — nothing a creature spends.
     const stench = lineOf('ghast', 'Stench');
     expect(stench.text).toContain('Saving Throw:_');
     expect(stench.save).toBeUndefined();
+  });
+});
+
+describe('a failure the line grades', () => {
+  it('reads a first rung that repeats and a second rung that deepens it', () => {
+    // SRD Gorgon: "_First Failure:_ The target has the Restrained condition
+    // and repeats the save at the end of its next turn if it is still
+    // Restrained, ending the effect on itself on a success. _Second Failure:_
+    // The target has the Petrified condition instead of the Restrained
+    // condition." One condition, one repeat, and what the repeat's failure
+    // leaves behind — which is `RepeatSave.onFailure` word for word.
+    expect(lineOf('gorgon', 'Petrifying Breath').save).toEqual({
+      ability: 'con',
+      dc: 15,
+      targets: 'each creature in a 30-foot Cone',
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'restrained',
+          repeats: { at: 'end', of: 'target', onFailure: { condition: 'petrified' } },
+        },
+      ],
+    });
+  });
+
+  it('carries the prose a line prints between its targets and its first rung', () => {
+    // SRD Basilisk prints the Gorgon's sentence with one more of its own:
+    // "If the basilisk sees its reflection in the Cone, the basilisk must
+    // make this save." Nothing here makes a creature save against itself, so
+    // the sentence is handed over and the line still owes it.
+    const gaze = lineOf('basilisk', 'Petrifying Gaze').save;
+    expect(gaze?.dc).toBe(12);
+    expect(gaze?.onFailure).toEqual([
+      {
+        kind: 'condition',
+        condition: 'restrained',
+        repeats: { at: 'end', of: 'target', onFailure: { condition: 'petrified' } },
+      },
+    ]);
+    expect(gaze?.handedOver).toEqual([
+      'If the basilisk sees its reflection in the Cone, the basilisk must make this save.',
+    ]);
+  });
+
+  it('reads a failure graded by how far the save missed', () => {
+    // SRD Pseudodragon: "_Failure by 5 or More:_ While Poisoned, the target
+    // also has the Unconscious condition, which ends early if…" — the same
+    // failure with one more thing riding on the condition it imposed, chosen
+    // by a margin the engine already has from the roll it made.
+    const poisoned = {
+      kind: 'condition',
+      condition: 'poisoned',
+      lasts: { kind: 'seconds', seconds: 3600 },
+    };
+    expect(lineOf('pseudodragon', 'Sting').save).toEqual({
+      ability: 'con',
+      dc: 12,
+      targets: 'one creature the pseudodragon can see within 5 feet',
+      damage: { dice: '2d4', flat: 0, type: 'poison', average: 5 },
+      onSuccess: 'none',
+      onFailure: [poisoned],
+      onFailureBy: { by: 5, effects: [{ ...poisoned, implies: ['unconscious'] }] },
+      handedOver: [
+        'which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it.',
+      ],
+    });
   });
 });
 
@@ -282,9 +411,15 @@ describe('the lines the reader does not reach', () => {
     expect(lineOf('copper-dragon-wyrmling', 'Slowing Breath').save).toBeUndefined();
   });
 
-  it('refuses a failure graded by margin', () => {
-    // SRD Pseudodragon's Sting prints `_Failure by 5 or More:_`.
-    expect(lineOf('pseudodragon', 'Sting').save).toBeUndefined();
+  it('refuses a graded failure whose second rung it cannot hold', () => {
+    // SRD Brass Dragon Wyrmling's Sleep Breath deepens to "the Unconscious
+    // condition **for 1 minute**", and SRD Silver Dragon Wyrmling's deepens to
+    // a Paralyzed that repeats its own save. `repeats.onFailure` is a bare
+    // condition name — a span and a second repeat are not on it — so the
+    // deeper rung would be applied forever, which is worse than handing the
+    // line over. Refused whole, as the family was before.
+    expect(lineOf('brass-dragon-wyrmling', 'Sleep Breath').save).toBeUndefined();
+    expect(lineOf('silver-dragon-wyrmling', 'Paralyzing Breath').save).toBeUndefined();
   });
 
   it('refuses a trigger printed before the save', () => {
@@ -299,10 +434,11 @@ describe('the lines the reader does not reach', () => {
     expect(lineOf('half-dragon', "Dragon's Breath").save).toBeUndefined();
   });
 
-  it('refuses a second rung of failure', () => {
-    // SRD Gorgon's Petrifying Breath prints `_First Failure:_` and
-    // `_Second Failure:_`, which is a repeat save this shape cannot hold.
-    expect(lineOf('gorgon', 'Petrifying Breath').save).toBeUndefined();
+  it('refuses a clause the reader cannot start on even inside a graded failure', () => {
+    // A `_First Failure:_` is read now, so the refusal that matters is the
+    // one underneath it: SRD Copper Dragon Wyrmling's Slowing Breath says
+    // three things in one sentence and none of them is a clause this knows.
+    expect(lineOf('copper-dragon-wyrmling', 'Slowing Breath').save).toBeUndefined();
   });
 
   it('reads a save whose failure imposes a condition rather than damage', () => {

@@ -1124,10 +1124,14 @@ describe('what a stat block’s sections print, and what is read', () => {
       // whose spell names the book italicised none of. Forty-six more again
       // when the save template grew its clauses — a condition to a turn
       // anchor, a grapple, a push, a Speed cut, a lowered maximum — and the
-      // lines still unread print a graded failure, a trigger or a movement
+      // lines still unread print a trigger or a movement
       // before the save, or a failure the vocabulary cannot start on. Every
-      // other unread line here is unread for its own reason.
-      actions: { printed: 811, read: 743 },
+      // other unread line here is unread for its own reason. Three more again
+      // when a graded failure became readable — the Gorgon's and the Medusa's
+      // Petrifying sentences and the Pseudodragon's Sting, which grades by
+      // margin — while the two dragon wyrmlings that deepen into a span stay
+      // prose, which is the count saying the second rung is read or nothing is.
+      actions: { printed: 811, read: 746 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
@@ -1144,8 +1148,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Golem's Hasten is not among them: it conjoins rather than offers,
       // and it recharges. Four more with the save template's clauses — the
       // Bugbear Stalker's Quick Grapple among them — read under this heading
-      // because a Bonus Action is a line a creature spends.
-      bonusActions: { printed: 75, read: 18 },
+      // because a Bonus Action is a line a creature spends. And one more with
+      // the graded failure: the Basilisk's Petrifying Gaze is a Bonus Action,
+      // where the Gorgon's identical sentence is an Action.
+      bonusActions: { printed: 75, read: 19 },
       reactions: { printed: 24, read: 0 },
       legendaryActions: { printed: 82, read: 0 },
     });

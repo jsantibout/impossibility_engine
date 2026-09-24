@@ -24,13 +24,23 @@
  * what it did not, and the ledger keeps the block in its population until the
  * last sentence is spent.
  *
- * Three families are refused whole rather than read down to the part that
- * fits, because half of each is a rule nobody printed: a graded or repeated
- * failure (`_First Failure:_`, `_Failure by 5 or More:_`), a trigger or a
- * movement printed before the save ("The mephit explodes when it dies", "The
- * bulette spends 5 feet of movement"), and a damage type the block leaves to
- * another trait. Each sentence is read **transactionally**: one whose second
- * half the grammar does not know is carried whole, never half-applied.
+ * Two families are refused whole rather than read down to the part that fits,
+ * because half of each is a rule nobody printed: a trigger or a movement
+ * printed before the save ("The mephit explodes when it dies", "The bulette
+ * spends 5 feet of movement"), and a damage type the block leaves to another
+ * trait. Each sentence is read **transactionally**: one whose second half the
+ * grammar does not know is carried whole, never half-applied.
+ *
+ * **A graded failure is read, and refused whole where its second rung is a
+ * rule this cannot hold.** `_First Failure:_` opens a line exactly as
+ * `_Failure:_` does; `_Second Failure:_` is a sentence about the clause above
+ * it, read onto the repeat the first rung scheduled — which is the engine's
+ * `RepeatSave.onFailure` word for word. `_Failure by 5 or More:_` is the same
+ * failure with one more thing riding on it, chosen by a margin the engine
+ * already has from the roll it made. Where the second rung says anything the
+ * vocabulary has no field for — a span, a repeat of its own — the whole line
+ * stays prose, because a first rung standing alone is a Restrained nothing
+ * ever lifts.
  */
 
 import type { MonsterDamage, MonsterSave, PrintedSaveEffect, PrintedSpan } from '../schemas.js';
@@ -91,14 +101,50 @@ const SIZES: Readonly<Record<string, NonNullable<ConditionEffect['ifNoLargerThan
   Gargantuan: 'gargantuan',
 };
 
-/** The opening every line this reads begins with: the ability, the DC and who it catches. */
-const OPENING = /^_([A-Za-z]+) Saving Throw:_ DC (\d+), (.+?)\. (_Failure:_ .*)$/;
+/**
+ * The opening every line this reads begins with: the ability, the DC and who
+ * it catches — and, where the book prints one, a sentence in between.
+ *
+ * `_First Failure:_` opens a graded line exactly as `_Failure:_` opens a plain
+ * one, so both are the head of the tail. What sits *before* either is the
+ * targeting clause and, for the Basilisk alone, one more sentence: "If the
+ * basilisk sees its reflection in the Cone, the basilisk must make this save."
+ * The capture is lazy and therefore swallows it, which is why {@link headOf}
+ * splits the two apart rather than filing a rule about the source under who
+ * the line catches. No SRD targeting clause contains a full stop, which is
+ * what makes that split safe and is asserted over the corpus.
+ */
+const OPENING = /^_([A-Za-z]+) Saving Throw:_ DC (\d+), (.+?)\. (_(?:First )?Failure:_ .*)$/;
 
-/** The section markers the book prints after the opening. */
-const SECTION = /_(Failure|Success|Failure or Success):_\s*/g;
+/**
+ * The section markers the book prints after the opening.
+ *
+ * Longest first, because `Failure` is a prefix of neither `Failure or Success`
+ * nor `Failure by 5 or More` as a *word* but is as an alternation: a leading
+ * `Failure` alternative would match and then fail on `:_`, and the engine
+ * would go on to the next alternative — so the order is a tidiness that makes
+ * the intent readable rather than a correctness rule. `Third Failure` is in
+ * the list because refusing it by omission would read a three-rung line as a
+ * two-rung one; the SRD prints none at this tier and one would refuse the
+ * line at {@link deepenBy}.
+ */
+const SECTION =
+  /_(Failure or Success|Failure by \d+ or More|First Failure|Second Failure|Third Failure|Failure|Success):_\s*/g;
 
-/** A marker this reader refuses whole: a graded or repeated failure is another shape. */
-const REFUSED_MARKER = /_(?:First|Second|Third) Failure:_|_Failure by \d+ or More:_/;
+/** "Failure by 5 or More": the margin at or beyond which the deeper list bites. */
+const BY_MARGIN = /^Failure by (\d+) or More$/;
+
+/**
+ * SRD Gorgon and SRD Basilisk: "The target has the Petrified condition instead
+ * of the Restrained condition."
+ *
+ * The whole of what a `_Second Failure:_` may say. A rung that says anything
+ * else — a span, a repeat of its own, a second effect — refuses the line, and
+ * the two dragon wyrmlings that print one are why: see
+ * `PrintedSaveEffectSchema`'s `repeats.onFailure`.
+ */
+const SECOND_FAILURE =
+  /^The target has the ([A-Z][a-z]+) condition instead of the ([A-Z][a-z]+) condition$/;
 
 /** `17 (5d6) Fire damage`, `16 (2d10 + 5) Bludgeoning damage`, with an optional second component after `plus`. */
 const DAMAGE =
@@ -114,6 +160,45 @@ const SUBJECT = '(?:(?:[Tt]he target|[Ii]t) )?';
 const HAS_CONDITION = new RegExp(
   `^${SUBJECT}has the ([A-Z][a-z]+) condition(?: \\(escape DC (\\d+)\\))?(?: (until [^,]+?|for \\d+ (?:hour|minute)s?))?(?:,? and (.+))?$`,
 );
+/**
+ * SRD Couatl and SRD Salamander: "…, and it has the Restrained condition until
+ * the grapple ends."
+ *
+ * Tried **before** {@link HAS_CONDITION}, which would take "until the grapple
+ * ends" for a span it does not know and refuse the sentence. The lifetime is
+ * the hold's, so it is read onto the grapple as something that hold implies.
+ */
+const UNTIL_GRAPPLE_ENDS = new RegExp(
+  `^${SUBJECT}has the ([A-Z][a-z]+) condition until the grapple ends$`,
+);
+/**
+ * SRD Chuul: "While Poisoned, the target has the Paralyzed condition." SRD
+ * Pseudodragon: "While Poisoned, the target also has the Unconscious
+ * condition, which ends early if…"
+ *
+ * A sentence about a condition **this line already imposed**, so it amends
+ * that clause rather than standing as one of its own — and a line that says it
+ * about a condition it did not impose names a lifetime that is not there and
+ * is handed over. What rides after the condition is carried verbatim: the
+ * Pseudodragon's early ending is a rule nothing here executes, and carrying it
+ * keeps the line's debt on the books while the part that *was* read is
+ * applied.
+ */
+const WHILE_CONDITION =
+  /^While ([A-Z][a-z]+), (?:the target|the creature|it) (?:also )?has the ([A-Z][a-z]+) condition(?:, (.+))?$/;
+/** SRD Lamia: "the target is cursed for 1 hour." */
+const CURSED = /^[Tt]he target is cursed (for \d+ (?:hour|minute)s?)$/;
+/**
+ * SRD Lamia: "Until the curse ends, the target has the Charmed and Poisoned
+ * conditions."
+ *
+ * The other half of {@link CURSED}, and read only with it: a curse that is
+ * *only* conditions is those conditions for the curse's span, and a curse that
+ * carries anything else — a Mummy's rot, an Incubus's kiss — says so in a
+ * sentence this does not match, so neither half is read.
+ */
+const UNTIL_CURSE_ENDS =
+  /^Until the curse ends, the target has the ([A-Z][a-z]+)(?: and (?:the )?([A-Z][a-z]+))? conditions?\.?$/;
 const SIZE_GATED =
   /^If the target is a (Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller creature, (.+)$/;
 const PUSHED = new RegExp(
@@ -124,6 +209,24 @@ const HP_MAX_CUT =
   /^[Tt]he target's Hit Point maximum decreases by an amount equal to the damage taken$/;
 const REPEATS_AFTER =
   /^(?:and )?repeats the save at the end of each of its turns, ending the effect on itself on a success$/;
+/**
+ * SRD Gorgon: "and repeats the save at the end of **its next** turn if it is
+ * still Restrained, ending the effect on itself on a success."
+ *
+ * One repeat rather than a standing obligation, and read **only inside a
+ * graded failure** — which is the whole of what makes the two the same shape
+ * for the engine. A graded line's timer dies at the first resolution either
+ * way: a success ends the condition on its target and a failure deepens it,
+ * and `condition-removed` takes the deadline off with the instance. Outside
+ * one, "at the end of its next turn" would be a save the boundary went on
+ * raising every turn, which is a rule nobody printed — so the clause refuses
+ * the sentence there.
+ *
+ * "if it is still Restrained" needs no field: an instance that is gone has no
+ * timer, so the save is not owed.
+ */
+const REPEATS_NEXT_TURN =
+  /^(?:and )?repeats the save at the end of its next turn(?: if it is still [A-Z][a-z]+)?, ending the effect on itself on a success$/;
 const REPEATS_BEFORE =
   /^At the end of each of its turns, the target repeats the save, ending the effect on itself on a success$/;
 const CAPPED = /^After (\d+) minutes?, it succeeds automatically$/;
@@ -163,14 +266,53 @@ function damageOf(match: RegExpExecArray, offset: number): MonsterDamage | null 
   };
 }
 
+/**
+ * What one section is being read into: the effects so far, and the words a
+ * clause was read *around*.
+ *
+ * `carried` is how a clause can be read and still leave a debt. SRD
+ * Pseudodragon's "While Poisoned, the target also has the Unconscious
+ * condition, **which ends early if the target takes damage**…" is one clause
+ * saying two things, and only the first is a primitive the engine has — so the
+ * Unconscious is read and the early ending is carried, ending up in
+ * `handedOver` beside every sentence that was not read at all. The ledger goes
+ * on counting the line, which is the rule: recognising part of a sentence may
+ * never retire a debt.
+ *
+ * Both halves are the caller's **scratch copy**: a sentence is read against a
+ * copy and committed only when every clause in it was read, so nothing is
+ * half-applied and nothing is half-carried.
+ */
+interface Scratch {
+  readonly effects: PrintedSaveEffect[];
+  readonly carried: string[];
+}
+
 /** Replace the last condition in the list with a re-reading of it, or fail where there is none. */
 function amendLastCondition(
   into: PrintedSaveEffect[],
   amend: (last: ConditionEffect) => ConditionEffect | null,
 ): boolean {
+  return amendCondition(into, () => true, amend);
+}
+
+/**
+ * Replace the last condition the predicate accepts, or fail where there is
+ * none.
+ *
+ * "While Poisoned, …" names the clause it is about rather than sitting behind
+ * it, so the search is by condition and not by position — and a sentence about
+ * a condition this line did not impose finds nothing and is handed over, which
+ * is the same answer {@link amendLastCondition} gives an empty list.
+ */
+function amendCondition(
+  into: PrintedSaveEffect[],
+  matches: (effect: ConditionEffect) => boolean,
+  amend: (last: ConditionEffect) => ConditionEffect | null,
+): boolean {
   for (let i = into.length - 1; i >= 0; i -= 1) {
     const effect = into[i]!;
-    if (effect.kind !== 'condition') continue;
+    if (effect.kind !== 'condition' || !matches(effect)) continue;
     const amended = amend(effect);
     if (amended === null) return false;
     into[i] = amended;
@@ -179,17 +321,28 @@ function amendLastCondition(
   return false;
 }
 
+/** Add to what a cause carries, keeping the book's order and saying nothing twice. */
+const alsoImplies = (
+  last: ConditionEffect,
+  condition: ConditionEffect['condition'],
+): ConditionEffect =>
+  last.implies?.includes(condition) === true
+    ? last
+    : { ...last, implies: [...(last.implies ?? []), condition] };
+
 /**
- * Read one clause **into** the list, or return false where the words are not
- * a clause this knows.
+ * Read one clause **into** the scratch, or return false where the words are
+ * not a clause this knows.
  *
- * The list is the caller's scratch copy: a sentence is read against a copy and
- * committed only when every clause in it was read, so nothing is half-applied.
- * Two sentences say something about the condition before them — "and repeats
- * the save…", "After 1 minute, it succeeds automatically." — and amend it in
- * place.
+ * Several sentences say something about a clause already read — "and repeats
+ * the save…", "After 1 minute, it succeeds automatically.", "While Poisoned,
+ * the target has the Paralyzed condition." — and amend it in place.
+ *
+ * @param graded whether this section is one rung of a graded failure, which is
+ * the one thing that changes what a clause may say: see
+ * {@link REPEATS_NEXT_TURN}.
  */
-function readClause(clause: string, into: PrintedSaveEffect[]): boolean {
+function readClause(clause: string, into: Scratch, graded: boolean): boolean {
   const words = clause.replace(/\.$/, '').trim();
   if (words === '') return true;
 
@@ -197,12 +350,42 @@ function readClause(clause: string, into: PrintedSaveEffect[]): boolean {
   if (gated !== null) {
     const size = SIZES[gated[1]!];
     if (size === undefined) return false;
-    const before = into.length;
-    if (!readClause(gated[2]!, into)) return false;
-    for (let i = before; i < into.length; i += 1) {
-      const effect = into[i]!;
-      if (effect.kind === 'condition') into[i] = { ...effect, ifNoLargerThan: size };
+    const before = into.effects.length;
+    if (!readClause(gated[2]!, into, graded)) return false;
+    for (let i = before; i < into.effects.length; i += 1) {
+      const effect = into.effects[i]!;
+      if (effect.kind === 'condition') into.effects[i] = { ...effect, ifNoLargerThan: size };
     }
+    return true;
+  }
+
+  // Before `HAS_CONDITION`, which would take "until the grapple ends" for a
+  // span and refuse the sentence it rides on.
+  const held = UNTIL_GRAPPLE_ENDS.exec(words);
+  if (held !== null) {
+    const name = CONDITIONS[held[1]!];
+    if (name === undefined) return false;
+    // Only onto a grapple: the lifetime the sentence names is the hold's, and
+    // a clause that named no hold would be a condition nothing could end.
+    return amendCondition(
+      into.effects,
+      (effect) => effect.escapeDc !== undefined,
+      (last) => alsoImplies(last, name),
+    );
+  }
+
+  const whileSo = WHILE_CONDITION.exec(words);
+  if (whileSo !== null) {
+    const host = CONDITIONS[whileSo[1]!];
+    const name = CONDITIONS[whileSo[2]!];
+    if (host === undefined || name === undefined) return false;
+    const amended = amendCondition(
+      into.effects,
+      (effect) => effect.condition === host,
+      (last) => alsoImplies(last, name),
+    );
+    if (!amended) return false;
+    if (whileSo[3] !== undefined) into.carried.push(`${whileSo[3]}.`);
     return true;
   }
 
@@ -212,40 +395,49 @@ function readClause(clause: string, into: PrintedSaveEffect[]): boolean {
     if (name === undefined) return false;
     const span = condition[3] === undefined ? null : spanOf(condition[3]);
     if (condition[3] !== undefined && span === null) return false;
-    into.push({
+    into.effects.push({
       kind: 'condition',
       condition: name,
       ...(span === null ? {} : { lasts: span }),
       ...(condition[2] === undefined ? {} : { escapeDc: Number(condition[2]) }),
     });
-    return condition[4] === undefined ? true : readClause(condition[4], into);
+    return condition[4] === undefined ? true : readClause(condition[4], into, graded);
   }
 
   const pushed = PUSHED.exec(words);
   if (pushed !== null) {
-    into.push({ kind: 'push', feet: Number(pushed[1]) });
-    return pushed[2] === undefined ? true : readClause(pushed[2], into);
+    into.effects.push({ kind: 'push', feet: Number(pushed[1]) });
+    return pushed[2] === undefined ? true : readClause(pushed[2], into, graded);
   }
 
   const speed = SPEED_CUT.exec(words);
   if (speed !== null) {
     const span = spanOf(speed[2]!);
     if (span === null) return false;
-    into.push({ kind: 'speed-decrease', feet: Number(speed[1]), lasts: span });
+    into.effects.push({ kind: 'speed-decrease', feet: Number(speed[1]), lasts: span });
     return true;
   }
 
   if (HP_MAX_CUT.test(words)) {
-    into.push({ kind: 'hit-point-maximum-decrease', by: 'damage-taken' });
+    into.effects.push({ kind: 'hit-point-maximum-decrease', by: 'damage-taken' });
     return true;
   }
 
   if (REPEATS_AFTER.test(words) || REPEATS_BEFORE.test(words)) {
-    return amendLastCondition(into, (last) => ({ ...last, repeats: { at: 'end', of: 'target' } }));
+    return amendLastCondition(into.effects, (last) => ({
+      ...last,
+      repeats: { at: 'end', of: 'target' },
+    }));
+  }
+  if (graded && REPEATS_NEXT_TURN.test(words)) {
+    return amendLastCondition(into.effects, (last) => ({
+      ...last,
+      repeats: { at: 'end', of: 'target' },
+    }));
   }
   const capped = CAPPED.exec(words);
   if (capped !== null) {
-    return amendLastCondition(into, (last) =>
+    return amendLastCondition(into.effects, (last) =>
       last.repeats === undefined
         ? null
         : { ...last, repeats: { ...last.repeats, capSeconds: Number(capped[1]) * 60 } },
@@ -265,6 +457,38 @@ interface ReadSection {
 }
 
 /**
+ * The two sentences a curse that is **only conditions** is printed in, read
+ * together or not at all.
+ *
+ * SRD Lamia: "the target is cursed for 1 hour. Until the curse ends, the
+ * target has the Charmed and Poisoned conditions." The curse is a name for a
+ * span, and what it carries is two conditions — so it is those conditions for
+ * that span and there is nothing else to model. Half of it is worse than
+ * none: a span nothing hangs on is a rule with no effect, and conditions with
+ * no span are a curse that never lifts.
+ *
+ * Null where the pair is not both there, which is what keeps a Mummy's rot and
+ * an Incubus's kiss prose: their second sentence says something else, so the
+ * first is carried whole.
+ */
+function readCurse(cursed: string, next: string | undefined): PrintedSaveEffect[] | null {
+  const span = CURSED.exec(cursed);
+  if (span === null || next === undefined) return null;
+  const carries = UNTIL_CURSE_ENDS.exec(next.trim());
+  if (carries === null) return null;
+  const lasts = spanOf(span[1]!);
+  if (lasts === null) return null;
+  const effects: PrintedSaveEffect[] = [];
+  for (const word of [carries[1], carries[2]]) {
+    if (word === undefined) continue;
+    const name = CONDITIONS[word];
+    if (name === undefined) return null;
+    effects.push({ kind: 'condition', condition: name, lasts });
+  }
+  return effects;
+}
+
+/**
  * The clauses one section prints, read one sentence at a time.
  *
  * The first sentence may be damage, with an optional ", and <clause>" riding
@@ -272,9 +496,17 @@ interface ReadSection {
  * does not know is carried in `handedOver` — the *unread* words only, so a
  * sentence whose damage was read hands over the rest of itself and not the
  * damage the engine dealt.
+ *
+ * @param seed the effects this section is read *against*, which is how the
+ * margin rung of a graded failure says one more thing about the clause the
+ * first rung imposed.
  */
-function readSection(text: string): ReadSection {
-  const effects: PrintedSaveEffect[] = [];
+function readSection(
+  text: string,
+  options: { readonly graded?: boolean; readonly seed?: readonly PrintedSaveEffect[] } = {},
+): ReadSection {
+  const graded = options.graded ?? false;
+  const effects: PrintedSaveEffect[] = [...(options.seed ?? [])];
   const handedOver: string[] = [];
   let damage: MonsterDamage | null = null;
   let plus: MonsterDamage | null = null;
@@ -285,7 +517,10 @@ function readSection(text: string): ReadSection {
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence !== '');
 
-  sentences.forEach((sentence, index) => {
+  // Indexed rather than `forEach`, because one rule spans two sentences: see
+  // {@link readCurse}, which consumes the sentence after the one it is on.
+  for (let index = 0; index < sentences.length; index += 1) {
+    const sentence = sentences[index]!;
     let rest = sentence.replace(/\.$/, '');
     if (index === 0) {
       const hit = DAMAGE.exec(rest);
@@ -294,34 +529,108 @@ function readSection(text: string): ReadSection {
         const second = hit[7] === undefined ? undefined : damageOf(hit, 7);
         if (first === null || second === null) {
           handedOver.push(sentence);
-          return;
+          continue;
         }
         damage = first;
         plus = second ?? null;
         readSomething = true;
         rest = rest.slice(hit[0].length).replace(/^,?\s*and\s+/, '').trim();
-        if (rest === '') return;
+        if (rest === '') continue;
       }
     }
-    const scratch = [...effects];
-    if (readClause(rest, scratch)) {
-      effects.splice(0, effects.length, ...scratch);
+
+    const cursed = readCurse(rest, sentences[index + 1]);
+    if (cursed !== null) {
+      effects.push(...cursed);
+      readSomething = true;
+      index += 1;
+      continue;
+    }
+
+    const scratch: Scratch = { effects: [...effects], carried: [] };
+    if (readClause(rest, scratch, graded)) {
+      effects.splice(0, effects.length, ...scratch.effects);
+      handedOver.push(...scratch.carried);
       readSomething = true;
     } else {
       handedOver.push(`${rest}.`);
     }
-  });
+  }
 
   return { damage, plus, effects, handedOver, readSomething };
+}
+
+/** Which of the book's headings a section was printed under. */
+type SectionKind = 'failure' | 'first-failure' | 'second-failure' | 'by-margin' | 'success' | 'either';
+
+const KINDS: Readonly<Record<string, SectionKind>> = {
+  Failure: 'failure',
+  'First Failure': 'first-failure',
+  'Second Failure': 'second-failure',
+  'Third Failure': 'second-failure',
+  'Failure or Success': 'either',
+  Success: 'success',
+};
+
+/**
+ * Who the line catches, and the sentence the book prints after them.
+ *
+ * The opening's third capture is lazy, so where a block prints prose between
+ * the targeting clause and its first rung the prose ends up inside it — SRD
+ * Basilisk is the one block that does. No SRD targeting clause contains a full
+ * stop, so the first sentence is the targets and everything after it is a
+ * sentence the reader carries: nothing here makes a creature save against its
+ * own reflection.
+ */
+function headOf(head: string): { readonly targets: string; readonly carried: readonly string[] } {
+  const split = /^(.+?)\.\s+(\S.*)$/.exec(head);
+  if (split === null) return { targets: head, carried: [] };
+  // The opening's own `\. ` ate the last full stop, so it is given back — the
+  // rule every carried sentence in this reader follows.
+  const carried = split[2]!.trim();
+  return { targets: split[1]!, carried: [carried.endsWith('.') ? carried : `${carried}.`] };
+}
+
+/**
+ * Hang the second rung of a graded failure on the first, or refuse the line.
+ *
+ * SRD Gorgon's `_Second Failure:_` says exactly one thing — "The target has
+ * the Petrified condition **instead of** the Restrained condition" — and the
+ * engine's `RepeatSave.onFailure` says exactly that: the deeper condition
+ * lands under the same source and the shallow one goes. So the rung is read
+ * onto the clause it replaces, which must be the one the first rung told to
+ * repeat; anything else is a rule this vocabulary cannot hold, and a graded
+ * failure read down to its first rung is a creature Restrained forever.
+ */
+function deepenBy(second: string, effects: readonly PrintedSaveEffect[]): PrintedSaveEffect[] | null {
+  const rung = SECOND_FAILURE.exec(second.replace(/\.$/, '').trim());
+  if (rung === null) return null;
+  const deeper = CONDITIONS[rung[1]!];
+  const shallow = CONDITIONS[rung[2]!];
+  if (deeper === undefined || shallow === undefined) return null;
+  const amended = [...effects];
+  const hung = amendCondition(
+    amended,
+    (effect) => effect.condition === shallow && effect.repeats !== undefined,
+    (last) => ({ ...last, repeats: { ...last.repeats!, onFailure: { condition: deeper } } }),
+  );
+  return hung ? amended : null;
 }
 
 /**
  * The save a line forces, or **null for everything else**.
  *
- * Null for a line that does not begin with the template, for one that prints a
- * graded or repeated failure, and for one whose failure clause this reader
- * cannot start on. A line read carries everything it read and, in
- * `handedOver`, everything it did not.
+ * Null for a line that does not begin with the template, and for one whose
+ * failure clause this reader cannot start on. A line read carries everything
+ * it read and, in `handedOver`, everything it did not.
+ *
+ * **A graded failure is read or refused whole.** `_First Failure:_` is the
+ * head of the tail exactly as `_Failure:_` is, and `_Second Failure:_` is a
+ * sentence about the clause above it — so a second rung this cannot hang
+ * refuses the line rather than leaving the first rung standing alone, which
+ * would be a Restrained nothing ever lifts. The same for the margin rung:
+ * `_Failure by 5 or More:_` is the same failure with one more thing riding on
+ * it, and a rung that read nothing new is a rung nobody printed.
  */
 export function parsePrintedSave(text: string): MonsterSave | null {
   const flat = text
@@ -334,31 +643,39 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   const ability = ABILITY_KEYS[opening[1]!];
   if (ability === undefined) return null;
   const tail = opening[4]!;
-  if (REFUSED_MARKER.test(tail)) return null;
 
-  const starts: { kind: 'failure' | 'success' | 'either'; at: number; end: number }[] = [];
+  const starts: { kind: SectionKind; margin: number; at: number; end: number }[] = [];
   SECTION.lastIndex = 0;
   for (let match = SECTION.exec(tail); match !== null; match = SECTION.exec(tail)) {
     const word = match[1]!;
+    const byMargin = BY_MARGIN.exec(word);
     starts.push({
-      kind: word === 'Failure' ? 'failure' : word === 'Success' ? 'success' : 'either',
+      kind: byMargin === null ? (KINDS[word] ?? 'failure') : 'by-margin',
+      margin: byMargin === null ? 0 : Number(byMargin[1]),
       at: match.index,
       end: match.index + match[0].length,
     });
   }
   const sections = starts.map((start, index) => {
     const next = starts[index + 1];
-    return { kind: start.kind, text: tail.slice(start.end, next?.at).trim() };
+    return { kind: start.kind, margin: start.margin, text: tail.slice(start.end, next?.at).trim() };
   });
 
-  const failure = sections.find((section) => section.kind === 'failure');
+  const failure = sections.find(
+    (section) => section.kind === 'failure' || section.kind === 'first-failure',
+  );
   if (failure === undefined) return null;
-  const read = readSection(failure.text);
+  const graded = failure.kind === 'first-failure';
+  const read = readSection(failure.text, { graded });
   if (!read.readSomething) return null;
 
-  const handedOver = [...read.handedOver];
+  const head = headOf(opening[3]!);
+  const handedOver = [...head.carried, ...read.handedOver];
   const either: PrintedSaveEffect[] = [];
   let onSuccess: 'half' | 'none' = 'none';
+  let onFailure: readonly PrintedSaveEffect[] = read.effects;
+  let onFailureBy: { readonly by: number; readonly effects: readonly PrintedSaveEffect[] } | null =
+    null;
 
   for (const section of sections) {
     if (section.kind === 'success') {
@@ -372,8 +689,24 @@ export function parsePrintedSave(text: string): MonsterSave | null {
         either.push(...more.effects);
         handedOver.push(...more.handedOver.map((sentence) => `_Failure or Success:_ ${sentence}`));
       }
+    } else if (section.kind === 'second-failure') {
+      const deepened = deepenBy(section.text, onFailure);
+      if (deepened === null) return null;
+      onFailure = deepened;
+    } else if (section.kind === 'by-margin') {
+      // The same failure with one more thing said about it, so the rung is
+      // read **against** what the first one imposed: "While Poisoned, the
+      // target also has…" names a clause that is already there.
+      const deeper = readSection(section.text, { seed: read.effects });
+      if (!deeper.readSomething || deeper.damage !== null) return null;
+      onFailureBy = { by: section.margin, effects: deeper.effects };
+      handedOver.push(...deeper.handedOver);
     }
   }
+
+  // A first rung with no second is a graded failure half-read: the condition
+  // would repeat its save and a failure would leave it exactly where it was.
+  if (graded && onFailure === read.effects) return null;
 
   // Half of no damage is nothing: a success clause that halves what the line
   // never dealt buys nothing, and saying `half` would be a rule nobody printed.
@@ -382,11 +715,12 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   return {
     ability,
     dc: Number(opening[2]),
-    targets: opening[3]!,
+    targets: head.targets,
     ...(read.damage === null ? {} : { damage: read.damage }),
     ...(read.plus === null ? {} : { plus: read.plus }),
     onSuccess,
-    ...(read.effects.length === 0 ? {} : { onFailure: [...read.effects] }),
+    ...(onFailure.length === 0 ? {} : { onFailure: [...onFailure] }),
+    ...(onFailureBy === null ? {} : { onFailureBy: { by: onFailureBy.by, effects: [...onFailureBy.effects] } }),
     ...(either.length === 0 ? {} : { either }),
     ...(handedOver.length === 0 ? {} : { handedOver }),
   };
