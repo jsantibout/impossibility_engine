@@ -3560,10 +3560,17 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     {
       kind: 'attack-damage',
       base: { kind: 'attack-damage', damage: { dice: '2d8' }, damageType: 'radiant' },
+      // `repeats` is the hook a casting hosts — SRD Searing Smite's minute of
+      // burning — and it is optional: Divine Smite prints none. What a wrong
+      // *value* would be is anything but an object, which is what this row
+      // sends; the pairing rules it is held to once it reads as one are
+      // asserted by name in `burning-smite.test.ts`, because they refuse wrong
+      // combinations rather than wrong types.
       fields: {
         damage: required(OBJECT_JUNK),
         damageType: required(STRING_JUNK),
         againstType: OBJECT_JUNK,
+        repeats: OBJECT_JUNK,
       },
     },
     {

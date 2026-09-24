@@ -1563,6 +1563,25 @@ export function resolveAttack(
     if (!cantrip.ok) return cantrip;
     const castWithIt = cantrip.value;
 
+    // **One offer answered, never two.** The cantrip cast with this swing and a
+    // casting that imbued the weapon in hand make the same offer in the same
+    // words — "it can be X damage **or** the weapon's normal damage type" —
+    // and each *replaces* the weapon's own type rather than adding a
+    // component. A swing that took both is a blow with two types where the
+    // book gives it one, and picking by precedence would be the engine
+    // answering a question the caller asked twice. Refused here, with nothing
+    // spent, which is what `cantrip_pays_for_the_swing` does one field over
+    // for the same shape of mistake.
+    if (
+      castWithIt?.damageType != null &&
+      weaponRiderDamageType(state, id, weapon, command.featureDamageTypes) !== null
+    ) {
+      return err(
+        'two_damage_type_offers',
+        `${castWithIt.definition.name} and a casting already on this weapon both offer this blow a damage type, and a blow deals one; name the type on one of them`,
+      );
+    }
+
     // **And the rider this creature's own block prints**, which nobody asks
     // for: SRD writes "you can" on every feature that buys one and writes a
     // stat block's as part of the Hit. Read here rather than at the landing
@@ -2406,6 +2425,8 @@ export function resolveAttack(
         // The cantrip cast **with** this swing makes the same offer in the
         // same words and it is answered in its own request, so it lands in the
         // same field: one type or the other, whichever of the two offered it.
+        // Never both — a swing that answered two offers was refused at the
+        // door, so at most one of these is set.
         ...(castWithIt?.damageType != null
           ? { weaponDamageType: castWithIt.damageType }
           : imbuedType === null

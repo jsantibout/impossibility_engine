@@ -6,6 +6,8 @@ import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import type { SpellDefinition, SpellEffect } from './spell-definitions.js';
 import {
   advanceTime,
   endCombat,
@@ -77,14 +79,14 @@ const paladin = (): CharacterChoices => ({
   subclassId: 'oath-of-devotion',
   cantrips: [],
   spellbook: [],
-  // A level 5 Paladin prepares 6, and both smites are among them.
+  // A level 5 Paladin prepares 6, and all three smites are among them.
   preparedSpells: [
     'divine-smite',
     'searing-smite',
+    'shining-smite',
     'bless',
     'cure-wounds',
     'heroism',
-    'shield-of-faith',
   ],
   classEquipment: 'A',
   backgroundEquipment: 'A',
@@ -221,6 +223,97 @@ describe('the definition says the spell keeps burning', () => {
   });
 });
 
+/**
+ * What the validator refuses beside a casting-hosted repeat, and why each rule
+ * is a rule.
+ *
+ * Every one of them is a consequence of the host: the effect rolls no save of
+ * its own and imposes no condition, so the ability has to be printed, a
+ * success has nothing but the casting to end, a failure has nothing to deepen,
+ * and the hook has nothing to ride on unless the spell prints a span.
+ */
+describe('the validator holds the hook to its host', () => {
+  const searing = (): SpellDefinition =>
+    SPELL_DEFINITIONS.find((one) => one.id === 'searing-smite')!;
+
+  const hit = (): Extract<SpellEffect, { kind: 'attack-damage' }> =>
+    searing().effects[0] as Extract<SpellEffect, { kind: 'attack-damage' }>;
+
+  const codesOf = (over: Partial<SpellDefinition>): readonly string[] =>
+    checkSpellDefinition({ ...searing(), ...over } as SpellDefinition).map(
+      (problem) => problem.code,
+    );
+
+  /** With the repeat's own object overridden, and the rest of the spell intact. */
+  const repeating = (repeats: Record<string, unknown>): readonly string[] =>
+    codesOf({ effects: [{ ...hit(), repeats } as unknown as SpellEffect] });
+
+  it('accepts the definition as written', () => {
+    expect(codesOf({})).toEqual([]);
+  });
+
+  it('refuses a repeat that names no ability, because the hit rolled none', () => {
+    const nameless: Record<string, unknown> = { ...hit().repeats! };
+    delete nameless['ability'];
+    expect(repeating(nameless)).toContain('repeat_without_an_ability');
+  });
+
+  it('refuses a success that ends on a target the casting is not holding', () => {
+    expect(repeating({ ...hit().repeats!, onSuccess: 'end-on-target' })).toContain(
+      'casting_repeat_ends_the_casting',
+    );
+  });
+
+  it('refuses a failure that deepens a condition nothing imposed', () => {
+    expect(
+      repeating({ ...hit().repeats!, onFailure: { condition: 'unconscious' } }),
+    ).toContain('deepening_without_a_condition');
+  });
+
+  it('refuses a hook on a spell with no span for it to ride on', () => {
+    const timeless: Record<string, unknown> = { ...searing() };
+    delete timeless['durationSeconds'];
+    expect(
+      checkSpellDefinition(timeless as unknown as SpellDefinition).map((problem) => problem.code),
+    ).toContain('casting_repeat_without_a_duration');
+  });
+
+  it('refuses damage before the save that is not an amount', () => {
+    expect(
+      repeating({ ...hit().repeats!, beforeTheSave: { damage: {}, damageType: 'fire' } }),
+    ).toContain('amounts_to_nothing');
+    expect(
+      repeating({
+        ...hit().repeats!,
+        beforeTheSave: { damage: { dice: '1d6' }, damageType: 'sonic' },
+      }),
+    ).toContain('unknown_damage_type');
+  });
+
+  /**
+   * And the other host of a `repeats` may write neither field: a rider's
+   * repeat is raised from the condition it landed on, which already rolled a
+   * save and which nothing would deal the damage to.
+   */
+  it('refuses both new fields on a rider’s own repeat', () => {
+    const holding = SPELL_DEFINITIONS.find((one) => one.id === 'hold-person')!;
+    const save = holding.effects[0] as Extract<SpellEffect, { kind: 'save' }>;
+    const withRepeat = (repeats: Record<string, unknown>): readonly string[] =>
+      checkSpellDefinition({
+        ...holding,
+        effects: [{ ...save, repeats } as unknown as SpellEffect],
+      } as SpellDefinition).map((problem) => problem.code);
+
+    expect(withRepeat({ ...save.repeats!, ability: 'con' })).toContain('repeat_states_an_ability');
+    expect(
+      withRepeat({
+        ...save.repeats!,
+        beforeTheSave: { damage: { dice: '1d6' }, damageType: 'fire' },
+      }),
+    ).toContain('repeat_deals_no_damage');
+  });
+});
+
 describe('a smite with a duration leaves a casting running', () => {
   it('records the casting and hangs its timer', () => {
     const after = state(smote('searing-smite'));
@@ -238,6 +331,34 @@ describe('a smite with a duration leaves a casting running', () => {
     const after = state(smote('divine-smite'));
     expect(Object.keys(after.ongoing)).toHaveLength(0);
     expect(Object.keys(after.timers)).toHaveLength(0);
+  });
+
+  /**
+   * **And the rule is the duration rather than the spell**, which is the other
+   * smite in the book that prints one.
+   *
+   * SRD Shining Smite: "Duration: Concentration, up to 1 minute." Before this
+   * the casting a hit made took no deadline at all, so the Concentration it
+   * started ran until something else broke it and there was no record for
+   * Dispel Magic to find. It gets both now, by the same rule and with no hook
+   * on the timer — the spell repeats no save.
+   */
+  it('records the minute of a Concentration smite too, and ends it with the minute', () => {
+    const shining = smote('shining-smite', 2);
+    const after = state(shining);
+    expect(Object.values(after.ongoing)).toMatchObject([{ spellId: 'shining-smite', level: 2 }]);
+    expect(after.creatures.aelric!.concentration).not.toBeNull();
+    const timer = Object.values(after.timers)[0];
+    expect(timer?.target).toMatchObject({ kind: 'casting' });
+    expect(timer?.repeatSave).toBeUndefined();
+
+    const quiet = [
+      ...shining,
+      ...must(endCombat(state(shining), { kind: 'surrender', side: 'goblins' })),
+    ];
+    const later = [...quiet, ...must(advanceTime(state(quiet), 60, 'the fight moves on'))];
+    expect(Object.keys(state(later).ongoing)).toHaveLength(0);
+    expect(state(later).creatures.aelric!.concentration).toBeNull();
   });
 
   it('deals the extra die on the hit itself', () => {

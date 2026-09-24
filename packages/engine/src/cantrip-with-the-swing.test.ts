@@ -6,6 +6,8 @@ import type { Rng, RngState } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, grantSourcesOf, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
+import { checkSpellDefinition } from './spell-schema.js';
+import type { SpellDefinition } from './spell-definitions.js';
 import { resolveAttack, resolveSpell } from './commands.js';
 
 /**
@@ -95,7 +97,7 @@ const table = (level = 5, over: Partial<CharacterSheet> = {}): readonly GameEven
     id: CASTER,
     spellcasting: declaredCasting({
       ability: 'wis',
-      cantrips: ['true-strike', 'sacred-flame'],
+      cantrips: ['true-strike', 'sacred-flame', 'shillelagh'],
       prepared: ['cure-wounds'],
     }),
   },
@@ -105,6 +107,7 @@ const table = (level = 5, over: Partial<CharacterSheet> = {}): readonly GameEven
     items: [
       { id: 'mace', quantity: 1 },
       { id: 'greatsword', quantity: 1 },
+      { id: 'quarterstaff', quantity: 1 },
     ],
     source: 'kit',
   },
@@ -189,6 +192,96 @@ describe('the definition says what the swing is made of', () => {
   /** Nothing is left over: the swing is the whole spell. */
   it('leaves nothing for the table to adjudicate', () => {
     expect(trueStrike()?.unmodelled).toBeUndefined();
+  });
+});
+
+/**
+ * The shape the validator holds such a definition to, driven one rule at a
+ * time.
+ *
+ * Three of them are facts about the **definition** rather than about the
+ * effect — a cantrip, Range: Self, and this effect alone — because all three
+ * are consequences of the one thing that makes the kind what it is: the
+ * attack command resolves it and `resolveSpell` refuses the definition
+ * outright, so a slot, a range in feet and an effect written beside it are a
+ * level nobody pays, a reach nobody measures and an effect nothing runs.
+ */
+describe('the validator holds the kind to its shape', () => {
+  const trueStrike = (): SpellDefinition =>
+    SPELL_DEFINITIONS.find((one) => one.id === 'true-strike')!;
+
+  const codesOf = (over: Partial<SpellDefinition>): readonly string[] =>
+    checkSpellDefinition({ ...trueStrike(), ...over } as SpellDefinition).map(
+      (problem) => problem.code,
+    );
+
+  it('accepts the definition as written', () => {
+    expect(codesOf({})).toEqual([]);
+  });
+
+  it('refuses it on a spell that spends a slot', () => {
+    expect(codesOf({ level: 1 })).toContain('swing_not_a_cantrip');
+  });
+
+  it('refuses it on a spell with a range of its own', () => {
+    expect(codesOf({ range: { kind: 'ranged', feet: 30 } })).toContain('swing_not_on_its_caster');
+  });
+
+  it('refuses an effect beside it, which nothing would run', () => {
+    expect(
+      codesOf({
+        effects: [
+          ...trueStrike().effects,
+          { kind: 'heal', healing: { dice: '1d4' }, addSpellcastingModifier: false },
+        ],
+      }),
+    ).toContain('swing_beside_another_effect');
+  });
+
+  it('refuses a substitution that is not the caster’s own ability', () => {
+    expect(
+      codesOf({ effects: [{ kind: 'weapon-attack', ability: 'wis' } as never] }),
+    ).toContain('bad_substitution');
+  });
+
+  it('refuses an offer with nothing on it, and a type nobody deals', () => {
+    expect(
+      codesOf({ effects: [{ kind: 'weapon-attack', ability: 'spellcasting', damageTypes: [] }] }),
+    ).toContain('empty_damage_type_offer');
+    expect(
+      codesOf({
+        effects: [{ kind: 'weapon-attack', ability: 'spellcasting', damageTypes: ['sonic'] }],
+      }),
+    ).toContain('bad_damage_type');
+  });
+
+  /**
+   * A band table with no band in it adds dice at no level at all, which is a
+   * definition saying it deals extra damage and dealing none for ever.
+   */
+  it('refuses a Cantrip Upgrade with no band in it, and dice that are not dice', () => {
+    expect(
+      codesOf({
+        effects: [
+          {
+            kind: 'weapon-attack',
+            ability: 'spellcasting',
+            extraDamage: { damageType: 'radiant', diceAtLevel: {} },
+          },
+        ],
+      }),
+    ).toContain('empty_band_table');
+    expect(
+      codesOf({
+        effects: [
+          {
+            kind: 'weapon-attack',
+            ability: 'spellcasting',
+            extraDamage: { damageType: 'radiant', diceAtLevel: { 5: 'a handful' } },
+          },
+        ],
+      }),
+    ).toContain('bad_dice');
   });
 });
 
@@ -373,6 +466,45 @@ describe('what the swing refuses, before anything is spent', () => {
    */
   it('refuses to hold the damage of a swing that is a casting', () => {
     expect(refusal(swing(table(), { hold: true }))).toBe('cantrip_swing_not_held');
+  });
+
+  /**
+   * **Two offers, one blow.** SRD Shillelagh's staff "can be Force damage or
+   * the weapon's normal damage type" and True Strike's swing "can be Radiant
+   * damage or the weapon's normal damage type" — each replaces the weapon's
+   * own type rather than adding a component, so a swing that answered both
+   * would be a blow with two types where the book gives it one.
+   */
+  it('refuses a blow that answers two offers of a damage type', () => {
+    const imbued = [
+      ...table(),
+      ...must(
+        resolveSpell(
+          fold('seed', table()),
+          CASTER,
+          { spellId: 'shillelagh', targets: [CASTER], weapon: 'quarterstaff' },
+          supply(),
+        ),
+      ).events,
+    ];
+    // Either offer alone is fine, on the staff the casting imbued.
+    expect(
+      must(
+        swing(imbued, {
+          weapon: 'quarterstaff',
+          cantrip: { spellId: 'true-strike', damageType: 'radiant' },
+        }),
+      ).damage,
+    ).toBeGreaterThan(0);
+    expect(
+      refusal(
+        swing(imbued, {
+          weapon: 'quarterstaff',
+          cantrip: { spellId: 'true-strike', damageType: 'radiant' },
+          featureDamageTypes: { Shillelagh: 'force' },
+        }),
+      ),
+    ).toBe('two_damage_type_offers');
   });
 
   /** And nothing was spent by any of them. */
