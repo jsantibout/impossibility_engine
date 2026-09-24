@@ -371,11 +371,20 @@ export interface EffectCheck {
    * `end-on-target` is Black Tentacles' "ending the condition on itself on a
    * success", which is the same release the repeat save already performs.
    *
-   * There is deliberately no `end-casting`: SRD writes it (Maze, Phantasmal
-   * Force, Detect Thoughts) and every one of those spells is blocked on
-   * something else, so it would be a value nothing could be written with.
+   * `end-casting` is SRD Ensnaring Strike's "On a success, the spell ends" —
+   * the whole casting released, which is what a repeat save's `end-casting`
+   * already does at a boundary. It was deliberately absent while Maze,
+   * Phantasmal Force and Detect Thoughts were each blocked on something else
+   * and nothing could be written with it.
    */
-  readonly onSuccess: 'none' | 'end-on-target';
+  readonly onSuccess: 'none' | 'end-on-target' | 'end-casting';
+  /**
+   * SRD Ensnaring Strike: "The target **or a creature within reach of it** can
+   * take an action to make a Strength (Athletics) check". Widens who may
+   * attempt the check from the condition's holder to anybody within reach of
+   * them — see `SpellCheck.byAnotherWithinReach`, which this is pinned from.
+   */
+  readonly byAnotherWithinReach?: true;
   /** How the roll reads in the log. */
   readonly label: string;
 }

@@ -1055,6 +1055,16 @@ export type OngoingEndReason =
    */
   | 'spent'
   /**
+   * The one creature the spell was on resisted it, and the book says that is
+   * the end.
+   *
+   * SRD Ensnaring Strike: "On a successful save, the vines shrivel away, and
+   * the spell ends." Written by the road that cast the spell on a hit, in the
+   * same batch as the save — nobody decides it, and unlike `spent` the cause is
+   * the target's own die rather than a blow somebody else struck.
+   */
+  | 'resisted'
+  /**
    * The curse moved, and this is the creature it moved off.
    *
    * SRD Hunter's Mark: "you can take a Bonus Action to **move the mark to a

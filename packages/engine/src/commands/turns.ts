@@ -35,10 +35,12 @@ import { forSeconds, isDue, timeView, type TurnMoment } from '../time.js';
 import {
   mayAttempt,
   pendingSaveKey,
+  type EffectCheck,
   type GrantedPayout,
   type PendingSave,
   type PrintedSaveDebt,
   type ScheduledDamage,
+  type TimedEffect,
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { HAZARD_RULES, hazardSource } from '../hazards.js';
@@ -865,7 +867,7 @@ export interface AvailableCheck {
   readonly ability: Ability;
   readonly skill: Skill | null;
   readonly dc: number;
-  readonly onSuccess: 'none' | 'end-on-target';
+  readonly onSuccess: EffectCheck['onSuccess'];
   readonly label: string;
 }
 
@@ -882,7 +884,7 @@ export function availableChecks(state: GameState, who: CharacterId): readonly Av
     .flatMap((effectKey): AvailableCheck[] => {
       const timer = state.timers[effectKey];
       if (timer?.check === undefined) return [];
-      if (!mayAttempt(timer, who)) return [];
+      if (!mayAttemptOrReach(state, timer, who)) return [];
       return [
         {
           effectKey,
@@ -930,9 +932,39 @@ export interface EffectCheckResolution {
   readonly check: D20TestResult | null;
   readonly success: boolean;
   /** What the success did, so a narrating layer need not work it out. */
-  readonly onSuccess: 'none' | 'end-on-target';
+  readonly onSuccess: EffectCheck['onSuccess'];
   /** True when this command id had already been applied. */
   readonly duplicate?: boolean;
+}
+
+/**
+ * The reach a creature has over the one beside it, for a check the book opens
+ * to "a creature within reach of it".
+ *
+ * Five feet — the reach of an Unarmed Strike and of every weapon without the
+ * Reach property, which is what an ally tearing at the vines is using.
+ */
+const WITHIN_REACH_FEET = 5;
+
+/**
+ * Whether this creature may attempt the check a timer offers.
+ *
+ * `mayAttempt` is the derivation the design note states — an effect on a
+ * creature is that creature's to shake off, a casting with no victim is
+ * anybody's to see through — and this is the one clause in the book that
+ * widens it: SRD Ensnaring Strike's "The target **or a creature within reach
+ * of it** can take an action to make a Strength (Athletics) check". The check
+ * carries the clause (`byAnotherWithinReach`), the reach is measured off the
+ * map, and a scene nobody has laid out answers no — the holder can still
+ * attempt it, and a distance nobody can measure is not one that qualifies.
+ */
+function mayAttemptOrReach(state: GameState, timer: TimedEffect, who: CharacterId): boolean {
+  if (mayAttempt(timer, who)) return true;
+  if (timer.check?.byAnotherWithinReach !== true || timer.target.kind !== 'condition') return false;
+  const scene = state.scene;
+  if (scene === null) return false;
+  const apart = distanceBetween(scene, who, timer.target.on);
+  return apart.ok && apart.value <= WITHIN_REACH_FEET;
 }
 
 /**
@@ -986,10 +1018,12 @@ export function resolveEffectCheck(
     if (check === undefined) {
       return err('no_check', `${command.effectKey} offers no check to attempt`);
     }
-    if (!mayAttempt(timer, who)) {
+    if (!mayAttemptOrReach(state, timer, who)) {
       return err(
         'not_yours_to_attempt',
-        `${command.effectKey} is on somebody else, and only they can shake it off`,
+        check.byAnotherWithinReach === true
+          ? `${command.effectKey} is on somebody else, and only they or a creature within reach of them can shake it off`
+          : `${command.effectKey} is on somebody else, and only they can shake it off`,
       );
     }
 

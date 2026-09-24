@@ -3,7 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
-import { createRng, type Rng } from '@ie/engine';
+import { castOnAHit, createRng, type Rng } from '@ie/engine';
 import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
@@ -1524,10 +1524,13 @@ const ADDED: readonly string[] = [
  * Derived from the effect kinds rather than listed by spell id, so the next
  * definition written this way needs no line here.
  */
-const castOnASwing = (spellId: string): boolean =>
-  (SRD_CONTENT.spell(spellId)?.effects ?? []).some(
-    (effect) => effect.kind === 'attack-damage' || effect.kind === 'weapon-attack',
+const castOnASwing = (spellId: string): boolean => {
+  const definition = SRD_CONTENT.spell(spellId);
+  return (
+    definition !== null &&
+    (castOnAHit(definition) || definition.effects.some((effect) => effect.kind === 'weapon-attack'))
   );
+};
 
 /** The passes above, less the spells this command cannot cast at all. */
 const DRIVEN_HERE: readonly string[] = ADDED.filter((spellId) => !castOnASwing(spellId));
@@ -1790,6 +1793,15 @@ describe('every spell this batch added is cast for real', () => {
     'darkness',
     'daylight',
     'enhance-ability',
+    // **Ensnaring Strike leaves by the smites' road carrying a saving throw.**
+    // `save.onTheHit` sends it to `resolveAttackDamage`, where the creature the
+    // blow landed on rolls a Strength save with the mode its size gives it
+    // (`saveModeIf`); the failure hangs the Restrained and a `payout` rider of
+    // 1d6 at the target's own turn start; the Athletics check is open to "a
+    // creature within reach of it" (`byAnotherWithinReach`) and a success ends
+    // the casting, as the target's own successful save does
+    // (`endsCastingOnSuccess`). Nothing is left for the table.
+    'ensnaring-strike',
     'expeditious-retreat',
     'faerie-fire',
     // Feather Fall left the tracked bucket too, on the half the `falling`
@@ -1969,16 +1981,27 @@ describe('every spell this batch added is cast for real', () => {
    * left out of the sweeps that cast.
    */
   it('takes only the spells this command can cast into the sweeps that cast', () => {
-    expect(ADDED.filter(castOnASwing)).toEqual(['true-strike']);
-    expect(DRIVEN_HERE).toEqual(ADDED.filter((s) => s !== 'true-strike'));
+    expect(ADDED.filter(castOnASwing)).toEqual(['ensnaring-strike', 'true-strike']);
+    expect(DRIVEN_HERE).toEqual(
+      ADDED.filter((s) => s !== 'true-strike' && s !== 'ensnaring-strike'),
+    );
   });
 
+  /**
+   * Two doors, two refusals: SRD True Strike is cast **as** a weapon attack and
+   * SRD Ensnaring Strike **on** one that has hit, and `resolveSpell` names the
+   * door each belongs at.
+   */
   it.each(ADDED.filter(castOnASwing).map((s) => [s] as const))(
     'refuses %s at the ordinary casting command, which makes no attack',
     (spellId) => {
       const out = cast(spellId);
       expect(isErr(out), spellId).toBe(true);
-      if (isErr(out)) expect(out.code).toBe('cast_with_a_swing');
+      if (isErr(out)) {
+        expect(out.code).toBe(
+          castOnAHit(SRD_CONTENT.spell(spellId)!) ? 'cast_on_a_hit' : 'cast_with_a_swing',
+        );
+      }
     },
   );
 

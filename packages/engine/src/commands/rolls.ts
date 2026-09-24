@@ -1107,6 +1107,7 @@ export function effectCheckFrom(
     ...(check.skill === undefined ? {} : { skill: check.skill }),
     dc: check.dc ?? saveDc,
     onSuccess: check.onSuccess,
+    ...(check.byAnotherWithinReach === true ? { byAnotherWithinReach: true as const } : {}),
     label: `${ABILITY_NAMES[check.ability]}${check.skill === undefined ? '' : ` (${skillName(check.skill)})`} check vs ${spell}`,
   };
 }

@@ -272,7 +272,7 @@ export const MISSING_SHAPES = {
   'an-outcome-that-breaks-concentration':
     '**Built, and what is left of the id is two readings rather than a gap.** `PROGRESS.md` named it among the mechanics the drained shapes left behind: "an outcome-scoped child effect (Ice Knife’s explosion, Hideous Laughter’s two conditions, **Sleet Storm’s broken Concentration**)" — `OutcomeRiders` landed with conditions, modifiers and delayed damage, and ending the target’s Concentration was the one consequence in that sentence that got no slot. `OutcomeRiders.breaksConcentration` is that slot now: read off the creature at the moment the outcome settles, landed as the `concentration-ended` every other ending writes, and silent where the target was holding nothing. Sleet Storm is executed off it. The two claimants left are each blocked on something else — SRD Earthquake is level 8 and nobody has re-read its paragraph since, and the Thunderous Greatclub’s tremor waits on an item being able to force a save at all.',
   'a-check-another-creature-may-attempt':
-    '`docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." An ally reaching in to cut somebody free, or shaking a sleeper awake, is neither, and the derivation has no third branch.',
+    '**Built, for the one spell that printed it.** `docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." The derivation has its third branch now: `SpellCheck.byAnotherWithinReach` is the clause, `EffectCheck` pins it, and `availableChecks` / `resolveEffectCheck` admit a creature within five feet of the condition’s holder, measured off the map. SRD Ensnaring Strike — "The target or a creature within reach of it can take an action to make a Strength (Athletics) check" — is executed off it, with `onSuccess: end-casting` beside it because that sentence ends the spell. What is left under this name is the *other* attempter the note imagined: shaking a sleeper awake is `shaken-awake`, an ending a creature performs rather than a check it rolls, and no SRD spell offers a check to somebody who is neither the holder nor within reach.',
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
   'a-distance-a-creature-travels-inside-an-area':
@@ -2643,38 +2643,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The creature is revived with all its Hit Points',
       why: 'healing-that-raises-the-dead',
       note: 'healCreature refuses a corpse and the refusal costs no slot; and the amount is derived from the target’s own maximum besides, which is the other residue this spell names.',
-    },
-  ],
-  'ensnaring-strike': [
-    {
-      marker: 'saving-throw',
-      clause: 'grasping vines appear on it, and it makes a Strength saving throw',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'the save is raised against "the target", which is the creature the weapon just hit — a Range of Self with no target list, and the smites reach the same creature only by riding the attack damage rather than by naming it.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'A Large or larger creature has Advantage on this save',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'an outcome shaped by the target size, which is the second of the three facts that shape names: size is held authoritatively and no effect reads it, so the Advantage a Large creature has cannot be granted.',
-    },
-    {
-      marker: 'condition',
-      clause: 'the target has the Restrained condition until the spell ends',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'the condition and its lifetime are both ordinary and land on nobody, because the casting never reached the creature the weapon hit; the blocker is who rather than what.',
-    },
-    {
-      marker: 'dice',
-      clause: '1d6 Piercing damage at the start of each of its turns',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'damage on a turn boundary for as long as a condition holds, which is the shape PROGRESS.md names this very spell for: a repeat save releases an effect on a success and its failure branch does nothing at all.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'Strength (Athletics) check against your spell save DC',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'the check may be made by the target "or a creature within reach of it", and a casting check is rolled by somebody the casting touched — so the second half of that list has no one to be.',
     },
   ],
   'call-lightning': [

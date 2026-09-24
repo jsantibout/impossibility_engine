@@ -984,7 +984,7 @@ describe('each rule refuses something', () => {
   });
 
   it('refuses a check whose success does something the engine cannot do', () => {
-    expect(checkProblem({ ability: 'int', onSuccess: 'end-casting' })).toEqual([
+    expect(checkProblem({ ability: 'int', onSuccess: 'end-world' })).toEqual([
       'bad_check_outcome',
       'check.onSuccess',
     ]);
@@ -1112,7 +1112,7 @@ describe('a check is checked wherever a definition writes one', () => {
     ['an ability the game does not have', { ability: 'luck', onSuccess: 'none' }, 'bad_ability'],
     ['a skill it does not have', { ability: 'int', skill: 'lockpicking', onSuccess: 'none' }, 'bad_skill'],
     ['a DC nothing could beat', { ability: 'int', dc: 0, onSuccess: 'none' }, 'bad_check_dc'],
-    ['an outcome it cannot do', { ability: 'int', onSuccess: 'end-casting' }, 'bad_check_outcome'],
+    ['an outcome it cannot do', { ability: 'int', onSuccess: 'end-world' }, 'bad_check_outcome'],
   ] as const)('refuses %s on a rider’s check', (_what, check, code) => {
     expect(
       codes(problems({ kind: 'condition', condition: { name: 'restrained', check } })),
@@ -2485,7 +2485,10 @@ describe('every member of the definition format has a user or a written exemptio
       "AreaTrigger.at='end-of-turn' + SpellRepeatSave.at='end-of-turn'",
       "AreaTrigger.at='start-of-turn' + SpellRepeatSave.at='start-of-turn'",
       // One field over: a repeat save's `onSuccess` against a check's.
-      // Different sentences that share two words, and both are written.
+      // Different sentences that share two words, and both are written —
+      // `end-casting` on a check since SRD Ensnaring Strike's "On a success,
+      // the spell ends."
+      "SpellCheck.onSuccess='end-casting' + SpellRepeatSave.onSuccess='end-casting'",
       "SpellCheck.onSuccess='end-on-target' + SpellRepeatSave.onSuccess='end-on-target'",
       'SpellDefinition.check? + ConditionRider.check?',
       // **The second row that masks, and it is named because it does.** The

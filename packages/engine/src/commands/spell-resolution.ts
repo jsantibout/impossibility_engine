@@ -79,6 +79,7 @@ import {
 import { remaining, tallied } from '../resources.js';
 import {
   breaksAttunement,
+  castOnAHit,
   concentrationAt,
   dropsAnObject,
   outcomeRidersOf,
@@ -751,8 +752,10 @@ export function castOrRelease(
     }
 
     // SRD Divine Smite is cast "immediately after hitting a target", so the
-    // attack is the thing it needs and this command has none to give it.
-    if (definition.effects.some((effect) => effect.kind === 'attack-damage')) {
+    // attack is the thing it needs and this command has none to give it. SRD
+    // Ensnaring Strike prints the same casting time over a saving throw
+    // rather than dice, and `castOnAHit` reads both spellings.
+    if (castOnAHit(definition)) {
       return err(
         'cast_on_a_hit',
         `${definition.name} is cast on an attack that has hit; settle the attack's damage with it instead`,

@@ -418,11 +418,46 @@ export interface SpellCheck {
    * `end-on-target` is Black Tentacles' "ending the condition on itself on a
    * success", which is the release the repeat save already performs.
    *
-   * There is deliberately no `end-casting`. SRD writes it — Maze, Phantasmal
-   * Force, Detect Thoughts — and every one of those spells is blocked on
-   * something else, so it would be a value nothing could be written with.
+   * `end-casting` is SRD Ensnaring Strike's: "The target or a creature within
+   * reach of it can take an action to make a Strength (Athletics) check
+   * against your spell save DC. **On a success, the spell ends.**" The whole
+   * casting goes — the vines, the Concentration, the die at the boundary —
+   * which is the release a repeat save's `end-casting` already performs. It
+   * stood refused while Maze, Phantasmal Force and Detect Thoughts were each
+   * blocked on something else and nothing could be written with it.
    */
-  readonly onSuccess: 'none' | 'end-on-target';
+  readonly onSuccess: 'none' | 'end-on-target' | 'end-casting';
+  /**
+   * SRD Ensnaring Strike: "The target **or a creature within reach of it** can
+   * take an action to make a Strength (Athletics) check".
+   *
+   * Who may attempt a check is derived from what the timer sits on — a
+   * condition is its holder's to shake off — and this is the one clause in the
+   * book that widens the derivation: an ally standing beside the snared
+   * creature may spend its own action on the same check. Read by
+   * `availableChecks` and `resolveEffectCheck`, which measure the reach off
+   * the map. The only value is `true`; absent is every other check, which the
+   * affected creature alone may attempt.
+   */
+  readonly byAnotherWithinReach?: true;
+}
+
+/**
+ * A mode a saving throw takes because of the **size** of the creature making
+ * it.
+ *
+ * SRD Ensnaring Strike: "A Large or larger creature has Advantage on this
+ * save." An outcome shaped by a fact the engine holds — `effectiveSizeOf`
+ * reads the size a feature prints, then the stated one, then the map's — and
+ * no effect read it until this. `sizeAtLeast` is the floor the sentence names
+ * and `mode` is what a creature at or above it rolls with; it reaches the roll
+ * as a named `ModeSource` and never as a number, because Advantage cancels
+ * rather than stacks — a Large creature that is also Restrained rolls a
+ * normal save, and the log still says both were in play.
+ */
+export interface SizedSaveMode {
+  readonly sizeAtLeast: CreatureSize;
+  readonly mode: 'advantage' | 'disadvantage';
 }
 
 /**
@@ -1147,6 +1182,37 @@ export type ModifierRider =
       readonly against?: 'caster';
       /** A deadline of the rider's own, shorter than the casting's. */
       readonly lasts?: RiderDuration;
+    }
+  /**
+   * Damage the same outcome makes the creature take at **every one of its own
+   * turn boundaries**, for as long as the casting holds it.
+   *
+   * SRD Ensnaring Strike: "While Restrained, the target takes 1d6 Piercing
+   * damage at the start of each of its turns." A `GrantedPayout` of damage —
+   * the same standing arrangement SRD Heroism hangs for Temporary Hit Points
+   * and the glossary's Burning derives — hung off a settled outcome rather
+   * than off the casting's own list, because the book gates it on the failure:
+   * a creature that saved takes nothing at its next turn. The boundary throws
+   * the die (`settleBoundaryPayouts`), the damage meets the creature's own
+   * defences, and the arrangement goes when the casting does or when the
+   * casting is released on that creature — which is what "while Restrained"
+   * means for a condition that is the casting's.
+   *
+   * **Scaled like the blow**, at the slot the casting paid: "The damage
+   * increases by 1d6 for each spell slot level above 1" is one sentence about
+   * both the die and its growth, so the notation the payout pins is worked out
+   * once at the cast and the boundary reads a notation rather than a catalogue.
+   *
+   * `damage` only, because that is the sentence the book prints on an outcome;
+   * a payout of healing or Temporary Hit Points off a failed save is a spell
+   * nobody has written.
+   */
+  | {
+      readonly kind: 'payout';
+      readonly at: TurnMoment;
+      readonly payout: 'damage';
+      readonly damage: DiceScaling;
+      readonly damageType: string;
     };
 
 /**
@@ -2597,6 +2663,49 @@ export type SpellEffect =
        * beside it — which is the only reason it was not here already.
        */
       readonly check?: SpellCheck;
+      /**
+       * The save is made by **the creature the weapon just hit**.
+       *
+       * SRD Ensnaring Strike: "Casting Time: Bonus Action, which you take
+       * immediately after hitting a creature with a weapon … As you hit the
+       * target, grasping vines appear on it, and it makes a Strength saving
+       * throw." The fourth spell to print the smites' casting time and the
+       * first whose payload is a saving throw rather than dice on the blow:
+       * "the target" is not a creature type and not a list the caller chose,
+       * so the target rule says nobody (`count: 0`, Range Self) and this says
+       * who — the creature `resolveAttackDamage` is settling a hit on.
+       *
+       * Read by `castOnHit` in `commands/attacks.ts`, which resolves the save
+       * against that creature once the casting's record is written, and by
+       * `castOnAHit`, which is how `resolveSpell` knows to refuse the spell
+       * at its own door exactly as it refuses an `attack-damage`. The only
+       * value is `true`; the validator holds it to the smite's shape.
+       */
+      readonly onTheHit?: true;
+      /**
+       * A mode the target's **size** gives the save — see {@link SizedSaveMode}.
+       *
+       * SRD Ensnaring Strike: "A Large or larger creature has Advantage on this
+       * save." Absent is every other save in the book.
+       */
+      readonly saveModeIf?: SizedSaveMode;
+      /**
+       * A success **ends the casting**, where the sentence says so.
+       *
+       * SRD Ensnaring Strike: "On a successful save, the vines shrivel away,
+       * and the spell ends." A casting whose one creature resisted it has
+       * nothing left to run, and the book says so in as many words — so the
+       * record and the Concentration go in the same batch as the save, and
+       * the Ranger's Concentration is free for the next spell.
+       *
+       * **Only beside {@link save.onTheHit}**, and the reason is the record: a
+       * spell cast on a hit writes its record *before* the save it resolves,
+       * so there is a casting to end; a casting's own effect list writes its
+       * record after its effects, and a success there is `repeats` on a later
+       * boundary or a spell that never becomes ongoing. The only value is
+       * `true`.
+       */
+      readonly endsCastingOnSuccess?: true;
       /**
        * The condition outlives the casting that caused it.
        *
@@ -6755,6 +6864,24 @@ export function modifierRidersOf(effect: SpellEffect): readonly ModifierRider[] 
     default:
       return [];
   }
+}
+
+/**
+ * Whether this spell is cast **on a hit** — in the window a weapon attack that
+ * has landed opens, rather than at the casting's own door.
+ *
+ * Two spellings and one answer. SRD Divine Smite and its siblings ride the
+ * blow's own damage (`attack-damage`); SRD Ensnaring Strike raises a saving
+ * throw against the creature the blow landed on (`save.onTheHit`). Either way
+ * the attack is the thing the spell needs, so `resolveSpell` refuses the spell
+ * (`cast_on_a_hit`) and `resolveAttackDamage` settles it — and both doors ask
+ * this one question rather than each remembering half of it.
+ */
+export function castOnAHit(definition: SpellDefinition): boolean {
+  return definition.effects.some(
+    (effect) =>
+      effect.kind === 'attack-damage' || (effect.kind === 'save' && effect.onTheHit === true),
+  );
 }
 
 /**

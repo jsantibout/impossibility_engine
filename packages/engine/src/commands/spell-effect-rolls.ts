@@ -37,7 +37,8 @@ import { type DieEffect } from '../dice.js';
 import { bonusesFor, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
-import { apartFromSource } from '../positioning.js';
+import { apartFromSource, sizeAtLeast } from '../positioning.js';
+import { effectiveSizeOf } from '../size.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 import { classOfRoute } from '../spellcasting.js';
 import { answerTheBlow } from './passive-defenses.js';
@@ -50,6 +51,7 @@ import {
   rollsDealtTo,
   scaledDiceFor,
   scaledFlatFor,
+  type SizedSaveMode,
 } from '../spell-definitions.js';
 import {
   armorClassOf,
@@ -115,6 +117,36 @@ const saveModeFor = (
 ): readonly ModeSource[] => {
   const hung = alters.saveModes[target];
   return hung === undefined ? [] : [{ source: hung.source, mode: hung.mode }];
+};
+
+/**
+ * The mode a saving throw takes from the size of the creature making it, as
+ * the one-entry list a roller takes — or nothing, which is every save whose
+ * definition prints no such clause.
+ *
+ * SRD Ensnaring Strike: "A Large or larger creature has Advantage on this
+ * save." `effectiveSizeOf` is the one reader of a creature's size, and a
+ * creature it cannot size — unstated and unplaced — is reported rather than
+ * assumed Medium: the clause was printed and the engine could not check it.
+ */
+const sizedSaveMode = (
+  state: GameState,
+  target: CharacterId,
+  clause: SizedSaveMode | undefined,
+  spell: string,
+  unverified: string[],
+): readonly ModeSource[] => {
+  if (clause === undefined) return [];
+  const size = effectiveSizeOf(state, target);
+  if (size === null) {
+    unverified.push(
+      `${spell}: a ${clause.sizeAtLeast} or larger creature has ${clause.mode} on this save, and nobody has said what size ${target} is`,
+    );
+    return [];
+  }
+  if (!sizeAtLeast(size, clause.sizeAtLeast)) return [];
+  const floor = clause.sizeAtLeast.charAt(0).toUpperCase() + clause.sizeAtLeast.slice(1);
+  return [{ source: `${spell} (a ${floor} or larger creature)`, mode: clause.mode }];
 };
 
 /**
@@ -1351,6 +1383,12 @@ export function resolveSaveEffect(
         // two saves, and an option that reached one of them would work against a
         // Fireball and not against a Hold Person.
         ...saveModeFor(alters, target),
+        // SRD Ensnaring Strike: "A Large or larger creature has Advantage on
+        // this save." The size is the engine's own fact, read through the one
+        // reader every size question goes through, and it arrives as a named
+        // source for `combineRollModes` to weigh — a Large creature that is also
+        // Restrained rolls a normal save, and the log still names both.
+        ...sizedSaveMode(current, target, effect.saveModeIf, name, unverified),
       ],
       bonuses: support.bonuses,
     });

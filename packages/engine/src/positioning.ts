@@ -478,6 +478,15 @@ export function sizeAtMost(size: CreatureSize, limit: CreatureSize): boolean {
   return sizeRank(size) <= sizeRank(limit);
 }
 
+/**
+ * The other reading of the same line — SRD's "Large or larger", which
+ * Ensnaring Strike prints on a saving throw. Off {@link SIZE_ORDER} for the
+ * reason {@link sizeAtMost} is.
+ */
+export function sizeAtLeast(size: CreatureSize, floor: CreatureSize): boolean {
+  return sizeRank(size) >= sizeRank(floor);
+}
+
 export interface PassageContext {
   /** Allies may always be passed through, and cost nothing to pass through. */
   readonly allied?: boolean;

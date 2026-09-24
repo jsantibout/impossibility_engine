@@ -13249,18 +13249,30 @@ export const SHINING_SMITE: SpellDefinition = {
  * > "As you hit the target, grasping vines appear on it, and it makes a
  * > Strength saving throw. A Large or larger creature has Advantage on this
  * > save. On a failed save, the target has the Restrained condition until the
- * > spell ends. ... While Restrained, the target takes 1d6 Piercing damage at
- * > the start of each of its turns. The target or a creature within reach of
- * > it can take an action to make a Strength (Athletics) check against your
- * > spell save DC."
+ * > spell ends. On a successful save, the vines shrivel away, and the spell
+ * > ends. While Restrained, the target takes 1d6 Piercing damage at the start
+ * > of each of its turns. The target or a creature within reach of it can take
+ * > an action to make a Strength (Athletics) check against your spell save DC.
+ * > On a success, the spell ends."
  * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
  * > spell slot level above 1."
  *
- * The fourth spell to print the smites' casting time and the first that cannot
- * follow them: Searing Smite hangs dice on the attack that triggered it, and
- * this one raises a saving throw against a target the format has no way to
- * name — "the target" is the creature the weapon just hit, which is not a
- * creature type and not a list the caller chose.
+ * The fourth spell to print the smites' casting time and the first whose
+ * payload is a saving throw rather than dice on the blow. It takes the smites'
+ * road — settled by `resolveAttackDamage` on the hit that triggered it — and
+ * what it hangs is the ordinary `save` effect, aimed at the creature the weapon
+ * just hit (`onTheHit`): "the target" is not a creature type and not a list
+ * the caller chose, so the target rule says nobody and the effect says who.
+ *
+ * **Every clause is the engine's now.** The Strength save is rolled with the
+ * mode the target's *size* gives it (`saveModeIf`, read off `effectiveSizeOf`);
+ * a failure hangs the Restrained under the casting, so what ends the casting
+ * ends it; the die at the start of each of the target's turns is a `payout`
+ * rider — the arrangement Heroism hangs, dealing damage, scaled at the slot —
+ * that goes with the casting; the Athletics check is open to the target **or a
+ * creature within reach of it** (`byAnotherWithinReach`, measured off the map)
+ * and a success ends the spell, as does the target's own successful save
+ * (`endsCastingOnSuccess`). The DC is the Ranger's, off the sheet at the cast.
  */
 export const ENSNARING_STRIKE: SpellDefinition = {
   id: 'ensnaring-strike',
@@ -13273,15 +13285,43 @@ export const ENSNARING_STRIKE: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
-  effects: [],
-  durationSeconds: 60,
-  unmodelled: [
-    'the spell reaches nobody: "the target" is the creature the weapon just hit, and a Range of Self with no target list has no way to say so — the smites solve it by riding the attack’s own damage, and a saving throw is not damage',
-    'so the Strength save is not raised and the Restrained condition is not applied on a failure',
-    'the Advantage a Large or larger creature has on that save is not granted either: an outcome shaped by the target’s size is a fact the engine holds and no effect reads',
-    'the 1d6 Piercing at the start of each of the target’s turns is not dealt, and neither is the extra die a slot above 1 buys — damage on a turn boundary hangs on a repeat save whose failure branch acts, and a repeat save releases an effect on a success and does nothing on a failure',
-    'and the Strength (Athletics) check that ends it is not offered: it may be made by the target *or by a creature within reach of it*, which is a check by somebody the casting never touched',
+  effects: [
+    {
+      kind: 'save',
+      ability: 'str',
+      // "As you hit the target … it makes a Strength saving throw."
+      onTheHit: true,
+      // "A Large or larger creature has Advantage on this save."
+      saveModeIf: { sizeAtLeast: 'large', mode: 'advantage' },
+      // "On a failed save, the target has the Restrained condition until the
+      // spell ends." No `lasts`: the casting's own minute is the lifetime.
+      condition: 'restrained',
+      // "On a successful save, the vines shrivel away, and the spell ends."
+      endsCastingOnSuccess: true,
+      // "While Restrained, the target takes 1d6 Piercing damage at the start
+      // of each of its turns." Hung off the failure, so a creature that saved
+      // takes nothing; scaled with the slot, as the book scales it.
+      modifiers: [
+        {
+          kind: 'payout',
+          at: 'start-of-turn',
+          payout: 'damage',
+          damage: { dice: '1d6', perSlotLevelAbove: '1d6' },
+          damageType: 'piercing',
+        },
+      ],
+      // "The target or a creature within reach of it can take an action to
+      // make a Strength (Athletics) check against your spell save DC. On a
+      // success, the spell ends."
+      check: {
+        ability: 'str',
+        skill: 'athletics',
+        onSuccess: 'end-casting',
+        byAnotherWithinReach: true,
+      },
+    },
   ],
+  durationSeconds: 60,
 };
 
 /**

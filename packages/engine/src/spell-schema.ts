@@ -920,11 +920,27 @@ function checkSpellCheck(
     });
   }
 
-  if (check.onSuccess !== 'none' && check.onSuccess !== 'end-on-target') {
+  if (
+    check.onSuccess !== 'none' &&
+    check.onSuccess !== 'end-on-target' &&
+    check.onSuccess !== 'end-casting'
+  ) {
     found.push({
       field: `${path}.onSuccess`,
       code: 'bad_check_outcome',
-      reason: `"${String(check.onSuccess)}" is not something succeeding at a check does; a check changes nothing or ends the effect on its own attempter`,
+      reason: `"${String(check.onSuccess)}" is not something succeeding at a check does; a check changes nothing, ends the effect on the creature it is on, or ends the casting`,
+    });
+  }
+
+  // SRD Ensnaring Strike's "or a creature within reach of it": a spell either
+  // prints the clause or does not, and `false` would be a second way to say
+  // the default — the rule every other clause of this shape follows.
+  const another = (check as { readonly byAnotherWithinReach?: unknown }).byAnotherWithinReach;
+  if (another !== undefined && another !== true) {
+    found.push({
+      field: `${path}.byAnotherWithinReach`,
+      code: 'malformed_field',
+      reason: 'a check is either open to a creature within reach or it is not; the only value is true',
     });
   }
 }
@@ -2083,6 +2099,7 @@ function checkDamagePenalty(
 
 function checkModifierRider(
   rider: ModifierRider | undefined,
+  level: number,
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
@@ -2134,6 +2151,29 @@ function checkModifierRider(
         if (wrong !== null) found.push({ field: `${path}.counterpart`, ...wrong });
       }
     }
+    return;
+  }
+  if (rider?.kind === 'payout') {
+    // SRD Ensnaring Strike's "1d6 Piercing damage at the start of each of its
+    // turns": the moment and the kind are the payout record's own vocabulary,
+    // read off the same two sets the standalone `turn-payout` kind is held to,
+    // and the amount is a `DiceScaling` because the slot grows it.
+    if (!TURN_MOMENT_NAMES.has(rider.at)) {
+      found.push({
+        field: `${path}.at`,
+        code: 'bad_payout_moment',
+        reason: `"${String(rider.at)}" is not the start or the end of a turn, and the two are a round apart`,
+      });
+    }
+    if (rider.payout !== 'damage') {
+      found.push({
+        field: `${path}.payout`,
+        code: 'unknown_payout',
+        reason: `"${String(rider.payout)}" is not damage; a payout hung off a settled outcome deals damage, and the book prints no other`,
+      });
+    }
+    checkScaling(rider.damage, level, `${path}.damage`, found);
+    checkDamageType(rider.damageType, `${path}.damageType`, found);
     return;
   }
   if (rider?.kind === 'speed-change') {
@@ -2437,7 +2477,7 @@ function checkRiders(
   if (riders.modifiers !== undefined) {
     if (readsAsList(riders.modifiers, `${path}.modifiers`, RIDER_LIST, found)) {
       riders.modifiers.forEach((rider, i) =>
-        checkModifierRider(rider as ModifierRider | undefined, `${path}.modifiers[${i}]`, found),
+        checkModifierRider(rider as ModifierRider | undefined, level, `${path}.modifiers[${i}]`, found),
       );
     }
   }
@@ -2560,7 +2600,7 @@ function checkRiders(
       const instead = riders.drops.orElse;
       if (instead !== undefined && readsAsList(instead, `${path}.drops.orElse`, RIDER_LIST, found)) {
         instead.forEach((rider, i) =>
-          checkModifierRider(rider as ModifierRider | undefined, `${path}.drops.orElse[${i}]`, found),
+          checkModifierRider(rider as ModifierRider | undefined, level, `${path}.drops.orElse[${i}]`, found),
         );
       }
     }
@@ -3083,6 +3123,21 @@ function checkEffect(
     case 'save': {
       const extra = (effect as { readonly conditions?: unknown }).conditions;
       if (extra !== undefined) readsAsList(extra, `${path}.conditions`, RIDER_LIST, found);
+      checkSizedSaveMode(effect, path, found);
+      // SRD Ensnaring Strike's two marks on a save cast on a hit. Their
+      // *values* are checked here; where they may stand is a fact about the
+      // whole definition — its casting time, its Range, its target rule —
+      // and `checkSaveOnTheHit` reads that.
+      for (const mark of ['onTheHit', 'endsCastingOnSuccess'] as const) {
+        const stated = (effect as Record<string, unknown>)[mark];
+        if (stated !== undefined && stated !== true) {
+          found.push({
+            field: `${path}.${mark}`,
+            code: 'malformed_field',
+            reason: 'a spell either prints the clause or does not; the only value is true',
+          });
+        }
+      }
       // SRD Sleep's "Immunity to the Exhaustion condition": one condition the
       // glossary names, read off the target rather than stated by the caster.
       // **Or SRD Animal Messenger's Challenge Rating**, which is the other
@@ -6158,6 +6213,7 @@ export function checkSpellDefinition(
   checkChanceTargets(definition, found);
   checkWeaponAttack(definition, found);
   checkCastingRepeatLifetime(definition, found);
+  checkSaveOnTheHit(definition, found);
 
   const activation = definition.activation;
   if (
@@ -7806,6 +7862,103 @@ function checkWeaponAttack(
  * `durationSecondsAt`, so a definition writing the other one would be writing
  * a duration the command that casts it cannot read.
  */
+/**
+ * A mode the target's size gives a save — SRD Ensnaring Strike's "A Large or
+ * larger creature has Advantage on this save".
+ *
+ * The floor is one of the six sizes the engine ranks, the mode is one of the
+ * two a roll can take, and both are checked as untyped input because a
+ * homebrew definition arrives as JSON. Only a `save` reads it: the other two
+ * hosts that roll a saving throw could carry it tomorrow, and the day one does
+ * the resolver moves first.
+ */
+function checkSizedSaveMode(effect: object, path: string, found: SpellDefinitionProblem[]): void {
+  const stated = (effect as { readonly saveModeIf?: unknown }).saveModeIf;
+  if (stated === undefined) return;
+  if (
+    !readsAsObject(
+      stated,
+      `${path}.saveModeIf`,
+      'a mode a size gives a save is an object naming the floor and the mode',
+      found,
+    )
+  ) {
+    return;
+  }
+  const floor = (stated as { readonly sizeAtLeast?: unknown }).sizeAtLeast;
+  if (!(CREATURE_SIZES as readonly unknown[]).includes(floor)) {
+    found.push({
+      field: `${path}.saveModeIf.sizeAtLeast`,
+      code: 'bad_size',
+      reason: `"${String(floor)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
+    });
+  }
+  const mode = (stated as { readonly mode?: unknown }).mode;
+  if (mode !== 'advantage' && mode !== 'disadvantage') {
+    found.push({
+      field: `${path}.saveModeIf.mode`,
+      code: 'bad_mode',
+      reason: `"${String(mode)}" is not a mode a saving throw takes; a size gives Advantage or Disadvantage`,
+    });
+  }
+}
+
+/**
+ * Where a save **cast on a hit** may be written, and what may stand beside it.
+ *
+ * SRD Ensnaring Strike prints the smites' casting time — "Bonus Action, which
+ * you take immediately after hitting a creature with a weapon", Range Self, no
+ * target of its own — over a saving throw. `save.onTheHit` is the mark, and
+ * it is held to exactly that shape: a spell that names its own targets, or
+ * fills an area, has a creature of its own for the save to reach and does not
+ * need the blow's. The mark sends the spell to `resolveAttackDamage`'s door,
+ * so a definition wearing it anywhere else would be a spell nobody could cast.
+ *
+ * And `endsCastingOnSuccess` needs both the mark and a span: the ending is
+ * read by the cast-on-hit road alone, because that is the one road that
+ * writes the record before it resolves the save, and a spell with no duration
+ * leaves no casting to end.
+ */
+function checkSaveOnTheHit(definition: SpellDefinition, found: SpellDefinitionProblem[]): void {
+  definition.effects.forEach((effect, index) => {
+    if (effect.kind !== 'save') return;
+    const path = `effects[${index}]`;
+    if (effect.onTheHit === true) {
+      if (
+        definition.castingTime !== 'bonus-action' ||
+        definition.range.kind !== 'self' ||
+        definition.targets.count !== 0 ||
+        definition.targets.unlimited === true ||
+        definition.area !== undefined
+      ) {
+        found.push({
+          field: `${path}.onTheHit`,
+          code: 'on_the_hit_outside_a_smite',
+          reason:
+            'a save made by the creature the weapon just hit belongs to a Bonus Action spell with a Range of Self and no target of its own, which is the shape the smites print; a spell that names or catches its own creatures has them to save',
+        });
+      }
+    }
+    if (effect.endsCastingOnSuccess === true) {
+      if (effect.onTheHit !== true) {
+        found.push({
+          field: `${path}.endsCastingOnSuccess`,
+          code: 'ends_casting_without_a_hit',
+          reason:
+            'a success ends the casting only where the record is written before the save is rolled, which is the road a spell cast on a hit takes; a casting’s own list ends itself through repeats',
+        });
+      }
+      if (definition.durationSeconds === undefined && definition.durationAtSlot === undefined) {
+        found.push({
+          field: `${path}.endsCastingOnSuccess`,
+          code: 'ends_casting_without_a_duration',
+          reason: 'an Instantaneous casting is over already, so a success has nothing to end',
+        });
+      }
+    }
+  });
+}
+
 function checkCastingRepeatLifetime(
   definition: SpellDefinition,
   found: SpellDefinitionProblem[],
