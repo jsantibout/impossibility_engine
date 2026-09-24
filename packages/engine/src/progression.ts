@@ -151,9 +151,12 @@ export type FeatureQuestion =
        * level of the class that granted the feature rather than the
        * character's, which is what `weaponsAsked` already settled.
        *
-       * **A ceiling that grows, not a quota that re-asks.** Every entry is the
-       * count a character of that level holds in total, so a level-up asks for
-       * the difference and the answers already given stand.
+       * **Exactly the count that level holds in total**, which is where it
+       * parts company with the weapon question beside it: SRD's Weapon Mastery
+       * is re-chosen on every Long Rest, so naming fewer is a standing decision
+       * and only naming more is refused, while an invocation is gained and kept
+       * — so a Warlock who named four of five has an invocation nobody has
+       * spent, and creation says so.
        */
       readonly chooseByLevel?: readonly number[];
       readonly from: readonly string[];

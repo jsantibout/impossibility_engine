@@ -2180,12 +2180,48 @@ function checkFeatureSpellChoices(
  * require were actually made, because a missing one must be an actionable
  * error rather than a silent gap on a sheet.
  */
+/**
+ * A feat filed under a question this character was never asked.
+ *
+ * {@link unaskedAnswers} on the other record, and it arrived with the same
+ * change: a feat question may now be a feature's *second*, filed under
+ * `<feature id>:<key>`, and a gate that is shut means nobody was asked it. Left
+ * alone the entry is not merely unread — every compiler of a feat walks
+ * `Object.values(choices.feats)` with no gate, so a Warlock who did not take
+ * Lessons of the First Ones would hold its Origin feat anyway, and a level-up
+ * that replaced the invocation would leave the feat behind.
+ *
+ * **Only a keyed answer is asked about**, which is the rule its twin keeps and
+ * for the same reason: the bare feature id is where every answer ever written
+ * is filed, and a level-up must not refuse a sheet over a question a subclass
+ * stopped asking.
+ */
+function unaskedFeats(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): CreationProblem[] {
+  const asked = new Set<string>();
+  for (const feature of features) {
+    for (const question of askedOf(choices, feature)) {
+      if (question.kind === 'feat') asked.add(choiceAnswerKey(feature.id, question.key));
+    }
+  }
+  const problems: CreationProblem[] = [];
+  for (const [key, feat] of Object.entries(choices.feats)) {
+    if (featureOfAnswerKey(key) === key || asked.has(key)) continue;
+    problems.push(
+      problem('feat_not_asked', 'feats', `nothing this character holds asks for a feat under ${key}, and ${feat.featId} answers it`),
+    );
+  }
+  return problems;
+}
+
 function checkFeats(
   content: Content,
   choices: CharacterChoices,
   features: readonly FeatureDefinition[],
 ): CreationProblem[] {
-  const problems: CreationProblem[] = [];
+  const problems: CreationProblem[] = [...unaskedFeats(choices, features)];
   const taken: { feature: string; feat: FeatDefinition; choice: FeatChoice }[] = [];
 
   const level = totalLevelOf(choices);

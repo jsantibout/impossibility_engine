@@ -581,6 +581,20 @@ describe('Lessons of the First Ones', () => {
     );
   });
 
+  /**
+   * And the other half of the same rule: a feat filed under a question this
+   * Warlock was never asked. Every compiler of a feat walks the whole record
+   * with no gate, so the answer would be honoured rather than merely unread.
+   */
+  it('refuses a feat filed under an invocation this Warlock did not take', () => {
+    const impostor = warlock(
+      ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor', 'Misty Visions'],
+      {},
+      { feats: { ...base().feats, [`${FIEND}:lessons`]: { featId: 'skilled', proficiencies: ['nature', 'stealth', 'survival'] } } },
+    );
+    expect(codes(impostor)).toContain('feat_not_asked');
+  });
+
   it('refuses a Warlock who took it and named no feat', () => {
     const none = warlock([
       'Armor of Shadows',
