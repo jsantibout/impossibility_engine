@@ -6495,32 +6495,41 @@ function checkCastingRepeatLifetime(
   definition: SpellDefinition,
   found: SpellDefinitionProblem[],
 ): void {
-  const hosted = definition.effects.some(
-    (effect) =>
-      (effect.kind === 'attack-damage' && effect.repeats !== undefined) ||
-      // **The second host**, and it is the same timer underneath: a `save`
-      // whose failure imposes no condition has no instance to file a repeat
-      // on, so the hook rides on the casting's deadline exactly as a smite's
-      // does — see {@link checkSaveCastingRepeat}.
-      (effect.kind === 'save' && effect.condition === undefined && effect.repeats !== undefined),
+  // **The second host**, and it is the same timer underneath: a `save` whose
+  // failure imposes no condition has no instance to file a repeat on, so the
+  // hook rides on the casting's deadline exactly as a smite's does — see
+  // {@link checkSaveCastingRepeat}.
+  const onASave = definition.effects.some(
+    (effect) => effect.kind === 'save' && effect.condition === undefined && effect.repeats !== undefined,
   );
+  const hosted =
+    onASave ||
+    definition.effects.some(
+      (effect) => effect.kind === 'attack-damage' && effect.repeats !== undefined,
+    );
   if (!hosted) return;
 
   // **And one creature, because one timer holds one hook.** A casting has a
   // single deadline, so the repeat it carries names the single creature whose
-  // turns raise it; a spell that caught three would file three hooks on one
-  // key and keep the last. Every SRD sentence of this shape is about one
+  // turns raise it; a saving throw that caught three would file three hooks on
+  // one key and keep the last. Every SRD sentence of this shape is about one
   // target, so the shape is refused rather than the mechanism owed.
+  //
+  // **Asked of the saving throw alone.** A smite's repeat names the creature
+  // the *blow* landed on rather than anybody the target rule admits — SRD
+  // Searing Smite's Range is Self and it targets nobody at all — so the head
+  // count says nothing about it.
   if (
-    definition.area !== undefined ||
-    definition.targets.count !== 1 ||
-    definition.targets.extraPerSlotLevelAbove !== undefined
+    onASave &&
+    (definition.area !== undefined ||
+      definition.targets.count !== 1 ||
+      definition.targets.extraPerSlotLevelAbove !== undefined)
   ) {
     found.push({
       field: 'targets',
       code: 'casting_repeat_over_several_targets',
       reason:
-        'a repeat save hosted by the casting rides on the casting’s one deadline and names the one creature whose turns raise it, so a spell that can catch more than one has nowhere to file the rest',
+        'a repeat save hosted by the casting rides on the casting’s one deadline and names the one creature whose turns raise it, so a saving throw that can catch more than one has nowhere to file the rest',
     });
   }
 

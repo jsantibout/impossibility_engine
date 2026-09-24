@@ -9978,11 +9978,23 @@ export const FLAMING_SPHERE: SpellDefinition = {
  * > time, it also subtracts 1d8 from all its damage rolls. The target repeats
  * > the save at the end of each of its turns, ending the spell on a success."
  *
- * **The success branch does something**, which is the rarest shape in the
- * book: a saving throw here is not a gate but a fork, and the engine's
- * `onSuccess` releases an effect or does nothing. Both branches then want
- * machinery nobody has — a modifier consumed by the one roll it changes, a
- * selector for a family of D20 Tests, and dice subtracted from a damage roll.
+ * **Three shapes in one spell, and each of them arrived with it.** The save is
+ * a fork rather than a gate — succeeding at it costs the target something,
+ * which is what `save.onSuccessRiders` is for; "Strength-based D20 Tests" is
+ * one sentence over three families, which is `RollSelector`'s `d20-test`
+ * narrowed by an ability; and the 1d8 is a grant on the creature's **own**
+ * damage rolls, which is the twentieth sourced grant and the mirror of the
+ * reduction SRD Resistance hangs on a defender.
+ *
+ * **The repeat has no condition to be filed on**, because the failure hands
+ * out grants and imposes none — so it rides on the casting's own deadline,
+ * exactly as SRD Searing Smite's does, and "ending the spell on a success" is
+ * `end-casting` in as many words.
+ *
+ * **The success's Disadvantage is spent by the roll it reaches**, which is
+ * Guiding Bolt's and Vicious Mockery's shape one relation over: `oneShot`
+ * ends it at the swing, and `lasts` ends it at the start of the caster's next
+ * turn if no swing comes. Both endings stand and the first to arrive wins.
  */
 export const RAY_OF_ENFEEBLEMENT: SpellDefinition = {
   id: 'ray-of-enfeeblement',
@@ -9993,15 +10005,47 @@ export const RAY_OF_ENFEEBLEMENT: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 1 },
-  effects: [],
-  durationSeconds: 60,
-  unmodelled: [
-    'the save is not rolled, because succeeding at it *does* something: "On a successful save, the target has Disadvantage on the next attack roll it makes" is an outcome on the branch that normally buys a creature its freedom, and no effect writes one',
-    'that Disadvantage is also consumed by the roll it changes rather than running to a deadline, which no modifier does',
-    'the failure branch is not applied either: "Disadvantage on Strength-based D20 Tests" needs a selector for a family of D20 Tests, which `RollModifier` deliberately does not carry',
-    'nor is the die taken away: "it also subtracts 1d8 from all its damage rolls" is a penalty on a later damage roll, and every rider the format has adds',
-    'the repeat save at the end of each of the target’s turns is ordinary, and there is nothing for it to end',
+  effects: [
+    {
+      kind: 'save',
+      ability: 'con',
+      // "On a failed save, the target has Disadvantage on Strength-based D20
+      // Tests for the duration. During that time, it also subtracts 1d8 from
+      // all its damage rolls." One save, two grants, no condition — SRD
+      // Slow's shape, with a family of rolls where Slow has an Armour Class.
+      modifiers: [
+        {
+          kind: 'mode',
+          modifier: {
+            mode: 'disadvantage',
+            selector: { roll: 'd20-test', relation: 'roller', ability: 'str' },
+          },
+        },
+        { kind: 'damage-penalty', dice: '1d8' },
+      ],
+      // "The target repeats the save at the end of each of its turns, ending
+      // the spell on a success." No condition was imposed, so the hook rides
+      // on the casting's own deadline and a success ends the spell outright.
+      repeats: { at: 'end-of-turn', onSuccess: 'end-casting' },
+      // "On a successful save, the target has Disadvantage on the next attack
+      // roll it makes until the start of your next turn." The roll that meets
+      // it spends it; the caster's next turn beginning ends it if none does.
+      onSuccessRiders: {
+        modifiers: [
+          {
+            kind: 'mode',
+            modifier: {
+              mode: 'disadvantage',
+              selector: { roll: 'attack', relation: 'roller' },
+              oneShot: true,
+            },
+            lasts: 'start-of-casters-next-turn',
+          },
+        ],
+      },
+    },
   ],
+  durationSeconds: 60,
 };
 
 /**

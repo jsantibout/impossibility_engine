@@ -5527,6 +5527,16 @@ export function delaysDamage(definition: SpellDefinition): boolean {
 export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
   for (const effect of definition.effects) {
+    // **And the slot a success fills**, which lands in the same breath as the
+    // failure's and so is asked about at the same moment. SRD Ray of
+    // Enfeeblement's Disadvantage ends "until the start of your next turn"; a
+    // pre-flight that read only the failure would have let the beam be thrown
+    // outside combat, the save made, and the deadline then fail to pin — the
+    // refused operation that has already moved the world this function exists
+    // to prevent, arriving down the one branch it was not looking at.
+    for (const rider of effect.kind === 'save' ? (effect.onSuccessRiders?.modifiers ?? []) : []) {
+      if (rider.kind === 'mode' && rider.lasts !== undefined) found.push(rider.lasts);
+    }
     // Every rider on every host, because a plural `conditions` means the one
     // that cannot be pinned is not always the first.
     for (const rider of conditionRiderOf(effect)) {

@@ -65,6 +65,18 @@ one would refuse the second use where the book charges for it — and its damage
 is dealt against no defences at all, which is what "ignores Resistance and
 Immunity" names.
 
+**A selector may name a family of D20 Tests, and it must then name the ability
+behind them.** `RollFamily`'s sixth member is the glossary's own union of the
+other three — an ability check, an attack roll, a saving throw — and it
+arrived with the spell that needed it rather than ahead of one: SRD Ray of
+Enfeeblement's "Disadvantage on Strength-based D20 Tests" is a single sentence
+over three families, and three selectors would read as three sentences.
+`rollSelectorProblems` refuses the family with no ability on it, because every
+consumer in reach prints the narrowing and a bare one would reach every roll its
+holder ever made. Initiative and the death save are not in the union, for the
+reason they are not in the families they resemble: neither is made with an
+ability, so no narrowed selector could ever pick one out.
+
 **A grant can also be spent.** SRD Guiding Bolt says "the next attack roll
 made against it" and Vicious Mockery "the next attack roll it makes": a
 modifier used up by the roll it reaches, rather than one that runs until the
@@ -100,6 +112,19 @@ fed to `adjustmentsFor` on both the ordinary and the held road, so it comes off
 before the halving — the SRD's order — and once per turn through the
 `feature-used` ledger. `resolveDamage` lands the damage and settles the
 Concentration save it put at risk in one command.
+
+**A creature may be made to subtract from its own damage rolls.** SRD Ray of
+Enfeeblement's 1d8 and SRD Enlarge/Reduce's 1d4 are the mirror of the granted
+reduction above: that one stands on whoever is *hit* and this one on whoever
+*swung*, so a single family would have made a Ray of Enfeeblement on the ogre
+protect the ogre. It is a sourced grant rather than a `BonusApplies` member,
+which still names no damage, because the sentence fixes no moment, no source and
+no type — it is a standing arrangement every later damage roll consults.
+`damagePenaltyOf` is the one reader, shared by the road a defender is holding
+open and the one nobody may answer, and its die is thrown where the damage is
+rolled and reaches the log as its own line; the amount joins the ward's in one
+adjustment, which is SRD's order. A floor — "this can't reduce the damage below
+1" — is read against the blow's total, and absent is no floor at all.
 
 A cantrip may be cast **with** a swing (SRD True Strike): `AttackCommand.cantrip`
 names it, the attack command casts it as the Magic action before the roll, a

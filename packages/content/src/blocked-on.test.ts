@@ -1583,10 +1583,17 @@ const CITED_SOURCES: readonly CitedSource[] = [
     label: 'docs/archive/design/time-and-turns.md',
     files: ['docs/archive/design/time-and-turns.md'],
   },
+  // **Two files under one name**, for the reason `characters-and-equipment.md`
+  // below is: the archived copy is where the damage pipeline was reviewed and
+  // is what the older notes quote, and the current document is where the two
+  // sentences this batch added were written — the family of D20 Tests a
+  // selector may name, and the penalty a creature takes off its own damage.
+  // Registering a second name for the same document would have been the
+  // drifting copy this table exists to avoid.
   {
     name: 'rolls-and-damage.md',
     label: 'docs/archive/design/rolls-and-damage.md',
-    files: ['docs/archive/design/rolls-and-damage.md'],
+    files: ['docs/archive/design/rolls-and-damage.md', 'docs/design/rolls-and-damage.md'],
   },
   // **Two files under one name**, the way `spell-definitions.ts` above already
   // resolves to two. The archived copy is where the equipment architecture was
