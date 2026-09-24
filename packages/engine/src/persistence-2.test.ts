@@ -601,7 +601,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // when anything gave one back: the engine had no sentence for SRD's
   // "If your Hit Point maximum was reduced, it returns to normal" at all,
   // so a drain was permanent and both fixtures fold to exactly the states
-  // they always folded to — neither holds a lowering, and the rest emits
+  // they always folded to â€” neither holds a lowering, and the rest emits
   // this only for one it can see. `maximum-restored.test.ts` drives it end
   // to end: a Specter's drain and a Wight's through their own commands, a
   // Short Rest leaving both standing, a Long Rest taking them off and

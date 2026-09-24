@@ -374,7 +374,7 @@ function rechoiceEvents(
  * in the three commands that write one — a Specter's Life Drain, a Wraith's,
  * a Wight's, and a homebrew that prints the same sentence tomorrow.
  *
- * Three questions, and the creature's own list answers all three:
+ * Two questions, and the creature's own list answers both:
  *
  * - **Downwards only.** A raise belongs to what raised it: SRD Aid's five
  *   points run the casting's eight hours, through the night and out the other
@@ -384,12 +384,14 @@ function rechoiceEvents(
  *   a casting's, and a source a `grants` deadline stands over ends when that
  *   deadline arrives. Either way somebody else is already coming for it, and
  *   two owners of one ending is how a grant comes to be released twice.
- * - **And nothing marked to survive.** SRD Mummy's Rotting Fist prints the
- *   exception in as many words — "its Hit Point maximum doesn't return to
- *   normal when finishing a Long Rest" — and that line is handed to the table
- *   whole today, so nothing can reach this yet. The room is
- *   `GrantedHitPointMaximum`'s to make when a reader for it is built; this
- *   function is where the mark would be read.
+ * **A third question has no field to ask yet**, and this is where it would be
+ * asked. SRD Mummy's Rotting Fist prints the exception in as many words — "its
+ * Hit Point maximum doesn't return to normal when finishing a Long Rest" — and
+ * that line is handed to the table whole today, so no adjustment in any log
+ * this engine writes is marked to survive. The mark is
+ * `GrantedHitPointMaximum`'s to grow when a reader for the line is built; a
+ * third clause in the filter before then would be a guard over a fact nothing
+ * can state.
  */
 function loweringsALongRestEnds(
   state: GameState,
