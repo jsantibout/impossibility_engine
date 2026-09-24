@@ -4884,7 +4884,11 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           // **A catalogue with no items at all judges nothing**, the rule a
           // conjured item's own check already follows: a fixture holding one
           // class and no equipment is not a class file with a broken rider.
-          grant.options?.forEach((option, index) => {
+          // Guarded, because this door takes JSON text: `hitRiderProblems` has
+          // already said `rider_without_options` about a value that is not a
+          // list, and traversing it here would turn that value into a throw.
+          const offered = Array.isArray(grant.options) ? grant.options : [];
+          offered.forEach((option, index) => {
             if (option?.requiresItem === undefined || items.length === 0) return;
             if (!items.some((item) => item.id === option.requiresItem)) {
               problems.push({

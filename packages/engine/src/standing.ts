@@ -5375,24 +5375,27 @@ export function standingAttackDamage(
     // "this feature added nothing to this blow" is the answer the rider's own
     // path needs and cannot derive.
     let dice = grant.dice;
+    // **A grant whose every die has been forgone adds nothing at all**, which
+    // is narrower than "a component with no dice": a grant that rolls none and
+    // adds no flat number is a thing the vocabulary allows and this loop has
+    // always written down, so only the emptying is skipped.
+    let emptied = false;
     if (context.forgoing !== undefined && context.forgoing.feature === effect.feature) {
       forgone = context.forgoing.dice;
-      dice = fewerDice(dice, forgone);
+      const left = fewerDice(dice, forgone);
+      emptied = dice !== undefined && left === undefined;
+      dice = left;
     }
+    if (emptied && grant.flat === undefined) continue;
 
     const type = chosenType ?? grant.damageType;
     if (type === undefined) {
-      // A component with nothing left in it is not written down: a Rogue who
-      // forgoes every die they had adds no slice to the blow, and an empty
-      // notation is not one the dice layer can parse.
-      if (dice === undefined && grant.flat === undefined) continue;
       bonuses.push({
         source: effect.name,
         ...(grant.flat === undefined ? {} : { flat: grant.flat }),
         ...(dice === undefined ? {} : { dice }),
       });
     } else {
-      if (dice === undefined && grant.flat === undefined) continue;
       extra.push({
         source: effect.name,
         type,

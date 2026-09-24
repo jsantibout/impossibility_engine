@@ -5,7 +5,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { resolveAttack, resolveMove, resolveTurn } from './commands.js';
+import { resolveAttack, resolveAttackDamage, resolveMove, resolveTurn } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { checkContent } from './content.js';
 
@@ -205,6 +205,30 @@ const stab = (log: readonly GameEvent[], swing: Swing = {}) =>
     supply('stab', swing.save),
   );
 
+/**
+ * A swing that must be refused, and **whether a die was thrown to find out**.
+ *
+ * The claim every refusal on a swing makes is "before the roll", and the
+ * evidence for it is the issuer: a rider refused after a d20 has been thrown
+ * has a footprint whether or not any event survived the refusal.
+ */
+const refusedBeforeTheDie = (log: readonly GameEvent[], swing: Swing) => {
+  const issuer = createRollIssuer('r');
+  const refused = resolveAttack(
+    fold('seed', log),
+    NYX,
+    {
+      target: swing.target ?? THUG,
+      weapon: swing.weapon ?? 'dagger',
+      attackBonuses: [{ source: 'forced', flat: 40 }],
+      modes: [{ source: 'hidden', mode: 'advantage' as const }],
+      onHit: { feature: CUNNING, option: swing.option ?? 'trip' },
+    },
+    { issuer, rng: createRng('stab') as Rng, content: SRD_CONTENT },
+  );
+  return { code: isErr(refused) ? refused.code : null, issued: issuer.count };
+};
+
 const landed = (log: readonly GameEvent[], swing: Swing = {}) => {
   const out = unwrap(stab(log, swing), 'stab');
   if (out.attack?.hit !== true) throw new Error('the fixture meant this swing to land');
@@ -304,11 +328,10 @@ describe('SRD Cunning Strike — the price is Sneak Attack dice', () => {
   });
 
   it('refuses Poison without a Poisoner’s Kit, before the die', () => {
-    const refused = stab(alley(false), { option: 'poison' });
-    expect(isErr(refused) && refused.code).toBe('item_not_carried');
-
-    // Nothing was spent: the refusal arrives before the roll.
-    expect(fold('seed', alley(false)).combat?.budgets[NYX]?.action).toBe(true);
+    const refused = refusedBeforeTheDie(alley(false), { option: 'poison' });
+    expect(refused.code).toBe('item_not_carried');
+    // And no die was thrown to find out, which is what "before the roll" means.
+    expect(refused.issued).toBe(0);
   });
 
   it('knocks a Medium target Prone with Trip, and refuses a Huge one before anything is spent', () => {
@@ -319,9 +342,9 @@ describe('SRD Cunning Strike — the price is Sneak Attack dice', () => {
     expect(conditionsOn(stands.state, THUG)).not.toContain('prone');
 
     // SRD: "If the target is Large or smaller." The Ogre is Huge.
-    const refused = stab(alley(), { option: 'trip', target: OGRE });
-    expect(isErr(refused) && refused.code).toBe('target_too_large');
-    expect(fold('seed', alley()).combat?.budgets[NYX]?.action).toBe(true);
+    const refused = refusedBeforeTheDie(alley(), { option: 'trip', target: OGRE });
+    expect(refused.code).toBe('target_too_large');
+    expect(refused.issued).toBe(0);
   });
 
   it('gates the size on Trip alone, because that is where the SRD prints it', () => {
@@ -443,6 +466,70 @@ describe('SRD Cunning Strike — the price is Sneak Attack dice', () => {
   it('refuses an option the feature does not print', () => {
     const refused = stab(alley(), { option: 'decapitate' });
     expect(isErr(refused) && refused.code).toBe('no_such_option');
+  });
+});
+
+/**
+ * The other road out of a swing: the blow held open, and the damage settled a
+ * command later.
+ *
+ * SRD Divine Smite is taken "immediately after hitting a target", so a swing
+ * may stop at the hit and come back for its dice. The rider rides on the hold
+ * and the **price is taken where the dice are gathered**, which on this road
+ * is `resolveAttackDamage` rather than `resolveAttack` — so the two halves ask
+ * the same question in two places and must come to the same answer.
+ *
+ * Tested on both sides, because the half that drops a rider is the half a
+ * regression is invisible in: a Cunning Strike that quietly fired on a blow
+ * that dealt no Sneak Attack damage would look exactly like one that worked.
+ */
+describe('a rider priced in dice, on a swing that held its damage open', () => {
+  const held = (log: readonly GameEvent[], swing: Swing, seed = 'hold') => {
+    const out = unwrap(
+      resolveAttack(
+        fold('seed', log),
+        NYX,
+        {
+          target: THUG,
+          weapon: 'dagger',
+          attackBonuses: [{ source: 'forced', flat: 40 }],
+          hold: true,
+          ...(swing.advantage === false
+            ? {}
+            : { modes: [{ source: 'hidden', mode: 'advantage' as const }] }),
+          onHit: { feature: CUNNING, option: swing.option ?? 'trip' },
+        },
+        supply(seed),
+      ),
+      'hold',
+    );
+    if (out.attack?.hit !== true) throw new Error('the fixture meant this swing to land');
+    const after = [...log, ...out.events];
+    const settled = unwrap(
+      resolveAttackDamage(fold('seed', after), NYX, {}, supply('settle', swing.save)),
+      'settle',
+    );
+    return { settled, state: fold('seed', [...after, ...settled.events]) };
+  };
+
+  it('takes the dice off at the settlement and lands what the rider bought', () => {
+    const { settled, state } = held(alley(), { option: 'trip', save: DOOMED });
+    expect(sliceDice(settled.events, 'Sneak Attack')).toBe(2);
+    expect(conditionsOn(state, THUG)).toContain('prone');
+  });
+
+  it('drops the rider at the settlement on a blow that was no Sneak Attack', () => {
+    // A seed of its own: the roll is the engine's, and a natural 1 is an
+    // automatic miss however large the bonus beside it.
+    const { settled, state } = held(
+      alley(),
+      { option: 'trip', advantage: false, save: DOOMED },
+      'plain-hold',
+    );
+    expect(sliceDice(settled.events, 'Sneak Attack')).toBe(-1);
+    expect(conditionsOn(state, THUG)).not.toContain('prone');
+    expect(settled.unverified.join(' ')).toContain('Cunning Strike');
+    expect(settled.damage ?? 0).toBeGreaterThan(0);
   });
 });
 
@@ -622,6 +709,23 @@ describe('a rider priced in dice, at the authoring door', () => {
     expect(codes({ forgoesDiceOf: '  ', options: [TRIP] })).toContain(
       `bad_rider_dice_source @ ${at}.forgoesDiceOf`,
     );
+  });
+
+  /**
+   * And a menu that is not a list at all is a **value**, not a throw.
+   *
+   * This door takes JSON text — `loadContent` is how homebrew arrives — so
+   * every traversal here is guarded, and the rule the file already keeps is
+   * that a malformed catalogue comes back as problems. A reader added beside
+   * the others and not guarded turns `rider_without_options` into a
+   * `TypeError` for exactly the input it was written to describe.
+   */
+  it('answers a menu that is not a list with a refusal rather than a throw', () => {
+    for (const malformed of [{ poison: {} }, 'poison', 7]) {
+      expect(codes({ forgoesDiceOf: 'warden:bite', options: malformed })).toContain(
+        `rider_without_options @ ${at}.options`,
+      );
+    }
   });
 
   it('refuses a count that is not a whole number of dice', () => {
