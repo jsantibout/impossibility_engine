@@ -18,6 +18,7 @@ import {
   declareDamageType,
   forcePrintedSave,
   placeCreatureInScene,
+  removeCreatureEverywhere,
   resolvePendingSaves,
   resolveTurn,
   rollImprovisedDamage,
@@ -316,6 +317,27 @@ describe('a Death Burst the fold raises when the creature dies', () => {
       after,
     );
     expect(Object.keys(settled.pendingSaves)).toEqual([]);
+  });
+
+  it('discharges a burst whose target has left, and says so rather than wedging', () => {
+    const table = aRoomWith('magmin', { combat: true });
+    const after = flatten(table, MONSTER, 'kill');
+    expect(owed(after).map((debt) => debt.target).sort()).toEqual([BREN, NYX]);
+
+    // Nothing drops one of these — there is no timer for `dropOrphanedSaves`
+    // to find gone — so a creature leaving between the burst and the roll must
+    // leave a debt that can still be settled, or every later turn wedges on it.
+    const left = table.do('Nyx walks out of the game', (s) =>
+      removeCreatureEverywhere(s, NYX),
+    );
+    const rolled = unwrap(resolvePendingSaves(left, supply('roll')), 'the burst goes off');
+    expect(rolled.saves.map((save) => save.target)).toEqual([BREN]);
+    expect(rolled.unverified.join(' ')).toContain('beyond');
+    const settled = rolled.events.reduce(applyEvent, left);
+    expect(Object.keys(settled.pendingSaves)).toEqual([]);
+    // And the turn can move again, which is the whole of what the debt was
+    // holding up.
+    expect(isErr(resolveTurn(settled, supply('turn')))).toBe(false);
   });
 
   it('deals the printed dice through the funnel — all of them, or half on a save', () => {

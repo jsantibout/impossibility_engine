@@ -1437,17 +1437,19 @@ export function resolvePendingSaves(
     let burnt = state;
 
     for (const pending of owed) {
-      const creature = state.creatures[pending.target];
-      if (creature === undefined) {
-        return unknownCreature(pending.target, 'owes a save but is not in this game');
-      }
-
       // **A save a printed line's own moment forced**, which is the other kind
       // of debt and is settled whole by the executor that settles one a
       // creature spends: the same halving, the same Evasion, the same clauses,
       // the same funnel. Nothing below it applies — a printed line holds no
       // effect for a success to end, deals its damage *after* the save rather
       // than before it, and has no timer to deepen.
+      //
+      // **Before the creature is looked up**, because a target who has left
+      // the game is a debt to discharge with a word and not a command to
+      // refuse: nothing drops one of these — `dropOrphanedSaves` has no timer
+      // to find gone — so a refusal here would wedge every later turn on a
+      // creature nobody can bring back. A repeat save keeps the refusal below,
+      // where its timer went with the creature.
       if (pending.printed !== undefined) {
         const settled = settlePrintedSave(burnt, pending, pending.printed, supply);
         if (!settled.ok) return settled;
@@ -1456,6 +1458,11 @@ export function resolvePendingSaves(
         burnt = settled.value.events.reduce(applyEvent, burnt);
         if (settled.value.save !== null) saves.push(settled.value.save);
         continue;
+      }
+
+      const creature = state.creatures[pending.target];
+      if (creature === undefined) {
+        return unknownCreature(pending.target, 'owes a save but is not in this game');
       }
 
       // **The damage first, where the sentence deals some**, and then the die.
