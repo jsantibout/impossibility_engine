@@ -3155,6 +3155,60 @@ export interface TargetRule {
    * caller to add a second faller to widen the spell.
    */
   readonly mustBeFalling?: true;
+  /**
+   * SRD *Entangle*: "Each creature (**other than you**) in the area".
+   *
+   * The first of three clauses that narrow what an **area** catches, and all
+   * three are read where the catch is settled rather than where a target is
+   * named: an area filters, it does not refuse, so none of them can ever make
+   * a casting illegal. `checkSpellDefinition` holds each to a definition that
+   * has an `area` at all, because a filter on a catch nothing catches is a
+   * field a reader would look for and never find applied.
+   *
+   * Different from {@link self}, which says whether a caster may *name*
+   * themselves: this is a caster standing in their own square and simply not
+   * being in the catch. And different from `designatesUnaffected` — SRD Spirit
+   * Guardians' list of ids the caster spares — which is a choice the caster
+   * makes at the casting rather than a rule the spell prints.
+   */
+  readonly notTheCaster?: true;
+  /**
+   * SRD *Hypnotic Pattern*: "Each creature in the area **who can see the
+   * pattern**".
+   *
+   * The pattern is at the casting's origin, so the question is a creature's
+   * sight of a *point* — `canSeePoint` in `standing.ts`, which is `canSee`
+   * asked of a place. Three-valued like every other sight question in this
+   * engine, and the third value is caught rather than passed over: **where
+   * nobody has said, the creature is affected and the outcome names the
+   * question**, which is the ruling SRD Faerie Fire's "if the attacker can see
+   * it" already takes. The alternative reads a silence as a no and quietly
+   * shrinks the spell.
+   *
+   * And a **point carries no declaration**: sight and cover are declared
+   * between two creatures, so unlike `canSee` there is no line for a table to
+   * state. What can settle it is the lattice — a bank of fog or a dark room
+   * over the pattern's own space — and a sight sense that reaches it.
+   */
+  readonly mustSeeTheOrigin?: true;
+  /**
+   * SRD *Sleep*: "Each creature **of your choice** in a 5-foot-radius Sphere".
+   *
+   * The area still decides who *could* be caught; this says the caster picks
+   * from among them, which is the difference between a Fireball and a spell
+   * that leaves the party standing. The pick arrives in the cast request's
+   * `targets` — the one list of ids a casting has, so there is no second place
+   * for the same decision to be written — and lands pinned on the casting
+   * exactly as any other target list does.
+   *
+   * Distinct from `targetsWithin`, which is SRD Slow's "up to six creatures of
+   * your choice in a 40-foot Cube": there the template *bounds* a list the
+   * caller names and the count is printed, and a creature outside the bound is
+   * a refusal. Here the spell prints no count at all and the area is still the
+   * spell's own area — the patch it lays, the trigger it raises and the record
+   * it keeps are all the area's, and only the catch is narrowed.
+   */
+  readonly chosenFromTheArea?: true;
   /** Whether the caster may pick themselves. */
   readonly self?: boolean;
   /**

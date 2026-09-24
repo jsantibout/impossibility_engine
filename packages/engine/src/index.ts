@@ -60,7 +60,7 @@ export { movementLeftFor, speedOf } from './standing.js';
 // pairwise question and nothing else, so a caller outside the engine would
 // be asked to establish a sight line the looker's own Darkvision already
 // settles.
-export { canSee, sensesOf } from './standing.js';
+export { canSee, canSeePoint, sensesOf } from './standing.js';
 // The scores as they stand, and the sheet a reader should be handed. Exported
 // for the third time for the same reason: an item that *sets* a score means
 // `creature.sheet.abilities` is the score the character had rather than the

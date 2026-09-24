@@ -3768,6 +3768,27 @@ export function checkSpellDefinition(
    * rather than loosely matchable. The same code as the outcome clause,
    * because it is the same defect.
    */
+  /*
+   * The three clauses that narrow what an **area** catches, held to a
+   * definition that has one.
+   *
+   * Each is read in `areaTargets` and nowhere else, so on a spell cast at
+   * named targets every one of them is a field with no reader — written by
+   * somebody who believed they had said something, applied by nothing, and
+   * invisible until a druid's Entangle failed to spare the druid. The other
+   * two target clauses need no such guard because they are checked wherever a
+   * caller *names* somebody, which every definition does.
+   */
+  for (const clause of ['notTheCaster', 'mustSeeTheOrigin', 'chosenFromTheArea'] as const) {
+    if (definition.targets[clause] === true && definition.area === undefined) {
+      found.push({
+        field: `targets.${clause}`,
+        code: 'area_filter_without_area',
+        reason: `\`${clause}\` narrows what an area catches, and this spell fills no area, so nothing would ever read it`,
+      });
+    }
+  }
+
   const mustBeType = definition.targets.mustBeType;
   if (mustBeType !== undefined && !CREATURE_TYPES.includes(mustBeType as string)) {
     found.push({
