@@ -1155,7 +1155,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'switches off a benefit the condition layer derives',
       why: 'a-condition-benefit-an-effect-takes-away',
-      note: 'SRD: "it can\'t benefit from the Invisible condition". The condition stays on the creature and one of the things it confers stops working, which the condition layer derives from the condition\'s presence alone and no spell effect reaches.',
+      note: 'SRD: "it can\'t benefit from the Invisible condition". The condition stays on the creature and one of the things it confers stops working. **The rider that does this exists** — `benefit`, which Starry Wisp, Faerie Fire and Mind Spike all hang — and what this spell cannot reach it with is the *host*: a smite is cast on a hit, its one effect kind is `attack-damage`, and that kind carries no `OutcomeRiders` at all. The blocker is a host without riders rather than a missing rider, and giving it some is a decision about what the settled outcome of a cast-on-hit is.',
     },
   ],
   // **The shaking has left this map**, and it left by being built: "someone
