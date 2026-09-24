@@ -161,6 +161,15 @@ const narrow = (): readonly GameEvent[] => [
           },
         },
         {
+          feature: 'test:obstinate',
+          name: 'Obstinate',
+          window: 'test-rolled',
+          costsReaction: false,
+          pool: 'test:obstinate',
+          reach: { kind: 'self' },
+          does: { kind: 'reroll', tests: ['saving-throw'] },
+        },
+        {
           feature: 'test:steadfast',
           name: 'Steadfast',
           window: 'test-rolled',
@@ -180,7 +189,7 @@ const narrow = (): readonly GameEvent[] => [
     creatureType: 'Humanoid',
     side: 'party',
   },
-  ...(['test:stubborn', 'test:steadfast'] as const).map(
+  ...(['test:stubborn', 'test:obstinate', 'test:steadfast'] as const).map(
     (key): GameEvent => ({
       type: 'resource-pool-declared',
       id: STUBBORN,
@@ -662,15 +671,20 @@ describe('what an election costs before the die', () => {
             supply('narrow'),
           );
 
-    // A saving throw alone, on the very test its own sentence names.
+    // Indomitable's shape, on the very test its own sentence names, and on
+    // the two rolls it does not name at all.
     expect(refused(elect('test:stubborn', 'test'))).toBe('bad_election');
-    // And on the two rolls it does not name at all.
     expect(refused(elect('test:stubborn', 'attack'))).toBe('bad_election');
-    // "Any die", but with an addend the election has nowhere to put.
+    // The same sentence with no addend at all, so this one isolates the reach:
+    // a saving throw alone is not "any die", whatever it does or does not add.
+    expect(refused(elect('test:obstinate', 'test'))).toBe('bad_election');
+    expect(refused(elect('test:obstinate', 'attack'))).toBe('bad_election');
+    // And the mirror, isolating the addend: "any die", and a number the
+    // pipeline rethrow has nowhere to put.
     expect(refused(elect('test:steadfast', 'test'))).toBe('bad_election');
     expect(refused(elect('test:steadfast', 'attack'))).toBe('bad_election');
 
-    // And the window is untouched: a failed save still offers both.
+    // And the window is untouched: a failed save still offers all three.
     const failed = unwrap(
       resolveTest(
         state,
@@ -680,7 +694,11 @@ describe('what an election costs before the die', () => {
       ),
       'save',
     );
-    expect(failed.offers.map((o) => o.feature)).toEqual(['test:steadfast', 'test:stubborn']);
+    expect(failed.offers.map((o) => o.feature)).toEqual([
+      'test:obstinate',
+      'test:steadfast',
+      'test:stubborn',
+    ]);
   });
 
   it('refuses a pool the roller holds that buys no reroll', () => {
