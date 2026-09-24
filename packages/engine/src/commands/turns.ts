@@ -23,6 +23,7 @@ import {
   type RollMode,
   type Skill,
 } from '@ie/shared';
+import type { MonsterSave } from '@ie/srd';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
 import { currentCombatant, extraActionsOwedAtTurnStart, spendAction } from '../combat.js';
@@ -38,7 +39,7 @@ import {
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
+import { printedSaveOf, RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
 import { rollRecorded } from '../rolls.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
@@ -48,7 +49,13 @@ import {
   type OwedAreaEffect,
   spellOfSource,
 } from '../spells.js';
-import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
+import {
+  actionRulesOn,
+  canSee,
+  effectiveConditions,
+  rollModesFor,
+  sheetAsItStands,
+} from '../standing.js';
 import { healingRuleOf, isDown, maximisedHealing, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
 import { schedule } from './conditions.js';
@@ -57,7 +64,6 @@ import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { grantTemporaryHpTo, healCreature, strandedSummons } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import { forcePrintedSaveOn, withDeclaredDamage } from './printed-save-clauses.js';
-import { printedSaveOf } from '../monster.js';
 import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
 import {
   checkBonuses,
@@ -1369,6 +1375,13 @@ function settlePrintedSave(
     ],
     unverified: [
       ...landed.value.unverified,
+      // **What the raiser could not check, said out loud here.** The fold
+      // raised this debt and had nobody to ask, so a clause it could not
+      // evaluate was applied rather than dropped — the direction this
+      // repository takes everywhere, and the direction that is only honest if
+      // somebody is told. The moment to tell them is the moment the save was
+      // rolled, which is here.
+      ...unstatedFacts(state, debt, pending.target, printed),
       // The sentences the reader carried and did not read, handed to the table
       // at the moment of use exactly as a spell's unmodelled lines are — and
       // the moment is *here*, because nobody chose it. SRD Gibbering Mouther's
@@ -1388,6 +1401,56 @@ function settlePrintedSave(
       success: landed.value.outcome.save.success,
     },
   });
+}
+
+/**
+ * The facts an aura's own clause asks about and nobody has stated.
+ *
+ * SRD Sea Hag's Vile Appearance catches "any **Beast or Humanoid** that starts
+ * its turn within 30 feet of the hag **and can see the hag's true form**", and
+ * the engine may know neither: `canSee` is three-valued and null is "nobody
+ * has said", and a creature's type is null until a stat block, a species or a
+ * declaration settles it.
+ *
+ * **Both fail open**, which is the raiser's decision and is the right one: the
+ * engine cannot show the creature is exempt, and an aura going quiet on a fact
+ * nobody stated would be the rule missing in silence. What makes that honest
+ * rather than merely convenient is *saying so* — the reading
+ * `applyPrintedClauses` already takes of a size gate it could not evaluate,
+ * through the channel a boundary already carries for four other rules.
+ *
+ * **Read here rather than carried on the debt**, which is the rule this file
+ * keeps about everything a `PendingSave` does not say: the line is on the
+ * holder's pinned sheet and the facts are in state, and the honest moment to
+ * ask is the moment the die is thrown rather than the moment the debt was
+ * filed.
+ *
+ * Empty for every line that asks neither, which is every printed save in the
+ * book but the hag's.
+ */
+function unstatedFacts(
+  state: GameState,
+  debt: PrintedSaveDebt,
+  target: CharacterId,
+  printed: MonsterSave,
+): readonly string[] {
+  const said: string[] = [];
+  const trigger = printed.trigger;
+  if (
+    trigger?.kind === 'starts-turn-within' &&
+    trigger.onlyIf === 'can-see-holder' &&
+    canSee(state, target, debt.by) === null
+  ) {
+    said.push(
+      `${debt.line} reaches a creature that can see ${debt.by}, and nobody has said whether ${target} can — the save was asked for anyway, because the engine cannot show they could not`,
+    );
+  }
+  if (printed.onlyIfTargetType !== undefined && state.creatures[target]?.creatureType == null) {
+    said.push(
+      `${debt.line} reaches only ${printed.onlyIfTargetType.join(' or ')}, and nobody has said what ${target} is — the save was asked for anyway, and declareCreatureType settles it`,
+    );
+  }
+  return said;
 }
 
 /**

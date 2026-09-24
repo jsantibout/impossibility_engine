@@ -19,6 +19,7 @@ import {
   forcePrintedSave,
   placeCreatureInScene,
   removeCreatureEverywhere,
+  resolveAttack,
   resolvePendingSaves,
   resolveTurn,
   rollImprovisedDamage,
@@ -224,6 +225,14 @@ const damageOn = (
   return null;
 };
 
+/** The typed slices one blow was made of, as the log recorded them. */
+const slices = (
+  events: readonly GameEvent[],
+): readonly { readonly type: string }[] =>
+  events.flatMap((event) =>
+    event.type === 'damage-dice-recorded' ? [...event.components] : [],
+  );
+
 /**
  * The first seed in a short list that made the save go the way the test is
  * about.
@@ -338,6 +347,23 @@ describe('a Death Burst the fold raises when the creature dies', () => {
     // And the turn can move again, which is the whole of what the debt was
     // holding up.
     expect(isErr(resolveTurn(settled, supply('turn')))).toBe(false);
+  });
+
+  it('discharges a burst whose own creature has left, and one whose line has', () => {
+    // The other two arms of the same rule, and neither is a rule broken: the
+    // magmin's record is what the DC and the dice are read off, so a magmin
+    // that has left the game — and a sheet that no longer prints the line, a
+    // shape assumed since — leave a debt that must still clear.
+    const gone = aRoomWith('magmin', { combat: true });
+    const after = flatten(gone, MONSTER, 'kill');
+    expect(owed(after).length).toBe(2);
+    const without = gone.do('the magmin is taken off the table', (s) =>
+      removeCreatureEverywhere(s, MONSTER),
+    );
+    const rolled = unwrap(resolvePendingSaves(without, supply('roll')), 'the burst');
+    expect(rolled.saves).toEqual([]);
+    expect(rolled.unverified.join(' ')).toContain('no longer in this game');
+    expect(Object.keys(rolled.events.reduce(applyEvent, without).pendingSaves)).toEqual([]);
   });
 
   it('deals the printed dice through the funnel — all of them, or half on a save', () => {
@@ -475,6 +501,23 @@ describe('an aura that asks at the start of a turn', () => {
     expect(after.creatures[BREN]!.lineImmunities).toEqual([]);
   });
 
+  it('says which of the aura’s own questions nobody has answered', () => {
+    // SRD Sea Hag's clause asks two things the engine may not know: whether
+    // the target can see her true form, and what kind of creature it is.
+    // Both **fail open** — the engine cannot show the creature is exempt — and
+    // the honest half of that is saying so at the moment the die is thrown.
+    const table = aRoomWith('sea-hag', { combat: true });
+    const brensTurn = advanceQuietly(table, 'the hag finishes');
+    expect(owed(brensTurn).map((d) => d.target)).toEqual([BREN]);
+
+    const rolled = unwrap(resolvePendingSaves(brensTurn, supply('s1')), 'the glare');
+    const said = rolled.unverified.join(' ');
+    expect(said).toContain('nobody has said whether bren can');
+    // Bren's species typed him, so the other half is silent — which is what
+    // makes the first assertion about the clause rather than about the channel.
+    expect(said).not.toContain('nobody has said what bren is');
+  });
+
   it('narrows a Sea Hag’s aura to the types the clause names', () => {
     // SRD Sea Hag: "any **Beast or Humanoid** that starts its turn within 30
     // feet of the hag and can see the hag's true form." Thirty feet reaches
@@ -550,6 +593,34 @@ describe('a damage type the block leaves to the table', () => {
     expect(faces!.raw).toBeGreaterThanOrEqual(8);
     expect(faces!.raw).toBeLessThanOrEqual(48);
     expect(breathed.outcomes[0]!.damage).toBeGreaterThan(0);
+  });
+
+  it('hands the Claw’s second component back until the same word is declared', () => {
+    // SRD Half-Dragon's Claw: "6 (1d4 + 4) Slashing damage plus 7 (2d6) damage
+    // of the type chosen for the Draconic Origin trait." The swing has already
+    // landed, so a refusal would be one with a footprint — the clause comes
+    // back with its reason instead, and the Slashing still lands.
+    const table = aRoomWith('half-dragon', { combat: true });
+    const swing = (state: GameState) =>
+      unwrap(
+        resolveAttack(
+          state,
+          MONSTER,
+          { target: BREN, weapon: null, action: 'Claw', attackBonuses: [{ source: 'forced', flat: 40 }] },
+          supply('claw'),
+        ),
+        'the claw',
+      );
+
+    const before = swing(table.state);
+    expect(before.unverified.join(' ')).toContain('of the type chosen');
+    expect(slices(before.events).map((one) => one.type)).toEqual(['slashing']);
+
+    // And the moment a DM says which dragon it is, the same blow carries both.
+    table.do('the dragon is a poison one', (s) => declareDamageType(s, MONSTER, 'poison'));
+    const after = swing(table.state);
+    expect(after.unverified.join(' ')).not.toContain('of the type chosen');
+    expect(slices(after.events).map((one) => one.type).sort()).toEqual(['poison', 'slashing']);
   });
 
   it('refuses a word that is not a damage type', () => {
