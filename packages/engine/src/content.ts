@@ -1867,31 +1867,14 @@ function rolledSpanProblems(span: unknown, field: string): readonly ContentProbl
 }
 
 /**
- * What one of a feature's pool options has to say, and what it may not.
+ * The conditions a creature takes off **itself**, which is why a *feature's*
+ * option may impose one and print no lifetime.
  *
- * The conferral's rules asked of the other host, and every difference between
- * the two lists is one fact: **a feature has a caster and an item does not.**
- * So "your spellcasting ability modifier" is admitted here and refused on a
- * bottle, a save's DC is the holder's sheet rather than a number the grant
- * prints, and the plural sentence SRD Turn Undead writes — "the Frightened
- * **and** Incapacitated conditions" off one save — is admitted because the
- * resolver files each instance under `feature:<id>` and the timer this
- * option's own span files ends them all.
- *
- * Everything that would need the **casting** is refused exactly as it is on an
- * item, because a feature has one no more than a potion does: a rider's
- * lifetime, its escape check, its `outlivesCasting`, a repeat whose success
- * would end a casting, a granted modifier, a delayed hit, and every
- * `DiceScaling` field that reads a slot level or a caster level.
- *
- * **The effects themselves are judged by `checkEffectValue`**, the spell
- * validator's own two passes, so a feature's list is held to the rules a
- * spell's list is held to rather than to a third vocabulary kept in step by
- * hand.
- */
-/**
- * The conditions a creature takes off **itself**, which is why an option that
- * imposes one need print no lifetime.
+ * **A feature's option and not an item's conferral**, which still demands a
+ * span for every condition it hangs: a bottle's effects arrive with the
+ * potion's own printed duration on them and the door that reads them has no
+ * other deadline to fall back on, so relaxing it there would be a different
+ * argument on a different host.
  *
  * The lifetime rule exists for one reason and says it in as many words: there
  * is no casting for `releaseCasting` to end, so a grant with no deadline would
@@ -1907,8 +1890,19 @@ function rolledSpanProblems(span: unknown, field: string): readonly ContentProbl
  */
 const ENDS_ITSELF: ReadonlySet<string> = new Set(['prone']);
 
-/** Whether a condition an option imposes is one its holder ends. */
-const endsItself = (condition: unknown): boolean => ENDS_ITSELF.has(String(condition));
+/**
+ * Whether a condition an option imposes is one its holder ends.
+ *
+ * Both spellings, because the vocabulary writes two: a `save` names its
+ * condition flat and a `condition` effect carries the whole
+ * {@link ConditionRider}, which is the same name one field down.
+ */
+const endsItself = (condition: unknown): boolean =>
+  ENDS_ITSELF.has(
+    isString(condition)
+      ? condition
+      : String((condition as { readonly name?: unknown })?.name),
+  );
 
 function hitForcedMoveProblems(
   featureId: string,
@@ -1968,6 +1962,29 @@ function hitForcedMoveProblems(
   return found;
 }
 
+/**
+ * What one of a feature's pool options has to say, and what it may not.
+ *
+ * The conferral's rules asked of the other host, and every difference between
+ * the two lists is one fact: **a feature has a caster and an item does not.**
+ * So "your spellcasting ability modifier" is admitted here and refused on a
+ * bottle, a save's DC is the holder's sheet rather than a number the grant
+ * prints, and the plural sentence SRD Turn Undead writes — "the Frightened
+ * **and** Incapacitated conditions" off one save — is admitted because the
+ * resolver files each instance under `feature:<id>` and the timer this
+ * option's own span files ends them all.
+ *
+ * Everything that would need the **casting** is refused exactly as it is on an
+ * item, because a feature has one no more than a potion does: a rider's
+ * lifetime, its escape check, its `outlivesCasting`, a repeat whose success
+ * would end a casting, a granted modifier, a delayed hit, and every
+ * `DiceScaling` field that reads a slot level or a caster level.
+ *
+ * **The effects themselves are judged by `checkEffectValue`**, the spell
+ * validator's own two passes, so a feature's list is held to the rules a
+ * spell's list is held to rather than to a third vocabulary kept in step by
+ * hand.
+ */
 function featureOptionProblems(
   featureId: string,
   option: PoolOptionGrant,
@@ -2207,10 +2224,12 @@ function featureOptionProblems(
     // Reaction to it is already holding one when a rider fires. A second would
     // be a log that cannot be folded rather than a refusal, which is the one
     // outcome worth refusing at authoring for. Every SRD sentence of this
-    // shape imposes a condition or forces a save and not one of them deals
-    // damage, so what this refuses is a homebrew the engine would break on and
-    // never a rule the book prints; it lifts the day the attack path folds a
-    // rider's damage into the blow's own.
+    // shape in the *class* tables imposes a condition or forces a save. Two in
+    // the species tables do not — SRD Fire's Burn adds 1d10 Fire to a hit and
+    // Frost's Chill 1d6 Cold — and they are the price this refusal charges:
+    // both are transcribed, both are unexecuted, and the Goliath's line in the
+    // blocked-on map says so. It lifts the day the attack path folds a rider's
+    // damage into the blow's own, which is the same day those two are written.
     if (host === 'hit' && (kind === 'save-damage' || record['damage'] !== undefined)) {
       say(
         'rider_deals_damage',

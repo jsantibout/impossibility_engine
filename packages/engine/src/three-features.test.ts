@@ -5,7 +5,13 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent } from './events.js';
-import { resolveAttack, useBudgetPurchase, usePoolOption } from './commands.js';
+import {
+  resolveAttack,
+  resolveMove,
+  takeOpportunityAttack,
+  useBudgetPurchase,
+  usePoolOption,
+} from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { remaining } from './resources.js';
 
@@ -68,7 +74,12 @@ const dragonborn = (over: Partial<CharacterChoices> = {}): CharacterChoices => (
   backgroundEquipment: 'A',
   equipped: [],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'dragonborn:draconic-ancestry': ['Red'], 'fighter:weapon-mastery': [] },
+  // **Silver, and the choice of dragon is the point.** The option's own effect
+  // is written with a placeholder — `damageType: 'fire'`, the value that keeps
+  // the shape well-formed — and what the Draconic Ancestors table says about a
+  // Silver dragon is Cold. A Red Dragonborn would have proved nothing: the
+  // assertion would pass with the substitution deleted.
+  featureChoices: { 'dragonborn:draconic-ancestry': ['Silver'], 'fighter:weapon-mastery': [] },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',
@@ -254,7 +265,7 @@ describe('SRD Breath Weapon — an exhalation in place of one attack', () => {
     ).toBe(used.outcomes.length);
   });
 
-  it('deals 2d10 Fire at character level 5, halved on a success, with the faces in the log', () => {
+  it('deals 2d10 of the ancestry’s own type at level 5, halved on a success, with the faces in the log', () => {
     const log = swing(table());
     const used = unwrap(breathe(log), 'breath');
 
@@ -269,9 +280,10 @@ describe('SRD Breath Weapon — an exhalation in place of one attack', () => {
         }[];
       };
       expect(dice.source).toBe('Breath Weapon');
-      // The type is the Draconic Ancestry's, and a Red Dragonborn breathes
-      // Fire; the count is the column's row at character level 5.
-      expect(dice.components.map((one) => one.type)).toEqual(['fire']);
+      // The type is the Draconic Ancestry's — a Silver Dragonborn breathes Cold
+      // — rather than the placeholder the option is written with; the count is
+      // the column's row at character level 5.
+      expect(dice.components.map((one) => one.type)).toEqual(['cold']);
       // The faces, not a total: the log says which two d10s fell.
       expect(dice.components[0]!.dice).toHaveLength(2);
     }
@@ -519,13 +531,39 @@ describe('SRD Open Hand Technique — a rider the Flurry has to have bought', ()
     expect(state.creatures[MARK]?.conditions.conditions ?? []).not.toContain('prone');
   });
 
-  it('Push moves a failed Strength save fifteen feet straight away', () => {
+  it('Push moves a failed Strength save fifteen feet straight away, and rolls for it', () => {
     const log = flurry(dojo());
     const start = fold('seed', log).scene?.positions[MARK];
-    const { state } = landed(log, { feature: TECHNIQUE, option: 'push' }, { save: DOOMED });
+    const { out, state } = landed(log, { feature: TECHNIQUE, option: 'push' }, { save: DOOMED });
     const end = state.scene?.positions[MARK];
     // SRD: "pushed up to 15 feet away from you", along the bearing between them.
     expect(end?.x).toBe((start?.x ?? 0) + 15);
+
+    // The save the shove forces is a die like any other: recorded under the
+    // option's own name, and counted in a `rolls-issued` so the generator can
+    // be restored from the log.
+    const rolled = out.events.filter(
+      (event) =>
+        event.type === 'roll-recorded' && event.label.startsWith('Strength save vs Push'),
+    );
+    expect(rolled).toHaveLength(1);
+    expect(out.events.filter((event) => event.type === 'rolls-issued').length).toBeGreaterThan(1);
+  });
+
+  it('leaves a Strength save that succeeds exactly where it was standing', () => {
+    const log = flurry(dojo());
+    const start = fold('seed', log).scene?.positions[MARK];
+    const { out, state } = landed(log, { feature: TECHNIQUE, option: 'push' }, { save: CERTAIN });
+    expect(state.scene?.positions[MARK]?.x).toBe(start?.x);
+
+    // The die was still thrown, and still counted: "must succeed on a Strength
+    // saving throw" is a roll whether or not it moves anybody.
+    expect(
+      out.events.filter(
+        (event) =>
+          event.type === 'roll-recorded' && event.label.startsWith('Strength save vs Push'),
+      ),
+    ).toHaveLength(1);
   });
 
   it('Addle stops the target making an Opportunity Attack until the start of its turn', () => {
@@ -535,6 +573,22 @@ describe('SRD Open Hand Technique — a rider the Flurry has to have bought', ()
     const rules = state.creatures[MARK]?.actionRules ?? [];
     expect(rules).toHaveLength(1);
     expect(rules[0]?.rule).toMatchObject({ kind: 'forbids', actions: ['opportunity-attack'] });
+
+    // And the rule bites where the SRD points it: the Monk walks out of reach
+    // and the mark, which would otherwise be offered the swing, may not take it.
+    const walked = unwrap(
+      resolveMove(
+        fold('seed', after),
+        SHAN,
+        { placement: { from: { landmark: 'the mat' }, feet: 20, bearing: 180 } },
+        supply('walk'),
+      ),
+      'walk',
+    );
+    const offered = fold('seed', [...after, ...walked.events]);
+    expect(offered.pendingMove?.provoked.map((one) => one.reactor)).toEqual([MARK]);
+    const swung = takeOpportunityAttack(offered, MARK, {}, supply('swing'));
+    expect(isErr(swung) && swung.code).toBe('action_forbidden');
 
     // "until the start of its next turn" — the target's own, not the Monk's.
     const later = fold('seed', [

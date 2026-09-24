@@ -135,10 +135,20 @@ export function hitRiderAsked(
   // granted by your Flurry of Blows**."
   //
   // **Asked of the budget and answered before the roll**, which is where every
-  // other qualification on a swing is settled. `spendAttack` takes an attack a
-  // purchase sold before it takes one of the Attack action's, and takes it
-  // only where the swing qualifies — so what is left standing and what this
-  // swing would spend are the same question, asked here one moment early.
+  // other qualification on a swing is settled: a rider refused after the blow
+  // has landed is a refusal with a footprint.
+  //
+  // **What it asks is whether the purchase has an attack left that this swing
+  // could take**, and that is a narrower claim than "this swing will spend
+  // one". Two swings never reach `spendAttack` at all — the extra attack a
+  // mastery or the Light property gives, and a Bonus Action swing — so a
+  // purchase whose attacks are **not** narrowed to Unarmed Strikes could have
+  // a rider ride on one of those and deduct nothing. No SRD purchase is
+  // written that way: SRD Flurry of Blows is the only one in the book and it
+  // is `unarmedOnly`, which the clause below reads, and neither free swing is
+  // an Unarmed Strike. A homebrew that widened it would want the swing's own
+  // price threaded down here, which is a fact `resolveAttack` settles after
+  // this is asked.
   if (option.fromGrant !== undefined) {
     const granted = state.combat?.budgets[id]?.grantedAttacks ?? null;
     const sold =

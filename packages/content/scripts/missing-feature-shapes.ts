@@ -138,6 +138,8 @@ export const FEATURE_SHAPES = {
     'a feature that changes a spell\'s targets or its area\'s catch. `docs/design/space-and-areas.md` keeps the one filter an area has narrow on purpose — "Designating creatures unaffected is a choice, and never allegiance ... it is **explicit**, because a cleric may spare an enemy and may decline to spare an ally" — and that choice belongs to the casting rather than to a feature of the caster. Doubling a spell\'s targets, sparing creatures from your own Evocation and spreading a rider to a second creature all want the same missing reader.',
   'a-declared-fact-a-feature-sets':
     'a feature that **writes** one of the facts the table declares. `docs/design/space-and-areas.md` keeps the geometry declared rather than derived — "Cover and line of sight stay declared, not ray-cast ... that is where a rules engine becomes a VTT" — which is a rule about who may say so, and today the answer is a DM and nobody else. A feature that gives its allies Half Cover has the fact, the scope and no writer.',
+  'a-rider-that-adds-damage-to-the-blow':
+    'a feature that adds **damage** to a hit it rides on. The trigger is built — an `on-hit` grant buys an effect list with a landed blow, which is how SRD Stunning Strike and SRD Open Hand Technique are written — and the damage is refused at authoring by name: packages/engine/src/content.ts refuses such an effect list with "is bought by a hit and deals damage of its own, and an attack holds one damage roll at a time; a rider imposes conditions and forces saves", and the comment above it gives the reason — "engine holds one damage roll at a time ... is refused by ... the fold while another is waiting". A die thrown there would be a log that cannot be folded rather than a refusal, and the same file says what lifts it: "It lifts the day the attack path folds a rider\'s ... damage into the blow\'s own". SRD Fire\'s Burn and Frost\'s Chill are the two sentences waiting on that day.',
   'a-reaction-effect-the-vocabulary-lacks':
     '`ReactionGrantEffect` in packages/engine/src/progression.ts has four members and the SRD writes more. `docs/design/characters-and-equipment.md` names the fifth and the rule a new member has to meet — "A fifth `ReactionEffect` member | the union\'s own rule is that a member exists because **at least two** features write it" — so a Reaction that grants its taker a Resistance, and one that deals damage back to whoever struck, each wait on a member and on a second writer for it.',
   'an-effect-that-waits-for-a-later-trigger':
@@ -1049,9 +1051,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'a placement a feature gives away, which is the move shape with the distance removed.',
     },
     {
+      clause: 'extra damage a feature adds to a hit',
+      why: 'a-rider-that-adds-damage-to-the-blow',
+      note: 'Fire’s Burn and Frost’s Chill, and the one clause that holds the whole trait manual: the trigger is built and the damage is refused at authoring.',
+    },
+    {
       clause: 'a Speed reduction until the start of your next turn',
       why: 'a-speed-a-feature-reduces',
-      note: 'Hamstring Blow’s shape on a species trait.',
+      note: 'Hamstring Blow’s shape on a species trait — and it rides on Frost’s Chill, whose die is refused above, so it waits on that one as well.',
     },
     {
       clause: 'the Prone condition given on a hit',
