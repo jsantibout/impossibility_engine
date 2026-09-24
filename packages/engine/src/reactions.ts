@@ -171,10 +171,14 @@ export interface ReactionAmount {
 /**
  * What a reaction actually does, once the engine has agreed it may happen.
  *
- * Four members for nine features, and each member exists because at least two
- * features write it. A feature whose effect fits none of them is `manual` with
- * a note — the same answer `FeatureGrant` gives, and the honest one far more
- * often than a fifth member would be.
+ * Five members for ten features, and each member exists because at least two
+ * features write it. The fifth is `damage-back`, and its second writer is not a
+ * feature at all: SRD Hellish Rebuke says the same sentence as a *spell* on the
+ * same window, which is the evidence the rule asks for — a shape two
+ * independent sentences reach for rather than one trait's quirk. A feature
+ * whose effect fits none of them is `manual` with a note — the same answer
+ * `FeatureGrant` gives, and the honest one far more often than a sixth member
+ * would be.
  */
 export type ReactionEffect =
   /**
@@ -247,7 +251,29 @@ export type ReactionEffect =
    * about the damage that provoked it, which is the whole reason its window
    * needs no pending state.
    */
-  | { readonly kind: 'melee-attack'; readonly withinFeet: number };
+  | { readonly kind: 'melee-attack'; readonly withinFeet: number }
+  /**
+   * Throw dice back.
+   *
+   * SRD Storm's Thunder: "When you take damage from a creature within 60 feet
+   * of you, you can take a Reaction to deal 1d8 Thunder damage to that
+   * creature." Like {@link melee-attack} it changes nothing about the damage
+   * that provoked it, which is why its window needs no pending state; unlike
+   * it there is no attack roll, no weapon and no reach — the dice simply land,
+   * through the funnel every other spell's damage goes through.
+   *
+   * SRD Hellish Rebuke is the same sentence as a spell on the same window,
+   * which is the second writer this member's own rule asks for: a spell states
+   * it through `trigger` and `save-damage`, and until now a feature could say
+   * nothing of the kind.
+   */
+  | {
+      readonly kind: 'damage-back';
+      readonly dice: string;
+      readonly damageType: string;
+      /** SRD's "within 60 feet of you", measured to whoever dealt the damage. */
+      readonly within: number;
+    };
 
 /**
  * Who gave a Reaction away, and under what source it will end.

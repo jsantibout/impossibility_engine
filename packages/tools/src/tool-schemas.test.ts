@@ -130,8 +130,8 @@ describe('toolSchemas', () => {
     // same night; the three pins sum.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(107966);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(128888);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(108921);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(129843);
   });
 });
 

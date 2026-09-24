@@ -26,7 +26,7 @@
 
 import { err, ok, type CharacterId, type ConditionName, type Result } from '@ie/shared';
 import type { Weapon } from '@ie/srd';
-import { weaponInSet } from '../attack.js';
+import { weaponInSet, type ExtraDamage } from '../attack.js';
 import { CONFERRED_LEVEL } from '../catalogue.js';
 import {
   modifierFor,
@@ -39,6 +39,8 @@ import { canUseFeatureThisTurn } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
+import { sizeAtMost } from '../positioning.js';
+import { effectiveSizeOf } from '../size.js';
 import { attachSource } from '../state.js';
 import { remaining } from '../resources.js';
 import { sheetAsItStands, type HitHoldPayout, type HitOption } from '../standing.js';
@@ -73,6 +75,59 @@ export interface HitRiderOutcome {
 const NOTHING: HitRiderOutcome = { events: [], unverified: [] };
 
 /**
+ * The dice this rider puts **into the blow**, or null where it adds none.
+ *
+ * SRD Fire's Burn: "When you hit a target with an attack roll and deal damage
+ * to it, you can also deal 1d10 Fire damage to that target." The attack path
+ * calls this where it gathers a smite's dice and a Cantrip Upgrade's, so the
+ * component is rolled with the rest of the blow: one `damage-rolled`, a
+ * critical that doubles it, and the target's Resistance to its own type
+ * meeting it separately.
+ *
+ * **It answers null for a rider whose price can no longer be paid**, and that
+ * is the same question {@link applyHitRider} asks a moment later for the same
+ * reason. `hitRiderAsked` checked the pool at the *swing*; a held swing settles
+ * a command later and `mayAct` lets its holder act in between, so a rider can
+ * arrive at the settlement unaffordable and be dropped unspent. Dice that had
+ * already ridden on the blow would be a rider that was dropped and still hurt
+ * somebody.
+ *
+ * **Two of the three roads out of a swing cannot drift and the third is not
+ * closed.** In the unheld swing this and `applyHitRider` run inside one
+ * command; in `resolveAttackDamage` only the damage roll stands between them.
+ * The third is the deferred one: where the blow opened a Reaction window, the
+ * rider rides on the hold and `settleDamage` runs it a whole command later,
+ * and `mayAct` does not refuse a pool use while damage is pending. So a holder
+ * who spent the same pool inside that window would have the dice ride and the
+ * rider reported dropped. No SRD content reaches it — a Goliath's boon is
+ * gated `onlyIfChoice`, so one pool has one spender, and a second swing in the
+ * same turn is refused before this is asked — and a homebrew that put two
+ * spenders on one pool would want the price settled at the swing rather than a
+ * fourth reading here.
+ *
+ * The source names the option rather than the feature, because that is what a
+ * log reader has to see: a Goliath's blow says "Fire's Burn", not "Giant
+ * Ancestry".
+ */
+export function riderDamageOnTheBlow(
+  state: GameState,
+  attacker: CharacterId,
+  option: HitOption | null,
+): ExtraDamage | null {
+  if (option?.extraDamage === undefined) return null;
+  if (option.pool !== null) {
+    const creature = creatureOf(state, attacker);
+    if (creature === null) return null;
+    if (remaining(creature.resources, option.pool) < option.costs) return null;
+  }
+  return {
+    source: option.name,
+    type: option.extraDamage.damageType,
+    dice: option.extraDamage.dice,
+  };
+}
+
+/**
  * The option this swing is buying, or the reason it cannot.
  *
  * **Asked before the attack is rolled**, which is the rule every other
@@ -89,6 +144,16 @@ export function hitRiderAsked(
   id: CharacterId,
   sheet: CharacterSheet,
   weapon: Weapon | null,
+  /**
+   * Who the swing is aimed at, for the one qualification that is about them.
+   *
+   * SRD Hill's Tumble: "when you hit a **Large or smaller** creature". Every
+   * other clause here asks about the attacker — their pool, their allowance,
+   * their weapon, what bought the swing — and this one asks about the
+   * creature on the other end, which is why it is a parameter rather than
+   * something read off the sheet.
+   */
+  target: CharacterId,
   request: HitRiderRequest | undefined,
   /**
    * Whether this swing is an Unarmed Strike.
@@ -160,6 +225,27 @@ export function hitRiderAsked(
       return err(
         'not_from_that_grant',
         `${option.featureName} rides on an attack ${option.fromGrant} granted, and this swing is not one of those`,
+      );
+    }
+  }
+
+  // SRD Hill's Tumble: "when you hit a **Large or smaller** creature with an
+  // attack roll". Asked here with the rest, so a Goliath who names the boon
+  // against an Ogre keeps the boon and the swing keeps its Action.
+  //
+  // **A creature nobody has measured is let through and said out loud**, which
+  // is the reading a printed line's identical clause already takes —
+  // `sizeReaches` in `commands/attacks.ts` — and the three-valued discipline
+  // declared cover and declared sight keep. This is the certain half, where a
+  // stated size refuses; the assumption is reported by {@link applyHitRider},
+  // which is where the rider actually happens and the one end with somewhere
+  // to put a sentence.
+  if (option.targetNoLargerThan !== undefined) {
+    const size = effectiveSizeOf(state, target);
+    if (size !== null && !sizeAtMost(size, option.targetNoLargerThan)) {
+      return err(
+        'target_too_large',
+        `${option.featureName} reaches a creature that is ${option.targetNoLargerThan} or smaller, and ${target} is ${size}`,
       );
     }
   }
@@ -315,6 +401,16 @@ export function applyHitRider(
     option.saveDc ??
     (ability === null ? 8 + proficiencyBonus(sheet) : spellSaveDcWith(sheet, ability));
   const unverified: string[] = [];
+  // SRD Hill's Tumble's "a Large or smaller creature", where nobody has said
+  // how big this one is. The swing refuses a size that *is* stated and too
+  // big; an unstated one is let through and said out loud, which is the
+  // reading a printed line's identical clause already takes and the
+  // three-valued discipline declared cover keeps.
+  if (option.targetNoLargerThan !== undefined && effectiveSizeOf(state, hit.target) === null) {
+    unverified.push(
+      `nobody has said how big ${hit.target} is, so ${option.featureName} rode on the hit regardless; a creature larger than ${option.targetNoLargerThan} would have been left alone`,
+    );
+  }
   // **The world before what this rider has just written down**, because
   // `runEffects` folds `events` onto whatever state it is handed. Passing it
   // the already-folded world applied the cost twice — invisible while a pool

@@ -39,7 +39,7 @@ import {
   rollSavingThrow,
 } from '../checks.js';
 import { type CheckContext, isIncapacitated } from '../conditions.js';
-import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { distanceBetween } from '../positioning.js';
 import {
@@ -49,6 +49,8 @@ import {
   reactionAddends,
   reactionFeatureOf,
   reactionsOf,
+  type ReactionEffect,
+  type ReactionFeature,
   type ReactionOffer,
   type ReactionOpportunity,
   type SpellReactionWindow,
@@ -70,6 +72,7 @@ import {
 import { creatureOf, unknownCreature } from './command.js';
 import {
   adjustmentsFor,
+  dealSpellDamage,
   heldDamageTotal,
   reactionContributions,
   rollsIssuedSince,
@@ -84,6 +87,7 @@ import {
   checkBonuses,
   mergedModes,
   recordD20Test,
+  rollSpellDice,
   savingSupport,
   spentRollModifiers,
 } from './rolls.js';
@@ -927,9 +931,23 @@ export function takeDamageResponse(
     return { events: [], attack: null, unverified: [], duplicate: true };
   }, (stamp) => {
     const feature = reactionFeatureOf(state, reactor, command.feature, 'damaged-by-creature');
-    if (feature === null || feature.does.kind !== 'melee-attack') {
+    // **Two answers to one window, and this command is both.** SRD Retaliation
+    // swings back; SRD Storm's Thunder throws 1d8 Thunder back. Neither can
+    // change the blow that provoked it — which is what makes them one
+    // settled-damage family rather than two — and everything up to the spend
+    // is the same question asked of the same two facts.
+    if (
+      feature === null ||
+      (feature.does.kind !== 'melee-attack' && feature.does.kind !== 'damage-back')
+    ) {
       return err('no_such_feature', `${reactor} has no Reaction called ${command.feature}`);
     }
+    const answers = feature.does;
+    // SRD Retaliation's "within 5 feet of you", SRD Storm's Thunder's "within
+    // 60 feet of you" — the same clause on the same window, measured the same
+    // way. One local so the refusal and the context request cannot name two
+    // different numbers.
+    const reaches = answers.kind === 'melee-attack' ? answers.withinFeet : answers.within;
 
     const creature = creatureOf(state, reactor);
     if (creature === null) return unknownCreature(reactor);
@@ -957,22 +975,40 @@ export function takeDamageResponse(
             kind: 'position',
             subject: reactor,
             need: `where ${reactor} and ${hurt.by} are standing`,
-            because: `${feature.name} answers a creature within ${feature.does.withinFeet} feet`,
+            because: `${feature.name} answers a creature within ${reaches} feet`,
             satisfyWith: `a placeCreatureInScene command for ${reactor} and ${hurt.by}`,
           },
         ],
       );
     }
-    if (apart.value > feature.does.withinFeet) {
+    if (apart.value > reaches) {
       return err(
         'out_of_range',
-        `${hurt.by} is ${apart.value} feet away and ${feature.name} reaches ${feature.does.withinFeet}`,
+        `${hurt.by} is ${apart.value} feet away and ${feature.name} reaches ${reaches}`,
       );
     }
 
     const spent = spendReactionCost(state, reactor, creature, feature);
     if (!spent.ok) return spent;
     const events: GameEvent[] = [...spent.value];
+
+    if (answers.kind === 'damage-back') {
+      // **The world before the spend, with the spend beside it**, which is the
+      // shape `applyHitRider` keeps for the same reason: `throwItBack` folds
+      // what it is handed onto the state it is handed, so a state the cost had
+      // already been applied to would spend the Reaction twice — invisible
+      // nowhere and a `CorruptLogError` here, because a creature has one.
+      return throwItBack(
+        state,
+        reactor,
+        hurt.by,
+        feature,
+        answers,
+        supply,
+        events,
+        stamp,
+      );
+    }
 
     const after = events.reduce(applyEvent, state);
     // No id of its own: this command owns the guard, and the same id
@@ -1015,6 +1051,98 @@ export function takeDamageResponse(
       ],
       unverified: [...swing.value.unverified, ...unverified],
     });
+  });
+}
+
+/**
+ * The other answer to a blow that has landed: dice thrown back.
+ *
+ * SRD Storm's Thunder: "When you take damage from a creature within 60 feet of
+ * you, you can take a Reaction to deal 1d8 Thunder damage to that creature."
+ * SRD Hellish Rebuke is the same sentence as a spell on the same window, which
+ * is what makes this a shape rather than one trait's quirk.
+ *
+ * **It lands through `dealSpellDamage`**, the funnel a Fire Bolt's damage
+ * already goes down, so the attacker's Resistance to Thunder, their Temporary
+ * Hit Points, the Concentration this puts at risk, the drop to 0 and the
+ * feature that pays a Warlock for dropping them are the engine's usual
+ * answers rather than a second set written here.
+ *
+ * **No attack roll and no saving throw**, because the sentence prints neither:
+ * the damage simply happens to a creature the trigger already named. The
+ * reactor's own sheet is what the dice are rolled against and contributes
+ * nothing to them — `rollSpellDice` drops the weaponless component the roller
+ * always adds, and the trait carries no ability modifier.
+ *
+ * The `reaction-taken` is written for {@link takeDamageResponse}'s reason: the
+ * window holds nothing open, so without it the log shows damage out of turn
+ * and no reason for it.
+ */
+function throwItBack(
+  world: GameState,
+  reactor: CharacterId,
+  attacker: CharacterId,
+  feature: ReactionFeature,
+  answers: Extract<ReactionEffect, { readonly kind: 'damage-back' }>,
+  supply: Supply,
+  spent: readonly GameEvent[],
+  stamp: CommandStamp | null,
+): Result<AttackResolution> {
+  const creature = creatureOf(world, reactor);
+  if (creature === null) return unknownCreature(reactor);
+
+  const issuedBefore = supply.issuer.count;
+  const rolled = rollSpellDice(
+    supply,
+    sheetAsItStands(world, reactor) ?? creature.sheet,
+    feature.name,
+    answers.damageType,
+    answers.dice,
+  );
+  if (!rolled.ok) return rolled;
+
+  const events: GameEvent[] = [
+    ...spent,
+    {
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    },
+  ];
+
+  const hurt = dealSpellDamage(
+    events.reduce(applyEvent, world),
+    attacker,
+    rolled.value,
+    feature.name,
+    supply,
+    // **The reactor is the dealer**, which is what pays a Warlock's Dark One's
+    // Blessing when this is the damage that drops the creature: the watcher
+    // reads who dealt it off the funnel and nothing else would name anybody.
+    { by: reactor },
+  );
+  if (!hurt.ok) return hurt;
+
+  return ok({
+    events: [
+      ...events,
+      ...hurt.value.events,
+      {
+        type: 'reaction-taken',
+        reactor,
+        window: 'damaged-by-creature',
+        feature: feature.feature,
+        against: attacker,
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ],
+    attack: null,
+    damage: hurt.value.amount,
+    ...(hurt.value.concentration === undefined
+      ? {}
+      : { concentration: hurt.value.concentration }),
+    unverified: hurt.value.unverified,
+    duplicate: false,
   });
 }
 

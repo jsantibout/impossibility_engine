@@ -56,6 +56,7 @@ import type {
   ReactionAmount,
   ReactionEffect,
   ReactionFeature,
+  FeatureReactionWindow,
 } from './reactions.js';
 import { goldToCopper, handsFor, itemStandingEffects, type CatalogueItem } from './catalogue.js';
 import { issueItemCopies } from './commands/inventory.js';
@@ -3445,6 +3446,12 @@ export function planCharacter(
         // Blows" — a fact about what bought the swing rather than about what
         // is in the hand, asked of the budget at the moment of the swing.
         ...(grant.fromGrant === undefined ? {} : { fromGrant: grant.fromGrant }),
+        // SRD Hill's Tumble: "when you hit a **Large or smaller** creature".
+        // On the grant because the SRD writes it in the trigger sentence, and
+        // carried onto each option because the swing is what reads it.
+        ...(grant.targetNoLargerThan === undefined
+          ? {}
+          : { targetNoLargerThan: grant.targetNoLargerThan }),
         effects: option.effects,
         ability,
         ...(option.lasts === undefined ? {} : { lasts: option.lasts }),
@@ -3454,6 +3461,10 @@ export function planCharacter(
           ? {}
           : { durationSeconds: option.durationSeconds }),
         ...(option.endsEarly === undefined ? {} : { endsEarly: option.endsEarly }),
+        // SRD Fire's Burn's "1d10 Fire damage" — a component of the blow
+        // rather than an entry in the list above, gathered by the attack path
+        // before the one damage roll the swing makes.
+        ...(option.extraDamage === undefined ? {} : { extraDamage: option.extraDamage }),
       });
     }
   }
@@ -3479,12 +3490,7 @@ export function planCharacter(
         // so the two can never disagree — and so Cutting Words, which answers
         // "a damage roll **or** a success on an ability check", is filed under
         // both windows from one grant.
-        window:
-          resolved.kind === 'reduce-damage'
-            ? 'damage-rolled'
-            : resolved.kind === 'melee-attack'
-              ? 'damaged-by-creature'
-              : 'test-rolled',
+        window: reactionWindowOf(resolved),
         costsReaction: grant.costsReaction,
         pool: grant.pool ?? null,
         reach: grant.reach,
@@ -3528,12 +3534,7 @@ export function planCharacter(
       confers.push({
         feature: feature.id,
         name: feature.name,
-        window:
-          resolved.kind === 'reduce-damage'
-            ? 'damage-rolled'
-            : resolved.kind === 'melee-attack'
-              ? 'damaged-by-creature'
-              : 'test-rolled',
+        window: reactionWindowOf(resolved),
         costsReaction: declaration.costsReaction,
         // A conferred Reaction costs its holder no pool: the use was spent by
         // whoever gave it away, and what a use of it spends is the grant.
@@ -4228,7 +4229,46 @@ function reactionEffectOf(
     };
   }
 
+  // SRD Storm's Thunder: "deal 1d8 Thunder damage to that creature". Nothing a
+  // class table sizes, so it compiles across unchanged — the dice are the
+  // trait's own and the reach is printed.
+  if (does.kind === 'damage-back') {
+    return {
+      kind: 'damage-back',
+      dice: does.dice,
+      damageType: does.damageType,
+      within: does.within,
+    };
+  }
+
   return { kind: 'melee-attack', withinFeet: does.withinFeet };
+}
+
+/**
+ * Which window a Reaction answers, derived from what its effect acts on.
+ *
+ * **Derived rather than declared beside it**, so the two can never disagree —
+ * and so Cutting Words, which answers "a damage roll **or** a success on an
+ * ability check or attack roll", is filed under both windows from one grant.
+ *
+ * One function for the two hosts that build a `ReactionFeature`, the feature's
+ * own grant and the one a pool use confers, because a third member added to
+ * `ReactionEffect` and filed at one of them would be a Reaction the query
+ * could offer and the command could not take.
+ */
+function reactionWindowOf(resolved: ReactionEffect): FeatureReactionWindow {
+  switch (resolved.kind) {
+    case 'reduce-damage':
+      return 'damage-rolled';
+    // Both answers to damage that has **landed**: Retaliation swings back and
+    // Storm's Thunder throws dice back, and neither can change the blow that
+    // provoked it.
+    case 'melee-attack':
+    case 'damage-back':
+      return 'damaged-by-creature';
+    default:
+      return 'test-rolled';
+  }
 }
 
 /**

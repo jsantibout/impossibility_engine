@@ -2131,6 +2131,55 @@ export interface HitOption {
    * already writes.
    */
   readonly onDroppingToZero?: HitDropToZero;
+  /**
+   * Dice the rider adds to **the blow itself** — SRD Fire's Burn: "When you hit
+   * a target with an attack roll and deal damage to it, you can also deal 1d10
+   * Fire damage to that target."
+   *
+   * Beside {@link effects} rather than inside it, and the reason is the one
+   * `rider_deals_damage` has been stating at the authoring door since riders
+   * landed: the effect list runs **after** the damage has been rolled, landed
+   * and possibly held open for a Reaction, and an attack holds one damage roll
+   * at a time — a `damage-rolled` thrown there would be a log the fold
+   * refuses. So this is not a second roll at all. It is a *component of the
+   * blow*, gathered where a smite's dice and a Cantrip Upgrade's are, before
+   * the one damage roll the swing makes: a Critical Hit doubles it, the
+   * target's Resistance to its type meets it separately, and one
+   * `damage-rolled` carries the whole.
+   *
+   * What still runs in the list is everything a rider always ran — Frost's
+   * Chill takes ten feet of Speed off in the same breath as its 1d6 — and
+   * damage *in the list* is refused exactly as it was.
+   */
+  readonly extraDamage?: HitRiderDamage;
+  /**
+   * SRD Hill's Tumble: "When you hit a **Large or smaller** creature with an
+   * attack roll and deal damage to it, you can give that target the Prone
+   * condition."
+   *
+   * The same gate a printed line's `ifNoLargerThan` states, read through
+   * `effectiveSizeOf` — and asked at the **swing**, where every other
+   * qualification on an asked-for rider is, so a Goliath who names the boon
+   * against a Huge creature is refused with nothing spent. A printed rider's
+   * is answered after the blow instead, because nobody asked for it and the
+   * blow has already landed by the time the line is read.
+   */
+  readonly targetNoLargerThan?: CreatureSize;
+}
+
+/**
+ * The dice a rider adds to the blow it rides on.
+ *
+ * Two fields, because the two SRD sentences of this shape print exactly two
+ * things — "1d10 Fire damage", "1d6 Cold damage". No flat amount: nothing in
+ * the book adds a bare number this way, and a field nothing writes is the
+ * speculative member the sweeps exist to refuse.
+ */
+export interface HitRiderDamage {
+  /** SRD's "1d10". */
+  readonly dice: string;
+  /** SRD's "Fire". */
+  readonly damageType: string;
 }
 
 /**
