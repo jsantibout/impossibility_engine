@@ -8575,13 +8575,41 @@ export const ICE_KNIFE: SpellDefinition = {
   concentration: false,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 1 },
-  effects: [],
-  unmodelled: [
-    'the shard is not thrown: "On a hit, the target takes 1d10 Piercing damage" is an ordinary ranged spell attack, and it is the smaller half of the spell',
-    'the burst is not resolved: "The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 Cold damage" is a second roll sequenced after the first, over an area centred on wherever the shard arrived — a point the casting does not hold',
-    'the Cold damage growing by 1d6 for each slot level above 1 is ordinary scaling with nothing to scale',
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      // "On a hit, the target takes 1d10 Piercing damage" — and the upcast
+      // is the burst's rather than the shard's, so this scales with nothing.
+      damage: { dice: '1d10' },
+      damageType: 'piercing',
+      // "**Hit or miss**, the shard then explodes. The target and each
+      // creature within 5 feet of it must succeed on a Dexterity saving
+      // throw or take 2d6 Cold damage." A second roll sequenced after the
+      // first rather than a rider: a rider rides a settled outcome, and this
+      // rides neither branch.
+      then: {
+        // Centred on the space the shard reached, which is wherever the
+        // target is standing. A Sphere includes its own origin, which is how
+        // "the target **and**" is answered without a second clause.
+        area: { kind: 'sphere', radius: 5, origin: 'point' },
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'dex',
+            // "The Cold damage increases by 1d6 for each spell slot level
+            // above 1."
+            damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+            damageType: 'cold',
+            // SRD prints no half: a creature that saves takes none of it.
+            onSuccess: 'none',
+          },
+        ],
+      },
+    },
   ],
 };
+
 
 /**
  * SRD Sanctuary:

@@ -2917,27 +2917,50 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
     ...(definition.activation?.effects ?? []).map(
       (effect, i) => [`${definition.id}.activation.effects[${i}]`, effect] as const,
     ),
+    // **And a second roll's own list, which is a list of effects.** SRD Ice
+    // Knife's burst is a parent rather than a rider — see `SequencedBurst` —
+    // so its children are swept in their own right rather than as objects
+    // below somebody else's effect, which is what {@link below} then excludes.
+    ...definition.effects.flatMap((effect, i) =>
+      (effect.kind === 'attack' ? (effect.then?.effects ?? []) : []).map(
+        (child, n) => [`${definition.id}.effects[${i}].then.effects[${n}]`, child] as const,
+      ),
+    ),
   ]);
 
-  /** Every object strictly below `value`, with the path it was found at. */
-  const below = (value: unknown, path: string): readonly (readonly [string, unknown])[] => {
+  /**
+   * Every object strictly below `value`, with the path it was found at.
+   *
+   * **The `then` slot is not below an effect in the sense this sweep means**:
+   * it is a second resolution sequenced after the first, with its own area and
+   * its own effect list, and every one of those is a thing the sweep exists to
+   * refuse *in a rider*. Its children are in `EVERY_EFFECT` above, so they are
+   * swept as the effects they are rather than skipped.
+   */
+  const below = (
+    value: unknown,
+    path: string,
+    top = false,
+  ): readonly (readonly [string, unknown])[] => {
     if (typeof value !== 'object' || value === null) return [];
     const entries: (readonly [string, unknown])[] = Array.isArray(value)
       ? value.map((entry, i) => [`${path}[${i}]`, entry] as const)
-      : Object.entries(value as Record<string, unknown>).map(
-          ([key, entry]) => [`${path}.${key}`, entry] as const,
-        );
+      : Object.entries(value as Record<string, unknown>)
+          .filter(([key]) => !(top && key === 'then'))
+          .map(([key, entry]) => [`${path}.${key}`, entry] as const);
     return entries.flatMap(([at, entry]) => [[at, entry] as const, ...below(entry, at)]);
   };
 
   it('has some, so the sweep below is not vacuous', () => {
     expect(EVERY_EFFECT.length).toBeGreaterThan(50);
-    expect(EVERY_EFFECT.flatMap(([path, effect]) => below(effect, path)).length).toBeGreaterThan(50);
+    expect(
+      EVERY_EFFECT.flatMap(([path, effect]) => below(effect, path, true)).length,
+    ).toBeGreaterThan(50);
   });
 
   it('nests no effect below an effect, anywhere in the catalogue', () => {
     for (const [path, effect] of EVERY_EFFECT) {
-      for (const [at, nested] of below(effect, path)) {
+      for (const [at, nested] of below(effect, path, true)) {
         if (typeof nested !== 'object' || nested === null || Array.isArray(nested)) continue;
         const kind = (nested as { kind?: unknown }).kind;
         expect(
@@ -2951,7 +2974,7 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
   /** And nothing below an effect brings its own targets, area or effect list. */
   it('gives nothing below an effect its own targets, area or effects', () => {
     for (const [path, effect] of EVERY_EFFECT) {
-      for (const [at, nested] of below(effect, path)) {
+      for (const [at, nested] of below(effect, path, true)) {
         if (typeof nested !== 'object' || nested === null || Array.isArray(nested)) continue;
         expect(
           Object.keys(nested as Record<string, unknown>).filter((key) =>
@@ -2977,7 +3000,13 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
             ).map(depthOf),
           );
     for (const [path, effect] of EVERY_EFFECT) {
-      expect(depthOf(effect), path).toBeLessThanOrEqual(6);
+      // The one slot that is deliberately a second effect and not a rider —
+      // see `SequencedBurst`, and the entry `EVERY_EFFECT` makes for its own
+      // children, which are measured on their own terms above.
+      const shallow = Object.fromEntries(
+        Object.entries(effect as Record<string, unknown>).filter(([key]) => key !== 'then'),
+      );
+      expect(depthOf(shallow), path).toBeLessThanOrEqual(6);
     }
   });
 
@@ -3009,6 +3038,75 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
         ],
       }),
     ).toContain('nested_effect');
+  });
+
+  /**
+   * And the one slot that **is** a parent, held to the three rules that keep a
+   * sequence of two from becoming a program.
+   *
+   * SRD Ice Knife's burst is a second resolution and carries everything this
+   * sweep refuses in a rider — a roll, an area, a target list of its own — so
+   * the leaf rule steps over it and `checkSequencedBurst` takes its place.
+   */
+  describe('a second roll sequenced after the first', () => {
+    const shard = (then: unknown): unknown => ({
+      kind: 'attack',
+      attack: 'ranged',
+      damage: { dice: '1d10' },
+      damageType: 'piercing',
+      then,
+    });
+
+    const burst = (over: Record<string, unknown> = {}): unknown => ({
+      area: { kind: 'sphere', radius: 5, origin: 'point' },
+      effects: [
+        { kind: 'save-damage', ability: 'dex', damage: { dice: '2d6' }, damageType: 'cold', onSuccess: 'none' },
+      ],
+      ...over,
+    });
+
+    it('takes a Sphere with a saving throw in it', () => {
+      expect(problems(shard(burst()))).toEqual([]);
+    });
+
+    /** A Cone or a Line needs a direction, and the shard is already in the air. */
+    it('refuses any shape but a Sphere', () => {
+      expect(
+        problems(shard(burst({ area: { kind: 'cone', length: 15, origin: 'self' } }))),
+      ).toContain('burst_is_not_a_sphere');
+    });
+
+    it('refuses a radius smaller than a space', () => {
+      expect(
+        problems(shard(burst({ area: { kind: 'sphere', radius: 2, origin: 'point' } }))),
+      ).toContain('bad_burst_radius');
+    });
+
+    it('refuses a burst that resolves nothing', () => {
+      expect(problems(shard(burst({ effects: [] })))).toContain('burst_resolves_nothing');
+    });
+
+    /** The recursion the rider design refuses, arriving one storey up. */
+    it('refuses a burst that carries a burst', () => {
+      expect(problems(shard(burst({ effects: [shard(burst())] })))).toContain(
+        'nested_sequenced_roll',
+      );
+    });
+
+    /** And the children are checked as effects, by the rules effects are held to. */
+    it('checks what the burst does by the rules every effect is held to', () => {
+      expect(
+        problems(
+          shard(
+            burst({
+              effects: [
+                { kind: 'save-damage', ability: 'dex', damage: { dice: 'two' }, damageType: 'cold', onSuccess: 'none' },
+              ],
+            }),
+          ),
+        ),
+      ).toContain('bad_dice');
+    });
   });
 
   it('refuses a rider that brings its own effect list', () => {

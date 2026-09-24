@@ -1211,6 +1211,46 @@ export interface TypedExtraDamage {
   readonly extraDice: string;
 }
 
+/**
+ * A second resolution the first one is followed by, over an area the casting
+ * never named.
+ *
+ * SRD Ice Knife, whole: "Make a ranged spell attack against the target. On a
+ * hit, the target takes 1d10 Piercing damage. **Hit or miss, the shard then
+ * explodes.** The target and each creature within 5 feet of it must succeed on
+ * a Dexterity saving throw or take 2d6 Cold damage."
+ *
+ * **It is not a rider, and "Hit or miss" is the word that says so.**
+ * {@link OutcomeRiders} rejected this by name — "a child that rolls is a
+ * parent" — and the rejection stands: every rider hangs off a *settled
+ * outcome* and rides the affirmative branch, and this hangs off no branch at
+ * all. So it is a second parent rather than a sixth kind of leaf, and it says
+ * so in the three ways a parent differs from a leaf: it rolls, it has an area,
+ * and it picks its own targets.
+ *
+ * **One level, and the validator keeps it there.** A `then` inside a `then` is
+ * the recursion the rider design exists to refuse, arriving one storey up;
+ * `checkEffect` refuses it, so what a definition can express is a sequence of
+ * two and never a program.
+ *
+ * **The point is derived and never stated.** "within 5 feet of **it**" is the
+ * space the first roll reached, which is where the target is standing — so the
+ * area's origin is that creature rather than a point the caster names, and a
+ * casting that never placed anybody simply catches the target alone and says
+ * so. `SpellArea`'s Sphere is reused rather than a radius being spelled out
+ * again, so `creaturesInArea` reads it exactly as it reads a Fireball's.
+ *
+ * **A Sphere and nothing else**, because that is the only shape the SRD prints
+ * in this position: a Cone or a Line would need a direction, and there is
+ * nobody to state one — the shard is already in the air.
+ */
+export interface SequencedBurst {
+  /** SRD Ice Knife's "within 5 feet of it", centred on the space it reached. */
+  readonly area: Extract<SpellArea, { readonly kind: 'sphere' }>;
+  /** What the burst does, to each creature it catches. */
+  readonly effects: readonly SpellEffect[];
+}
+
 export type SpellEffect =
   /**
    * A spell attack roll; damage on a hit.
@@ -1283,6 +1323,13 @@ export type SpellEffect =
        * wrong.
        */
       readonly reach?: number;
+      /**
+       * What happens next, **whatever the attack did**: see
+       * {@link SequencedBurst}.
+       *
+       * SRD Ice Knife: "**Hit or miss**, the shard then explodes."
+       */
+      readonly then?: SequencedBurst;
       /**
        * SRD Scorching Ray: "You hurl three fiery rays ... **Make a ranged
        * spell attack for each ray.**"

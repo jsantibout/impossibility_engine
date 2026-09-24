@@ -235,6 +235,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'hold-person',
   'hunters-mark',
   'hypnotic-pattern',
+  // `sequenced-roll.test.ts` (engine): the shard, then the burst — on a hit,
+  // on a miss, on the neighbour five feet away and not the one fifteen.
+  'ice-knife',
   'ice-storm',
   'inflict-wounds',
   'insect-plague',

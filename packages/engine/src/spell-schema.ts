@@ -31,6 +31,7 @@ import type {
   DiceScaling,
   LightRider,
   ModifierRider,
+  SequencedBurst,
   RiderDuration,
   SpellArea,
   SpellCheck,
@@ -2227,6 +2228,92 @@ function checkRollModifier(
   }
 }
 
+/**
+ * A second resolution sequenced after the first — see `SequencedBurst`.
+ *
+ * Three rules, and the third is the one that matters: a Sphere and nothing
+ * else, because that is the only shape the SRD prints where nobody is left to
+ * state a direction; a list with something in it, because a burst that does
+ * nothing is the `resolves_nothing` mistake one storey down; and **no burst
+ * below a burst**, which is the recursion the rider design refuses arriving
+ * one storey up. The child effects themselves are checked as effects by
+ * {@link effectLists}, which walks this list.
+ */
+function checkSequencedBurst(
+  burst: SequencedBurst,
+  level: number,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (
+    !readsAsObject(
+      burst,
+      path,
+      'a second roll is an object naming the area it covers and what it does',
+      found,
+    )
+  ) {
+    return;
+  }
+
+  const area = (burst as { readonly area?: unknown }).area;
+  if (
+    !readsAsObject(area, `${path}.area`, 'a burst names the Sphere it fills', found) ||
+    (area as { readonly kind?: unknown }).kind !== 'sphere'
+  ) {
+    found.push({
+      field: `${path}.area`,
+      code: 'burst_is_not_a_sphere',
+      reason:
+        'a second roll fills a Sphere centred on the space the first one reached; a Cone or a Line needs a direction and there is nobody left to state one',
+    });
+  } else {
+    const radius = (area as { readonly radius?: unknown }).radius;
+    if (!Number.isInteger(radius) || (radius as number) < 5) {
+      found.push({
+        field: `${path}.area.radius`,
+        code: 'bad_burst_radius',
+        reason: `a burst reaches a whole number of feet, at least one space, not ${String(radius)}`,
+      });
+    }
+  }
+
+  if (
+    readsAsList(
+      (burst as { readonly effects?: unknown }).effects,
+      `${path}.effects`,
+      'a second roll names what it does as a list of effects',
+      found,
+    )
+  ) {
+    const effects = burst.effects;
+    if (effects.length === 0) {
+      found.push({
+        field: `${path}.effects`,
+        code: 'burst_resolves_nothing',
+        reason: 'a second roll that resolves nothing is a second roll nobody makes',
+      });
+    }
+    effects.forEach((child, i) => {
+      if (typeof child !== 'object' || child === null || Array.isArray(child)) return;
+      if ((child as { readonly then?: unknown }).then !== undefined) {
+        found.push({
+          field: `${path}.effects[${i}].then`,
+          code: 'nested_sequenced_roll',
+          reason:
+            'a second roll may not carry a third: a sequence of two is data and a sequence without end is a program',
+        });
+        return;
+      }
+      // **And the child by the rules every effect is held to**, because it is
+      // an effect: the burst is a parent, so what hangs under it is checked
+      // exactly as the spell's own list is rather than by a second reading.
+      if (!EFFECT_KINDS.has(String((child as { readonly kind?: unknown }).kind))) return;
+      checkEffect(child, level, `${path}.effects[${i}]`, found);
+    });
+  }
+}
+
 /** One effect, wherever it was found: the spell's own list, an activation, a trigger. */
 function checkEffect(
   effect: SpellEffect,
@@ -2266,6 +2353,13 @@ function checkEffect(
       }
       // An attack rolls an attack, so nothing it hangs has a save to repeat.
       checkRiders(effect, level, path, host(false), found);
+      // **And the second roll, where the spell prints one.** The child
+      // effects are checked as effects by `effectLists`' own walk — they are
+      // effects — so what is left here is the shape of the slot and the one
+      // rule that keeps the format data: a burst may not carry a burst.
+      if (effect.then !== undefined) {
+        checkSequencedBurst(effect.then, level, `${path}.then`, found);
+      }
       return;
 
     // Damage that simply lands: the same two fields an attack's damage is
@@ -5732,12 +5826,35 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
     return Array.isArray(list) ? [[`${parent}.effects`, list]] : [];
   };
 
-  return [
+  const lists: (readonly [string, readonly unknown[]])[] = [
     ...(Array.isArray(d['effects'])
       ? ([['effects', d['effects']]] as (readonly [string, readonly unknown[]])[])
       : []),
     ...nested('areaTrigger'),
     ...nested('activation'),
+  ];
+
+  // **And the one list that hangs below an effect rather than beside one.**
+  // SRD Ice Knife's burst is a second resolution sequenced after the attack —
+  // see `SequencedBurst`, where the case for a parent rather than a rider is
+  // made — so its effects are effects and every rule this walk feeds has to
+  // reach them: `checkEffect`'s, `checkGrantLifetimes`' and the leaf
+  // denylist's alike.
+  //
+  // **One level and no recursion**, which is the whole of what keeps the
+  // format data: a `then` below a `then` is refused by `checkEffect`, so this
+  // never needs to walk what it produces.
+  return [
+    ...lists,
+    ...lists.flatMap(([where, entries]) =>
+      entries.flatMap((entry, i): (readonly [string, readonly unknown[]])[] => {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+        const then = (entry as { readonly then?: unknown }).then;
+        if (typeof then !== 'object' || then === null || Array.isArray(then)) return [];
+        const inner = (then as { readonly effects?: unknown }).effects;
+        return Array.isArray(inner) ? [[`${where}[${i}].then.effects`, inner]] : [];
+      }),
+    ),
   ];
 }
 
@@ -5788,6 +5905,15 @@ function checkNoNestedEffect(
   }
 
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    // **The one slot below an effect that is a parent, and is meant to be.**
+    // `then` is a second resolution sequenced after the first — see
+    // `SequencedBurst` — so it carries the three things this denylist exists
+    // to refuse, and refusing them here would refuse the shape rather than
+    // catch a mistake. It is walked by {@link effectLists} instead, where its
+    // effects are checked as effects; what this rule still holds is that
+    // nothing *else* below an effect may carry one, and `checkEffect` is what
+    // stops a `then` inside a `then`.
+    if (depth === 0 && key === 'then') continue;
     if (depth > 0 && FORBIDDEN_BELOW_AN_EFFECT.has(key)) {
       found.push({
         field: `${path}.${key}`,

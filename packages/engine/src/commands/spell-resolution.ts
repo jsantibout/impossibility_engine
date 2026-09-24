@@ -67,6 +67,7 @@ import {
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
+  creaturesInArea,
   distanceBetween,
   type Placement,
   type Point,
@@ -94,6 +95,7 @@ import {
   statedFormOf,
   isCreatureType,
   swingReachIn,
+  type SequencedBurst,
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute } from '../spellcasting.js';
 import {
@@ -2817,6 +2819,60 @@ export interface EffectRunOutcome {
  * themselves are the same effects — an item with a resolver of its own would
  * be a second place for every rules fix to be missed.
  */
+/**
+ * The second roll of a sequence, over the area the first one left behind.
+ *
+ * SRD Ice Knife's "The target and each creature within 5 feet of **it**": the
+ * area's origin is the creature the shard reached, so the point is derived
+ * from where they stand rather than stated by anybody. `creaturesInArea`
+ * includes the origin for a Sphere by the SRD's own rule, which is how "the
+ * target **and**" is answered without a second clause.
+ *
+ * **A scene that cannot say catches the target alone**, with a line on the
+ * casting rather than a refusal: the attack has already been rolled and its
+ * damage already landed, so discarding the resolution would throw away a
+ * generator that has moved. The target is within five feet of itself whatever
+ * the lattice knows.
+ *
+ * Sorted, so two readers of one state agree about the order the burst lands
+ * in — the rule `creaturesInArea` already follows for a Fireball.
+ */
+function resolveSequencedBurst(
+  ctx: EffectContext,
+  burst: SequencedBurst,
+  reached: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  let current = world;
+
+  let caught: readonly CharacterId[] = [reached];
+  if (current.scene === null) {
+    ctx.unverified.push(
+      `${ctx.name}: no scene is set, so the burst around ${reached} caught them alone; nobody else could be measured`,
+    );
+  } else {
+    const inside = creaturesInArea(current.scene, { creature: reached }, burst.area);
+    if (!inside.ok) {
+      ctx.unverified.push(
+        `${ctx.name}: nobody has said where ${reached} is standing, so the burst caught them alone`,
+      );
+    } else {
+      caught = [...new Set([reached, ...inside.value])].sort();
+    }
+  }
+
+  for (const who of caught) {
+    for (const effect of burst.effects) {
+      const victim = current.creatures[who];
+      if (victim === undefined) continue;
+      const done = resolveOneEffect(ctx, effect, who, victim, current);
+      if (!done.ok) return done;
+      current = done.value;
+    }
+  }
+  return ok(current);
+}
+
 export function runEffects(
   state: GameState,
   casterId: CharacterId,
@@ -2998,6 +3054,23 @@ export function runEffects(
       const done = resolveOneEffect(ctx, effect, target, victim, current);
       if (!done.ok) return done;
       current = done.value;
+
+      // **And what happens next, whatever the first roll did.** SRD Ice
+      // Knife: "Hit or miss, the shard then explodes." See
+      // {@link SequencedBurst}, where the case for a second parent rather
+      // than a sixth rider is made from that clause.
+      //
+      // Resolved here rather than inside the attack for one reason and it is
+      // decisive: the burst picks its own targets, and the resolver that
+      // rolled the attack is handed one creature and knows nothing about the
+      // loop. The area is centred on the creature the shard reached, so the
+      // point is derived from where they stand rather than stated by anybody,
+      // and the child effects run over the same `ctx` -- the same DC, the
+      // same slot level, the same casting -- because it is the same casting.
+      if (effect.kind !== 'attack' || effect.then === undefined) continue;
+      const burst = resolveSequencedBurst(ctx, effect.then, target, current);
+      if (!burst.ok) return burst;
+      current = burst.value;
     }
   }
 

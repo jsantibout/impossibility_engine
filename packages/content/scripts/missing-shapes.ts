@@ -183,8 +183,7 @@ export const MISSING_SHAPES = {
     '**The field exists now, and the id is narrower than it was — kept because an id is a key two branches append to.** `SpellDefinition.choiceStated` is `damageTypeStated` generalised along the axis that field’s own docstring predicted: a printed list, one value named at the casting, anything off the list refused, the answer pinned onto the events and the ongoing record. It carries a **condition**, an **ability** or a **skill**, and `statedChoice` substitutes the caster’s answer into the effect that holds one — which finished Blindness/Deafness’ "(your choice)", Lesser Restoration’s "end **one** condition", Enhance Ability’s five abilities and Guidance’s "choose a skill". What is left is the **second arm**, and it is a different mechanism rather than a missing member: a choice of **which effects run** instead of which value one of them carries. Thaumaturgy’s six wonders are six different effect lists of which five are fiction and one grants a mode; Enlarge/Reduce’s two halves and Glyph of Warding’s two glyphs are the same sentence. A substitution cannot express any of the three, because there is no field on a written effect for it to replace — a definition that carried Booming Voice’s mode would boom the caster’s voice every time they flickered a candle. **Hex is the fourth entry and is none of that**: its sentence is Enhance Ability’s with the mode reversed and is writable today, and it stays counted here because `TrackedAdjudication.why` has no value for "nothing blocks this and nobody has written the definition" — see the note on the entry itself. The original description follows: `docs/design/rolls-and-damage.md` names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and a damage type was always the one choice that was not here.',
   'several-attack-rolls-from-one-casting':
     '**The count and the split are both written now, and what is left of this id is one spell.** `spell-definitions.ts` gives the `attack` member an `AttackRollCount`, scaled by slot level or by Cantrip Upgrade exactly as its dice are, and the resolver throws each roll on its own — its own attack, its own line in the log, its own Critical Hit, its own damage. Scorching Ray hurls three rays and Eldritch Blast throws its beams, and **both have left**. The thing that finished them was the second half the description before this one was still owed: *where* the rolls go when the caster wants them uneven. `CastSpellRequest.rollsAt` states a count beside each creature named, `rollsAimedAt` checks it against the rolls the casting actually makes, and a declaration pins it — so four rays at two creatures go three and one when the caster says so, and two and two when they say nothing. **A count beside the list rather than a repeat inside it**, because a spell has one effect list applied to every target and a duplicate in that list would be a creature every other effect kind ran on twice. What is left is the harder thing and is the whole of Chromatic Orb: a roll aimed at **a creature the casting never named**, chained off a face the dice showed, with a cap counting the leaps and a rule that no creature may be hit twice. That is still the spell-side twin of the class-feature gap `docs/design/characters-and-equipment.md` names: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
-  'a-second-roll-sequenced-after-the-first':
-    '`OutcomeRiders` in spell-definitions.ts rejects this by name: "the two that look as though they do — Ice Knife’s explosion and Chromatic Orb’s leap — are different mechanisms (**a second sequenced roll with an area at a target**, and a chained attack on a dice-face trigger). A child that rolls is a parent".',
+
   'a-success-branch-that-does-something':
     '`OutcomeRiders` in spell-definitions.ts again: "**Which branch a rider rides is the host’s, never the author’s.** There is no miss-branch slot and no success-branch slot ... A spell whose success clause does something — Flesh to Stone’s “its Speed is 0” — is one consumer and a different shape."',
   'a-spells-effects-applied-to-different-targets':
@@ -2082,20 +2081,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'You restore up to 700 Hit Points, divided as you choose',
       why: 'a-spells-effects-applied-to-different-targets',
       note: 'a flat amount with no dice is expressible now; splitting it across the creatures one casting caught is not, and a casting applies its effects to all of its targets alike \u2014 so writing it would heal everybody in range for seven hundred.',
-    },
-  ],
-  'ice-knife': [
-    {
-      marker: 'dice',
-      clause: 'the target takes 1d10 Piercing damage',
-      why: 'a-second-roll-sequenced-after-the-first',
-      note: 'an ordinary ranged spell attack, and the smaller half of the spell: writing it alone would deal under half the printed damage at every slot level, which is the reading Scorching Ray got for the same reason from the other side.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'must succeed on a Dexterity saving throw or take 2d6 Cold damage',
-      why: 'a-second-roll-sequenced-after-the-first',
-      note: 'the burst follows the attack hit or miss, over a Sphere centred on wherever the shard arrived — a second roll sequenced after the first, against a point the casting does not hold.',
     },
   ],
   'animal-messenger': [
