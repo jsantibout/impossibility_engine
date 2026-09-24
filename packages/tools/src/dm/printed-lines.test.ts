@@ -396,6 +396,21 @@ describe('a printed teleport, taken through the door that moves the creature', (
     expect(out.code).toBe('no_such_line');
   });
 
+  it('says on look which door a line admits, rather than leaving it to English', () => {
+    const t = pack('looking');
+    const dog = t.surface.observe().creatures.find((one) => one.id === 'blink');
+    const blink = dog?.printed?.bonusActions.find((one) => one.name === BLINK);
+    expect(blink?.engineTeleports).toBe(true);
+    expect(blink?.engineRollsTheSave).toBe(false);
+
+    // And a line that says something else reads false, which is what makes the
+    // flag a claim about the engine rather than about the sentence.
+    expectOk(t.call('add_creature', { id: 'wight', monsterId: 'ghost' }));
+    const ghost = t.surface.observe().creatures.find((one) => one.id === 'wight');
+    const ethereal = ghost?.printed?.actions.find((one) => one.name === 'Etherealness');
+    expect(ethereal?.engineTeleports).toBe(false);
+  });
+
   it('is the DM’s door and not the model’s', () => {
     const surface = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'blinking' }));
     const dm = createDmSurface(createCampaign({ content: SRD_CONTENT, seed: 'blinking' }));
