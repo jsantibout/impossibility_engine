@@ -829,6 +829,18 @@ export interface PrintedSaveCommand extends CommandIdentity {
    * such restriction never reads it.
    */
   readonly willing?: readonly CharacterId[];
+  /**
+   * The worn or held object the line targets, by its catalogue id.
+   *
+   * SRD Rust Monster's Antennae: "one nonmagical metal object—armor or a
+   * weapon—worn or carried by a creature within 5 feet of itself." The
+   * template names the holder and the prelude names a thing, and a creature
+   * may be wearing mail and holding a sword — so which the antennae touch is
+   * the table's decision, exactly as the head count is, and a call on such a
+   * line that names none is asked. One the target is not wearing or holding is
+   * refused before anything is spent.
+   */
+  readonly object?: string;
 }
 
 /**
@@ -1044,6 +1056,38 @@ export function forcePrintedSave(
         }
       }
 
+      // **The object the line is aimed at**, where the line names one. SRD
+      // Rust Monster's Antennae reaches "one nonmagical metal object—armor or
+      // a weapon—worn or carried by a creature", and the save is the holder's:
+      // which thing is the table's to say, asked for rather than guessed at,
+      // and one the target is not wearing or holding is refused here, before
+      // anything is spent, rather than reported after the Action is gone.
+      if (printed.targetsObject === true) {
+        if (command.object === undefined) {
+          return needsContext(
+            'undeclared_object',
+            `${line.name} wears down an object its target is wearing or holding, and nobody has said which`,
+            targets.map((target) => ({
+              kind: 'creature' as const,
+              subject: target,
+              need: `which of ${target}'s worn or held objects ${line.name} is aimed at`,
+              because: `${line.name} reaches "${printed.targets}" — a creature may be wearing mail and holding a sword, and the line touches one of them`,
+              satisfyWith: 'forcePrintedSave again with its object filled in',
+            })),
+          );
+        }
+        const empty = targets.filter(
+          (target) =>
+            !(state.creatures[target]?.equipped ?? []).some((held) => held.id === command.object),
+        );
+        if (empty.length > 0) {
+          return err(
+            'object_not_held',
+            `${empty.join(', ')} ${empty.length === 1 ? 'is' : 'are'} not wearing or holding ${command.object}, and ${line.name} reaches an object worn or carried`,
+          );
+        }
+      }
+
       // **A creature that bought a day's grace from this very line.** SRD
       // Ghost: "_Success:_ The target is immune to this ghost's Horrific
       // Visage for 24 hours." Skipped rather than saved against — the line
@@ -1168,7 +1212,15 @@ export function forcePrintedSave(
         // was two implementations: the same body settles a save a moment
         // forced, so a Death Burst and a breath weapon halve on a success by
         // one rule rather than by two that could drift apart.
-        const landed = forcePrintedSaveOn(current, id, target, line.name, answered, supply);
+        const landed = forcePrintedSaveOn(
+          current,
+          id,
+          target,
+          line.name,
+          answered,
+          supply,
+          command.object === undefined ? {} : { object: command.object },
+        );
         if (!landed.ok) return landed;
         events.push(...landed.value.events);
         current = landed.value.events.reduce(applyEvent, current);

@@ -122,6 +122,36 @@ describe('a failure hung on the target’s own rolls', () => {
   });
 });
 
+describe('a save aimed at an object somebody is wearing or holding', () => {
+  /**
+   * SRD Rust Monster's Antennae: the prelude names the object, the failure
+   * wears it down, the second sentence states the two ceilings the executor
+   * keeps and is consumed, and the Mending sentence is carried — the spells
+   * side's, not this reader's.
+   */
+  it('reads the Antennae: the object the prelude names, the penalty, the ceilings, and hands the Mending over', () => {
+    expect(lineOf('rust-monster', 'Antennae').save).toEqual({
+      ability: 'dex',
+      dc: 11,
+      targets: 'the creature with the object',
+      targetsObject: true,
+      onSuccess: 'none',
+      onFailure: [{ kind: 'object-penalty', points: 1 }],
+      handedOver: ['The penalty can be removed by casting the _Mending_ spell on the armor or weapon.'],
+    });
+  });
+
+  it('hands the ceilings back where no penalty stands in front of them', () => {
+    // The rule sentence alone is a rule about nothing, and a failure the
+    // grammar reads nothing out of refuses the line whole.
+    expect(
+      parseSaveLine(
+        '_Dexterity Saving Throw:_ DC 11, the creature with the object. _Failure:_ Armor is destroyed if the penalty reduces its AC to 10, and a weapon is destroyed if its penalty reaches −5.',
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('a line whose sentence is the save template', () => {
   it('reads the Winter Wolf’s breath as an ability, a DC, dice and what a success buys', () => {
     expect(lineOf('winter-wolf', 'Cold Breath').save).toEqual({

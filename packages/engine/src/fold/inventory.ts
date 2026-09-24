@@ -40,6 +40,7 @@ export const INVENTORY_EVENTS = [
   'item-equipped',
   'item-unequipped',
   'armor-penalised',
+  'weapon-penalised',
   'attuned',
   'attunement-ended',
 ] as const;
@@ -569,6 +570,12 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
       );
     }
 
+    // Rust eating into a held weapon — SRD Rust Monster's Antennae — lands on
+    // the same record by the same arithmetic: the copy in hand, a number moved
+    // rather than a record replaced. One case for the two, because the fold
+    // has one thing to do for either and the event type is what says which
+    // the log meant.
+    case 'weapon-penalised':
     case 'armor-penalised': {
       const creature = creatureOf(state, event, event.id);
       const worn = creature.equipped.find((held) => held.id === event.item);

@@ -183,20 +183,87 @@ describe('the door that rolls a printed line’s saving throw', () => {
     expect((out.resolution['outcomes'] as readonly Record<string, unknown>[])[0]!['dc']).toBe(16);
   });
 
+  /**
+   * SRD Rust Monster's Antennae: "one nonmagical metal object—armor or a
+   * weapon—worn or carried by a creature within 5 feet of itself. _Dexterity
+   * Saving Throw:_ DC 11, the creature with the object."
+   *
+   * The template names the holder and the prelude names a thing, and a
+   * creature may be wearing mail and holding a sword — so which the antennae
+   * touch is the DM's, exactly as the head count is, and the door asks for it
+   * and names itself as the answer.
+   */
+  it('asks which object the antennae touch, refuses one not held, and wears the named one down', () => {
+    const t = table('rusting');
+    expectOk(t.call('add_creature', { id: 'fang', monsterId: 'rust-monster' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('award_items', { who: 'grish', items: [{ id: 'longsword' }], because: 'the test' }));
+    expectOk(t.call('equip_item', { who: 'grish', item: 'longsword' }));
+    expectOk(t.call('declare_side', { who: 'fang', side: 'vermin' }));
+    expectOk(t.call('declare_side', { who: 'grish', side: 'goblins' }));
+    expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the seam', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'fang', fromLandmark: 'the seam', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'fang', feet: 5, bearing: 0 }));
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'fang' }, { who: 'grish' }] }));
+    turnOf(t, 'fang');
+
+    const asked = t.call('force_printed_save', { who: 'fang', line: 'Antennae', targets: ['grish'] });
+    expect(asked.status).toBe('needs-context');
+    if (asked.status !== 'needs-context') return;
+    expect(asked.code).toBe('undeclared_object');
+    expect(asked.establish.flatMap((request) => request.tools)).toEqual(['force_printed_save']);
+    expect(asked.establish[0]!.satisfyWith).toContain('object');
+
+    const pocketed = t.call('force_printed_save', {
+      who: 'fang',
+      line: 'Antennae',
+      targets: ['grish'],
+      object: 'greatsword',
+    });
+    expect(pocketed.status).toBe('refused');
+    if (pocketed.status === 'refused') expect(pocketed.code).toBe('object_not_held');
+    // Nothing was spent asking or being refused.
+    expect(t.campaign.log().some((event) => event.type === 'action-spent')).toBe(false);
+
+    const out = expectOk(
+      t.call('force_printed_save', {
+        who: 'fang',
+        line: 'Antennae',
+        targets: ['grish'],
+        object: 'longsword',
+      }),
+    );
+    const [one] = out.resolution['outcomes'] as readonly Record<string, unknown>[];
+    expect(one!['dc']).toBe(11);
+    if (one!['success'] === true) {
+      expect(one!['object']).toBeUndefined();
+      expect(out.events.some((event) => event.type === 'weapon-penalised')).toBe(false);
+    } else {
+      expect(one!['object']).toEqual({ item: 'longsword', penalty: 1, destroyed: false });
+      expect(out.events.some((event) => event.type === 'weapon-penalised')).toBe(true);
+    }
+    // The Mending sentence is the spells side's, and comes back as the table's.
+    expect(out.unverified.join(' ')).toContain('Mending');
+    expect(out.events.some((event) => event.type === 'action-spent')).toBe(true);
+  });
+
   it('refuses a line whose sentence it could not structure, naming the other door', () => {
-    // SRD Gold Dragon Wyrmling's Weakening Breath: "_Failure:_ The target has
-    // Disadvantage on Strength-based D20 Tests and subtracts 2 (1d4) from its
-    // damage rolls." A failure clause the reader cannot start on refuses the
-    // line whole, because a save the engine rolls and then does nothing with
-    // is a die thrown for no reason. (The Brass Dragon Wyrmling's Sleep
-    // Breath, which used to stand here, is read now: a deepening may carry a
-    // lifetime of its own.)
-    const t = fight('weakening', 'gold-dragon-wyrmling');
+    // SRD Bulette's Deadly Leap: "The bulette spends 5 feet of movement to
+    // jump to a space within 15 feet that contains one or more Large or
+    // smaller creatures. _Dexterity Saving Throw:_ …" A movement printed
+    // before the save refuses the line whole, because half of it is a rule
+    // nobody printed and a save the engine rolls and then does nothing with is
+    // a die thrown for no reason. (The Gold Dragon Wyrmling's Weakening
+    // Breath, which used to stand here, is read now — a mode over a family
+    // and a penalty on the target's own damage rolls, under one repeat save —
+    // as the Brass Dragon Wyrmling's Sleep Breath was before it.)
+    const t = fight('leaping', 'bulette');
     turnOf(t, 'fang');
 
     const out = t.call('force_printed_save', {
       who: 'fang',
-      line: 'Weakening Breath',
+      line: 'Deadly Leap',
       targets: ['grish'],
     });
     expect(out.status).toBe('refused');
@@ -359,20 +426,24 @@ describe('`look` says which printed lines the engine will roll', () => {
   });
 
   it('says false for a line that forces a save its reader could not structure', () => {
-    // SRD Gold Dragon Wyrmling: Weakening Breath prints `_Strength Saving
-    // Throw:_` and the engine still will not roll it, because its failure is a
-    // clause the reader cannot start on — so the flag is about what the engine
-    // will do rather than about what the English says.
-    const t = fight('the-wyrmling-is-read', 'gold-dragon-wyrmling');
+    // SRD Bulette: Deadly Leap prints `_Dexterity Saving Throw:_` and the
+    // engine still will not roll it, because a movement is printed before the
+    // save and half of that sentence is a rule nobody printed — so the flag is
+    // about what the engine will do rather than about what the English says.
+    // (SRD Gold Dragon Wyrmling's Weakening Breath stood here until its
+    // failure could be read: a mode over a family and a penalty on the
+    // target's own damage rolls, under one repeat save.)
+    const t = fight('the-bulette-is-not-read', 'bulette');
     const block = blockOf(t, 'fang');
 
-    const weakening = block.actions.find((one) => one.name === 'Weakening Breath')!;
-    expect(weakening.text).toContain('Saving Throw');
-    expect(weakening.engineRollsTheSave).toBe(false);
+    const leap = block.actions.find((one) => one.name === 'Deadly Leap')!;
+    expect(leap.text).toContain('Saving Throw');
+    expect(leap.engineRollsTheSave).toBe(false);
 
-    // And the line beside it the engine *will* roll, under the same heading.
-    const fire = block.actions.find((one) => one.name.startsWith('Fire Breath'))!;
-    expect(fire.engineRollsTheSave).toBe(true);
+    // And a line the engine *will* roll, which is what the flag tells apart.
+    const wolf = fight('the-wolf-is-read');
+    const cold = blockOf(wolf, 'fang').actions.find((one) => one.name === COLD_BREATH)!;
+    expect(cold.engineRollsTheSave).toBe(true);
   });
 
   it('says true for the breath whose second rung deepens into a lifetime', () => {

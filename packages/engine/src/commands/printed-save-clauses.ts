@@ -79,6 +79,33 @@ export interface PrintedClausesLanded {
   readonly pushedFeet: number | null;
   /** Whether the line killed the target outright — SRD Will-o'-Wisp's is the one that does. */
   readonly died: boolean;
+  /** The object the line wore down, where it wore one — SRD Rust Monster's Antennae. */
+  readonly object: WornDownObject | null;
+}
+
+/**
+ * What a printed save did to a **thing** its target was wearing or holding.
+ *
+ * SRD Rust Monster's Antennae. `penalty` is the copy's total after this use,
+ * so a caller narrates "the mail is at −3" rather than "another point"; and
+ * `destroyed` says the point that took it to the ceiling took the object with
+ * it, through the door every lost item leaves by.
+ */
+export interface WornDownObject {
+  /** The catalogue id of the object, as the caller named it. */
+  readonly item: string;
+  readonly penalty: number;
+  readonly destroyed: boolean;
+}
+
+/** What the caller stated beside the line, where a line wants a fact only a table has. */
+export interface PrintedSaveFacts {
+  /**
+   * The worn or held object the line targets — SRD Rust Monster's Antennae:
+   * "one nonmagical metal object—armor or a weapon—worn or carried by a
+   * creature". The door asks for it where the line wants one.
+   */
+  readonly object?: string;
 }
 
 
@@ -370,6 +397,7 @@ export function applyPrintedClauses(
   dealt: PrintedDamageDealt,
   useTag: number,
   supply: Supply,
+  facts: PrintedSaveFacts = {},
 ): Result<PrintedClausesLanded> {
   let current = state;
   const events: GameEvent[] = [];
@@ -377,6 +405,7 @@ export function applyPrintedClauses(
   const conditions: ConditionName[] = [];
   const immuneTo: ConditionName[] = [];
   let pushedFeet: number | null = null;
+  let object: WornDownObject | null = null;
   const died: CharacterId[] = [];
   const lineSource = printedLineSource(source, line);
   /**
@@ -910,6 +939,80 @@ export function applyPrintedClauses(
         break;
       }
 
+      case 'object-penalty': {
+        // SRD Rust Monster's Antennae: "The object takes a −1 penalty to the
+        // AC it offers (armor) or to its attack rolls (weapon). Armor is
+        // destroyed if the penalty reduces its AC to 10, and a weapon is
+        // destroyed if its penalty reaches −5."
+        //
+        // **The same record the pudding's hit lands on**, read the same way:
+        // the copy in hand or on the back, a number moved, and the ceiling the
+        // object's own printed number rather than the creature's Armour Class.
+        // Which object is the caller's fact, asked for at the door; a clause
+        // reaching here without one — the triggered road, or a pinned record
+        // from some other door — is reported rather than guessed at.
+        const named = facts.object;
+        const victim = current.creatures[target];
+        if (named === undefined || victim === undefined) {
+          unverified.push(
+            `${line} wears down an object ${target} is wearing or holding, and nobody has said which — nothing was worn down`,
+          );
+          break;
+        }
+        const record = victim.equipped.find((held) => held.id === named);
+        if (record === undefined) {
+          unverified.push(
+            `${target} is not wearing or holding ${named}, so ${line} found nothing to wear down`,
+          );
+          break;
+        }
+        const eaten = (record.penalty ?? 0) + clause.points;
+        // Armour is what the record pinned as armour; a weapon is what the
+        // catalogue says the copy is. A held thing that is neither — a shield
+        // is armour with no number of its own, a torch is nothing — has no
+        // "AC it offers" and no attack roll, and the sentence names only the
+        // two, so it is handed back.
+        const armour = record.armor;
+        const weapon = armour === null ? (supply.content.item(record.id)?.weapon ?? null) : null;
+        const offers = armour?.baseAc ?? null;
+        const survives =
+          armour !== null ? offers !== null && offers - eaten > 10 : weapon !== null && eaten < 5;
+        if (armour === null && weapon === null) {
+          unverified.push(
+            `${named} is neither armour nor a weapon, and ${line} reaches "armor or a weapon" — nothing was worn down`,
+          );
+          break;
+        }
+        if (survives) {
+          land([
+            armour !== null
+              ? { type: 'armor-penalised', id: target, item: record.id, points: clause.points }
+              : { type: 'weapon-penalised', id: target, item: record.id, points: clause.points },
+          ]);
+          object = { item: record.id, penalty: eaten, destroyed: false };
+          break;
+        }
+        // The point that reaches the ceiling takes the object with it, through
+        // the door every lost item leaves by — unequipped, then out of the pack.
+        land([
+          { type: 'item-unequipped', id: target, item: record.id },
+          {
+            type: 'items-lost',
+            id: target,
+            items: [
+              {
+                id: record.id,
+                quantity: 1,
+                ...(record.instance === undefined ? {} : { instance: record.instance }),
+              },
+            ],
+            source: line,
+          },
+        ]);
+        object = { item: record.id, penalty: eaten, destroyed: true };
+        break;
+      }
+
       case 'line-immunity': {
         // SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
         // Visage for 24 hours." An immunity to **one printed line** and not to
@@ -948,7 +1051,7 @@ export function applyPrintedClauses(
     }
   }
 
-  return ok({ events, unverified, conditions, immuneTo, pushedFeet, died: died.length > 0 });
+  return ok({ events, unverified, conditions, immuneTo, pushedFeet, died: died.length > 0, object });
 }
 
 /** What the line did to one creature standing in it. */
@@ -972,6 +1075,8 @@ export interface PrintedSaveOnACreature {
    * `damage` alone would see a nought and narrate a miss.
    */
   readonly died?: true;
+  /** The object the line wore down or broke — SRD Rust Monster's Antennae. */
+  readonly object?: WornDownObject;
 }
 
 /** One creature's whole answer to a printed line: the events, the outcome, the debts. */
@@ -1011,6 +1116,7 @@ export function forcePrintedSaveOn(
   line: string,
   printed: MonsterSave,
   supply: Supply,
+  facts: PrintedSaveFacts = {},
 ): Result<PrintedSaveLanding> {
   const source = state.creatures[by];
   if (source === undefined) return unknownCreature(by, 'has no record here yet; add it first');
@@ -1140,6 +1246,7 @@ export function forcePrintedSaveOn(
     dealt,
     supply.issuer.count,
     supply,
+    facts,
   );
   if (!landed.ok) return landed;
   events.push(...landed.value.events);
@@ -1157,6 +1264,7 @@ export function forcePrintedSaveOn(
       ...(landed.value.immuneTo.length === 0 ? {} : { immuneTo: landed.value.immuneTo }),
       ...(landed.value.pushedFeet === null ? {} : { pushedFeet: landed.value.pushedFeet }),
       ...(landed.value.died ? { died: true as const } : {}),
+      ...(landed.value.object === null ? {} : { object: landed.value.object }),
     },
   });
 }

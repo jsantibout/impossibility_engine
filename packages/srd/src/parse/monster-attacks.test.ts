@@ -1211,7 +1211,11 @@ describe('what a stat block’s sections print, and what is read', () => {
       // save and a minute's cap — a lifetime that is neither a span nor a
       // condition, and the first such the reader has held. Nothing of the
       // four is handed over.
-      actions: { printed: 811, read: 767 },
+      // And one more with a save aimed at a **thing**: the Rust Monster's
+      // Antennae, whose prelude names an object worn or carried and whose
+      // failure wears it down — the pudding's sentence on a save, with the
+      // weapon half beside it. The Mending sentence is carried.
+      actions: { printed: 811, read: 768 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

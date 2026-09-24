@@ -651,6 +651,27 @@ const PRINTED_SAVE_CLAUSES = [
       .optional(),
   }),
   z.object({ kind: z.literal('push'), feet: z.number().int().min(5) }),
+  /**
+   * SRD Rust Monster's Antennae: "_Failure:_ The object takes a −1 penalty to
+   * the AC it offers (armor) or to its attack rolls (weapon). Armor is
+   * destroyed if the penalty reduces its AC to 10, and a weapon is destroyed
+   * if its penalty reaches −5."
+   *
+   * **A failure that wears down a thing rather than a creature.** The same
+   * sentence SRD Black Pudding's Pseudopod prints on a hit, on a save, with
+   * the weapon half beside it — and the two ceilings are the engine's rule
+   * rather than fields, read and consumed as the pudding's is: a line printing
+   * some other ceiling would not match and would go back to the table.
+   *
+   * Which object is the caller's to say, and {@link MonsterSaveSchema.targetsObject}
+   * is what says the line wants one: "the creature with the object" names a
+   * creature, and a creature may be wearing mail and holding a sword.
+   */
+  z.object({
+    kind: z.literal('object-penalty'),
+    /** SRD's "a −1 penalty", as a positive number of points eaten. */
+    points: z.number().int().min(1),
+  }),
   z.object({
     kind: z.literal('speed-decrease'),
     feet: z.number().int().min(5),
@@ -1088,6 +1109,18 @@ export const MonsterSaveSchema = z.object({
    * line did not reach, exactly as an immune target is.
    */
   onlyIfNotAffected: z.literal(true).optional(),
+  /**
+   * SRD Rust Monster's Antennae: "The rust monster targets one nonmagical
+   * metal object—armor or a weapon—worn or carried by a creature within 5
+   * feet of itself. _Dexterity Saving Throw:_ DC 11, the creature with the
+   * object."
+   *
+   * The line is aimed at a **thing** somebody is wearing or holding, and the
+   * save is the holder's. Which thing is the one fact the table supplies —
+   * exactly as the head count is for a Cone — so the door that spends the
+   * line asks for it and refuses one the target is not wearing or holding.
+   */
+  targetsObject: z.literal(true).optional(),
   /**
    * What a failure costs in damage, where the line prints damage at all. The
    * same four fields a printed attack's damage has. Absent on a line whose

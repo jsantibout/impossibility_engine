@@ -1716,9 +1716,12 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
  * sheet — and it is not **paid**, because the engine performs no printed line
  * as a Reaction's response. What it does instead is offer the Reaction and
  * hand the response to the table by name, which is a handover with a debt
- * behind it rather than a finished sentence: the rust monster's Antennae is a
- * save line nothing has read, and eating the weapon that hit it is a rule
- * somebody will build.
+ * behind it rather than a finished sentence. **The response is a line the
+ * engine spends now**: the rust monster's Antennae is read — the object the
+ * prelude names, the penalty, the two ceilings — and `force_printed_save`
+ * rolls it with the weapon that hit named as the object. What is left is the
+ * Reaction's own road performing it in place of handing the name over, which
+ * is a seam in `commands/reactions.ts` and not in the line.
  *
  * It retires when a response is performed rather than named — the same way the
  * Multiattack and Spellcasting rows shrank when their sentences became
@@ -1765,9 +1768,19 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
    * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | `a-second-place-to-put-a-creature`: a creature inside another one, which is a position the lattice has no word for |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
-   * | Gold Dragon Wyrmling's Weakening Breath | **neither half is missing any more**, and that is worth writing down: "Disadvantage on Strength-based D20 Tests" is the `d20-test` roll family with an ability on it and "subtracts 2 (1d4) from its damage rolls" is `damagePenaltyOf`, both built for SRD Ray of Enfeeblement. What this waits on is the printed-save reader growing an arm that writes them, not a shape |
-   * | Rust Monster's Antennae | the same sentence Black Pudding's Pseudopod prints, on a **save** rather than on a hit. `EquippedItem.penalty` is the record and the hit side executes it; the save reader has no arm for it, and the line's "armor or a weapon" half needs a penalty a weapon can hold as well |
    * | Sprite's Heart Sight | a reveal: what one creature comes to **know** about another. The knowledge vocabulary exists for Hunter's Lore; an emotion and an alignment are not among the facts it holds |
+   *
+   * **Two rows left this table on one night**, and are written down rather
+   * than deleted because a row that leaves a report is a claim somebody may
+   * want to check. The Gold Dragon Wyrmling's Weakening Breath is read whole:
+   * the reader grew the two arms the row said it lacked — a mode over the
+   * `d20-test` family narrowed by an ability, and a penalty on the target's
+   * own damage rolls — and a third lifetime for them, the repeat save the
+   * failure prints where it imposes no condition to carry one. The Rust
+   * Monster's Antennae is read too: the prelude that names an object, the
+   * penalty, and the two ceilings the executor keeps; it sits on
+   * {@link SAVE_HANDOVER_SHAPE} now rather than here, because the Mending
+   * sentence is the spells side's and is still handed over.
    */
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],

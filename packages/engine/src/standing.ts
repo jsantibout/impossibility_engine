@@ -5231,6 +5231,32 @@ function wornArmorPenalty(creature: {
 }
 
 /**
+ * What rust has eaten out of the weapon this creature is **swinging**, as the
+ * named subtraction the attack roll carries — or nothing.
+ *
+ * SRD Rust Monster's Antennae: "The object takes a −1 penalty … to its attack
+ * rolls (weapon)." `EquippedItem.penalty` is where it lands, on the copy in
+ * hand and not on the catalogue's Longsword; `wornArmorPenalty` above is the
+ * same reader for the other kind of object the sentence names. Read off the
+ * weapon the swing named, so the bow in the pack gets nothing; a weapon that
+ * is owned and not held has no record for a penalty to have landed on, which
+ * is the door's `object_not_held` refusal read from the other end.
+ *
+ * A `Bonus` rather than a bare number, for the log's sake: the roll names each
+ * flat piece that can name itself, and "−1, Longsword penalty" is legible
+ * where a smaller unexplained modifier is not.
+ */
+export function heldWeaponPenalty(
+  creature: { readonly equipped: readonly EquippedItem[] },
+  weapon: string | null,
+  name: string,
+): readonly Bonus[] {
+  if (weapon === null) return [];
+  const eaten = creature.equipped.find((held) => held.id === weapon)?.penalty ?? 0;
+  return eaten > 0 ? [{ source: `${name} penalty`, flat: -eaten }] : [];
+}
+
+/**
  * A creature's Armour Class, with whatever is currently raising it.
  *
  * `armorClass` reads a sheet: armour, Dexterity, a shield, or the number a

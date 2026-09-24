@@ -285,6 +285,46 @@ const EXPLODES_ON_DEATH = /^The [a-z' -]+ explodes when it dies\.$/;
 const BABBLES_WHILE_NOT_INCAPACITATED =
   /^The [a-z' -]+ babbles incoherently while it doesn't have the Incapacitated condition\.$/;
 
+/**
+ * SRD Rust Monster's Antennae: "The rust monster targets one nonmagical metal
+ * object—armor or a weapon—worn or carried by a creature within 5 feet of
+ * itself."
+ *
+ * The third prelude, and the first that is a **targeting** sentence: what the
+ * save is aimed at is a thing somebody is wearing or holding, and the template
+ * after it names the holder. The reach is the table's, as every reach is; what
+ * the sentence adds is that the line wants an object named, which is the fact
+ * `MonsterSave.targetsObject` carries to the door.
+ */
+const TARGETS_AN_OBJECT =
+  /^The [a-z' -]+ targets one nonmagical metal object—armor or a weapon—worn or carried by a creature within \d+ feet of itself\.$/;
+
+/**
+ * SRD Rust Monster's Antennae: "The object takes a −1 penalty to the AC it
+ * offers (armor) or to its attack rolls (weapon)."
+ *
+ * Both the hyphen-minus and the book's own minus sign, because a transcription
+ * may carry either and they are the same number.
+ */
+const OBJECT_PENALTY =
+  /^The object takes a [-−](\d+) penalty to the AC it offers \(armor\) or to its attack rolls \(weapon\)$/;
+
+/**
+ * SRD's second sentence: "Armor is destroyed if the penalty reduces its AC to
+ * 10, and a weapon is destroyed if its penalty reaches −5."
+ *
+ * **Read and consumed rather than stored**, exactly as the pudding's "The
+ * armor is destroyed if the penalty reduces its AC to 10" is on the hit side:
+ * it states the two ceilings the executor already applies to every object
+ * penalty, so fields for them would be a second copy of two numbers free to
+ * disagree. A line printing other ceilings would not match and the sentence
+ * would be carried, while its penalty went on being destroyed at the engine's
+ * — which is the wrong rule the pudding's reader records too, and the day a
+ * second pair is printed the numbers join the clause.
+ */
+const OBJECT_DESTROYED_RULE =
+  /^Armor is destroyed if the penalty reduces its AC to 10, and a weapon is destroyed if its penalty reaches [-−]5$/;
+
 /** SRD Sea Hag: "… and can see the hag's true form", the tail of a targeting clause. */
 const AURA_SIGHT = /^(.*) and can see the [a-z' -]+'s true form$/;
 
@@ -1426,6 +1466,19 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return coupled[1] === undefined ? true : readClause(coupled[1], into, where);
   }
 
+  // SRD Rust Monster's Antennae: the penalty, and the sentence after it that
+  // states the two ceilings the executor keeps.
+  const corroded = OBJECT_PENALTY.exec(words);
+  if (corroded !== null) {
+    into.effects.push({ kind: 'object-penalty', points: Number(corroded[1]) });
+    return true;
+  }
+  if (OBJECT_DESTROYED_RULE.test(words)) {
+    // A rule about the penalty above it; with none there it is a rule about
+    // nothing, and goes back to the table.
+    return into.effects.some((effect) => effect.kind === 'object-penalty');
+  }
+
   const maximum = HP_MAX_CUT.exec(words);
   if (maximum !== null) {
     const ofType = maximum[1] === undefined ? undefined : maximum[1].trim().toLowerCase();
@@ -1756,13 +1809,16 @@ type Prelude =
   /** SRD's "The X explodes when it dies". */
   | { readonly kind: 'dies' }
   /** SRD Gibbering Mouther's definition of what it is to be babbling. */
-  | { readonly kind: 'babbling' };
+  | { readonly kind: 'babbling' }
+  /** SRD Rust Monster's "targets one nonmagical metal object … worn or carried by a creature". */
+  | { readonly kind: 'names-an-object' };
 
 function readPrelude(before: string): Prelude | null {
   const text = before.trim();
   if (text === '') return { kind: 'none' };
   if (EXPLODES_ON_DEATH.test(text)) return { kind: 'dies' };
   if (BABBLES_WHILE_NOT_INCAPACITATED.test(text)) return { kind: 'babbling' };
+  if (TARGETS_AN_OBJECT.test(text)) return { kind: 'names-an-object' };
   return null;
 }
 
@@ -2194,6 +2250,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(trigger === null ? {} : { trigger }),
     ...(aura === null || aura.types.length === 0 ? {} : { onlyIfTargetType: [...aura.types] }),
     ...(NOT_ALREADY_AFFECTED.test(head.targets) ? { onlyIfNotAffected: true as const } : {}),
+    ...(prelude.kind === 'names-an-object' ? { targetsObject: true as const } : {}),
     ...(read.damage === null ? {} : { damage: read.damage }),
     ...(read.plus === null ? {} : { plus: read.plus }),
     onSuccess,

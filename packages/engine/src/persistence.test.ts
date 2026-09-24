@@ -346,6 +346,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'turn-payout-granted',
   'unarmed-strike-made',
   'utilize-taken',
+  'weapon-penalised',
   'weapon-rider-granted',
 ];
 

@@ -109,6 +109,7 @@ import {
   canSomehowSee,
   checkFeatureDamageTypes,
   effectiveConditions,
+  heldWeaponPenalty,
   isBloodied,
   sensesPerceiving,
   sheetAsItStands,
@@ -2492,6 +2493,9 @@ export function resolveAttack(
       }),
       // Bless is on the creature, not in the caller's head.
       ...bonusesFor(attacker.bonuses, 'attack'),
+      // And what rust has eaten out of the weapon in hand — SRD Rust Monster's
+      // Antennae — read off the copy the swing named, by name in the log.
+      ...heldWeaponPenalty(attacker, command.weapon, weapon?.name ?? command.weapon ?? ''),
       ...(command.attackBonuses ?? []),
     ];
 

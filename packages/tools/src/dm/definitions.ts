@@ -1214,6 +1214,7 @@ const printedSaveOutcomes = (
     readonly conditions?: readonly string[];
     readonly immuneTo?: readonly string[];
     readonly pushedFeet?: number;
+    readonly object?: { readonly item: string; readonly penalty: number; readonly destroyed: boolean };
   }[],
 ): readonly Readonly<Record<string, unknown>>[] =>
   outcomes.map((one) => ({
@@ -1231,6 +1232,10 @@ const printedSaveOutcomes = (
     ...(one.conditions === undefined ? {} : { conditions: one.conditions }),
     ...(one.immuneTo === undefined ? {} : { immuneTo: one.immuneTo }),
     ...(one.pushedFeet === undefined ? {} : { pushedFeet: one.pushedFeet }),
+    // And the object the line wore down or broke — SRD Rust Monster's
+    // Antennae — with the copy's whole penalty, so a caller narrates "the
+    // mail is at −3" rather than "another point".
+    ...(one.object === undefined ? {} : { object: one.object }),
   }));
 
 /**
@@ -1307,6 +1312,13 @@ const FORCE_PRINTED_SAVE = tool({
       .describe(
         'Which of the named creatures consent to the line, where its targeting clause offers that as an alternative — SRD Vampire Spawn’s Bite reaches "one creature within 5 feet that is willing or that has the Grappled, Incapacitated, or Restrained condition". The conditions are the engine’s to check; whether a creature is holding still is fiction and therefore yours. A named target holding none of them and not listed here is asked about rather than bitten.',
       ),
+    object: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The worn or held object the line is aimed at, by its item id, where the line names one — SRD Rust Monster’s Antennae reaches "one nonmagical metal object—armor or a weapon—worn or carried by a creature", and a creature may be wearing mail and holding a sword. Which of them the antennae touch is yours to say; the penalty, the two ceilings and the breaking are the engine’s. Leave it out on such a line and you will be asked for it; an object the target is not wearing or holding is refused before anything is spent.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -1318,6 +1330,7 @@ const FORCE_PRINTED_SAVE = tool({
           line: args.line,
           ...(args.targets === undefined ? {} : { targets: args.targets.map(who) }),
           ...(args.willing === undefined ? {} : { willing: args.willing.map(who) }),
+          ...(args.object === undefined ? {} : { object: args.object }),
           ...identity(context),
         },
         context.campaign.supply(),

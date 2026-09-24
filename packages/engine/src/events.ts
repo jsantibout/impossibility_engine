@@ -1649,6 +1649,26 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * Rust eating into a weapon somebody is holding — SRD Rust Monster's
+   * Antennae: "The object takes a −1 penalty … to its attack rolls (weapon)."
+   *
+   * The event above it, on the other kind of object the sentence names, and
+   * it lands on the same record for the same reason: `EquippedItem.penalty`
+   * is a fact about **one copy**, and the swing reads it off the weapon in
+   * hand. Cumulative as the armour's is. **The destruction is not here**
+   * either: "a weapon is destroyed if its penalty reaches −5" is the ending
+   * any lost item has, written as an `item-unequipped` and an `items-lost`.
+   */
+  | {
+      readonly type: 'weapon-penalised';
+      readonly id: CharacterId;
+      /** The catalogue id of the weapon being held. */
+      readonly item: string;
+      /** How many points this event eats off its attack rolls. SRD prints 1. */
+      readonly points: number;
+      readonly command?: CommandStamp;
+    }
+  /**
    * SRD Magic Items: attuning to one, which takes a Short Rest focused on it.
    *
    * Keyed on the catalogue id, because that is all an inventory can say: two

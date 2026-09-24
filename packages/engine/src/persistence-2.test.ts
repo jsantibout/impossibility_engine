@@ -937,6 +937,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // ability, the replaced die and its band table, the plus on both rolls and
   // its band table, every other weapon in the pack left alone, and the grant
   // ending on the deadline, on a recast and through the dispel door.
+  // Rust eating into a held weapon — SRD Rust Monster's Antennae. Neither log
+  // was written when a save could wear an object down: the line was carried
+  // verbatim and handed to the DM, and the only penalty a copy could hold was
+  // the armour's on a hit. Both fixtures fold to exactly the states they
+  // always folded to with the field absent on every equipped record.
+  // `antennae.test.ts` folds it and drives it end to end: the point off the
+  // sword and off the swing by name, the sword broken at −5 through the door
+  // every lost item leaves by, and the mail worn down beside it by the same
+  // clause.
+  'weapon-penalised',
   'weapon-rider-granted',
 ];
 
