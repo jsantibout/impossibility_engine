@@ -31,7 +31,7 @@ import {
   describeRecharge,
   detectedBy,
   distanceBetween,
-  knownDefencesOf,
+  knownDefencesAmong,
   movementLeftFor,
   lightAt,
   positionOf,
@@ -295,7 +295,7 @@ export interface ObservedCreature {
    * Immunities are deliberately still not on the wire: what is here is what
    * one creature is entitled to know about another, which is the sentence the
    * feature prints. Empty for everybody who holds no such feature, and empty
-   * again the moment the mark ends: `knownDefencesOf` derives the whole list
+   * again the moment the mark ends: `knownDefencesAmong` derives the whole list
    * on every read.
    */
   readonly knownDefences: readonly ObservedKnownDefences[];
@@ -623,15 +623,13 @@ export function observe(state: GameState): Observation {
           .filter((one) => one.feature === awareness.feature)
           .map((one) => ({ who: one.id, creatureType: one.creatureType, feet: one.feet })),
       })),
-      // Asked of every other creature, because the licence is about a pair and
-      // there is no cheaper question: `knownDefencesOf` answers null for all
-      // but the marked one, and for everybody on the table who holds no such
-      // feature.
-      knownDefences: ids.flatMap((other) => {
-        if (other === key) return [];
-        const known = knownDefencesOf(state, c.id, asCharacterId(other));
-        return known === null ? [] : [{ who: other, ...known }];
-      }),
+      // Asked of every other creature, because the licence is about a pair —
+      // through the plural reader, which settles whether this creature holds
+      // such a feature at all *once* rather than merging a sheet per pair on
+      // a call the table makes every turn.
+      knownDefences: knownDefencesAmong(state, c.id, ids.map(asCharacterId)).map(
+        ({ target, ...known }) => ({ who: String(target), ...known }),
+      ),
       budget:
         budget === undefined
           ? null

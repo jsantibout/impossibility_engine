@@ -29,6 +29,7 @@ import {
   createRollIssuer,
   endOngoingSpell,
   fold,
+  knownDefencesAmong,
   knownDefencesOf,
   resolveSpell,
   type CharacterChoices,
@@ -213,5 +214,21 @@ describe('SRD Hunter’s Lore: what a marked quarry gives away', () => {
   /** A creature nobody has put in the room is not a quarry. */
   it('says nothing about a creature that is not here', () => {
     expect(knownDefencesOf(state(marking(field(), GHOUL)), SORREL, id('nobody'))).toBeNull();
+  });
+
+  /**
+   * The plural reader, which is what the door calls: it settles the licence
+   * once instead of merging a sheet per pair on a call made every turn. What
+   * it must not do is answer differently, so it is held to the singular.
+   */
+  it('answers a whole room exactly as it answers one pair', () => {
+    const world = state(marking(field(), GHOUL));
+    const room = [SORREL, GHOUL, BOAR];
+    const among = knownDefencesAmong(world, SORREL, room);
+    expect(among.map((one) => one.target)).toEqual([GHOUL]);
+    const singular = knownDefencesOf(world, SORREL, GHOUL);
+    expect(among[0]).toEqual({ ...singular, target: GHOUL });
+    // The knower is never their own quarry, and neither is anybody unmarked.
+    expect(knownDefencesAmong(world, BOAR, room)).toEqual([]);
   });
 });

@@ -104,9 +104,46 @@ export function knownDefencesOf(
   knower: CharacterId,
   target: CharacterId,
 ): KnownDefences | null {
-  if (state.creatures[target] === undefined) return null;
   const feature = licenceToKnowDefences(state, knower);
-  if (feature === null) return null;
+  return feature === null ? null : told(state, knower, target, feature);
+}
+
+/**
+ * The same question asked of several creatures at once.
+ *
+ * **The licence is resolved once and the answer derived per creature**, which
+ * is the whole of what this adds: `knowledgeOn` merges a sheet to find out
+ * whether the knower holds such a feature at all, and a door scanning a room
+ * asks about every other creature in it — so the singular form above would
+ * merge one sheet per *pair* on a call made every turn. Nothing else differs,
+ * and the singular is still the reader for a caller that has one creature in
+ * mind.
+ *
+ * The knower is never their own quarry — a rider's target is somebody else —
+ * so they are dropped rather than asked about.
+ */
+export function knownDefencesAmong(
+  state: GameState,
+  knower: CharacterId,
+  targets: readonly CharacterId[],
+): readonly (KnownDefences & { readonly target: CharacterId })[] {
+  const feature = licenceToKnowDefences(state, knower);
+  if (feature === null) return [];
+  return targets.flatMap((target) => {
+    if (target === knower) return [];
+    const known = told(state, knower, target, feature);
+    return known === null ? [] : [{ ...known, target }];
+  });
+}
+
+/** The answer, once the licence is settled. */
+function told(
+  state: GameState,
+  knower: CharacterId,
+  target: CharacterId,
+  feature: string,
+): KnownDefences | null {
+  if (state.creatures[target] === undefined) return null;
   if (!marks(state, knower, target)) return null;
 
   const defences = defensesOf(state, target);
