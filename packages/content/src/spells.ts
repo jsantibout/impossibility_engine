@@ -131,12 +131,11 @@ export const INVISIBILITY: SpellDefinition = {
   effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
   durationSeconds: 3600,
   endsEarly: [
+    // "makes an attack roll": every roll, on every road — an Opportunity
+    // Attack that misses included. See `roll-recorded.attackRoll`.
     { on: 'target-attacks', ends: 'casting' },
     { on: 'target-deals-damage', ends: 'casting' },
     { on: 'target-casts', ends: 'casting' },
-  ],
-  unmodelled: [
-    'an attack roll that costs no Attack action — an Opportunity Attack, or any swing outside combat — ends this spell only if it hits: the attack roll itself is recorded on `roll-recorded`, which changes no state by rule, so nothing may hang the ending on it',
   ],
 };
 

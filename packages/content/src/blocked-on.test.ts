@@ -2609,10 +2609,13 @@ describe('a consumer count is a query', () => {
     // leader lost a consumer without anything being built for it, and
     // `a-casting-ended-by-a-trigger` drew level: a ranking is a measurement of
     // the populations rather than a statement about what is hard.
-    expect(leaders).toEqual([
-      'a-casting-ended-by-a-trigger',
-      'a-random-outcome-that-is-not-a-d20',
-    ]);
+    //
+    // **And broken again, from the other side.** Invisibility's last clause —
+    // the free swing that misses — was paid when `roll-recorded.attackRoll`
+    // gave the ending seam the fact it lacked, so `a-casting-ended-by-a-trigger`
+    // lost a consumer to a build rather than to a re-filing and the coin flip
+    // leads alone. Still asserted by measurement, for the reason above.
+    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2642,6 +2645,11 @@ describe('a consumer count is a query', () => {
       // effects run — and Command and Thaumaturgy left the undefined and
       // tracked maps through it, which took the shape out of this band rather
       // than moving it down inside one.
+      //
+      // `a-casting-ended-by-a-trigger` led the ranking until Invisibility's
+      // free swing was paid for — `roll-recorded.attackRoll` — and one
+      // consumer is what separated the top band from this one.
+      'a-casting-ended-by-a-trigger',
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',
       'an-effect-that-suppresses-other-magic',
@@ -3226,20 +3234,16 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
   });
 
   /**
-   * Invisibility is the eighth and keeps a **narrower** clause, because the
-   * residue is about which event records an attack roll rather than about the
-   * cause. `target-attacks` reads `attack-made`, which is the Attack action;
-   * a free swing — an Opportunity Attack, or any attack outside combat —
-   * leaves only `roll-recorded`, which changes no state by rule. One that
-   * lands still ends the spell through `target-deals-damage`.
+   * Invisibility is the eighth, and it kept a **narrower** clause for longer
+   * than the others: the residue was about which event records an attack roll
+   * rather than about the cause. `target-attacks` read `attack-made`, the
+   * Attack action, so a free swing that missed — an Opportunity Attack, or any
+   * attack outside combat — left the spell running. `roll-recorded.attackRoll`
+   * is the structured mark the two attack rollers write now, the ending seam
+   * reads it, and the spell owes the map nothing.
    */
-  it('keeps the narrower residue on the spell whose sentence names a roll', () => {
-    expect(ADJUDICATED['invisibility']?.map((e) => e.why)).toEqual([
-      'a-casting-ended-by-a-trigger',
-    ]);
-    expect(ADJUDICATED['invisibility']?.[0]?.clause).toBe(
-      'an attack roll that costs no Attack action',
-    );
+  it('owes nothing once the roll itself names its roller', () => {
+    expect(ADJUDICATED['invisibility']).toBeUndefined();
   });
 
   /**

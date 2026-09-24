@@ -2547,6 +2547,10 @@ export function resolveAttack(
       // assumed — see `StatedRoll` in `events.ts` for why the field is here
       // before a door exists that could fill it.
       ...statedFrom(attack.value.roll.provenance),
+      // "Makes an attack roll" — SRD Invisibility's first ending, read off
+      // this mark by `fold/endings.ts` on every road a swing can take. See
+      // `roll-recorded.attackRoll`.
+      attackRoll: true,
       // Stamped on the roll rather than on the damage, because a miss deals none
       // and a missed swing must not be retryable.
       ...(stamp === null ? {} : { command: stamp }),

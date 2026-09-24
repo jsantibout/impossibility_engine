@@ -1069,13 +1069,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "its area is Lightly Obscured and Difficult Terrain". The swarm’s saves and damage all run, and the ground is writable now — `areaTerrain` says it — on a definition nobody has re-read: the spell is level 5 and out of level-5 reach. The obscurement half waits on `light-and-obscurement-the-scene-holds` whatever happens to the first.',
     },
   ],
-  invisibility: [
-    {
-      clause: 'an attack roll that costs no Attack action',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: "The spell ends early immediately after the target makes an attack roll, deals damage, or casts a spell." All three are built; the residue is which *event* records an attack roll. `target-attacks` reads `attack-made`, which is the Attack action, and the only thing naming the roller of a free swing — an Opportunity Attack, or any attack outside combat — is `roll-recorded`, which changes no state by rule. A free swing that lands still ends the spell through the damage it deals, so what is left is a free swing that misses.',
-    },
-  ],
   // The spell this map predicted IE-017 would finish and which IE-042 actually
   // did, arriving in the executed population with **one** clause left — and it
   // is the table's rather than a shape's, which is the honest end of a

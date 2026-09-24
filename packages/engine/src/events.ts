@@ -3237,6 +3237,29 @@ export type GameEvent =
       /** How it came out, in the caller's own words. */
       readonly outcome?: string;
       /**
+       * This roll was an **attack roll**: a d20 thrown at an Armour Class.
+       *
+       * SRD Invisibility and SRD Potion of Invisibility end "immediately after
+       * the target makes an attack roll" — the roll, and not the action that
+       * paid for it. `attack-made` is the Attack action and is written only
+       * where one is spent, so an Opportunity Attack, a readied swing and any
+       * attack outside a fight named their roller nowhere but here, and a
+       * free swing that missed left the spell running. This is the structured
+       * fact `fold/endings.ts` reads for `target-attacks`; the label beside
+       * it is prose and is read by nothing.
+       *
+       * **The one consequence this event carries, and it is about the roll
+       * having been made rather than about what it came to.** The rule that
+       * `roll-recorded` changes no state stands for every other reader: a hit
+       * is `attack-landed`, damage is `damage-taken`, and nothing here says
+       * whether the die did anything. Written by the two rollers that throw
+       * one — the weapon attack and the spell attack — and by nothing else,
+       * so a save, a check and an Initiative roll never carry it. **Additive
+       * and absent from every roll written before it**, so the frozen
+       * fixtures fold to the bytes they always did.
+       */
+      readonly attackRoll?: true;
+      /**
        * Where the roll came from, when it was not this engine.
        *
        * See {@link StatedRoll} for why `'engine'` is not expressible here and

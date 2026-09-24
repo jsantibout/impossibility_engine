@@ -354,6 +354,10 @@ function resolveOneAttackRoll(
       total: result.total,
       contributions: [{ source: 'spell attack', amount: attackModifier }],
       outcome: result.hit ? 'hit' : 'miss',
+      // SRD Invisibility's "makes an attack roll" reaches a spell attack
+      // thrown by a later activation — Spiritual Weapon's swing — which no
+      // `spell-cast` records. See `roll-recorded.attackRoll`.
+      attackRoll: true,
       ...(superseded === undefined
         ? {}
         : { supersedes: { natural: superseded.roll.natural, total: superseded.total } }),

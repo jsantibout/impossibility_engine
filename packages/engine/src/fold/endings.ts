@@ -17,9 +17,11 @@
  * the two end different things through different doors.
  *
  * Two things this module is careful about. A trigger hangs on a consequence
- * event and never on `roll-recorded`, which changes no state by rule. And
- * "ally" is declared allegiance with three answers, of which only two end
- * anything — `allyOfCaster` withholds rather than inventing.
+ * event, or on the one structured fact `roll-recorded` carries — that an
+ * attack roll was **made**, which is the whole of SRD Invisibility's first
+ * sentence and asks nothing about what the die came to. And "ally" is
+ * declared allegiance with three answers, of which only two end anything —
+ * `allyOfCaster` withholds rather than inventing.
  */
 import type { CharacterId } from '@ie/shared';
 import { instancesEndingEarly } from '../conditions.js';
@@ -67,12 +69,16 @@ export function allyOfCaster(
 /**
  * What this event says happened, in the vocabulary a trigger is written in.
  *
- * **Read off the event, and off a consequence event rather than a roll.**
- * `roll-recorded` changes no state by rule — that is what the event is for —
- * so hanging an ending on one would end a spell on the strength of a number
- * whose outcome had not happened. `attack-made` is therefore what
- * `target-attacks` reads: it is the Attack action rather than every attack
- * roll, and Invisibility's own `unmodelled` records what that leaves out.
+ * **Read off the event, and off a consequence event rather than a roll** —
+ * with one exception the sentence itself makes. `roll-recorded` changes no
+ * state by rule, so no ending hangs on what a die came to; but SRD
+ * Invisibility ends when the target "makes an attack roll", which is a fact
+ * about the roll having been thrown and not about its outcome, and the only
+ * event that names the roller of a swing that spent no Attack action is the
+ * roll's own record. So `target-attacks` reads `roll-recorded.attackRoll`, a
+ * structured mark the two attack rollers write and nothing else does, and
+ * still reads `attack-made` beside it: a log written before the mark carries
+ * only the action, and must fold to the state it always did.
  *
  * One event can say two things: damage names both its dealer — the fact
  * Hellish Rebuke needed, because `source` is prose and prose cannot be aimed
@@ -139,6 +145,11 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
   switch (event.type) {
     case 'attack-made':
       return [{ cause: 'target-attacks', who: event.id }];
+    // "makes an attack roll": every road — the Attack action, an Opportunity
+    // Attack, a readied swing, a swing outside any fight, a later
+    // activation's spell attack — and only the roll that says it was one.
+    case 'roll-recorded':
+      return event.attackRoll === true ? [{ cause: 'target-attacks', who: event.who }] : [];
     // The settled casting, never the declared one: SRD Counterspell makes a
     // declaration that may dissipate "with no effect", and a spell that never
     // settled is not one the target cast.

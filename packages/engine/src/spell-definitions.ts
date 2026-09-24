@@ -5416,13 +5416,12 @@ export interface SpellDefinition {
  * why there is no `summon-drops-to-0`: SRD Unseen Servant prints it and its
  * stat block is a shape this engine does not have.
  *
- * **`target-attacks` is `attack-made`, which is the Attack action rather than
- * every attack roll.** The only thing that names the roller of an attack that
- * costs nothing — an Opportunity Attack, an attack outside combat — is
- * `roll-recorded`, and that event changes no state by rule, so nothing may
- * hang a consequence on it. What is reachable is recorded in Invisibility's
- * own `unmodelled`; a missed free swing is the whole of the residue, because
- * one that lands deals damage and `target-deals-damage` catches it.
+ * **`target-attacks` is every attack roll**, read off `roll-recorded.attackRoll`
+ * — the one structured fact that event carries, written by the weapon attack
+ * and the spell attack and by nothing else — beside `attack-made` for the
+ * logs written before the mark. An Opportunity Attack that misses, a swing
+ * outside any fight, a readied attack and Spiritual Weapon's later swing all
+ * name their roller there, which is what "makes an attack roll" asks.
  */
 export type CastingEndCause =
   /**
