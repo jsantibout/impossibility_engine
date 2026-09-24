@@ -513,13 +513,16 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     }
 
     expect([...keys].sort()).toEqual([
+      'addsToRoll',
       'attack',
+      'casts',
       'multiattack',
       'name',
       'perDay',
       'recharge',
       'save',
       'spellcasting',
+      'teleports',
       'text',
       'trait',
     ]);

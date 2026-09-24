@@ -307,3 +307,117 @@ describe('the two doors are the DM’s and not the model’s', () => {
     }
   });
 });
+
+/**
+ * The third door over one line: the teleport a stat block prints.
+ *
+ * SRD Blink Dog: "The dog teleports up to 40 feet to an unoccupied space it
+ * can see." Unlike the two above, the engine executes nearly all of it — what
+ * is left over is *which* unoccupied space, which is the DM's decision for
+ * `force_printed_save`'s reason, and is why this door is here too.
+ */
+describe('a printed teleport, taken through the door that moves the creature', () => {
+  const BLINK = 'Teleport (Recharge 4–6)';
+
+  /** A blink dog and a goblin, placed far enough apart to blink between. */
+  function pack(seed = 'the-blink') {
+    const t = table(seed);
+    expectOk(t.call('add_creature', { id: 'blink', monsterId: 'blink-dog' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('declare_side', { who: 'blink', side: 'fey' }));
+    expectOk(t.call('declare_side', { who: 'grish', side: 'goblins' }));
+    expectOk(t.call('set_scene', { width: 120, depth: 80, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the glade', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'blink', fromLandmark: 'the glade', feet: 0 }));
+    expectOk(
+      t.call('place_creature', { who: 'grish', fromCreature: 'blink', feet: 30, bearing: 90 }),
+    );
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'blink' }, { who: 'grish' }] }));
+    return t;
+  }
+
+  it('moves the dog, spends the Bonus Action and expends the line', () => {
+    const t = pack();
+    turnOf(t, 'blink');
+
+    const out = expectOk(
+      t.call('teleport_printed_line', {
+        who: 'blink',
+        line: BLINK,
+        fromLandmark: 'the glade',
+        feet: 35,
+        bearing: 0,
+      }),
+    );
+    expect(out.events.some((event) => event.type === 'creature-moved')).toBe(true);
+    expect(out.events.some((event) => event.type === 'bonus-action-spent')).toBe(true);
+    const taken = out.events.filter((event) => event.type === 'stated-bonus-action-taken');
+    expect((taken[0] as { line: string }).line).toBe(BLINK);
+    expect(out.events.some((event) => event.type === 'printed-line-expended')).toBe(true);
+    expect(out.resolution['feet']).toBe(35);
+    expect(out.resolution['line']).toBe(BLINK);
+  });
+
+  it('refuses a space further than the block prints, and spends nothing for it', () => {
+    const t = pack('too-far');
+    turnOf(t, 'blink');
+    const out = t.call('teleport_printed_line', {
+      who: 'blink',
+      line: BLINK,
+      fromLandmark: 'the glade',
+      feet: 55,
+      bearing: 0,
+    });
+    expect(out.status).toBe('refused');
+    if (out.status !== 'refused') return;
+    expect(out.code).toBe('teleport_too_far');
+    expect(t.campaign.log().some((event) => event.type === 'creature-moved')).toBe(false);
+  });
+
+  it('rejects a call with no anchor for the space it lands in', () => {
+    const t = pack('nowhere');
+    turnOf(t, 'blink');
+    const out = t.call('teleport_printed_line', { who: 'blink', line: BLINK, feet: 20 });
+    expect(out.status).toBe('invalid');
+  });
+
+  it('refuses a line whose sentence is not a teleport', () => {
+    const t = pack('not-a-teleport');
+    turnOf(t, 'blink');
+    const out = t.call('teleport_printed_line', {
+      who: 'blink',
+      line: 'Bite',
+      fromLandmark: 'the glade',
+      feet: 10,
+      bearing: 0,
+    });
+    expect(out.status).toBe('refused');
+    if (out.status !== 'refused') return;
+    expect(out.code).toBe('no_such_line');
+  });
+
+  it('says on look which door a line admits, rather than leaving it to English', () => {
+    const t = pack('looking');
+    const dog = t.surface.observe().creatures.find((one) => one.id === 'blink');
+    const blink = dog?.printed?.bonusActions.find((one) => one.name === BLINK);
+    expect(blink?.engineTeleports).toBe(true);
+    expect(blink?.engineRollsTheSave).toBe(false);
+
+    // And a line that says something else reads false, which is what makes the
+    // flag a claim about the engine rather than about the sentence.
+    expectOk(t.call('add_creature', { id: 'wight', monsterId: 'ghost' }));
+    const ghost = t.surface.observe().creatures.find((one) => one.id === 'wight');
+    const ethereal = ghost?.printed?.actions.find((one) => one.name === 'Etherealness');
+    expect(ethereal?.engineTeleports).toBe(false);
+  });
+
+  it('is the DM’s door and not the model’s', () => {
+    const surface = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'blinking' }));
+    const dm = createDmSurface(createCampaign({ content: SRD_CONTENT, seed: 'blinking' }));
+    expect(dm.tools.map((definition) => definition.name)).toContain('teleport_printed_line');
+    const out = surface.call({ tool: 'teleport_printed_line', input: {}, commandId: 'toolu_1' });
+    expect(out.status).toBe('invalid');
+    if (out.status !== 'invalid') return;
+    expect(out.code).toBe('unknown_tool');
+  });
+});

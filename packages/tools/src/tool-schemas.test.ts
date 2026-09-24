@@ -167,13 +167,20 @@ describe('toolSchemas', () => {
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(101);
+    expect(toolSchemas(dm())).toHaveLength(102);
+    // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
+    // on the DM's surface alone: `teleport_printed_line` takes the teleport a
+    // stat block prints, at the distance the block prints, to a space the DM
+    // names — which is the same decision `force_printed_save`'s head count is,
+    // and the reason neither is on a model's surface. One pin on the DM
+    // surface and none on the player's; the lengths sum with whatever the
+    // other tracks of this batch moved.
     // Eight tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(101);
+    expect(toolSchemas(dm())).toHaveLength(102);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(117379);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(139686);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(141509);
   });
 });
 

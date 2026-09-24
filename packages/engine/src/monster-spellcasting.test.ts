@@ -140,7 +140,7 @@ describe('what the adapter compiles out of the printed line', () => {
       saveDc: 12,
       attackBonus: 4,
     });
-    expect(cultist.spellPools).toEqual([
+    expect(cultist.pools).toEqual([
       { key: printedSpellPoolKey('command'), label: 'Command (2/Day)', max: 2, recovers: 'dawn' },
       {
         key: printedSpellPoolKey('hold-person'),
@@ -156,7 +156,7 @@ describe('what the adapter compiles out of the printed line', () => {
     const acolyte = adaptMonster(SRD_CONTENT.monsterById('priest-acolyte')!, CULTIST);
     expect(acolyte.spellcasting?.classes[0]).toMatchObject({ ability: 'wis' });
     expect(acolyte.spellcasting?.classes[0]).not.toHaveProperty('saveDc');
-    expect(acolyte.spellPools).toEqual([]);
+    expect(acolyte.pools).toEqual([]);
   });
 
   it('carries a rider it has no field for, on the spell it was printed after', () => {
@@ -171,7 +171,7 @@ describe('what the adapter compiles out of the printed line', () => {
   it('leaves a block that casts nothing alone', () => {
     const goblin = adaptMonster(SRD_CONTENT.monsterById('goblin-warrior')!, CULTIST);
     expect(goblin.spellcasting).toBeNull();
-    expect(goblin.spellPools).toEqual([]);
+    expect(goblin.pools).toEqual([]);
   });
 });
 

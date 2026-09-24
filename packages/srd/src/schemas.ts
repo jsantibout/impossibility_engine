@@ -1181,6 +1181,140 @@ export const MonsterSpellcastingSchema = z.object({
 export type MonsterSpellcasting = z.infer<typeof MonsterSpellcastingSchema>;
 
 /**
+ * One line that casts named spells, at the price the **line** prints.
+ *
+ * SRD Priest, Divine Aid (3/Day): "The priest casts _Bless, Dispel Magic,
+ * Healing Word,_ or _Lesser Restoration,_ using the same spellcasting ability
+ * as Spellcasting." SRD Dust Mephit, Sleep (1/Day): "The mephit casts the
+ * _Sleep_ spell, requiring no spell components and using Charisma as the
+ * spellcasting ability (spell save DC 10)."
+ *
+ * **The book's fourth opening, and it is not {@link MonsterSpellcastingSchema}.**
+ * That line declares a list with a price against each entry and is a property
+ * of the creature; this one is a *use of a heading*, whose economy is the
+ * heading's own — an N/Day count or a recharge over the whole menu, spent
+ * whichever spell is chosen. So the shape carries no per-spell budget at all:
+ * the number of uses is `Feature.perDay`, where the book prints it.
+ *
+ * **The ability is a reference as often as it is a value.** "using the same
+ * spellcasting ability as Spellcasting" names the block's own Spellcasting
+ * line rather than an ability, and a block that prints no such line has not
+ * said which — so `spellcasting` is carried as the reference it is and
+ * resolving it (or refusing to) is the engine's, not this reader's. A line
+ * that states an ability outright states it here.
+ *
+ * **"Requiring no spell components" is dropped on purpose.** The engine models
+ * no components, so the clause changes nothing it could check; it is fiction
+ * the narrating layer already has in the sentence it is handed.
+ */
+export const MonsterCastLineSchema = z.object({
+  /**
+   * The spells the line offers, in the order it prints them, by SRD id.
+   *
+   * A menu rather than one spell because four of the six SRD lines print one:
+   * "casts _Bless, Dispel Magic, Healing Word,_ or _Lesser Restoration_". One
+   * of them is chosen per use, which is a decision the *caller* makes and this
+   * shape only has to hold the list of legal answers.
+   */
+  spells: z.array(z.string().regex(/^[a-z0-9-]+$/)).min(1),
+  /**
+   * Whose ability the casting uses: the block's Spellcasting line, or one the
+   * line names outright.
+   */
+  ability: z.union([
+    z.literal('spellcasting'),
+    z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+  ]),
+  /**
+   * The save DC the line prints, where it prints one — the Dust Mephit's 10.
+   *
+   * Carried rather than derived for {@link MonsterSpellcastingSchema}'s
+   * reason: a printed number and a derived one are not distinguishable after
+   * the fact, and a line that prints none is left to derive.
+   */
+  saveDc: z.number().int().min(1).optional(),
+});
+export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
+
+/**
+ * One line that teleports the creature whose block it is.
+ *
+ * SRD Blink Dog, Teleport (Recharge 4–6): "The dog teleports up to 40 feet to
+ * an unoccupied space it can see." SRD Marilith and SRD Nalfeshnee print the
+ * same sentence at 120 feet.
+ *
+ * **Both clauses are the engine's own rules**, which is why this is three
+ * fields and not prose: `teleportTo` already measures a distance, refuses an
+ * occupied space and reads a declared sight line, because SRD Misty Step
+ * prints the same sentence about a caster. So the line is the same mechanism
+ * at a different price.
+ *
+ * **Read whole or not at all.** SRD Lich's Deathly Teleport deals damage
+ * around the space it left and SRD Solar's Radiant Teleport forces a save at
+ * the destination; SRD Balor's moves a second creature. Each says more than
+ * this shape holds, so each stays prose — the discipline every reader in this
+ * file keeps.
+ */
+export const MonsterTeleportSchema = z.object({
+  /** "up to 40 feet", measured from where the creature is standing. */
+  feet: z.number().int().min(5),
+  /**
+   * "to an unoccupied space **it can see**" — always, on every line the SRD
+   * prints in this shape.
+   *
+   * A literal rather than a boolean because no printed line says otherwise: a
+   * field that is always the same value is still the clause the sentence
+   * states, and writing it down is what keeps a homebrew line that *omits* the
+   * clause from being read as though it said it.
+   */
+  mustSee: z.literal(true),
+});
+export type MonsterTeleport = z.infer<typeof MonsterTeleportSchema>;
+
+/**
+ * One Reaction line that adds a flat number to somebody's D20 Test.
+ *
+ * SRD Sphinx of Wonder, Burst of Ingenuity (2/Day): "_Trigger:_ The sphinx or
+ * another creature within 30 feet makes an ability check or a saving throw.
+ * _Response:_ The sphinx adds 2 to the roll."
+ *
+ * **The first Reaction line this parser reads at all**, and it is read because
+ * the engine already holds the window it names: `test-rolled` is the instant
+ * Dark One's Own Luck and Indomitable answer, and "adds 2 to the roll" is the
+ * `intervene` effect with a flat addend. It is one of twenty `_Trigger:_`
+ * lines the SRD prints and the only one of that shape: nine add to an **Armour
+ * Class** against one attack (SRD Parry, SRD Riposte, the Mummy's Whirlwind of
+ * Sand), and the other ten are ten different sentences — an ooze that splits,
+ * an octopus's ink, a goblin redirecting a swing onto an ally, a rust monster
+ * that eats the weapon that hit it. Every one of them wants a window or a rule
+ * the engine does not have, so all nineteen stay prose and stay on the
+ * ledger.
+ *
+ * **The trigger's reach is part of the shape**, for {@link MonsterTraitSchema}'s
+ * stated reason: a feet-less kind would give every holder whatever range the
+ * first one printed, and "the sphinx **or** another creature" is a different
+ * sentence from "another creature" — the holder's own roll is in it.
+ */
+export const MonsterRollAddendSchema = z.object({
+  /** "adds 2 to the roll". */
+  addend: z.number().int().min(1),
+  /** "another creature within 30 feet", measured from the reacting creature. */
+  withinFeet: z.number().int().min(0),
+  /** "The sphinx **or** another creature": the holder's own roll is answered. */
+  includesSelf: z.boolean(),
+  /**
+   * "makes an ability check or a saving throw", in the order the glossary
+   * lists them.
+   *
+   * The same vocabulary and the same argument as `disadvantage-in-sunlight`'s
+   * `rolls`: a homebrew line naming one of the three must be expressible, and
+   * a kind per breadth would put one rule in two places.
+   */
+  tests: z.array(z.enum(['ability-check', 'attack-roll', 'saving-throw'])).min(1),
+});
+export type MonsterRollAddend = z.infer<typeof MonsterRollAddendSchema>;
+
+/**
  * A trait whose sentence the parser recognised as a mechanic the engine has.
  *
  * Every member is named for what it *does* rather than for the trait that
@@ -1486,6 +1620,33 @@ export const FeatureSchema = z.object({
    * would still be saying what it says.
    */
   spellcasting: MonsterSpellcastingSchema.optional(),
+  /**
+   * The spells this line casts, where its sentence is the cast template — see
+   * {@link MonsterCastLineSchema}.
+   *
+   * Beside `spellcasting` rather than inside it, because the two are different
+   * sentences about different economies: that one declares what the creature
+   * *can cast* and prices each spell; this one is a heading whose single use
+   * buys any one of a short menu. A block prints both — SRD Priest prints
+   * Spellcasting under Actions and Divine Aid under Bonus Actions — and the
+   * second reads the first for its ability.
+   *
+   * Read on every section for the reason `save` is: what a line says is not a
+   * property of the heading it is printed under. What the heading *does* say
+   * is what the use costs, which is why it is not carried here.
+   */
+  casts: MonsterCastLineSchema.optional(),
+  /** Where this line teleports its creature — see {@link MonsterTeleportSchema}. */
+  teleports: MonsterTeleportSchema.optional(),
+  /**
+   * The flat addend this Reaction line puts on somebody's D20 Test — see
+   * {@link MonsterRollAddendSchema}.
+   *
+   * Read on every section like everything else here, though only the Reactions
+   * section prints it: a line answering a trigger costs a Reaction because of
+   * the heading it is under, and the heading is read where every other cost is.
+   */
+  addsToRoll: MonsterRollAddendSchema.optional(),
 });
 export type Feature = z.infer<typeof FeatureSchema>;
 

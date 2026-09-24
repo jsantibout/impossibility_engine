@@ -49,6 +49,8 @@ import type {
 import { vitals, type Vitals } from './vitals.js';
 import { declaredCasting, type GrantedSpell, type SpellcastingState } from './spellcasting.js';
 import type { PoolDeclaration } from './resources.js';
+import type { ReactionFeature } from './reactions.js';
+import type { D20TestKind } from './checks.js';
 
 /**
  * Turning a parsed stat block into something the engine can fight.
@@ -143,17 +145,22 @@ export interface AdaptedMonster {
    */
   readonly spellcasting: SpellcastingState | null;
   /**
-   * The pools the declaration's per-day castings come out of, in key order.
+   * The pools the block's per-day uses come out of, in key order.
    *
    * Declared rather than derived, because a pool is: SRD writes "2/Day" and
    * `PoolDeclaration` is what the engine has for a count somebody has to state
    * the size of. The tag is `dawn` — the clock the block's other per-day lines
    * are already on, which `declareDawn` empties and no rest touches.
    *
-   * Empty for a block whose every printed spell is At Will, which has nothing
-   * to run out of.
+   * **`spellPools` until a second kind of use needed one.** The Spellcasting
+   * line's per-day castings were the first and are still most of them; a
+   * printed Reaction's "(2/Day)" is the other, and it is a pool for the reason
+   * `printedLinePoolKey` gives. One list rather than two, because what they
+   * have in common is the whole of what `addCreature` does with them.
+   *
+   * Empty for a block that rations nothing, which has nothing to run out of.
    */
-  readonly spellPools: readonly PoolDeclaration[];
+  readonly pools: readonly PoolDeclaration[];
   /**
    * Entries that carried a caveat the engine cannot enforce, kept verbatim so
    * narration and the DM still have them — "Charmed (except from its vampire
@@ -1350,6 +1357,144 @@ export const printedSpellPoolKey = (spellId: string): string =>
   `${PRINTED_SPELL_PER_DAY}${spellId}`;
 
 /**
+ * The prefix one printed **line**'s per-day uses are pooled under.
+ *
+ * `PRINTED_SPELL_PER_DAY`'s sibling one level up: that one is per spell,
+ * because the Spellcasting line prices each entry; this one is per heading,
+ * because a heading's single use buys whatever the heading does.
+ *
+ * **A pool rather than the `dawn` tally every other per-day line uses**, and
+ * the reason is what spends it. `takeStatedAction` reads a count and compares
+ * it against the ceiling on the sheet itself, which a tally is exactly right
+ * for; a Reaction is offered or withheld by `canAfford`, which asks a **pool**
+ * whether a use is left — and a window that opened on a Reaction with nothing
+ * behind it would be an offer the command layer then had to refuse. The two
+ * keys cannot collide and the two doors never meet: a Reaction is not printed
+ * under Actions or Bonus Actions, so nothing spends one line both ways.
+ */
+const PRINTED_LINE_PER_DAY = 'printed-line-per-day:';
+
+/** The pool one printed line's per-day uses come out of. */
+export const printedLinePoolKey = (line: string): string => `${PRINTED_LINE_PER_DAY}${line}`;
+
+/**
+ * The D20 Tests a printed trigger names, where the engine holds a window for
+ * every one of them.
+ *
+ * `D20TestKind` is two members and the parser reads three rolls, because the
+ * glossary lists three: the `test-rolled` window is the instant a check or a
+ * save has landed, and an attack roll is not one of them — it has its own two
+ * windows and its own answers. So a line whose trigger names an attack roll is
+ * refused **whole** rather than read down to the part that fits, which is the
+ * discipline every reader in this adapter keeps.
+ */
+function triggeringTests(
+  rolls: readonly ('ability-check' | 'attack-roll' | 'saving-throw')[],
+): readonly D20TestKind[] | null {
+  const tests: D20TestKind[] = [];
+  for (const roll of rolls) {
+    if (roll === 'attack-roll') return null;
+    tests.push(roll);
+  }
+  return tests.length === 0 ? null : tests;
+}
+
+/**
+ * SRD Sphinx of Wonder's Burst of Ingenuity, onto the sheet as the Reaction it
+ * is.
+ *
+ * "_Trigger:_ The sphinx or another creature within 30 feet makes an ability
+ * check or a saving throw. _Response:_ The sphinx adds 2 to the roll." Every
+ * part of that is a rule the engine already had: `test-rolled` is the window
+ * Dark One's Own Luck answers, `intervene` is the push with a sign,
+ * `self-or-within` is the reach, and the flat addend is the one thing a stat
+ * block writes that no class table could.
+ *
+ * **The heading is load-bearing here, as it is for `printedBonusActionAllowance`
+ * and for nothing else.** What the sentence does not say is what it *costs*: a
+ * line answering a trigger costs a Reaction because it is printed under
+ * **Reactions**, and the same sentence printed elsewhere would be a Reaction
+ * nobody paid for. So this compiles from that section alone.
+ *
+ * **A per-day heading declares the pool its uses come out of** — see
+ * {@link printedLinePoolKey}. A line with no limit has none, which is what a
+ * `null` pool has always meant.
+ */
+function printedRollAddendReaction(
+  monster: Monster,
+  line: MonsterLine,
+): ReactionFeature | null {
+  const addend = line.addsToRoll;
+  if (addend === undefined) return null;
+
+  const tests = triggeringTests(addend.tests);
+  if (tests === null) return null;
+
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    // The block's own heading, so a log names the rule the book printed.
+    name: line.name,
+    window: 'test-rolled',
+    // SRD *Monsters*: a line under this heading costs the creature's Reaction.
+    costsReaction: true,
+    pool: line.perDay === undefined ? null : printedLinePoolKey(line.name),
+    reach: addend.includesSelf
+      ? { kind: 'self-or-within', feet: addend.withinFeet }
+      : { kind: 'within', feet: addend.withinFeet },
+    does: {
+      kind: 'intervene',
+      amount: { plus: [{ kind: 'flat', amount: addend.addend, label: line.name }] },
+      // "adds 2 to the roll" — the sign the sentence prints.
+      direction: 'bonus',
+      tests,
+      // The trigger says when the Reaction may be taken and says nothing about
+      // whether the roll beat its DC, so it answers either. A narrowing the
+      // sentence does not print is a rule nobody wrote.
+      outcome: 'either',
+    },
+  };
+}
+
+/**
+ * Every Reaction the block prints that this adapter can compile, and the pools
+ * they come out of.
+ *
+ * **The Reactions section reaches the sheet for the first time here**, and
+ * only one shape of it does. The SRD writes twenty `_Trigger:_` lines: nine
+ * add to an **Armour Class** against one attack — SRD Parry, SRD Riposte, the
+ * Mummy's Whirlwind of Sand — which is a window the engine does not hold, and
+ * the other ten are ten different sentences, from an ooze that splits to an
+ * octopus's ink. All nineteen stay prose and stay on the ledger, named there
+ * rather than argued about here.
+ */
+function printedReactions(monster: Monster): {
+  readonly reactions: readonly ReactionFeature[];
+  readonly pools: readonly PoolDeclaration[];
+} {
+  const reactions: ReactionFeature[] = [];
+  const pools: PoolDeclaration[] = [];
+
+  for (const line of monster.reactions) {
+    const reaction = printedRollAddendReaction(monster, line);
+    if (reaction === null) continue;
+    reactions.push(reaction);
+    if (reaction.pool !== null) {
+      pools.push({
+        key: reaction.pool,
+        // The block's own words, so a report names the rule the book printed.
+        label: line.name,
+        max: line.perDay!,
+        // The clock every printed per-day limit is on, and the one a rest
+        // deliberately does not touch.
+        recovers: 'dawn',
+      });
+    }
+  }
+
+  return { reactions, pools };
+}
+
+/**
  * SRD's Spellcasting line, onto the creature as the declaration it is.
  *
  * "The cultist casts one of the following spells, using Wisdom as the
@@ -1457,6 +1602,8 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     if (SKILL_SET.has(name)) skills[name as Skill] = bonus;
   }
 
+  const { spellcasting, spellPools } = printedSpellcasting(monster);
+  const { reactions, pools: reactionPools } = printedReactions(monster);
   const attacks = printedAttacks(monster);
   const traits = printedTraits(monster);
   const traitSaves = printedTraitSaves(monster);
@@ -1492,6 +1639,18 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       // here and not among the attacks; what the save adds is a second thing
       // a caller may do with it besides quote it.
       ...(line.save === undefined ? {} : { save: line.save }),
+      // And where it teleports, where the sentence is the book's teleport
+      // template. It arrives for the same reason the save did: the line is one
+      // no attack could be read out of, and what the structure buys is a door
+      // that executes it rather than quotes it.
+      //
+      // **A line that *casts* is read and is deliberately not pinned here.**
+      // `Feature.casts` is structure the catalogue carries and the ledger
+      // counts, and nothing in the engine spends one yet — so a field on the
+      // sheet would be a sentence that validates, loads, lands on a creature
+      // and does nothing, which is the failure this repository finds most
+      // often. It arrives with the door that reads it.
+      ...(line.teleports === undefined ? {} : { teleports: line.teleports }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
@@ -1515,6 +1674,10 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // Trample lines write it under this heading, and a heading says what a
     // line costs rather than what it does.
     ...(line.save === undefined ? {} : { save: line.save }),
+    // And where it teleports, which is on both sections for the reason the
+    // save is: what a heading changes is what the use costs. A line that
+    // *casts* is not pinned here — see the note beside the Actions section.
+    ...(line.teleports === undefined ? {} : { teleports: line.teleports }),
   }));
 
   const stated: StatedValues = {
@@ -1572,6 +1735,12 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // unless a feature says otherwise", and an explicit 1 on every stat block
     // would be a number where there was an absence.
     ...(attacksPerAction > 1 ? { attacksPerAction } : {}),
+    // **The Reactions section, for the one shape the engine holds a window
+    // for.** On the sheet rather than beside it because that is where a
+    // Reaction lives — `reactionsOf` reads `sheet.reactions` for a character
+    // and for a stat block alike, and nothing about the two roads differs
+    // after this point.
+    ...(reactions.length === 0 ? {} : { reactions }),
     stated,
   };
 
@@ -1589,7 +1758,12 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     initiativeModifier: monster.initiative,
     cr: monster.cr,
     xp: monster.xp,
-    ...printedSpellcasting(monster),
+    spellcasting,
+    // Both kinds of per-day use in one list, sorted by key so two readers of
+    // one block agree about the order and a log compares byte for byte.
+    pools: [...spellPools, ...reactionPools].sort((a, b) =>
+      a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
+    ),
     caveats,
   };
 }

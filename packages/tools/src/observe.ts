@@ -123,6 +123,18 @@ export interface ObservedPrintedLine {
    * here is one boolean, and `text` is still the book's own sentence.
    */
   readonly engineRollsTheSave: boolean;
+  /**
+   * Whether the engine will move the creature this line teleports, or the
+   * sentence is the caller's to adjudicate.
+   *
+   * {@link engineRollsTheSave}'s sibling, here for its reason and read the
+   * same way: a claim about the engine and never about the English. SRD Blink
+   * Dog's Teleport reads `true`; SRD Lich's Deathly Teleport reads `false`,
+   * because it deals damage around the space it left and the reader is
+   * anchored against saying so. Without it, `teleport_printed_line` and
+   * `take_printed_bonus_action` over one heading are a guess.
+   */
+  readonly engineTeleports: boolean;
 }
 
 /**
@@ -455,6 +467,7 @@ function printedBlock(
     readonly text: string;
     readonly recharge?: StatedAttack['recharge'];
     readonly save?: StatedAction['save'];
+    readonly teleports?: StatedAction['teleports'];
   }): ObservedPrintedLine => ({
     name: one.name,
     text: one.text,
@@ -465,6 +478,9 @@ function printedBlock(
     // reads the same field to decide whether it will roll. One source, so the
     // report and the refusal cannot disagree.
     engineRollsTheSave: one.save !== undefined,
+    // The same, one door along: the pinned record that `takePrintedTeleport`
+    // itself reads, so the report and the refusal cannot disagree.
+    engineTeleports: one.teleports !== undefined,
   });
 
   return {

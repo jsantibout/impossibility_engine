@@ -26,6 +26,7 @@ import type {
   MonsterMultiattack,
   MonsterRecharge,
   MonsterSave,
+  MonsterTeleport,
   MonsterTrait,
   WeaponMastery,
 } from '@ie/srd';
@@ -160,6 +161,8 @@ export interface StatedBonusAction {
    * `forcePrintedSave` spends whichever slot the heading names.
    */
   readonly save?: MonsterSave;
+  /** Where this line teleports its creature — see {@link StatedAction.teleports}. */
+  readonly teleports?: MonsterTeleport;
 }
 
 /**
@@ -222,6 +225,16 @@ export interface StatedAction {
    * before the save. Those are still handed over whole.
    */
   readonly save?: MonsterSave;
+  /**
+   * Where this line teleports its creature, where its sentence is the book's
+   * teleport template — see `MonsterTeleportSchema`.
+   *
+   * SRD Blink Dog: "The dog teleports up to 40 feet to an unoccupied space it
+   * can see." The distance and the sight clause are both rules the engine
+   * already holds, because SRD Misty Step prints the same sentence about a
+   * caster — so the line is the same mechanism at the heading's price.
+   */
+  readonly teleports?: MonsterTeleport;
 }
 
 /**
