@@ -144,6 +144,7 @@ const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
 /** Every operation {@link SpeedChange} names, as data, for untyped input. */
 const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>([
   'add',
+  'double',
   'halve',
   'zero',
   'match-walk',
@@ -1003,7 +1004,7 @@ function checkSpeedChange(
     found.push({
       field: `${path}.change`,
       code: 'bad_speed_change',
-      reason: `"${String(change)}" is not something an effect does to a Speed; the SRD adds feet to one, halves one, sets one to 0, or gives one in a mode equal to the walking Speed`,
+      reason: `"${String(change)}" is not something an effect does to a Speed; the SRD adds feet to one, doubles one, halves one, sets one to 0, or gives one in a mode equal to the walking Speed`,
     });
     return;
   }
@@ -1082,7 +1083,19 @@ function checkSpeedMode(
   // creature rather than about a mode, so a `halve` naming one would promise
   // a narrowing no reader performs.
   const gives = change === 'add' || change === 'match-walk';
-  if (mode !== undefined && !gives) {
+  if (mode !== undefined && change === 'double') {
+    // **The one member that neither gives a Speed nor takes one away**, so it
+    // is refused a mode in its own words: SRD Haste says "the target's Speed
+    // is doubled" about the creature, and `speedOf` doubles the walking Speed
+    // and nothing else. A mode written here would promise a narrowing no
+    // reader performs, which is what the whole of this function is for.
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_speed_change',
+      reason:
+        '"double" multiplies the Speed the SRD writes unqualified, which is the walking one, and the book prints no sentence doubling one mode and not another — so this mode is read by nothing',
+    });
+  } else if (mode !== undefined && !gives) {
     found.push({
       field: `${path}.mode`,
       code: 'bad_speed_change',
@@ -1202,6 +1215,8 @@ function checkCastingRepeat(
     });
   }
 
+  checkDamageTrigger(repeats.alsoWhenDamaged, path, found);
+
   const burns = repeats.beforeTheSave;
   if (
     burns !== undefined &&
@@ -1261,12 +1276,19 @@ function checkSaveCastingRepeat(
     });
   }
 
-  if (repeats.onSuccess !== 'end-casting') {
+  // **Both spellings, and they are two SRD sentences rather than one written
+  // loosely.** SRD Ray of Enfeeblement ends "the spell" and catches one
+  // creature; SRD Slow ends "the spell **on itself**" and catches six. What a
+  // success reaches is the whole difference, and both are hosted by the
+  // casting because neither failure imposed a condition to file a hook on —
+  // see `castingHostedRepeat`, where `end-on-target` files the hook on the
+  // casting's grants on that one creature.
+  if (repeats.onSuccess !== 'end-casting' && repeats.onSuccess !== 'end-on-target') {
     found.push({
       field: `${at}.onSuccess`,
       code: 'repeat_without_condition',
       reason:
-        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so there is nothing on the target for a success to end, and the hook rides on the casting instead; SRD writes "ending the spell on a success", which is "end-casting"',
+        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so the hook rides on the casting instead, and a success either ends the casting ("end-casting") or releases what the casting hung on that one creature ("end-on-target")',
     });
   }
 
@@ -1278,6 +1300,8 @@ function checkSaveCastingRepeat(
         'SRD writes "the target repeats the save" — the one this effect already rolled — so a repeat on a saving throw names no ability of its own',
     });
   }
+
+  checkDamageTrigger(repeats.alsoWhenDamaged, at, found);
 
   if (repeats.beforeTheSave !== undefined) {
     found.push({
@@ -1357,6 +1381,8 @@ function checkConditionRider(
         'damage before a repeat save is collected from the casting’s own hook, and a rider’s repeat is raised from the condition it landed on; written here it would be dealt by nothing',
     });
   }
+
+  checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
 
   // **And a repeat that ends the casting needs one the rider has not
   // disowned.** `outlivesCasting` is exactly the field that records the
@@ -1441,6 +1467,46 @@ function checkConditionRider(
   // which are grants with the same problem and no rider at all. Two places
   // reporting one defect under two codes is the second place to get one
   // sentence wrong.
+}
+
+/**
+ * The second moment a repeat save may be raised at, wherever it is written.
+ *
+ * SRD Hideous Laughter is the one spell in the book that prints it — "each
+ * time it takes damage ... The target has Advantage on the save if the save is
+ * triggered by damage" — and the whole of what there is to be wrong about is
+ * the mode: the moment has no vocabulary of its own, because there is one
+ * trigger, and a field naming a second would be shape built ahead of a
+ * sentence.
+ *
+ * **One rule, three carriers**, the reading {@link checkSpeedChange} already
+ * takes: the rider's repeat, the casting-hosted repeat on a saving throw, and
+ * the casting-hosted repeat on a smite all say the same sentence, and a second
+ * copy is a second place for it to be got wrong.
+ */
+function checkDamageTrigger(
+  trigger: { readonly mode?: unknown } | undefined,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (trigger === undefined) return;
+  if (
+    !readsAsObject(
+      trigger,
+      `${path}.alsoWhenDamaged`,
+      'a save raised by damage is an object naming what the trigger does to the roll',
+      found,
+    )
+  ) {
+    return;
+  }
+  if (trigger.mode !== 'advantage') {
+    found.push({
+      field: `${path}.alsoWhenDamaged.mode`,
+      code: 'bad_damage_trigger',
+      reason: `"${String(trigger.mode)}" is not what a damage trigger does to a repeat save; SRD prints one sentence and it grants Advantage`,
+    });
+  }
 }
 
 /**
@@ -1979,7 +2045,7 @@ function checkModifierRider(
   found: SpellDefinitionProblem[],
 ): void {
   if (rider?.kind === 'bonus') {
-    checkBonusGrant(rider.bonus, rider.applies, path, found);
+    checkBonusGrant(rider.bonus, rider.applies, path, found, rider.only);
     return;
   }
   if (rider?.kind === 'damage-penalty') {
@@ -3792,6 +3858,42 @@ function checkEffect(
         }
         immune.add(condition);
       });
+      // **And the types it holds against, where the spell qualifies it.** SRD
+      // Protection from Evil and Good's "from them". The names are not checked
+      // against a list, for the reason `RollSelector.attackerType`'s are not: a
+      // creature type is content, and this validator holds the engine's own
+      // closed vocabularies. What it does refuse is a qualification that
+      // qualifies nothing, which reads as a narrowing and is none.
+      if (effect.fromTypes !== undefined) {
+        if (
+          !readsAsList(
+            effect.fromTypes,
+            `${path}.fromTypes`,
+            'the creature types an Immunity holds against are a list',
+            found,
+          )
+        ) {
+          return;
+        }
+        if (effect.fromTypes.length === 0) {
+          found.push({
+            field: `${path}.fromTypes`,
+            code: 'immunity_narrows_to_nothing',
+            reason:
+              'an Immunity qualified to no creature type holds against nobody; leave the field off for the unqualified sentence',
+          });
+        }
+        effect.fromTypes.forEach((type, i) => {
+          if (typeof type !== 'string' || type.length === 0) {
+            found.push({
+              field: `${path}.fromTypes[${i}]`,
+              code: 'bad_creature_type',
+              reason:
+                'a creature type is a non-empty name, as the table and the stat blocks write it',
+            });
+          }
+        });
+      }
       return;
     }
 
@@ -4342,6 +4444,83 @@ const END_TRIGGER_SCOPES: ReadonlySet<string> = new Set(['casting', 'target']);
  * one place.
  */
 const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set(['summon-takes-damage']);
+
+/**
+ * What a casting leaves behind when it ends, and the four ways it can be a
+ * sentence nothing reads.
+ *
+ * SRD Haste prints the one clause of this shape in the book. The rules are
+ * {@link checkEndsEarly}'s own, asked of the other end of the same lifetime: a
+ * casting that never becomes ongoing has no ending for anything to hang on, and
+ * a rider that lays nothing is a sentence somebody meant to finish.
+ */
+function checkOnEnd(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const riders = definition.onEnd;
+  if (riders === undefined) return;
+  if (!readsAsList(riders, 'onEnd', 'what a casting leaves behind is a list of riders', found)) {
+    return;
+  }
+
+  if (riders.length === 0) {
+    found.push({
+      field: 'onEnd',
+      code: 'on_end_lays_nothing',
+      reason: 'a list with nothing in it is a spell that leaves nothing behind; omit the field',
+    });
+    return;
+  }
+
+  if (!lasts) {
+    found.push({
+      field: 'onEnd',
+      code: 'on_end_without_a_lifetime',
+      reason:
+        'a casting with no duration, no Concentration and nothing to dispel is over the moment it resolves and never enters the record the ending is read off, so nothing would ever lay this',
+    });
+  }
+
+  riders.forEach((rider, i) => {
+    const path = `onEnd[${i}]`;
+    if (!readsAsObject(rider, path, 'a rider names what it lays and how long', found)) return;
+
+    if (rider.conditions !== undefined) {
+      if (!readsAsList(rider.conditions, `${path}.conditions`, 'a list of conditions', found)) {
+        return;
+      }
+      rider.conditions.forEach((condition, at) =>
+        checkCondition(String(condition), `${path}.conditions[${at}]`, found),
+      );
+    }
+
+    if (rider.speed !== undefined && rider.speed !== 'zero') {
+      found.push({
+        field: `${path}.speed`,
+        code: 'bad_speed_change',
+        reason: `"${String(rider.speed)}" is not what an ending does to a Speed; SRD prints one sentence and it sets the Speed to 0`,
+      });
+    }
+
+    if ((rider.conditions ?? []).length === 0 && rider.speed === undefined) {
+      found.push({
+        field: path,
+        code: 'on_end_lays_nothing',
+        reason: 'a rider that imposes no condition and changes no Speed leaves nothing behind',
+      });
+    }
+
+    if (rider.lasts !== 'end-of-next-turn') {
+      found.push({
+        field: `${path}.lasts`,
+        code: 'bad_rider_duration',
+        reason: `"${String(rider.lasts)}" is not a span an ending can run for; SRD prints one — "until the end of its next turn"`,
+      });
+    }
+  });
+}
 
 /**
  * A trigger that ends a casting needs a casting that could still be running.
@@ -6008,6 +6187,7 @@ export function checkSpellDefinition(
   }
 
   checkEndsEarly(definition, lasts, found);
+  checkOnEnd(definition, lasts, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //
@@ -7423,6 +7603,17 @@ function checkCastingRepeatLifetime(
   const onASave = definition.effects.some(
     (effect) => effect.kind === 'save' && effect.condition === undefined && effect.repeats !== undefined,
   );
+  // **And whether a success ends the casting**, which is what the head count
+  // below is actually about: a hook that ends the casting rides on the
+  // casting's one timer, and a hook that ends the spell on one creature rides
+  // on the casting's grants on that creature — one key apiece, however many
+  // the spell caught. See {@link castingHostedRepeat}.
+  const endsTheCasting = definition.effects.some(
+    (effect) =>
+      effect.kind === 'save' &&
+      effect.condition === undefined &&
+      effect.repeats?.onSuccess === 'end-casting',
+  );
   const hosted =
     onASave ||
     definition.effects.some(
@@ -7431,17 +7622,20 @@ function checkCastingRepeatLifetime(
   if (!hosted) return;
 
   // **And one creature, because one timer holds one hook.** A casting has a
-  // single deadline, so the repeat it carries names the single creature whose
-  // turns raise it; a saving throw that caught three would file three hooks on
-  // one key and keep the last. Every SRD sentence of this shape is about one
-  // target, so the shape is refused rather than the mechanism owed.
+  // single deadline, so a repeat whose success ends *the casting* names the
+  // single creature whose turns raise it; a saving throw that caught three
+  // would file three hooks on one key and keep the last.
   //
   // **Asked of the saving throw alone.** A smite's repeat names the creature
   // the *blow* landed on rather than anybody the target rule admits — SRD
   // Searing Smite's Range is Self and it targets nobody at all — so the head
   // count says nothing about it.
+  //
+  // **And asked only of `end-casting`.** SRD Slow's "ending the spell on
+  // itself" is the other spelling and is filed per creature, which is why the
+  // spell that could not be written under this rule is written now.
   if (
-    onASave &&
+    endsTheCasting &&
     (definition.area !== undefined ||
       definition.targets.count !== 1 ||
       definition.targets.extraPerSlotLevelAbove !== undefined)

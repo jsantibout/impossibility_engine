@@ -498,6 +498,17 @@ export interface SpellRepeatSave {
    */
   readonly onSuccess: 'end-on-target' | 'end-casting';
   /**
+   * A second moment the save is raised at, and what that moment does to it —
+   * see `RepeatSave.alsoWhenDamaged`, where the shape and its reader are
+   * argued.
+   *
+   * SRD Hideous Laughter, and the one spell in the book that writes it: "At
+   * the end of each of its turns **and each time it takes damage**, it makes
+   * another Wisdom saving throw. The target has Advantage on the save if the
+   * save is triggered by damage."
+   */
+  readonly alsoWhenDamaged?: { readonly mode: 'advantage' };
+  /**
    * What a **failure** does, where the SRD writes a failure that acts.
    *
    * SRD Sleep: "at which point it must repeat the save. If the target fails
@@ -880,6 +891,19 @@ export type ModifierRider =
       readonly bonus: Bonus;
       readonly applies: readonly BonusApplies[];
       readonly direction: 'add' | 'subtract';
+      /**
+       * Which of those rolls it reaches — see {@link BonusNarrowing}, and the
+       * `buff` effect's own `only`, which is this field on the kind that rolls
+       * a save of its own.
+       *
+       * SRD Slow: "it takes a −2 penalty to AC **and Dexterity saving
+       * throws**". Two families off one printed penalty, and only one of them
+       * is narrowed — an Armour Class is not a roll and is made with no
+       * ability at all, which is why the same spell writes two riders rather
+       * than one with a list. Absent is the unnarrowed sentence, which is
+       * every other rider in the book.
+       */
+      readonly only?: BonusNarrowing;
     }
   /**
    * An amount the same roll makes its target take off the damage **it** deals.
@@ -2838,6 +2862,18 @@ export type SpellEffect =
        * rather than letting a definition resolve to a grant that does nothing.
        */
       readonly conditions: readonly ConditionName[];
+      /**
+       * The creature types the Immunity holds **against**, where the spell
+       * qualifies it — see `GrantedConditionImmunity.fromTypes`, which is
+       * where the rule and its silence are argued.
+       *
+       * SRD Protection from Evil and Good: "The target also can't be possessed
+       * by or gain the Charmed or Frightened conditions **from them**", where
+       * *them* is the six types the spell's first sentence names. Absent is
+       * the unqualified sentence, which is SRD Heroes' Feast and SRD Mind
+       * Blank and most of the book.
+       */
+      readonly fromTypes?: readonly string[];
     }
   /**
    * A Speed the spell changes, for as long as it runs.
@@ -4373,6 +4409,52 @@ export interface SpellOption {
   readonly unmodelled?: readonly string[];
 }
 
+/**
+ * One thing a casting leaves on a target at the moment it ends.
+ *
+ * SRD Haste prints the only sentence of this shape in the book — "the target
+ * is Incapacitated and has a Speed of 0 until the end of its next turn" — and
+ * the vocabulary is that sentence and no more: a list of conditions, a Speed
+ * taken away, and a span they both run for.
+ *
+ * **Three narrow fields rather than the rider vocabulary.** {@link
+ * ModifierRider} is applied by a command, with a caster, a save DC and a
+ * casting to hang things on; this is performed by the **fold**, at a moment
+ * nobody commanded, on a creature whose casting has just stopped existing. So
+ * it is the smallest thing that carries the printed sentence, and a second
+ * sentence of this shape is what would widen it.
+ *
+ * `speed` names the whole operation and carries no feet, for the reason
+ * {@link SpeedChange}'s `zero` does.
+ */
+export interface CastingEndRider {
+  /** The conditions the ending imposes — SRD Haste's Incapacitated. */
+  readonly conditions?: readonly ConditionName[];
+  /**
+   * A Speed the ending takes away — SRD Haste's "has a Speed of 0".
+   *
+   * One member, because the book prints one: an ending that *gave* Speed would
+   * be a reward for a spell running out, and nothing writes it.
+   */
+  readonly speed?: 'zero';
+  /**
+   * How long both last.
+   *
+   * One member, and it is the span SRD Haste prints: "until the end of its
+   * next turn", measured on the **target's** own turn, which is whose turn the
+   * sentence is about. A span in seconds would be a second vocabulary for a
+   * moment `endOfNextTurn` already names, and an indefinite ending would be a
+   * spell that punished its target for ever.
+   *
+   * **Where there is no turn order there is no such moment**, and the fold has
+   * nobody to ask: a casting that ends outside combat lays nothing, because
+   * calling that moment six seconds is the one mistake the two-type split
+   * exists to prevent. Said here because the omission would otherwise be
+   * invisible.
+   */
+  readonly lasts: 'end-of-next-turn';
+}
+
 export interface SpellDefinition {
   /** The SRD slug, so a definition and its parsed record are the same spell. */
   readonly id: string;
@@ -5085,6 +5167,37 @@ export interface SpellDefinition {
    * the second.
    */
   readonly endsEarly?: readonly CastingEndTrigger[];
+  /**
+   * What the casting leaves on its targets **when it ends** — however it ends.
+   *
+   * > SRD Haste: "When the spell ends, the target is Incapacitated and has a
+   * > Speed of 0 until the end of its next turn, as a wave of lethargy washes
+   * > over it."
+   *
+   * The field above says what *stops* the casting; this says what the stopping
+   * costs, and the two are opposite ends of one lifetime. Nothing hung a
+   * consequence on the moment a casting ran out before this —
+   * `docs/design/time-and-turns.md`: "**Expiry is derived, like Concentration
+   * breaking** ... The log records the effect being scheduled, not expiring."
+   *
+   * **Every ending, which is what "when the spell ends" says.** The deadline
+   * arriving, the Concentration breaking, a dismissal and a dispel all
+   * converge on `releaseCasting`, and a release aimed at one creature
+   * (`releaseOnTarget`) fires it on that creature alone. A spell that punished
+   * only one of those four would be a rule the book does not write.
+   *
+   * **Under the spell's bare name, so it outlives the casting that caused
+   * it.** The lethargy is a *consequence* of the ending rather than something
+   * the ending takes away — a condition filed under the casting would be
+   * lifted by the very release that laid it — which is the reading
+   * `outlivesCasting` already takes of SRD Grease's Prone.
+   *
+   * **Pinned onto the ongoing record at the cast**, like every other fact the
+   * fold reads: `releaseCasting` runs inside the fold, which opens no
+   * catalogue, so a log written against last year's book keeps last year's
+   * lethargy.
+   */
+  readonly onEnd?: readonly CastingEndRider[];
 }
 
 /**

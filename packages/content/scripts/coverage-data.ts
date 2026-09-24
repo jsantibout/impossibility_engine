@@ -257,6 +257,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // named ally the save with Careful Spell.
   'gust-of-wind',
   'harm',
+  // `haste-and-slow.test.ts`: the doubled Speed against SRD Slow's halving in
+  // the order `combineSpeed` fixes, and the lethargy the ending lays — laid by
+  // a Concentration let go and by the minute running out, and lifted at the end
+  // of the target's next turn and not before.
+  'haste',
   'healing-word',
   // `heat-metal.test.ts`: the breastplate's wearer burned, a failed save
   // dropping a held mace, the same failure leaving the armoured knight holding
@@ -329,6 +334,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'prestidigitation',
   'produce-flame',
   'protection-from-energy',
+  // `protection-from-evil-and-good.test.ts`: the Ghoul swinging at Disadvantage
+  // and the bandit swinging normally, the Ghoul unable to frighten the cleric
+  // and the bandit able to, and the two clauses the spell still owes reported
+  // on every casting.
+  'protection-from-evil-and-good',
   'protection-from-poison',
   // `ray-of-enfeeblement.test.ts`: the Constitution save, the Disadvantage a
   // failure hangs on every Strength-based D20 Test and on no other, the 1d8 it

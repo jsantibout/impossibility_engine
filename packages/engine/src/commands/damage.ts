@@ -24,7 +24,10 @@ import {
 import { parseNotation } from '../dice.js';
 import { canUseFeatureThisTurn, spendReaction } from '../combat.js';
 import { damageReductionsOf, reductionApplies } from '../damage-reduction.js';
-import { isIncapacitated } from '../conditions.js';
+import { isIncapacitated, sourceOfInstance } from '../conditions.js';
+import { rollSavingThrow } from '../checks.js';
+import { castingIdOf, castingSource } from '../spells.js';
+import { type EffectTarget } from '../timers.js';
 import {
   hasPrintedTrait,
   printedAbsorption,
@@ -58,6 +61,7 @@ import {
   actionRulesOn,
   type CastingDamageFeature,
   defensesOf,
+  sheetAsItStands,
   spellDamageRiders,
 } from '../standing.js';
 import {
@@ -66,7 +70,7 @@ import {
   resolveDamage,
 } from './casting.js';
 import { creatureOf, damageTakenIn, unknownCreature } from './command.js';
-import { rollSpellDice } from './rolls.js';
+import { recordD20Test, rollSpellDice, savingSupport } from './rolls.js';
 
 /**
  * The faces a damage roll showed, as an event, or null where it threw none.
@@ -342,6 +346,161 @@ export function printedTypeTriggers(
   }
 
   return { events, unverified };
+}
+
+/**
+ * The repeat saves a **blow** raises, rolled where the blow landed.
+ *
+ * SRD Hideous Laughter: "At the end of each of its turns **and each time it
+ * takes damage**, it makes another Wisdom saving throw. The target has
+ * Advantage on the save if the save is triggered by damage. On a successful
+ * save, the spell ends."
+ *
+ * **Rolled here rather than owed as a debt**, which is the one decision in
+ * this function and `RepeatSave.alsoWhenDamaged` is where it is argued: a turn
+ * boundary raises what it owes because nothing else knows the moment has come,
+ * and a blow is a command with a generator in its hand. Owing it would key on
+ * the turn — `pendingSaveKey` is `<effect>@<turn>` — so a creature struck
+ * twice in one turn would owe one save, which is not what "each time" says.
+ *
+ * **Asked of the world the blow left behind.** The timers are read off the
+ * state *after* the damage has been folded on, so a condition the same blow
+ * ended — SRD Sleep's "ends for the target if it takes damage" — raises
+ * nothing, and a creature the blow killed is not asked to save. That is the
+ * ordering the sentence itself has: it takes damage, and **then** it makes
+ * another saving throw.
+ *
+ * **What a success ends is read off the timer, exactly as the boundary reads
+ * it.** A condition's instance names the source, a casting's grants name it,
+ * and `castingIdOf` turns it into the casting a `spell-ended` addresses —
+ * `on: null` for "the spell ends" and `on: <target>` for "on itself". A
+ * source that is no casting has nothing here for a `spell-ended` to name, and
+ * the condition it holds is the thing a success would end, so the removal is
+ * written directly; the SRD prints no such line today and the branch says so
+ * rather than dropping the save.
+ *
+ * Walked in key order so two readers of one state roll the same dice in the
+ * same order — the rule `raiseTurnSaves` keeps about the very same timers.
+ */
+export function repeatsRaisedByDamage(
+  state: GameState,
+  target: CharacterId,
+  supply: Supply,
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  let current = state;
+
+  for (const key of Object.keys(state.timers).sort()) {
+    const timer = current.timers[key];
+    const hook = timer?.repeatSave;
+    if (timer === undefined || hook?.alsoWhenDamaged === undefined) continue;
+    // "**it** takes damage" — the creature the save is anchored to, which is
+    // the one `RepeatSave.of` already names for the boundary.
+    if (hook.of !== target) continue;
+
+    const victim = current.creatures[target];
+    if (victim === undefined || victim.vitals.dead) continue;
+
+    const host = hostOfTimer(current, timer.target);
+    if (host === null) {
+      unverified.push(
+        `${hook.label}: ${target} took damage and owes this save, and nothing here says what put the effect there, so it was not rolled`,
+      );
+      continue;
+    }
+
+    const on = timer.target;
+    const about =
+      on.kind === 'condition'
+        ? victim.conditions.instances
+            .filter((held) => held.id === on.instance || held.impliedBy === on.instance)
+            .map((held) => held.condition)
+        : [];
+    const support = savingSupport(
+      current,
+      target,
+      victim,
+      hook.ability,
+      supply,
+      about,
+      castingIdOf(host) !== null,
+    );
+    const save = rollSavingThrow(
+      supply.issuer,
+      supply.rng,
+      sheetAsItStands(current, target) ?? victim.sheet,
+      hook.ability,
+      {
+        dc: hook.dc,
+        conditions: support.conditions,
+        // "The target has Advantage on the save if the save is triggered by
+        // damage", attributed so the log says which sentence granted it.
+        modes: [...support.modes, { source: hook.label, mode: hook.alsoWhenDamaged.mode }],
+        bonuses: support.bonuses,
+      },
+    );
+    if (!save.ok) return save;
+
+    const settled: GameEvent[] = [
+      recordD20Test(
+        target,
+        hook.label,
+        save.value,
+        save.value.success ? 'shakes it off' : 'still held',
+      ),
+      ...(save.value.success ? endingFor(current, timer.target, hook.onSuccess, host, target) : []),
+    ];
+    events.push(...settled);
+    current = settled.reduce(applyEvent, current);
+  }
+
+  return ok({ events, unverified });
+}
+
+/**
+ * What put the effect a timer stands over there, where the timer can say.
+ *
+ * The three kinds `raiseTurnSaves` reads, answered the same way: a condition
+ * carries its source inside its instance id, a casting's grants carry it as
+ * the source they were made under, and a casting's own timer has it on the
+ * live record. Null for a casting with no record, which is a log this engine
+ * did not write.
+ */
+function hostOfTimer(state: GameState, target: EffectTarget): string | null {
+  if (target.kind === 'condition') return sourceOfInstance(target.instance);
+  if (target.kind === 'grants') return target.source;
+  if (target.kind !== 'casting') return null;
+  const record = state.ongoing[target.castingId];
+  return record === undefined ? null : castingSource(record.spell, target.castingId);
+}
+
+/** What a success ends, written as the events that end it. */
+function endingFor(
+  state: GameState,
+  target: EffectTarget,
+  onSuccess: 'end-casting' | 'end-on-target',
+  source: string,
+  who: CharacterId,
+): readonly GameEvent[] {
+  const castingId = castingIdOf(source);
+  if (castingId !== null) {
+    return [
+      {
+        type: 'spell-ended',
+        castingId,
+        on: onSuccess === 'end-casting' ? null : who,
+        reason: 'saved-against',
+      },
+    ];
+  }
+  // No casting behind it, so what the success ends is the condition the save
+  // was against — the reading `fold/timers.ts` takes of the same sentence at a
+  // turn boundary, written here as the removal it performs.
+  if (target.kind !== 'condition') return [];
+  return (state.creatures[who]?.conditions.instances ?? [])
+    .filter((held) => held.id === target.instance)
+    .map((held) => ({ type: 'condition-removed', id: who, condition: held.condition, source }));
 }
 
 /** A standing reduction, rolled: what it took off and what the log says about it. */
@@ -988,6 +1147,24 @@ export function dealSpellDamage(
   // be a log nobody could narrate in order.
   const triggered = printedTypeTriggers(state, target, components, applied.byType);
 
+  // **And the saves the blow itself raises**, asked of the world the blow left
+  // behind: SRD Hideous Laughter's "each time it takes damage, it makes
+  // another Wisdom saving throw". See {@link repeatsRaisedByDamage} for why
+  // this is rolled here rather than owed as a debt.
+  const issuedBeforeRaised = supply.issuer.count;
+  const raised = repeatsRaisedByDamage(
+    [...resolved.value.events, ...triggered.events].reduce(applyEvent, state),
+    target,
+    supply,
+  );
+  if (!raised.ok) return raised;
+  // **And the saves it threw are counted here**, by the rule the ward's d4
+  // above follows and for the same reason: five of the thirteen commands that
+  // reach this function take their generator delta *before* the call, so a die
+  // this road threw and nobody counted would leave `rollsIssued` short and let
+  // the next command reuse a roll id the log already holds.
+  const raisedCounted = rollsIssuedSince(supply, issuedBeforeRaised);
+
   return ok({
     // The faces, then the ward's own die, then what the two came to: the
     // chronology of the moment, which is the rule the line above states. The
@@ -1002,6 +1179,8 @@ export function dealSpellDamage(
       ...wardCounted,
       ...resolved.value.events,
       ...triggered.events,
+      ...raised.value.events,
+      ...raisedCounted,
     ],
     // What landed, which is what the defences left of the roll *and* what a
     // damage threshold let through. `damageTakenIn` reads it off the event the
@@ -1015,7 +1194,7 @@ export function dealSpellDamage(
     // half.** An Undead Fortitude save thrown against an amount with no type
     // is reported by `resolveDamage` too, and this road used to drop it on the
     // floor while the DM's own door reported it.
-    unverified: [...resolved.value.unverified, ...triggered.unverified],
+    unverified: [...resolved.value.unverified, ...triggered.unverified, ...raised.value.unverified],
   });
 }
 

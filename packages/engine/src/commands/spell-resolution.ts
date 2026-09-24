@@ -3158,6 +3158,10 @@ export function resolveEffects(
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
         ...(definition.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
+        // And what it leaves behind when it ends, pinned by the same rule and
+        // for a sharper version of the same reason: `releaseCasting` performs
+        // this inside the fold, which opens no catalogue at all.
+        ...(definition.onEnd === undefined ? {} : { onEnd: definition.onEnd }),
         // **What the cast knows and the world will not say** — see
         // `OngoingSpell.aimed`. Every creature the casting hung something on
         // is left out of all three branches below, because `spellOn` reads

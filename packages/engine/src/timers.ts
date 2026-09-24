@@ -284,6 +284,42 @@ export interface RepeatSave {
     readonly flat?: number;
     readonly damageType: string;
   };
+  /**
+   * A **second** moment this save is raised at: the creature taking damage.
+   *
+   * SRD Hideous Laughter: "At the end of each of its turns **and each time it
+   * takes damage**, it makes another Wisdom saving throw. The target has
+   * Advantage on the save if the save is triggered by damage."
+   *
+   * **Beside {@link at} rather than instead of it**, because the book prints
+   * both in one sentence and a creature struck on somebody else's turn owes
+   * the save then *and* at the end of its own. What differs is the mode, which
+   * is why the field carries one: the boundary's save is rolled plainly and
+   * this one is not, and a flag would have left the Advantage nowhere.
+   *
+   * **Rolled where the blow lands rather than owed as a debt.** A turn
+   * boundary owes its saves because nothing else in the world knows they are
+   * due; a blow is a command with a generator in its hand, and the same funnel
+   * already rolls the Concentration save a hit puts at risk. Owing it instead
+   * would key on the turn — `pendingSaveKey` is `<effect>@<turn>` — so a
+   * creature struck twice in one turn would owe one save, which is not what
+   * "each time it takes damage" says. `repeatsRaisedByDamage` is the reader.
+   *
+   * Absent for every repeat save in the book but this one, which is every
+   * repeat save this engine raised before it: a boundary is the only thing
+   * that owes one.
+   */
+  readonly alsoWhenDamaged?: {
+    /**
+     * The mode the sentence prints, and the SRD prints one.
+     *
+     * A union of a single member rather than a boolean, for
+     * {@link TypedSaveOutcome}'s reason on the other axis: the field says what
+     * the trigger *does* to the roll, and a second word would arrive as a
+     * second member rather than as a second field.
+     */
+    readonly mode: 'advantage';
+  };
   /** How the roll reads in the log. */
   readonly label: string;
 }

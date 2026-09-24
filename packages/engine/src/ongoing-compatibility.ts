@@ -168,6 +168,9 @@ export function upgradeOngoing(
   // `state.ongoing`.
   const areaStanding = normaliseStanding(casting.areaStanding ?? definition?.areaStanding);
   const endsEarly = casting.endsEarly ?? definition?.endsEarly;
+  // And what the casting leaves behind when it ends, read the same way and for
+  // the same reason: a record written before the field never wrote it down.
+  const onEnd = casting.onEnd ?? definition?.onEnd;
   return {
     version: ONGOING_RECORD_VERSION,
     castingId: casting.castingId,
@@ -187,6 +190,7 @@ export function upgradeOngoing(
     // of them — and what it *does* write is its own, so it is read off the
     // record first exactly as the area is.
     ...(endsEarly === undefined ? {} : { endsEarly }),
+    ...(onEnd === undefined ? {} : { onEnd }),
     ...(casting.origin === undefined ? {} : { origin: casting.origin }),
     ...(casting.towards === undefined ? {} : { towards: casting.towards }),
     ...(casting.anchoring === undefined ? {} : { anchoring: casting.anchoring }),

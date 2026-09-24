@@ -12,6 +12,7 @@ import {
 } from './positioning.js';
 import type {
   AreaTrigger,
+  CastingEndRider,
   CastingEndTrigger,
   SpellArea,
   StatedChoiceOf,
@@ -302,6 +303,16 @@ export interface OngoingSpell {
    * matched to the events that raise them. Nothing else reads it.
    */
   readonly endsEarly?: readonly CastingEndTrigger[];
+  /**
+   * What this casting leaves on its targets the moment it ends — SRD Haste's
+   * lethargy. See `SpellDefinition.onEnd`, where the rule is argued.
+   *
+   * **Pinned here because `releaseCasting` runs in the fold**, which opens no
+   * catalogue: the four endings converge there and none of them has a
+   * definition in hand. Absent for every casting written before the field and
+   * for every spell that prints no such sentence, which is all but one.
+   */
+  readonly onEnd?: readonly CastingEndRider[];
   /**
    * The numbers this casting was made with — see {@link CastingNumbers}.
    *
@@ -1007,7 +1018,26 @@ export type OngoingEndReason =
    * moving. `SpellActivation.reAims` is the field and the activation is the
    * only writer.
    */
-  | 're-aimed';
+  | 're-aimed'
+  /**
+   * The creature it was holding made the save it repeats.
+   *
+   * SRD Hideous Laughter: "each time it takes damage, it makes another Wisdom
+   * saving throw ... On a successful save, the spell ends."
+   *
+   * **The one ending of this shape that is written by a command**, and the
+   * trigger is why rather than the save. A repeat a *turn boundary* raises is
+   * settled inside the boundary's own batch, which reaches `releaseCasting`
+   * through `effect-save-resolved` and needs no reason at all; a repeat a
+   * **blow** raises is rolled by the command that dealt the damage, where
+   * there is no pending debt to resolve and nothing but this event to say the
+   * spell is over. See `RepeatSave.alsoWhenDamaged`, where rolling it at the
+   * blow is argued.
+   *
+   * It carries an `on` like every other member: "the spell ends" is null, and
+   * "ending the spell on itself" names the creature.
+   */
+  | 'saved-against';
 
 /**
  * Why a Concentration ended. Every one of these is in the SRD except

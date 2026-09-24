@@ -86,6 +86,7 @@ import {
   dealSpellDamage,
   heldDamageTotal,
   printedTypeTriggers,
+  repeatsRaisedByDamage,
   reactionContributions,
   rollsIssuedSince,
   siegeDoubling,
@@ -538,13 +539,40 @@ export function settleDamage(
       applied.byType,
     );
 
-    const all = [...events, ...dealt.value.events, ...triggered.events];
+    // **And the saves the blow itself raises**, on this road for the reason
+    // the type triggers are on it: SRD Hideous Laughter's "each time it takes
+    // damage, it makes another Wisdom saving throw" is about the blow landing,
+    // and a laughing goblin struck by a hit a Bard held open owes the save
+    // exactly as it owes one for a hit nobody answered. One function, asked
+    // twice. Asked of the world the damage has already changed, which is where
+    // the unheld road asks it — a condition the same blow ended raises
+    // nothing, and a creature it killed is not asked to save.
+    const issuedBeforeRaised = supply.issuer.count;
+    const raised = repeatsRaisedByDamage(
+      [...dealt.value.events, ...triggered.events].reduce(applyEvent, state),
+      pending.target,
+      supply,
+    );
+    if (!raised.ok) return raised;
+    const raisedCounted = rollsIssuedSince(supply, issuedBeforeRaised);
+
+    const all = [
+      ...events,
+      ...dealt.value.events,
+      ...triggered.events,
+      ...raised.value.events,
+      ...raisedCounted,
+    ];
 
     // **What the funnel could not settle, on its way through.** SRD Dark One's
     // Blessing is paid inside `resolveDamage` now — this road used to ask for
     // itself, one call of three — and what it could not check comes back the
     // same way, beside an Undead Fortitude thrown against a blow with no type.
-    const unverified: string[] = [...dealt.value.unverified, ...triggered.unverified];
+    const unverified: string[] = [
+      ...dealt.value.unverified,
+      ...triggered.unverified,
+      ...raised.value.unverified,
+    ];
 
     // **What the blow still owed, now that the defender has answered.** The
     // rider was held here rather than resolved at the swing precisely so that

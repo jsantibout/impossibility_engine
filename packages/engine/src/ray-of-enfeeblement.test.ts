@@ -712,12 +712,30 @@ describe('the repeat save, on a failure that imposed no condition', () => {
     expect(penaltyLine(hit.events)).toBeUndefined();
   });
 
-  it('is refused at authoring when a success would end on the target instead', () => {
+  /**
+   * **This spell's own spelling is `end-casting`, and the other one is SRD
+   * Slow's.** "Ending the spell on a success" is the whole casting; "ending
+   * the spell on itself on a success" releases what the casting hung on that
+   * one creature, and is filed on that creature's own `grants` timer so a
+   * spell catching six can carry six of them. A third word is neither
+   * sentence and is refused.
+   */
+  it('admits both endings and refuses a third', () => {
+    for (const onSuccess of ['end-casting', 'end-on-target'] as const) {
+      const out = written({
+        kind: 'save',
+        ability: 'con',
+        modifiers: [{ kind: 'damage-penalty', dice: '1d8' }],
+        repeats: { at: 'end-of-turn', onSuccess },
+      });
+      expect(out.ok).toBe(true);
+    }
+
     const out = written({
       kind: 'save',
       ability: 'con',
       modifiers: [{ kind: 'damage-penalty', dice: '1d8' }],
-      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+      repeats: { at: 'end-of-turn', onSuccess: 'none' },
     });
     expect(out.ok).toBe(false);
     if (out.ok) throw new Error('unreachable');

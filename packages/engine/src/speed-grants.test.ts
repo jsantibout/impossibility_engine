@@ -717,8 +717,35 @@ describe('a definition may not leave a Speed with nothing to end it', () => {
   });
 
   it('refuses a change the vocabulary does not have', () => {
-    const doubled = parseSpellDefinition(instantaneous([{ kind: 'speed', change: 'double' }]));
-    expect(isErr(doubled) && doubled.code).toBe('bad_speed_change');
+    const trebled = parseSpellDefinition(instantaneous([{ kind: 'speed', change: 'treble' }]));
+    expect(isErr(trebled) && trebled.code).toBe('bad_speed_change');
+  });
+
+  /**
+   * **`double` was that refusal until SRD Haste wrote it**, and the pin is
+   * turned round rather than deleted: the member is in the vocabulary now, it
+   * carries no feet like the two beside it, and it is refused a mode because
+   * the SRD writes "the target's Speed is doubled" about the creature.
+   */
+  it('takes a doubling, with no feet and no mode', () => {
+    const lasting = (effects: readonly unknown[]) => ({
+      ...instantaneous(effects),
+      concentration: true,
+      durationSeconds: 60,
+    });
+
+    const doubled = parseSpellDefinition(lasting([{ kind: 'speed', change: 'double' }]));
+    expect(isErr(doubled)).toBe(false);
+
+    const withFeet = parseSpellDefinition(
+      lasting([{ kind: 'speed', change: 'double', feet: 10 }]),
+    );
+    expect(isErr(withFeet) && withFeet.code).toBe('bad_speed_change');
+
+    const inAMode = parseSpellDefinition(
+      lasting([{ kind: 'speed', change: 'double', mode: 'fly' }]),
+    );
+    expect(isErr(inAMode) && inAMode.code).toBe('bad_speed_change');
   });
 });
 
@@ -764,8 +791,8 @@ describe('every member of the change vocabulary has a user or a written reason',
     return found;
   };
 
-  it('declares the four the SRD writes and no more', () => {
-    expect(declared()).toEqual(['add', 'halve', 'zero', 'match-walk']);
+  it('declares the five the SRD writes and no more', () => {
+    expect(declared()).toEqual(['add', 'double', 'halve', 'zero', 'match-walk']);
   });
 
   it('writes every member from some definition, or says why not', () => {

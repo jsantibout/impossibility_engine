@@ -60,6 +60,7 @@ import {
   type SenseName,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
+import { typeMagicSees } from './creature-type.js';
 import type { EquippedItem } from './state.js';
 import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
 import type { OutcomeRiders, SpellArea, SpellEffect } from './spell-definitions.js';
@@ -229,8 +230,14 @@ export type AreaSpeedStanding = WhollyInside & {
    * says "Speed is halved in the Emanation" and nothing else — so the type
    * says so, `checkSpeedChange` says so at the door for untyped input, and
    * the loop names every member it handles.
+   *
+   * **`double` is excluded for the same reason and a second one.** No SRD
+   * area doubles anybody's Speed — the one sentence in the book that
+   * multiplies one is SRD Haste, which is a grant on a willing creature and
+   * not a patch of ground — so admitting it here would be a member the area
+   * loop ignores and an author could write.
    */
-  readonly change: Exclude<SpeedChange, 'match-walk'>;
+  readonly change: Exclude<SpeedChange, 'match-walk' | 'double'>;
   /** Signed feet, required by `add` and refused by the other two. */
   readonly feet?: number;
 };
@@ -3349,6 +3356,31 @@ function missingHitPoints(state: GameState, query: RollQuery): RollQuery {
 }
 
 /**
+ * The query with the **roller's** creature type worked out, where the engine
+ * knows one.
+ *
+ * SRD Protection from Evil and Good: "Creatures of those types have
+ * Disadvantage on attack rolls against the target." The fact is the engine's
+ * own record rather than anything the site throwing the die knows better, so
+ * it is filled in here beside {@link missingHitPoints} and for the same
+ * reason: one predicate decides every mode, and no attack site has to remember
+ * a field.
+ *
+ * **Through {@link typeMagicSees}, because the sentence that reads it is a
+ * spell's.** SRD Arcanist's Magic Aura makes "spells and other magical effects
+ * treat the target as if it were a creature of the chosen type", and a ward is
+ * one of those — so a masked Ghoul swings at the cleric as whatever the Mask
+ * says it is. A roller the record does not hold is left alone rather than
+ * answered null, because absent and null read the same way to the predicate
+ * and writing one would claim the engine had looked.
+ */
+function rollerCreatureType(state: GameState, query: RollQuery): RollQuery {
+  const roller = state.creatures[query.roller];
+  if (roller === undefined) return query;
+  return { ...query, rollerType: typeMagicSees(roller) };
+}
+
+/**
  * The style that reaches this swing, or null where none does.
  *
  * Three questions, and a style has to answer all three: its gate holds, it
@@ -4007,14 +4039,15 @@ export function rollModesFor(
   asked: RollQuery,
   options: { readonly seenByHolder?: boolean | null } = {},
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
-  // **The one fact on the query this gathers rather than receives.** SRD Blood
-  // Frenzy reads the Hit Points of the creature being swung at, which is the
-  // engine's own record and not something the site throwing the die knows any
-  // better than this does — so it is filled in here, once, and
+  // **The two facts on the query this gathers rather than receives.** SRD Blood
+  // Frenzy reads the Hit Points of the creature being swung at, and SRD
+  // Protection from Evil and Good reads what the creature swinging **is** —
+  // both the engine's own record and not something the site throwing the die
+  // knows any better than this does — so they are filled in here, once, and
   // `selectorMatches` stays the single predicate every mode is decided by. A
   // roll with no second creature is left silent, and a selector asking for it
   // reads that as a miss.
-  const query: RollQuery = missingHitPoints(state, asked);
+  const query: RollQuery = rollerCreatureType(state, missingHitPoints(state, asked));
   const modes: ModeSource[] = [];
   const unverified: string[] = [];
   const seen = new Set<string>();
@@ -4208,11 +4241,34 @@ export function defensesOf(
 export function conditionImmunitiesOf(
   state: GameState,
   who: CharacterId,
+  /**
+   * The creature causing the condition, where the door knows one.
+   *
+   * SRD Protection from Evil and Good protects against gaining the Charmed or
+   * Frightened conditions "**from them**", and this function answered about a
+   * condition and was told nothing whatever about what was trying to cause it
+   * — which is the sentence `a-condition-immunity-narrowed-to-its-source`
+   * named. See {@link GrantedConditionImmunity.fromTypes}.
+   *
+   * **Read through `typeMagicSees`**, because a ward is a spell and the SRD
+   * says spells read a type through the Mask. Absent, or a creature this state
+   * does not hold, or a creature nobody has typed: a *narrowed* grant does not
+   * bite and the unqualified ones answer exactly as they always did.
+   */
+  from?: CharacterId,
 ): readonly ConditionName[] {
   const creature = state.creatures[who];
   if (creature === undefined) return [];
+  const causer = from === undefined ? undefined : state.creatures[from];
+  const causerType = causer === undefined ? null : typeMagicSees(causer);
   const names = new Set<ConditionName>(creature.conditionImmunities);
   for (const granted of creature.grantedConditionImmunities) {
+    if (
+      granted.fromTypes !== undefined &&
+      (causerType === null || !granted.fromTypes.includes(causerType))
+    ) {
+      continue;
+    }
     for (const condition of granted.conditions) names.add(condition);
   }
   return [...names].sort();
@@ -5203,16 +5259,9 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
  *
  * > Longstrider: "The target's Speed **increases by 10 feet**."
  * > Ray of Frost: "its Speed is **reduced by 10 feet**."
+ * > Haste: "the target's Speed is **doubled**."
  * > Slow: "An affected target's Speed is **halved**."
  * > Hypnotic Pattern: "the creature has ... **a Speed of 0**."
- *
- * **A doubling is not here**, and that is a decision rather than an oversight.
- * SRD Haste prints "the target's Speed is doubled" and is the only sentence in
- * the book that does; carrying it would mean a fifth step in `combineSpeed`
- * whose order against the halving the SRD does not print, so it is a named
- * missing shape — `a-speed-an-effect-multiplies` — that arrives with a rule
- * settling that order, exactly as `TypedSaveOutcome`'s automatic success waits
- * for the spell that can write it.
  *
  * Increase and decrease are **one** member with a sign rather than two,
  * because they are one operation: the argument `interveneAfterRoll`'s
@@ -5221,6 +5270,23 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
 export type SpeedChange =
   /** A signed number of feet: Longstrider's +10, Ray of Frost's −10. */
   | 'add'
+  /**
+   * SRD Haste, "the target's Speed is doubled" — the one sentence in the book
+   * that multiplies a Speed.
+   *
+   * **Presence and not count**, the reading `halve` already takes: two
+   * Hastes on one creature are one doubling, because the SRD's own rule for
+   * two copies of a benefit is that the second does nothing.
+   *
+   * **It applies before the halving, and the book gives no order**, so the
+   * order is fixed in {@link combineSpeed} with everything else and stated
+   * there once. Doubling first is what makes SRD Slow over SRD Haste come
+   * back to the walking Speed the creature started with, which is the reading
+   * a table expects of two spells that cancel. Halving first would round a
+   * 25-foot Speed down to 12 and then double it to 24, so the order is
+   * observable and is therefore decided rather than left.
+   */
+  | 'double'
   /** SRD Slow. Presence and not count, so two halvings are one halving. */
   | 'halve'
   /** SRD Hypnotic Pattern. Last, and it beats every addition. */
@@ -5672,8 +5738,16 @@ export function weaponRiderProficiency(
  * **The SRD prints no order**, and the order is observable, so it is decided
  * once here rather than by whichever caller happens to be looking:
  *
- * > base, plus the flat changes, then **halved once** if any halving effect
- * > applies, then **0** if any zeroing effect applies, never below 0.
+ * > base, plus the flat changes, then **doubled once** if any doubling effect
+ * > applies, then **halved once** if any halving effect applies, then **0** if
+ * > any zeroing effect applies, never below 0.
+ *
+ * Doubling is presence and not count, exactly as halving is, and it comes
+ * **before** the halving: SRD Slow cast over SRD Haste brings a creature back
+ * to the Speed it walked at, which is the answer a table expects of two spells
+ * that undo each other, and the other order rounds a 25-foot Speed down to 12
+ * before doubling it to 24. The SRD prints no order for the pair, so it is
+ * decided here and nowhere else.
  *
  * Halving is presence and not count — the reading Resistance and Advantage
  * already take, so two halvings are one halving. Zero is last and **wins**,
@@ -5701,6 +5775,14 @@ export function weaponRiderProficiency(
  *   creature feet the rules had already taken away. It is a boolean rather
  *   than a count because presence is all the SRD asks — two castings of
  *   Hypnotic Pattern on one goblin are one Speed of 0.
+ * @param doublings how many doubling effects apply; any number above zero
+ *   doubles once. SRD Haste's "the target's Speed is doubled" is the sentence
+ *   and the only one in the book. **Appended rather than placed where it
+ *   applies**, which is between the flat changes and the halving: the order
+ *   is the docstring's and the parameter list's job is not to re-tell it, and
+ *   a position in the middle would move a dozen call sites that pass no
+ *   doubling at all. The reading `applyConditionTo`'s appended parameters
+ *   already take.
  */
 export function combineSpeed(
   base: number,
@@ -5708,9 +5790,11 @@ export function combineSpeed(
   halvings: number,
   zeroed: boolean,
   conditions: ConditionState,
+  doublings = 0,
 ): number {
   const flattened = conditionSpeed(conditions, base + flat);
-  const halved = halvings > 0 ? Math.floor(flattened / 2) : flattened;
+  const doubled = doublings > 0 ? flattened * 2 : flattened;
+  const halved = halvings > 0 ? Math.floor(doubled / 2) : doubled;
   return zeroed ? 0 : Math.max(0, halved);
 }
 
@@ -6029,10 +6113,19 @@ export function speedOf(
   }
 
   let halvings = 0;
+  let doublings = 0;
   let zeroed = false;
   for (const granted of creature.speedModifiers) {
     if (granted.change === 'add') flattenInMode(granted);
-    else if (granted.change === 'halve') halvings += 1;
+    // **A doubling is an increase, so it is the walking Speed's**, which is
+    // the ruling written below about the flat accumulator's sign and read
+    // here rather than a second time: SRD writes "your Speed" unqualified for
+    // what *gives* Speed and means walking, and SRD Haste is that sentence
+    // multiplied. A hasted Cockatrice walks at twice the pace and flies at
+    // the pace it always did.
+    else if (granted.change === 'double') {
+      if (mode === 'walk') doublings += 1;
+    } else if (granted.change === 'halve') halvings += 1;
     else if (granted.change === 'zero') zeroed = true;
   }
 
@@ -6053,6 +6146,8 @@ export function speedOf(
     else if (standing.change === 'halve') halvings += 1;
     else if (standing.change === 'zero') zeroed = true;
   }
+  // `double` is deliberately absent from that loop and from the type it reads
+  // — see {@link AreaSpeedStanding.change}.
 
   // **An increase is the walking Speed's; everything that takes Speed away is
   // every mode's.** SRD writes "your Speed" unqualified for the walking one —
@@ -6076,7 +6171,7 @@ export function speedOf(
   // What a *mode-named* grant does is not that ruling and needs none: SRD Fly
   // prints "a Fly Speed of 60 feet", so the feet go where the sentence says
   // and nowhere else.
-  return combineSpeed(base, flat, halvings, zeroed, creature.conditions);
+  return combineSpeed(base, flat, halvings, zeroed, creature.conditions, doublings);
 }
 
 /**

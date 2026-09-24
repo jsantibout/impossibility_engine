@@ -2103,12 +2103,20 @@ export const HIDEOUS_LAUGHTER: SpellDefinition = {
       ability: 'wis',
       condition: 'prone',
       conditions: [{ name: 'incapacitated' }],
-      repeats: { at: 'end-of-turn', onSuccess: 'end-casting' },
+      // "At the end of each of its turns **and each time it takes damage**, it
+      // makes another Wisdom saving throw. The target has Advantage on the
+      // save if the save is triggered by damage." One save, two moments, one
+      // of which changes the mode — so the trigger rides on the repeat rather
+      // than standing beside it as a second hook.
+      repeats: {
+        at: 'end-of-turn',
+        onSuccess: 'end-casting',
+        alsoWhenDamaged: { mode: 'advantage' },
+      },
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the second Wisdom save each time the target takes damage, which is made with Advantage',
     'the target being unable to end the Prone condition on itself, so it may stand up while the spell runs',
     'laughing uncontrollably, and whether the creature is capable of laughter at all',
   ],
@@ -2478,16 +2486,26 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
  * judged one slot alone — a `forbids` naming both refuses the turn entirely,
  * and a `forbids` naming one takes away the choice the sentence offers.
  *
- * **What is left is three sentences and each is a different absence.** The
- * −2 reaches Dexterity saving throws as well, and a `bonus` rider carries no
- * narrowing — aimed at `save` it would land on every save the target ever
- * makes, including the one this spell itself calls for. The attacks counted
- * inside the Attack action are a thing the economy does not count: it counts
- * one Attack action and not the swings in it. The 25 percent is a
- * die no `SpellEffect` asks for. And the repeat save is filed on the
- * condition instance a failure created, so a failure that creates none has
- * nothing to hang it on — the one clause this shape does not finish, and the
- * reason `repeat_without_condition` exists.
+ * **The −2 reaches Dexterity saving throws too, and it is a second rider.** A
+ * `bonus` rider carries a {@link BonusNarrowing} now, and an Armour Class
+ * cannot carry one — it is not a roll and is made with no ability at all — so
+ * one printed penalty is two grants of one casting, told apart by `bonusKey`
+ * and ended together by the casting's own source. Aimed at `save` unnarrowed
+ * it would have landed on every save the target ever makes, including the one
+ * this spell itself calls for.
+ *
+ * **And the repeat save is hosted by the casting, per creature.** "Ending the
+ * spell **on itself** on a success" is `end-on-target`, and the failure
+ * imposes no condition for a hook to be filed on — so it rides on the
+ * casting's grants on that one creature, which is a key apiece over the six
+ * this spell can catch. The goblin that makes its save is free and the
+ * hobgoblin beside it is still slowed.
+ *
+ * **What is left is two sentences and each is a different absence.** The
+ * attacks counted inside the Attack action are a thing the economy does not
+ * count: it counts one Attack action and not the swings in it. And the 25
+ * percent is a die no `SpellEffect` asks for — a die that decides whether
+ * another casting happens at all.
  */
 export const SLOW: SpellDefinition = {
   id: 'slow',
@@ -2503,7 +2521,15 @@ export const SLOW: SpellDefinition = {
     {
       kind: 'save',
       ability: 'wis',
-      // Three grants and no condition, off one saving throw. A second `save`
+      // "An affected target repeats the save at the end of each of its turns,
+      // ending the spell **on itself** on a success." The failure imposes no
+      // condition, so there is no instance to file the hook on and it rides on
+      // the casting — on the casting's grants on *this* creature, which is a
+      // key per creature and is what lets a spell catching six carry six of
+      // them. A success lifts what the casting hung on that one target and
+      // leaves the rest of the spell running.
+      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+      // Four grants and no condition, off one saving throw. A second `save`
       // effect for any of them would roll a second die, and a creature could
       // then be slowed and not penalised.
       modifiers: [
@@ -2513,6 +2539,22 @@ export const SLOW: SpellDefinition = {
         // "it takes a −2 penalty to AC". A flat bonus with the sign turned
         // round, which is the only kind an Armour Class takes.
         { kind: 'bonus', bonus: { source: 'Slow', flat: 2 }, applies: ['ac'], direction: 'subtract' },
+        // "and Dexterity saving throws" — the same −2 on a different family,
+        // narrowed by the ability the roll is made with. **A second rider and
+        // a second source**, for two reasons that both bite: a bonus is filed
+        // by source and a second grant under `Slow` would replace the first
+        // rather than stand beside it, and `BonusNarrowing` is refused beside
+        // an Armour Class because an Armour Class is not a roll and is made
+        // with no ability at all. So the two halves of one printed penalty are
+        // two grants of one casting, ended together by the casting's own
+        // source.
+        {
+          kind: 'bonus',
+          bonus: { source: 'Slow (Dexterity saves)', flat: 2 },
+          applies: ['save'],
+          direction: 'subtract',
+          only: { ability: 'dex' },
+        },
         // "and it can't take Reactions" — one slot taken away, with
         // everything the sentence does not name left alone.
         { kind: 'action', rule: { kind: 'forbids', slots: ['reaction'] } },
@@ -2525,10 +2567,8 @@ export const SLOW: SpellDefinition = {
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the −2 penalty does not reach Dexterity saving throws: a granted bonus names the families of roll it applies to and cannot be narrowed to one ability’s saves, so aiming it at saving throws would penalise every save the target makes, including the one this spell calls for',
     '"it can make only one attack if it takes the Attack action" is not applied: the economy counts one Attack action and not the attacks inside it',
     'the 25 percent chance a Somatic spell fails is not rolled: it is a percentage no effect asks for, deciding whether another casting happens at all',
-    'an affected target "repeats the save at the end of each of its turns, ending the spell on itself on a success" and this one does not: a repeat save is filed on the condition instance the failure created, and this failure creates none',
   ],
 };
 
@@ -6952,22 +6992,29 @@ export const HEAL: SpellDefinition = {
  * > "When the spell ends, the target is Incapacitated and has a Speed of 0
  * > until the end of its next turn, as a wave of lethargy washes over it."
  *
- * **Three of the four benefits in that run are things the engine owns**, and
- * they are written: the +2 is Shield of Faith's sentence word for word, the
+ * **All four benefits in that run are things the engine owns now**, and they
+ * are written: the +2 is Shield of Faith's sentence word for word, the
  * Advantage is a `roll-mode` narrowed to saving throws and to one ability,
- * which Beacon of Hope already writes twice in one definition, and the extra
+ * which Beacon of Hope already writes twice in one definition, the extra
  * action is `ActionRule`'s fourth member — the one that creates rather than
  * governs — minted into the budget at the start of each of the target's turns
- * and never taken by anybody but the table.
+ * and never taken by anybody but the table, and the doubled Speed is
+ * `SpeedChange`'s third operation, which arrived with the rule that settles
+ * how it meets a halving: doubled first and halved second, so SRD Slow over
+ * this brings the target back to the Speed it walked at.
  *
- * The fourth is not, and it is a named shape rather than a shortcut: a doubled
- * Speed is the one sentence in the book that multiplies one, and `SpeedChange`
- * composes from a halving and a zero and has no third member. **The sentence
- * after the extra action is a second absence and a narrower one**: the five
- * actions it may be spent on include Utilize, which nothing spends, so the
- * list can be said four-fifths or not at all and is left unsaid. The lethargy
- * fires when the casting *ends*, and expiry is derived rather than recorded,
- * so there is no hook to hang it on.
+ * **And the sentence after the extra action is written too.** "That action can
+ * be used to take only the Attack ... Dash, Disengage, Hide, or Utilize
+ * action" is `only` on the granted action, failing closed: a spend that does
+ * not name itself as one of the five is refused, which is the polarity SRD
+ * Expeditious Retreat already writes and the opposite of Action Surge's
+ * `except`. All five are in `NAMED_ACTIONS` and all five have a spender.
+ *
+ * What is left is the parenthesis and the lethargy. "One attack only" counts
+ * the attacks *inside* one Attack action, and the economy counts the action
+ * rather than the swings in it. The lethargy fires when the casting ends, on
+ * the target, under the spell's own bare name so that it outlives the casting
+ * that caused it.
  */
 export const HASTE: SpellDefinition = {
   id: 'haste',
@@ -6983,6 +7030,9 @@ export const HASTE: SpellDefinition = {
   targets: { count: 1, self: true, willing: true },
   requiresSight: true,
   effects: [
+    // "the target's Speed is doubled" — the one sentence in the book that
+    // multiplies a Speed, and the order it composes in is `combineSpeed`'s.
+    { kind: 'speed', change: 'double' },
     // "it gains a +2 bonus to Armor Class"
     {
       kind: 'buff',
@@ -6996,19 +7046,27 @@ export const HASTE: SpellDefinition = {
       modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
     },
     // "it gains an additional action on each of its turns" — the rule stands on
-    // the target and the turn boundary mints one every turn the casting sees.
-    // **Unnarrowed on purpose**: the five actions the next sentence lists
-    // include Utilize, which `NAMED_ACTIONS` leaves out because no spender
-    // could be told apart as having taken one, so an `only` naming the other
-    // four would forbid the one the book allows. The narrowing stays in the
-    // notes below.
-    { kind: 'action-rule', rule: { kind: 'grants', at: 'each-turn' } },
+    // the target and the turn boundary mints one every turn the casting sees —
+    // and "That action can be used to take only the Attack ..., Dash,
+    // Disengage, Hide, or Utilize action" is the `only` list, failing closed.
+    {
+      kind: 'action-rule',
+      rule: {
+        kind: 'grants',
+        at: 'each-turn',
+        only: ['attack', 'dash', 'disengage', 'hide', 'utilize'],
+      },
+    },
   ],
   durationSeconds: 60,
+  // "When the spell ends, the target is Incapacitated and has a Speed of 0
+  // until the end of its next turn, as a wave of lethargy washes over it." One
+  // rider, two things, one span — laid by whichever of the four endings
+  // arrives, under the spell's bare name so the release that lays it does not
+  // lift it in the same breath.
+  onEnd: [{ conditions: ['incapacitated'], speed: 'zero', lasts: 'end-of-next-turn' }],
   unmodelled: [
-    'the doubled Speed: "the target’s Speed is doubled" is the only sentence in SRD that multiplies one, and a Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins — there is no third operation and no rule saying how a doubling meets a halving',
-    'the five that extra action may be spent on: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action" — the extra action itself is granted now, and what cannot be written is the list it is narrowed to: `GrantedAction.only` would say four of the five and nothing spends a Utilize, so a narrowing here would forbid an action the book allows',
-    'the lethargy: "When the spell ends, the target is Incapacitated and has a Speed of 0 until the end of its next turn" fires at the moment the casting runs out, and expiry is derived rather than recorded, so nothing hangs a consequence on it',
+    '"(one attack only)" is not enforced: the parenthesis counts the attacks inside one Attack action, and the economy counts one Attack action and not the swings in it',
   ],
 };
 
@@ -11133,6 +11191,22 @@ export const THAUMATURGY: SpellDefinition = {
 };
 
 /**
+ * The six creature types SRD Protection from Evil and Good wards against.
+ *
+ * Written once and read by both benefits, because the spell's first sentence
+ * names them once and the two clauses after it both say "them": two copies
+ * would be two places for one printed list to be got wrong.
+ */
+const WARDED_AGAINST = [
+  'Aberration',
+  'Celestial',
+  'Elemental',
+  'Fey',
+  'Fiend',
+  'Undead',
+] as const;
+
+/**
  * SRD Protection from Evil and Good:
  *
  * > _Level 1 Abjuration (Cleric, Druid, Paladin, Warlock, Wizard)._
@@ -11147,14 +11221,27 @@ export const THAUMATURGY: SpellDefinition = {
  * > the target has Advantage on any new saving throw against the relevant
  * > effect."
  *
- * **Three benefits and one word ruins all three: *them*.** Every clause is a
- * mechanic the engine has — a mode on an attack roll, an Immunity to two named
- * conditions, a mode on a save — and every one of them is narrowed to the six
- * creature types the first sentence names. A `RollSelector` has no axis for the
- * *attacker's* type, `conditionImmunitiesOf` is told nothing about what is
- * causing the condition, and nothing records what a saving throw was against.
- * Writing any of the three unqualified would protect the target from its own
- * party.
+ * **Three benefits and one word used to ruin all three: *them*.** Every clause
+ * is a mechanic the engine has — a mode on an attack roll, an Immunity to two
+ * named conditions, a mode on a save — and every one of them is narrowed to
+ * the six creature types the first sentence names. Writing any of them
+ * unqualified would protect the target from its own party, which is the
+ * confident wrong answer rather than the missing one.
+ *
+ * **Two of the three carry the qualification now.** `RollSelector` has an axis
+ * for the **attacker's** type, read off the creature rolling exactly as SRD
+ * says a spell reads a type; and a granted condition Immunity may name the
+ * types it holds against, which the door that applies a condition asks about
+ * whatever is causing it. A Ghoul swings at Disadvantage and a bandit swings
+ * normally; the Ghoul cannot frighten the target and the bandit can.
+ *
+ * **The third is still a debt and says so.** "The target has Advantage on any
+ * new saving throw against the relevant effect" needs a save to remember what
+ * it was against, which is the gap `CLAUDE.md` has recorded since
+ * Countercharm; and possession is not a state the engine holds at all. Both
+ * are `unmodelled` rather than handed over, because both are rules the engine
+ * would execute the day it could — a handover is for a sentence nobody will
+ * ever build.
  */
 export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   id: 'protection-from-evil-and-good',
@@ -11165,13 +11252,33 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, self: true, willing: true },
-  effects: [],
+  effects: [
+    // "Creatures of those types have Disadvantage on attack rolls against the
+    // target" — a mode on rolls made **against** the holder, narrowed by what
+    // the creature making them is.
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'disadvantage',
+        selector: {
+          roll: 'attack',
+          relation: 'against-holder',
+          attackerType: WARDED_AGAINST,
+        },
+      },
+    },
+    // "The target also can't be ... gain the Charmed or Frightened conditions
+    // from them" — the same six types, on the other reader.
+    {
+      kind: 'condition-immunity',
+      conditions: ['charmed', 'frightened'],
+      fromTypes: WARDED_AGAINST,
+    },
+  ],
   durationSeconds: 600,
   unmodelled: [
-    'the Disadvantage on attack rolls is not granted: it belongs only to attackers that are Aberrations, Celestials, Elementals, Fey, Fiends or Undead, and a roll selector has no axis for the attacker’s creature type — an unqualified grant would give the target Disadvantage against everybody who swings at it',
-    'the Immunity to being Charmed or Frightened is not granted either, for the same word: "from them" narrows it to those six types, and the condition-immunity reader answers about a condition and is told nothing about what is trying to cause it',
-    'nor is the Advantage on a new saving throw "against the relevant effect": nothing records what a save was against, so the mode could not find the saves it belongs to',
-    'possession is not a state the engine holds, so neither the protection from it nor the save against it is anything the engine could apply',
+    'the target does not gain Advantage on any new saving throw against the relevant effect: nothing records what a save was against, so the mode could not find the saves it belongs to',
+    'the clause that the target can’t be possessed by such a creature is not applied: possession is not a state the engine holds, so there is nothing for the protection to refuse',
   ],
 };
 

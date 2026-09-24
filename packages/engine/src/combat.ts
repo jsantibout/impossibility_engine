@@ -460,10 +460,14 @@ export type ActionRule =
        * reason: letting an unnamed spend through would silently buy the
        * caster the very action the sentence withheld.
        *
-       * Absent is unnarrowed. **Haste's narrowing is absent on purpose**: the
-       * five actions it lists include Utilize, which {@link NAMED_ACTIONS}
-       * leaves out because no spender could be told apart as having taken one,
-       * so a rule naming it would read as enforced and would not be.
+       * Absent is unnarrowed, which is every grant whose sentence names no
+       * list. SRD Haste names one — "the Attack (one attack only), Dash,
+       * Disengage, Hide, or Utilize action" — and writes all five of them,
+       * because {@link NAMED_ACTIONS} holds Utilize and `takeUtilize` is the
+       * spender that names itself as one. The parenthesis is not here: how
+       * many attacks one Attack action contains is a count the economy does
+       * not keep, and it stays filed under
+       * `an-action-a-spell-compels-or-forbids`.
        */
       readonly only?: readonly NamedAction[];
     }

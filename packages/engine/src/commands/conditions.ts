@@ -88,6 +88,32 @@ export function applyConditionTo(
    * not the Poisoned: see {@link EarlyEndings}.
    */
   endsEarly?: EarlyEndings,
+  /**
+   * The creature **causing** this condition, where the caller knows one.
+   *
+   * SRD Protection from Evil and Good: the target "can't be possessed by or
+   * gain the Charmed or Frightened conditions **from them**". A narrowed
+   * Immunity reads the type of whatever is trying to cause the condition, and
+   * this is where that fact arrives — twelfth, appended for the ninth's
+   * reason: no existing call site passes one, and the options object the whole
+   * signature wants is a change to a DM-facing command that would move every
+   * one of them.
+   *
+   * **Stated rather than derived from the source**, and the casting's own
+   * record is why: a source carrying a casting mark does name a casting, but
+   * the record that would say who cast it is written *after* the casting's
+   * effects resolve — so at the moment a condition lands there is nothing to
+   * read it off. `applySpellEffect` already holds the caster and passes it,
+   * which is every condition a spell imposes.
+   *
+   * Absent is a cause with no creature behind it, or one nobody has named: a
+   * hazard, a DM's bare ruling, a poison in a bottle, a blow's own rider. A
+   * narrowed Immunity does not bite on one, which is the direction every
+   * unsettled fact here takes — the engine cannot show the creature is exempt,
+   * and sparing it on a fact nobody has stated would be the rule quietly doing
+   * more than the book says.
+   */
+  from?: CharacterId,
 ): Result<GameEvent[]> {
   // "You are Frightened" is the state change a narrating layer reaches for
   // most, and a retried one was a second Frightened from the same source —
@@ -106,7 +132,7 @@ export function applyConditionTo(
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
     }
-    const immunities = conditionImmunitiesOf(state, id);
+    const immunities = conditionImmunitiesOf(state, id, from);
     if (immuneTo.includes(condition) || immunities.includes(condition)) {
       return err('immune', `${id} is immune to the ${condition} condition`);
     }
