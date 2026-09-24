@@ -26,10 +26,14 @@ import {
 } from './character.js';
 import {
   createRollIssuer,
+  electedRethrow,
+  electionProblem,
   recordExternalD20,
   rollD20Recorded,
   type D20Reroll,
+  type ElectedReroll,
   type RecordedD20,
+  type RollElection,
   type RollIssuer,
   type RollSource,
 } from './rolls.js';
@@ -309,6 +313,18 @@ export function rollD20Test(
    * at the table read out, and the branch below is where the two paths part.
    */
   reroll?: D20Reroll | null,
+  /**
+   * A reroll the roller **elected** before the die — see {@link ElectedReroll}.
+   *
+   * Read after the bonus dice have landed, because "fails" is a fact about the
+   * roll's total and Guidance's d4 is part of it, while {@link reroll} above
+   * is a fact about the face and fires the moment the die does. The elected
+   * die is still the one the mode counted, and the bonus dice stand: SRD says
+   * "reroll any die", which is one die and not the roll.
+   *
+   * It cannot reach a stated die, for {@link reroll}'s reason.
+   */
+  elected?: ElectedReroll | null,
 ): Result<D20Roll> {
   // Nothing is rolled until the whole operation is known to be valid, so a
   // rejected roll leaves the generator and the roll counter untouched.
@@ -324,10 +340,23 @@ export function rollD20Test(
   // A refused face is refused before the bonus dice are thrown, so it leaves
   // the generator where it found it.
   if (!d20.ok) return d20;
-  const roll = d20.value;
 
   const rolled = rollBonusDice(issuer, rng, bonuses);
   if (!rolled.ok) return rolled;
+
+  const added = sumResolved(rolled.value);
+  const roll =
+    stated === undefined
+      ? electedRethrow(
+          issuer,
+          rng,
+          d20.value,
+          mode,
+          modifier,
+          d20.value.total + added,
+          elected ?? null,
+        )
+      : d20.value;
 
   return ok({
     mode,
@@ -336,7 +365,7 @@ export function rollD20Test(
     modifier,
     flatBonuses: bonuses.filter((bonus) => (bonus.flat ?? 0) !== 0),
     bonuses: rolled.value,
-    total: roll.total + sumResolved(rolled.value),
+    total: roll.total + added,
   });
 }
 
@@ -412,6 +441,16 @@ export interface D20TestOptions {
    * a result carrying both would contradict itself.
    */
   readonly autoSucceed?: string;
+  /**
+   * A reroll the roller elected on the command that asked for this test — see
+   * {@link RollElection}.
+   *
+   * `'fails'` and a face are what a test can be elected on; `'misses'` is an
+   * attack's word and is refused here. Whether the roller holds the pool and
+   * can afford it is the command's question and not this one's: what arrives
+   * here has already been paid for if it fires.
+   */
+  readonly election?: RollElection;
 }
 
 export interface D20TestResult {
@@ -473,6 +512,14 @@ function resolve(
 ): Result<D20TestResult> {
   const skill = options.skill ?? null;
 
+  // The election's shape, before anything is rolled: a refused one must cost
+  // nothing at all, which is the same rule a malformed bonus die follows.
+  const election = options.election;
+  if (election !== undefined) {
+    const problem = electionProblem(election, 'test');
+    if (problem !== null) return err('bad_election', problem);
+  }
+
   // Conditions contribute modes, a flat exhaustion penalty, and sometimes an
   // outright failure. The caller supplies the state; the engine reads the rules.
   const conditions = options.conditions;
@@ -495,6 +542,16 @@ function resolve(
   const exhaustion = conditions === undefined ? null : exhaustionBonus(conditions);
   const allBonuses = [...(options.bonuses ?? []), ...(exhaustion === null ? [] : [exhaustion])];
 
+  // Whether the die decides this test at all. The three overrides below settle
+  // it before the d20 is read, and an election must not spend a use on a test
+  // the number cannot change: SRD Heroic Inspiration buys a reroll, and a
+  // Stunned creature's Strength save fails whatever the new face is.
+  const settledWithoutTheDie =
+    options.autoSucceed !== undefined ||
+    conditionEffect.autoFail !== null ||
+    options.autoFail !== undefined ||
+    (kind === 'saving-throw' && sheet.stated?.noAbilityScores === true);
+
   const rolled = rollD20Test(
     issuer,
     rng,
@@ -507,6 +564,15 @@ function resolve(
     // saving throw this engine rolls comes through here, which is the whole
     // reason it is a field on the sheet rather than an option at each site.
     sheet.rerollsD20On ?? null,
+    election === undefined || settledWithoutTheDie
+      ? null
+      : {
+          pool: election.pool,
+          fires: (roll, total) =>
+            typeof election.when === 'object'
+              ? roll.natural <= election.when.faceAtOrBelow
+              : total < options.dc,
+        },
   );
   if (!rolled.ok) return rolled;
 

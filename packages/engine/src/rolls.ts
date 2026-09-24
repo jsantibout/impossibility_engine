@@ -79,6 +79,18 @@ export interface RecordedD20 extends D20Outcome {
    * face the engine actually used.
    */
   readonly superseded?: RecordedD20;
+  /**
+   * The pool an **elected** reroll spent to throw this die again.
+   *
+   * {@link superseded} says a die was replaced and this says who paid for it,
+   * because two rules can replace one die and only one of them costs
+   * anything: SRD Luck is free and fires on a face, and an election is bought
+   * out of a pool. The command that rolled reads this to know what it owes —
+   * a `resource-spent` beside the roll — and it is the only signal it has,
+   * since a Halfling with Heroic Inspiration can have both throws in one
+   * `superseded` chain.
+   */
+  readonly elected?: string;
 }
 
 export interface RecordedRoll extends RollOutcome {
@@ -122,6 +134,25 @@ export function rollD20Recorded(
   };
   if (reroll === null || first.natural !== reroll.on) return first;
 
+  return rethrowCountedD20(issuer, rng, first, mode, modifier);
+}
+
+/**
+ * Throw the die a D20 Test counted, again, and keep the first throw whole.
+ *
+ * **Its own function because two rules replace a die**, and they must not be
+ * able to disagree about which die that was: SRD Luck fires on a face inside
+ * {@link rollD20Recorded}, and an election fires on the roll as it stands,
+ * after the bonus dice have landed and the total is known. One rethrow, one
+ * reading of "the d20 of a D20 Test", one settlement.
+ */
+export function rethrowCountedD20(
+  issuer: RollIssuer,
+  rng: Rng,
+  first: RecordedD20,
+  mode: RollMode,
+  modifier: number,
+): RecordedD20 {
   // Which die counted, so the replacement lands on that one rather than on a
   // fresh pair — and then the **same** settlement the first throw got, from
   // the same function, so the two can never disagree about which die counts
@@ -137,6 +168,115 @@ export function rollD20Recorded(
     provenance: issuer.issue('engine'),
     superseded: first,
   };
+}
+
+/**
+ * The condition a roller states **before** the die, read against the die.
+ *
+ * SRD Heroic Inspiration: "you can expend it to reroll any die immediately
+ * after rolling it, and you must use the new roll." A window on every die was
+ * tried and withdrawn — a table would then settle one before every next roll —
+ * so what the player states is not an answer to an offer but an **election**:
+ * the condition under which the reroll happens, named on the command that
+ * rolls. That is intent stated by a caller and a number produced by the
+ * engine, and it is still a decision made with knowledge of the die, because
+ * the condition is a function of what the die shows.
+ *
+ * - `'fails'` — a D20 Test whose total did not reach its DC.
+ * - `'misses'` — an attack roll that did not hit.
+ * - `{ faceAtOrBelow }` — the face itself, which is the only thing a damage
+ *   die has: a damage roll has no success to read.
+ */
+export type ElectionCondition =
+  | 'fails'
+  | 'misses'
+  | { readonly faceAtOrBelow: number };
+
+/**
+ * A reroll a roller elected on the command that rolls — see
+ * {@link ElectionCondition}.
+ *
+ * `die` is a position in a damage roll and is meaningless on a D20 Test: the
+ * die a test throws again is the one the mode counted, which
+ * {@link rethrowCountedD20} decides and no caller may name.
+ */
+export interface RollElection {
+  /** The feature pool one reroll comes out of. */
+  readonly pool: string;
+  readonly when: ElectionCondition;
+  /**
+   * Which damage die, by its index in the roll. Absent is the lowest counted
+   * die, which is the one a player rethrowing exactly one die would pick.
+   */
+  readonly die?: number;
+}
+
+/** Where an election was stated, which decides what it may say. */
+export type ElectionSite = 'test' | 'attack' | 'damage';
+
+/**
+ * Why this election cannot be read where it was stated, or null.
+ *
+ * A shape check and nothing more: whether the roller holds the pool and can
+ * afford it is state, and the command asks that before anything is rolled.
+ */
+export function electionProblem(election: RollElection, site: ElectionSite): string | null {
+  const { when, die } = election;
+  if (election.pool.length === 0) return 'an election names the pool it spends';
+
+  if (typeof when === 'object') {
+    const face = when.faceAtOrBelow;
+    if (!Number.isInteger(face) || face < 1) {
+      return `${String(face)} is not a face a die can show`;
+    }
+  } else if (site === 'damage') {
+    return `a damage die has no outcome to read, so "${when}" cannot be elected on one; name a face`;
+  } else if ((when === 'fails') !== (site === 'test')) {
+    return when === 'fails'
+      ? 'an attack roll misses rather than fails; elect "misses"'
+      : 'a D20 Test fails rather than misses; elect "fails"';
+  }
+
+  if (die !== undefined) {
+    if (site !== 'damage') return 'only a damage election names which die; a D20 Test throws the one the mode counted';
+    if (!Number.isInteger(die) || die < 0) return `${String(die)} is not a die of this roll`;
+  }
+
+  return null;
+}
+
+/**
+ * An election bound to the roll it was stated on, ready to be read.
+ *
+ * `fires` is a closure rather than data because what "misses" means is the
+ * attack's own hit rule and what "fails" means is the test's DC, and neither
+ * is known to {@link rethrowCountedD20}. The pool rides along because the
+ * command that rolled has to know what it owes.
+ */
+export interface ElectedReroll {
+  readonly pool: string;
+  /** Whether the roll as it stands is one the roller said they would rethrow. */
+  readonly fires: (roll: RecordedD20, total: number) => boolean;
+}
+
+/**
+ * Read an election against a settled d20, and throw the die again if it fires.
+ *
+ * Returns the roll untouched when nothing fires, which is the whole of what
+ * "nothing is spent" means: no id is issued, the generator has not moved, and
+ * the command owes no `resource-spent`.
+ */
+export function electedRethrow(
+  issuer: RollIssuer,
+  rng: Rng,
+  roll: RecordedD20,
+  mode: RollMode,
+  modifier: number,
+  total: number,
+  elected: ElectedReroll | null,
+): RecordedD20 {
+  if (elected === null || !elected.fires(roll, total)) return roll;
+  return { ...rethrowCountedD20(issuer, rng, roll, mode, modifier), elected: elected.pool };
 }
 
 /**

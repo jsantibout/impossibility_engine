@@ -22,9 +22,16 @@ import {
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
 import { type DieEffect, explodeOnMax, parseNotation, rerollDice } from '../dice.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
-import { type RecordedRoll } from '../rolls.js';
+import {
+  electionProblem,
+  type ElectionSite,
+  type RecordedRoll,
+  type RollElection,
+} from '../rolls.js';
+import { reactionsOf } from '../reactions.js';
+import { remaining } from '../resources.js';
 import { abilityModifier, type CharacterSheet } from '../character.js';
-import { type D20TestResult, skillName } from '../checks.js';
+import { type D20TestKind, type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState, isIncapacitated } from '../conditions.js';
 import { type EffectCheck } from '../timers.js';
 import { type CreatureState, type GameEvent, type GameState } from '../events.js';
@@ -68,6 +75,69 @@ import { type Supply } from './casting.js';
  * `consumedRollModifiers` asks the same {@link selectorMatches} the gatherer
  * did.
  */
+/**
+ * Whether this creature may elect this reroll on this roll, and what it costs.
+ *
+ * **Three questions, and the engine names no feature to ask them.** An
+ * election names a *pool*; the pool has to belong to a Reaction this creature
+ * holds whose effect is a reroll, because a pool with no reroll behind it
+ * would let any resource on any sheet buy one; and the roll it is elected on
+ * has to be one that feature's sentence reaches.
+ *
+ * **What "any die" is spelled as.** `ReactionGrantEffect`'s `tests` says of
+ * itself that "SRD Heroic Inspiration answers 'any die', which on this window
+ * is both kinds of test" — so a reroll naming **both** is a reroll of any die,
+ * and one naming fewer is the narrower sentence it actually prints. SRD
+ * Indomitable names a saving throw and is electable on one, which is its own
+ * sentence exactly; it reaches no attack roll and no damage die, which is also
+ * its own sentence. No new field, and no engine file naming a feature.
+ *
+ * Asked **before** anything is rolled, so a refused election leaves the
+ * generator and the roll counter where it found them.
+ */
+export function electionRefusal(
+  state: GameState,
+  who: CharacterId,
+  election: RollElection,
+  site: ElectionSite,
+  kind?: D20TestKind,
+): Result<null> {
+  const shape = electionProblem(election, site);
+  if (shape !== null) return err('bad_election', shape);
+
+  const creature = state.creatures[who];
+  if (creature === undefined) {
+    return err('bad_election', `${who} is not a creature in this game`);
+  }
+
+  const held = reactionsOf(creature).find(
+    (reaction) => reaction.pool === election.pool && reaction.does.kind === 'reroll',
+  );
+  if (held === undefined || held.does.kind !== 'reroll') {
+    return err(
+      'bad_election',
+      `${who} has nothing that spends ${election.pool} on a reroll`,
+    );
+  }
+
+  const tests = held.does.tests ?? ['saving-throw'];
+  const anyDie = tests.includes('ability-check') && tests.includes('saving-throw');
+  if (site === 'test' ? kind !== undefined && !tests.includes(kind) : !anyDie) {
+    return err(
+      'bad_election',
+      `${held.name} rerolls ${tests.join(' or a ')}, and this is ${
+        site === 'damage' ? 'a damage die' : site === 'attack' ? 'an attack roll' : `a ${kind ?? 'D20 Test'}`
+      }`,
+    );
+  }
+
+  if (remaining(creature.resources, election.pool) < 1) {
+    return err('cannot_afford', `${who} has no uses of ${held.name} left`);
+  }
+
+  return ok(null);
+}
+
 export function spentRollModifiers(state: GameState, query: RollQuery): GameEvent[] {
   return consumedRollModifiers(state, query).map((spent) => ({
     type: 'roll-modifier-consumed',
