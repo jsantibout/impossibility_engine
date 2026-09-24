@@ -144,6 +144,7 @@ import {
   takeTestReaction,
   tradeResource,
   unequipItem,
+  orderSummonsAttack,
   useHealingTouch,
   useItem,
   useBudgetPurchase,
@@ -223,6 +224,11 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   activated: [
     { feature: 'test:stance', name: 'Stance', action: 'bonus-action', pool: null, lasts: 'end-of-next-turn' },
   ],
+  // A swing this creature may give up so that a creature of theirs may take
+  // one — SRD Pact of the Chain — so `orderSummonsAttack`'s well-formed call
+  // reaches the command's own body rather than stopping at a feature the sheet
+  // does not hold.
+  forgoneAttacks: [{ feature: 'test:chain', name: 'The Chain', from: 'find-familiar' }],
   // A thing this creature can make, so `createDevice` reaches its price and
   // its ceiling rather than stopping at a feature the sheet does not hold.
   objectMakers: [
@@ -388,6 +394,46 @@ const SETUP: readonly GameEvent[] = [
 const OUT_OF_COMBAT: readonly GameEvent[] = SETUP.filter(
   (event) => event.type !== 'combat-started',
 );
+
+/**
+ * The same world with a familiar of A's in it, and the fight holding all three.
+ *
+ * SRD Pact of the Chain's "**your** familiar" is a creature kept from Find
+ * Familiar by this summoner, so the bond is written by hand rather than cast
+ * for: the fixture is about the command's guard, and a casting that had to
+ * succeed to build the world would be a fixture whose shape depended on a
+ * spell's definition.
+ */
+const CHAINED: readonly GameEvent[] = [
+  ...OUT_OF_COMBAT,
+  {
+    type: 'creature-added',
+    id: C,
+    name: C,
+    sheet: sheet(),
+    maxHp: 10,
+    diesAtZero: true,
+    creatureType: 'Fiend',
+    side: 'party',
+  },
+  {
+    type: 'creature-summoned',
+    id: C,
+    by: A,
+    kept: { spell: 'find-familiar', untilSummonerDies: false },
+  },
+  { type: 'creature-placed', id: C, placement: { from: { creature: B }, feet: 5, bearing: 90 } },
+  { type: 'sight-declared', from: C, to: B, seen: true },
+  { type: 'sight-declared', from: B, to: C, seen: true },
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: A, initiative: 20, speed: 30 },
+      { id: C, initiative: 15, speed: 30 },
+      { id: B, initiative: 10, speed: 30 },
+    ],
+  },
+];
 
 /** A line a stat block prints under Bonus Actions, in the shape a sheet holds one. */
 const PRINTED_LINE = {
@@ -2853,6 +2899,22 @@ const GUARDED: readonly Guarded[] = [
         supply(),
       ),
   },
+  /**
+   * SRD Pact of the Chain's forgone attack. An unguarded retry is a second
+   * Reaction taken by a familiar that has one, and a second swing out of an
+   * Attack action that holds one.
+   */
+  {
+    name: 'orderSummonsAttack',
+    log: CHAINED,
+    run: (s, commandId) =>
+      orderSummonsAttack(
+        s,
+        A,
+        { feature: 'test:chain', summons: C, target: B, commandId },
+        supply(),
+      ),
+  },
 ];
 
 describe('a retried command changes nothing the first one did not', () => {
@@ -3481,6 +3543,17 @@ const SPENDERS: readonly Spender[] = [
   {
     name: 'extendFeature',
     run: (s) => extendFeature(s, B, { feature: 'test:stance', by: 'bonus-action' }),
+  },
+  /**
+   * SRD Pact of the Chain's forgone attack, which spends an Attack action and
+   * somebody else's Reaction. The feature need only be well-formed: `mayAct`
+   * is asked immediately after the duplicate check and before the sheet, the
+   * familiar or either budget is looked at.
+   */
+  {
+    name: 'orderSummonsAttack',
+    run: (s) =>
+      orderSummonsAttack(s, B, { feature: 'test:chain', summons: A, target: A }, supply()),
   },
   {
     name: 'resolveEffectCheck',

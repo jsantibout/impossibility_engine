@@ -399,8 +399,24 @@ export function handsInUse(state: GameState, content: Content, id: CharacterId):
     const item = content.item(worn.id);
     return total + (item === null ? 0 : handsFor(item));
   }, 0);
+  // A conjured line, whichever kind of magic put it there: a casting's
+  // handful, or the weapon a feature's activation made. Both pinned their own
+  // hand count at the moment they appeared — see `conjuredLine` and
+  // `featureConjuredLine` — and in a log **this engine writes** neither is in
+  // `equipped`, because `equipItem` refuses `already_in_hand` for exactly this
+  // arithmetic. That is what makes adding them to the worn total right rather
+  // than double-counting.
+  //
+  // A log assembled by hand can put one in both, and then this charges the
+  // hands twice. Said rather than guarded, because the alternative is worse:
+  // counting the larger of the two would make a Warlock holding a Greatsword
+  // and a conjured Glaive out of six hands' worth of gear look as though they
+  // had four free, and there is no reading of `equipped` that can tell a
+  // wielding written beside a conjured line from one written instead of it.
+  // The door is the rule; this is arithmetic over what the door let through.
   const conjured = carrying(state, id).reduce(
-    (total, line) => total + (line.casting === undefined ? 0 : (line.hands ?? 0)),
+    (total, line) =>
+      total + (line.casting === undefined && line.feature === undefined ? 0 : (line.hands ?? 0)),
     0,
   );
   return wielded + conjured;
@@ -463,6 +479,20 @@ export function equipItem(
     // wand in one pair of hands would be one item's grants counted twice.
     if (creature.equipped.some((held) => held.id === item.id)) {
       return err('already_equipped', `${item.name} is already in hand`);
+    }
+    // **And a conjured thing is already in a hand**, which is the whole of
+    // what a conjuring is: SRD Flame Blade evokes a blade "in your free hand"
+    // and SRD Pact of the Blade conjures a pact weapon "in your hand". The
+    // hands it takes up were charged when it appeared and are pinned on the
+    // line, so equipping it is not a second thing anybody can do — and
+    // `handsInUse`, which counts the line's own hands beside what is worn,
+    // would charge a second pair for one blade. Told apart by the pinned count
+    // rather than by which magic made it, so both conjurings answer alike.
+    if (copy.hands !== undefined) {
+      return err(
+        'already_in_hand',
+        `${item.name} was conjured into ${id}'s hand and is in it; there is nothing to take up`,
+      );
     }
 
     // One suit of body armour, one shield.
@@ -1294,6 +1324,34 @@ export function conjuredLine(
     ...(castingId === undefined ? {} : { casting: castingId }),
     hands: conjuredHands(conjures),
   };
+}
+
+/**
+ * The line a **feature's** conjuring puts in a hand — SRD Pact of the Blade's
+ * "you can conjure a pact weapon in your hand".
+ *
+ * Beside {@link conjuredLine} rather than inside it, because the lifetime is an
+ * *activation* rather than a casting, which is a different question asked of a
+ * different part of state.
+ *
+ * **The hands are the weapon's own**, which is where this differs from a
+ * spell's: SRD Goodberry conjures a *handful* and the number of hands is the
+ * spell's to print, and a Glaive out of the air is swung with two hands for
+ * exactly the reason a Glaive off the rack is. So `handsFor` answers it off the
+ * catalogue record and the answer is pinned onto the line, which is rule 5 —
+ * what the command read from the catalogue travels with the event it emitted,
+ * so `handsInUse` never has to open one.
+ *
+ * Here rather than in `commands/features.ts` for the reason its sibling is
+ * here: one spelling of what a conjuring puts in a hand, in the module that
+ * owns what a creature is carrying, so the sweep in `item-instances.test.ts`
+ * has one thing to count.
+ */
+export function featureConjuredLine(
+  item: CatalogueItem,
+  feature: string,
+): InventoryLine {
+  return { id: item.id, quantity: 1, feature, hands: handsFor(item) };
 }
 
 /**

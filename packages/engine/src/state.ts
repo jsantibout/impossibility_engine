@@ -2185,6 +2185,32 @@ export interface InventoryLine {
    */
   readonly casting?: string;
   /**
+   * The **activation** that conjured this line, where a feature put it in a
+   * hand.
+   *
+   * SRD Pact of the Blade: "you can conjure a pact weapon in your hand ... A
+   * conjured weapon disappears when the bond ends." {@link casting} one field
+   * up is the same sentence with a spell on the other end of it, and this is
+   * here rather than folded into that one because the two are ended by
+   * different things and read by different passes: a casting is looked up in
+   * `state.ongoing`, and an activation in the holder's own `activeFeatures`.
+   *
+   * **Its lifetime is settled in the fold**, which is where it differs from
+   * {@link casting} as well. A bond ends when its holder uses the Bonus Action
+   * again, when they die, and when a condition takes the feature away — three
+   * doors, not one of which knows a weapon was conjured, and two of which write
+   * no event a removal could hang on. So `settleConjuredLines` drops the line
+   * the moment the feature leaves `activeFeatures`, exactly as
+   * `settleWeaponRiders` drops the rider beside it; a read-time filter like
+   * `carrying`'s would keep a Glaive alive beside the Longsword that replaced
+   * it, because an activation has no id and the second use of a feature wears
+   * the same name as the first.
+   *
+   * Absent on everything bought, found, awarded, carried and conjured by a
+   * spell, which is every line the log held before a feature could make one.
+   */
+  readonly feature?: string;
+  /**
    * How many hands holding this line takes up, pinned where it was conjured.
    *
    * On the line rather than read off the item, because the sentence is about

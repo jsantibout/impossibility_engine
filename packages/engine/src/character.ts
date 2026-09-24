@@ -5,6 +5,7 @@ import type {
   ShapeShift,
   HealingTouch,
   HitOption,
+  ForgoneAttack,
   KnownFact,
   ObjectMaker,
   PoolOption,
@@ -755,6 +756,15 @@ export interface CharacterSheet {
    * `knowledge.ts`; this is only the licence to ask.
    */
   readonly knows?: readonly KnownFact[];
+  /**
+   * Swings this character may give up so that a creature of theirs may take
+   * one — SRD Pact of the Chain's forgone attack.
+   *
+   * Resolved at creation beside `knows`, and on the sheet for the same reason:
+   * nothing about it is a column of any class table, and what it licenses is
+   * a command rather than a number. `orderSummonsAttack` is the door.
+   */
+  readonly forgoneAttacks?: readonly ForgoneAttack[];
   /**
    * Features that give another pool's uses back — Sorcerous Restoration,
    * Magical Cunning.

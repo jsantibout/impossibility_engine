@@ -1399,7 +1399,14 @@ export function castOrRelease(
       if (block === null) {
         return err('unknown_monster', `${request.form} is not a stat block this world holds`);
       }
-      const listed = stated.among.includes(request.form);
+      // **And whatever the route adds to the spell's own list.** SRD Pact of
+      // the Chain: "you choose one of the normal forms for your familiar **or
+      // one of the following special forms**" — the feature lengthens the
+      // list rather than replacing it, so the spell's own clause still admits
+      // whatever it always admitted. See `GrantedSpell.widensForm`.
+      const widened = route.kind === 'granted' ? (route.grant.widensForm ?? []) : [];
+      const among = [...stated.among, ...widened];
+      const listed = among.includes(request.form);
       const admitted =
         stated.orAny !== undefined &&
         isCreatureType(block.type, stated.orAny.type) &&
@@ -1411,7 +1418,7 @@ export function castOrRelease(
             : ` or any ${stated.orAny.type} of Challenge Rating ${stated.orAny.cr}`;
         return err(
           'form_not_offered',
-          `${definition.name} prints ${stated.among.join(', ')}${clause}, not ${block.name}`,
+          `${definition.name} prints ${among.join(', ')}${clause}, not ${block.name}`,
         );
       }
     }
@@ -1566,6 +1573,14 @@ export interface CastingTiming {
  * `restoreOn`'s dawn-recovering pool already makes for a branch no class can
  * reach.
  *
+ * **The route may state a time of its own**, and it wins over the definition's
+ * where the casting is not a Ritual: SRD Pact of the Chain casts Find Familiar
+ * "as a Magic action" where the spell prints an hour, and the seconds go with
+ * the hour they measured. Not over a Ritual, because "the Ritual version takes
+ * 10 minutes longer" is the book's own arithmetic over a printed time and
+ * reading one sentence through the other would give the Ritual a time neither
+ * of them prints. See {@link GrantedSpell.castingTime}.
+ *
  * SRD Alarm prints "1 minute or Ritual" and comes to **660**; IE-036 wrote it
  * and five more that print the same line, so the sum has catalogue writers and
  * that mutation now reddens three tests in two files. The export stays,
@@ -1581,18 +1596,21 @@ export function castingOf(
     // **What the route prices the use at, where it prices it.** A stat block's
     // heading is the one thing in the book that says how long a casting takes
     // without being the spell: SRD Divine Aid is a Bonus Action offering
-    // *Bless*, whose own casting time is an Action. A route is the right host
-    // for it because a route is already how a casting learns whose ability and
-    // whose DC it uses — and this is the one place a casting's slot is
-    // decided, so the action economy, the event and the settlement all read
-    // one answer.
+    // *Bless*, whose own casting time is an Action; SRD Pact of the Chain's
+    // "cast it as a Magic action" is the same clause on a Warlock's route. A
+    // route is the right host for it because a route is already how a casting
+    // learns whose ability and whose DC it uses — and this is the one place a
+    // casting's slot is decided, so the action economy, the event and the
+    // settlement all read one answer.
     //
     // **A span of seconds does not travel with it**, and cannot: the only
-    // casting time that takes one is `long`, which no printed heading prices a
-    // use at, and `castSpell` refuses a `long` casting that names no span.
+    // casting time that takes one is `long`, which no route states — so a
+    // stated time answers whole, and the definition's own seconds (Find
+    // Familiar's hour) stay with the definition they belong to.
     const stated = route?.kind === 'granted' ? route.grant.castingTime : undefined;
+    if (stated !== undefined) return ok({ castingTime: stated, ritual: false });
     return ok({
-      castingTime: stated ?? definition.castingTime,
+      castingTime: definition.castingTime,
       ...(definition.castingSeconds === undefined
         ? {}
         : { castingSeconds: definition.castingSeconds }),

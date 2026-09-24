@@ -123,6 +123,7 @@ import {
   type HitRiderAnchor,
   type StrikeStyle,
   canSee,
+  weaponRiderProficiency,
 } from '../standing.js';
 import { benefitsFrom } from '../conditions.js';
 import { resolveDuration, timeView, turnAnchored, type TurnAnchor } from '../time.js';
@@ -1567,7 +1568,12 @@ function cantripAsked(
       `${definition.name} is cast with a weapon in hand, and ${id} is swinging none`,
     );
   }
-  if (!proficientWith(sheet, weapon)) {
+  // **The sheet's categories, or the one object an imbuing trained them in.**
+  // SRD Pact of the Blade: "Until the bond ends, you have proficiency with the
+  // weapon" — a Warlock's bonded Glaive is a weapon they have proficiency
+  // with, and the spell's clause asks nothing about where the proficiency
+  // came from. See `GrantedWeaponRider.proficient`.
+  if (!proficientWith(sheet, weapon) && !weaponRiderProficiency(attacker, weapon)) {
     return err(
       'not_proficient',
       `${definition.name} is cast with a weapon ${id} has proficiency with, and they have none with a ${weapon.name}`,
@@ -2371,7 +2377,13 @@ export function resolveAttack(
       ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
       ...(style === null ? {} : { strikeStyle: inPlay(style) }),
       targetAc: armorClassOf(state, command.target) + coverAcBonus(cover),
-      proficient: proficientWith(sheet, weapon),
+      // The sheet's categories, or the one object an imbuing trained them in —
+      // SRD Pact of the Blade's "Until the bond ends, you have proficiency
+      // with the weapon", which is a fact about **that** weapon and therefore
+      // one the sheet's list of categories cannot hold. Joined rather than
+      // branched: a rider on a weapon the swinger is already trained in
+      // changes nothing at all.
+      proficient: proficientWith(sheet, weapon) || weaponRiderProficiency(attacker, weapon),
       // SRD Improved Critical, off the attacker's own sheet rather than the
       // caller's hand: a Champion's 19 is a critical whoever is narrating.
       ...(sheet.criticalOn === undefined ? {} : { criticalOn: sheet.criticalOn }),

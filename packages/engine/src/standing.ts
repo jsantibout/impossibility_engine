@@ -1558,8 +1558,16 @@ export interface StandingEffect {
   readonly requires?: readonly StandingRequirement[];
 }
 
-/** What ends a feature that is running, besides its own deadline. */
-export type ActivationEnd = 'incapacitated' | 'heavy-armor';
+/**
+ * What ends a feature that is running, besides its own deadline.
+ *
+ * `death` is SRD Pact of the Blade's "Your bond with the weapon ends ... if you
+ * die", and it is a member here rather than a rule about every activation for
+ * the reason the other two are members: the book says it of the features that
+ * say it. A Rage prints no such clause, and a corpse that is Raging is a state
+ * nothing in the engine reads and no sentence forbids.
+ */
+export type ActivationEnd = 'incapacitated' | 'heavy-armor' | 'death';
 
 /**
  * How long a grant an activation hangs runs for.
@@ -1694,8 +1702,22 @@ export interface StrikeStyle {
  * next turn", pushed out round by round — or for a span the book prints: SRD
  * Innate Sorcery's minute, Large Form's ten. A span runs on the clock, in and
  * out of a fight alike, and is never maintained; `extendFeature` refuses it.
+ *
+ * Or **neither**, which is the third and was for a long time argued not to
+ * exist: `feature-schema.ts` read "an activation says how long it runs" as a
+ * rule, on the evidence that every feature written until now printed a span.
+ * SRD Pact of the Blade prints none — "Your bond with the weapon ends if you
+ * use this feature's Bonus Action again, if the weapon is more than 5 feet away
+ * from you for 1 minute or more, or if you die" is three endings and no
+ * deadline — so the third member says that out loud rather than inventing a
+ * number the book does not print. Nothing schedules it, `extendFeature` refuses
+ * it for the same reason it refuses a span (there is no deadline to push), and
+ * every other route out of an activation reaches it unchanged.
  */
-export type ActivationSpan = TurnAnchor | { readonly kind: 'seconds'; readonly seconds: number };
+export type ActivationSpan =
+  | TurnAnchor
+  | { readonly kind: 'seconds'; readonly seconds: number }
+  | { readonly kind: 'until-ended' };
 
 export interface ActivatedFeature {
   readonly feature: string;
@@ -1748,6 +1770,19 @@ export interface ActivatedFeature {
    * beside it.
    */
   readonly imbuesWeapon?: ImbuedWeapon;
+  /**
+   * What a use of it puts in its holder's **hand** — SRD Pact of the Blade's
+   * "you can conjure a pact weapon in your hand".
+   *
+   * The fourth thing an activation can do, and the one that makes an object
+   * rather than changing one: `imbuesWeapon` above hangs a benefit on a weapon
+   * the holder already has, and this is where the weapon comes from. Which
+   * weapon is the use's own answer, held to `imbuesWeapon.weapons`; the line
+   * it leaves is `InventoryLine.feature`'s, and lives exactly as long as the
+   * activation does. A weapon's hands are the weapon's own, so the line
+   * carries none — see the `activated` grant's `conjuresWeapon`.
+   */
+  readonly conjuresWeapon?: true;
   /**
    * SRD Large Form: the size the holder is while it runs. Derived onto the
    * map by the fold's `settleSizes`, which reads it off whichever size-printing
@@ -4188,6 +4223,23 @@ export interface KnownFact {
 }
 
 /**
+ * A swing this character may give up so that a creature of theirs may take one
+ * — SRD Pact of the Chain's forgone attack.
+ *
+ * The compiled copy of the `summons-attack` grant, in the shape every other
+ * feature-derived sheet line takes: the feature's id, so a caller can say which
+ * one they are spending; its printed name, so a refusal can say it in words;
+ * and the spell whose summons the sentence is about, which is the whole of what
+ * "**your** familiar" comes to.
+ */
+export interface ForgoneAttack {
+  readonly feature: string;
+  readonly name: string;
+  /** SRD's "your familiar": the creature kept from this spell. */
+  readonly from: string;
+}
+
+/**
  * The facts this creature's features let them know, as the sheet stands.
  *
  * Through `sheetAsItStands`, like every other reader here, so a Hunter
@@ -5222,8 +5274,36 @@ export interface GrantedWeaponRider {
   readonly endsWhenLetGo?: true;
   /** SRD Shillelagh's die, pinned at the caster's level. */
   readonly die?: string;
-  /** SRD Shillelagh's offered ability, resolved to the caster's own. */
+  /**
+   * SRD Shillelagh's offered ability, resolved to the caster's own.
+   *
+   * **Offered rather than imposed**, which is the reading `attackAbility`
+   * gives every sentence written "you can use X instead of Y" — and SRD Pact
+   * of the Blade's "you **can** use your Charisma modifier for the attack and
+   * damage rolls instead of using Strength or Dexterity" is that sentence
+   * word for word, so it arrives on this field and needed no other. The
+   * imposition beside it is `AttackOptions.imposedAbility`, which is SRD True
+   * Strike's "The attack **uses** your spellcasting ability", and the two
+   * differ in whether the attacker may decline: a Warlock with more Strength
+   * than Charisma swings with Strength, and a True Strike never does.
+   */
   readonly ability?: Ability;
+  /**
+   * SRD Pact of the Blade: "Until the bond ends, you have proficiency with the
+   * weapon."
+   *
+   * A fact about **one object** rather than about a category, which is what
+   * makes it a field here and not a widening of `CharacterSheet.weaponProficiencies`:
+   * a Warlock is proficient with the Glaive they bonded and with no other
+   * Glaive, and the sheet's list is read as categories a whole class was
+   * trained in. `proficientWith` answers the categories; this joins it where
+   * the swing asks, so a rider on a weapon the holder is already trained in
+   * changes nothing.
+   *
+   * Absent on every rider a casting writes: SRD Magic Weapon and Shillelagh
+   * enchant a weapon and train nobody.
+   */
+  readonly proficient?: true;
   /**
    * SRD Shillelagh's "it can be Force damage or the weapon's normal damage
    * type (your choice)" — the types offered *instead of* the weapon's own.
@@ -5274,6 +5354,25 @@ export function weaponRidersFor(
     if (rider.meleeOnly === true && weapon.kind !== 'melee') return false;
     return true;
   });
+}
+
+/**
+ * Whether an imbuing has trained this creature in the weapon in hand.
+ *
+ * SRD Pact of the Blade: "Until the bond ends, you have proficiency with the
+ * weapon." The fourth reader of {@link weaponRidersFor}, and the one that
+ * answers a question the sheet cannot: proficiency on the sheet is a list of
+ * *categories*, and this is one object.
+ *
+ * `false` is the answer for everybody, which is what makes joining it to
+ * `proficientWith` safe: a swing with no weapon, with no rider, or with a
+ * rider that trains nobody is exactly as proficient as it always was.
+ */
+export function weaponRiderProficiency(
+  creature: CreatureState | undefined,
+  weapon: Weapon | null,
+): boolean {
+  return weaponRidersFor(creature, weapon).some((rider) => rider.proficient === true);
 }
 
 /**

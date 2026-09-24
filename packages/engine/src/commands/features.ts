@@ -16,7 +16,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { CONFERRED_LEVEL } from '../catalogue.js';
+import { CONFERRED_LEVEL, itemChargePool } from '../catalogue.js';
 import {
   modifierFor,
   proficiencyBonus,
@@ -39,7 +39,7 @@ import {
 import { type CommandIdentity, once } from '../idempotency.js';
 import { conferredSource, featureSource, hungSource } from '../progression.js';
 import { type Placement, type Point } from '../positioning.js';
-import { spendAttack } from '../combat.js';
+import { spendAttack, spendReaction } from '../combat.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';
@@ -63,9 +63,13 @@ import {
   speedOf,
 } from '../standing.js';
 import { weaponNarrowingHolds } from '../attack.js';
+import { handsFor } from '../catalogue.js';
 import { type Content } from '../content.js';
 import { type Supply } from './casting.js';
-import { quantityOf } from './inventory.js';
+import { featureConjuredLine, freeHands, quantityOf } from './inventory.js';
+import { resolveAttack } from './attacks.js';
+import { reactionSwing } from './movement.js';
+import { attacksInAction } from '../monster.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
@@ -152,6 +156,45 @@ export function activateFeature(
     const imbuing = imbuedWeapon(state, id, definition, command.weapon, content);
     if (!imbuing.ok) return imbuing;
 
+    // **And whether there is a hand to put it in**, asked here for the reason
+    // `resolveSpell` asks it of a casting's conjuring: before the action, the
+    // pool and the deadline, so a Warlock with both hands full pays nothing
+    // for finding out. SRD Pact of the Blade: "you can conjure a pact weapon
+    // **in your hand**" — a Glaive takes two of them, off the catalogue
+    // record, and `featureConjuredLine` pins the same number onto the line.
+    const conjuring =
+      definition.conjuresWeapon === true && imbuing.value !== null
+        ? (content.item(imbuing.value) ?? null)
+        : null;
+    if (conjuring !== null) {
+      const wants = handsFor(conjuring);
+      // **Asked of the world the *previous* bond has already left.** SRD Pact
+      // of the Blade ends the first bond with the same Bonus Action that
+      // begins the second — "if you use this feature's Bonus Action again" —
+      // so a Warlock holding a two-handed Glaive has two hands free for the
+      // Longsword, not none. The ending is folded here as a hypothetical and
+      // thrown away: nothing is emitted until every refusal has passed, which
+      // is the rule this whole block is under.
+      const free = freeHands(
+        reused
+          ? applyEvent(state, {
+              type: 'feature-ended',
+              id,
+              feature: command.feature,
+              reason: 'dismissed',
+            })
+          : state,
+        content,
+        id,
+      );
+      if (wants > free) {
+        return err(
+          'no_free_hand',
+          `${definition.name} puts ${conjuring.name} in ${id}'s hand${wants === 1 ? '' : 's'}, and ${free === 0 ? 'both are' : 'not enough is'} full`,
+        );
+      }
+    }
+
     // SRD Rage: "if you aren't wearing Heavy armor". The same clause that ends
     // it is the one that stops it starting, so it is read from one list.
     for (const requirement of definition.endsOn ?? []) {
@@ -160,6 +203,12 @@ export function activateFeature(
       }
       if (requirement === 'heavy-armor' && wearsHeavyArmor(creature)) {
         return err('heavy_armor', `${definition.name} cannot be entered in Heavy armour`);
+      }
+      // SRD Pact of the Blade: "Your bond with the weapon ends ... if you
+      // die." The same clause that ends it is what stops it starting, which is
+      // the rule this whole list is read under.
+      if (requirement === 'death' && creature.vitals.dead) {
+        return err('dead', `${id} is dead and cannot enter ${definition.name}`);
       }
     }
 
@@ -211,6 +260,22 @@ export function activateFeature(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
+    // **What the use puts in a hand**, after the activation so the line names a
+    // feature the log has already switched on, and before the rider so the
+    // weapon the rider is hung on is a weapon the holder has. SRD Pact of the
+    // Blade's "you can conjure a pact weapon in your hand": pinned from the
+    // sheet, taken away by nothing, and gone the fold after the bond is — see
+    // `InventoryLine.feature`, whose lifetime the fold settles because a bond
+    // ends by three doors and writes an event about a weapon at none of them.
+    if (conjuring !== null) {
+      events.push({
+        type: 'items-gained',
+        id,
+        items: [featureConjuredLine(conjuring, definition.feature)],
+        source: `${definition.name}, conjured`,
+      });
+    }
+
     if (imbuing.value !== null) {
       events.push({
         type: 'weapon-rider-granted',
@@ -234,6 +299,18 @@ export function activateFeature(
           ...(definition.imbuesWeapon?.damageTypes === undefined
             ? {}
             : { damageTypes: definition.imbuesWeapon.damageTypes }),
+          // SRD Pact of the Blade's two clauses beside the type offer: the
+          // modifier the swing may use instead of the weapon's own, and the
+          // training in **that** weapon. Both ride the record a casting
+          // already writes — `ability` is Shillelagh's own field, and
+          // `strikeStyleFor` sends it to the attack roll and the damage roll
+          // together, which is exactly the pair the sentence names.
+          ...(definition.imbuesWeapon?.offersAbility === undefined
+            ? {}
+            : { ability: definition.imbuesWeapon.offersAbility }),
+          ...(definition.imbuesWeapon?.grantsProficiency === undefined
+            ? {}
+            : { proficient: definition.imbuesWeapon.grantsProficiency }),
         },
       });
     }
@@ -869,7 +946,12 @@ export function extendFeature(
     if (typeof definition.lasts === 'object') {
       return err(
         'not_extendable',
-        `${definition.name} runs for ${describeElapsed(definition.lasts.seconds)} and is not maintained round by round`,
+        definition.lasts.kind === 'seconds'
+          ? `${definition.name} runs for ${describeElapsed(definition.lasts.seconds)} and is not maintained round by round`
+          : // SRD Pact of the Blade prints no deadline at all, so there is
+            // nothing to push out: the same refusal for the same reason, and
+            // the one thing a caller could be told that is true.
+            `${definition.name} runs until something ends it, so there is no deadline to maintain`,
       );
     }
 
@@ -1030,8 +1112,9 @@ function imbuedWeapon(
     );
   }
 
-  const weapon = content.item(named)?.weapon;
-  if (weapon === undefined || weapon === null) {
+  const item = content.item(named);
+  const weapon = item?.weapon;
+  if (item === null || weapon === undefined || weapon === null) {
     return err('unknown_weapon', `${named} is not a weapon the SRD lists`);
   }
   if (imbues.weapons !== undefined && !weaponNarrowingHolds(imbues.weapons, { weapon })) {
@@ -1039,6 +1122,48 @@ function imbuedWeapon(
       'weapon_not_of_kind',
       `${definition.name} does not imbue a ${weapon.name}`,
     );
+  }
+  // **Unless the use is what makes it.** SRD Pact of the Blade conjures the
+  // weapon it bonds, so there is nothing to be holding: what the narrowing
+  // above has already refused is the only question the book asks of the name,
+  // and the line appears in the same batch as the rider.
+  if (definition.conjuresWeapon === true) {
+    // The one rule a conjuring keeps that an imbuing does not, in the words
+    // `checkContent` keeps it for a spell: a thing that lasts exactly as long
+    // as the bond has nothing to remember, and a conjured line is a stack
+    // rather than a labelled copy — so a weapon with a charge pool of its own
+    // would arrive with a pool nobody declared and lose it the moment the
+    // bond ended. Refused here because a feature names its weapon at the use
+    // and the catalogue is only reachable from a command.
+    if (itemChargePool(item) !== null) {
+      return err(
+        'conjured_item_has_charges',
+        `${named} keeps charges of its own, and a weapon that lasts only as long as ${definition.name} has nothing to remember`,
+      );
+    }
+    // **And the book's own narrowing, which the kind alone cannot say.** SRD
+    // Pact of the Blade conjures "a Simple or Martial Melee weapon" — a row of
+    // the Weapons table — and reaches a *magic* weapon only through the other
+    // half of its sentence, "create a bond with a magic weapon you touch",
+    // which prints two exclusions this engine cannot check. A conjuring that
+    // admitted a Frost Brand would be handing over the half that is not
+    // offered, for nothing, at will.
+    //
+    // **"Magic" is read as what the catalogue actually marks**, which is the
+    // three things `docs/design/characters-and-equipment.md` says a magic item
+    // is a `CatalogueItem` that has grown: grants of its own, an attunement
+    // requirement, and a charge pool. There is no `magical` flag to read, and
+    // this is the honest reading of its absence rather than a guess: every one
+    // of the SRD's twenty-eight Melee Weapons table rows carries none of the
+    // three, and every magic weapon built on one of those rows carries at
+    // least one.
+    if ((item.grants ?? []).length > 0 || item.attunement !== undefined) {
+      return err(
+        'weapon_is_magical',
+        `${named} is a magic item, and ${definition.name} conjures a weapon off the Weapons table; bonding a magic weapon is the half of the sentence this feature does not offer`,
+      );
+    }
+    return ok(named);
   }
   if (quantityOf(state, id, named) < 1) {
     return err('weapon_not_held', `${id} has no ${weapon.name} for ${definition.name} to imbue`);
@@ -1094,6 +1219,11 @@ export function featureTimer(
   // clock a form's hours run on — and carries no cap: the span is the cap. The
   // `feature` target is what the expiry pass drops from `activeFeatures`.
   if (typeof definition.lasts === 'object') {
+    // A feature the book gives no deadline — SRD Pact of the Blade — is
+    // scheduled against nothing at all. The endings it does print are the
+    // second use, the `endsOn` list and whatever takes the imbued weapon away,
+    // and every one of them is already a door out of `activeFeatures`.
+    if (definition.lasts.kind === 'until-ended') return ok(null);
     return schedule(
       state,
       { kind: 'feature', on: id, feature: definition.feature },
@@ -1127,6 +1257,183 @@ export function featureTimer(
   );
   if (!timer.ok) return timer;
   return ok(timer.value);
+}
+
+/** What the order left behind: the log, and what the swing could not check. */
+export interface SummonsAttackOutcome {
+  readonly events: readonly GameEvent[];
+  /** What the familiar's own swing could not check — `resolveAttack`'s. */
+  readonly unverified: readonly string[];
+  /** A retry of an order already given, which did nothing the first did not. */
+  readonly duplicate?: true;
+}
+
+export interface SummonsAttackCommand extends CommandIdentity {
+  /** The feature whose sentence this is — SRD Pact of the Chain. */
+  readonly feature: string;
+  /** The creature that is to swing: SRD's "your familiar". */
+  readonly summons: CharacterId;
+  readonly target: CharacterId;
+  /** The weapon it swings with, by catalogue id, or null for an Unarmed Strike. */
+  readonly weapon?: string | null;
+  /**
+   * A line the summons' own stat block prints, by its printed name — an Imp's
+   * Sting. Naming neither this nor a weapon leaves the choice to
+   * `reactionSwing`, which takes the block's best printed melee line.
+   */
+  readonly attack?: string;
+}
+
+/**
+ * Give up one of your own swings so that a creature of yours may take one.
+ *
+ * SRD Pact of the Chain: "Additionally, when you take the Attack action, you
+ * can forgo one of your own attacks to allow your familiar to make one attack
+ * of its own with its Reaction."
+ *
+ * **Two economies, and the command's whole job is to charge both of them
+ * before anybody swings.** The holder gives up one attack of an Attack action
+ * they have already taken — {@link spendOneAttack}, the price SRD Breath Weapon
+ * prints — and the summons gives up its Reaction. Either refusal leaves both
+ * unspent, which is the validate-before-rolling rule this file keeps
+ * everywhere.
+ *
+ * **The swing is the ordinary one.** `resolveAttack` with `free: true`, exactly
+ * as an Opportunity Attack is, so the familiar's printed line, its reach, the
+ * target's cover and every defence on either side apply without a word of it
+ * being written again here. No command id is handed inward: this command owns
+ * the guard, which is the split `takeOpportunityAttack` already makes.
+ *
+ * **And this is the sentence that lets a familiar attack at all.** SRD Find
+ * Familiar prints "A familiar can't attack", which `summonCreature` stores as
+ * an `action-rule` forbidding the Attack action and the Opportunity Attack.
+ * The Reaction spent here names neither — `Spend.as` is left off on purpose —
+ * because the Pact's own sentence is the permission that overrides the spell's
+ * refusal, and a swing bought by the Pact is neither of the two things the
+ * familiar was forbidden. What the rule still refuses is everything else: the
+ * familiar cannot take the Attack action on its own turn, and it cannot answer
+ * a provocation.
+ */
+export function orderSummonsAttack(
+  state: GameState,
+  id: CharacterId,
+  command: SummonsAttackCommand,
+  supply: Supply,
+): Result<SummonsAttackOutcome> {
+  return once(
+    state,
+    `summons-attack:${id}`,
+    command,
+    () => ({ events: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id);
+
+      const sheet = sheetAsItStands(state, id) ?? creature.sheet;
+      const licence = (sheet.forgoneAttacks ?? []).find((one) => one.feature === command.feature);
+      if (licence === undefined) {
+        return err('no_such_feature', `${id} has no feature called ${command.feature}`);
+      }
+
+      const summons = creatureOf(state, command.summons);
+      if (summons === null) return unknownCreature(command.summons);
+      // SRD's "**your** familiar", which is the creature this caster keeps from
+      // the spell the feature names. A creature somebody else summoned, or one
+      // this caster keeps from another spell, is not what the sentence is
+      // about — and neither is a creature nobody summoned at all.
+      const bond = summons.summonedBy;
+      if (bond == null || bond.by !== id || bond.kept?.spell !== licence.from) {
+        return err(
+          'not_your_summons',
+          `${licence.name} lets ${id} give up an attack for the familiar they summoned, and ${command.summons} is not one`,
+        );
+      }
+
+      // Both prices, in the order the sentence prints them and both before any
+      // die: the swing the holder forgoes, then the Reaction the familiar
+      // spends. Each refusal leaves the other unspent.
+      //
+      // **"When you take the Attack action" is read as the taking**, which is
+      // `spendAttack`'s own two branches and is why this does not go through
+      // `spendOneAttack` beside it. A holder who has already swung spends one
+      // of what the action has left; a holder who has not spends the Action
+      // and the first of its attacks. The second branch is the one that
+      // matters here and it is the book: a Warlock 5 makes **one** attack in
+      // an Attack action, so a rule that asked for an attack left over after
+      // the action was taken would be a sentence no Warlock could ever use.
+      // SRD Breath Weapon prints the same price and `spendOneAttack` reads it
+      // the stricter way; the two are recorded as disagreeing rather than
+      // quietly reconciled here, because that reading is another feature's.
+      const combat = state.combat;
+      if (combat === null) {
+        return err(
+          'not_in_combat',
+          `${licence.name} gives up one of the attacks of an Attack action, and there is no action economy outside combat to take one in`,
+        );
+      }
+      const forgone = spendAttack(
+        combat,
+        id,
+        // **No printed lines, and that is a fact about who holds this rather
+        // than a shortcut.** `attacksInAction`'s third argument narrows a
+        // *stat block's* gated Multiattack branch, and a feature compiled onto
+        // a character's sheet has no Multiattack to gate: `multiattackOf`
+        // answers null and the list is never read. Written as the empty list
+        // rather than threaded from the turn's ledger because there is nothing
+        // there to thread, and a reader should be told so.
+        attacksInAction(sheet, creature.heads, []),
+        creature.conditions,
+        { rules: actionRulesOn(state, id) },
+      );
+      if (!forgone.ok) return forgone;
+      const reaction = spendReaction(combat, command.summons, summons.conditions, {
+        rules: actionRulesOn(state, command.summons),
+      });
+      if (!reaction.ok) return reaction;
+
+      const events: GameEvent[] = [
+        // The swing's own event, for `spendOneAttack`'s reason: `attack-made`
+        // is what the budget arithmetic hangs on, and a second event with the
+        // same body would be a second place for the two to disagree.
+        { type: 'attack-made', id },
+        { type: 'reaction-spent', id: command.summons },
+      ];
+      const after = events.reduce(applyEvent, state);
+      const swing = resolveAttack(
+        after,
+        command.summons,
+        {
+          target: command.target,
+          ...reactionSwing(sheetAsItStands(after, command.summons) ?? summons.sheet, command),
+          // The Reaction above is what this costs; it is not the Attack action,
+          // and the attack the holder gave up was the holder's.
+          free: true,
+        },
+        supply,
+      );
+      if (!swing.ok) return swing;
+
+      return ok({
+        events: [
+          ...events,
+          ...swing.value.events,
+          {
+            type: 'feature-used',
+            id,
+            feature: command.feature,
+            turn: combat.turnsTaken,
+            ...(stamp === null ? {} : { command: stamp }),
+          },
+        ],
+        unverified: swing.value.unverified,
+      });
+    },
+  );
 }
 
 export interface UsePoolOptionCommand extends CommandIdentity {
@@ -1814,6 +2121,16 @@ function spendOptionCost(
  * is also what keeps a Monk's Flurry out of it: attacks bought `unarmedOnly`
  * are skipped by a swing that is not one, in the command and in the fold
  * alike.
+ *
+ * **The stricter of two readings of one printed price**, and it is written
+ * down here rather than argued each time somebody meets it. SRD Pact of the
+ * Chain prints the same clause — "when you take the Attack action, you can
+ * forgo one of your own attacks" — and `orderSummonsAttack` reads it as the
+ * *taking*, because a Warlock makes one attack in an Attack action and a rule
+ * that asked for one left over would be a sentence no Warlock could ever use.
+ * The same is true of a Dragonborn with no Extra Attack and this feature; that
+ * is a question about Breath Weapon rather than about the Pact, so it is filed
+ * rather than settled here.
  */
 function spendOneAttack(
   state: GameState,

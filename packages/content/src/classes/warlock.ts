@@ -127,8 +127,8 @@ export const WARLOCK: ClassDefinition = {
       id: 'warlock:eldritch-invocations',
       name: 'Eldritch Invocations',
       level: 1,
-      automation: 'manual',
-      note: 'SRD: "You gain one invocation of your choice ... You gain more invocations at higher levels, as shown in the Invocations column of the Warlock Features table." The count is that column and the invocations offered are executed: Agonizing Blast adds Charisma to every damage roll of the one cantrip its holder named, Eldritch Spear lengthens that cantrip’s range by thirty feet for each Warlock level, Repelling Blast shoves a Large or smaller creature ten feet straight away on every beam that hits it, Armor of Shadows, Ascendant Step, Fiendish Vigor, Mask of Many Faces, Master of Myriad Forms, Misty Visions and Otherworldly Leap each cast their spell for nothing as often as asked, Fiendish Vigor takes the highest face of the die rather than rolling it, Devil’s Sight sees through Darkness magical and nonmagical to 120 feet, Eldritch Mind gives Advantage on the Constitution save that maintains Concentration, Gift of the Depths swims at its holder’s own Speed and casts Water Breathing once until a Long Rest, One with Shadows casts Invisibility for nothing while its caster stands in Dim Light or Darkness and is refused in Bright Light, Lessons of the First Ones grants the Origin feat its holder names, and Pact of the Tome prepares three cantrips and two Ritual-tagged level 1 spells from any class’s list, as Warlock spells. Each grant is gated on the invocation chosen, so a Warlock holds what they took and nothing else, a Prerequisite the book prints over an option is checked at creation, and the four the book prints as Repeatable may be taken more than once, each copy naming a different cantrip or feat and a copy that repeats an earlier answer refused. What is left is two Pacts and three clauses. The invocations not offered are refused outright rather than handed over as options that do nothing: Pact of the Blade is a conjured weapon its holder attacks with using Charisma, Pact of the Chain casts Find Familiar as a Magic action and gives a familiar with eight extra forms and an attack forgone to buy the familiar one of its own, and Gaze of Two Minds borrows the senses of a willing creature. Those whose Prerequisite is a Warlock level above 5 are out of this ledger’s reach and are not offered either. Pact of the Tome conjures a book at the end of a rest that disappears if you conjure another or if you die, and the book is a Spellcasting Focus: the first is fiction and the second is the component rules, and this engine models neither. Gift of the Depths also says you can breathe underwater, and nothing here drowns anybody, so breathing underwater is left to the table. And "a Warlock cantrip that deals damage" is checked as a Warlock cantrip and not as one that deals damage, so a cantrip that deals none simply reaches nothing.',
+      automation: 'engine',
+      note: 'SRD: "You gain one invocation of your choice ... You gain more invocations at higher levels, as shown in the Invocations column of the Warlock Features table." The count is that column and every invocation offered is executed. Agonizing Blast adds Charisma to every damage roll of the one cantrip its holder named, Eldritch Spear lengthens that cantrip’s range by thirty feet for each Warlock level, and Repelling Blast shoves a Large or smaller creature ten feet straight away on every beam that hits it. Armor of Shadows, Ascendant Step, Fiendish Vigor, Mask of Many Faces, Master of Myriad Forms, Misty Visions and Otherworldly Leap each cast their spell for nothing as often as asked, and Fiendish Vigor takes the highest face of the die rather than rolling it. Devil’s Sight sees through Darkness magical and nonmagical to 120 feet, Eldritch Mind gives Advantage on the Constitution save that maintains Concentration, Gift of the Depths swims at its holder’s own Speed and casts Water Breathing once until a Long Rest, One with Shadows casts Invisibility for nothing while its caster stands in Dim Light or Darkness and is refused in Bright Light, Lessons of the First Ones grants the Origin feat its holder names, and Pact of the Tome prepares three cantrips and two Ritual-tagged level 1 spells from any class’s list, as Warlock spells. Pact of the Blade conjures the Simple or Martial Melee weapon its holder names, in a Bonus Action that runs to no deadline: until the bond ends they are proficient with that weapon, may use Charisma for its attack and damage rolls instead of Strength or Dexterity, and may make it deal Necrotic, Psychic or Radiant damage instead of its own; a second use of the Bonus Action ends the first bond and the weapon it conjured, and so does death. Pact of the Chain casts Find Familiar as a Magic action with no slot spent and adds the seven special forms the book prints to the ones the spell offers, and on the Attack action its holder may forgo one of their own attacks so the familiar strikes with its Reaction — which is the sentence that lets a familiar attack at all, since the spell itself forbids it. Each grant is gated on the invocation chosen, so a Warlock holds what they took and nothing else, a Prerequisite the book prints over an option is checked at creation, and the four the book prints as Repeatable may be taken more than once, each copy naming a different cantrip or feat and a copy that repeats an earlier answer refused. The invocations not offered are refused outright rather than handed over as options that do nothing: Gaze of Two Minds borrows the senses of a willing creature, which is a state nothing here has, and those whose Prerequisite is a Warlock level above 5 are out of this ledger’s reach. What the table keeps is named rather than left to be discovered. Pact of the Blade’s other half — "create a bond with a magic weapon you touch", and with it the two exclusions the same sentence prints — is not offered, because a weapon rider is keyed on a catalogue id, so two Warlocks with two Longswords cannot be told from two Warlocks with one; a conjuring is refused any item the catalogue marks as magical by what a magic item is made of — grants of its own, an attunement requirement or a charge pool — so the half that is not offered is not reachable through the half that is; the bond also ends if the weapon is more than five feet away for a minute, which is a distance measured over time and nothing here measures one. Pact of the Tome conjures a book at the end of a rest that disappears if you conjure another or if you die, and the book is a Spellcasting Focus, as a pact weapon is: the first is fiction and the second is the component rules, and this engine models neither. Gift of the Depths also says you can breathe underwater, and nothing here drowns anybody, so breathing underwater is left to the table. And "a Warlock cantrip that deals damage" is checked as a Warlock cantrip and not as one that deals damage, so a cantrip that deals none simply reaches nothing.',
       choices: [
         // "as shown in the Invocations column of the Warlock Features table" —
         // the column itself, the way Weapon Mastery reads the Fighter's.
@@ -150,6 +150,8 @@ export const WARLOCK: ClassDefinition = {
             'Misty Visions',
             'One with Shadows',
             'Otherworldly Leap',
+            'Pact of the Blade',
+            'Pact of the Chain',
             'Pact of the Tome',
             'Repelling Blast',
           ],
@@ -332,6 +334,99 @@ export const WARLOCK: ClassDefinition = {
           fixed: ['invisibility'],
           atWill: true,
           requires: [{ kind: 'in-dim-light-or-darkness' }],
+        },
+        // Pact of the Blade: "As a Bonus Action, you can conjure a pact weapon
+        // in your hand — a Simple or Martial Melee weapon of your choice with
+        // which you bond ... Until the bond ends, you have proficiency with the
+        // weapon ... Whenever you attack with the bonded weapon, you can use
+        // your Charisma modifier for the attack and damage rolls instead of
+        // using Strength or Dexterity; and you can cause the weapon to deal
+        // Necrotic, Psychic, or Radiant damage or its normal damage type."
+        //
+        // An activation that makes the object it imbues. The bond has **no
+        // deadline** — the sentence prints three endings and not one of them is
+        // a span — which is what `lastsUntilEnded` says; a second use of the
+        // Bonus Action is the activation's own "or until you use this feature
+        // again", and death is the `endsOn` clause beside it.
+        {
+          kind: 'activated',
+          onlyIfChoice: 'Pact of the Blade',
+          action: 'bonus-action',
+          // Nothing is rationed: the book prints no count and no rest.
+          pool: null,
+          lastsUntilEnded: true,
+          // "if you die" — the third of the three endings, and the only one
+          // besides the second use that is a fact about state.
+          endsOn: ['death'],
+          conjuresWeapon: true,
+          imbuesWeapon: {
+            // "a Simple or Martial Melee weapon of your choice" — both
+            // categories written out, because that is how the book prints it
+            // and because a reader should not have to know that the two are
+            // between them every weapon there is.
+            weapons: {
+              weapons: [
+                { category: 'simple', kind: 'melee' },
+                { category: 'martial', kind: 'melee' },
+              ],
+            },
+            // "you have proficiency with the weapon" — with **that** weapon,
+            // which is why it rides the imbuing and not the sheet's list of
+            // categories.
+            grantsProficiency: true,
+            // "you can use your Charisma modifier for the attack and damage
+            // rolls instead of using Strength or Dexterity" — offered, which
+            // is what "can" means, so a Warlock with the better Strength keeps
+            // it. Shillelagh's field, and it reaches both rolls.
+            offersAbility: 'cha',
+            // "you can cause the weapon to deal Necrotic, Psychic, or Radiant
+            // damage or its normal damage type" — three offered instead of the
+            // weapon's own, answered per hit, and naming none leaves the
+            // Glaive slashing.
+            damageTypes: ['necrotic', 'psychic', 'radiant'],
+          },
+        },
+        // Pact of the Chain: "You learn the Find Familiar spell and can cast it
+        // as a Magic action without expending a spell slot. When you cast the
+        // spell, you choose one of the normal forms for your familiar or one
+        // of the following special forms: Imp, Pseudodragon, Quasit, Skeleton,
+        // Sphinx of Wonder, Sprite, or Venomous Snake."
+        //
+        // Two sentences and two terms of the **route**: the spell prints an
+        // hour and a Ritual tag, and this Warlock's licence prints an Action;
+        // the spell prints eleven Beasts and any other of Challenge Rating 0,
+        // and this licence prints seven more. Neither is a fact about Find
+        // Familiar — a Wizard who prepared it takes the hour and is offered
+        // the Beasts — which is why both ride the grant.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Pact of the Chain',
+          fixed: ['find-familiar'],
+          atWill: true,
+          castingTime: 'action',
+          widensForm: [
+            'imp',
+            'pseudodragon',
+            'quasit',
+            'skeleton',
+            'sphinx-of-wonder',
+            'sprite',
+            'venomous-snake',
+          ],
+        },
+        // "Additionally, when you take the Attack action, you can forgo one of
+        // your own attacks to allow your familiar to make one attack of its own
+        // with its Reaction."
+        //
+        // The third sentence of the Pact, and the one that pays twice: a swing
+        // out of the Attack action the Warlock has already taken, and the
+        // familiar's Reaction. The spell names which creature is "your
+        // familiar", so a Warlock who somehow keeps a second summons cannot
+        // order that one to strike.
+        {
+          kind: 'summons-attack',
+          onlyIfChoice: 'Pact of the Chain',
+          from: 'find-familiar',
         },
         // "You can cast Mage Armor on yourself without expending a spell slot."
         // No count, no pool, nothing that runs out.

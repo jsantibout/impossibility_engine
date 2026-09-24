@@ -19,7 +19,7 @@ import type { Recovery } from './resources.js';
 // owns the two kinds of rest and `creation.ts` reads them off a grant.
 import type { RestKind } from './rest.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
-import { CASTING_MARK } from './spells.js';
+import { CASTING_MARK, type CastingTime } from './spells.js';
 import type {
   ActivationEnd,
   CastingCostAlteration,
@@ -1196,6 +1196,40 @@ export interface ImbuedWeapon {
    */
   readonly attackBonusFrom?: { readonly ability: Ability; readonly minimum: number };
   /**
+   * SRD Pact of the Blade: "Whenever you attack with the bonded weapon, you
+   * **can** use your Charisma modifier for the attack and damage rolls instead
+   * of using Strength or Dexterity."
+   *
+   * **Not {@link attackBonusFrom} beside it**, and the difference is the whole
+   * sentence: Sacred Weapon *adds* a modifier to the attack roll and leaves
+   * the damage alone; this *replaces* the modifier the weapon would have used,
+   * on both rolls.
+   *
+   * **And offered rather than imposed**, which is what the book's "can" says
+   * and what this engine has read that word as since SRD Dexterous Attacks:
+   * `attackAbility` weighs an offered ability against the weapon's own and
+   * takes the better, or the one the attacker named. So a Warlock with a
+   * higher Strength than Charisma swings with Strength, which is the whole
+   * point of a permission. The imposition is `AttackOptions.imposedAbility` —
+   * SRD True Strike's "The attack **uses** your spellcasting ability" — and
+   * nothing a feature imbues reaches it.
+   *
+   * Carried onto `GrantedWeaponRider.ability`, which SRD Shillelagh has
+   * written since it landed and which `strikeStyleFor` already reads for both
+   * rolls: one sentence, two writers, one field.
+   */
+  readonly offersAbility?: Ability;
+  /**
+   * SRD Pact of the Blade: "Until the bond ends, you have proficiency with the
+   * weapon."
+   *
+   * On the imbuing rather than on the sheet, because the sentence is about
+   * **that** weapon: a Warlock who bonds a Glaive is not thereby trained in
+   * Glaives. See `GrantedWeaponRider.proficient`, which is what the use hangs
+   * and what the swing reads.
+   */
+  readonly grantsProficiency?: true;
+  /**
    * SRD Sacred Weapon: "each time you hit with it, you cause it to deal its
    * normal damage type or Radiant damage."
    *
@@ -1323,6 +1357,29 @@ export type FeatureGrant =
        * meant.
        */
       readonly requires?: readonly StandingRequirement[];
+      /**
+       * The casting time this route states, over the spell's own.
+       *
+       * SRD Pact of the Chain: "You learn the _Find Familiar_ spell and can
+       * cast it **as a Magic action** without expending a spell slot." The
+       * spell takes an hour; this Warlock's route to it does not. A clause
+       * about the route rather than about the spell, so it compiles onto
+       * {@link GrantedSpell.castingTime} and a Wizard who prepared the same
+       * spell still takes the hour.
+       */
+      readonly castingTime?: CastingTime;
+      /**
+       * Stat blocks this route adds to the forms a summoning spell offers.
+       *
+       * SRD Pact of the Chain: "you choose one of the normal forms for your
+       * familiar **or one of the following special forms**: Imp,
+       * Pseudodragon, Quasit, Skeleton, Sphinx of Wonder, Sprite, or Venomous
+       * Snake." `freeCasting.fixesChoice` narrows a stated value to one; this
+       * lengthens a list the spell prints, which is the other half and a
+       * different question. Compiles onto {@link GrantedSpell.widensForm};
+       * `checkContent` refuses an id the bestiary does not hold.
+       */
+      readonly widensForm?: readonly string[];
       /**
        * SRD Fiendish Vigor: "When you cast the spell with this feature, you
        * don't roll the die for the Temporary Hit Points; you automatically get
@@ -1632,6 +1689,53 @@ export type FeatureGrant =
        */
       readonly lastsSeconds?: number;
       /**
+       * The third answer: the feature prints **no** deadline at all.
+       *
+       * SRD Pact of the Blade: "Your bond with the weapon ends if you use this
+       * feature's Bonus Action again, if the weapon is more than 5 feet away
+       * from you for 1 minute or more, or if you die." Three endings and not a
+       * span among them — so a `lastsSeconds` here would be a number the book
+       * does not print, and a `lasts` would end the bond at a turn boundary
+       * nothing in the sentence names.
+       *
+       * Written as a flag rather than as the absence of the other two, because
+       * the absence is how a feature loses its deadline to a typo: exactly one
+       * of the three is declared and the validator says which are missing.
+       */
+      readonly lastsUntilEnded?: true;
+      /**
+       * The use **makes** the weapon it imbues, rather than finding it in the
+       * holder's hands.
+       *
+       * SRD Pact of the Blade: "you can conjure a pact weapon in your hand — a
+       * Simple or Martial Melee weapon of your choice with which you bond".
+       * Which weapon is the use's own answer, named on the activation and held
+       * to {@link ImbuedWeapon.weapons} — the book writes one clause over both
+       * halves of the sentence, so there is one narrowing.
+       *
+       * A flag, and it carries no hand count, which is where this differs from
+       * a spell's {@link ConjuredItems}. Goodberry's ten berries are a
+       * *handful* and the number of hands is the spell's to print; a weapon's
+       * hands are the weapon's own, answered by `handsFor` off the catalogue
+       * record and pinned onto the line by `featureConjuredLine`. So "in your
+       * hand" is asked and charged exactly as a casting's conjuring asks and
+       * charges it: `activateFeature` refuses `no_free_hand` before the action,
+       * the pool and the deadline, and a Glaive out of the air occupies the two
+       * hands a Glaive off the rack does.
+       *
+       * Declared beside `imbuesWeapon` and never instead of it: what is
+       * conjured is a weapon the use has already decided to hang a rider on,
+       * and a conjuring with nothing hung on it would be a feature that hands
+       * its holder an ordinary Glaive out of the air.
+       * `checkFeatureDefinition` refuses one without the other.
+       *
+       * **The line's lifetime is the activation's**, settled in the fold by
+       * `settleConjuredLines`: "A conjured weapon disappears when the bond
+       * ends", and the bond ends by three doors that write no event about a
+       * weapon.
+       */
+      readonly conjuresWeapon?: true;
+      /**
        * SRD Large Form: "you can change your size to Large" — the size the
        * holder is while the feature runs. The fold keeps the map's copy in
        * step with it, and puts the creature's own back when it ends.
@@ -1711,6 +1815,43 @@ export type FeatureGrant =
        * at that class's own level exactly as the pool's size is.
        */
       readonly flatByLevel?: readonly number[];
+    }
+  /**
+   * A swing the holder gives up so that a creature of theirs may take one.
+   *
+   * SRD Pact of the Chain: "Additionally, when you take the Attack action, you
+   * can forgo one of your own attacks to allow your familiar to make one
+   * attack of its own with its Reaction."
+   *
+   * **Two economies in one sentence, which is why it is a kind of its own.**
+   * Every other grant here spends something of the holder's and does something
+   * to somebody; this spends something of the holder's *and* something of a
+   * second creature's, and what happens is that second creature's own attack.
+   * A `pool` option's menu cannot say it — an option's effects run on the
+   * holder's behalf, and there is no pool here to spend in any case, because
+   * the book prints no count and no rest.
+   *
+   * **The price is the pair the sentence prints and is not parameterised**:
+   * one attack of an Attack action the holder has already taken, and the
+   * summoned creature's Reaction. There is one such sentence in the book, and a
+   * field offering a second price would be a choice nobody can make.
+   *
+   * The attack itself is the ordinary one — `resolveAttack` with `free: true`,
+   * exactly as an Opportunity Attack is — so the familiar's printed line, its
+   * reach, the target's cover and every defence apply without being
+   * reimplemented here.
+   */
+  | {
+      readonly kind: 'summons-attack';
+      /**
+       * The spell whose summons this sentence is about — SRD's "**your**
+       * familiar", which is the creature Find Familiar left.
+       *
+       * Named by the content, on `freeCasting.spell`'s rule: a Warlock who
+       * also keeps a steed may not order the steed to sting, and the only
+       * thing that tells the two apart is the spell each is kept from.
+       */
+      readonly from: string;
     }
   /**
    * A fact the holder simply **knows** about one other creature.

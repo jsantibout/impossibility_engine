@@ -28,6 +28,7 @@ import {
 } from './roll-modifiers.js';
 import { LIGHT_LEVELS } from './positioning.js';
 import { checkActionRule } from './spell-schema.js';
+import type { CastingTime } from './spells.js';
 import { hours, TURN_ANCHORS } from './time.js';
 
 /**
@@ -411,6 +412,30 @@ export function imbuedWeaponProblems(
     found.push(...weaponDamageTypeProblems(imbues as { readonly damageTypes?: unknown }, at));
   }
 
+  // The ability the imbuing offers in place of the weapon's own — SRD Pact of
+  // the Blade's Charisma. A word that is not an ability is a modifier
+  // `attackAbility` would have to weigh and cannot find.
+  const offered = imbues['offersAbility'];
+  if (offered !== undefined && !(ABILITIES as readonly string[]).includes(offered as string)) {
+    found.push({
+      field: `${at}.offersAbility`,
+      code: 'bad_imbued_weapon',
+      reason: `"${String(offered)}" is not one of the six abilities`,
+    });
+  }
+
+  // And the training — SRD Pact of the Blade's "you have proficiency with the
+  // weapon". Printed or not, on `endsWhenLetGo`'s rule below.
+  const trained = imbues['grantsProficiency'];
+  if (trained !== undefined && trained !== true) {
+    found.push({
+      field: `${at}.grantsProficiency`,
+      code: 'bad_imbued_weapon',
+      reason:
+        'SRD’s "you have proficiency with the weapon" is printed or it is not; `false` is a clause that says nothing, so the field is omitted instead',
+    });
+  }
+
   // The clause is printed or it is not; `false` is a sentence that says
   // nothing, which is the reading `heldInTwoHands` above already takes.
   const letGo = imbues['endsWhenLetGo'];
@@ -585,6 +610,21 @@ export interface FeatureContext {
 }
 
 const ABILITY_NAMES: ReadonlySet<string> = new Set<Ability>(ABILITIES);
+
+/**
+ * `CastingTime` written out as data, for the one grant that states one.
+ *
+ * Transcribed for `ABILITY_NAMES`' reason turned around: the union is declared
+ * as a type and a validator needs it as data. `spell-schema.ts` keeps its own
+ * copy for the definition's field; four words in two validators is cheaper
+ * than an export that couples the two files' change histories together.
+ */
+const CASTING_TIME_NAMES: ReadonlySet<string> = new Set<CastingTime>([
+  'action',
+  'bonus-action',
+  'reaction',
+  'long',
+]);
 
 /**
  * A note that says nothing.
@@ -1553,23 +1593,56 @@ function grantProblems(
     if (grant.imbuesWeapon !== undefined) {
       found.push(...imbuedWeaponProblems(grant.imbuesWeapon, 'grants.imbuesWeapon'));
     }
-    // Rule 6b. One lifetime, in one of two spellings: a turn anchor (SRD Rage,
-    // pushed round by round) or a printed span (SRD Innate Sorcery's minute).
-    // Both is two deadlines for one activation; neither is a feature that
-    // never ends. Asked of the values, because the other door is JSON.
-    const span = grant as { readonly lasts?: unknown; readonly lastsSeconds?: unknown };
-    if (span.lasts !== undefined && span.lastsSeconds !== undefined) {
+    // Rule 6b. One lifetime, in one of **three** spellings: a turn anchor (SRD
+    // Rage, pushed round by round), a printed span (SRD Innate Sorcery's
+    // minute), or none at all (SRD Pact of the Blade, which prints three
+    // endings and no deadline). More than one is more than one deadline for
+    // one activation; none of the three is a feature whose lifetime nobody
+    // wrote down, which is what the third member exists to tell apart from a
+    // typo. Asked of the values, because the other door is JSON.
+    const span = grant as {
+      readonly lasts?: unknown;
+      readonly lastsSeconds?: unknown;
+      readonly lastsUntilEnded?: unknown;
+    };
+    const spans = [span.lasts, span.lastsSeconds, span.lastsUntilEnded].filter(
+      (one) => one !== undefined,
+    );
+    if (spans.length > 1) {
       found.push({
         field: 'grants.lasts',
         code: 'ambiguous_activation_span',
-        reason: 'an activation runs to a turn anchor or for a printed span, not both',
+        reason:
+          'an activation runs to a turn anchor, for a printed span, or until something ends it — one of the three',
       });
     }
-    if (span.lasts === undefined && span.lastsSeconds === undefined) {
+    if (spans.length === 0) {
       found.push({
         field: 'grants.lasts',
         code: 'no_activation_span',
-        reason: 'an activation says how long it runs: "lasts" names a turn anchor, "lastsSeconds" a printed span',
+        reason:
+          'an activation says how long it runs: "lasts" names a turn anchor, "lastsSeconds" a printed span, "lastsUntilEnded" says the book prints neither',
+      });
+    }
+    if (span.lastsUntilEnded !== undefined && span.lastsUntilEnded !== true) {
+      found.push({
+        field: 'grants.lastsUntilEnded',
+        code: 'bad_activation_span',
+        reason: `an activation either prints no deadline or does not say so, and "${String(span.lastsUntilEnded)}" is neither`,
+      });
+    }
+    // Rule 6b(ii). A conjuring hangs on an imbuing. SRD Pact of the Blade
+    // conjures the weapon it is about to bond, and a use that made a weapon
+    // and hung nothing on it would hand its holder an ordinary Glaive out of
+    // the air — which is a feature the book does not print and which
+    // `activateFeature` has no narrowing to hold the named weapon to, because
+    // the narrowing lives on the imbuing.
+    if (grant.conjuresWeapon !== undefined && grant.imbuesWeapon === undefined) {
+      found.push({
+        field: 'grants.conjuresWeapon',
+        code: 'conjuring_without_an_imbuing',
+        reason:
+          'an activation conjures the weapon it imbues; with no imbuing beside it there is nothing to hold the named weapon to and nothing hung on what appears',
       });
     }
     if (span.lasts !== undefined && !(TURN_ANCHORS as readonly unknown[]).includes(span.lasts)) {
@@ -1892,12 +1965,83 @@ function grantProblems(
         }
       }
     }
+    // The casting time this grant states over the spell's own — SRD Pact of
+    // the Chain's "as a Magic action" over Find Familiar's hour. Held to the
+    // four the vocabulary has, because `castingOf` prefers it to the
+    // definition's and a fifth word would price the casting against a slot of
+    // the action economy that does not exist.
+    const time = grant.castingTime;
+    if (time !== undefined && !CASTING_TIME_NAMES.has(time)) {
+      found.push({
+        field: 'grants.castingTime',
+        code: 'bad_casting_time',
+        reason: `a route casts its spell as an Action, a Bonus Action, a Reaction or over a span, and "${String(time)}" is none of them`,
+      });
+    }
+    // **And `long` is the one of the four a route may not state**, because the
+    // field carries no seconds to measure it by: a definition prints
+    // `castingSeconds` beside its own `long`, and a route that shortened a
+    // spell to "a span" and said nothing about how long would leave the
+    // settlement with a casting that never completes. Every route the book
+    // writes shortens a casting to a moment in the turn; a feature that
+    // lengthened one would be a sentence nobody has printed.
+    if (time === 'long') {
+      found.push({
+        field: 'grants.castingTime',
+        code: 'bad_casting_time',
+        reason:
+          'a route states a casting time to shorten one to a moment in the turn; "long" is a span and this field carries no seconds to measure it by',
+      });
+    }
+    // And the forms it adds to a summons' list. Whether the ids name stat
+    // blocks is `checkContent`'s, which holds the bestiary; what is asked here
+    // is whether the sentence says anything at all — a list of none widens
+    // nothing, and a blank id names nothing.
+    const widened = grant.widensForm;
+    if (widened !== undefined) {
+      if (widened.length === 0) {
+        found.push({
+          field: 'grants.widensForm',
+          code: 'widens_no_form',
+          reason: 'a grant that widens a summons’ forms by nothing offers what the spell already offered',
+        });
+      }
+      widened.forEach((id, index) => {
+        if (typeof id === 'string' && id.trim() !== '') return;
+        found.push({
+          field: `grants.widensForm[${index}]`,
+          code: 'widens_no_form',
+          reason: 'a form is named by its stat block id, and a blank one names nothing',
+        });
+      });
+    }
     const from = grant.fromLevel;
     if (from !== undefined && (!Number.isInteger(from) || from < 1 || from > context.levels)) {
       found.push({
         field: 'grants.fromLevel',
         code: 'unreachable_grant_level',
         reason: `this grant arrives at character level ${String(from)}, which is outside the 1 to ${context.levels} a character reaches, so nobody would ever be given it`,
+      });
+    }
+  }
+
+  // The spell whose summons a forgone attack is about — SRD Pact of the
+  // Chain's "**your** familiar". Rule 5's reason: the id is the feature's own
+  // answer and is never checked against a character's choices, so a typo in
+  // one would refuse every order its holder ever gave and say nothing here.
+  if (grant.kind === 'summons-attack') {
+    if (typeof grant.from !== 'string' || grant.from.trim() === '') {
+      found.push({
+        field: 'grants.from',
+        code: 'unknown_granted_spell',
+        reason:
+          'a forgone attack names the spell whose summons may take it; a blank id names nothing, and every summons would be somebody else’s',
+      });
+    } else if (!context.spellExists(grant.from)) {
+      found.push({
+        field: 'grants.from',
+        code: 'unknown_granted_spell',
+        reason: `this content holds no spell with the id "${grant.from}", so no creature is ever the familiar this sentence is about`,
       });
     }
   }

@@ -37,6 +37,7 @@ import type {
   FailedSaveDamage,
   HealingTouch,
   CastingOption,
+  ForgoneAttack,
   HitOption,
   KnownFact,
   ObjectMaker,
@@ -1958,6 +1959,7 @@ function classFeatureAtWillCastings(
         atWill: true,
         ...(grant.maximisedDice === undefined ? {} : { maximisedDice: true }),
         ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+        ...routeTerms(grant),
       });
     }
   }
@@ -2026,10 +2028,29 @@ function classFeatureFreeCastings(
       slotCasting: grant.freeCasting.withSlots === true,
       ...castsAs(grant.freeCasting),
       ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+      ...routeTerms(grant),
     });
   }
   return granted;
 }
+
+/**
+ * The two terms a `spells` grant states about the **route** rather than about
+ * the spell, compiled onto every route it makes.
+ *
+ * SRD Pact of the Chain prints both in two sentences — "can cast it as a Magic
+ * action" and "one of the following special forms" — and neither is a fact
+ * about Find Familiar: a Wizard who prepared the same spell takes the hour and
+ * is offered the Beasts. One reader rather than two spellings, because the
+ * at-will route and the pool route both carry them and a grant that wrote only
+ * one would lose the other silently.
+ */
+const routeTerms = (
+  grant: Extract<FeatureGrant, { kind: 'spells' }>,
+): Pick<GrantedSpell, 'castingTime' | 'widensForm'> => ({
+  ...(grant.castingTime === undefined ? {} : { castingTime: grant.castingTime }),
+  ...(grant.widensForm === undefined ? {} : { widensForm: grant.widensForm }),
+});
 
 /**
  * Every spell choice, checked against the class that made it.
@@ -2860,6 +2881,7 @@ function originGrantedSpells(
         ability,
         freeCastPool: null,
         slotCasting: false,
+        ...routeTerms(grant),
       });
     }
 
@@ -2875,6 +2897,7 @@ function originGrantedSpells(
         freeCastPool: free.pool,
         slotCasting: free.withSlots === true,
         ...castsAs(free),
+        ...routeTerms(grant),
       });
     }
   }
@@ -3707,6 +3730,9 @@ export function planCharacter(
       // it, so there is no column to read here — `activateFeature` names the
       // weapon and pins the rider.
       ...(grant.imbuesWeapon === undefined ? {} : { imbuesWeapon: grant.imbuesWeapon }),
+      // And where the weapon comes from, where the use makes one — SRD Pact of
+      // the Blade's "conjure a pact weapon in your hand".
+      ...(grant.conjuresWeapon === undefined ? {} : { conjuresWeapon: grant.conjuresWeapon }),
     });
 
     for (const declared of grant.whileActive ?? []) {
@@ -3790,6 +3816,17 @@ export function planCharacter(
       reveals: grant.reveals,
       about: grant.about,
     });
+  }
+
+  // A feature that lets its holder give up one of their own swings so that a
+  // creature of theirs may take one — SRD Pact of the Chain. Carried across
+  // whole for `knows`' reason: nothing about the sentence is a column of any
+  // class table, and what varies between two holders is which creature they
+  // have summoned, which is state.
+  const forgoneAttacks: ForgoneAttack[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'summons-attack') continue;
+    forgoneAttacks.push({ feature: feature.id, name: feature.name, from: grant.from });
   }
 
   // A feature whose use is spent to heal its holder. The die is resolved here
@@ -4515,6 +4552,7 @@ export function planCharacter(
     ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
     ...(objectMakers.length === 0 ? {} : { objectMakers }),
     ...(knows.length === 0 ? {} : { knows }),
+    ...(forgoneAttacks.length === 0 ? {} : { forgoneAttacks }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(onDroppingAHostile.length === 0 ? {} : { onDroppingAHostile }),
@@ -5142,10 +5180,17 @@ const withDiceCountOf = (die: string, count: number): string => {
 function activationSpanOf(grant: {
   readonly lasts?: TurnAnchor;
   readonly lastsSeconds?: number;
+  readonly lastsUntilEnded?: true;
 }): ActivationSpan {
   if (grant.lastsSeconds !== undefined) return { kind: 'seconds', seconds: grant.lastsSeconds };
   if (grant.lasts !== undefined) return grant.lasts;
-  throw new TypeError('an activated grant runs to a turn anchor or for a printed span');
+  // SRD Pact of the Blade prints three endings and no deadline. Declared
+  // rather than inferred from the other two being absent — see the grant's
+  // own `lastsUntilEnded`.
+  if (grant.lastsUntilEnded === true) return { kind: 'until-ended' };
+  throw new TypeError(
+    'an activated grant runs to a turn anchor, for a printed span, or until something ends it',
+  );
 }
 
 function usesOf(

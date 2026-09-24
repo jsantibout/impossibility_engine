@@ -233,6 +233,7 @@
     "interruptedRests",
     "endLostFeatures",
     "settleWeaponRiders",
+    "settleConjuredLines",
     "dropLapsedReady",
     "sustains",
     "wearsHeavyArmor",

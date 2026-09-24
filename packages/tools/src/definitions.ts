@@ -144,6 +144,7 @@ import type {
 import {
   activateDevice,
   activateFeature,
+  orderSummonsAttack,
   activateSpell,
   addCreature,
   advanceCharacter,
@@ -2898,7 +2899,7 @@ const SHEET = tool({
 const ACTIVATE_FEATURE = tool({
   name: 'activate_feature',
   description:
-    'Switch on a feature the character can enter — Rage is the one the SRD writes this way. The engine charges whatever the feature’s own record says it costs: the Action or Bonus Action it names, where a fight is running and there is an economy to spend from, a use out of its pool, and the deadline it runs to. What it does while it runs is applied by itself for as long as it runs. A feature that imbues a weapon — Sacred Weapon is the one the SRD writes this way — needs `weapon` as well: name the one it is aimed at, and the engine refuses one the character is not carrying or one of a kind the feature does not reach, before anything is spent. The imbuing ends if that weapon is put down, and using the feature again moves it to a new one. Use `sheet` to see which features can be switched on, what each one costs and what is left of its pool.',
+    'Switch on a feature the character can enter — Rage is the one the SRD writes this way. The engine charges whatever the feature’s own record says it costs: the Action or Bonus Action it names, where a fight is running and there is an economy to spend from, a use out of its pool, and the deadline it runs to. What it does while it runs is applied by itself for as long as it runs. A feature that imbues a weapon — Sacred Weapon is the one the SRD writes this way — needs `weapon` as well: name the one it is aimed at, and the engine refuses one of a kind the feature does not reach, and one the character is not carrying unless the feature conjures it, before anything is spent. A feature that **conjures** the weapon — Pact of the Blade is the one the SRD writes this way — makes it out of nothing: name any weapon of a kind the feature reaches and it appears, and it disappears again when the bond ends. The imbuing ends if that weapon is put down, where the feature says so, and using the feature again moves it to a new one. Use `sheet` to see which features can be switched on, what each one costs and what is left of its pool.',
   mutates: true,
   input: z.object({
     who: creatureId,
@@ -2928,10 +2929,67 @@ const ACTIVATE_FEATURE = tool({
     ),
 });
 
+/**
+ * One of your attacks, given up so that a creature of yours may take one.
+ *
+ * SRD Pact of the Chain is the whole of what this is built to, and it is its
+ * own tool rather than a field on `attack` for the reason `activate_feature`
+ * is not a field on `attack`: what is spent and what swings are two different
+ * creatures, and a tool that took a second creature's name beside an
+ * attacker's would be two commands wearing one schema.
+ *
+ * **It carries no number and states no die**, like every tool here: which
+ * feature, which creature of yours, and whom it strikes. The engine charges
+ * the Attack action and the familiar's Reaction, reads the familiar's own
+ * printed line, and rolls.
+ */
+const ORDER_SUMMONS_ATTACK = tool({
+  name: 'order_summons_attack',
+  description:
+    'Give up one of your own attacks so that a creature you summoned may make one of its own, with its Reaction — Pact of the Chain is the one the SRD writes this way, and its familiar cannot attack in any other way. The engine charges the Attack action (taking it, if the character has not already) and the summoned creature’s Reaction, then rolls the creature’s own attack: name `attack` to pick one of the lines its stat block prints, or `weapon` for an item it is carrying, and say neither to let the engine take its best printed melee line. It is refused if the character has no attack of the Attack action left, if the creature has already taken its Reaction, or if the creature is not the familiar this feature is about. Use `sheet` to see which feature licenses it.',
+  mutates: true,
+  input: z.object({
+    who: creatureId,
+    feature: z.string().min(1).describe('The feature id, from `sheet`, e.g. warlock:eldritch-invocations.'),
+    summons: creatureId.describe('The creature you summoned that is to make the attack.'),
+    target: creatureId,
+    weapon: z
+      .string()
+      .min(1)
+      .nullish()
+      .describe('An item the creature is carrying, by item id, or null for an Unarmed Strike.'),
+    attack: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('A line the creature’s own stat block prints, by its printed name, e.g. Sting.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      orderSummonsAttack(
+        context.campaign.state(),
+        who(args.who),
+        {
+          feature: args.feature,
+          summons: who(args.summons),
+          target: who(args.target),
+          ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
+          ...(args.attack === undefined ? {} : { attack: args.attack }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({ duplicate: value.duplicate === true }),
+      (value) => value.unverified,
+    ),
+});
+
 const EXTEND_FEATURE = tool({
   name: 'extend_feature',
   description:
-    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. In a fight the engine replaces the feature’s deadline with a fresh one; outside a fight there are no turns, so there is no deadline to replace and the feature simply runs until something ends it. It **does** enforce the longest the feature may be maintained: `sheet` reports that as `capSeconds`, and an extension past it is refused `cap_reached` with nothing spent. The ceiling is fixed when the feature is activated, so maintaining it does not push it further away. A feature whose sheet prints no cap is not bounded by this. A feature the book gives a span to — `sheet` reports its `lasts` as a length of time, such as Innate Sorcery’s 1 minute or Large Form’s 10 — is not maintained at all and is refused `not_extendable`.',
+    'Keep a running feature going for another round. SRD Rage offers three ways to do it and only one of them costs anything, so say which happened: `attack` if the character attacked an enemy, `forced-save` if it made one save, `bonus-action` to spend the Bonus Action on it. In a fight the engine replaces the feature’s deadline with a fresh one; outside a fight there are no turns, so there is no deadline to replace and the feature simply runs until something ends it. It **does** enforce the longest the feature may be maintained: `sheet` reports that as `capSeconds`, and an extension past it is refused `cap_reached` with nothing spent. The ceiling is fixed when the feature is activated, so maintaining it does not push it further away. A feature whose sheet prints no cap is not bounded by this. A feature the book gives a span to — `sheet` reports its `lasts` as a length of time, such as Innate Sorcery’s 1 minute or Large Form’s 10 — is not maintained at all and is refused `not_extendable`, and so is one the book gives no deadline at all, which `sheet` reports as “until something ends it”.',
   mutates: true,
   input: z.object({
     who: creatureId,
@@ -5387,6 +5445,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   LOOK,
   MOVE,
   OPTIONS,
+  ORDER_SUMMONS_ATTACK,
   PLACE_CREATURE,
   PURCHASE_ITEM,
   REGAIN_USES,

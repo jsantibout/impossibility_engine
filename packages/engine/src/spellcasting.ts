@@ -102,6 +102,24 @@ export interface GrantedSpell {
    */
   readonly fixesChoice?: string;
   /**
+   * Stat blocks this route adds to the forms a summoning spell offers.
+   *
+   * SRD Pact of the Chain: "you choose one of the normal forms for your
+   * familiar **or one of the following special forms**: Imp, Pseudodragon,
+   * Quasit, Skeleton, Sphinx of Wonder, Sprite, or Venomous Snake."
+   *
+   * {@link fixesChoice} narrows a stated choice to one value; this widens a
+   * *list* the spell prints, and the two are different questions on different
+   * fields — Find Familiar asks its caster both, and Wild Companion answers
+   * only the first. The ids are joined to `SummonedForm.among` where the form
+   * is checked, so the spell's own "or another Beast of Challenge Rating 0"
+   * clause still admits whatever it always admitted.
+   *
+   * Absent offers exactly what the spell prints, which is every granted route
+   * in the book but one.
+   */
+  readonly widensForm?: readonly string[];
+  /**
    * SRD Wild Companion: "and disappears when you finish a Long Rest" — a
    * lifetime the grant puts on a kept summons over what the spell prints,
    * written onto the bond at the arrival.
@@ -140,6 +158,14 @@ export interface GrantedSpell {
    * **A Ritual still wins**, because a Ritual is not a use of this route at
    * all: SRD's "takes 10 minutes longer" is a rule about the *spell*, and
    * `castingOf` settles it first.
+   *
+   * **Two writers, built in the same batch by two tracks.** A stat block's
+   * cast line ("Divine Aid" under Bonus Actions, offering *Bless*), and SRD
+   * Pact of the Chain: "You learn the _Find Familiar_ spell and can cast it
+   * **as a Magic action**" — a clause about this Warlock's route and not about
+   * the spell, so a Wizard who prepared the same spell still takes the hour.
+   * A stated time carries no span of seconds: the only casting time that
+   * takes one is `long`, which no route states.
    */
   readonly castingTime?: CastingTime;
   /**
