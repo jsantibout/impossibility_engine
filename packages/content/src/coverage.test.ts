@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SPELL_STAT_BLOCKS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { MonsterTraitSchema, SPELL_INDEX, spellById } from '@ie/srd';
+import { MONSTER_TRAIT_KINDS, SPELL_INDEX, spellById } from '@ie/srd';
 import { adaptMonster } from '@ie/engine';
 import { asCharacterId } from '@ie/shared';
 import {
@@ -608,9 +608,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * the question `spell-schema.test.ts` asks of them, pointed the other way.
    */
   it('names only trait kinds the schema admits, as the kinds with a reader', () => {
-    const kinds: readonly string[] = MonsterTraitSchema.options.map(
-      (option) => option.shape.kind.value,
-    );
+    const kinds: readonly string[] = MONSTER_TRAIT_KINDS;
     expect(kinds.length).toBeGreaterThan(1);
     expect(TRAIT_KINDS_WITH_A_READER.length).toBeGreaterThan(0);
     expect(TRAIT_KINDS_WITH_A_READER.filter((kind) => !kinds.includes(kind))).toEqual([]);
@@ -692,9 +690,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * predicates disagree about one line.
    */
   it('hands over only kinds the schema admits and no reader spends', () => {
-    const kinds: readonly string[] = MonsterTraitSchema.options.map(
-      (option) => option.shape.kind.value,
-    );
+    const kinds: readonly string[] = MONSTER_TRAIT_KINDS;
     const handovers = Object.keys(HANDOVER_TRAIT_KINDS);
     expect(handovers.length).toBeGreaterThan(0);
     expect(handovers.filter((kind) => !kinds.includes(kind))).toEqual([]);

@@ -1160,7 +1160,13 @@ describe('what a stat block’s sections print, and what is read', () => {
       // that states a mechanic: the Cube that holds creatures inside itself,
       // the Hag's Soul Bag, the Troll Limb's d12, and the Swarm's Spider
       // Climb, whose sentence is a gate on a kind that already has a reader.
-      traits: { printed: 337, read: 235 },
+      // And seven more with the Swarm, which is the first heading read in
+      // **part**: the healing sentence is a rule two engine doors hold and the
+      // two space clauses beside it go back to the table on the trait's own
+      // `handedOver`. Before that field the heading had only two answers —
+      // claim the lattice or refuse the whole of it — and the second is the
+      // one it had been given.
+      traits: { printed: 337, read: 242 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

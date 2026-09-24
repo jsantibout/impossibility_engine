@@ -812,6 +812,30 @@ const SPEED_CUT_BY_A_TYPE = new RegExp(
 );
 
 /**
+ * SRD Swarm, printed on all seven swarms: "The swarm can occupy another
+ * creature's space and vice versa, and the swarm can move through any opening
+ * large enough for a Tiny rat. The swarm can't regain Hit Points or gain
+ * Temporary Hit Points."
+ *
+ * **Three sentences and one mechanic**, which is why this is the first pattern
+ * here to capture what it does *not* read. The two space clauses name a
+ * lattice the engine has not got — one occupant per five-foot space, and no
+ * width on anything for an opening to be large enough for — and the third is a
+ * rule `healCreature` and `grantTemporaryHpTo` each hold a door for. Anchored
+ * end to end like every pattern above it, so the Swarm of Insects' extra
+ * Climb Speed sentence is refused whole rather than read down to the part that
+ * fits.
+ *
+ * The two clauses are captured separately because they are two facts about the
+ * world, joined by the book's "and" rather than by a full stop.
+ */
+const SWARM_TRAIT = new RegExp(
+  `^(${SUBJECT} can occupy another creature['’]s space and vice versa), and ` +
+    `(${SUBJECT} can move through any opening large enough for a Tiny ${SUBJECT})\\. ` +
+    `${SUBJECT} can['’]t regain Hit Points or gain Temporary Hit Points\\.$`,
+);
+
+/**
  * SRD Blurred Form: "Attack rolls against the mephit are made with
  * Disadvantage unless the mephit has the Incapacitated condition."
  *
@@ -1376,6 +1400,18 @@ export function parseTraitShape(text: string): MonsterTrait | null {
         damageType,
       };
     }
+  }
+
+  // SRD Swarm, on the seven swarms: three sentences under one heading, of
+  // which the engine holds the last. The other two go back on the trait's own
+  // `handedOver` rather than taking the heading down with them — see
+  // {@link SWARM_TRAIT}.
+  const swarm = SWARM_TRAIT.exec(text);
+  if (swarm !== null) {
+    return {
+      kind: 'regains-no-hit-points',
+      handedOver: [`${swarm[1]!}.`, `${swarm[2]!}.`],
+    };
   }
 
   if (BLURRED_FORM.test(text)) return { kind: 'disadvantage-on-attacks-against-it' };

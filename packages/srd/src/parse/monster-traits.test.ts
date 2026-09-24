@@ -885,6 +885,70 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
     ).toBeNull();
   });
 
+  /**
+   * **A heading read in part, and honest about the rest.** SRD Swarm prints
+   * three sentences: two about a lattice this engine has not got — a creature
+   * standing in another's space, an opening with a width — and one the engine
+   * holds a door for. Before the trait could carry a residue the reader's
+   * only choices were to claim all three or to refuse the heading whole.
+   */
+  it('reads the swarm’s healing sentence and hands back its two space clauses', () => {
+    const swarm = traitOf('swarm-of-rats', 'Swarm');
+    expect(swarm).toEqual({
+      kind: 'regains-no-hit-points',
+      handedOver: [
+        "The swarm can occupy another creature's space and vice versa.",
+        'the swarm can move through any opening large enough for a Tiny rat.',
+      ],
+    });
+
+    // All seven swarms print it, each with its own animal in the opening.
+    const swarms = bestiary.filter((block) =>
+      block.traits.some((trait) => trait.trait?.kind === 'regains-no-hit-points'),
+    );
+    expect(swarms.map((block) => block.id).sort()).toEqual([
+      'swarm-of-bats',
+      'swarm-of-crawling-claws',
+      'swarm-of-insects',
+      'swarm-of-piranhas',
+      'swarm-of-rats',
+      'swarm-of-ravens',
+      'swarm-of-venomous-snakes',
+    ]);
+    for (const block of swarms) {
+      expect(
+        block.traits.find((trait) => trait.trait?.kind === 'regains-no-hit-points')!.trait!
+          .handedOver,
+      ).toHaveLength(2);
+    }
+  });
+
+  it('refuses a swarm sentence that says one thing more', () => {
+    expect(
+      parseTraitShape(
+        "The swarm can occupy another creature's space and vice versa, and the swarm can move " +
+          "through any opening large enough for a Tiny rat. The swarm can't regain Hit Points " +
+          'or gain Temporary Hit Points.',
+      ),
+    ).toEqual({
+      kind: 'regains-no-hit-points',
+      handedOver: [
+        "The swarm can occupy another creature's space and vice versa.",
+        'the swarm can move through any opening large enough for a Tiny rat.',
+      ],
+    });
+    // The healing half alone is not the heading, and neither is the heading
+    // with a Climb Speed gate on the end of it.
+    expect(parseTraitShape("The swarm can't regain Hit Points or gain Temporary Hit Points.")).toBeNull();
+    expect(
+      parseTraitShape(
+        "The swarm can occupy another creature's space and vice versa, and the swarm can move " +
+          "through any opening large enough for a Tiny rat. The swarm can't regain Hit Points " +
+          'or gain Temporary Hit Points. If the swarm has a Climb Speed, it can climb.',
+      ),
+    ).toBeNull();
+  });
+
   it('leaves every other trait of a block it did read alone', () => {
     // The frog prints two traits this file reads and the giant crab prints one
     // beside a sentence nothing matches; neither block gains a shape it was

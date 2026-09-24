@@ -1329,6 +1329,7 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Beast of Burden | `capacitySizeOf`, which reads SRD Powerful Build's own grant |
  * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named |
  * | SRD Barbed Hide | the same, at the start, caught by the hold rather than by feet |
+ * | SRD Swarm's healing sentence | `healCreature` and `grantTemporaryHpTo`, the two doors hit points come back through |
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1357,6 +1358,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'long-jump-with-a-running-start',
   'magic-resistance',
   'penalised-after-taking-a-damage-type',
+  'regains-no-hit-points',
   'sheds-light',
   'speed-cut-after-taking-a-damage-type',
   'takes-a-named-action-as-a-bonus-action',
@@ -1416,7 +1418,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Lines | The one seam each waits on |
  * |---|---|
  * | Ooze Cube | `a-second-place-to-put-a-creature`: the cube holds a Large creature or four Medium ones **inside itself**, they have Total Cover there, and a neighbour pulls one out on a check. The narrow-gap half of its paragraph is the movement family below; the rest is not, and reading the whole as fiction would lose four rules |
- * | Swarm ×7 | a healing rule a stat block states. `HealingRule` exists and `healingRuleOf` reads granted state; nothing writes one when a block arrives, so "can't regain Hit Points" has no door |
  * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
@@ -1554,6 +1555,27 @@ export const hasUnexecutedTrait = (line: StatBlockLine): boolean => {
 
 /** What that row is called, so the ledger names it rather than matching a string. */
 export const UNEXECUTED_TRAIT_SHAPE = 'A trait shape nothing spends';
+
+/**
+ * A read trait whose heading says more than the engine spends.
+ *
+ * {@link SAVE_HANDOVER_SHAPE} and {@link RIDER_HANDOVER_SHAPE} on the third
+ * half of the sheet, and the same claim: `parseTraitShape` reads a heading's
+ * regular sentence and carries the rest verbatim in `MonsterTrait.handedOver`,
+ * `addCreature` hands the residue to the table the moment the block arrives,
+ * and the heading is **read** and still **unpaid**.
+ *
+ * SRD Swarm is the sentence that made the field necessary and is the whole of
+ * this row today: "can occupy another creature's space", "can move through any
+ * opening large enough for a Tiny rat" and "can't regain Hit Points or gain
+ * Temporary Hit Points" are one heading, of which the engine holds the last.
+ * Counted apart from {@link UNEXECUTED_TRAIT_SHAPE} for that row's own reason —
+ * learning to recognise two thirds of a heading must never be able to retire a
+ * debt on its own.
+ */
+export const TRAIT_HANDOVER_SHAPE = 'A trait whose heading says more than the engine spends';
+export const hasHandedOverTrait = (line: StatBlockLine): boolean =>
+  ((line.trait as { handedOver?: readonly string[] } | undefined)?.handedOver?.length ?? 0) > 0;
 
 /**
  * The shapes that run over a line the parser **read**.
@@ -1718,6 +1740,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   [RIDER_SHAPE, hasUnappliedRider],
   [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
+  [TRAIT_HANDOVER_SHAPE, hasHandedOverTrait],
   // The two economy rows, each with the half that is now executed taken out of
   // it — exactly as the Multiattack and Spellcasting rows above were narrowed.
   // The economy on these lines was always right; what waited was the sentence,
@@ -1770,7 +1793,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * rules and the pair is what a reader needs.
  *
  * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
- * own note — Coven Magic, the Swarm's healing rule, Regeneration, Berserk and
+ * own note — Coven Magic, Regeneration, Berserk and
  * the rest — and keeping the two apart is what stops one sentence being
  * answered for twice in two places that could come to disagree.
  */

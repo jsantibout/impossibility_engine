@@ -1466,7 +1466,7 @@ export type MonsterAcAddend = z.infer<typeof MonsterAcAddendSchema>;
  * separately. What a kind buys is a place for `hasPrintedTrait` to find the
  * rule; the readers that spend one are elsewhere.
  */
-export const MonsterTraitSchema = z.discriminatedUnion('kind', [
+const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
   z.object({
     /**
      * SRD Pack Tactics: "has Advantage on an attack roll against a creature if
@@ -2195,8 +2195,70 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('paralyzed-by-a-stake-through-the-heart'),
   }),
+  z.object({
+    /**
+     * SRD Swarm, on the seven swarms: "The swarm can occupy another creature's
+     * space and vice versa, and the swarm can move through any opening large
+     * enough for a Tiny rat. **The swarm can't regain Hit Points or gain
+     * Temporary Hit Points.**"
+     *
+     * Three sentences under one heading and only the last is a rule the engine
+     * holds, which is the reason {@link MonsterTraitSchema} carries a
+     * `handedOver` at all: read whole, the trait would have claimed the two
+     * space sentences as well; read not at all, a swarm would go on being
+     * healed by a Cure Wounds the book forbids.
+     *
+     * **The name is the half that is executed.** `healCreature` is the one
+     * door hit points come back through and it asks this; the Temporary Hit
+     * Points half is asked at `grantTemporaryHpTo`, which is the one door
+     * those come through. Both are facts about the creature's anatomy rather
+     * than a running effect, which is why neither is a `GrantedHealingRule`:
+     * that record is ended by its source, and a swarm's is ended by nothing.
+     */
+    kind: z.literal('regains-no-hit-points'),
+  }),
 ]);
+
+/**
+ * A trait's mechanic, with the sentences under the same heading that the
+ * reader could not turn into one.
+ *
+ * `MonsterSave.handedOver` on the other half of the sheet, and the same
+ * reading: a heading may print three sentences and the engine may hold one of
+ * them, and a reader with nowhere to put the other two must either claim them
+ * or refuse the heading whole. SRD Swarm is the sentence that made the choice
+ * unavoidable — "can occupy another creature's space", "can move through any
+ * opening large enough for a Tiny rat", "can't regain Hit Points" — where the
+ * first two name a lattice this engine does not have and the third is a rule
+ * it does.
+ *
+ * **A residue means the heading is still unpaid**, exactly as it does for a
+ * save and for a hit's rider: `coverage-data.ts` counts a trait with one on a
+ * row of its own, so learning to recognise a third of a heading can never
+ * retire a debt.
+ *
+ * An intersection rather than a field repeated on twenty-odd members: every
+ * mechanic may carry one, and the discriminator still narrows.
+ */
+export const MonsterTraitSchema = MonsterTraitMechanicSchema.and(
+  z.object({
+    /** The sentences under this heading the reader carried and did not read. */
+    handedOver: z.array(z.string().min(1)).min(1).optional(),
+  }),
+);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
+
+/**
+ * Every trait kind this schema admits, in the order the union declares them.
+ *
+ * Published because the census guards ask the schema what it knows — "is every
+ * name on the reader roster still a kind" — and an intersection has no
+ * `options` for them to walk. Derived from the union rather than written out,
+ * so a member added and not listed is impossible rather than merely unlikely.
+ */
+export const MONSTER_TRAIT_KINDS: readonly string[] = MonsterTraitMechanicSchema.options.map(
+  (option) => option.shape.kind.value,
+);
 
 /**
  * A named trait, action, bonus action, reaction, or legendary action.
