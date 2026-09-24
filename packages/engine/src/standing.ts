@@ -5232,7 +5232,7 @@ export type SpeedChange =
    * order is fixed in {@link combineSpeed} with everything else and stated
    * there once. Doubling first is what makes SRD Slow over SRD Haste come
    * back to the walking Speed the creature started with, which is the reading
-   * a table expects of two spells that cancel; halving first would round a
+   * a table expects of two spells that cancel. Halving first would round a
    * 25-foot Speed down to 12 and then double it to 24, so the order is
    * observable and is therefore decided rather than left.
    */

@@ -2478,16 +2478,26 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
  * judged one slot alone — a `forbids` naming both refuses the turn entirely,
  * and a `forbids` naming one takes away the choice the sentence offers.
  *
- * **What is left is three sentences and each is a different absence.** The
- * −2 reaches Dexterity saving throws as well, and a `bonus` rider carries no
- * narrowing — aimed at `save` it would land on every save the target ever
- * makes, including the one this spell itself calls for. The attacks counted
- * inside the Attack action are a thing the economy does not count: it counts
- * one Attack action and not the swings in it. The 25 percent is a
- * die no `SpellEffect` asks for. And the repeat save is filed on the
- * condition instance a failure created, so a failure that creates none has
- * nothing to hang it on — the one clause this shape does not finish, and the
- * reason `repeat_without_condition` exists.
+ * **The −2 reaches Dexterity saving throws too, and it is a second rider.** A
+ * `bonus` rider carries a {@link BonusNarrowing} now, and an Armour Class
+ * cannot carry one — it is not a roll and is made with no ability at all — so
+ * one printed penalty is two grants of one casting, told apart by `bonusKey`
+ * and ended together by the casting's own source. Aimed at `save` unnarrowed
+ * it would have landed on every save the target ever makes, including the one
+ * this spell itself calls for.
+ *
+ * **And the repeat save is hosted by the casting, per creature.** "Ending the
+ * spell **on itself** on a success" is `end-on-target`, and the failure
+ * imposes no condition for a hook to be filed on — so it rides on the
+ * casting's grants on that one creature, which is a key apiece over the six
+ * this spell can catch. The goblin that makes its save is free and the
+ * hobgoblin beside it is still slowed.
+ *
+ * **What is left is two sentences and each is a different absence.** The
+ * attacks counted inside the Attack action are a thing the economy does not
+ * count: it counts one Attack action and not the swings in it. And the 25
+ * percent is a die no `SpellEffect` asks for — a die that decides whether
+ * another casting happens at all.
  */
 export const SLOW: SpellDefinition = {
   id: 'slow',
@@ -2503,7 +2513,15 @@ export const SLOW: SpellDefinition = {
     {
       kind: 'save',
       ability: 'wis',
-      // Three grants and no condition, off one saving throw. A second `save`
+      // "An affected target repeats the save at the end of each of its turns,
+      // ending the spell **on itself** on a success." The failure imposes no
+      // condition, so there is no instance to file the hook on and it rides on
+      // the casting — on the casting's grants on *this* creature, which is a
+      // key per creature and is what lets a spell catching six carry six of
+      // them. A success lifts what the casting hung on that one target and
+      // leaves the rest of the spell running.
+      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+      // Four grants and no condition, off one saving throw. A second `save`
       // effect for any of them would roll a second die, and a creature could
       // then be slowed and not penalised.
       modifiers: [
@@ -2541,10 +2559,8 @@ export const SLOW: SpellDefinition = {
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the −2 penalty does not reach Dexterity saving throws: a granted bonus names the families of roll it applies to and cannot be narrowed to one ability’s saves, so aiming it at saving throws would penalise every save the target makes, including the one this spell calls for',
     '"it can make only one attack if it takes the Attack action" is not applied: the economy counts one Attack action and not the attacks inside it',
     'the 25 percent chance a Somatic spell fails is not rolled: it is a percentage no effect asks for, deciding whether another casting happens at all',
-    'an affected target "repeats the save at the end of each of its turns, ending the spell on itself on a success" and this one does not: a repeat save is filed on the condition instance the failure created, and this failure creates none',
   ],
 };
 

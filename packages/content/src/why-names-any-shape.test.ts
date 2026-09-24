@@ -101,7 +101,13 @@ describe('a spell may name a shape in any book', () => {
     expect(filed(ADJUDICATED, 'gaseous-form')).toContain(
       'an-action-the-engine-has-no-spender-for',
     );
-    expect(filed(ADJUDICATED, 'haste')).toContain('an-action-the-engine-has-no-spender-for');
+    // **And Haste has left too, on the same reading and by the same door.**
+    // It was filed here because the note said Utilize was an action no
+    // spender could be told apart as having taken. `takeUtilize` is one and
+    // `NAMED_ACTIONS` holds it, so `GrantedAction.only` names all five the
+    // book prints and the narrowing is enforced. Asserted rather than the row
+    // quietly deleted.
+    expect(filed(ADJUDICATED, 'haste')).not.toContain('an-action-the-engine-has-no-spender-for');
     // And the shape is claimed across books now, which is what the widening
     // was for: the query counts a spell's claim on a feature's gap.
     expect(claimedShapes().has('an-action-the-engine-has-no-spender-for')).toBe(true);
@@ -116,17 +122,23 @@ describe('a spell may name a shape in any book', () => {
    * any more. Had the entry been re-filed whole onto the narrowing, this batch
    * would have finished the larger half of Haste's sentence and the map would
    * have gone on saying the spell was blocked on the same thing it had always
-   * been blocked on. What is left is the smaller half, still filed where the
-   * split put it: the five actions the extra one may be spent on, one of which
-   * nothing spends.
+   * been blocked on.
+   *
+   * **And the smaller half has since been paid too**, which is what the split
+   * was worth: the narrowing was filed on its own, the reason it was filed
+   * turned out to be one stale sentence about Utilize having no spender, and
+   * paying it moved nothing else. What is left of Haste's paragraph is the
+   * parenthesis inside that list — "(one attack only)", a count of the attacks
+   * inside one Attack action — which is the sentence SRD Slow prints from the
+   * other end and is filed where that one is.
    */
-  it('paid the arm it had split out, and left the narrowing filed', () => {
+  it('paid both arms it had split out, and kept the parenthesis apart', () => {
     const filed = (ADJUDICATED['haste'] ?? []).map((entry) => entry.why);
-    expect(filed).not.toContain('an-action-a-spell-compels-or-forbids');
-    expect(filed).toContain('an-action-the-engine-has-no-spender-for');
-    expect((ADJUDICATED['haste'] ?? []).map((entry) => entry.clause)).not.toContain(
-      'the extra action',
-    );
+    expect(filed).not.toContain('an-action-the-engine-has-no-spender-for');
+    expect(filed).toEqual(['an-action-a-spell-compels-or-forbids']);
+    expect((ADJUDICATED['haste'] ?? []).map((entry) => entry.clause)).toEqual([
+      '(one attack only)',
+    ]);
   });
 });
 

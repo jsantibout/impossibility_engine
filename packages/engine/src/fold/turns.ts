@@ -68,7 +68,13 @@ export function raiseTurnSaves(
     const timer = state.timers[key];
     const hook = timer?.repeatSave;
     if (timer === undefined || hook === undefined) continue;
-    if (timer.target.kind !== 'condition' && timer.target.kind !== 'casting') continue;
+    if (
+      timer.target.kind !== 'condition' &&
+      timer.target.kind !== 'casting' &&
+      timer.target.kind !== 'grants'
+    ) {
+      continue;
+    }
 
     const fires =
       hook.at === 'end-of-turn' ? hook.of === ended : hook.of === begun;
@@ -89,10 +95,21 @@ export function raiseTurnSaves(
     // names one creature twice ("at the start of each of **its** turns ...
     // **it** takes ... and then makes"). `hook.of` is that creature for both
     // kinds; for a condition it is also the creature the condition sits on.
+    //
+    // **And the third kind is a casting's grants on one creature**, which is
+    // the same sentence as the second over a spell that caught several: SRD
+    // Slow's "An affected target repeats the save at the end of each of its
+    // turns, ending the spell **on itself** on a success" is one hook per
+    // creature, and a `grants` timer is already "every grant one source made
+    // on one creature". Both halves are read straight off it — the creature it
+    // sits on and the source that made the grants, which is the casting's own
+    // mark — so nothing here has to open the casting's record to name them.
     const host =
       timer.target.kind === 'condition'
         ? { target: timer.target.on, source: sourceOfInstance(timer.target.instance) }
-        : sourceOfCasting(state, timer.target.castingId, hook.of);
+        : timer.target.kind === 'grants'
+          ? { target: timer.target.on, source: timer.target.source }
+          : sourceOfCasting(state, timer.target.castingId, hook.of);
     // A casting with no record is a log this engine did not write: the one
     // command that hangs a repeat on a casting writes the record in the same
     // batch, and without the record there is no spell name for the mark a

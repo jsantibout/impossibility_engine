@@ -159,14 +159,18 @@ describe('a blocker no mechanical marker can see survives the spell being writte
     expect(retired.sort()).toEqual(
       [
         // **`a-bonus-narrowed-to-a-skill` came off this list by gaining a
-        // second claimant**, which is the honest way an entry leaves it: SRD
-        // Slow's −2 to Dexterity saving throws is the same missing selector on
-        // the same stored bonus, and it is a sentence a marker can see. It was
-        // read off a paragraph in the undefined population and the spell has
-        // since been written, so the claim is an executed one now. So Enthrall's
-        // reading is no longer the only thing holding the shape up — the gap
-        // is more claimed than it was, not less, and the counterfactual says
-        // so rather than the list staying the size it was written at.
+        // second claimant and is back on it by that claimant being paid**,
+        // which is the pair of exits this list is derived to be able to show.
+        // SRD Slow's −2 to Dexterity saving throws was the same missing
+        // selector on the same stored bonus and it was a sentence a marker can
+        // see; a `bonus` rider carries a `BonusNarrowing` now, Slow is
+        // executed, and that claim is gone. What is left of the shape is the
+        // *standing* side — `bard:jack-of-all-trades`' "a skill proficiency
+        // you lack" and Enthrall's Passive Perception — and Enthrall's
+        // reading is marker-less, so the counterfactual is once again that
+        // writing Enthrall under the old rule would retire a gap that is
+        // still real.
+        'a-bonus-narrowed-to-a-skill',
         'a-cap-on-how-many-castings-run-at-once',
         'a-condition-a-spell-suppresses',
         'a-range-that-scales-with-caster-level',
@@ -202,21 +206,20 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // marker-less again, because a dispel is not a die.
       ].sort(),
     );
-    // Two of the three the form landed with are still in it, so the list grew
-    // rather than drifted. The third — Enthrall's narrowed bonus — left by
-    // gaining a second claimant, which is the one way out of this list that
-    // makes the gap *more* claimed rather than less: it is asserted below
-    // rather than dropped silently.
+    // All three the form landed with are in it, which is where it started:
+    // Enthrall's narrowed bonus left for a while by gaining a second claimant
+    // — the one way out of this list that makes a gap *more* claimed rather
+    // than less — and came back when that claimant was **paid**.
     for (const [, shape] of LANDED) {
-      if (shape === 'a-bonus-narrowed-to-a-skill') continue;
       expect(retired, shape).toContain(shape);
     }
-    // Slow has since been **written**, so its claim moved from the undefined
-    // population into the executed one — `save.condition` became optional and
-    // the three grants its failed save hands out found a host. The clause
-    // itself is unchanged and so is the gap: a granted bonus still carries no
-    // narrowing, so the −2 still cannot reach Dexterity saving throws alone.
-    expect(consumersOf('a-bonus-narrowed-to-a-skill').executed).toContain('slow');
+    // Slow was that claimant, and it is gone from the shape entirely: a
+    // `bonus` rider carries a `BonusNarrowing` now, so the −2 reaches
+    // Dexterity saving throws and no others, and the spell has no
+    // adjudication left against this id. What the shape still wants is the
+    // *standing* side, which is Enthrall's marker-less reading and a Bard's
+    // "a skill proficiency you lack".
+    expect(consumersOf('a-bonus-narrowed-to-a-skill').executed).not.toContain('slow');
     expect(retired).not.toContain('a-choice-made-at-the-casting');
     // And the second departure, held down the same way: the shape has residue
     // and it is Sunburst's executed clause that now holds it up.

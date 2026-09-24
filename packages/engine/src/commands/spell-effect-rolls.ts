@@ -78,7 +78,7 @@ import {
 } from './rolls.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 import { applyRiders, conditionLanding, repeatSaveFrom } from './spell-effect-riders.js';
-import { timerKey } from '../timers.js';
+import { timerKey, type EffectTarget } from '../timers.js';
 
 /**
  * What the spell being resolved says about its own damage dice, as effects.
@@ -1107,6 +1107,25 @@ export function resolveSaveDamageEffect(
  * hook rather than standing a second one beside it; whatever else the timer
  * carried travels with it.
  *
+ * **Two hosts, and the definition's own `onSuccess` says which.** The paragraph
+ * above is the whole story for a spell whose success ends the casting, and one
+ * timer holds one hook — so `checkCastingRepeatLifetime` refuses that spelling
+ * to any spell that could catch more than one creature. SRD Slow is the other
+ * sentence: "An affected target repeats the save at the end of each of its
+ * turns, **ending the spell on itself** on a success", over up to six
+ * creatures. A hook per creature needs a key per creature, and there is one
+ * already — the `grants` timer, "every grant one source made on one creature",
+ * whose source *is* the casting's own mark. So the hook rides on
+ * `grants|<target>|Slow#cast:3`, the deadline is still the casting's, and a
+ * success is `releaseOnTarget`, which lifts exactly what this casting hung on
+ * that one creature and leaves the rest of the spell running.
+ *
+ * **Nothing new ends it.** `releaseCasting` and `releaseOnTarget` already drop
+ * a `grants` timer whose source names the casting, so the hook goes when the
+ * spell does, by either door; and a deadline arriving on that timer releases
+ * the grants it was standing over, which is the same moment and the same
+ * effect as the casting's own deadline arriving.
+ *
  * **Nothing at all where the casting has no deadline**, which no definition
  * the validator admits can produce: `checkCastingRepeatLifetime` refuses a
  * spell that prints no span. A casting that somehow reaches here without one
@@ -1137,9 +1156,16 @@ function castingHostedRepeat(
     return null;
   }
 
+  // The casting's deadline either way; whose turns raise it and what a success
+  // ends are the two things the spelling decides.
+  const on: EffectTarget =
+    repeats.onSuccess === 'end-on-target'
+      ? { kind: 'grants', on: target, source: ctx.source }
+      : standing.target;
+
   return {
     type: 'effect-scheduled',
-    target: standing.target,
+    target: on,
     deadline: standing.deadline,
     repeatSave: {
       at: repeats.at,
@@ -1149,8 +1175,15 @@ function castingHostedRepeat(
       onSuccess: repeats.onSuccess,
       label: `${ctx.name} (${ABILITY_NAMES[effect.ability]} save)`,
     },
-    ...(standing.check === undefined ? {} : { check: standing.check }),
-    ...(standing.endsEarly === undefined ? {} : { endsEarly: standing.endsEarly }),
+    // **Carried only where this event *replaces* the casting's own timer**,
+    // which is the `end-casting` road: whatever else that timer held has to
+    // travel with it or the re-scheduling would drop it. A per-target hook
+    // stands beside the casting's timer rather than over it, so copying the
+    // casting's check onto it would offer the same escape once per creature.
+    ...(on === standing.target && standing.check !== undefined ? { check: standing.check } : {}),
+    ...(on === standing.target && standing.endsEarly !== undefined
+      ? { endsEarly: standing.endsEarly }
+      : {}),
   };
 }
 

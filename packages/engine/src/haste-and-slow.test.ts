@@ -294,8 +294,6 @@ describe('SRD Slow’s −2, which reaches the Armour Class and one ability’s 
 
     const game = new Game();
     game.slow([GOBLIN], DOOMED);
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(game.state.creatures[GOBLIN]?.bonuses));
     expect(game.save(GOBLIN, 'dex')).toBe(0);
     expect(game.save(GOBLIN, 'wis')).toBe(0);
   });

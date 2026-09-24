@@ -133,20 +133,35 @@ describe('what a definition may say about a save that imposes no condition', () 
 
   /**
    * SRD writes "the target repeats the save" of a condition it imposed, and
-   * the repeat is filed **on the condition instance** — so a failure that
-   * imposes none has nothing to hang one on and no boundary would ever raise
-   * it. Slow prints exactly that sentence, and it is the one clause of the
-   * spell this shape does not finish.
+   * the repeat is filed on the condition instance — so a failure that imposes
+   * none has nothing to hang one on. **The hook rides on the casting instead**
+   * now, and what a success ends is the only thing the two spellings differ
+   * in: SRD Ray of Enfeeblement ends the casting, SRD Slow ends the spell on
+   * the creature that made the save. Both are written; anything else is a word
+   * nothing reads.
    */
-  it('refuses a repeat save on a failure that imposes no condition', () => {
+  it('refuses a repeat save whose success is neither ending', () => {
     expect(
       codes({
         kind: 'save',
         ability: 'wis',
         modifiers: [{ kind: 'speed-change', change: 'halve' }],
-        repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+        repeats: { at: 'end-of-turn', onSuccess: 'none' },
       }),
     ).toContain('repeat_without_condition');
+  });
+
+  it('admits both endings a casting-hosted repeat can have', () => {
+    for (const onSuccess of ['end-casting', 'end-on-target'] as const) {
+      expect(
+        codes({
+          kind: 'save',
+          ability: 'wis',
+          modifiers: [{ kind: 'speed-change', change: 'halve' }],
+          repeats: { at: 'end-of-turn', onSuccess },
+        }),
+      ).not.toContain('repeat_without_condition');
+    }
   });
 
   /**

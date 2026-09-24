@@ -1274,12 +1274,19 @@ function checkSaveCastingRepeat(
     });
   }
 
-  if (repeats.onSuccess !== 'end-casting') {
+  // **Both spellings, and they are two SRD sentences rather than one written
+  // loosely.** SRD Ray of Enfeeblement ends "the spell" and catches one
+  // creature; SRD Slow ends "the spell **on itself**" and catches six. What a
+  // success reaches is the whole difference, and both are hosted by the
+  // casting because neither failure imposed a condition to file a hook on —
+  // see `castingHostedRepeat`, where `end-on-target` files the hook on the
+  // casting's grants on that one creature.
+  if (repeats.onSuccess !== 'end-casting' && repeats.onSuccess !== 'end-on-target') {
     found.push({
       field: `${at}.onSuccess`,
       code: 'repeat_without_condition',
       reason:
-        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so there is nothing on the target for a success to end, and the hook rides on the casting instead; SRD writes "ending the spell on a success", which is "end-casting"',
+        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so the hook rides on the casting instead, and a success either ends the casting ("end-casting") or releases what the casting hung on that one creature ("end-on-target")',
     });
   }
 
@@ -7436,6 +7443,17 @@ function checkCastingRepeatLifetime(
   const onASave = definition.effects.some(
     (effect) => effect.kind === 'save' && effect.condition === undefined && effect.repeats !== undefined,
   );
+  // **And whether a success ends the casting**, which is what the head count
+  // below is actually about: a hook that ends the casting rides on the
+  // casting's one timer, and a hook that ends the spell on one creature rides
+  // on the casting's grants on that creature — one key apiece, however many
+  // the spell caught. See {@link castingHostedRepeat}.
+  const endsTheCasting = definition.effects.some(
+    (effect) =>
+      effect.kind === 'save' &&
+      effect.condition === undefined &&
+      effect.repeats?.onSuccess === 'end-casting',
+  );
   const hosted =
     onASave ||
     definition.effects.some(
@@ -7444,17 +7462,20 @@ function checkCastingRepeatLifetime(
   if (!hosted) return;
 
   // **And one creature, because one timer holds one hook.** A casting has a
-  // single deadline, so the repeat it carries names the single creature whose
-  // turns raise it; a saving throw that caught three would file three hooks on
-  // one key and keep the last. Every SRD sentence of this shape is about one
-  // target, so the shape is refused rather than the mechanism owed.
+  // single deadline, so a repeat whose success ends *the casting* names the
+  // single creature whose turns raise it; a saving throw that caught three
+  // would file three hooks on one key and keep the last.
   //
   // **Asked of the saving throw alone.** A smite's repeat names the creature
   // the *blow* landed on rather than anybody the target rule admits — SRD
   // Searing Smite's Range is Self and it targets nobody at all — so the head
   // count says nothing about it.
+  //
+  // **And asked only of `end-casting`.** SRD Slow's "ending the spell on
+  // itself" is the other spelling and is filed per creature, which is why the
+  // spell that could not be written under this rule is written now.
   if (
-    onASave &&
+    endsTheCasting &&
     (definition.area !== undefined ||
       definition.targets.count !== 1 ||
       definition.targets.extraPerSlotLevelAbove !== undefined)
