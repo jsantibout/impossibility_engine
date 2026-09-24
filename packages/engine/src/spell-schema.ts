@@ -3114,13 +3114,26 @@ function checkEffect(
         const named = (spares as { readonly immuneTo?: unknown })?.immuneTo;
         const rating = (spares as { readonly challengeRatingAbove?: unknown })
           ?.challengeRatingAbove;
-        if (named !== undefined && rating !== undefined) {
+        // **Or SRD Enthrall's fought fact**, the third member: stated at the
+        // casting rather than read off the creature, and `true` is the only
+        // thing it can say — the fact itself lives on the request.
+        const fought = (spares as { readonly fought?: unknown })?.fought;
+        const members = [named, rating, fought].filter((one) => one !== undefined).length;
+        if (members > 1) {
           found.push({
             field: `${path}.autoSucceedIf`,
             code: 'two_reasons_to_spare',
             reason:
-              'a save is spared by a defence the target holds or by what the target is, and the book writes one sentence per spell; name the condition or the Challenge Rating, not both',
+              'a save is spared by a defence the target holds, by what the target is, or by whom the caster is fighting, and the book writes one sentence per spell; name one of the three',
           });
+        } else if (fought !== undefined) {
+          if (fought !== true) {
+            found.push({
+              field: `${path}.autoSucceedIf.fought`,
+              code: 'bad_fought_flag',
+              reason: `"${String(fought)}" is not the flag; the fact is stated on the request, and this says only that the save reads it`,
+            });
+          }
         } else if (rating !== undefined) {
           if (typeof rating !== 'number' || !Number.isFinite(rating) || rating < 0) {
             found.push({

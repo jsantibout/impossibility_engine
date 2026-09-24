@@ -14950,8 +14950,10 @@ export const TSUNAMI: SpellDefinition = {
  *
  * `TrackedAdjudication.marker` may be null now, which is a marker-less entry:
  * *the markers see nothing here, and somebody read the paragraph.* So the
- * readings survive the move, the three shapes keep a claimant, and these are
- * the definitions that were waiting on it.
+ * readings survive the move, the shapes keep a claimant, and these are the
+ * definitions that were waiting on it. Two of the three have since been paid
+ * — Spare the Dying's range and Enthrall's narrowed bonus — which is the exit
+ * the form exists to make possible.
  */
 
 /**
@@ -15003,11 +15005,14 @@ export const SPARE_THE_DYING: SpellDefinition = {
  * > Passive Perception until the spell ends."
  *
  * One sentence of save and two of outcome, and neither outcome can be written.
- * `checks.ts` has an `autoFail` and no `autoSucceed`, so the creature you are
- * fighting cannot be handed its success; and a bonus reaches attacks, saves and
- * ability checks as families, never one **skill**, while `passivePerception`
- * reads the sheet and no stored bonus at all. A save whose failure costs
- * nothing the engine can apply is a save worth not raising.
+ * Two halves, and each was half-built when this was written. The automatic
+ * success is `autoSucceedIf: { fought: true }` — the fought fact SRD Charm
+ * Person reads as Advantage, stated once on the request and read here as a
+ * success — so the bandit the party is fighting is spared before the die is
+ * read. The penalty is a `bonus` rider narrowed to one skill, Guidance's
+ * narrowing with the sign turned round, and Passive Perception is
+ * `passivePerceptionOf`: the sheet's score with the same stored bonus added,
+ * so the book's two halves are one number read at two ends.
  */
 export const ENTHRALL: SpellDefinition = {
   id: 'enthrall',
@@ -15020,14 +15025,28 @@ export const ENTHRALL: SpellDefinition = {
   // "creatures of your choice that you can see within range": the SRD states
   // no count, so range and sight are the whole of the bound.
   targets: { count: 0, unlimited: true },
-  effects: [],
-  durationSeconds: 60,
-  unmodelled: [
-    'the Wisdom save is not raised, because neither branch of it can be written down',
-    'the automatic success for "any creature you or your companions are fighting" is an outcome checks.ts has no autoSucceed for, beside its autoFail — and the fact it reads is one IE-030 built for Advantage and for nothing else',
-    'and a failure buys a −10 penalty to Wisdom (Perception) checks and Passive Perception: a bonus reaches attacks, saves and ability checks as whole families and never one skill, so applying it would penalise every ability check the target ever makes, and passivePerception reads the sheet rather than any stored bonus',
-    'so who is distracted, and what they therefore fail to notice, is the DM’s for the minute this runs',
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      // "Any creature you or your companions are fighting automatically
+      // succeeds on this save": the fought fact, stated at the casting.
+      autoSucceedIf: { fought: true },
+      // "On a failed save, a target has a −10 penalty to Wisdom (Perception)
+      // checks and Passive Perception until the spell ends." One stored bonus,
+      // narrowed to the skill, read by the check and by the passive score.
+      modifiers: [
+        {
+          kind: 'bonus',
+          bonus: { source: 'Enthrall', flat: 10 },
+          applies: ['ability-check'],
+          direction: 'subtract',
+          only: { skill: 'perception' },
+        },
+      ],
+    },
   ],
+  durationSeconds: 60,
 };
 
 /**

@@ -9,7 +9,13 @@ import {
   type RollMode,
   type Skill,
 } from '@ie/shared';
-import type { Bonus, BonusNarrowing, ModeSource, StandingBonusApplies } from './bonuses.js';
+import {
+  bonusesFor,
+  type Bonus,
+  type BonusNarrowing,
+  type ModeSource,
+  type StandingBonusApplies,
+} from './bonuses.js';
 import type { CreatureSize } from '@ie/srd';
 import type { HazardName } from './hazards.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
@@ -37,6 +43,7 @@ import {
   armorClass,
   armorClassFloor,
   hasSpeedInMode,
+  passivePerception,
   speedInMode,
   type CharacterSheet,
   type MovementMode,
@@ -6979,6 +6986,42 @@ export function attackDamageDiceOf(
     return parsed.ok ? parsed.value.count : 0;
   }
   return null;
+}
+
+/**
+ * This creature's Passive Perception, as the rules read it.
+ *
+ * SRD: "a passive check ... 10 + all modifiers that normally apply to the
+ * check." `passivePerception` on the sheet is the score the sheet alone gives;
+ * this is that score with what a running spell has hung on the creature's
+ * Wisdom (Perception) checks added — SRD Enthrall's "a −10 penalty to Wisdom
+ * (Perception) checks **and Passive Perception**" is one stored bonus read at
+ * both ends, which is what keeps the two halves of that sentence from being
+ * two answers.
+ *
+ * **Only the flat part of a bonus reaches a passive score.** A die is not a
+ * modifier that "normally applies" to a check nobody rolls — SRD Guidance's
+ * 1d4 lands on a check made and on nothing passive — so a dice-only bonus
+ * contributes nothing here, and a flat one contributes its sign.
+ * Advantage and Disadvantage are the sheet function's own `mode`, and a
+ * caller that knows one passes it as it always did.
+ *
+ * Null for a creature this state does not hold, for `effectiveSizeOf`'s
+ * reason: nothing is derived about nobody.
+ */
+export function passivePerceptionOf(
+  state: GameState,
+  who: CharacterId,
+  mode: RollMode = 'normal',
+): number | null {
+  const creature = state.creatures[who];
+  if (creature === undefined) return null;
+  const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+  const flat = bonusesFor(creature.bonuses, 'ability-check', {
+    ability: 'wis',
+    skill: 'perception',
+  }).reduce((sum, bonus) => sum + (bonus.flat ?? 0), 0);
+  return passivePerception(sheet, mode) + flat;
 }
 
 /**

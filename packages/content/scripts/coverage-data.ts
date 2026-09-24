@@ -236,6 +236,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // creature and not the rest, the Concentration ending releasing everybody,
   // and the ground charging double until it does.
   'entangle',
+  // `enthrall.test.ts` (engine): the bandit the party is fighting spared
+  // before the die is read, the bystander's Perception check ten lower than
+  // its Insight check off one die, and its Passive Perception ten lower
+  // through the same stored bonus.
+  'enthrall',
   'faerie-fire',
   'false-life',
   'fear',

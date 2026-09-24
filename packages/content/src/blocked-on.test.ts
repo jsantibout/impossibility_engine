@@ -2200,39 +2200,25 @@ describe('the fought fact is a second build that corrected the query', () => {
   });
 
   /**
-   * Enthrall is the correction, and it keeps **both** halves of why.
+   * Enthrall was the correction, and it is executed now.
    *
-   * The fought shape stands because Enthrall's reading of that fact is still
-   * unexpressible; the minted id carries the penalty, which was never about
-   * the fact at all and which the entry had never recorded.
-   *
-   * **It is a tracked definition now and both halves came with it**, which is
-   * the part that could not be done until a tracked entry was allowed to carry
-   * no marker. The save trips one, so the automatic success is anchored to the
-   * sentence that forces the save; the −10 trips none — `\bcheck\b` does not
-   * match "checks" — so the penalty is the marker-less entry, and without it
-   * `a-bonus-narrowed-to-a-skill` would have had no claimant left in any
-   * population the day this spell was written.
-   *
-   * **Pass without Trace was the second claimant and has left**, which is the
-   * shape narrowing to what is actually missing rather than the claim
-   * weakening. "a +10 bonus to Dexterity (Stealth) checks" is the same gap in
-   * the same words and it was read off an undefined paragraph; the spell is
-   * written now, and the bonus is narrowed — `AreaStanding`'s `bonus` member
-   * carries the `BonusNarrowing` Guidance's stored bonus already carried, and
-   * `areaBonuses` withholds it from every check that names another skill. What
-   * is left under the id is Enthrall's, which is the half nothing reaches: a
-   * *penalty* on a **stored** bonus, gathered by `checkBonuses` off the
-   * creature rather than derived from where it is standing.
+   * The fought shape stood because Enthrall's reading of that fact — an
+   * automatic success — was unexpressible; `autoSucceedIf: { fought: true }`
+   * is the third member and reads the same stated fact. The minted id carried
+   * the penalty, which was never about the fact at all: a `bonus` rider
+   * narrowed to a skill, and `passivePerceptionOf` reading the same stored
+   * bonus at the passive end. So the spell owes no map anything, and the
+   * narrowed-bonus id left the spell vocabulary for the item one, where its
+   * remaining claimants are — a standing grant with no narrowing is true of an
+   * item and false of a casting, which is that vocabulary's own rule.
    */
-  it('leaves Enthrall blocked, on the outcome and on the penalty', () => {
+  it('finishes Enthrall and moves the narrowed bonus to the item vocabulary', () => {
     expect(BLOCKED_ON['enthrall']).toBeUndefined();
-    expect(SRD_CONTENT.spell('enthrall')).not.toBeNull();
-    expect((TRACKED_ADJUDICATED['enthrall'] ?? []).map((entry) => entry.why)).toEqual([
-      'a-fact-only-the-table-can-declare',
-      'a-bonus-narrowed-to-a-skill',
-    ]);
-    expect(consumersOf('a-bonus-narrowed-to-a-skill').unseen).toEqual(['enthrall']);
+    expect(TRACKED_ADJUDICATED['enthrall']).toBeUndefined();
+    expect(ADJUDICATED['enthrall']).toBeUndefined();
+    expect(SRD_CONTENT.spell('enthrall')?.effects.length).toBeGreaterThan(0);
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-bonus-narrowed-to-a-skill');
+    expect(Object.keys(ITEM_SHAPES)).toContain('a-bonus-narrowed-to-a-skill');
     expect(consumersOf('a-fact-only-the-table-can-declare').unblocks).toEqual([]);
   });
 
@@ -2277,13 +2263,14 @@ describe('the fought fact is a second build that corrected the query', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
     // Call Lightning was the second undefined consumer and is tracked now, so
     // its reading — the extra 1d10 for being outdoors in a storm — moved into
-    // the tracked map against the sentence it was read from. Enthrall was the
-    // one left, and it followed the same way once a tracked entry could carry
-    // the half of it no mechanical marker sees: the undefined population is
-    // empty of this shape and all three claims are live somewhere else.
+    // the tracked map against the sentence it was read from. Enthrall followed
+    // the same way once a tracked entry could carry the half of it no
+    // mechanical marker sees, and has since left the map altogether: the
+    // fought fact it read is `autoSucceedIf.fought` now. The undefined
+    // population is empty of this shape and the claims are live elsewhere.
     expect(fact.undefined).toEqual([]);
     expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
-    expect(fact.tracked).toEqual(['call-lightning', 'enthrall', 'scrying']);
+    expect(fact.tracked).toEqual(['call-lightning', 'scrying']);
   });
 });
 

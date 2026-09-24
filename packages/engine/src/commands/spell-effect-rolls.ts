@@ -1315,6 +1315,12 @@ export function resolveSaveEffect(
     // `creature-added` pins, read here exactly as the Immunity above is read and
     // overriding the same total. The rating is never null by this point: a
     // target nobody has rated was asked about above, before a die moved.
+    // **Or whom the caster is fighting, which is the third member.** SRD
+    // Enthrall: "Any creature you or your companions are fighting automatically
+    // succeeds on this save." The fact was stated at the casting and refused
+    // unstated — `declaredFacts` reads `statesFoughtFact` — so the only
+    // question left is whether the caster named *this* creature, exactly as
+    // the Advantage below asks it.
     const sparedBy =
       effect.autoSucceedIf === undefined
         ? null
@@ -1322,9 +1328,13 @@ export function resolveSaveEffect(
           ? (victim.cr ?? 0) > effect.autoSucceedIf.challengeRatingAbove
             ? `${name}: a creature whose Challenge Rating is above ${effect.autoSucceedIf.challengeRatingAbove} automatically succeeds on the save`
             : null
-          : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
-            ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
-            : null;
+          : 'fought' in effect.autoSucceedIf
+            ? fought?.includes(target) === true
+              ? `${name}: a creature you or your companions are fighting automatically succeeds on the save`
+              : null
+            : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
+              ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
+              : null;
     const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
       dc: saveDc,
       conditions: support.conditions,

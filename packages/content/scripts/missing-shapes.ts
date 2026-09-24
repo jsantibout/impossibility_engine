@@ -112,9 +112,7 @@ export const MISSING_SHAPES = {
   'a-mode-on-the-save-a-spell-forces':
     '`docs/design/rolls-and-damage.md`: "nothing records what a save was against" — the sentence that already blocks Countercharm. A `RollModifier` selects a roll by family, ability and skill, so there is no way to select the saving throws an effect from a Fiend forces. **Re-described rather than kept**: the audit found this id claimed by six clauses whose real blockers were three different things, and that the description misstated its own. What is left is the clause that genuinely needs a save to remember its provenance.',
   'a-fact-only-the-table-can-declare':
-    'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact and this is what it left**: `CastSpellRequest.fought` carries it and the five spells that read it as Advantage are finished, while SRD Enthrall reads the same fact as "Any creature you or your companions are fighting automatically succeeds on this save" — an outcome `checks.ts` has no `autoSucceed` for, beside `autoFail`, and which no definition could write until it does.',
-  'a-bonus-narrowed-to-a-skill':
-    '**The ongoing side is built and the standing side is what is left.** `BonusNarrowing` is the axis that was missing: an `ActiveBonus` now carries an optional ability and skill beside its `BonusApplies` list, `bonusesFor` withholds a narrowed bonus from a roll that does not match, and `checkBonuses` and `savingSupport` pass what the roll knows about itself — which is what finished Guidance and is what Pass without Trace, Enthrall’s check half and Slow’s Dexterity saves would be written against. It is **beside** `BonusApplies` rather than a member of it, which that type’s docstring argues for directly: a member says what a bonus applies to, a skill check *is* an ability check, and every member has to be read by `bonusesFor`. Two things are left. A **standing** grant has no such field — `standingBonuses` reads `StandingBonusApplies` and `standingCheckBonuses` is a sibling gatherer keyed by a feature’s own named skills — so `bard:jack-of-all-trades`, whose narrowing is "a skill proficiency you **lack**" rather than a named skill, still has nowhere to go. And `passivePerception` reads the sheet and no stored bonus whatever, so Enthrall’s second half has no reader at either end. The original description follows, and it is the half that is now built. SRD prints two — a **skill** (Enthrall) and **one ability’s saving throws** (Slow, whose −2 would otherwise land on every save the target ever makes, including the one the spell itself calls for). One axis, one absent reader, two sentences. The original description follows, and it is the skill half: a bonus or penalty that reaches one skill rather than the whole family, and reaches Passive Perception. `docs/design/rolls-and-damage.md` names the axis and its whole membership — "covers attacks, saves and ability checks — all rolls" and now an Armour Class — and a skill is not a member, so SRD Enthrall’s "a −10 penalty to Wisdom (Perception) checks and Passive Perception" would land on every ability check the target ever makes. `passivePerception` reads the sheet and no stored bonus at all, so the second half has no reader whatever. The narrower residue of the fought fact IE-030 built, and the reason Enthrall is not finished by it.',
+    'a fact the engine does not hold and cannot derive, which a rule then reads — how well you know a creature, whether you are outdoors in a storm, whether you are fighting it. Declared cover, declared sight and declared allegiance are the discipline CLAUDE.md already draws for this; the audit (§4) is where these clauses were found filed as a selector problem when what they want is the fact. **IE-030 built the fought fact**: `CastSpellRequest.fought` carries it, the five spells that read it as Advantage are finished, and SRD Enthrall reads the same fact as an automatic success through `autoSucceedIf: { fought: true }`. What is left under this id is every other fact of the kind — how well you know a creature, whether you are outdoors — that no request yet states.',
   'an-automatic-success-by-creature-type':
     'IE-019 built `TypedSaveOutcome`, and spell-definitions.ts says exactly how far: "Two consumers, and they are the two shapes the SRD prints — Blight’s automatic failure and Shatter’s Disadvantage." The book prints a third, and one spell writes it: an automatic **success**. A two-member union missing its third member is a narrower gap than the family it came out of, and is what is left of it on this axis.',
   'a-filter-on-the-attackers-creature-type':
@@ -3205,27 +3203,15 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'failing the check costs the creature its movement entirely, and the economy is guarded by the conditions the engine names with no lever for a spell to take a move away directly.',
     },
   ],
-  // — the three the marker-keyed entry form could not carry ——————————————————
+  // — the marker-keyed entry form could not carry these ———————————————————————
   //
   // Each of these spells was written, run and reverted, and each for the same
   // reason: the blocker that matters is printed in words no mechanical marker
   // knows, so the definition could not bring it out of `BLOCKED_ON` and the
   // unclaimed-shape guard then demanded the shape be retired. The entry
-  // carrying `marker: null` is the one that was missing.
-  enthrall: [
-    {
-      marker: 'saving-throw',
-      clause: 'to make a Wisdom saving throw',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'the save is not raised because the sentence after it hands an automatic success to whoever the caster and their companions are fighting, and checks.ts prints an autoFail with no autoSucceed beside it — the fact IE-030 built reads as Advantage and as nothing else.',
-    },
-    {
-      marker: null,
-      clause: 'a −10 penalty to Wisdom (Perception) checks and Passive Perception',
-      why: 'a-bonus-narrowed-to-a-skill',
-      note: 'the whole cost of a failed save, and the markers see none of it: a bonus reaches attacks, saves and ability checks as families, so this would land on every ability check the target makes, and passivePerception reads the sheet rather than any stored bonus.',
-    },
-  ],
+  // carrying `marker: null` is the one that was missing. (Enthrall stood here
+  // first and is executed now: the fought fact read as a success, and one
+  // stored bonus read by the check and by the passive score.)
   'flesh-to-stone': [
     {
       marker: 'saving-throw',
@@ -4858,6 +4844,8 @@ export { DEFINED as DEFINED_SPELL_IDS };
  * for.
  */
 export const ITEM_SHAPES = {
+  'a-bonus-narrowed-to-a-skill':
+    '**A standing bonus that reaches one skill.** This id stood in the spell vocabulary while SRD Enthrall claimed it, and Enthrall is executed now: the *ongoing* side is whole — `BonusNarrowing` is the axis, the `buff` effect and the `bonus` rider in `spell-definitions.ts` carry it as `only`, an `ActiveBonus` carries an optional ability and skill beside its `BonusApplies` list, `bonusesFor` withholds a narrowed bonus from a roll that does not match, `checkBonuses` and `savingSupport` pass what the roll knows about itself, and `passivePerceptionOf` in packages/engine/src/standing.ts derives the passive score from the same stored bonus — which is what finished Guidance, Pass without Trace, Slow’s Dexterity saves and Enthrall’s −10. What is left is true of an item and false of a casting, which is the rule this vocabulary keeps: a **standing** grant has no such field. `standingBonuses` reads `StandingBonusApplies` and `standingCheckBonuses` is a sibling gatherer keyed by a feature’s own named skills, so a `flat-bonus` an item grants reaches `ability-check` as a whole family — Gloves of Thievery’s SRD line, "+5 bonus to Dexterity (Sleight of Hand) checks", would land on every Intelligence, Wisdom and Strength check the wearer ever makes — and `bard:jack-of-all-trades`, whose SRD narrowing is "a skill proficiency you **lack**" rather than a named skill, has nowhere to go either. The field is the same one the ongoing side grew; the reader that has not grown it is the standing one.',
   'a-spell-an-item-casts-that-nothing-executes':
     'the item’s line says it casts a named spell and the catalogue has **no definition of that spell at all**. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Gate cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist. **The word that decides an entry is *definition*, not *executable*, and this description said otherwise for a batch.** The predicate `checkContent` hands an item is `spells.some(s => s.id === id)` — packages/engine/src/content.ts, the call site of `itemGrantProblems` — and `castFromItem` reads `content.spell(id)`, so a **tracked** definition answers both. That is SRD’s own sentence about what a casting from an item is: "The spell uses its normal casting time, range, and duration, and the user of the item must concentrate if the spell requires Concentration", every word of which a tracked definition already carries. A Wand of Magic Detection and a Ring of Animal Influence came off this shape without a line of spell work, and `item-casts-a-tracked-spell.test.ts` drives both directions so the distinction cannot be lost again. What *should* name this shape is an entry whose spell nothing defines — and, for a **potion**, a spell whose definition resolves nothing, because a `confers` grant carries the definition’s `SpellEffect[]` and "an item that confers an empty list confers nothing". **Sixty definitions later, every entry here has been read against the catalogue again**, entry by entry and spell by spell rather than against this line: thirteen named the shape with every spell they print already defined and have been re-pointed or transcribed, which is why this is no longer the heaviest blocker in the book. The two the last reading wrote down as wrong are both settled — `chime-of-opening` is transcribed, because a use count that never comes back is `recovers: \'special\'` on a pool keyed to the copy; and `amulet-of-the-planes` is **unread**, because what gates its defined Plane Shift is "make a DC 15 Intelligence (Arcana) check" and a check gating a casting still has no id, which is a shape this vocabulary will not invent in a note.',
   'a-save-an-item-forces':
@@ -5379,7 +5367,7 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     {
       clause: 'a +5 bonus to Dexterity (Sleight of Hand) checks',
       why: 'a-bonus-narrowed-to-a-skill',
-      note: 'a `flat-bonus` reaches `ability-check` and that is the whole family, so this five would land on every Intelligence, Wisdom and Strength check the wearer ever makes. The narrowing to one skill is the shape the spell map already names for SRD Enthrall’s Perception penalty, and a pair of gloves prints it the other way up.',
+      note: 'a `flat-bonus` reaches `ability-check` and that is the whole family, so this five would land on every Intelligence, Wisdom and Strength check the wearer ever makes. The narrowing to one skill is the field a casting’s stored bonus already carries — SRD Enthrall’s Perception penalty reads it — and a pair of gloves prints the same sentence the other way up, on a standing grant that has no such field.',
     },
   ],
   'handy-haversack': ['a-container-with-a-space-of-its-own'],

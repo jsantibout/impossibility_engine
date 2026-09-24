@@ -2282,14 +2282,12 @@ export type SpellEffect =
        * because Advantage cancels rather than stacks: a fought target who is
        * also Restrained rolls a normal save, and only a mode can say that.
        *
-       * **One outcome, because the book prints one here.** SRD Enthrall keys
-       * the same fact to an automatic *success* — "Any creature you or your
-       * companions are fighting automatically succeeds on this save" — and
-       * that is a second member with no definition able to write it:
-       * `checks.ts` carries `autoFail` and no `autoSucceed`, and Enthrall is
-       * blocked besides on a penalty narrowed to Wisdom (Perception) checks
-       * and to Passive Perception, which `BonusApplies` cannot name. A member
-       * arrives with its primitive and with the spell that writes it.
+       * **One outcome here, because the book prints one here.** SRD Enthrall
+       * keys the same fact to an automatic *success* — "Any creature you or
+       * your companions are fighting automatically succeeds on this save" —
+       * and that is {@link autoSucceedIf}'s `fought` member: the same stated
+       * fact, read by the same per-target test, overriding the total the way
+       * `autoSucceed` always has rather than moving the die.
        */
       readonly advantageIfFought?: true;
       /**
@@ -2371,6 +2369,21 @@ export type SpellEffect =
              * prints in this position.
              */
             readonly challengeRatingAbove: number;
+          }
+        | {
+            /**
+             * SRD Enthrall's "Any creature you or your companions are fighting
+             * automatically succeeds on this save."
+             *
+             * **The third member, and the third kind of fact**: a defence the
+             * target holds, a rating printed on its block, and now a fact only
+             * the table can declare — the same one {@link advantageIfFought}
+             * reads, stated once on `CastSpellRequest.fought` and refused
+             * unstated by `declaredFacts`, which `statesFoughtFact` widens to
+             * this member. Read per target, because "any creature you are
+             * fighting" is about each of them.
+             */
+            readonly fought: true;
           };
       /**
        * Write the verdict onto the casting, because the sentence says somebody
@@ -7064,7 +7077,12 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
  */
 export function statesFoughtFact(definition: SpellDefinition): boolean {
   return definition.effects.some(
-    (effect) => effect.kind === 'save' && effect.advantageIfFought === true,
+    (effect) =>
+      effect.kind === 'save' &&
+      // Two readers of one stated fact — SRD Charm Person's Advantage and SRD
+      // Enthrall's automatic success — and one question at the door.
+      (effect.advantageIfFought === true ||
+        (effect.autoSucceedIf !== undefined && 'fought' in effect.autoSucceedIf)),
   );
 }
 
