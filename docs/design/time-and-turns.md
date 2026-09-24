@@ -66,8 +66,9 @@ finished before the start is raised, because what catches a creature as its
 turn begins is a question about the world the previous end left behind.
 
 1. `resolveTurn` refuses while any debt stands: a held move, attack, damage
-   or test, a declared casting, an owed repeat save, a stranded summons, an
-   owed area effect.
+   or test, a declared casting, an owed repeat save, an owed **printed** save
+   (a Death Burst raised mid-turn, cleared by `settle_saves`), a stranded
+   summons, an owed area effect.
 2. It emits `turn-advanced`. The fold (`fold/combat.ts`) advances the order:
    the finisher's `ended` and the next creature's `begun` count up, and a
    round that wraps charges the clock six seconds through `withCombat`.
@@ -81,7 +82,10 @@ turn begins is a question about the world the previous end left behind.
    then payouts; then the death save, last so a start-of-turn heal can
    matter; then the repeat saves. Each settlement is an event and folds.
 6. When the end owes nothing, the fold reaches the start: the next
-   creature's start-of-turn area effects are raised, and `mayAct` refuses
+   creature's start-of-turn area effects are raised, **and so is every
+   printed aura it starts its turn inside** (`aurasCaughtAtStart` — a Ghast's
+   Stench, a Sea Hag's Vile Appearance — a pending printed save the same
+   command rolls), and `mayAct` refuses
    that creature until they are settled.
 7. The start is settled too, and **this is the step that throws dice**: a
    printed line the creature expended and whose recharge is a die gets one
@@ -107,3 +111,12 @@ line at a rest as well as on the turn roll (`packages/srd/raw/monsters.md:431`),
 and a line printed "Recharge after a Short or Long Rest" has no die and comes
 back only here. Hit Dice are pools keyed
 by die type, so multiclassed characters track theirs separately.
+
+**A death raises a save too.** A stat block whose trait says it explodes when
+it dies (the Magmin, the four Mephits) has its burst raised by a derived pass
+(`raiseDeathBursts`, comparing the vitals before and after rather than reading
+an event, because a monster dies inside the damage arithmetic and a character
+at Exhaustion 6) as one pending printed save per creature in the emanation —
+rolled, like every pending save, by the command. A creature the scene never
+placed catches nobody and says nothing: the fold has nobody to ask, which is
+the one place the spendable path's question has no twin.

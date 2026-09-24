@@ -961,7 +961,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 919 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 930 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1020,8 +1020,8 @@ fact the book wrote for a person.
 
 | Line | Printed | Read |
 |---|---|---|
-| Traits | 337 | 137 |
-| Actions | 812 | 761 |
+| Traits | 337 | 147 |
+| Actions | 812 | 762 |
 | Bonus actions | 75 | 21 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
@@ -1042,10 +1042,10 @@ and a bite whose hit buys a save.
 | A save a line forces | 127 | 187 |
 | A recharge | 87 | 87 |
 | A use the block limits per day | 54 | 60 |
-| A hit whose line says more than the engine applies | 50 | 51 |
-| An effect a hit buys | 40 | 41 |
+| A hit whose line says more than the engine applies | 49 | 50 |
+| An effect a hit buys | 39 | 40 |
 | A legendary action’s own economy | 30 | 82 |
-| A save whose line says more than the engine spends | 17 | 17 |
+| A save whose line says more than the engine spends | 19 | 19 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
 | A trait shape nothing spends | 0 | 0 |

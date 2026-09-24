@@ -1911,3 +1911,18 @@ Appended after wave six's first two tracks (2026-09-24):
   Blade and Pact of the Chain, Gaze of Two Minds, One with Shadows, Gift of the
   Depths, and the four invocations the book lets a Warlock take more than
   once, which an `option` question has no word for.
+- **A save forced by a moment.** Raising is derived, rolling is commanded, so a
+  death raises the burst (`raiseDeathBursts`, a derived pass over the vitals)
+  and the start of a turn inside an aura raises the aura's save
+  (`aurasCaughtAtStart` from `reachStartOfTurn`); both land through one body
+  extracted from `forcePrintedSave`, and `settle_saves` on the player surface
+  rolls a save raised mid-turn (an `end_turn` refusing `saves_pending` had no
+  other door). A trait may now carry a save; a save's gate is its trigger
+  rather than its heading. Both aura gates fail **open**: an undeclared sight
+  or type does not spare a creature, and the roll names the fact nobody
+  settled. The Half-Dragon's breath and Claw read a type the DM declares
+  (`declare_damage_type`), asking until then. The Gibbering Mouther's save is
+  read although its failure yields nothing the engine can land — a trait has
+  no second door, so refusing it would mean the moment never arrives. A burst
+  by a creature the scene never placed catches nobody, silently — the fold
+  has nobody to ask.
