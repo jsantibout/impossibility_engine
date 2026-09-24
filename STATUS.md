@@ -52,10 +52,11 @@ homebrew.
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack is a swing with Nick and Two-Weapon
   Fighting on it, and Savage Attacker, Luck, Relentless Endurance, Powerful
-  Build, Tactical Shift, Fast Hands, Resourceful, Naturally Stealthy, Jack of
-  All Trades, Slow Fall, Second-Story Work, Adrenaline Rush, Stonecunning,
-  Large Form, Draconic Flight, Wild Companion, Ritual Adept and Paladin's
-  Smite execute. **Wild Shape executes**: a
+  Build, Tactical Shift, Fast Hands, Naturally Stealthy, Jack of All Trades,
+  Slow Fall, Second-Story Work, Adrenaline Rush, Stonecunning, Large Form,
+  Draconic Flight, Wild Companion, Ritual Adept, Paladin's Smite, Defense,
+  Innate Sorcery, Divine Order, Primal Order and the Monk's three options
+  execute; a feature may ask two questions. **Wild Shape executes**: a
   Druid wears a learned Beast's stat block for the hours the table prints,
   with the SRD's retained half kept, and comes back by every ending the book
   names.
@@ -118,12 +119,11 @@ homebrew.
 - **Light a casting sheds is carried** by the creature holding the object
   (Light, Continual Flame) or moved by its Bonus Action (Dancing Lights);
   Darkvision the spell confers the sense.
-- **A printed stat-block rider that deals extra damage is still prose.** The
-  condition families execute — gated on the target's size or on a creature
-  type the block names, anchored on either creature's next turn, and a grapple
-  with the printed escape DC that `escapeGrapple` can answer. Extra damage is
-  the family left, and it is a damage-roll mechanism rather than an effect
-  list: doubled by a crit, meeting the target's defences with the blow.
+- **A printed hit is read clause by clause**: the charge, a push or pull, a
+  Speed cut, a lowered maximum, a one-roll mode, a grapple that implies
+  Restrained and extra damage execute; what nothing read is handed back and
+  the ledger keeps the block. A repeat save may deepen its condition and stop
+  asking, and Resistance's d4 comes off the total before defences.
 - **Nothing brings a jumper down.** A High Jump leaves the creature at the
   elevation it reached and no rule ends that. Narrower than it was — elevation
   was wholly unguarded until `cannot_rise` — but still open.

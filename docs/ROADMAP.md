@@ -1636,3 +1636,60 @@ Appended after wave three's fifth track — sight (2026-09-23):
   granted Advantage is visible only on the swing's own `mode` where a check's
   record names its sources. Recording them beside the check's is a small
   change to `rollAttack` for a later track.
+
+Appended after wave four (2026-09-23), four tracks merged and one in flight:
+
+- **An independent review of the four Fable-built wave-three tracks** found
+  three ordinary defects, fixed: every rule that reads a size now reads it
+  through `effectiveSizeOf` (printed, then stated, then the map's), so Large
+  Form reaches a Grapple; Resourceful is partial again with its residue filed
+  under `a-reroll-outside-the-test-window`; the sight track's self-target
+  exemption skips only what a creature knows of itself. Light and Darkvision
+  moved `targets.count` from 0 to 1, so `cast_spell` with no target now
+  refuses for them — a door change. Fable-built work gets an Opus reviewer
+  before merge from here on.
+- **A feature may ask two questions** (`choices`, each with a `key` and an
+  `onlyIfChoice`; answers filed under `feature:key`). A gate reads the primary
+  answer of the feature `choiceFrom` names and a grant's content reads the
+  keyed one, which is how one pointer keeps two jobs apart. The grant that
+  confers weapon proficiency and armour training is spelled
+  `weapon-and-armor-training`, because `readableGrantKinds` probes reader
+  source for the bare word and `proficiency` already appears there. A cantrip
+  a feature grants now joins `cantrips` rather than `prepared` — Circle of the
+  Land's Fire Bolt was costing a slot. **Debt:** the tool-surface
+  reachability sweep probes only the first-listed option of a gated feature;
+  a sheet per option is a brief of its own.
+- **What a printed hit buys is read as a sequence** and the residue handed
+  back, with a ledger row of its own so a half-read line stays unpaid. **No
+  record is no charge**: `movement-spent` carries the segment, the turn keeps
+  its segments, and a charge gate reads them back along one bearing at the
+  target's space; outside a fight the gate is simply not met and says so. A
+  hold may imply a condition per source (`whileHeld`, `implies`), lifting with
+  what implied it. Handed back rather than built: Mimic's Disadvantage on the
+  escape check (a mode on a check is not in the selector) and the
+  Half-Dragon's Claw type (Draconic Origin is bare prose).
+- **A lowered Hit Point maximum returns when a Long Rest completes.** SRD's
+  Long Rest says so of every reduction, so the rule lives in the rest, not in
+  the lines that lower one: every lowering with no lifetime of its own is
+  released and a raise keeps its casting's. Mummy's "doesn't return to normal"
+  is the printed exception, a mark for a later reader. In flight as W4-R.
+- **A repeat save may deepen.** `onFailure` applies the deeper condition under
+  the same source and ends the timer that raised the save, so the boundary
+  stops asking — Sleep's second failure, and the Cockatrice's shape for the
+  bestiary's second pass. **Searing Smite waits on the attack command**: its
+  burn is a casting-hosted repeat save with a payout before the roll, and
+  `castOnHit` must pass the casting its duration; both are W4-D's with True
+  Strike. Sleep's shake-awake wants `EffectCheck` to name an attempter other
+  than the holder. `a-reduction-an-effect-applies-to-damage` is an item shape
+  now (Ring of Warmth); Shield's Magic Missile clause is filed under
+  `a-reaction-window-that-opens-on-being-targeted`.
+- **Two allowances for one pair: the free one by default.** `allowsPrice`
+  prefers an unpriced allowance, a caller names the priced one to take its
+  benefit (`usingFeature`, `alsoTaking`), and one price may buy two actions
+  (`allows.actions`), the second handed to the turn as a narrowed
+  `GrantedAction`. Innate Sorcery's two benefits are narrowed to castings
+  through the Sorcerer's own route; no over-reach was taken. Step of the
+  Wind's jump doubling stays the table's. **Debts:** a bare `action-spent`
+  after an `only`-narrowed extra action makes the fold throw (Expeditious
+  Retreat can reach it; pre-existing); `coverage.test.ts` does not guard the
+  class and level tables the way `ledger.test.ts` guards its own.
