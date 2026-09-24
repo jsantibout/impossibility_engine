@@ -87,6 +87,7 @@ import {
   describeRecharge,
   perDayTallyKey,
   printedLineSource,
+  printedSaveOf,
   statedActionOf,
   statedBonusActionOf,
 } from '../monster.js';
@@ -910,6 +911,17 @@ export function forcePrintedSave(
       const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
       const line: StatedAction | StatedBonusAction | null = action ?? bonus;
       if (line === null) {
+        // **A trait's heading is looked up before the refusal is written**, so
+        // a caller who names a Death Burst is told *why* rather than told the
+        // block does not print it. The block does print it; it is a line
+        // nobody spends, which is the next refusal down and a different
+        // instruction to the caller.
+        if (printedSaveOf(creature.sheet, command.line) !== null) {
+          return err(
+            'save_is_triggered',
+            `${command.line} is forced by a moment rather than by a use — the engine raises it when that moment comes and rolls it with the saves a boundary owes; nobody spends it`,
+          );
+        }
         return err(
           'no_such_line',
           `no line called ${command.line} is printed under this creature's Actions or Bonus Actions with nothing the engine could read beneath it; a heading the parser did read as an attack, and a heading printed under another section, are each taken by the command that owns them`,

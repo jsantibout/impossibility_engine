@@ -111,17 +111,6 @@ export function raiseTurnSaves(
     };
   }
 
-  // **And the auras the creature whose turn is beginning is standing in.**
-  // SRD Ghast: "any creature that starts its turn in a 5-foot Emanation
-  // originating from the ghast." A second population walked by a second
-  // reading, merged into one record so the sorted order — and therefore which
-  // save gets which die — is total over both kinds.
-  if (begun !== undefined) {
-    for (const debt of aurasCaughtAtStart(state, begun, after.turnsTaken)) {
-      raised[pendingSaveKey(debt.effectKey, debt.turn)] = debt;
-    }
-  }
-
   if (Object.keys(raised).length === 0) return state;
   return { ...state, pendingSaves: sortedRecord({ ...state.pendingSaves, ...raised }) };
 }
@@ -184,9 +173,20 @@ function aurasCaughtAtStart(
         continue;
       }
       if (!standsInside(state, holder as CharacterId, begun, trigger)) continue;
-      if (trigger.onlyIf === 'can-see-holder' && !canSee(state, begun, holder as CharacterId)) {
+      // **A sight nobody has declared is not a "no".** `canSee` is
+      // three-valued and null is "nobody has said", which every reader of it
+      // is told to treat as a question rather than an answer — and the fold
+      // has nobody to ask. So only a *declared* no spares the creature: an
+      // aura that went quiet because the table had not spoken about a line of
+      // sight would be the rule silently missing, which is the direction this
+      // repository refuses. The same reading the type gate below takes.
+      if (trigger.onlyIf === 'can-see-holder' && canSee(state, begun, holder as CharacterId) === false) {
         continue;
       }
+      // And the type, where the clause names types — SRD Sea Hag's "any Beast
+      // or Humanoid". A creature nobody has typed is **not** spared, for the
+      // reason above: the engine cannot show it is exempt, and sparing it on a
+      // fact nobody has stated would be the aura missing in silence.
       if (save.onlyIfTargetType !== undefined) {
         const type = caught.creatureType;
         if (type !== null && !save.onlyIfTargetType.includes(type)) continue;
@@ -458,9 +458,39 @@ export function reachStartOfTurn(state: GameState): GameState {
   const dueDamage = Object.values(state.scheduledDamage).some((hit) => isDue(view, hit.deadline));
   if (dueDamage) return state;
 
-  return {
-    ...raiseAreaBoundary(state, 'start-of-turn', pending.who, pending.turn),
-    pendingTurnStart: null,
-  };
+  // **And the printed auras the creature is standing in**, raised here rather
+  // than beside the repeat saves for the reason this function exists: this is
+  // the *one place a start is reached*, and it is reached by the same route
+  // whichever door the moment came through. A fight that opens with somebody
+  // already in a Ghast's Stench catches them, exactly as one that opens over a
+  // Web does — which is the repair `openTurnStart` was written for, arriving
+  // here without anybody remembering that fights have two beginnings.
+  const withAuras = raiseStartOfTurnAuras(
+    raiseAreaBoundary(state, 'start-of-turn', pending.who, pending.turn),
+    pending.who,
+    pending.turn,
+  );
+  return { ...withAuras, pendingTurnStart: null };
+}
+
+/**
+ * File the debts a creature owes for beginning its turn inside somebody's
+ * printed aura.
+ *
+ * Sorted and merged through `sortedRecord`, the rule {@link raiseTurnSaves}
+ * keeps and for the reason it gives: `resolvePendingSaves` rolls the debts in
+ * key order out of one generator, so the order *is* which save gets which die.
+ */
+function raiseStartOfTurnAuras(
+  state: GameState,
+  begun: CharacterId,
+  turn: number,
+): GameState {
+  const raised: Record<string, PendingSave> = {};
+  for (const debt of aurasCaughtAtStart(state, begun, turn)) {
+    raised[pendingSaveKey(debt.effectKey, debt.turn)] = debt;
+  }
+  if (Object.keys(raised).length === 0) return state;
+  return { ...state, pendingSaves: sortedRecord({ ...state.pendingSaves, ...raised }) };
 }
 

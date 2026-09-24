@@ -89,14 +89,15 @@
   ],
   "fold/turns.ts": [
     "raiseTurnSaves",
-    "aurasCaughtAtStart",
-    "standsInside",
     "sourceOfCasting",
     "failUnsustainedCastings",
     "forgetSustainedTurns",
     "raiseTurnEnd",
     "openTurnStart",
-    "reachStartOfTurn"
+    "reachStartOfTurn",
+    "raiseStartOfTurnAuras",
+    "aurasCaughtAtStart",
+    "standsInside"
   ],
   "fold/expiry.ts": [
     "viewOf",
