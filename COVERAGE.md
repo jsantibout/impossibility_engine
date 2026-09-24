@@ -1045,8 +1045,8 @@ and a bite whose hit buys a save.
 | A save a line forces | 127 | 187 |
 | A recharge | 87 | 87 |
 | A use the block limits per day | 54 | 60 |
-| A hit whose line says more than the engine applies | 52 | 53 |
-| An effect a hit buys | 45 | 46 |
+| A hit whose line says more than the engine applies | 50 | 51 |
+| An effect a hit buys | 40 | 41 |
 | A legendary action’s own economy | 30 | 82 |
 | A save whose line says more than the engine spends | 24 | 24 |
 | How many attacks the Attack action holds | 2 | 2 |

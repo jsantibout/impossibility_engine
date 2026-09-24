@@ -1754,3 +1754,19 @@ Appended after wave five's first two tracks (2026-09-24):
   cycle), and ten callers of `dealSpellDamage` drop its `unverified` on the
   floor while holding accumulators of their own. Solar's Slaying Bow ("it
   dies") waits on widening the kill's gate, out of level-5 reach.
+- **A creature may attach** — a relation written down, not derived, because
+  the Stirge's victim walks off with it on and holds nothing: `creature-attached`
+  / `creature-detached`, released at both ends like a grapple. A hold may be
+  taken **instead of** a hit's damage (`attack.holdInsteadOfDamage`, refused
+  where the line offers none), and a payout may name a payer who is not the
+  creature whose boundary collects it (`GrantedPayout.to`), skipped the
+  moment the hold no longer stands. A blow that empties the target leaves what
+  its line says (Stable, an hour of poison, a death), gated on the drop having
+  happened *by this blow* — a creature already at 0 takes a Death Saving Throw
+  failure instead. **Handed back, with the line's words:** "the stirge can't
+  make Proboscis attacks while attached" (a rule about a stat block's own
+  lines, which `ActionRule` cannot name), the Darkmantle's "can attack only
+  the target", and both blocks' suffocation. **Debts:** no `lapsedAttachments`
+  twin of `lapsedGrapples` (a dead attacher leaves its cover standing), and
+  neither detach nor `escapeGrapple` has a tool door — a table through
+  `@ie/tools` can be attached and cannot detach.
