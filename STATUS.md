@@ -43,9 +43,9 @@ homebrew.
   list**: the DM's door rolls it, the engine applies the failure's damage,
   condition, grapple, push, Speed cut or lowered maximum, and hands over each
   sentence it could not read; a printed teleport is spent at its distance, a
-  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a Parry
-  raises Armour Class in the hit window and a printed Reaction may spend
-  another printed line.
+  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a Parry raises Armour Class in the hit window, a printed Reaction may spend
+  another printed line, a cast line is spent at its heading's price through
+  the block's own numbers, and a creature carries its Challenge Rating.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
@@ -140,8 +140,8 @@ homebrew.
 
 ## Rulings that stand
 
-Each is a decision, not a task; the brief that acts on one cites it here. The
-argument behind each is in `docs/archive/status-2026-09-21.md`.
+Each is a decision, not a task; the argument behind each is in
+`docs/archive/status-2026-09-21.md`.
 
 **Owner, 2026-09-20, and the four ruled just after that batch** — Hide as the
 engine's verb, size as a creation choice, Multiattack needing composition, a
@@ -150,9 +150,7 @@ Divinity's shared pool, the defender answering first, recharge, `alsoHolding`,
 the Hydra's declared heads and derived Bites, a fight that ends; then Truesight
 and Blindsight satisfying "can somehow see" where Darkvision does not, Alert's
 swap and its window, Wild Shape's four answers, and Nimbus Quill's table
-rolling its own dice. **Each is quoted in full, with its argument, in
-`docs/archive/status-2026-09-21.md`** — they are settled, and repeating them
-here costs the words this file is capped at.
+rolling its own dice. **Each is quoted in full in `docs/archive/status-2026-09-21.md`.**
 
 **A builder's ruling, recorded rather than drifted into.** A creature at 0
 hit points, or dead, keeps its hit points when a maximum rises: raising them

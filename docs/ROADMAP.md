@@ -2233,3 +2233,24 @@ Appended after wave seven's first spells track (2026-09-24):
   and goes into the next odds-and-ends spells brief with Magic Mouth and Major
   Image. "Spells in reach, not executed" is 52 by that count, all of them
   waiting on a shape.
+- **A line that casts, spent; a Challenge Rating carried; a road closed
+  before it opened.** `GrantedSpell.castingTime` is a casting time the route
+  states and `castingOf` prefers, as ruled; `adaptMonster` compiles a block's
+  cast line into granted routes — the heading's price, the line's ability and
+  DC or the Spellcasting trait's, refused whole into the sheet's caveats when
+  the block prints no trait to point at — and `castPrintedLine` is a fourth
+  door beside the stated action, the printed save and the printed teleport,
+  spending the day's use or the recharge and handing the casting to the
+  pipeline (`cast_printed_line`, the DM's). "On itself" and the book's
+  line-break hyphen are read (Imp, Quasit, Sprite, Oni); **SRD 5.2.1 prints
+  no Coven Magic line**. A creature carries the Challenge Rating its block
+  prints (`creature-added.cr`, nullable — a character has none), and
+  `autoSucceedIf.challengeRatingAbove` reads it, asking rather than assuming
+  about a creature nobody rated. **The reviewer escalated a bypass and it is
+  closed:** a compiled route's source string is published, so `cast_spell`
+  naming it would have cast Bless as a Bonus Action for ever; `chooseRoute`
+  now refuses a `throughLine` grant without the printed line's licence, which
+  travels as an internal argument from `castPrintedLine` and sits on no
+  request and no schema, and a Ready of such a line is refused before the
+  slot. Animal Messenger keeps one clause: a save whose whole content is its
+  verdict, ruled for the area-standing brief. Main re-ingested.
