@@ -254,7 +254,7 @@ export const MISSING_SHAPES = {
   'an-area-moved-by-the-casters-own-movement':
     'spell-definitions.ts keeps two allowances apart because the SRD does — `CastingOrigin.movableBy`, a rider on an action that also strikes, and `SpellActivation.movesArea`, where "the move *is* the action". A pack or a pillar that comes along when the caster walks, costing no action at all, is a third sentence and neither field says it.',
   'an-outcome-that-breaks-concentration':
-    '`PROGRESS.md` names it among the mechanics the drained shapes left behind: "an outcome-scoped child effect (Ice Knife’s explosion, Hideous Laughter’s two conditions, **Sleet Storm’s broken Concentration**)". `OutcomeRiders` landed with conditions, modifiers and delayed damage; ending the target’s Concentration is the one consequence in that sentence that got no slot.',
+    '**Built, and what is left of the id is two readings rather than a gap.** `PROGRESS.md` named it among the mechanics the drained shapes left behind: "an outcome-scoped child effect (Ice Knife’s explosion, Hideous Laughter’s two conditions, **Sleet Storm’s broken Concentration**)" — `OutcomeRiders` landed with conditions, modifiers and delayed damage, and ending the target’s Concentration was the one consequence in that sentence that got no slot. `OutcomeRiders.breaksConcentration` is that slot now: read off the creature at the moment the outcome settles, landed as the `concentration-ended` every other ending writes, and silent where the target was holding nothing. Sleet Storm is executed off it. The two claimants left are each blocked on something else — SRD Earthquake is level 8 and nobody has re-read its paragraph since, and the Thunderous Greatclub’s tremor waits on an item being able to force a save at all.',
   'a-check-another-creature-may-attempt':
     '`docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." An ally reaching in to cut somebody free, or shaking a sleeper awake, is neither, and the derivation has no third branch.',
   'an-area-trigger-measured-from-a-point':
@@ -1866,20 +1866,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the sentence that says so outright, with the long list of what survives it. A sheet is a fact the engine holds authoritatively and reads for every roll it makes, and nothing writes over one for a duration.',
     },
   ],
-  'sleet-storm': [
-    {
-      marker: 'saving-throw',
-      clause: 'it must succeed on a Dexterity saving throw or have the Prone condition and lose Concentration',
-      why: 'an-outcome-that-breaks-concentration',
-      note: 'the Cylinder is a shape the engine has and both trigger moments are `AreaTrigger` members by name, so all of this is expressible except the last three words — and writing the save without them would drop half of what a failure costs.',
-    },
-    {
-      marker: 'condition',
-      clause: 'have the Prone condition and lose Concentration',
-      why: 'an-outcome-that-breaks-concentration',
-      note: 'the Prone half is an ordinary condition rider and is welded to the half that is not: one failed save imposes both, and no outcome of a saving throw asks for somebody’s Concentration to break.',
-    },
-  ],
   'warding-bond': [
     {
       marker: 'armor-class',
@@ -3183,7 +3169,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'condition',
       clause: 'a creature has the Prone condition, and its Concentration is broken',
       why: 'an-outcome-that-breaks-concentration',
-      note: 'one failure pairs an ordinary condition with a broken Concentration, and no outcome of a saving throw asks for one — Sleet Storm prints the same pairing and is tracked for the same reason.',
+      note: 'one failure pairs an ordinary condition with a broken Concentration. Sleet Storm printed the same pairing and is executed off `breaksConcentration` now, so this clause is writable and the definition does not carry it: the spell is level 8, out of level-5 reach, and nobody has re-read its paragraph since. A reading, not a gap, and the shape’s own description says so.',
     },
     {
       marker: 'dice',

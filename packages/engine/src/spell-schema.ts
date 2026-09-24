@@ -1240,7 +1240,10 @@ function checkSaveWithoutCondition(
   // is SRD's sentence perfectly well, and reading `modifiers` alone would call
   // it a die thrown for nothing.
   const hangs =
-    further.length > 0 || (effect.modifiers ?? []).length > 0 || effect.light !== undefined;
+    further.length > 0 ||
+    (effect.modifiers ?? []).length > 0 ||
+    effect.light !== undefined ||
+    effect.breaksConcentration === true;
 
   if (!hangs && effect.recordsOutcome !== true) {
     found.push({
@@ -1825,6 +1828,7 @@ function checkRiders(
     readonly movement?: { readonly feet: number };
     readonly spends?: SpentBudget;
     readonly light?: LightRider;
+    readonly breaksConcentration?: true;
   },
   level: number,
   path: string,
@@ -1915,6 +1919,17 @@ function checkRiders(
   // {@link SpentBudget}.
   if (riders.spends !== undefined) {
     checkBudgetSpend(riders.spends as SpentBudget | undefined, `${path}.spends`, found);
+  }
+  // The seventh, and the only one with nothing to be wrong about but its own
+  // value: a clause the book either prints or does not — see
+  // {@link OutcomeRiders.breaksConcentration}.
+  if (riders.breaksConcentration !== undefined && riders.breaksConcentration !== true) {
+    found.push({
+      field: `${path}.breaksConcentration`,
+      code: 'malformed_field',
+      reason:
+        'a spell either prints "and lose Concentration" or does not; the only value is true',
+    });
   }
   // The sixth: a glow the outcome hangs on its target, checked by the same
   // rule the `light` effect kind is — see {@link checkShedLight}.

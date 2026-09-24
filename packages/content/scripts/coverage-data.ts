@@ -317,6 +317,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // one and leaving the other asleep, and a blow ending the spell on the
   // creature it landed on and on nobody else.
   'sleep',
+  // `sleet-storm.test.ts` (engine): the Cylinder's terrain and obscurement
+  // read back, and a wizard's Bless taken by a failed Dexterity save.
+  'sleet-storm',
   // Driven end to end by `bare-save.test.ts`, with Faerie Fire above it: both
   // are cast through `resolveSpell` at a placed target, and the grants their
   // failed saves hand out are read back off the folded state — a halved

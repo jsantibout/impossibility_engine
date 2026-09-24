@@ -557,6 +557,34 @@ export function applyRiders(
   // The same landing the `light` effect kind takes, reached from the other
   // host: two hosts, one geometry. Sourced to the casting, so a dispel, a
   // broken Concentration and the deadline all take it away.
+  // **Somebody else's Concentration, taken by this outcome** — SRD Sleet
+  // Storm's "or have the Prone condition **and lose Concentration**", welded
+  // to the condition above because one failed save costs both.
+  //
+  // Before the glow and after the grants, which is where the other endings sit
+  // relative to what a failure hands out: the grants this save hung are the
+  // casting's own and survive, and what goes is whatever the *target* was
+  // holding. A creature concentrating on nothing loses nothing and the rest of
+  // the failure lands anyway — `SpentBudget`'s silence, for its reason.
+  //
+  // The event is the one every other ending writes, so a Bless goes by the
+  // door a failed Constitution save, a recast and a dispel all go through; the
+  // fold refuses a mismatch, which is why the casting id is read off the
+  // creature rather than named.
+  if (riders.breaksConcentration === true) {
+    const holding = current.creatures[target]?.concentration ?? null;
+    if (holding !== null) {
+      const broken: GameEvent = {
+        type: 'concentration-ended',
+        id: target,
+        castingId: holding.castingId,
+        reason: 'broken-by-an-effect',
+      };
+      events.push(broken);
+      current = applyEvent(current, broken);
+    }
+  }
+
   if (riders.light !== undefined) {
     const shed = lightShedOn(current, target, riders.light, {
       name: definition.name,

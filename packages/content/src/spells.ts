@@ -9312,13 +9312,14 @@ export const MELD_INTO_STONE: SpellDefinition = {
  * > Dexterity saving throw or have the Prone condition and lose
  * > Concentration."
  *
- * **One sentence short of Web.** The Cylinder is a shape the engine has, the
- * two trigger moments are `AreaTrigger`'s two by name, and the Prone is an
- * ordinary condition — so all but one clause of the save is expressible. The
- * clause that is not is "and lose Concentration": breaking somebody's
- * Concentration is something the engine does readily and nothing lets an
- * *outcome* ask for it, so writing the save would drop half of what a failure
- * costs.
+ * **Web with one more sentence**, and the sentence was the whole of what was
+ * missing. The Cylinder is a shape the engine has, both trigger moments are
+ * `AreaTrigger`'s by name, the Difficult Terrain is `areaTerrain` and the
+ * Heavily Obscured air is `areaObscurement` — all of which Web already writes.
+ * What had no slot was "and lose Concentration": breaking somebody's
+ * Concentration is something the engine does readily and no *outcome* could
+ * ask for one, so writing the save without it would have dropped half of what
+ * a failure costs. `breaksConcentration` is that slot.
  */
 export const SLEET_STORM: SpellDefinition = {
   id: 'sleet-storm',
@@ -9329,12 +9330,36 @@ export const SLEET_STORM: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
+  // "a 40-foot-tall, 20-foot-radius Cylinder centered on a point you choose
+  // within range" — tall and wide, in the order the book prints them.
+  area: { kind: 'cylinder', radius: 20, height: 40, origin: 'point' },
+  // "Ground in the Cylinder is Difficult Terrain."
+  areaTerrain: { costPerFoot: 2 },
+  // "The area is Heavily Obscured." Not a level of light — sleet is thick
+  // rather than dim — which is why obscurement is a record of its own.
+  areaObscurement: { degree: 'heavily' },
   effects: [],
+  areaTrigger: {
+    // "When a creature enters the Cylinder for the first time on a turn or
+    // **starts its turn there**" — Web's pair exactly.
+    at: 'start-of-turn',
+    onEntry: 'first-per-turn',
+    label: 'Sleet Storm (the sleet)',
+    effects: [
+      {
+        kind: 'save',
+        ability: 'dex',
+        // "or have the Prone condition **and lose Concentration**" — one
+        // failed save, both halves, and neither is writable without the
+        // other: a second effect would roll a second saving throw.
+        condition: 'prone',
+        breaksConcentration: true,
+      },
+    ],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the save is not raised, because half of what a failure costs cannot be written: "have the Prone condition and lose Concentration" pairs an ordinary condition with a broken Concentration, and no outcome of a saving throw asks for one',
-    'the ground in the Cylinder is not changed, and what stands in the way is the area rather than the terrain: `areaTerrain` says a spell’s area is Difficult Terrain and four definitions write it, but this one carries no `area` at all — its 40-foot-radius, 20-foot-high Cylinder is a template nothing has transcribed, and a patch has to lie somewhere before it can charge for anything',
-    'the Heavily Obscured area and the exposed flames it douses are the DM’s; the engine has no lighting and no obscurement',
+    'the exposed flames the sleet douses are the DM’s: a flame in the open is not a thing the engine holds',
   ],
 };
 

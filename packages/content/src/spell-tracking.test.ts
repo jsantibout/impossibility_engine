@@ -1581,6 +1581,13 @@ describe('every spell this batch added is cast for real', () => {
     // is. Three clauses of five left its `unmodelled`; the area's filter, the
     // shake-awake and the automatic successes stay, in `ADJUDICATED` now.
     'sleep',
+    // **Sleet Storm leaves by the last three words of its save.** The
+    // Cylinder, both trigger moments, the Difficult Terrain and the Heavily
+    // Obscured air are Web's clauses and were all writable; "and lose
+    // Concentration" is the one that had no slot, and
+    // `OutcomeRiders.breaksConcentration` is it. Only the doused flames are
+    // left, which are a fact about a room.
+    'sleet-storm',
     'spike-growth',
     // **True Strike leaves by a door no effect kind opened.** Its swing *is*
     // the casting — "you make one attack with the weapon used in the spell's

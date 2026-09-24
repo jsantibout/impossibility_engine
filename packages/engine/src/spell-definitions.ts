@@ -1020,6 +1020,36 @@ export interface OutcomeRiders {
    * duration, and `checkGrantLifetimes` refuses it on an Instantaneous host.
    */
   readonly light?: LightRider;
+  /**
+   * The outcome takes the target's Concentration away.
+   *
+   * SRD Sleet Storm: "it must succeed on a Dexterity saving throw or have the
+   * Prone condition **and lose Concentration**." SRD Earthquake prints the
+   * same pairing, word for word about a fissure.
+   *
+   * **A consequence of a settled outcome, so a rider** — and it is welded to
+   * the condition beside it: one failed save costs both, and a second effect
+   * would roll a second saving throw for one sentence. That is the argument
+   * every slot here makes, and this is the one the sentence could not be
+   * written without.
+   *
+   * **It ends a casting that is not this one**, which no other rider does, and
+   * that is what makes it a flag rather than a value: there is nothing for a
+   * definition to name. Which casting is the target's own, read off the
+   * creature at the moment the outcome settles, and the event is the
+   * `concentration-ended` every other ending already writes — so a Bless the
+   * wizard was holding goes by the door a failed Constitution save, a second
+   * casting and a dispel all go through.
+   *
+   * **A target holding no Concentration loses nothing and the rest of the
+   * failure still lands**, which is the silence {@link SpentBudget} takes for
+   * "if available" and for the same reason: a rider that could refuse the
+   * outcome would be a Sleet Storm that left a creature on its feet.
+   *
+   * `true` is the only value, as it is for every other printed-or-not clause
+   * in this format.
+   */
+  readonly breaksConcentration?: true;
 }
 
 /**
@@ -1925,6 +1955,14 @@ export type SpellEffect =
        * carry the slot rather than a fourth spelling of it.
        */
       readonly light?: LightRider;
+      /**
+       * The same failed save takes the target's Concentration: see
+       * {@link OutcomeRiders.breaksConcentration}.
+       *
+       * Flat for the reason the slot above it is, and SRD Sleet Storm is the
+       * writer: "or have the Prone condition **and lose Concentration**".
+       */
+      readonly breaksConcentration?: true;
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
@@ -5288,6 +5326,12 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
       ? effect.light
       : undefined;
+  // The same three hosts, for the same reason: SRD Sleet Storm writes the
+  // clause off a bare `save`, which keeps its flat spelling.
+  const breaksConcentration =
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.breaksConcentration
+      : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
@@ -5295,6 +5339,7 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     ...(movement === undefined ? {} : { movement }),
     ...(spends === undefined ? {} : { spends }),
     ...(light === undefined ? {} : { light }),
+    ...(breaksConcentration === undefined ? {} : { breaksConcentration }),
   };
 }
 
@@ -5315,7 +5360,8 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
     riders.delayed !== undefined ||
     riders.movement !== undefined ||
     riders.spends !== undefined ||
-    riders.light !== undefined
+    riders.light !== undefined ||
+    riders.breaksConcentration !== undefined
   );
 }
 

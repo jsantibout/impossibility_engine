@@ -885,6 +885,22 @@ export type ConcentrationEndReason =
   | 'completed'
   | 'another-concentration-effect'
   | 'failed-save'
+  /**
+   * Somebody else's spell took it, with no Concentration save in it at all.
+   *
+   * SRD Sleet Storm: "it must succeed on a Dexterity saving throw or have the
+   * Prone condition **and lose Concentration**." SRD Earthquake prints the
+   * same pairing.
+   *
+   * **Not `failed-save`**, and the distinction is the whole reason this is a
+   * member rather than a reuse. That one names the Constitution save
+   * {@link ConcentrationCheck} sets up and `concentrationSaveAfterDamage`
+   * rolls — the save a concentrator makes *about their own Concentration* —
+   * and a log that spelled both alike would say a Constitution save had been
+   * thrown where a Dexterity save against a storm was. The die that decided
+   * this one is in the log beside it, under the spell that forced it.
+   */
+  | 'broken-by-an-effect'
   | 'incapacitated'
   | 'died'
   | 'removed'
