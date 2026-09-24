@@ -99,7 +99,7 @@ import {
 } from '../monster.js';
 import { remaining, tallied, type SlotKind } from '../resources.js';
 import { type Content } from '../content.js';
-import { durationSecondsAt } from '../spell-definitions.js';
+import { durationSecondsAt, untilDispelledAt } from '../spell-definitions.js';
 import { startOfNextTurn } from '../time.js';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
@@ -3882,7 +3882,11 @@ function releaseSpell(
   // SRD writes a readied spell's Duration from the moment it takes effect, and
   // that moment is now. `castSpell` would have scheduled this at the casting;
   // the casting was a turn ago and did nothing.
-  if (definition.durationSeconds !== undefined) {
+  //
+  // **Unless the slot bought "until dispelled"**, read through the same
+  // `untilDispelledAt` the ordinary resolution reads — SRD Major Image's level
+  // 4+ slot leaves no deadline for a release to schedule.
+  if (definition.durationSeconds !== undefined && !untilDispelledAt(definition, response.castLevel)) {
     const timer = schedule(
       events.reduce(applyEvent, state),
       { kind: 'casting', castingId: response.castingId },

@@ -73,7 +73,7 @@ const added = (
 });
 
 const slotsFor = (who: CharacterId): readonly GameEvent[] =>
-  [1, 2, 3, 4, 5].map((level) => ({
+  [1, 2, 3, 4, 5, 9].map((level) => ({
     type: 'resource-pool-declared',
     id: who,
     pool: {
@@ -605,6 +605,19 @@ describe('Bestow Curse’s slot table', () => {
       DOOMED,
     );
     expect(deadline(log)).toBe(28800);
+    expect(concentrating(log)).toBe(false);
+  });
+
+  /** "If you use a level 9 spell slot, the spell lasts until dispelled." */
+  it('keeps no deadline at all out of a level 9 slot', () => {
+    const log = cast(
+      table(),
+      { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 9, option: 'attacks-against-you' },
+      DOOMED,
+    );
+    const state = fold('seed', log);
+    expect(Object.values(state.timers).some((one) => one.target.kind === 'casting')).toBe(false);
+    expect(Object.values(state.ongoing).some((record) => record.spell === 'Bestow Curse')).toBe(true);
     expect(concentrating(log)).toBe(false);
   });
 });

@@ -376,6 +376,54 @@ describe('a readied Concentration spell keeps concentrating', () => {
   });
 });
 
+describe('a readied spell whose slot buys "until dispelled" schedules no deadline', () => {
+  /**
+   * SRD Major Image: "The spell lasts until dispelled, without requiring
+   * Concentration, if cast with a level 4+ spell slot." The release used to
+   * schedule the printed ten minutes off the slot table regardless, so a
+   * readied Major Image at level 4 ran out where a cast one did not.
+   */
+  const ILLUSIONIST: readonly GameEvent[] = [
+    ...SETUP.filter((e) => e.type !== 'spellcasting-declared'),
+    {
+      type: 'resource-pool-declared',
+      id: ARCHER,
+      pool: { key: spellSlotKey(4), label: 'level 4 spell slot', max: 1, recovers: 'long-rest' },
+    },
+    {
+      type: 'resource-pool-declared',
+      id: ARCHER,
+      pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 1, recovers: 'long-rest' },
+    },
+    {
+      type: 'spellcasting-declared',
+      id: ARCHER,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['major-image'] }),
+    },
+  ];
+
+  const releasedAt = (slotLevel: number) => {
+    const log = nextTurn(ready({ kind: 'spell', spellId: 'major-image', slotLevel }, ILLUSIONIST));
+    const released = unwrap(
+      releaseReady(fold('seed', log), ARCHER, { targets: [] }, supply('image')),
+      'release',
+    );
+    return fold('seed', [...log, ...released.events]);
+  };
+
+  it('schedules the printed ten minutes out of a level 3 slot', () => {
+    const timers = castingTimers(releasedAt(3));
+    expect(timers.length).toBe(1);
+    expect(timers[0]!.deadline.kind === 'elapsed' && timers[0]!.deadline.at).toBe(600);
+  });
+
+  it('schedules nothing out of a level 4 slot, and the casting still stands', () => {
+    const after = releasedAt(4);
+    expect(castingTimers(after)).toEqual([]);
+    expect(Object.values(after.ongoing).some((record) => record.spell === 'Major Image')).toBe(true);
+  });
+});
+
 describe('the hold itself is bookkeeping the engine cleans up', () => {
   it('leaves no deadline behind once it is released', () => {
     const log = nextTurn(ready({ kind: 'action' }));

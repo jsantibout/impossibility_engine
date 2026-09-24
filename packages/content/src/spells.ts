@@ -13550,7 +13550,9 @@ export const FIND_STEED: SpellDefinition = {
  * carries the lengths and `concentrationEndsAtSlot` carries the clause beside
  * them — "the spell doesn't require Concentration" from level 5 up — which is
  * a fact about the casting rather than about its length and so is its own
- * field. The level 9 arm is out of reach and says so below.
+ * field. The level 9 arm is `untilDispelledAtSlot`, the third
+ * field of the same family: a slot that changes what *kind* of ending the
+ * spell has rather than how long it runs.
  */
 export const BESTOW_CURSE: SpellDefinition = {
   id: 'bestow-curse',
@@ -13646,9 +13648,10 @@ export const BESTOW_CURSE: SpellDefinition = {
   // "If you use a level 5+ spell slot, the spell doesn’t require
   // Concentration."
   concentrationEndsAtSlot: 5,
-  unmodelled: [
-    'the level 9 slot’s "the spell lasts until dispelled" is not applied: `untilDispelled` is a property of the spell rather than of the slot it was cast with, and a table of seconds cannot say "no ending at all" — a level 9 casting runs the twenty-four hours a level 7 one does',
-  ],
+  // "If you use a level 9 spell slot, the spell lasts until dispelled." The
+  // third field of the slot family, and the one a table of seconds could not
+  // say: an ending rather than a length. Same reader as SRD Major Image's.
+  untilDispelledAtSlot: 9,
 };
 
 /**
