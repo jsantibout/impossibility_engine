@@ -769,28 +769,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'narration, like Druidic: a language the sheet records and no rule reads.',
     },
   ],
-  'rogue:cunning-strike': [
-    {
-      clause: 'spending some of those dice as a price',
-      why: 'a-resource-traded-for-another',
-      note: 'Sneak Attack dice as currency, which is the trade shape on something that is not a pool.',
-    },
-    {
-      clause: 'a saving throw the feature forces',
-      why: 'expressible',
-      note: 'Poison and Trip each ask for one, and each is bought by the hit the Sneak Attack rode rather than by an action.',
-    },
-    {
-      clause: 'a move it hands its holder',
-      why: 'a-move-a-feature-hands-its-holder',
-      note: 'Withdraw’s half Speed, provoking nothing.',
-    },
-    {
-      clause: 'Sneak Attack itself is executed',
-      why: 'expressible',
-      note: 'recorded because the note used to claim otherwise.',
-    },
-  ],
   'rogue:reliable-talent': [
     {
       clause: 'the dice layer substitutes values on damage dice, not on a D20 Test',
@@ -805,9 +783,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'two options on one hit where the earlier feature allows one.',
     },
     {
-      clause: 'paying for an effect in Sneak Attack dice is a trade nothing expresses',
-      why: 'a-resource-traded-for-another',
-      note: 'inherited from Cunning Strike.',
+      clause: 'paying for an effect in Sneak Attack dice is a trade the level 5 feature now makes',
+      why: 'expressible',
+      note: 'recorded because the note used to claim the opposite: the price is an `on-hit` grant’s `forgoesDiceOf` and each option’s `costsDice`, so what is left here is the rewriting alone.',
     },
   ],
   'rogue:devious-strikes': [
@@ -818,8 +796,8 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     },
     {
       clause: 'each is bought with Sneak Attack dice',
-      why: 'a-resource-traded-for-another',
-      note: 'inherited from Cunning Strike.',
+      why: 'expressible',
+      note: 'recorded because the note used to claim otherwise: Cunning Strike prices its three options in those dice now, and a fourth costs no more vocabulary than a fourth entry.',
     },
     {
       clause: 'each forces a Constitution or Dexterity saving throw',
@@ -848,9 +826,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
   'thief:supreme-sneak': [
     {
-      clause: 'which needs the same trade of Sneak Attack dice every Cunning Strike option needs',
-      why: 'a-resource-traded-for-another',
-      note: 'inherited from Cunning Strike, and the whole of what is left now that the Hide action is taken: the option is bought with a die this feature has no way to spend.',
+      clause: 'the same trade of Sneak Attack dice every Cunning Strike option needs',
+      why: 'expressible',
+      note: 'recorded because the note used to claim otherwise: the price is Cunning Strike’s own grant now, and this option would carry the same `costsDice` the other three do.',
+    },
+    {
+      clause: 'this feature lengthening the level 5 feature’s list',
+      why: 'a-feature-that-rewrites-another-features-rule',
+      note: 'the real gap under the one the trade used to hide: a pool’s menu can be joined by a later feature (`pool-options`) and a hit rider’s cannot, so an option written here has nowhere to be added.',
     },
     {
       clause: 'the engine ends that condition on no attack at all',

@@ -118,7 +118,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Sneak Attack',
       level: 1,
       automation: 'engine',
-      note: 'The dice are read off the Rogue table at the character’s Rogue level and added to a qualifying hit, once per turn — *a* turn, so an Opportunity Attack on somebody else’s turn qualifies again. The qualifications are checked: Advantage on the roll, or a non-Incapacitated ally within 5 feet of the target and no Disadvantage, and a Finesse or Ranged weapon either way. The damage is of the weapon’s own type, so Resistance to the weapon resists it too, and a critical doubles the dice. What the engine cannot settle is the ally clause where nobody has declared who is on whose side: it withholds the benefit and says so rather than inventing an ally. Cunning Strike’s trade of dice for effects is a separate feature and is not modelled.',
+      note: 'The dice are read off the Rogue table at the character’s Rogue level and added to a qualifying hit, once per turn — *a* turn, so an Opportunity Attack on somebody else’s turn qualifies again. The qualifications are checked: Advantage on the roll, or a non-Incapacitated ally within 5 feet of the target and no Disadvantage, and a Finesse or Ranged weapon either way. The damage is of the weapon’s own type, so Resistance to the weapon resists it too, and a critical doubles the dice. What the engine cannot settle is the ally clause where nobody has declared who is on whose side: it withholds the benefit and says so rather than inventing an ally. Cunning Strike’s trade of these dice for effects is a separate feature and spends them through this one: the dice it forgoes come off here, before the roll.',
       grants: {
         kind: 'standing',
         reach: 'self',
@@ -163,7 +163,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Cunning Action',
       level: 2,
       automation: 'engine',
-      note: 'SRD: "you can take one of the following actions as a Bonus Action: Dash, Disengage, or Hide." Executed, as three action rules the feature holds: the Rogue may state the cheaper price on `takeDash`, `takeDisengage` and `takeHide`, and each command charges the Bonus Action rather than the Action. The rules are derived from the sheet on every read rather than stored on the creature, so a Rogue written into a log before any of this existed holds them too. What the feature says about "the number of times shown" is nothing — this one is free and unlimited — and Cunning Strike, which spends its dice on effects, is a separate feature and separately unbuilt.',
+      note: 'SRD: "you can take one of the following actions as a Bonus Action: Dash, Disengage, or Hide." Executed, as three action rules the feature holds: the Rogue may state the cheaper price on `takeDash`, `takeDisengage` and `takeHide`, and each command charges the Bonus Action rather than the Action. The rules are derived from the sheet on every read rather than stored on the creature, so a Rogue written into a log before any of this existed holds them too. What the feature says about "the number of times shown" is nothing — this one is free and unlimited — and Cunning Strike, which spends Sneak Attack dice on effects, is a separate feature and separately executed.',
       grants: {
         kind: 'standing',
         reach: 'self',
@@ -367,7 +367,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Improved Cunning Strike',
       level: 11,
       automation: 'manual',
-      note: 'Using two Cunning Strike options on one hit is this feature rewriting the level 5 one, and neither the rewriting nor the options is modelled: paying for an effect in Sneak Attack dice is a trade nothing expresses, and each option still forces a save, imposes a condition or moves its user.',
+      note: 'Not applied. Using two Cunning Strike options on one hit is this feature rewriting the level 5 one, and that rewriting is the whole of what is missing: paying for an effect in Sneak Attack dice is a trade the level 5 feature now makes, and each option forces a save, imposes a condition or moves its user through the same grant. What no vocabulary says is a later feature raising an earlier one’s limit from one option to two.',
     },
     {
       id: 'rogue:ability-score-improvement-4',
@@ -382,7 +382,7 @@ export const ROGUE: ClassDefinition = {
       name: 'Devious Strikes',
       level: 14,
       automation: 'manual',
-      note: 'Three more Cunning Strike options, which is this feature lengthening the level 5 feature’s list. None of the three is modelled either: each is bought with Sneak Attack dice, each forces a Constitution or Dexterity saving throw, and Knock Out and Obscure hang the Unconscious and Blinded conditions on the target while Daze forbids all but one of its actions on its next turn.',
+      note: 'Not applied. Three more Cunning Strike options, which is this feature lengthening the level 5 feature’s list, and that lengthening is what has no member: each is bought with Sneak Attack dice at a price the grant already carries, each forces a Constitution or Dexterity saving throw, and Knock Out and Obscure hang the Unconscious and Blinded conditions on the target — all of which Cunning Strike’s own options do. Daze forbids all but one of its actions on its next turn, which is a count rather than a list and has no member either.',
     },
     {
       id: 'rogue:slippery-mind',
@@ -468,7 +468,7 @@ export const THIEF: SubclassDefinition = {
       name: 'Supreme Sneak',
       level: 9,
       automation: 'manual',
-      note: 'Not applied. SRD gives one more Cunning Strike option — "_Stealth Attack (Cost: 1d6)._ If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover" — which needs the same trade of Sneak Attack dice every Cunning Strike option needs. The Hide itself is taken now, and the exception has nothing to except: the engine ends that condition on no attack at all, because the four things the SRD says end a Hide are moments the table narrates.',
+      note: 'Not applied. SRD gives one more Cunning Strike option — "_Stealth Attack (Cost: 1d6)._ If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover" — which is this feature lengthening the level 5 feature’s list. It would want the same trade of Sneak Attack dice every Cunning Strike option needs, and that price is written now; what has no member is a later feature adding an option to an earlier one’s hit-rider menu, which a pool’s menu allows and a rider’s does not. The Hide itself is taken now, and the exception has nothing to except: the engine ends that condition on no attack at all, because the four things the SRD says end a Hide are moments the table narrates.',
     },
     {
       id: 'thief:use-magic-device',

@@ -288,12 +288,20 @@ describe('what the rest wait on', () => {
     expect(ledgerFeatureIds()).not.toContain('druid:wild-shape');
   });
 
-  it('files what is left of the trade gap under the option that still waits', () => {
+  it('files what is left of the trade gap outside a level 5 party’s reach', () => {
     // Monk's Focus was the pool that carried it and no longer does: an
     // allowance takes a price now and one spend buys two actions, so Patient
-    // Defense and Step of the Wind are executed. What is left of the gap is
-    // Cunning Strike, whose Sneak Attack dice are neither a pool nor a slot.
-    expect(featureBlockersOf('rogue:cunning-strike')).toContain('a-resource-traded-for-another');
+    // Defense and Step of the Wind are executed. Cunning Strike was the last
+    // of it inside a level 5 party's reach and no longer is either: a hit
+    // rider prices itself in a sibling feature's damage dice, which are
+    // neither a pool nor a slot. What is left of the gap is a mode forgone,
+    // a Wild Shape use converted into a slot the table never printed, and
+    // three Focus Points spent at once — none of them in that reach.
+    expect(featureBlockersOf('rogue:cunning-strike')).toEqual([]);
+    expect(ledgerFeatureIds()).not.toContain('rogue:cunning-strike');
+    expect(featureBlockersOf('barbarian:brutal-strike')).toContain(
+      'a-resource-traded-for-another',
+    );
     expect(featureBlockersOf('monk:focus')).toEqual([]);
     // And the three that were built are off the map entirely, in both
     // directions: no blockers, and nothing claiming they have any.
