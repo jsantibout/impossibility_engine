@@ -439,6 +439,29 @@ function swing(state: GameState, target: CharacterId, tag: string) {
   throw new Error(`no seed dropped ${target}`);
 }
 
+/**
+ * The Warlock's own cantrip, on the first seed whose beam connects.
+ *
+ * A spell's damage rather than a weapon's: the same fall, reached down the
+ * road a casting takes, which is the other half of "every road" and the one a
+ * Fireball would take if a Warlock 3 had one.
+ */
+function zap(state: GameState, target: CharacterId, tag: string) {
+  for (const seed of SEEDS) {
+    const out = unwrap(
+      resolveSpell(
+        state,
+        WARLOCK,
+        { spellId: 'eldritch-blast', targets: [target], commandId: `${tag}-${seed}` },
+        supply(`${tag}-${seed}`),
+      ),
+      'a beam',
+    );
+    if (after(state, out.events).creatures[target]!.vitals.hp === 0) return out;
+  }
+  throw new Error(`no seed dropped ${target} with a beam`);
+}
+
 /** Round the initiative order until the hag is up, so she may spend her Action. */
 function untilTheHag(state: GameState): GameState {
   let current = state;
@@ -624,6 +647,79 @@ describe('the feature that watches an enemy fall', () => {
     expect(temporaryHp(state, WARLOCK)).toBe(0);
     expect(
       out.unverified.some((line) => line.includes(`nobody has said whose side ${NEAR} is on`)),
+    ).toBe(true);
+  });
+});
+
+/**
+ * **Every road to the same moment, and the same answer on each of them.**
+ *
+ * A creature reaches 0 Hit Points by more roads than the two the blocks above
+ * walk: a sentence that drops it, a spell's damage, a weapon's damage somebody
+ * was offered a Reaction against, and an amount a DM adjudicated for a falling
+ * chandelier. Dark One's Blessing is written about the *outcome* — "when you
+ * reduce an enemy to 0 Hit Points" — so a reader wired into some of the roads
+ * is a rule that stops working on the rest.
+ *
+ * `resolveDamage` is the one funnel every road that deals damage passes
+ * through, so that is where the watcher is paid. The printed clause that drops
+ * a creature without damage asks separately, because it never gets here.
+ */
+describe('the watcher is paid on every road that drops a hostile', () => {
+  /** The blow a DM adjudicated: no spell, no attack, no dice the engine threw. */
+  const improvised = (state: GameState, target: CharacterId, by: CharacterId) =>
+    unwrap(
+      resolveDamage(
+        state,
+        target,
+        { amount: 20, source: 'a falling chandelier', by, commandId: 'the-chandelier' },
+        supply('chandelier'),
+      ),
+      'the chandelier',
+    );
+
+  const blessing = (events: readonly GameEvent[]): readonly GameEvent[] =>
+    events.filter((event) => event.type === 'temporary-hp-granted');
+
+  const paid = {
+    type: 'temporary-hp-granted',
+    id: WARLOCK,
+    amount: 6,
+    source: "Dark One's Blessing",
+  };
+
+  it('pays the Warlock for an ally’s improvised blow ten feet away', () => {
+    const table = theWarlock();
+    const out = improvised(table.state, NEAR, ALLY);
+    const landed = after(table.state, out.events);
+    expect(landed.creatures[NEAR]!.vitals.hp).toBe(0);
+    expect(temporaryHp(landed, WARLOCK)).toBe(6);
+    expect(out.unverified).toEqual([]);
+  });
+
+  it('gives a chandelier, a swing and a spell the same log shape', () => {
+    const table = theWarlock();
+    expect(blessing(improvised(table.state, ADJACENT, ALLY).events)).toEqual([paid]);
+    expect(blessing(swing(table.state, ADJACENT, 'kael-swings-for-shape').out.events)).toEqual([
+      paid,
+    ]);
+    expect(blessing(zap(table.state, ADJACENT, 'kael-zaps-for-shape').events)).toEqual([paid]);
+  });
+
+  /**
+   * And the report reaches the caller on the improvised road too: the amount
+   * a DM states carries no map, so the second half of the sentence — "within
+   * 10 feet of you" — is a question only a scene answers.
+   */
+  it('reports the missing scene on the improvised road', () => {
+    const table = theWarlock({ scene: false });
+    const out = improvised(table.state, NEAR, ALLY);
+    expect(temporaryHp(after(table.state, out.events), WARLOCK)).toBe(0);
+    expect(
+      out.unverified.some(
+        (line) =>
+          line.includes('nobody has laid out a scene') && line.includes("Dark One's Blessing"),
+      ),
     ).toBe(true);
   });
 });
