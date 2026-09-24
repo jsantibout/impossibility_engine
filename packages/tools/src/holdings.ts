@@ -798,11 +798,17 @@ function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
   // is one pool selling room in the turn's budget, and the day a subclass adds
   // an effect list to the same pool the two claims meet under one id.
   const buys = first.buys ?? second.buys;
+  // And a fifth, which a casting elects from rather than a use spending:
+  // SRD Metamagic is one feature and one pool, and a subclass that hung an
+  // activation on that pool would claim the id first and drop the menu — the
+  // whole failure this merge exists to prevent, one menu along.
+  const castingOptions = first.castingOptions ?? second.castingOptions;
   if (
     options === first.options &&
     onHit === first.onHit &&
     trades === first.trades &&
-    buys === first.buys
+    buys === first.buys &&
+    castingOptions === first.castingOptions
   ) {
     return first;
   }
@@ -818,6 +824,7 @@ function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
     ...(onHit === undefined ? {} : { onHit }),
     ...(trades === undefined ? {} : { trades }),
     ...(buys === undefined ? {} : { buys }),
+    ...(castingOptions === undefined ? {} : { castingOptions }),
     ...(doors.length === 0 ? {} : { alsoSpentBy: doors }),
   };
 }

@@ -436,18 +436,43 @@ describe('Heightened Spell puts Disadvantage on one target’s save', () => {
 describe('Empowered Spell throws the lowest damage dice again', () => {
   const who = () => sorcerer(['Empowered Spell', 'Subtle Spell']);
 
-  /** Every face of the first damage roll the casting recorded. */
-  const firstDamage = (events: readonly GameEvent[]) => {
+  /** The first damage roll the casting recorded, whole. */
+  const firstRoll = (events: readonly GameEvent[]) => {
     const rolled = events.find((event) => event.type === 'damage-dice-recorded');
-    return rolled !== undefined && rolled.type === 'damage-dice-recorded'
-      ? rolled.components.flatMap((part) => part.dice)
-      : [];
+    if (rolled === undefined || rolled.type !== 'damage-dice-recorded') {
+      throw new Error('the casting recorded no damage dice');
+    }
+    return rolled;
+  };
+
+  /** Every face of that roll. */
+  const firstDamage = (events: readonly GameEvent[]) =>
+    firstRoll(events).components.flatMap((part) => part.dice);
+
+  /**
+   * What the faces come to: every counted die of a component plus its flat.
+   *
+   * The arithmetic the reroll actually turns on, asserted rather than inferred
+   * from the dispositions. A reroll that marked the right dice and then added
+   * the difference the wrong way round would leave every assertion about
+   * `disposition` and `origin` standing and deal the old damage.
+   */
+  const addsUp = (events: readonly GameEvent[]): void => {
+    const rolled = firstRoll(events);
+    for (const part of rolled.components) {
+      const counted = part.dice
+        .filter((die) => die.disposition === 'counted')
+        .reduce((sum, die) => sum + die.value, 0);
+      expect(part.total).toBe(counted + part.flat);
+    }
+    expect(rolled.rolled).toBe(rolled.components.reduce((sum, part) => sum + part.total, 0));
   };
 
   it('throws eight dice and rerolls none without the option', () => {
     const { events } = cast(table(who()), fireball());
     const dice = firstDamage(events);
     expect(dice.filter((die) => die.disposition === 'rerolled').length).toBe(0);
+    addsUp(events);
   });
 
   /**
@@ -465,6 +490,9 @@ describe('Empowered Spell throws the lowest damage dice again', () => {
     expect(dice.filter((die) => die.origin === 'reroll').length).toBe(3);
     const worst = Math.max(...given.map((die) => die.value));
     expect(Math.min(...kept.map((die) => die.value))).toBeGreaterThanOrEqual(worst);
+    // **And the damage is the faces that are left.** A reroll that swapped the
+    // dice and moved the total the wrong way would satisfy everything above.
+    addsUp(events);
     expect(points(state)).toBe(4);
   });
 
