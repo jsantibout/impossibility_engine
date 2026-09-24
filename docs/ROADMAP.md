@@ -2192,3 +2192,23 @@ Appended after wave seven's first spells track (2026-09-24):
   brief quoted the 2014 words. `docs/design/rolls-and-damage.md`'s "no member
   for D20 Tests" sentence is amended. Owed: `applyRiders`' docstring said
   "there is no success branch", now false — the coordinator corrects it.
+- **The Reactions section reaches the sheet, Shield answers both its
+  triggers, and the held-damage road is closed.** Ten more Reaction lines are
+  read: Parry's Armour Class (`addsToAc`, seven blocks), a response that is
+  another printed line (`usesLine`, the Rust Monster's Antennae — offered,
+  spent, the response handed over by name) and three named kinds filed
+  (Split, Redirect Attack, the Shrieker's noise as a handover).
+  `hit-by-attack` is a feature window now — `raise-ac` is Shield's arithmetic
+  with the span taken off, closing on the damage — and `take_attack_reaction`
+  is on both surfaces because whoever was hit answers. A seventh window,
+  `targeted-by-spell`, is Counterspell's hold answered from the other end;
+  Shield's second trigger is a **field** (`targetedBy`, a spell id a string
+  union could not carry) and the negation pins the spell read off the
+  triggering casting and turns that spell's damage aside **for the whole
+  span**, because the book puts both halves inside one duration — the brief
+  asked for a narrowing by casting id and the book does not narrow it, so
+  Shield leaves the partial list honestly. The gap the traits track found is
+  closed: `settleDamage` asks `siegeDoubling` and the printed type triggers at
+  the same two points the unheld road does, tested with a Bard in the room.
+  Owed: `docs/design/rolls-and-damage.md`'s "Reaction windows" paragraph
+  (the coordinator's), and a STATUS.md sentence. Main re-ingested.

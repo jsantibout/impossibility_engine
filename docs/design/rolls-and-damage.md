@@ -142,6 +142,23 @@ a window has takers; `reactionOpportunities(state, content)` lists who may
 answer and with what, and the hold settles when every taker has acted or
 declined. Spells and features share one `ReactionWindow` vocabulary.
 
+**Two more since, and one widened.** `hit-by-attack` is a *feature* window as
+well as a spell's: a stat block's Parry answers it with `raise-ac` — Shield's
+arithmetic with the span taken off, the hold closing on the damage — and the
+Rust Monster's Reflexive Antennae with `use-printed-line`, a Reaction whose
+response is another printed line, offered and spent with the response handed
+over by name; `take_attack_reaction` is on both surfaces because whoever was
+hit answers. The seventh window is `targeted-by-spell`: a casting declared and
+not yet resolved, Counterspell's hold answered from the other end by a target
+whose Reaction spell names the casting's spell (`SpellDefinition.targetedBy`,
+a field rather than a union member because a string union carries no spell
+id). Shield's second trigger is that window, and its negation pins the spell
+read off the triggering casting and turns that spell's damage aside for the
+whole span, because the book puts both halves inside one duration. A blow held
+open at any of these windows settles through `settleDamage`, which asks the
+same printed traits — Siege Monster's doubling, the damage-type triggers — at
+the same two points the unheld road does.
+
 A sixth window, `creature-falling`, and **the first opened by a declaration
 rather than by a resolution**. The other five are points in something the
 engine is in the middle of doing — an attack it rolled, damage it typed, a
@@ -163,6 +180,7 @@ the fall gets a tool that tool is **DM-only** — a model stating a height
 converts directly into 20d6; that tool is `resolve_fall`. A reduction comes off
 the landing's dice when the faller elects a feature by name — SRD Slow Fall is a
 `fall-damage-reduction` standing grant, read by `resolveFall`, which spends the
-Reaction where a fight is running — but no *window* opens on a fall:
-`FeatureReactionWindow` still excludes `creature-falling`, which is why Feather
-Fall, a spell cast in answer to somebody else's fall, does not work yet.
+Reaction where a fight is running. `FeatureReactionWindow` still excludes
+`creature-falling`, so no class feature answers a fall in the window; a spell
+does — Feather Fall's `fall-ward` is read above the dice, so a short landing
+still ends the spell.

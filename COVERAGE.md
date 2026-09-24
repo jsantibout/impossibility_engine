@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 171 (50.4%) | 162 (47.8%) | 45 | 122 (36.0%) |
+| 339 | 171 (50.4%) | 162 (47.8%) | 44 | 123 (36.3%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -169,7 +169,7 @@ a plain statement of what the table decides.
 - **Scorching Ray** (level 2) — verified
 - **Searing Smite** (level 1) — verified
 - **Shatter** (level 2) — verified
-- **Shield** (level 1) — untested, partial — a clause the engine owns is still unbuilt
+- **Shield** (level 1) — verified
 - **Shield of Faith** (level 1) — untested
 - **Shillelagh** (cantrip) — untested
 - **Shining Smite** (level 2) — verified, partial — a clause the engine owns is still unbuilt
@@ -491,7 +491,6 @@ of *Tracked* and is never added to it.
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-range-that-scales-with-caster-level` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
-| `a-reaction-window-that-opens-on-being-targeted` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-repeat-save-on-the-clock` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-rest-an-effect-gives-or-denies` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
@@ -950,7 +949,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 1005 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 1017 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1012,7 +1011,7 @@ fact the book wrote for a person.
 | Traits | 337 | 204 |
 | Actions | 812 | 766 |
 | Bonus actions | 75 | 34 |
-| Reactions | 24 | 1 |
+| Reactions | 24 | 13 |
 | Legendary actions | 82 | 0 |
 
 **What the rest would need, ranked by the blocks it would free.** Each
@@ -1036,9 +1035,10 @@ and a bite whose hit buys a save.
 | A legendary action’s own economy | 30 | 82 |
 | A save whose line says more than the engine spends | 19 | 19 |
 | A line that casts, read and not spent | 14 | 14 |
+| A trait shape nothing spends | 3 | 3 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
-| A trait shape nothing spends | 0 | 0 |
+| A Reaction whose printed response is handed over | 1 | 1 |
 
 **A printed line reaches the Attack action and nothing else.** An
 opportunity attack and a readied strike both name a weapon and have

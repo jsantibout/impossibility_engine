@@ -33,11 +33,11 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 83 spells | 48 | 0 | 35 |
+| Spells in reach, not executed | 82 spells | 47 | 0 | 35 |
 | Features manual, or a pool with nothing to buy | 2 features | 2 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 141 items | on 103 of 244 blocks | 0 | 141 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 134 items | on 97 of 244 blocks | 0 | 147 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -59,7 +59,6 @@ hold at all. An executed spell with nothing left is not here.
 | `movement-modes` | 3 | 1 |
 | `a-choice-made-at-the-casting` | 2 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
-| `a-reaction-window-that-opens-on-being-targeted` | 1 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 4 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
@@ -168,10 +167,6 @@ sums to the population.
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 
 - **Command** (level 1) — executed-partial
-
-#### `a-reaction-window-that-opens-on-being-targeted` — blocks 1, finishes 1
-
-- **Shield** (level 1) — executed-partial
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 4, finishes 0
 
@@ -510,9 +505,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 616 and hands over 122. Reading is not spending: a further 19 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 141 items over 244 blocks — 141 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 626 and hands over 112. Reading is not spending: a further 19 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 134 items over 244 blocks — 147 of which already carry none of them.
 
-**A third answer, counted apart from both:** 52 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 141 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 53 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 134 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -528,10 +523,11 @@ overlap: one sentence can force a save and recharge.
 | A line that casts, read and not spent | 7 | 7 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Doppelganger (CR 3) / Read Thoughts |
 | A save whose line says more than the engine spends | 5 | 5 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Gibbering Mouther (CR 2) / Gibbering; Steam Mephit (CR 0.25) / Steam Breath (Recharge 6) |
 | A recharge | 4 | 4 | Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6); Ghost (CR 4) / Possession (Recharge 6) |
+| A trait shape nothing spends | 3 | 3 | Black Pudding (CR 4) / Split; Goblin Boss (CR 1) / Redirect Attack; Ochre Jelly (CR 2) / Split |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
+| A Reaction whose printed response is handed over | 1 | 1 | Rust Monster (CR 0.5) / Reflexive Antennae |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |
 | A creature that casts | 0 | 0 | — |
-| A trait shape nothing spends | 0 | 0 | — |
 
 **Two of those rows are an effect nobody applies and an economy that is
 already correct.** A recharge and a per-day limit are parsed onto every
@@ -539,7 +535,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 101
+### Handed-over lines matching no enumerated shape — 91
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -554,10 +550,8 @@ of it off the ledger.
 
 - Air Elemental (CR 5) [trait] Air Form
 - Ankheg (CR 2) [trait] Tunneler
-- Bandit Captain (CR 2) [reaction] Parry
 - Black Pudding (CR 4) [trait] Amorphous
 - Black Pudding (CR 4) [trait] Corrosive Form
-- Black Pudding (CR 4) [reaction] Split
 - Bugbear Stalker (CR 3) [trait] Abduct
 - Bugbear Warrior (CR 1) [trait] Abduct
 - Bulette (CR 5) [bonus action] Leap
@@ -578,8 +572,6 @@ of it off the ledger.
 - Giant Seahorse (CR 0.5) [bonus action] Bubble Dash
 - Giant Spider (CR 1) [trait] Web Walker
 - Giant Toad (CR 1) [action] Swallow
-- Gladiator (CR 5) [reaction] Parry
-- Goblin Boss (CR 1) [reaction] Redirect Attack
 - Gray Ooze (CR 0.5) [trait] Amorphous
 - Gray Ooze (CR 0.5) [trait] Corrosive Form
 - Green Hag (CR 3) [trait] Coven Magic
@@ -587,7 +579,6 @@ of it off the ledger.
 - Imp (CR 1) [action] Invisibility
 - Imp (CR 1) [action] Shape-Shift
 - Incubus (CR 4) [trait] Succubus Form
-- Knight (CR 3) [reaction] Parry
 - Lamia (CR 4) [bonus action] Leap
 - Magmin (CR 0.5) [bonus action] Ignited Illumination
 - Mimic (CR 2) [trait] Adhesive (Object Form Only)
@@ -597,9 +588,7 @@ of it off the ledger.
 - Night Hag (CR 5) [trait] Soul Bag
 - Nightmare (CR 3) [trait] Confer Fire Resistance
 - Nightmare (CR 3) [action] Ethereal Stride
-- Noble (CR 0.125) [reaction] Parry
 - Ochre Jelly (CR 2) [trait] Amorphous
-- Ochre Jelly (CR 2) [reaction] Split
 - Octopus (CR 0) [trait] Compression
 - Phase Spider (CR 3) [bonus action] Ethereal Jaunt
 - Phase Spider (CR 3) [trait] Web Walker
@@ -608,13 +597,11 @@ of it off the ledger.
 - Roper (CR 5) [action] Reel
 - Roper (CR 5) [action] Tentacle
 - Rust Monster (CR 0.5) [action] Destroy Metal
-- Rust Monster (CR 0.5) [reaction] Reflexive Antennae
 - Sahuagin Warrior (CR 0.5) [bonus action] Aquatic Charge
 - Sea Hag (CR 2) [trait] Coven Magic
 - Sea Hag (CR 2) [action] Illusory Appearance
 - Seahorse (CR 0) [action] Bubble Dash
 - Shadow (CR 0.5) [trait] Amorphous
-- Shrieker Fungus (CR 0) [reaction] Shriek
 - Specter (CR 1) [trait] Incorporeal Movement
 - Spider (CR 0) [trait] Web Walker
 - Sprite (CR 0.25) [action] Invisibility
@@ -637,7 +624,6 @@ of it off the ledger.
 - Unicorn (CR 5) [legendary action] Shimmering Shield
 - Vampire Spawn (CR 5) [trait] Stake to the Heart
 - Vampire Spawn (CR 5) [trait] Sunlight
-- Warrior Veteran (CR 3) [reaction] Parry
 - Water Elemental (CR 5) [trait] Water Form
 - Werebear (CR 5) [bonus action] Shape-Shift
 - Wereboar (CR 4) [bonus action] Shape-Shift
