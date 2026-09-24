@@ -919,3 +919,139 @@ describe('Repelling Blast', () => {
     expect(shoves(blastAt(WITHOUT, {}, 'medium').events)).toHaveLength(0);
   });
 });
+
+// ─── the invocations a Warlock may take more than once ──────────────────────
+
+/**
+ * "You can't pick the same invocation more than once unless its description
+ * says otherwise." Four say otherwise, and each says the same second sentence:
+ * "Each time you do so, choose a different qualifying cantrip."
+ */
+describe('a Repeatable invocation', () => {
+  const TWICE = [
+    'Agonizing Blast',
+    'Agonizing Blast',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+  ];
+
+  it('is taken twice and names a different cantrip each time', () => {
+    expect(
+      codes(
+        warlock(TWICE, {
+          [`${FIEND}:agonizing-blast`]: ['eldritch-blast'],
+          [`${FIEND}:agonizing-blast#2`]: ['chill-touch'],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses the same cantrip twice', () => {
+    expect(
+      codes(
+        warlock(TWICE, {
+          [`${FIEND}:agonizing-blast`]: ['eldritch-blast'],
+          [`${FIEND}:agonizing-blast#2`]: ['eldritch-blast'],
+        }),
+      ),
+    ).toContain('repeat_names_the_same');
+  });
+
+  it('wants an answer for the second copy as well as the first', () => {
+    expect(
+      codes(warlock(TWICE, { [`${FIEND}:agonizing-blast`]: ['eldritch-blast'] })),
+    ).toContain('missing_feature_choice');
+  });
+
+  /** Both grants reach the sheet, so both cantrips carry the modifier. */
+  it('adds Charisma to each of the two cantrips it named', () => {
+    const log = table(
+      warlock(TWICE, {
+        [`${FIEND}:agonizing-blast`]: ['eldritch-blast'],
+        [`${FIEND}:agonizing-blast#2`]: ['poison-spray'],
+      }),
+    );
+    const without = table(
+      warlock(['Misty Visions', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor']),
+    );
+
+    const cast = (world: readonly GameEvent[], spellId: string, seed: string) =>
+      unwrap(
+        resolveSpell(fold('seed', world), WHO, { spellId, targets: [TARGET] }, supply(seed, 50)),
+        spellId,
+      );
+
+    // Two beams at level 5, so Eldritch Blast gains 2 × +2; Poison Spray is
+    // one roll and gains +2.
+    expect(dealt(cast(log, 'eldritch-blast', 'a').events) - dealt(cast(without, 'eldritch-blast', 'a').events)).toBe(4);
+    expect(dealt(cast(log, 'poison-spray', 'b').events) - dealt(cast(without, 'poison-spray', 'b').events)).toBe(2);
+  });
+
+  it('still refuses a second copy of an invocation whose description says nothing', () => {
+    expect(
+      codes(
+        warlock([
+          'Armor of Shadows',
+          'Armor of Shadows',
+          'Eldritch Mind',
+          "Devil's Sight",
+          'Fiendish Vigor',
+        ]),
+      ),
+    ).toContain('duplicate_option');
+  });
+
+  /** Lessons of the First Ones is the one whose repeat is a feat. */
+  it('grants a second Origin feat when Lessons of the First Ones is taken twice', () => {
+    const choices = warlock(
+      [
+        'Lessons of the First Ones',
+        'Lessons of the First Ones',
+        'Armor of Shadows',
+        'Eldritch Mind',
+        "Devil's Sight",
+      ],
+      {},
+      {
+        feats: {
+          ...base().feats,
+          // The Improvement takes the feat of its own name, so the two the
+          // SRD prints under Origin that nothing else here holds are free.
+          'warlock:ability-score-improvement': {
+            featId: 'ability-score-improvement',
+            abilities: ['cha', 'con'],
+          },
+          [`${FIEND}:lessons`]: { featId: 'skilled', proficiencies: ['athletics', 'acrobatics', 'stealth'] },
+          [`${FIEND}:lessons#2`]: { featId: 'savage-attacker' },
+        },
+      },
+    );
+    expect(codes(choices)).toEqual([]);
+    expect(plan(choices).feats.filter((one) => one.includes(`${FIEND}:lessons`))).toHaveLength(2);
+  });
+
+  it('refuses the same feat twice', () => {
+    expect(
+      codes(
+        warlock(
+          [
+            'Lessons of the First Ones',
+            'Lessons of the First Ones',
+            'Armor of Shadows',
+            'Eldritch Mind',
+            "Devil's Sight",
+          ],
+          {},
+          {
+            feats: {
+              ...base().feats,
+              [`${FIEND}:lessons`]: { featId: 'skilled', proficiencies: ['athletics', 'acrobatics', 'stealth'] },
+              [`${FIEND}:lessons#2`]: { featId: 'skilled', proficiencies: ['arcana', 'history', 'insight'] },
+            },
+          },
+        ),
+      ),
+    ).toContain('repeat_names_the_same');
+  });
+});

@@ -1039,6 +1039,19 @@ function choiceProblems(
         });
       }
 
+      // A licence to take an option twice is printed over an option the
+      // question offers, for the reason a Prerequisite is: a permission over
+      // an option nobody is offered would permit nothing.
+      for (const repeated of question.repeatable ?? []) {
+        if (!question.from.includes(repeated)) {
+          found.push({
+            field: `${at}.repeatable`,
+            code: 'repeatable_not_offered',
+            reason: `${feature.id} says ${repeated} may be taken more than once and offers ${question.from.join(', ')}, so the licence would permit nothing`,
+          });
+        }
+      }
+
       // A Prerequisite is printed over an option the question offers, and it
       // names another one: both halves are read against `from`, because a line
       // over an option nobody is offered is a rule nothing would ever apply.

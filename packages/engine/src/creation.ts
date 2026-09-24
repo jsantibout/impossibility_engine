@@ -80,6 +80,7 @@ import {
   rowAt,
   slotsAt,
   choiceAnswerKey,
+  repeatAnswerKey,
   featureChoicesOf,
   featureGrants,
   featureOfAnswerKey,
@@ -1199,6 +1200,85 @@ const askedOf = (
 };
 
 /**
+ * How many times this feature really asks this question of this character.
+ *
+ * One, for every question the book prints — **and one per copy** of the option
+ * it is gated on, where that option may be taken more than once: SRD's four
+ * Repeatable invocations each print "Each time you do so, choose a different
+ * qualifying cantrip", so a Warlock who took Agonizing Blast twice is asked
+ * twice. Zero means the gate was not met and the question was not asked at
+ * all, which is what {@link askedOf} already filters on.
+ *
+ * Read off the answer rather than off `repeatable`, which is deliberate: the
+ * licence says an option *may* be repeated and the primary answer says whether
+ * it *was*, and an option repeated without a licence is refused by
+ * `duplicate_option` rather than quietly asked twice here.
+ */
+const timesAsked = (
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+  question: FeatureChoice,
+): number => {
+  const gate = question.onlyIfChoice;
+  if (gate === undefined) return 1;
+  return (choices.featureChoices[feature.id] ?? []).filter((option) => option === gate).length;
+};
+
+/** Every key this question's answers are filed under, one per copy taken. */
+const answerKeysOf = (
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+  question: FeatureChoice,
+): readonly string[] =>
+  Array.from({ length: Math.max(1, timesAsked(choices, feature, question)) }, (_, repeat) =>
+    repeatAnswerKey(feature.id, question.key, repeat),
+  );
+
+/**
+ * Every answer filed under one question's key, first copy and repeats alike.
+ *
+ * What a *grant* reads, where {@link answerKeysOf} is what a *check* walks.
+ * The difference is that a grant holds an answer key and not the question it
+ * came from — `GrantGate.choiceFrom` names a key — so the copies are found by
+ * the suffix {@link repeatAnswerKey} writes rather than by counting the
+ * primary answer again. Sorted by key, so two cantrips reach the sheet in the
+ * order they were answered and a plan is the same plan twice.
+ */
+const answersAcrossCopies = (
+  choices: CharacterChoices,
+  answerKey: string,
+): readonly string[] => [
+  ...(choices.featureChoices[answerKey] ?? []),
+  ...Object.entries(choices.featureChoices)
+    .filter(([key]) => key.startsWith(`${answerKey}#`))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([, named]) => named),
+];
+
+/** One question this character was asked, and the one key this copy answers. */
+interface AskedCopy {
+  readonly question: FeatureChoice;
+  readonly answerKey: string;
+}
+
+/**
+ * Every question a feature asks this character, once per copy.
+ *
+ * {@link askedOf} says *which* questions were asked and this says *how many
+ * times*, which used to be the same thing and stopped being it the day an
+ * option could be taken twice. Every reader that files or reads an answer goes
+ * through here, because a reader that kept asking `choiceAnswerKey` would see
+ * the first copy and silently drop the rest.
+ */
+const askedWithKeys = (
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): readonly AskedCopy[] =>
+  askedOf(choices, feature).flatMap((question) =>
+    answerKeysOf(choices, feature, question).map((answerKey) => ({ question, answerKey })),
+  );
+
+/**
  * Answers to questions this character was never asked.
  *
  * Two shapes and one refusal, because they are one mistake: a key nothing on
@@ -1218,8 +1298,10 @@ function unaskedAnswers(
   feature: FeatureDefinition,
 ): CreationProblem[] {
   const asked = new Set([
-    ...askedOf(choices, feature).flatMap((question) =>
-      question.key === undefined ? [] : [question.key],
+    // Every copy's key, because a repeated question's second answer is filed
+    // under a key of its own and is no less asked for than the first.
+    ...askedWithKeys(choices, feature).flatMap(({ question, answerKey }) =>
+      question.key === undefined ? [] : [answerKey.slice(feature.id.length + 1)],
     ),
     // And the key a re-chosen `spells` grant files its replacement under, which
     // is a question nobody was asked at creation and an answer a rest may
@@ -1240,6 +1322,39 @@ function unaskedAnswers(
     problems.push(
       problem('choice_not_asked', 'featureChoices', `${feature.name} did not ask this character for ${named}, and ${answer.join(', ')} answers it`),
     );
+  }
+  return problems;
+}
+
+/**
+ * A repeated question answered with the same thing twice.
+ *
+ * SRD prints the licence and its price in one breath — "You can gain this
+ * invocation more than once. **Each time you do so, choose a different
+ * qualifying cantrip**" — and the second sentence is the whole reason the
+ * first is worth anything: two copies of Agonizing Blast on one cantrip would
+ * be an invocation spent on what its holder already had.
+ *
+ * Both records are read, because a repeated question is answered in whichever
+ * one its kind is filed in: a cantrip in `featureChoices`, a feat in `feats`.
+ */
+function repeatsNameTheSame(
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  for (const question of askedOf(choices, feature)) {
+    const keys = answerKeysOf(choices, feature, question);
+    if (keys.length < 2) continue;
+    const named = keys.flatMap((key) => [
+      ...(choices.featureChoices[key] ?? []),
+      ...(choices.feats[key] === undefined ? [] : [choices.feats[key]!.featId]),
+    ]);
+    for (const again of duplicates(named)) {
+      problems.push(
+        problem('repeat_names_the_same', 'featureChoices', `${feature.name} was taken more than once, and each copy chooses a different one: ${again} was chosen twice`),
+      );
+    }
   }
   return problems;
 }
@@ -1319,12 +1434,14 @@ function checkFeatureChoices(
     // they have something; the same refusal covers both, because both are an
     // answer with no question.
     problems.push(...unaskedAnswers(choices, feature));
+    // And a repeat that named what its first copy already named, which the
+    // licence to repeat prints in the same breath as the licence itself.
+    problems.push(...repeatsNameTheSame(choices, feature));
 
-    for (const asked of askedOf(choices, feature)) {
+    for (const { question: asked, answerKey } of askedWithKeys(choices, feature)) {
       // Subclasses are resolved in `resolveParts`, and feats in `checkFeats`,
       // because both need more than a list of picked names.
       if (asked.kind === 'subclass' || asked.kind === 'feat') continue;
-      const answerKey = choiceAnswerKey(feature.id, asked.key);
 
       // Ability points are answered one ability per point and may be answered
       // with a feat instead, so neither the length rule below nor the "one
@@ -1392,7 +1509,12 @@ function checkFeatureChoices(
             );
           }
         }
+        // SRD: "You can't pick the same invocation more than once **unless its
+        // description says otherwise**." The licence is printed per option, so
+        // a second copy of one that carries it is legal and a second copy of
+        // anything else is the refusal this always was.
         for (const picked of duplicates(made)) {
+          if ((asked.repeatable ?? []).includes(picked)) continue;
           problems.push(
             problem('duplicate_option', 'featureChoices', `${feature.name} takes ${picked} once`),
           );
@@ -2108,9 +2230,9 @@ function checkFeatureSpellChoices(
 
   for (const caster of casters) {
     for (const feature of castingFeaturesOf(content, choices, caster)) {
-      for (const asked of askedOf(choices, feature)) {
+      for (const { question: asked, answerKey } of askedWithKeys(choices, feature)) {
         if (asked.kind !== 'spell' || grantOf(feature, 'spells') === null) continue;
-        const picked = choices.featureChoices[choiceAnswerKey(feature.id, asked.key)];
+        const picked = choices.featureChoices[answerKey];
         if (picked === undefined) continue;
         const field = caster.at('featureChoices');
 
@@ -2195,8 +2317,8 @@ function unaskedFeats(
 ): CreationProblem[] {
   const asked = new Set<string>();
   for (const feature of features) {
-    for (const question of askedOf(choices, feature)) {
-      if (question.kind === 'feat') asked.add(choiceAnswerKey(feature.id, question.key));
+    for (const { question, answerKey } of askedWithKeys(choices, feature)) {
+      if (question.kind === 'feat') asked.add(answerKey);
     }
   }
   const problems: CreationProblem[] = [];
@@ -2239,51 +2361,59 @@ function checkFeats(
     const asking = askedOf(choices, feature).filter((one) => one.kind === 'feat');
     const choice = asking[0];
     const asksForOne = choice !== undefined;
-    const answerKey = choiceAnswerKey(feature.id, choice?.key);
-    const made = choices.feats[answerKey];
     if (fixed === undefined && !asksForOne) continue;
 
-    if (made === undefined) {
-      problems.push(
-        problem('missing_feat_choice', 'feats', `${answerKey} (${feature.name}) grants a feat, and none was chosen`),
-      );
-      continue;
-    }
+    // **And once per copy of the option that asks it.** SRD Lessons of the
+    // First Ones is Repeatable, so a Warlock who took it twice holds two
+    // Origin feats, each answered under its own key and each held to the
+    // feature's own terms on its own.
+    for (const answerKey of choice === undefined
+      ? [choiceAnswerKey(feature.id, undefined)]
+      : answerKeysOf(choices, feature, choice)) {
+      const made = choices.feats[answerKey];
 
-    const definition = content.featById(made.featId);
-    if (definition === null) {
-      problems.push(problem('unknown_feat', 'feats', `no Origin feat with the id ${made.featId}`));
-      continue;
-    }
-    if (fixed !== undefined && made.featId !== fixed.featId) {
-      problems.push(
-        problem('wrong_feat', 'feats', `${feature.name} grants ${fixed.featId}, not ${made.featId}`),
-      );
-      continue;
-    }
-    // The category the feature's own sentence names: "an Epic Boon feat",
-    // and SRD Lessons of the First Ones' "one Origin feat of your choice".
-    const category = choice?.kind === 'feat' ? choice.category : undefined;
-    if (category !== undefined && definition.category !== category) {
-      problems.push(
-        problem('wrong_feat_category', 'feats', `${feature.name} grants a ${category} feat; ${definition.name} is ${definition.category}`),
-      );
-      continue;
-    }
+      if (made === undefined) {
+        problems.push(
+          problem('missing_feat_choice', 'feats', `${answerKey} (${feature.name}) grants a feat, and none was chosen`),
+        );
+        continue;
+      }
 
-    // SRD prints the bracket on the feat — "Prerequisite: Level 4+" — so it
-    // is asked of whoever took it rather than of the feature that offered
-    // one, and it is the *character's* level, which is what the bracket
-    // means for a multiclassed character too.
-    if (definition.minimumLevel !== undefined && level < definition.minimumLevel) {
-      problems.push(
-        problem('feat_level_too_low', 'feats', `${definition.name} is a level ${definition.minimumLevel}+ feat and this character is level ${level}`),
-      );
-      continue;
-    }
+      const definition = content.featById(made.featId);
+      if (definition === null) {
+        problems.push(problem('unknown_feat', 'feats', `no Origin feat with the id ${made.featId}`));
+        continue;
+      }
+      if (fixed !== undefined && made.featId !== fixed.featId) {
+        problems.push(
+          problem('wrong_feat', 'feats', `${feature.name} grants ${fixed.featId}, not ${made.featId}`),
+        );
+        continue;
+      }
+      // The category the feature's own sentence names: "an Epic Boon feat",
+      // and SRD Lessons of the First Ones' "one Origin feat of your choice".
+      const category = choice?.kind === 'feat' ? choice.category : undefined;
+      if (category !== undefined && definition.category !== category) {
+        problems.push(
+          problem('wrong_feat_category', 'feats', `${feature.name} grants a ${category} feat; ${definition.name} is ${definition.category}`),
+        );
+        continue;
+      }
 
-    taken.push({ feature: answerKey, feat: definition, choice: made });
-    problems.push(...checkFeatChoice(content, answerKey, definition, made, fixed?.spellList));
+      // SRD prints the bracket on the feat — "Prerequisite: Level 4+" — so it
+      // is asked of whoever took it rather than of the feature that offered
+      // one, and it is the *character's* level, which is what the bracket
+      // means for a multiclassed character too.
+      if (definition.minimumLevel !== undefined && level < definition.minimumLevel) {
+        problems.push(
+          problem('feat_level_too_low', 'feats', `${definition.name} is a level ${definition.minimumLevel}+ feat and this character is level ${level}`),
+        );
+        continue;
+      }
+
+      taken.push({ feature: answerKey, feat: definition, choice: made });
+      problems.push(...checkFeatChoice(content, answerKey, definition, made, fixed?.spellList));
+    }
   }
 
   // SRD Magic Initiate: "you must choose a different spell list each time."
@@ -3007,9 +3137,9 @@ function gatherProficiencies(
   // to refuse.
   for (const feature of grantedFeatures(content, choices, parts)) {
     if (grantOf(feature, 'expertise') !== null) continue;
-    for (const asked of askedOf(choices, feature)) {
+    for (const { question: asked, answerKey } of askedWithKeys(choices, feature)) {
       if (asked.kind !== 'skill') continue;
-      for (const skill of choices.featureChoices[choiceAnswerKey(feature.id, asked.key)] ?? []) {
+      for (const skill of choices.featureChoices[answerKey] ?? []) {
         add(skill, feature.name, 'featureChoices');
       }
     }
@@ -3272,6 +3402,13 @@ export function planCharacter(
       // Spear's feet on its range, and Repelling Blast's shove on its hit.
       // Every one of them narrows a `when` of the same shape, which is what
       // makes this one branch rather than three.
+      //
+      // **And one narrowing per spell named.** SRD's four Repeatable
+      // invocations each say "choose a different qualifying cantrip" every
+      // time they are taken, so a Warlock holding Agonizing Blast twice holds
+      // two grants of one shape, each standing on its own cantrip — which is
+      // what makes the answer a list rather than a first entry.
+      let narrowings: readonly string[] | null = null;
       if (grant.spellFromChoice === true) {
         if (
           effect.kind !== 'casting-damage' &&
@@ -3280,10 +3417,8 @@ export function planCharacter(
         ) {
           continue;
         }
-        const named = choices.featureChoices[grant.choiceFrom ?? feature.id] ?? [];
-        const spell = named[0];
-        if (spell === undefined) continue;
-        effect = { ...effect, when: { ...effect.when, spell } };
+        narrowings = answersAcrossCopies(choices, grant.choiceFrom ?? feature.id);
+        if (narrowings.length === 0) continue;
       }
 
       // SRD Eldritch Spear: "30 times your Warlock level" — the granting
@@ -3315,13 +3450,27 @@ export function planCharacter(
         effect = { ...effect, classLevel: classLevelFor(choices, feature.id) };
       }
 
-      standing.push({
-        feature: feature.id,
-        name: feature.name,
-        reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: auraFeet },
-        grant: effect,
-        ...(grant.requires === undefined ? {} : { requires: grant.requires }),
-      });
+      const settled = effect;
+      const copies: readonly StandingGrant[] =
+        narrowings === null
+          ? [settled]
+          : narrowings.map((spell) =>
+              settled.kind === 'casting-damage' ||
+              settled.kind === 'casting-range' ||
+              settled.kind === 'casting-rider'
+                ? { ...settled, when: { ...settled.when, spell } }
+                : settled,
+            );
+
+      for (const one of copies) {
+        standing.push({
+          feature: feature.id,
+          name: feature.name,
+          reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: auraFeet },
+          grant: one,
+          ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+        });
+      }
     }
   }
 

@@ -151,6 +151,17 @@ export const WARLOCK: ClassDefinition = {
             'Pact of the Tome',
             'Repelling Blast',
           ],
+          // "You can't pick the same invocation more than once unless its
+          // description says otherwise." Four descriptions say otherwise, each
+          // in the same words: "You can gain this invocation more than once.
+          // Each time you do so, choose a different qualifying cantrip" — or,
+          // for Lessons of the First Ones, a different feat.
+          repeatable: [
+            'Agonizing Blast',
+            'Eldritch Spear',
+            'Lessons of the First Ones',
+            'Repelling Blast',
+          ],
           // "If an invocation has a prerequisite, you must meet it to learn
           // that invocation." Every line the SRD prints over an offered
           // invocation, and no line it does not.

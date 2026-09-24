@@ -794,6 +794,36 @@ describe('rule 8b — a feature may ask more than one question', () => {
       ).toContain('prerequisite_not_offered');
     });
 
+    /**
+     * "You can't pick the same invocation more than once unless its
+     * description says otherwise." A licence over an option nobody is offered
+     * permits nothing, which is the prerequisite line's rule one field along.
+     */
+    it('refuses a repeat licence over an option the question does not offer', () => {
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            repeatable: ['Three'],
+          },
+        }),
+      ).toContain('repeatable_not_offered');
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            repeatable: ['One'],
+          },
+        }),
+      ).not.toContain('repeatable_not_offered');
+    });
+
     it('refuses a prerequisite that demands nothing', () => {
       expect(
         codes({
