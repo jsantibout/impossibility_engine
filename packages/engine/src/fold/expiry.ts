@@ -257,8 +257,16 @@ export function expireEffects(state: GameState): GameState {
  *
  * **Read off the source, which is where every hold's lifetime is read.**
  * `holdStillStands` finds a grapple by `grapple:<who>` and an attach by
- * `attach:<who>`; `held-by:<object>` is the third of the same family, so the
- * web needed no field on the instance, no migration and no new event.
+ * `attach:<who>`; `held-by:<object>` is the third spelling of the same idea,
+ * so the web needed no field on the instance, no migration and no new event.
+ *
+ * **It is read here and nowhere else**, which is the difference between it and
+ * the other two rather than an oversight: those two are lifetimes a *payout*
+ * may also hang on, and `holdStillStands` asks about them at every turn
+ * boundary. No printed line files a payout under a web — the sentence says
+ * what the web holds and never what it costs — so there is one reader, and a
+ * homebrew line that wrote one would want that function widened in the same
+ * commit rather than a debt nothing could ever settle.
  *
  * **Gone counts as destroyed**, which is the one case that is not the book's:
  * an object a DM removed from the game is a web that is not there, and a

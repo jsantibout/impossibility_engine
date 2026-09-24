@@ -2299,7 +2299,17 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
  */
 export const MonsterTraitSchema = MonsterTraitMechanicSchema.and(
   z.object({
-    /** The sentences under this heading the reader carried and did not read. */
+    /**
+     * The clauses under this heading the reader carried and did not read.
+     *
+     * **In the book's own words, with its punctuation made whole.** Where a
+     * heading joins two facts with "and", each is given back the full stop
+     * that joiner stood in for — SRD Swarm's "the swarm can move through any
+     * opening large enough for a Tiny rat." keeps the book's lower case,
+     * because changing a word is what a verbatim channel exists to prevent and
+     * a fragment with no full stop is one a table cannot read out. That is
+     * `readPrintedRiders`' own rule for a clause it splits, applied here.
+     */
     handedOver: z.array(z.string().min(1)).min(1).optional(),
   }),
 );
