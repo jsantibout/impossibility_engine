@@ -8,6 +8,7 @@ import {
   createRollIssuer,
   equipItem,
   fold,
+  planCharacter,
   resolveAttack,
   type CharacterChoices,
   type CharacterSheet,
@@ -421,4 +422,76 @@ describe('the last one to stop being a note', () => {
     expect(two?.note).toContain('Applied');
     expect(two?.note).not.toContain('does not model which hand');
   });
+});
+
+/**
+ * **And the three features that ask the question.**
+ *
+ * A Fighting Style feature is a *question*: SRD prints "You gain a Fighting
+ * Style feat of your choice" over a category, and the whole of what the
+ * feature itself does is record which feat was taken and refuse one from
+ * another category. What the style *does* is the feat's own declaration —
+ * which is why the three notes point at `FIGHTING_STYLE_FEATS` rather than
+ * restating four sentences in three places and drifting apart, as they had:
+ * two of them still said "the other two of the four are still a note" a full
+ * batch after Defense and Two-Weapon Fighting were built.
+ *
+ * The condition for calling the feature executed, stated so it can fail:
+ * **every** feat the category offers must carry a grant a reader executes.
+ * One that did not would make the feature half-applied, and a half-applied
+ * feature declares `manual` — `barbarian:persistent-rage` is the standing
+ * reading of that.
+ */
+describe('the feature is the question, and the feat is what executes', () => {
+  const ASKING = [
+    ['fighter', 'fighter:fighting-style'],
+    ['paladin', 'paladin:fighting-style'],
+    ['ranger', 'ranger:fighting-style'],
+  ] as const;
+
+  const featureOf = (classId: string, featureId: string) =>
+    SRD_CONTENT.classById(classId)?.features.find((one) => one.id === featureId);
+
+  it('has every feat the category offers carrying a grant that executes', () => {
+    const offered = SRD_CONTENT.feats.filter((feat) => feat.category === 'fighting-style');
+    expect(offered.map((feat) => feat.id).sort()).toEqual([
+      'archery',
+      'defense',
+      'great-weapon-fighting',
+      'two-weapon-fighting',
+    ]);
+    for (const feat of offered) {
+      const grant = feat.grants;
+      expect(grant?.kind, feat.id).toBe('standing');
+      if (grant?.kind !== 'standing') throw new Error('unreachable');
+      expect((grant.effects ?? []).length, feat.id).toBeGreaterThan(0);
+      expect(feat.note, feat.id).toContain('Applied');
+    }
+  });
+
+  it.each(ASKING)('declares %s’s Fighting Style executed', (classId, featureId) => {
+    const feature = featureOf(classId, featureId);
+    expect(feature?.automation).toBe('engine');
+    expect(feature?.choice).toEqual({ kind: 'feat', choose: 1, category: 'fighting-style' });
+    // The note says what the *feature* does and points at the feats rather
+    // than restating them: the drift it is written against was three copies
+    // of one sentence, two of them stale.
+    expect(feature?.note).toContain('FIGHTING_STYLE_FEATS');
+    expect(feature?.note).not.toContain('still a note');
+  });
+
+  /**
+   * And the path really runs: a feat taken on the feature is compiled onto
+   * the sheet under the feat's own id, which is what `standingFromFeats`
+   * exists to do. Driven over all four, so a fifth style that declared a
+   * grant no reader compiled would fail here rather than at the swing.
+   */
+  it.each(['archery', 'defense', 'great-weapon-fighting', 'two-weapon-fighting'])(
+    'compiles %s onto the sheet under its own id',
+    (featId) => {
+      const planned = unwrap(planCharacter(SRD_CONTENT, choices(featId)), 'plan');
+      const mine = (planned.sheet.standing ?? []).filter((one) => one.feature === featId);
+      expect(mine.length).toBeGreaterThan(0);
+    },
+  );
 });

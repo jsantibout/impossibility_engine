@@ -219,7 +219,14 @@ describe('the Druid', () => {
     // Five grants: the question the rest re-asks, and one spell list per land.
     expect(featureGrants(spells)).toHaveLength(5);
     expect(featureGrants(spells)[0]?.kind).toBe('rechosen-on-a-rest');
-    expect(classCasting(plan(druid()).spellcasting, 'druid')?.prepared).toHaveLength(6);
+    // Six the class table counts, and Druidic's Speak with Animals over and
+    // above them — "you always have the _Speak with Animals_ spell prepared",
+    // which is what a fixed `spells` grant means and is not measured by the
+    // column.
+    expect(classCasting(plan(druid()).spellcasting, 'druid')?.prepared).toHaveLength(7);
+    expect(classCasting(plan(druid()).spellcasting, 'druid')?.prepared).toContain(
+      'speak-with-animals',
+    );
 
     const arid = plan(
       druid({

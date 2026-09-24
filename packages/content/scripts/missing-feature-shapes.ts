@@ -411,13 +411,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
    * Shape column and refilled by both rests — and the feature is *becoming a
    * Beast*, which nothing does.
    */
-  'druid:druidic': [
-    {
-      clause: 'recorded as a proficiency and read by nobody',
-      why: 'table',
-      note: 'a language and the messages it hides are narration; there is no rule here for the engine to own.',
-    },
-  ],
+  // `druid:druidic` stood here and left the population by being read: the
+  // language is on the sheet through a `language` grant and Speak with Animals
+  // through a fixed `spells` grant, which is the whole of what the paragraph
+  // says the engine owns. The hidden messages and the DC 15 check are the
+  // table's, which is a handover rather than a debt.
   'druid:beast-spells': [
     {
       clause: 'Casting while Wild Shaped is not modelled, because Wild Shape is not',
@@ -444,13 +442,10 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Fighter —
-  'fighter:fighting-style': [
-    {
-      clause: 'Defense is the one left',
-      why: 'table',
-      note: 'three of the four feats are executed now and the fourth is its own feat’s debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
-    },
-  ],
+  // `fighter:fighting-style` stood here, and left the population by being
+  // read: all four Fighting Style feats carry a grant that executes, so the
+  // feature — which only ever recorded and validated the choice — declares
+  // `engine`. Its siblings on the Paladin and the Ranger left with it.
   'fighter:studied-attacks': [
     {
       clause: 'Advantage on the next attack after a miss is not tracked between attacks',
@@ -569,13 +564,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Paladin —
-  'paladin:fighting-style': [
-    {
-      clause: 'The other two of the four are still a note rather than a grant',
-      why: 'table',
-      note: 'the two unbuilt feats’ own debt, exactly as the Fighter’s Fighting Style is.',
-    },
-  ],
+  // `paladin:fighting-style` left with the Fighter's — see the note there.
   'paladin:abjure-foes': [
     {
       clause: 'succeed on a Wisdom saving throw',
@@ -624,13 +613,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Ranger —
-  'ranger:fighting-style': [
-    {
-      clause: 'The other two of the four are still a note rather than a grant',
-      why: 'table',
-      note: 'the two unbuilt feats’ own debt, exactly as the Fighter’s Fighting Style is.',
-    },
-  ],
+  // `ranger:fighting-style` left with the Fighter's — see the note there.
   'ranger:tireless': [
     {
       clause: 'Temporary Hit Points as a Magic action',
@@ -669,13 +652,10 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'recorded because the note used to claim otherwise: Hunter’s Mark is executed and the rider fires only at its target.',
     },
   ],
-  'hunter:hunters-lore': [
-    {
-      clause: 'narration the engine could answer but is not asked',
-      why: 'table',
-      note: 'knowledge rather than a rule, and the one entry in this map whose feature is finished business.',
-    },
-  ],
+  // `hunter:hunters-lore` stood here and said, in this file's own words,
+  // "narration the engine could answer but is not asked". It is asked now: a
+  // `knowledge` grant, `knownDefencesOf` deriving the answer on every read and
+  // the player's `look` publishing it. The line went with the conversion.
   'human:resourceful': [
     {
       clause: 'the reroll of a roll that succeeded',
@@ -721,13 +701,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Rogue —
-  'rogue:thieves-cant': [
-    {
-      clause: 'A language with no mechanics attached',
-      why: 'table',
-      note: 'narration, like Druidic: a language the sheet records and no rule reads.',
-    },
-  ],
+  // `rogue:thieves-cant` left with Druidic: the Cant is a `language` grant and
+  // the "one other language of your choice" beside it is a `language`
+  // question, held to the catalogue and to the word *other*.
   'rogue:reliable-talent': [
     {
       clause: 'the dice layer substitutes values on damage dice, not on a D20 Test',

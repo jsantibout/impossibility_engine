@@ -174,6 +174,29 @@ export type FeatureQuestion =
   | { readonly kind: 'subclass'; readonly choose: 1 }
   | { readonly kind: 'feat'; readonly choose: number; readonly category?: string }
   /**
+   * A language the feature lets the player pick.
+   *
+   * SRD Thieves' Cant: "You know Thieves' Cant **and one other language of
+   * your choice, which you choose from the language tables**." The first half
+   * is a `language` grant; this is the second.
+   *
+   * **The whole catalogue, and the SRD says so in as many words.** A
+   * character's two creation choices come from the *Standard* Languages table
+   * — which is what `LanguageDefinition.availability` narrows — and this
+   * sentence names the language **tables**, plural, with the Rare table's own
+   * line printed over it: "Some features let a character learn a rare
+   * language." So a feature's question offers what the world holds, and the
+   * narrowing that belongs to Step 2 of creation stays there.
+   *
+   * **"One *other* language" is a rule about the answer**, checked against
+   * every language the character already knows — the free ones, the two they
+   * chose, and the ones a feature granted, this one included. It refuses
+   * `duplicate_language`, which is the code creation already gives a language
+   * named twice, because knowing a tongue twice is the same nothing either
+   * way.
+   */
+  | { readonly kind: 'language'; readonly choose: number }
+  /**
    * Points of ability score, spread the way the sentence that grants them
    * spreads them.
    *
@@ -1621,6 +1644,57 @@ export type FeatureGrant =
       readonly flatByLevel?: readonly number[];
     }
   /**
+   * A fact the holder simply **knows** about one other creature.
+   *
+   * SRD Hunter's Lore: "While a creature is marked by your _Hunter's Mark_,
+   * you know whether that creature has any Immunities, Resistances, or
+   * Vulnerabilities, and if so, what they are."
+   *
+   * **No action is spent and no event is written.** Every other grant here
+   * either changes a number a rule reads or buys a use; this changes nothing
+   * at all. The ranger knows, and the only thing that can go wrong is a door
+   * not saying so — which is the same shape `detects` is in and the reason
+   * the ruling that admitted `detects` admits this: the engine may hold a
+   * fact only the table reads when the fact is derived from state and a door
+   * publishes it. `knownDefencesOf` in `knowledge.ts` is the derivation and
+   * the player door's `look` is the door.
+   *
+   * **Not `detects`, one member up**, though the two answer for the same
+   * ruling. `detects` is an *action*: it is a field on `activated`, it is
+   * switched on by spending something, it runs for a printed span and it
+   * searches a **radius** for creatures of named types. This is standing
+   * knowledge about **one** creature, true at any distance and for as long as
+   * the mark is, with nothing to switch on and nothing to end. Writing it as
+   * a `detects` with an infinite radius would be a use nobody spends wearing
+   * an activation's name.
+   *
+   * **And not a `standing` grant**, though the lifetime is right: a standing
+   * grant's members each change what some rule computes — a bonus, a mode, a
+   * defence — and are gathered by the readers of those rules. Nothing about a
+   * knower's own numbers moves here.
+   */
+  | {
+      readonly kind: 'knowledge';
+      /**
+       * What the holder is told. One member, named for its sentence: SRD's
+       * "any Immunities, Resistances, or Vulnerabilities" is the damage table
+       * and the condition immunities beside it, which is the run a stat block
+       * prints under one heading.
+       */
+      readonly reveals: 'defenses';
+      /**
+       * Which creature the sentence is about.
+       *
+       * One member, and it is a **mechanical** relation rather than a spell's
+       * name: SRD's "marked by your Hunter's Mark" is, to the engine, a
+       * running casting of this creature's whose `attack-rider` effect named
+       * a target. Any definition writing `marksTarget` marks a creature, so a
+       * homebrew spell that says the same sentence is read by the same rule
+       * and no spell id reaches the engine.
+       */
+      readonly about: 'a-creature-your-casting-marks';
+    }
+  /**
    * A feature that **makes a thing with statistics of its own** — SRD Gnomish
    * Lineage's clockwork device.
    *
@@ -1819,6 +1893,43 @@ export type FeatureGrant =
    * written by hand, because that is how the two features read.
    */
   | { readonly kind: 'save-proficiency'; readonly abilities: readonly Ability[] | 'all' }
+  /**
+   * Languages the feature puts on the sheet without asking.
+   *
+   * SRD Druidic: "You know Druidic, the secret language of Druids." SRD
+   * Thieves' Cant: "You know Thieves' Cant **and** one other language of your
+   * choice" — the first half, the half nobody chooses.
+   *
+   * **A grant rather than a proficiency, and the reason is the sheet.** A
+   * character's languages were, until this member, exactly the ones
+   * `CharacterChoices.languages` named plus whatever the world gives
+   * everybody: there was no way at all for a *feature* to put one there, so
+   * the two class features that print the sentence recorded it in a note and
+   * the sheet said nothing. `languagesKnown` in `creation.ts` reads this
+   * beside the chosen ones.
+   *
+   * **The name and not an id**, which is what every other language in the
+   * engine is keyed by: `Content.languageNamed` is the lookup, because the
+   * name is what a choice carries and what a stored sheet already holds.
+   * `checkContent` refuses a name this catalogue does not hold, exactly as it
+   * refuses a fixed spell grant naming nothing.
+   *
+   * **The chosen half is a question, not this.** SRD Thieves' Cant's "one
+   * other language of your choice" is a `FeatureQuestion` of kind `language`
+   * one union up, answered under the feature's own key and held to the
+   * catalogue there — the same division `spells` already draws between its
+   * `fixed` list and the `spell` question beside it.
+   *
+   * **`known` and not `fixed`**, which is the one place this member parts
+   * from `spells`' spelling on purpose. `spell-schema.test.ts`'s sweep reads
+   * every `fixed: [...]` a class file writes and holds the ids inside it to
+   * the allowance for a spell id; a second population sharing the field name
+   * would arrive there as a spell the catalogue does not define, and widening
+   * that sweep to let a capitalised name through would weaken the guard it
+   * exists to be. SRD's own verb is the better word anyway: "You **know**
+   * Druidic."
+   */
+  | { readonly kind: 'language'; readonly known: readonly string[] }
   /**
    * SRD Divine Order (Protector): "you gain proficiency with Martial weapons
    * and training with Heavy armor"; Primal Order (Warden) prints the same

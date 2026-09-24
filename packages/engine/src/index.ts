@@ -72,6 +72,11 @@ export {
   type DetectedCreature,
   type RunningAwareness,
 } from './standing.js';
+// SRD Hunter's Lore — the other fact the engine holds that only the table
+// reads, and exported for the reason `detectedBy` is: it is derived on every
+// read, so a door publishing it can never show a ranger what a lapsed mark
+// used to tell them.
+export { knownDefencesAmong, knownDefencesOf, type KnownDefences } from './knowledge.js';
 // The scores as they stand, and the sheet a reader should be handed. Exported
 // for the third time for the same reason: an item that *sets* a score means
 // `creature.sheet.abilities` is the score the character had rather than the

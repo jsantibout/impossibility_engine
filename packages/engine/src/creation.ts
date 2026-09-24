@@ -38,6 +38,7 @@ import type {
   HealingTouch,
   CastingOption,
   HitOption,
+  KnownFact,
   ObjectMaker,
   PoolOption,
   RecoveryFeature,
@@ -1128,6 +1129,46 @@ function unclaimedMasteries(
 }
 
 /**
+ * Languages a feature offers and nobody has picked.
+ *
+ * **A warning rather than a problem, and for the reason this file has written
+ * down twice already.** SRD Thieves' Cant really does say the Rogue knows one
+ * other language, so an unanswered question is an incomplete sheet rather
+ * than a legal state the way an unnamed weapon mastery is — but *every*
+ * character written against this engine before the question existed omits it,
+ * and "requiring the Weapon Mastery choice broke a corpus that spanned
+ * worktrees" is the precedent, recorded in {@link sizeFor}'s own note along
+ * with what it cost. Refusing here would refuse every Rogue in the repository
+ * and every Rogue on a branch beside it, which is a **migration of the
+ * character corpus** and wants deciding as one.
+ *
+ * So the plan says it: the Cant itself is granted either way, the other
+ * language arrives when somebody names it, and nobody is left guessing why a
+ * level 1 feature looks half-applied. Unlike a weapon mastery there is
+ * nothing sensible to pin in its place — there is no "first" language the way
+ * there is a first printed size — so the sheet is simply short one tongue
+ * until the answer comes.
+ */
+function unclaimedLanguages(
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): CreationProblem[] {
+  const warnings: CreationProblem[] = [];
+  for (const feature of features) {
+    for (const asked of askedOf(choices, feature)) {
+      if (asked.kind !== 'language') continue;
+      const named = (choices.featureChoices[choiceAnswerKey(feature.id, asked.key)] ?? []).length;
+      if (named < asked.choose) {
+        warnings.push(
+          problem('unclaimed_languages', 'featureChoices', `${feature.name} lets this character learn ${asked.choose} more language(s), and ${named} were named; the sheet is short until somebody picks`),
+        );
+      }
+    }
+  }
+  return warnings;
+}
+
+/**
  * The spellcasting ability a trait that grants spells asked the player for.
  *
  * SRD Fiendish Legacy prints the question once and two traits read the answer,
@@ -1371,10 +1412,27 @@ function checkFeatureChoices(
         continue;
       }
 
+      // **A language a feature offers is a ceiling rather than a quota**, on
+      // the Weapon Mastery reading one paragraph up and for the corpus reason
+      // {@link unclaimedLanguages} states: naming fewer is reported as a
+      // warning through the plan, and naming *more* is an answer the rules do
+      // not permit and is refused here.
+      if (asked.kind === 'language') {
+        if ((made ?? []).length > asked.choose) {
+          problems.push(
+            problem('too_many_languages', 'featureChoices', `${feature.id} (${feature.name}) teaches ${asked.choose} language(s), and ${(made ?? []).length} were named`),
+          );
+          continue;
+        }
+        if (made === undefined) continue;
+      }
+
       const wanted =
         asked.kind === 'weapon'
           ? (made ?? []).length
-          : asked.kind === 'option'
+          : asked.kind === 'language'
+            ? (made ?? []).length
+            : asked.kind === 'option'
             ? optionsAsked(asked, choices, feature)
             : asked.choose;
       if (made === undefined || made.length !== wanted) {
@@ -1434,6 +1492,54 @@ function checkFeatureChoices(
               problem('weapon_not_mastered', 'featureChoices', `${feature.name} needs proficiency with a ${weapon.name} first`),
             );
           }
+        }
+        continue;
+      }
+
+      /**
+       * SRD Thieves' Cant: "one **other** language of your choice, which you
+       * choose from the language tables."
+       *
+       * Two rules, and the second is the word "other". The first is
+       * membership — a language this world does not hold is a tongue nobody
+       * speaks, refused with the same code and the same sentence creation
+       * gives one named at Step 2, because it is the same mistake. A world
+       * that names no language at all makes no claim, exactly as it makes
+       * none there.
+       *
+       * The second is against every language the character already knows:
+       * the free ones, the two they chose, the ones a feature granted — this
+       * feature's own Thieves' Cant included — and the ones another
+       * feature's question was answered with. `elsewhere` is that set built
+       * *without* this answer, so the question can never refuse itself.
+       */
+      if (asked.kind === 'language') {
+        const elsewhere = new Set([
+          ...spokenByEveryone(content),
+          ...choices.languages,
+          ...languagesGranted(features),
+          ...features
+            .filter((one) => one.id !== feature.id)
+            .flatMap((one) => languagesChosenOnFeatures(choices, [one])),
+        ]);
+        const offered = content.languages.map((one) => one.name);
+        for (const picked of made) {
+          if (offered.length > 0 && !offered.includes(picked)) {
+            problems.push(
+              problem('unknown_language', 'featureChoices', `${feature.name} offers the languages this world holds, and ${picked} is not one of them; choose from: ${offered.join(', ')}`),
+            );
+            continue;
+          }
+          if (elsewhere.has(picked)) {
+            problems.push(
+              problem('duplicate_language', 'featureChoices', `${feature.name} offers one other language, and this character already knows ${picked}`),
+            );
+          }
+        }
+        for (const picked of duplicates(made)) {
+          problems.push(
+            problem('duplicate_language', 'featureChoices', `${feature.name} takes ${picked} once`),
+          );
         }
         continue;
       }
@@ -2666,10 +2772,61 @@ const spokenByEveryone = (content: Content): ReadonlySet<string> =>
       .map((language) => language.name),
   );
 
-/** Every language a character ends up knowing: the free ones, then the chosen. */
-function languagesKnown(content: Content, choices: CharacterChoices): readonly string[] {
+/**
+ * The languages a feature simply grants — SRD Druidic, SRD Thieves' Cant.
+ *
+ * Read off the `language` grant rather than off any feature's id, so a
+ * homebrew class printing the same sentence puts its tongue on the sheet with
+ * no engine change. The gate is already applied: `withGateMet` takes the
+ * grant off a feature whose option this character did not choose, so a
+ * language behind an unchosen option is not here to be known.
+ */
+const languagesGranted = (features: readonly FeatureDefinition[]): readonly string[] =>
+  [...grantsIn(features)].flatMap(([, grant]) => (grant.kind === 'language' ? grant.known : []));
+
+/**
+ * The languages a feature's own question was answered with — SRD Thieves'
+ * Cant's "one other language of your choice".
+ *
+ * Through `askedOf`, like every other reader of an answer, so a question
+ * gated on an option nobody took supplies nothing even where an answer was
+ * filed. Whether the answer is *legal* is `checkFeatureChoices`' question;
+ * this is what the sheet says once it is.
+ */
+const languagesChosenOnFeatures = (
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): readonly string[] =>
+  features.flatMap((feature) =>
+    askedOf(choices, feature)
+      .filter((asked) => asked.kind === 'language')
+      .flatMap((asked) => choices.featureChoices[choiceAnswerKey(feature.id, asked.key)] ?? []),
+  );
+
+/**
+ * Every language a character ends up knowing: the free ones, the chosen, and
+ * the ones a feature put there.
+ *
+ * **Deduplicated rather than concatenated**, because the three sources can
+ * name the same tongue and a sheet listing Elvish twice is a sheet that is
+ * wrong about one of them. The order is the order of arrival, which is what
+ * every sheet written before features could grant a language already had.
+ */
+function languagesKnown(
+  content: Content,
+  choices: CharacterChoices,
+  features: readonly FeatureDefinition[],
+): readonly string[] {
   const free = spokenByEveryone(content);
-  return [...free, ...choices.languages.filter((language) => !free.has(language))];
+  const known: string[] = [...free];
+  for (const language of [
+    ...choices.languages,
+    ...languagesGranted(features),
+    ...languagesChosenOnFeatures(choices, features),
+  ]) {
+    if (!known.includes(language)) known.push(language);
+  }
+  return known;
 }
 
 /**
@@ -3179,7 +3336,12 @@ export function planCharacter(
   const features = grantedFeatures(content, choices, parts);
   const scores = finalScores(content, choices, features);
   const { skills: proficient, tools, warnings: gathered } = gatherProficiencies(content, choices, parts);
-  const warnings = [...gathered, ...unclaimedMasteries(choices, features), ...sized.warnings];
+  const warnings = [
+    ...gathered,
+    ...unclaimedMasteries(choices, features),
+    ...unclaimedLanguages(choices, features),
+    ...sized.warnings,
+  ];
 
   const expertise = new Set(expertiseSkills(content, choices, parts));
   const skills: Partial<Record<Skill, 'proficient' | 'expertise'>> = {};
@@ -3407,6 +3569,21 @@ export function planCharacter(
       atOnce: grant.atOnce,
       functions: grant.functions,
       activation: grant.activation,
+    });
+  }
+
+  // A feature that lets its holder simply know something about a creature —
+  // SRD Hunter's Lore. Nothing about it is read off a class table and nothing
+  // is spent, so the declaration is carried across whole; what varies between
+  // two holders is which creature their casting has marked, which is state.
+  const knows: KnownFact[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'knowledge') continue;
+    knows.push({
+      feature: feature.id,
+      name: feature.name,
+      reveals: grant.reveals,
+      about: grant.about,
     });
   }
 
@@ -4132,6 +4309,7 @@ export function planCharacter(
     ...(activated.length === 0 ? {} : { activated }),
     ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
     ...(objectMakers.length === 0 ? {} : { objectMakers }),
+    ...(knows.length === 0 ? {} : { knows }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(onDroppingAHostile.length === 0 ? {} : { onDroppingAHostile }),
@@ -4310,7 +4488,7 @@ export function planCharacter(
     // SRD: "You begin with the minimum amount of XP required to reach your
     // starting level."
     experiencePoints: XP_THRESHOLDS[choices.level - 1] ?? 0,
-    languages: languagesKnown(content, choices),
+    languages: languagesKnown(content, choices, features),
     alignment: choices.alignment,
     toolProficiencies: tools,
     magicItems: choices.dmGrants?.magicItems ?? [],

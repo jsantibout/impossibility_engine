@@ -5,6 +5,7 @@ import type {
   ShapeShift,
   HealingTouch,
   HitOption,
+  KnownFact,
   ObjectMaker,
   PoolOption,
   RecoveryFeature,
@@ -713,6 +714,17 @@ export interface CharacterSheet {
    * room is a creature, so nothing about the thing itself is on this sheet.
    */
   readonly objectMakers?: readonly ObjectMaker[];
+  /**
+   * Facts this character's features let them simply **know** about another
+   * creature — SRD Hunter's Lore.
+   *
+   * Resolved at creation beside `standing`, and on the sheet for the same
+   * reason: it is a property of what the character *is* rather than of
+   * anything that has happened to them, and nothing applies it or takes it
+   * away. What is *known* is derived on every read by `knownDefencesOf` in
+   * `knowledge.ts`; this is only the licence to ask.
+   */
+  readonly knows?: readonly KnownFact[];
   /**
    * Features that give another pool's uses back — Sorcerous Restoration,
    * Magical Cunning.

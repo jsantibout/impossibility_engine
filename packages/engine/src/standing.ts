@@ -3999,6 +3999,43 @@ export interface DetectedCreature {
 }
 
 /**
+ * A licence one of this character's features gives them to **know** something
+ * about another creature, compiled onto the sheet.
+ *
+ * SRD Hunter's Lore, and the whole of it. The `FeatureGrant` member's own
+ * comment says why this is not `detects` and not a `standing` grant; what is
+ * here is the compiled copy, in the shape every other feature-derived sheet
+ * line takes — the feature's id, so a caller can say which one told them, and
+ * its printed name, so a door can say it in words.
+ */
+export interface KnownFact {
+  readonly feature: string;
+  readonly name: string;
+  /** SRD's "any Immunities, Resistances, or Vulnerabilities". */
+  readonly reveals: 'defenses';
+  /** SRD's "While a creature is marked by your _Hunter's Mark_". */
+  readonly about: 'a-creature-your-casting-marks';
+}
+
+/**
+ * The facts this creature's features let them know, as the sheet stands.
+ *
+ * Through `sheetAsItStands`, like every other reader here, so a Hunter
+ * wearing a Beast's stat block keeps what their own level taught them — the
+ * merged sheet carries the character's compiled feature lines.
+ *
+ * **Nothing is asked about the world here and nothing is spent.** What is
+ * actually known is `knownDefencesOf` in `knowledge.ts`, which asks this for
+ * the licence and then derives the answer from state on every read.
+ */
+export function knowledgeOn(state: GameState, who: CharacterId): readonly KnownFact[] {
+  const creature = state.creatures[who];
+  if (creature === undefined) return [];
+  const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+  return sheet.knows ?? [];
+}
+
+/**
  * The answer SRD Divine Sense asks for: what is within the radius, of the
  * types the feature names.
  *

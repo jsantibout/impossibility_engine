@@ -118,8 +118,12 @@ export const DRUID: ClassDefinition = {
       id: 'druid:druidic',
       name: 'Druidic',
       level: 1,
-      automation: 'manual',
-      note: 'A secret language and the hidden messages it leaves are narration; recorded as a proficiency and read by nobody.',
+      automation: 'engine',
+      note: 'Executed, in the two halves the SRD prints. "You know Druidic, the secret language of Druids" is a language grant, so Druidic is on the sheet beside the two a character chose rather than in a note nobody reads. "you always have the _Speak with Animals_ spell prepared" is a fixed spells grant, the shape Paladin’s Smite uses: the spell is on the sheet without being one of the prepared spells the class table counts, and a casting still costs its slot and runs the clock. What the language is *for* — "You can use Druidic to leave hidden messages ... others spot the message’s presence with a successful DC 15 Intelligence (Investigation) check" — is a check a DM calls for at the table, as is what a Beast says back.',
+      grants: [
+        { kind: 'language', known: ['Druidic'] },
+        { kind: 'spells', fixed: ['speak-with-animals'] },
+      ],
     },
     {
       id: 'druid:primal-order',

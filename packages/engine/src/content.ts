@@ -234,6 +234,8 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'extra-attack',
   'hit-point-maximum',
   'initiative',
+  'knowledge',
+  'language',
   'lifts-conditions',
   'long-rest-length',
   'on-dropping-a-hostile',
@@ -5147,6 +5149,33 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               code: 'unknown_rechoice_list',
               reason: `${feature.id} lets a rest replace its spell from the ${named} spell list, and this world holds no class with that id`,
             });
+          }
+        }
+        // A language a feature puts on the sheet, held to the same rule a
+        // fixed spell grant and a granted feat are held to: a reference must
+        // reach something. The lookup is by **name**, because that is what a
+        // sheet holds and what `languageNamed` answers; a world that names no
+        // language at all makes no claim and is left alone, exactly as it is
+        // when a character chooses one. A grant naming nothing is the other
+        // half — a sentence that would put no tongue anywhere.
+        if (grant.kind === 'language') {
+          const named = grant.known ?? [];
+          if (named.length === 0) {
+            problems.push({
+              field: `${grantsAt}.known`,
+              code: 'language_grant_of_nothing',
+              reason: `${feature.id} grants a language and names none, so nothing would reach the sheet`,
+            });
+          }
+          if (languages.length > 0) {
+            for (const language of named) {
+              if (languages.some((one) => one.name === language)) continue;
+              problems.push({
+                field: `${grantsAt}.known`,
+                code: 'unknown_granted_language',
+                reason: `${feature.id} grants ${language}, and this world holds no language by that name — a sheet would record a tongue nobody here speaks`,
+              });
+            }
           }
         }
         // A grant written in terms of another feature's choice — the SRD's

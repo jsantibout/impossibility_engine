@@ -148,8 +148,8 @@ export const RANGER: ClassDefinition = {
       id: 'ranger:fighting-style',
       name: 'Fighting Style',
       level: 2,
-      automation: 'manual',
-      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list, and applied exactly as a Fighter’s is: Archery and Great Weapon Fighting each carry a standing grant. The other two of the four are still a note rather than a grant.',
+      automation: 'engine',
+      note: 'Executed, exactly as a Fighter’s is: the feature records which Fighting Style feat was taken and `checkFeats` refuses one outside the category, and what a style *does* is the feat’s own standing grant in FIGHTING_STYLE_FEATS, compiled onto the sheet under the feat’s id.',
       choice: { kind: 'feat', choose: 1, category: 'fighting-style' },
     },
     {
@@ -310,8 +310,9 @@ export const HUNTER: SubclassDefinition = {
       id: 'hunter:hunters-lore',
       name: "Hunter's Lore",
       level: 3,
-      automation: 'manual',
-      note: 'Learning a marked creature’s immunities, resistances and vulnerabilities is narration the engine could answer but is not asked.',
+      automation: 'engine',
+      note: 'Executed. SRD: "While a creature is marked by your _Hunter\'s Mark_, you know whether that creature has any Immunities, Resistances, or Vulnerabilities, and if so, what they are." A knowledge grant, which is the shape for a fact rather than a use: no action is spent, no event is written and there is nothing to refuse. `knownDefencesOf` derives the answer on every read — the target\'s damage immunities, resistances and vulnerabilities and the conditions it cannot be given, a running spell\'s included — and the player\'s `look` publishes it under `knownDefences`. The mark is read off the casting\'s own rider rather than off any spell\'s name, so it lasts exactly as long as the casting does.',
+      grants: { kind: 'knowledge', reveals: 'defenses', about: 'a-creature-your-casting-marks' },
     },
     {
       id: 'hunter:hunters-prey',

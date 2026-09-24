@@ -69,7 +69,7 @@ const MANUAL = manualFeatureIds();
 const POPULATION = ledgerFeatureIds();
 
 /** A real feature to hang synthetic readings on, chosen for a short note. */
-const SPECIMEN = 'druid:druidic';
+const SPECIMEN = 'monk:acrobatic-movement';
 
 describe('the feature blocked-on map covers the population it answers for', () => {
   /**
@@ -141,11 +141,13 @@ describe('a clause names one thing the feature’s note says', () => {
   /**
    * The anchoring guard, driven by a phrase the note says twice.
    *
-   * On the {@link SPECIMEN}'s own note, which is the shortest in the
+   * On the {@link SPECIMEN}'s own note, which is among the shortest in the
    * catalogue: it was driven by Divine Order's until Divine Order was
-   * executed and its note rewritten, which is exactly the drift the guard is
-   * for and exactly why the specimen should be a feature nothing is going to
-   * build.
+   * executed and its note rewritten, and by Druidic's until Druidic was — the
+   * second time the guard's own specimen was the thing that got built, which
+   * is exactly the drift the guard is for and exactly why the specimen should
+   * be a feature nothing is going to build. This one wants movement modes,
+   * which is a shape rather than a reading.
    */
   it('reports a phrase the note prints more than once', () => {
     const twice = unanchoredFeatureClauses(SPECIMEN, [
@@ -538,21 +540,24 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
  * The features that are finished business, pinned by name rather than by size.
  *
  * The *fiction* pile on the other book. A feature whose every clause is the
- * table's is not waiting on the engine and is never going to be executed —
- * Thieves' Cant is a language, a Fighting Style is its feat's debt, and
- * Hunter's Lore is knowledge. Pinning them by name means a builder who thinks
- * one of them is buildable has to come here and say so.
+ * table's is not waiting on the engine — and **six of the seven that stood
+ * here have since been built**, which is what makes the pinning worth its
+ * line. Thieves' Cant was "a language with no mechanics attached" and is a
+ * `language` grant and a `language` question; Druidic was the same sentence
+ * and a spell always prepared; a Fighting Style was "its feat's debt" and all
+ * four feats execute; Hunter's Lore was "narration the engine could answer
+ * but is not asked" and is a `knowledge` grant the door publishes.
+ *
+ * So the reading this pile encodes is weaker than it looks: a clause the
+ * table owns is one nobody has found a mechanism for *yet*, and pinning them
+ * by name is what made somebody come here and say so. The one left is a
+ * second Fighting Style feat, which is the Fighter's own feature at another
+ * level and out of a level 1–5 party's reach.
  */
 describe('the features blocked by nothing', () => {
   it('are these, and every clause of each is the table’s', () => {
     expect(featuresTheTableOwns()).toEqual([
       'champion:additional-fighting-style',
-      'druid:druidic',
-      'fighter:fighting-style',
-      'hunter:hunters-lore',
-      'paladin:fighting-style',
-      'ranger:fighting-style',
-      'rogue:thieves-cant',
     ]);
     for (const id of featuresTheTableOwns()) {
       expect(
@@ -847,7 +852,7 @@ describe('a citation is held against the document it names', () => {
 
 /** The synthetic entry type is the real one, so a test cannot widen the map. */
 const SYNTHETIC: FeatureEntry = [
-  { clause: 'A secret language', why: 'table', note: 'a synthetic reading of a real note' },
+  { clause: 'across liquids', why: 'table', note: 'a synthetic reading of a real note' },
 ];
 
 describe('the classifier can be driven with something it must refuse', () => {
@@ -858,7 +863,7 @@ describe('the classifier can be driven with something it must refuse', () => {
 
   it('refuses a clause naming a shape no vocabulary has', () => {
     const invented: FeatureEntry = [
-      { clause: 'A secret language', why: 'a-shape-nobody-wrote-down' as never, note: 'synthetic' },
+      { clause: 'across liquids', why: 'a-shape-nobody-wrote-down' as never, note: 'synthetic' },
     ];
     expect(knownFeatureBlockers().has(featureBlockersIn(invented)[0] ?? '')).toBe(false);
   });

@@ -146,8 +146,10 @@ export const ROGUE: ClassDefinition = {
       id: 'rogue:thieves-cant',
       name: "Thieves' Cant",
       level: 1,
-      automation: 'manual',
-      note: 'A language with no mechanics attached; recorded as a proficiency and read by nobody.',
+      automation: 'engine',
+      note: 'Executed, in the two halves the SRD prints. "You know Thieves’ Cant" is a language grant, so it is on the sheet beside the two a character chose; "and one other language of your choice, which you choose from the language tables" is a language question, answered under this feature and held to the languages this world holds and to the word *other* — a tongue this character already knows is refused rather than recorded twice. What a Cant is spoken *about* is the table’s.',
+      grants: { kind: 'language', known: ["Thieves' Cant"] },
+      choice: { kind: 'language', choose: 1 },
     },
     {
       id: 'rogue:weapon-mastery',

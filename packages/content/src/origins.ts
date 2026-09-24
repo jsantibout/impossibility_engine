@@ -1514,9 +1514,17 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
  * "Your character knows at least three languages: Common plus two languages
  * you roll or choose from the Standard Languages table." Common is the one
  * every character speaks without spending a choice; the rest of the table is
- * what the two choices come from. The Rare Languages the book prints beside
- * them are a GM's to hand out rather than a character's to choose, and are
- * not transcribed yet — adding one is `availability: 'rare'` and nothing else.
+ * what the two choices come from.
+ *
+ * **And the two Rare Languages a class feature hands out.** The Rare table's
+ * own sentence is "Some features let a character learn a rare language", and
+ * two of the twelve classes print one: a Druid knows Druidic and a Rogue
+ * knows Thieves' Cant. `availability: 'rare'` keeps both off the Step 2
+ * choice and lets a feature's `language` grant reach them, which is exactly
+ * the division the book draws. The other seven the table prints — Abyssal,
+ * Celestial, Deep Speech, Infernal, Primordial, Sylvan, Undercommon — are a
+ * GM's to hand out and nothing here grants one, so transcribing them would
+ * add rows nothing reads.
  */
 export const LANGUAGES: readonly LanguageDefinition[] = [
   { id: 'common', name: 'Common', availability: 'everyone' },
@@ -1529,6 +1537,9 @@ export const LANGUAGES: readonly LanguageDefinition[] = [
   { id: 'goblin', name: 'Goblin' },
   { id: 'halfling', name: 'Halfling' },
   { id: 'orc', name: 'Orc' },
+  // The two Rare Languages an SRD class feature grants outright.
+  { id: 'druidic', name: 'Druidic', availability: 'rare' },
+  { id: 'thieves-cant', name: "Thieves' Cant", availability: 'rare' },
 ];
 
 /**
