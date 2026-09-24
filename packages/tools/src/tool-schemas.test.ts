@@ -198,10 +198,15 @@ describe('toolSchemas', () => {
     // is on both for the reason `take_damage_reaction` is, because the
     // creature answering is whoever was hit. One pin each and the same 802
     // bytes on both, which is the tool being published once.
+    // Re-pinned again for the area-standing track: `cast_spell.chosen`, the
+    // eleventh stated fact — SRD Pass without Trace’s “you and each creature
+    // you choose”, which is the designation with its polarity turned over — is
+    // one field on one tool, so both surfaces grew by the same 482 characters
+    // and neither gained a tool.
     expect(toolSchemas(player())).toHaveLength(84);
     expect(toolSchemas(dm())).toHaveLength(103);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(122027);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146157);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(122509);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146639);
   });
 });
 

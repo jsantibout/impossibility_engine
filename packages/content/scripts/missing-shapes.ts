@@ -204,8 +204,17 @@ export const MISSING_SHAPES = {
     '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. **The verb that takes something out of a hand is built too, and what is left is whose hand.** `OutcomeRiders.drops` is a rider on a settled outcome: the object the casting named leaves the creature, the *if it can* the sentence prints is `handsFor` off the item’s printed record, `orElse` is what the outcome does instead where it cannot be, and `forcedDrop` performs it through `unequipItem` and `dropItem` so the thing lands on the floor the engine does keep now. SRD Heat Metal is executed off it. What is left is SRD Fear’s "drop whatever it is holding", which names **no object at all**: this rider drops the one thing the caster stated, and a clause that empties both hands of whatever happens to be in them is a second sentence with a second shape. `dropConjured` is still the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
   'targeting-rules-that-differ-within-one-casting':
     'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point `docs/design/spell-definitions.md` added for Mass Cure Wounds ("The range then belongs to the point rather than to each target"). **The reach half is built and what is left is the other two.** `attack.reach` is the distance a swing goes where the spell’s own Range does not say it — SRD Vampiric Touch’s "within reach" on a Range of Self — checked with the targets settled and before anything is spent, and that spell has left this id. A later target measured from an earlier one, and sight required of the first target only, are the two SRD Chain Lightning still prints and neither is a distance from the caster.',
-  'a-condition-that-ends-when-its-holder-leaves-an-area':
-    '`docs/design/space-and-areas.md` says it outright: Web’s Restrained lasts "while in the webs", and "a condition that ends when its holder walks out of an area has no shape here at all".',
+  // **`a-condition-that-ends-when-its-holder-leaves-an-area` was here and is
+  // retired**, which is worth a line because the id read as a gap for as long
+  // as it existed and the thing it named turned out to be the wrong shape.
+  // SRD Silence was its sole claimant — "creatures have the Deafened condition
+  // while entirely inside it" — and a condition imposed by *presence* needs no
+  // ending at all: it is derived from where the creature is standing on every
+  // read, nothing is applied and nothing is removed, so there is no pair of
+  // events for a lifetime rule to keep matched. `AreaStanding`'s `condition`
+  // member is what that sentence wanted, and Web's Restrained is a different
+  // sentence — applied by a save somebody failed, and ended by a rule that
+  // does have a moment to hang on.
   'an-area-that-filters-its-catch':
     'an area catches every creature in it. PROGRESS.md names the gap for Entangle — "its area excludes the caster ... and exactly one SRD spell says that, so the field waits for a second user" — and Hypnotic Pattern is the second, whose SRD text affects only a creature that can see the pattern.',
   'a-wall-or-several-templates-in-one-area':
@@ -1214,6 +1223,22 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // the same door; SRD Incubus, SRD Brass Dragon Wyrmling and SRD Pseudodragon
   // print it on conditions no spell ever cast, and those carry the mark
   // instead.
+  // **One of the two spells that made `areaStanding` a list**, moved out of
+  // `BLOCKED_ON` in the commit that wrote them: the line comes out of the
+  // undefined map, the debt arrives here, and the three shapes the pair
+  // claimed — a standing effect derived from where a creature stands, a
+  // condition that ends when its holder leaves an area, and a bonus narrowed
+  // to a skill — go with them, because the vocabulary now says all three.
+  // Pass without Trace is the other and carries no entry at all: what is left
+  // of it prints no mechanic, so its `unmodelled` line names nothing for an
+  // adjudication to be written about.
+  silence: [
+    {
+      clause: 'a declared object has no position on the lattice',
+      why: 'an-object-with-statistics-of-its-own',
+      note: 'the creature half is executed — a defence derived from the spaces a creature occupies, and the Deafened beside it — and the object half is the shape this spell shares with the tower and the boat: a declared object has no position on the lattice, so the Sphere has nothing to measure it against and cannot tell whether it is entirely inside.',
+    },
+  ],
   sleep: [
     {
       clause: 'such as elves',
@@ -2139,20 +2164,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'taking 3d6 damage of the chosen type on a failed save',
       why: 'an-activation-taken-by-somebody-other-than-the-caster',
       note: 'the dice and the halving are ordinary; who throws them is not. A spell’s later action is the caster’s and nobody else may act through a casting, and this one hands the action to the creature that was touched.',
-    },
-  ],
-  silence: [
-    {
-      marker: 'defence',
-      clause: 'has Immunity to Thunder damage',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'an Immunity is a standing grant hung on a creature, and this one belongs to whoever is entirely inside the Sphere at the instant the Thunder lands — a value derived from current state and current geometry rather than from a pair of enter-and-leave events.',
-    },
-    {
-      marker: 'condition',
-      clause: 'creatures have the Deafened condition while entirely inside it',
-      why: 'a-condition-that-ends-when-its-holder-leaves-an-area',
-      note: 'docs/design/space-and-areas.md says it outright of Web’s Restrained: a condition that ends when its holder walks out of an area has no shape here at all, and this is the second spell printing it.',
     },
   ],
   // **Three sentences and one entry, which was one reading short.** The
@@ -3545,20 +3556,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'that spell is suppressed for 10 minutes',
       why: 'an-effect-that-suppresses-other-magic',
       note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing`. **Two things are missing and they are not the same thing.** The first is this shape: the state a suppressed casting sits in, a spell that does not function while its time goes on running, which is the half `spell-ended` did not build. The second is that nothing can name this particular casting anyway — Arcane Lock’s own definition records it for Dispel Magic, which ends an ongoing spell on a target where this casting is on a door. The debt is the first; the second is why building it would still leave a lock nobody can reach.',
-    },
-  ],
-  'pass-without-trace': [
-    {
-      marker: null,
-      clause: 'While in the aura',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'the bonus holds only while a creature stands inside a 30-foot Emanation that travels with the caster, which is a value derived from current geometry rather than from a pair of enter-and-leave events. Spirit Guardians’ halved Speed is the same sentence on a different quantity.',
-    },
-    {
-      marker: null,
-      clause: 'a +10 bonus to Dexterity (Stealth) checks',
-      why: 'a-bonus-narrowed-to-a-skill',
-      note: 'and the bonus itself is narrowed to one skill. `ActiveBonus` carries a `BonusApplies` list and nothing else, so a bonus stored against `ability-check` would land on every ability check the beneficiary ever made — which is why this shape exists rather than the spell simply being written.',
     },
   ],
   'speak-with-plants': [

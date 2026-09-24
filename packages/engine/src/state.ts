@@ -1456,6 +1456,16 @@ export interface PendingCasting {
    */
   readonly unaffected?: readonly CharacterId[];
   /**
+   * Creatures this casting's area reaches, for a spell that offers the choice.
+   *
+   * SRD Pass without Trace: "you and each creature you choose". The
+   * designation above with the polarity turned over, normalised by `chosenFor`
+   * — sorted, absent when nobody was named, and with the caster on it, because
+   * the sentence names them first and a reader that had to remember that would
+   * be a second place for the rule to live.
+   */
+  readonly chosen?: readonly CharacterId[];
+  /**
    * A mode on the saves this casting forces on a named creature, and what
    * bought it.
    *
@@ -1847,6 +1857,8 @@ export type ReadiedResponse =
       readonly willing?: readonly CharacterId[];
       /** Creatures the caster designated unaffected, for a spell that offers it. */
       readonly unaffected?: readonly CharacterId[];
+      /** Creatures this casting's area reaches, for a spell that offers the choice. */
+      readonly chosen?: readonly CharacterId[];
       /**
        * Where a teleporting spell puts its target.
        *

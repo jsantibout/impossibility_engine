@@ -32,6 +32,7 @@ import { distanceBetween } from '../positioning.js';
 import { consumedRollModifiers, type RollQuery } from '../roll-modifiers.js';
 import { type DieRule, type SpellCheck } from '../spell-definitions.js';
 import {
+  areaBonuses,
   canSee,
   type CastingDamageFeature,
   effectiveConditions,
@@ -759,11 +760,18 @@ export function checkBonuses(
   // The skill is passed on rather than filtered here, because withholding is
   // `bonusesFor`'s rule and one reading of it is what keeps the ongoing and
   // the standing halves answering the same way.
+  // **And what an area the creature is standing in is doing to its checks**,
+  // which is the third gatherer and the one whose answer changes when anybody
+  // walks. SRD Pass without Trace's "+10 bonus to Dexterity (Stealth) checks"
+  // holds "while in the aura", so it is derived from the scene on every read
+  // and joins here rather than being hung on the creature — see
+  // `areaBonuses`.
   const held = state.creatures[who]?.bonuses ?? [];
   const standing = [
     ...bonusesFor(held, 'ability-check', skill === undefined ? undefined : { skill }),
     ...standingBonuses(state, who, 'ability-check'),
     ...(skill === undefined ? [] : standingCheckBonuses(state, who, skill)),
+    ...areaBonuses(state, who, 'ability-check', skill === undefined ? undefined : { skill }),
   ];
   if (standing.length === 0) return supplied ?? [];
 

@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
+import type { Bonus } from './bonuses.js';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import type { Point } from './positioning.js';
-import { speedOf } from './standing.js';
+import { defensesOf, effectiveConditions, speedOf } from './standing.js';
+import { checkBonuses } from './commands/rolls.js';
 import { endConcentration, ongoingSpellOf, resolveMove, resolveSpell } from './commands.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 
@@ -233,10 +235,9 @@ describe('a Speed halved by where a creature is standing', () => {
 
     // The fold never opens the catalogue, so the standing effect an area has is
     // recorded at the cast beside the area it is measured over.
-    expect(ongoingSpellOf(game.state, castingId)?.areaStanding).toEqual({
-      kind: 'speed',
-      change: 'halve',
-    });
+    expect(ongoingSpellOf(game.state, castingId)?.areaStanding).toEqual([
+      { kind: 'speed', change: 'halve' },
+    ]);
   });
 });
 
@@ -267,32 +268,358 @@ describe('what the validator holds a standing area effect to', () => {
     checkSpellDefinitionValue(value).map((p) => `${p.field}:${p.code}`);
 
   it('accepts the sentence Spirit Guardians writes', () => {
-    expect(codes(definition({ kind: 'speed', change: 'halve' }))).toEqual([]);
+    expect(codes(definition([{ kind: 'speed', change: 'halve' }]))).toEqual([]);
   });
 
   it('refuses a standing effect on a spell with no area to stand in', () => {
-    expect(codes(definition({ kind: 'speed', change: 'halve' }, NO_AREA))).toContain(
+    expect(codes(definition([{ kind: 'speed', change: 'halve' }], NO_AREA))).toContain(
       'areaStanding:standing_without_area',
     );
   });
 
   it('refuses a kind the engine derives nothing from', () => {
-    expect(codes(definition({ kind: 'cannot-lie' }))).toContain(
-      'areaStanding.kind:unknown_area_standing',
+    expect(codes(definition([{ kind: 'cannot-lie' }]))).toContain(
+      'areaStanding[0].kind:unknown_area_standing',
     );
   });
 
   it('holds the Speed pairing to the rule every other carrier is held to', () => {
     // `halve` names the whole operation, so feet beside it are read by nothing;
     // `add` without them is a change of nothing.
-    expect(codes(definition({ kind: 'speed', change: 'halve', feet: 10 }))).toContain(
-      'areaStanding.feet:bad_speed_change',
+    expect(codes(definition([{ kind: 'speed', change: 'halve', feet: 10 }]))).toContain(
+      'areaStanding[0].feet:bad_speed_change',
     );
-    expect(codes(definition({ kind: 'speed', change: 'add' }))).toContain(
-      'areaStanding.feet:bad_speed_change',
+    expect(codes(definition([{ kind: 'speed', change: 'add' }]))).toContain(
+      'areaStanding[0].feet:bad_speed_change',
     );
-    expect(codes(definition({ kind: 'speed', change: 'sprint' }))).toContain(
-      'areaStanding.change:bad_speed_change',
+    expect(codes(definition([{ kind: 'speed', change: 'sprint' }]))).toContain(
+      'areaStanding[0].change:bad_speed_change',
     );
+  });
+});
+
+// — the other three things an area does to whoever is standing in it ————————
+//
+// SRD Pass without Trace: "You radiate a concealing aura in a 30-foot
+// Emanation for the duration. While in the aura, you and each creature you
+// choose have a +10 bonus to Dexterity (Stealth) checks and leave no tracks."
+//
+// SRD Silence: "no sound can be created within or pass through a
+// 20-foot-radius Sphere centered on a point you choose within range. Any
+// creature or object entirely inside the Sphere has Immunity to Thunder
+// damage, and creatures have the Deafened condition while entirely inside it.
+// Casting a spell that includes a Verbal component is impossible there."
+//
+// Four sentences: three of them derived on every read exactly as the halved
+// Speed above is — a bonus, a condition and a defence — and one of them a
+// refusal at the moment somebody casts.
+
+const RANGER = id('ranger');
+const ROGUE = id('rogue');
+const FIGHTER = id('fighter');
+const PRIEST = id('priest');
+const GOBLIN = id('goblin');
+/** Large, and standing with one corner of itself outside the Sphere. */
+const OGRE = id('ogre');
+/** Outside the Sphere, so the Thunderwave it throws is not itself silenced. */
+const BOOMER = id('boomer');
+
+const caster = (who: CharacterId, prepared: readonly string[]): readonly GameEvent[] => [
+  {
+    type: 'creature-added',
+    id: who,
+    name: who,
+    sheet: sheet(),
+    maxHp: 400,
+    diesAtZero: false,
+    creatureType: 'Humanoid',
+    side: 'party',
+  },
+  ...(prepared.length === 0
+    ? []
+    : [
+        {
+          type: 'spellcasting-declared',
+          id: who,
+          spellcasting: declaredCasting({ ability: 'wis', prepared }),
+        } as GameEvent,
+        ...[1, 2, 3].map(
+          (level): GameEvent => ({
+            type: 'resource-pool-declared',
+            id: who,
+            pool: {
+              key: `spell-slot:${level}`,
+              label: `level ${level}`,
+              max: 8,
+              recovers: 'long-rest',
+            },
+          }),
+        ),
+      ]),
+];
+
+/**
+ * The second lane, measured against the same ruler.
+ *
+ * The aura is a 30-foot Emanation on a Medium carrier at x = 300, so it covers
+ * x ∈ [270, 335] — and the carrier too, because SRD excludes an Emanation's
+ * own origin "unless its creator decides otherwise" and this sentence decides
+ * otherwise.
+ */
+const AURA_LANE = 300;
+const RANGER_AT: Point = { x: 300, y: AURA_LANE, z: 0 };
+const ROGUE_AT: Point = { x: 310, y: AURA_LANE, z: 0 };
+const FIGHTER_AT: Point = { x: 315, y: AURA_LANE, z: 0 };
+/** Thirty-five feet from the Ranger's own space, which is five feet too far. */
+const ROGUE_FAR: Point = { x: 340, y: AURA_LANE, z: 0 };
+/** Forty feet on, with the Rogue a single step behind. */
+const RANGER_WALKED: Point = { x: 340, y: AURA_LANE, z: 0 };
+const ROGUE_FOLLOWED: Point = { x: 350, y: AURA_LANE, z: 0 };
+
+/**
+ * The third lane: a 20-foot-radius Sphere centred on the space at x = 500.
+ *
+ * A Medium creature at x = 520 is exactly twenty feet from that centre and is
+ * wholly inside it; a Large one anchored at x = 520, y = 520 occupies four
+ * spaces, the furthest of which is twenty-five feet out — so it is *in* the
+ * Sphere and is not *entirely inside* it.
+ */
+const SILENT_LANE = 500;
+const SILENCE_AT: Point = { x: 500, y: SILENT_LANE, z: 0 };
+const PRIEST_AT: Point = { x: 470, y: SILENT_LANE, z: 0 };
+const GOBLIN_AT: Point = { x: 520, y: SILENT_LANE, z: 0 };
+const OGRE_AT: Point = { x: 520, y: SILENT_LANE + 20, z: 0 };
+const BOOMER_AT: Point = { x: 535, y: SILENT_LANE, z: 0 };
+/** Thirty feet from the centre, and out of the Sphere altogether. */
+const GOBLIN_OUT: Point = { x: 530, y: SILENT_LANE, z: 0 };
+
+const AREA_SETUP: readonly GameEvent[] = [
+  ...caster(RANGER, ['pass-without-trace']),
+  ...caster(ROGUE, []),
+  ...caster(FIGHTER, []),
+  ...caster(PRIEST, ['silence']),
+  ...caster(GOBLIN, ['thunderwave', 'minor-illusion']),
+  ...caster(OGRE, []),
+  ...caster(BOOMER, ['thunderwave']),
+  { type: 'scene-set', extent: { width: 900, depth: 900, height: 60 } },
+  place(RANGER, RANGER_AT),
+  place(ROGUE, ROGUE_AT),
+  place(FIGHTER, FIGHTER_AT),
+  place(PRIEST, PRIEST_AT),
+  place(GOBLIN, GOBLIN_AT),
+  // A Large creature occupies four spaces, which is the whole of what makes
+  // it a straddler: the near one is inside the Sphere and the far one is not.
+  { type: 'creature-placed', id: OGRE, placement: { from: { point: OGRE_AT }, feet: 0, size: 'large' } },
+  place(BOOMER, BOOMER_AT),
+];
+
+class Lane {
+  constructor(private readonly events: GameEvent[] = [...AREA_SETUP]) {}
+
+  get state(): GameState {
+    return fold('seed', this.events);
+  }
+
+  get log(): readonly GameEvent[] {
+    return this.events;
+  }
+
+  push(more: readonly GameEvent[]): this {
+    this.events.push(...more);
+    return this;
+  }
+
+  cast(who: CharacterId, request: Record<string, unknown>, label: string): string {
+    const out = unwrap(
+      resolveSpell(this.state, who, request as never, supply(label)),
+      `casting ${label}`,
+    );
+    this.push(out.events);
+    return out.castingId!;
+  }
+
+  shove(who: CharacterId, to: Point): this {
+    const out = unwrap(
+      resolveMove(
+        this.state,
+        who,
+        { placement: { from: { point: to }, feet: 0 }, forced: true },
+        supply('move'),
+      ),
+      `${who} moving`,
+    );
+    return this.push(out.events);
+  }
+
+  stealth(who: CharacterId): readonly Bonus[] {
+    return [...checkBonuses(this.state, who, undefined, 'stealth')];
+  }
+}
+
+const passWithoutTrace = (lane: Lane, chosen: readonly CharacterId[]): string =>
+  lane.cast(RANGER, { spellId: 'pass-without-trace', targets: [], chosen }, 'pass-without-trace');
+
+const silence = (lane: Lane): string =>
+  lane.cast(PRIEST, { spellId: 'silence', targets: [], at: SILENCE_AT }, 'silence');
+
+describe('a bonus an area gives whoever stands in it and is on its list', () => {
+  it('reaches the creature the caster named, inside the aura, and nobody else', () => {
+    const lane = new Lane();
+    passWithoutTrace(lane, [ROGUE]);
+
+    expect(lane.stealth(ROGUE)).toEqual([{ source: 'Pass without Trace', flat: 10 }]);
+    // "you and each creature you choose": the Fighter is in the aura and off
+    // the list, so the aura conceals them not at all.
+    expect(lane.stealth(FIGHTER)).toEqual([]);
+    // "**you** and each creature you choose" — the caster is always on it, and
+    // is in their own aura because the sentence says so rather than because the
+    // geometry puts them there.
+    expect(lane.stealth(RANGER)).toEqual([{ source: 'Pass without Trace', flat: 10 }]);
+  });
+
+  it('withholds the bonus from a check it does not name', () => {
+    const lane = new Lane();
+    passWithoutTrace(lane, [ROGUE]);
+    // "a +10 bonus to Dexterity (Stealth) checks", and to nothing else — and a
+    // caller with no skill to name gets only the bonuses that name none.
+    expect(checkBonuses(lane.state, ROGUE, undefined, 'perception')).toEqual([]);
+    expect(checkBonuses(lane.state, ROGUE, undefined)).toEqual([]);
+  });
+
+  it('stops at the edge of the Emanation, on the list or not', () => {
+    const lane = new Lane();
+    lane.shove(ROGUE, ROGUE_FAR);
+    passWithoutTrace(lane, [ROGUE]);
+
+    expect(lane.stealth(ROGUE)).toEqual([]);
+  });
+
+  it('travels with the caster, with nothing hung on anybody', () => {
+    const lane = new Lane();
+    passWithoutTrace(lane, [ROGUE]);
+
+    lane.shove(RANGER, RANGER_WALKED);
+    lane.shove(ROGUE, ROGUE_FOLLOWED);
+
+    expect(lane.stealth(ROGUE)).toEqual([{ source: 'Pass without Trace', flat: 10 }]);
+    // Forty feet on, and nothing was granted or released: the bonus is derived
+    // from the scene on every read and stored on nobody.
+    expect(lane.state.creatures[ROGUE]?.bonuses ?? []).toEqual([]);
+  });
+
+  it('pins the list the caster stated onto the casting', () => {
+    const lane = new Lane();
+    const castingId = passWithoutTrace(lane, [ROGUE]);
+
+    expect(ongoingSpellOf(lane.state, castingId)?.chosen).toEqual([RANGER, ROGUE]);
+    expect(ongoingSpellOf(lane.state, castingId)?.areaStanding).toEqual([
+      { kind: 'bonus', applies: 'ability-check', flat: 10, only: { skill: 'stealth' } },
+    ]);
+  });
+
+  it('refuses a list on a spell that offers the caster no such choice', () => {
+    const lane = new Lane();
+    const refused = resolveSpell(
+      lane.state,
+      BOOMER,
+      { spellId: 'thunderwave', targets: [], towards: GOBLIN_AT, chosen: [GOBLIN] } as never,
+      supply('thunderwave'),
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_chosen_list');
+  });
+});
+
+describe('a condition and a defence a creature entirely inside an area has', () => {
+  it('deafens a creature entirely inside the Sphere and not one straddling it', () => {
+    const lane = new Lane();
+    silence(lane);
+
+    expect(effectiveConditions(lane.state, GOBLIN).conditions).toContain('deafened');
+    // "while entirely inside it": the ogre occupies four spaces and one of them
+    // is outside, so the Sphere reaches it with neither clause.
+    expect(effectiveConditions(lane.state, OGRE).conditions).not.toContain('deafened');
+    // Nothing was written: presence is the whole of the cause, so there is no
+    // application to record and nothing to take back.
+    expect(lane.log.some((e) => e.type === 'condition-applied')).toBe(false);
+  });
+
+  it('makes a creature entirely inside immune to Thunder damage', () => {
+    const lane = new Lane();
+    silence(lane);
+
+    expect(defensesOf(lane.state, GOBLIN)['thunder']).toEqual({ immune: true });
+    expect(defensesOf(lane.state, OGRE)['thunder']).toBeUndefined();
+  });
+
+  it('turns a Thunderwave aside entirely', () => {
+    const lane = new Lane();
+    silence(lane);
+    const before = lane.state.creatures[GOBLIN]!.vitals.hp;
+
+    lane.cast(BOOMER, { spellId: 'thunderwave', targets: [], towards: GOBLIN_AT }, 'thunderwave');
+
+    expect(lane.state.creatures[GOBLIN]!.vitals.hp).toBe(before);
+  });
+
+  it('lets both go the moment the creature walks out, writing nothing', () => {
+    const lane = new Lane();
+    silence(lane);
+    expect(effectiveConditions(lane.state, GOBLIN).conditions).toContain('deafened');
+    const before = lane.log.length;
+
+    lane.shove(GOBLIN, GOBLIN_OUT);
+
+    expect(effectiveConditions(lane.state, GOBLIN).conditions).not.toContain('deafened');
+    expect(defensesOf(lane.state, GOBLIN)['thunder']).toBeUndefined();
+    expect(
+      lane.log
+        .slice(before)
+        .some((e) => e.type === 'condition-applied' || e.type === 'condition-removed'),
+    ).toBe(false);
+  });
+});
+
+describe('the casting an area refuses', () => {
+  it('refuses a spell with a Verbal component to a caster inside the Sphere', () => {
+    const lane = new Lane();
+    silence(lane);
+
+    const refused = resolveSpell(
+      lane.state,
+      GOBLIN,
+      { spellId: 'thunderwave', targets: [], towards: SILENCE_AT } as never,
+      supply('thunderwave'),
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('silenced');
+  });
+
+  it('lets a spell that includes no Verbal component be cast there', () => {
+    const lane = new Lane();
+    silence(lane);
+
+    // SRD Minor Illusion prints "S, M" and no V, which is why it is the one
+    // sentence of Silence's four that reads a component at all.
+    const cast = resolveSpell(
+      lane.state,
+      GOBLIN,
+      { spellId: 'minor-illusion', targets: [] } as never,
+      supply('minor-illusion'),
+    );
+    expect(isErr(cast)).toBe(false);
+  });
+
+  it('lets a caster outside the Sphere speak', () => {
+    const lane = new Lane();
+    silence(lane);
+
+    const cast = resolveSpell(
+      lane.state,
+      BOOMER,
+      { spellId: 'thunderwave', targets: [], towards: GOBLIN_AT } as never,
+      supply('thunderwave'),
+    );
+    expect(isErr(cast)).toBe(false);
   });
 });

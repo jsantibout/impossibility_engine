@@ -231,6 +231,7 @@ import {
   areaSourceOf,
   castingIdentity,
   type CastSpellRequest,
+  chosenFor,
   declaredFacts,
   foughtFor,
   willingFor,
@@ -360,7 +361,7 @@ export function resolveDeclaredCast(
     // was written on. Normalised already — this is the same function that
     // normalised it, and it is idempotent precisely so that the settlement
     // does not have to spell the copy out a second time.
-    const stated = statedFacts(pending);
+    const stated = statedFacts(pending, pending.caster);
     // And the choice, in the record's shape: the declaration kept the bare
     // value and this is where it becomes a pair. See `choicePinned`.
     const settledChoice = choicePinned(definition, pending);
@@ -1007,14 +1008,16 @@ export function castOrRelease(
       );
       if (!resolved.ok) return resolved;
       targets = resolved.value;
-      // **Four clauses want the point, not one.** An area trigger reads it at
-      // every later boundary, and every patch the area lays is laid at it —
-      // ground made expensive, light shed, fog filled. SRD Spike Growth prints
-      // the second and not the first and SRD Darkness prints the third, so a
-      // condition naming only the trigger would leave those spells' patches
-      // with nowhere to be.
+      // **Five clauses want the point, not one.** An area trigger reads it at
+      // every later boundary, every patch the area lays is laid at it — ground
+      // made expensive, light shed, fog filled — and a standing clause is
+      // re-derived from it on every read. SRD Spike Growth prints the second
+      // and not the first, SRD Darkness prints the third, and SRD Silence
+      // prints only the fifth, so a condition naming only the trigger would
+      // leave all three with nowhere to be.
       if (
         (definition.areaTrigger !== undefined ||
+          definition.areaStanding !== undefined ||
           definition.areaTerrain !== undefined ||
           definition.areaLight !== undefined ||
           definition.areaObscurement !== undefined) &&
@@ -1941,7 +1944,7 @@ function resolveOnTargets(
   // Normalised here, once, and read by both paths out of this file: the
   // ongoing record an atomic casting writes, and the declaration a held one
   // writes for its own settlement to read back.
-  const stated = statedFacts(request);
+  const stated = statedFacts(request, casterId);
 
   // The third stated fact, normalised beside them and **not through them**,
   // for two reasons that both matter. `statedFacts` also feeds the ongoing
@@ -2438,6 +2441,15 @@ function resolveOnTargets(
       ...(handoversPinned(definition, request.option).length === 0
         ? {}
         : { dmDecides: handoversPinned(definition, request.option) }),
+      // The one thing the engine models of a spell's components, carried down
+      // for the one rule that asks — SRD Silence. Carried rather than looked
+      // up, because `castSpell` holds a spell's *name* and no definition; and
+      // **the casting's** answer rather than the book's, because SRD Subtle
+      // Spell casts "without any Verbal, Somatic, or Material components" and
+      // a casting that bought it has none whatever the entry prints.
+      ...(definition.noVerbalComponent === true || altered.resolving.subtle !== undefined
+        ? { noVerbalComponent: true as const }
+        : {}),
       ...(request.slotless === undefined ? {} : { slotless: request.slotless }),
       // A span of seconds, or a moment in the turn order. A definition carries
       // one or the other: Shield's "until the start of your next turn" is not
@@ -3122,6 +3134,9 @@ export function resolveEffects(
         ...(becomes.towards === undefined ? {} : { towards: becomes.towards }),
         ...(becomes.anchoring === undefined ? {} : { anchoring: becomes.anchoring }),
         ...(becomes.unaffected === undefined ? {} : { unaffected: becomes.unaffected }),
+        // And the list of who the area *does* reach — the same decision with
+        // the opposite polarity, pinned beside it. See `OngoingSpell.chosen`.
+        ...(becomes.chosen === undefined ? {} : { chosen: becomes.chosen }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
         // The casting this one turns aside, pinned at the cast — see
         // `OngoingSpell.negates`.
@@ -3634,6 +3649,8 @@ interface OngoingRecordPlan {
   readonly anchoring?: PointAnchoring;
   /** Creatures the caster designated unaffected, for a spell that offers it. */
   readonly unaffected?: readonly string[];
+  /** Creatures the casting's area reaches, for a spell that offers the choice. */
+  readonly chosen?: readonly string[];
   /** The damage type the casting was declared with, where the spell prints two. */
   readonly damageType?: string;
   /** The choice the caster made, where the spell prints one. */
@@ -3670,17 +3687,35 @@ interface OngoingRecordPlan {
  * time: a sorted list sorts to itself, a non-empty list stays non-empty, and an
  * absent field stays absent.
  */
-function statedFacts(stated: {
+function statedFacts(
+  stated: {
+    readonly damageType?: string;
+    readonly unaffected?: readonly CharacterId[];
+    readonly chosen?: readonly CharacterId[];
+  },
+  /**
+   * Whose casting this is, for the one fact that names them without being
+   * told — SRD Pass without Trace's "**you** and each creature you choose".
+   * See `chosenFor`, which is where the first word of that sentence lives.
+   */
+  caster: CharacterId,
+): {
   readonly damageType?: string;
   readonly unaffected?: readonly CharacterId[];
-}): {
-  readonly damageType?: string;
-  readonly unaffected?: readonly CharacterId[];
+  readonly chosen?: readonly CharacterId[];
 } {
   return {
     ...(stated.unaffected === undefined || stated.unaffected.length === 0
       ? {}
       : { unaffected: [...stated.unaffected].sort() }),
+    // The designation's mirror, normalised beside it and through the same
+    // idempotence: the caster is already on an already-normalised list, and a
+    // set is what puts them there, so a settlement may run this over a pending
+    // record without naming them twice.
+    ...(() => {
+      const chosen = chosenFor(stated, caster);
+      return chosen === undefined ? {} : { chosen };
+    })(),
     ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),
   };
 }

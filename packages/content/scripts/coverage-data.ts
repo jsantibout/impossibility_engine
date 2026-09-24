@@ -501,6 +501,18 @@ export interface SpellCoverage {
  * `effects` alone would call that spell tracked while it was doing three of
  * the five things it prints.
  *
+ * **The tenth arm is what an area does to whoever is standing in it**, and it
+ * is the sixth and seventh's argument about a value rather than a patch. SRD
+ * Pass without Trace rolls nothing, catches nobody and lays nothing on the
+ * lattice: its whole content is a +10 on the Stealth checks of whoever is in
+ * a 30-foot Emanation, derived from the scene on every read. SRD Silence is
+ * three such sentences about one Sphere, one of which refuses a casting
+ * outright. Counting either as tracked would say the engine resolves nothing
+ * of the spell while it is doing the only thing the spell does — which is
+ * exactly what it did say until the vocabulary grew past a halved Speed, and
+ * was harmless only because the one spell writing that sentence also printed
+ * a trigger.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -510,6 +522,7 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.effects.length > 0 ||
   definition.activation !== undefined ||
   definition.areaTrigger !== undefined ||
+  definition.areaStanding !== undefined ||
   definition.areaTerrain !== undefined ||
   definition.areaLight !== undefined ||
   definition.areaObscurement !== undefined ||

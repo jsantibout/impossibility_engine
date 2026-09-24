@@ -210,15 +210,21 @@ const SETUP: readonly GameEvent[] = [
  * that each of these is *cast* rather than refused, and a table of ids would
  * have to be extended by hand on the day a definition's target rule moved.
  *
- * Three facts and no more, because no definition in this population prints an
- * area, a stated choice or a printed branch: whether it aims at anybody, which
- * body it aims at, and whether it asks about consent.
+ * Four facts and no more, because no definition in this population prints a
+ * stated choice or a printed branch: whether it aims at anybody, which body it
+ * aims at, whether it asks about consent, and — since SRD Silence joined the
+ * population — where a volume the caster places goes.
  */
 const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
   const targets =
     definition.targets.count === 0 ? [] : [definition.targets.self === true ? CLERIC : SLEEPER];
   return {
     targets,
+    // **An area the caster puts somewhere needs the point.** A `self` origin
+    // is the caster's own space and refuses to be moved, so only a
+    // point-origin volume is placed — five feet from the shrine, which is
+    // inside the scene and within every Range this population prints.
+    ...(definition.area?.origin === 'point' ? { at: { x: 55, y: 50, z: 0 } } : {}),
     // A cantrip is cast off the known list and spends no slot, so naming one
     // is the refusal rather than the casting.
     ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
@@ -324,6 +330,13 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'purify-food-and-drink',
       'rope-trick',
       'see-invisibility',
+      // **The forty-sixth, and the first that is not a spell the engine merely
+      // records.** SRD Silence's three mechanical sentences are executed —
+      // an Immunity and a condition derived from the spaces a creature
+      // occupies, and a Verbal casting the Sphere refuses — and the sentence
+      // handed over is the fourth: no sound is created in the Sphere, which
+      // is a fact about the world the engine holds nothing of.
+      'silence',
       'silent-image',
       'speak-with-animals',
       'speak-with-dead',

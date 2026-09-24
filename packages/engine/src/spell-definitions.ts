@@ -3612,7 +3612,28 @@ export type SpellArea =
       readonly width: number;
       readonly origin: 'self';
     }
-  | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' }
+  | {
+      readonly kind: 'emanation';
+      readonly distance: number;
+      readonly origin: 'self';
+      /**
+       * SRD: a point of origin "isn't included in the area of effect **unless
+       * its creator decides otherwise**", and two spells decide otherwise in
+       * their own first sentence.
+       *
+       * SRD Pass without Trace: "You radiate a concealing aura in a 30-foot
+       * Emanation … While in the aura, **you** and each creature you choose
+       * have a +10 bonus." SRD Spirit Guardians writes the other half — "any
+       * **other** creature's Speed is halved" — which is the default and says
+       * so by omission.
+       *
+       * So it is the definition that decides, transcribed off the printed
+       * sentence, rather than a rule the engine applies to emanations in
+       * general. Absent is the glossary's own reading and is what every
+       * definition written before this field says.
+       */
+      readonly includesOrigin?: true;
+    }
   /**
    * SRD Wind Wall: "You can make the wall up to 50 feet long, 15 feet high,
    * and 1 foot thick. You can shape the wall in any way you choose so long as
@@ -4318,8 +4339,12 @@ export interface SpellDefinition {
    * enters the Emanation or ends its turn there, the creature must make a
    * Wisdom saving throw" is {@link areaTrigger}, and "Any other creature's
    * Speed is halved in the Emanation" is this.
+   *
+   * **A list, because SRD Silence writes three of these sentences about one
+   * Sphere**: an Immunity, a condition and a casting the Sphere forbids. Each
+   * member is read by the reader that understands it and by nobody else.
    */
-  readonly areaStanding?: AreaStanding;
+  readonly areaStanding?: readonly AreaStanding[];
   /**
    * What the area does to the **ground** — see {@link AreaTerrain}.
    *
@@ -4379,6 +4404,41 @@ export interface SpellDefinition {
    * refusing this field on a definition with no `area`.
    */
   readonly designatesUnaffected?: true;
+  /**
+   * SRD Pass without Trace: "you and **each creature you choose**".
+   *
+   * {@link designatesUnaffected} with the polarity turned over: that one names
+   * the creatures an area lets alone and this one names the only creatures it
+   * reaches. Two fields rather than one with a sign, because a definition that
+   * meant the wrong one by the same list would invert a rule in silence, and
+   * because nothing in the SRD prints both about one area.
+   *
+   * The caster is always on the list, added where the fact is normalised, so a
+   * reader has the whole answer in one place.
+   *
+   * Absent means the spell offers no such choice and naming anybody is
+   * refused, rather than quietly ignored — the reading its sibling takes.
+   */
+  readonly designatesChosen?: true;
+  /**
+   * This spell prints **no Verbal component**.
+   *
+   * SRD Silence: "Casting a spell that includes a Verbal component is
+   * impossible there", which is the one rule in the book that asks the
+   * question — so this is the whole of what the engine models of a spell's
+   * components, and it is deliberately not the three-way list the parsed
+   * catalogue carries. A field nothing reads is the failure the validator
+   * exists to prevent.
+   *
+   * **Absent means the spell has one, which is the book's own default and not
+   * a guess.** SRD 5.2.1 prints 339 spells and ten of them omit the V; a
+   * positive marker would have left Silence inert for every definition nobody
+   * had thought to annotate, which is a rule quietly switched off. So the
+   * exception is what is written down, on the ten entries that are the
+   * exception, and a definition that says nothing says what the book says
+   * about almost everything.
+   */
+  readonly noVerbalComponent?: true;
   /**
    * The damage types this spell prints, where it prints more than one and
    * chooses between them on a fact about the caster.

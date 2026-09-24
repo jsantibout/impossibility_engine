@@ -2205,12 +2205,16 @@ describe('the fought fact is a second build that corrected the query', () => {
    * `a-bonus-narrowed-to-a-skill` would have had no claimant left in any
    * population the day this spell was written.
    *
-   * **Pass without Trace is the second claimant, and it arrived by reading.**
-   * "a +10 bonus to Dexterity (Stealth) checks" is the same gap in the same
-   * words and trips nothing for the same reason, so it sat in the ledger's
-   * *waits on none* column looking finished until somebody read the paragraph.
-   * Two spells for one shape is the difference between a gap one reading found
-   * and a gap the book prints twice.
+   * **Pass without Trace was the second claimant and has left**, which is the
+   * shape narrowing to what is actually missing rather than the claim
+   * weakening. "a +10 bonus to Dexterity (Stealth) checks" is the same gap in
+   * the same words and it was read off an undefined paragraph; the spell is
+   * written now, and the bonus is narrowed — `AreaStanding`'s `bonus` member
+   * carries the `BonusNarrowing` Guidance's stored bonus already carried, and
+   * `areaBonuses` withholds it from every check that names another skill. What
+   * is left under the id is Enthrall's, which is the half nothing reaches: a
+   * *penalty* on a **stored** bonus, gathered by `checkBonuses` off the
+   * creature rather than derived from where it is standing.
    */
   it('leaves Enthrall blocked, on the outcome and on the penalty', () => {
     expect(BLOCKED_ON['enthrall']).toBeUndefined();
@@ -2219,10 +2223,7 @@ describe('the fought fact is a second build that corrected the query', () => {
       'a-fact-only-the-table-can-declare',
       'a-bonus-narrowed-to-a-skill',
     ]);
-    expect(consumersOf('a-bonus-narrowed-to-a-skill').unseen).toEqual([
-      'enthrall',
-      'pass-without-trace',
-    ]);
+    expect(consumersOf('a-bonus-narrowed-to-a-skill').unseen).toEqual(['enthrall']);
     expect(consumersOf('a-fact-only-the-table-can-declare').unblocks).toEqual([]);
   });
 

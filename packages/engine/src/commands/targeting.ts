@@ -376,6 +376,21 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly unaffected?: readonly CharacterId[];
   /**
+   * Creatures this casting's area reaches, for a spell that offers the choice.
+   *
+   * SRD Pass without Trace: "While in the aura, you and **each creature you
+   * choose** have a +10 bonus to Dexterity (Stealth) checks." The eleventh
+   * stated fact, and {@link unaffected} with the polarity turned over — that
+   * one names who an area lets alone, this names the only creatures it
+   * touches.
+   *
+   * The caster need not be named and is on the list either way; naming
+   * anybody at all through a spell that prints no such clause is refused, and
+   * naming somebody the engine has never heard of is refused, both of which
+   * are the reading its sibling takes.
+   */
+  readonly chosen?: readonly CharacterId[];
+  /**
    * How a named creature rolls the saves this casting forces on it.
    *
    * SRD Heightened Spell: "give one target of the spell Disadvantage on saves
@@ -806,6 +821,37 @@ export const willingFor = (request: {
     : [...request.willing].sort();
 
 /**
+ * The creatures a casting's area reaches, normalised once — **with the caster
+ * on the list**.
+ *
+ * SRD Pass without Trace: "**you** and each creature you choose." The first
+ * word is the whole of this function's extra job: the sentence names the
+ * caster before it names anybody else, and a reader that had to remember that
+ * would be a second place for the rule to live. So the list on the record is
+ * the complete answer to "whom does this aura reach", and every reader of it
+ * is a set membership test.
+ *
+ * Sorted for {@link foughtFor}'s reason and **elided when nothing was named**,
+ * which is where it follows the designation: a spell that prints no such
+ * clause reaches whoever the geometry catches, and so does a casting of a
+ * spell that prints one and stated nobody — the caster alone is not a list the
+ * SRD asks for, because the clause exists to widen the aura beyond its caster
+ * rather than to narrow it onto them.
+ *
+ * **Deliberately not `unaffected`'s list read backwards.** That one names who
+ * an area lets alone; this names the only creatures it touches. One field
+ * meaning both would invert a rule the first time a definition set the wrong
+ * one, and no SRD spell prints both about one area.
+ */
+export const chosenFor = (
+  request: { readonly chosen?: readonly CharacterId[] },
+  caster: CharacterId,
+): readonly CharacterId[] | undefined =>
+  request.chosen === undefined || request.chosen.length === 0
+    ? undefined
+    : [...new Set([caster, ...request.chosen])].sort();
+
+/**
  * A casting that has already been paid for and is waiting to be let go.
  *
  * SRD Ready is the only thing that produces one: the slot went when the spell
@@ -977,6 +1023,31 @@ export function declaredFacts(
           `${bought.spares.name} spares up to ${bought.spares.upTo} creature${bought.spares.upTo === 1 ? '' : 's'} on this casting of ${definition.name}, and ${named.length} were named`,
         );
       }
+    }
+  }
+
+  // — the creatures an area reaches, where the spell lets its caster pick ——
+  //
+  // SRD Pass without Trace's "you and each creature you choose", checked
+  // exactly as the designation above it is and refused on a spell that prints
+  // no such clause: a caller who names beneficiaries of a Fireball has
+  // misunderstood something, and dropping the list quietly would let them go
+  // on believing it. **No option buys this one**, which is why there is no
+  // `bought` clause here: SRD's six Metamagics widen three of the stated
+  // facts and none of them widens this.
+  const chose = request.chosen ?? [];
+  if (chose.length > 0) {
+    if (definition.designatesChosen !== true) {
+      return err(
+        'no_chosen_list',
+        `${definition.name} does not let its caster choose which creatures its area reaches`,
+      );
+    }
+    for (const who of chose) {
+      if (creatureOf(state, who) === null) return unknownCreature(who);
+    }
+    if (new Set(chose).size !== chose.length) {
+      return err('duplicate_designation', `${definition.name} may not choose the same creature twice`);
     }
   }
 

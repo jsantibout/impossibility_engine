@@ -89,10 +89,6 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
   'gentle-repose': ['healing-that-raises-the-dead'],
   knock: ['an-effect-that-suppresses-other-magic'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
-  'pass-without-trace': [
-    'a-bonus-narrowed-to-a-skill',
-    'a-standing-effect-derived-from-where-a-creature-stands',
-  ],
   'speak-with-plants': ['difficult-terrain-an-area-creates'],
   'tiny-hut': [
     'a-barrier-that-blocks-passage',
@@ -226,6 +222,10 @@ const EXECUTES: readonly string[] = [
   'darkvision',
   'expeditious-retreat',
   'magic-weapon',
+  // And the one the area-standing track finished: the +10 on Dexterity
+  // (Stealth) checks of whoever is in the aura is derived from the scene on
+  // every read, which is both shapes this pass filed it against.
+  'pass-without-trace',
   'prestidigitation',
   // And the one that came here through {@link NEEDS_A_DECISION} rather than
   // straight off {@link FILED}: the decision was the shape of the record, the
