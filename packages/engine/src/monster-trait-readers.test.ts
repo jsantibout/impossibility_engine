@@ -34,22 +34,26 @@ import { asCharacterId, type CharacterId, isErr, expect as unwrap } from '@ie/sh
 import {
   addCreature,
   addSceneLandmark,
+  carryingCapacity,
   declareCreatureSide,
   declareLight,
+  declareObject,
   placeCreatureInScene,
   resolveMove,
+  resolveTurn,
   setScene,
   takeDash,
   takeDisengage,
   takeHide,
   type MoveResolution,
 } from './commands.js';
+import { dealSpellDamage } from './commands/damage.js';
 import { allowedActions } from './combat.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster } from './monster.js';
 import { createRollIssuer } from './rolls.js';
-import { actionRulesOn, rollModesFor } from './standing.js';
+import { actionRulesOn, rollModesFor, speedOf } from './standing.js';
 
 const id = (s: string) => asCharacterId(s);
 const SEED = 'trait-readers';
@@ -474,5 +478,813 @@ describe('a price is the one thing a heading says that a sentence does not', () 
 
     // Not vacuous: the block as the book prints it does compile the rule.
     expect(adaptMonster(goblin, id('as-printed')).sheet.standing).toHaveLength(2);
+  });
+});
+
+/**
+ * The second batch of printed traits with a mechanic, and the same rule built
+ * them: a sentence the parser typed, compiled into something the engine
+ * already holds.
+ *
+ * | Sentence | What spends it |
+ * |---|---|
+ * | SRD Agile | `provokedBy`, the same reader SRD Flyby goes through |
+ * | SRD Running Leap | `checkJump`, as a second bound on a running Long Jump |
+ * | SRD Aura of Authority | `standingFor`'s aura reach, which Aura of Protection already walks |
+ * | SRD Blood Frenzy | `rollModesFor`, against a target missing Hit Points |
+ * | SRD Siege Monster | `dealSpellDamage`, as SRD's first-applied multiplier |
+ * | SRD Aberrant Ground | `terrainAt`, as a patch derived from where the holder stands |
+ */
+describe('SRD Agile: an Opportunity Attack a walker does not provoke', () => {
+  /**
+   * "The deer doesn't provoke an Opportunity Attack when it moves out of an
+   * enemy's reach." SRD Flyby with one word changed, and the word is the whole
+   * rule: the gargoyle keeps its Reaction against a walker and the deer never
+   * gives one.
+   */
+  it('offers nobody a swing when the holder walks out of reach', () => {
+    const log = field('deer', id('deer'));
+    const moved = unwrap(resolveMove(at(log), id('deer'), away('walk'), supply()), 'walking');
+    expect(provokedIn(moved)).toEqual([]);
+  });
+
+  it('gives the same freedom to the other block that prints it', () => {
+    const log = field('rat', id('rat'));
+    const moved = unwrap(resolveMove(at(log), id('rat'), away('walk'), supply()), 'walking');
+    expect(provokedIn(moved)).toEqual([]);
+  });
+
+  /**
+   * And the narrower sentence stays narrow: a gargoyle's Flyby is about
+   * flying, so the same creature on foot provokes exactly as it always did.
+   * Without this the two kinds would have collapsed into one.
+   */
+  it('leaves SRD Flyby saying only what it says', () => {
+    const log = field('gargoyle', id('gargoyle'));
+    const moved = unwrap(resolveMove(at(log), id('gargoyle'), away('walk'), supply()), 'walking');
+    expect(provokedIn(moved)).toEqual([WATCHER]);
+  });
+});
+
+describe('SRD Running Leap: the jump the ten feet buys', () => {
+  /**
+   * A lion is Large, so the watcher stands clear of the space it fills — and
+   * the fight is left out, because a Speed is not what is being measured here.
+   * `field` pins every combatant at thirty feet, and a creature that has paid
+   * ten for its run-up cannot then spend twenty-five: the refusal would be
+   * `not_enough_movement` and would prove nothing about the jump. Outside
+   * combat the running start is reported as unchecked and the distance is
+   * still bounded, which is precisely the bound this sentence sets.
+   */
+  const lionsField = (): GameEvent[] =>
+    field('lion', id('lion'), 15).filter((event) => event.type !== 'combat-started');
+
+  const leaps = (feet: number, running: boolean) =>
+    resolveMove(
+      at(lionsField()),
+      id('lion'),
+      {
+        placement: { from: { landmark: 'the stone' }, feet, bearing: 270 },
+        jump: { kind: 'long', ...(running ? { running: true } : {}) },
+      },
+      supply(),
+    );
+
+  /**
+   * "With a 10-foot running start, the lion can Long Jump up to 25 feet." A
+   * lion has Strength 17, so the jump the sheet computes is seventeen feet and
+   * the printed one is the longer of the two — which is what "up to 25 feet"
+   * says.
+   */
+  it('lets the lion clear the twenty-five feet its block prints', () => {
+    const jumped = unwrap(leaps(25, true), 'the leap');
+    expect(jumped.feet).toBe(25);
+  });
+
+  it('still refuses a leap past the printed distance', () => {
+    const over = leaps(30, true);
+    expect(isErr(over) && over.code).toBe('jump_too_far');
+  });
+
+  /**
+   * And the running start is still required, which is the half of the sentence
+   * that is not the distance: the lion standing still is measured against its
+   * own legs, which carry it eight feet and no further.
+   */
+  it('gives the standing lion nothing the sentence did not print', () => {
+    expect(isErr(leaps(25, false)) && (leaps(25, false) as { code: string }).code).toBe(
+      'jump_too_far',
+    );
+    expect(unwrap(leaps(5, false), 'a standing hop').feet).toBe(5);
+  });
+});
+
+describe('SRD Aura of Authority: a printed aura worn by a stat block', () => {
+  const CAPTAIN = id('captain');
+  const NEAR = id('near');
+  const FAR = id('far');
+
+  /**
+   * A captain with two of its own within ten feet and fifteen, and an enemy
+   * beside it. Sides are declared because "its allies" is a declared fact and
+   * an undeclared one is nobody's ally.
+   */
+  const warband = (): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const add = (who: CharacterId, block: string): void => {
+      log.push(...unwrap(addCreature(state(), SRD_CONTENT, who, block), block).events);
+    };
+    const step = (what: string, produce: () => ReturnType<typeof declareCreatureSide>): void => {
+      log.push(...unwrap(produce(), what));
+    };
+
+    add(CAPTAIN, 'hobgoblin-captain');
+    add(NEAR, 'hobgoblin-warrior');
+    add(FAR, 'hobgoblin-warrior');
+    add(WATCHER, 'goblin-warrior');
+    for (const who of [CAPTAIN, NEAR, FAR]) {
+      step(`${who} takes a side`, () => declareCreatureSide(state(), who, 'monsters'));
+    }
+    step('the watcher takes the other', () => declareCreatureSide(state(), WATCHER, 'party'));
+    step('the field', () => setScene(state(), { width: 400, depth: 400, height: 200 }));
+    step('a stone on it', () => addSceneLandmark(state(), 'the stone', { x: 100, y: 100, z: 0 }));
+    step('the captain on the stone', () =>
+      placeCreatureInScene(state(), CAPTAIN, { from: { landmark: 'the stone' }, feet: 0 }),
+    );
+    step('one of its own within the emanation', () =>
+      placeCreatureInScene(state(), NEAR, { from: { creature: CAPTAIN }, feet: 10, bearing: 90 }),
+    );
+    step('and one outside it', () =>
+      placeCreatureInScene(state(), FAR, { from: { creature: CAPTAIN }, feet: 15, bearing: 270 }),
+    );
+    step('the enemy beside the captain', () =>
+      placeCreatureInScene(state(), WATCHER, { from: { creature: CAPTAIN }, feet: 5, bearing: 180 }),
+    );
+    return log;
+  };
+
+  const savesWith = (state: GameState, who: CharacterId): readonly string[] =>
+    rollModesFor(state, { roller: who, family: 'saving-throw' }).modes.map((mode) => mode.source);
+
+  /**
+   * "While in a 10-foot Emanation originating from the hobgoblin, the
+   * hobgoblin and its allies have Advantage on attack rolls and saving throws."
+   * Ten feet is inside; fifteen is not.
+   */
+  it('reaches an ally inside the emanation and not one outside it', () => {
+    const state = at(warband());
+    expect(savesWith(state, NEAR)).toEqual(['Aura of Authority']);
+    expect(savesWith(state, FAR)).toEqual([]);
+  });
+
+  /** "the hobgoblin **and** its allies" — the holder is inside its own aura. */
+  it('reaches the captain itself', () => {
+    expect(savesWith(at(warband()), CAPTAIN)).toEqual(['Aura of Authority']);
+  });
+
+  /** And never an enemy standing in it, however close. */
+  it('reaches nobody on the other side', () => {
+    expect(savesWith(at(warband()), WATCHER)).toEqual([]);
+  });
+
+  /**
+   * "provided the hobgoblin doesn't have the Incapacitated condition" — the
+   * clause the parser refuses to read away, and the requirement the engine
+   * already had for it.
+   */
+  it('gives nobody anything while the captain is Incapacitated', () => {
+    const log = warband();
+    log.push({
+      type: 'condition-applied',
+      id: CAPTAIN,
+      condition: 'incapacitated',
+      source: 'the test',
+    });
+    const state = at(log);
+    expect(savesWith(state, NEAR)).toEqual([]);
+    expect(savesWith(state, CAPTAIN)).toEqual([]);
+  });
+});
+
+describe('SRD Blood Frenzy: Advantage read off the creature being swung at', () => {
+  const SAHUAGIN = id('sahuagin');
+
+  const swingsWith = (state: GameState, at_: CharacterId): readonly string[] =>
+    rollModesFor(state, { roller: SAHUAGIN, against: at_, family: 'attack' }).modes.map(
+      (mode) => mode.source,
+    );
+
+  const hurt = (log: readonly GameEvent[], who: CharacterId, amount: number): GameState =>
+    fold(SEED, [...log, { type: 'damage-taken', id: who, amount }]);
+
+  /**
+   * "The sahuagin has Advantage on attack rolls against any creature that
+   * doesn't have all its Hit Points." One point short is enough — which is the
+   * difference between this sentence and SRD Bloodied Fury, printed a page
+   * apart.
+   */
+  it('gives Advantage against a creature one point short of its maximum', () => {
+    const log = field('sahuagin-warrior', SAHUAGIN);
+    expect(swingsWith(at(log), WATCHER)).toEqual([]);
+    expect(swingsWith(hurt(log, WATCHER, 1), WATCHER)).toEqual(['Blood Frenzy']);
+  });
+
+  /**
+   * And the Hit Points read are the **target's**. A wounded sahuagin swinging
+   * at an unhurt goblin gets nothing, which is what tells this rule from the
+   * one it shares nine words with.
+   */
+  it('reads the target and never the holder', () => {
+    const log = field('sahuagin-warrior', SAHUAGIN);
+    expect(swingsWith(hurt(log, SAHUAGIN, 5), WATCHER)).toEqual([]);
+  });
+
+  /** A block that prints no such sentence swings flat at a bleeding enemy. */
+  it('gives a block that prints no such sentence nothing', () => {
+    const log = field('bandit', id('bandit'));
+    expect(
+      rollModesFor(hurt(log, WATCHER, 1), {
+        roller: id('bandit'),
+        against: WATCHER,
+        family: 'attack',
+      }).modes,
+    ).toEqual([]);
+  });
+});
+
+describe('SRD Siege Monster: double damage to a thing that can be broken', () => {
+  const ELEMENTAL = id('elemental');
+  const DOOR = id('the oak door');
+
+  /** The elemental, a goblin and a door, with nothing else in the room. */
+  const quarry = (block = 'earth-elemental'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    log.push(...unwrap(addCreature(state(), SRD_CONTENT, ELEMENTAL, block), block).events);
+    log.push(
+      ...unwrap(addCreature(state(), SRD_CONTENT, WATCHER, 'goblin-warrior'), 'a goblin').events,
+    );
+    log.push(
+      ...unwrap(
+        declareObject(state(), SRD_CONTENT, DOOR, {
+          name: 'the oak door',
+          material: 'wood',
+          size: 'medium',
+          build: 'resilient',
+        }),
+        'the door',
+      ),
+    );
+    return log;
+  };
+
+  const hits = (state: GameState, victim: CharacterId, by: CharacterId): number =>
+    unwrap(
+      dealSpellDamage(
+        state,
+        victim,
+        [{ source: 'a slam', type: 'bludgeoning', roll: null, flat: 10, total: 10 }],
+        'a slam',
+        supply(),
+        { by },
+      ),
+      'the blow',
+    ).amount;
+
+  /**
+   * "The elemental deals double damage to objects and structures." An
+   * adjustment in SRD's own order — "multipliers are applied first" — so it is
+   * the same seam a ward's reduction goes through.
+   */
+  it('doubles what the holder deals to a declared object', () => {
+    expect(hits(at(quarry()), DOOR, ELEMENTAL)).toBe(20);
+  });
+
+  it('leaves what the holder deals to a creature alone', () => {
+    expect(hits(at(quarry()), WATCHER, ELEMENTAL)).toBe(10);
+  });
+
+  /** And a block that prints no such sentence breaks a door at the usual rate. */
+  it('gives a block that prints no such sentence nothing', () => {
+    expect(hits(at(quarry('ogre')), DOOR, ELEMENTAL)).toBe(10);
+  });
+
+  /** A blow nobody dealt is nobody's doubling. */
+  it('doubles nothing where no dealer was recorded', () => {
+    const state = at(quarry());
+    expect(
+      unwrap(
+        dealSpellDamage(
+          state,
+          DOOR,
+          [{ source: 'a slam', type: 'bludgeoning', roll: null, flat: 10, total: 10 }],
+          'a falling rock',
+          supply(),
+          {},
+        ),
+        'the rock',
+      ).amount,
+    ).toBe(10);
+  });
+});
+
+describe('SRD Aberrant Ground: Difficult Terrain derived from where a creature stands', () => {
+  const MOUTHER = id('mouther');
+  const MOVER = id('mover');
+
+  /**
+   * The mouther on the stone and a walker beside it, both placed and on
+   * opposite sides, in a fight so that the move has a budget to be charged
+   * against.
+   */
+  const around = (block = 'gibbering-mouther'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const step = (what: string, produce: () => ReturnType<typeof declareCreatureSide>): void => {
+      log.push(...unwrap(produce(), what));
+    };
+
+    log.push(...unwrap(addCreature(state(), SRD_CONTENT, MOUTHER, block), block).events);
+    log.push(
+      ...unwrap(addCreature(state(), SRD_CONTENT, MOVER, 'goblin-warrior'), 'the walker').events,
+    );
+    step('the mouther takes a side', () => declareCreatureSide(state(), MOUTHER, 'monsters'));
+    step('the walker takes the other', () => declareCreatureSide(state(), MOVER, 'party'));
+    step('the field', () => setScene(state(), { width: 400, depth: 400, height: 200 }));
+    step('a stone on it', () => addSceneLandmark(state(), 'the stone', { x: 100, y: 100, z: 0 }));
+    step('the mouther on the stone', () =>
+      placeCreatureInScene(state(), MOUTHER, { from: { landmark: 'the stone' }, feet: 0 }),
+    );
+    // Measured from the stone rather than from the mouther, so that a variant
+    // which never places the mouther still has somewhere to put the walker.
+    step('the walker beside it', () =>
+      placeCreatureInScene(state(), MOVER, { from: { landmark: 'the stone' }, feet: 5, bearing: 90 }),
+    );
+    log.push({
+      type: 'combat-started',
+      combatants: [
+        { id: MOVER, initiative: 20, speed: 30 },
+        { id: MOUTHER, initiative: 5, speed: 20 },
+      ],
+    });
+    return log;
+  };
+
+  /** What five feet across the ground beside the mouther cost. */
+  const stepsAside = (log: readonly GameEvent[]): number =>
+    unwrap(
+      resolveMove(
+        at(log),
+        MOVER,
+        { placement: { from: { creature: MOVER }, feet: 5, bearing: 0 } },
+        supply(),
+      ),
+      'the step',
+    ).cost;
+
+  /**
+   * "The ground in a 10-foot Emanation originating from the mouther is
+   * Difficult Terrain." Every foot in it costs an extra foot, and the space
+   * the walker crosses is inside it.
+   */
+  it('charges an extra foot for every foot in the emanation', () => {
+    expect(stepsAside(around())).toBe(10);
+  });
+
+  /**
+   * And the emanation **moves when the creature does**, which is why it is
+   * derived rather than declared: the same step over the same ground is
+   * ordinary once the mouther has walked away. There is no event that took a
+   * patch off, because there was never a patch to take.
+   */
+  it('stops charging where the holder has gone', () => {
+    const log = around();
+    log.push(
+      ...unwrap(
+        resolveMove(
+          at(log),
+          MOUTHER,
+          // Shoved rather than walked, because it is not the mouther's turn
+          // and whose turn it is has nothing to do with what the ground costs.
+          { placement: { from: { creature: MOUTHER }, feet: 30, bearing: 180 }, forced: true },
+          supply(),
+        ),
+        'the mouther leaving',
+      ).events,
+    );
+    expect(stepsAside(log)).toBe(5);
+  });
+
+  /** And a block that prints no such sentence drags nothing behind it. */
+  it('charges nothing extra around a block that prints no such sentence', () => {
+    expect(stepsAside(around('bandit'))).toBe(5);
+  });
+
+  /** A creature nobody has placed has no ground to make difficult. */
+  it('makes nothing difficult for a holder nobody has placed', () => {
+    const log = around().filter(
+      (event) => !(event.type === 'creature-placed' && event.id === MOUTHER),
+    );
+    expect(stepsAside(log)).toBe(5);
+  });
+});
+
+describe('a trait a damage type sets off', () => {
+  const GOLEM = id('golem');
+
+  /** The golem, hurt enough that a heal has somewhere to go. */
+  const golemAt = (missing: number, block = 'flesh-golem'): GameEvent[] => {
+    const log = field(block, GOLEM, 15);
+    return missing === 0 ? log : [...log, { type: 'damage-taken', id: GOLEM, amount: missing }];
+  };
+
+  const hp = (state: GameState): number => state.creatures[GOLEM]!.vitals.hp;
+
+  const burn = (log: readonly GameEvent[], type: string, total: number) =>
+    dealSpellDamage(
+      at(log),
+      GOLEM,
+      [{ source: 'a bolt', type, roll: null, flat: total, total }],
+      'a bolt',
+      supply(),
+      { by: WATCHER },
+    );
+
+  /**
+   * SRD Lightning Absorption: "Whenever the golem is subjected to Lightning
+   * damage, it regains a number of Hit Points equal to the Lightning damage
+   * dealt." Both blocks that print it are **immune** to the type, so the
+   * amount read after Immunity would always be nought and the trait would be
+   * dead text — the amount is what was rolled at it, and none of it lands.
+   */
+  it('regains what the blow rolled and takes none of it', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'lightning', 11), 'the bolt');
+    expect(struck.amount).toBe(0);
+    expect(hp(fold(SEED, [...log, ...struck.events]))).toBe(hp(at(log)) + 11);
+  });
+
+  /** And never past its maximum, which is what a heal has always done. */
+  it('heals no further than the maximum', () => {
+    const log = golemAt(3);
+    const struck = unwrap(burn(log, 'lightning', 11), 'the bolt');
+    const after = fold(SEED, [...log, ...struck.events]);
+    expect(after.creatures[GOLEM]!.vitals.hp).toBe(after.creatures[GOLEM]!.vitals.hpMax);
+  });
+
+  /** A type the sentence does not name is an ordinary blow. */
+  it('absorbs only the type its sentence names', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'fire', 11), 'the flame');
+    expect(struck.amount).toBe(11);
+    expect(hp(fold(SEED, [...log, ...struck.events]))).toBe(hp(at(log)) - 11);
+  });
+
+  /**
+   * SRD Aversion to Fire: "If the golem takes Fire damage, it has Disadvantage
+   * on attack rolls and ability checks until the end of its next turn." The
+   * same trigger with a penalty on the other end of it.
+   */
+  it('hangs the Disadvantage the fire buys', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'fire', 11), 'the flame');
+    const after = fold(SEED, [...log, ...struck.events]);
+    // Named for the rule rather than for the heading, because a sheet's
+    // `stated.traits` carries the shapes the parser read and not the headings
+    // they were printed under — see `printedTypeTriggers`.
+    const rule = `printed:${GOLEM}:Disadvantage after fire damage`;
+    expect(
+      rollModesFor(after, { roller: GOLEM, against: WATCHER, family: 'attack' }).modes,
+    ).toEqual([{ source: rule, mode: 'disadvantage' }]);
+    expect(
+      rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes.map((m) => m.source),
+    ).toEqual([rule]);
+    // The sentence names two rolls and not three.
+    expect(rollModesFor(after, { roller: GOLEM, family: 'saving-throw' }).modes).toEqual([]);
+  });
+
+  /**
+   * "until the end of its next turn" — a moment in the turn order, which the
+   * timer beside the grant ends. The golem's turn ending once is not it: the
+   * sentence says its **next** turn, so the Disadvantage survives the end of
+   * the turn it was hung on and lapses at the end of the one after.
+   */
+  it('lifts the Disadvantage at the end of the golem’s next turn', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'fire', 11), 'the flame');
+    const hung = [...log, ...struck.events];
+    const checks = (events: readonly GameEvent[]): number =>
+      rollModesFor(fold(SEED, events), { roller: GOLEM, family: 'ability-check' }).modes.length;
+
+    expect(checks(hung)).toBe(1);
+    // Two turns pass — the watcher's and the golem's own — and the deadline is
+    // the end of the second of them.
+    const turned = [
+      ...hung,
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+      { type: 'turn-advanced' as const, ended: WATCHER, begun: GOLEM },
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+    ];
+    expect(checks(turned)).toBe(0);
+  });
+
+  /** And a type the sentence does not name hangs nothing. */
+  it('hangs nothing for a type its sentence does not name', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'cold', 11), 'the frost');
+    const after = fold(SEED, [...log, ...struck.events]);
+    expect(rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes).toEqual([]);
+  });
+
+  /**
+   * SRD Freeze: "If the elemental takes Cold damage, its Speed decreases by
+   * 20 feet until the end of its next turn." The same trigger and the same
+   * span with a Speed on the end of it.
+   */
+  it('cuts the Speed the cold costs, and gives it back', () => {
+    const log = golemAt(0, 'water-elemental');
+    const before = speedOf(at(log), GOLEM);
+    const struck = unwrap(burn(log, 'cold', 7), 'the frost');
+    const cut = [...log, ...struck.events];
+    expect(speedOf(at(cut), GOLEM)).toBe(before - 20);
+
+    const turned = [
+      ...cut,
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+      { type: 'turn-advanced' as const, ended: WATCHER, begun: GOLEM },
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+    ];
+    expect(speedOf(at(turned), GOLEM)).toBe(before);
+  });
+
+  it('cuts nothing for a type its sentence does not name', () => {
+    const log = golemAt(0, 'water-elemental');
+    const struck = unwrap(burn(log, 'fire', 7), 'the flame');
+    expect(speedOf(at([...log, ...struck.events]), GOLEM)).toBe(speedOf(at(log), GOLEM));
+  });
+
+  /** A block that prints neither sentence is burnt and healed by nothing. */
+  it('gives a block that prints neither sentence nothing', () => {
+    const log = golemAt(20, 'ogre');
+    const struck = unwrap(burn(log, 'lightning', 11), 'the bolt');
+    expect(struck.amount).toBe(11);
+    const after = fold(SEED, [...log, ...struck.events]);
+    expect(rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes).toEqual([]);
+  });
+});
+
+describe('SRD Fire Aura and SRD Barbed Hide: what a stat block owes at a boundary', () => {
+  const AZER = id('azer');
+  const GOBLIN_A = id('goblin-a');
+  const GOBLIN_B = id('goblin-b');
+  const FRIEND = id('friend');
+
+  /**
+   * An azer with two goblins and a friend all within its five feet, and the
+   * azer going first so that ending its turn is what the test does.
+   */
+  const around = (block = 'azer-sentinel'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const add = (who: CharacterId, id_: string): void => {
+      log.push(...unwrap(addCreature(state(), SRD_CONTENT, who, id_), id_).events);
+    };
+    const step = (what: string, produce: () => ReturnType<typeof declareCreatureSide>): void => {
+      log.push(...unwrap(produce(), what));
+    };
+
+    add(AZER, block);
+    add(GOBLIN_A, 'goblin-warrior');
+    add(GOBLIN_B, 'goblin-warrior');
+    add(FRIEND, 'goblin-warrior');
+    step('the azer takes a side', () => declareCreatureSide(state(), AZER, 'monsters'));
+    for (const who of [GOBLIN_A, GOBLIN_B, FRIEND]) {
+      step(`${who} takes the other`, () => declareCreatureSide(state(), who, 'party'));
+    }
+    step('the field', () => setScene(state(), { width: 400, depth: 400, height: 200 }));
+    step('a stone on it', () => addSceneLandmark(state(), 'the stone', { x: 100, y: 100, z: 0 }));
+    step('the azer on the stone', () =>
+      placeCreatureInScene(state(), AZER, { from: { landmark: 'the stone' }, feet: 0 }),
+    );
+    const bearings = { [GOBLIN_A]: 0, [GOBLIN_B]: 90, [FRIEND]: 180 } as Record<string, number>;
+    for (const who of [GOBLIN_A, GOBLIN_B, FRIEND]) {
+      step(`${who} beside it`, () =>
+        placeCreatureInScene(state(), who, {
+          from: { landmark: 'the stone' },
+          feet: 5,
+          bearing: bearings[who]!,
+        }),
+      );
+    }
+    log.push({
+      type: 'combat-started',
+      combatants: [
+        { id: AZER, initiative: 20, speed: 30 },
+        { id: GOBLIN_A, initiative: 15, speed: 30 },
+        { id: GOBLIN_B, initiative: 10, speed: 30 },
+        { id: FRIEND, initiative: 5, speed: 30 },
+      ],
+    });
+    return log;
+  };
+
+  /** How much each creature lost when the azer's turn ended. */
+  const burnt = (log: readonly GameEvent[], burns?: readonly CharacterId[]): Record<string, number> => {
+    const before = at(log);
+    const turned = unwrap(
+      resolveTurn(before, supply(), burns === undefined ? {} : { burns }),
+      'the turn',
+    );
+    const after = fold(SEED, [...log, ...turned.events]);
+    const lost: Record<string, number> = {};
+    for (const who of [AZER, GOBLIN_A, GOBLIN_B, FRIEND]) {
+      lost[who] = before.creatures[who]!.vitals.hp - after.creatures[who]!.vitals.hp;
+    }
+    return lost;
+  };
+
+  /**
+   * "At the end of each of the azer's turns, each creature of the azer's
+   * choice in a 5-foot Emanation originating from the azer takes 5 (1d10) Fire
+   * damage." The choice is the DM's and the engine never makes it.
+   */
+  it('burns the creatures the table named and nobody else', () => {
+    const lost = burnt(around(), [GOBLIN_A, GOBLIN_B]);
+    expect(lost[GOBLIN_A]).toBeGreaterThan(0);
+    expect(lost[GOBLIN_B]).toBeGreaterThan(0);
+    expect(lost[FRIEND]).toBe(0);
+    // SRD: an Emanation "ignores the creature it originates from".
+    expect(lost[AZER]).toBe(0);
+  });
+
+  /**
+   * **And an answer that names nobody burns nobody**, which is the only safe
+   * default: picking for the DM would be the engine playing somebody's azer.
+   */
+  it('burns nobody where the table named nobody', () => {
+    const lost = burnt(around());
+    expect(lost[GOBLIN_A]).toBe(0);
+    expect(lost[GOBLIN_B]).toBe(0);
+  });
+
+  /** "unless the azer has the Incapacitated condition." */
+  it('burns nobody while the azer is Incapacitated', () => {
+    const log = [
+      ...around(),
+      {
+        type: 'condition-applied' as const,
+        id: AZER,
+        condition: 'incapacitated' as const,
+        source: 'the test',
+      },
+    ];
+    expect(burnt(log, [GOBLIN_A, GOBLIN_B])[GOBLIN_A]).toBe(0);
+  });
+
+  /** A block that prints no such sentence burns nobody however it is asked. */
+  it('burns nobody for a block that prints no such sentence', () => {
+    expect(burnt(around('bandit'), [GOBLIN_A, GOBLIN_B])[GOBLIN_A]).toBe(0);
+  });
+
+  /**
+   * And a boundary asked to advance with no generator refuses rather than
+   * skipping the aura — the fourth member of the family `payout_owed`,
+   * `damage_owed`, `death_save_owed` and `recharge_owed` already belong to.
+   * Forgetting a rule has to stop the game rather than quietly drop it.
+   */
+  it('refuses to advance without a generator to roll the aura', () => {
+    const refused = resolveTurn(at(around()), undefined, { burns: [GOBLIN_A] });
+    expect(isErr(refused) && refused.code).toBe('boundary_damage_owed');
+  });
+});
+
+describe('SRD Barbed Hide: the damage a hold owes at the start of a turn', () => {
+  const DEVIL = id('devil');
+  const FIGHTER = id('fighter');
+
+  /**
+   * A devil grappling a fighter, with the fighter's turn about to end so that
+   * the devil's is the one that begins.
+   */
+  const holding = (block = 'barbed-devil'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const add = (who: CharacterId, id_: string): void => {
+      log.push(...unwrap(addCreature(state(), SRD_CONTENT, who, id_), id_).events);
+    };
+
+    add(DEVIL, block);
+    add(FIGHTER, 'goblin-warrior');
+    log.push(
+      ...unwrap(declareCreatureSide(state(), DEVIL, 'monsters'), 'a side'),
+      ...unwrap(declareCreatureSide(state(), FIGHTER, 'party'), 'the other'),
+      {
+        type: 'condition-applied',
+        id: FIGHTER,
+        condition: 'grappled',
+        source: `grapple:${DEVIL}`,
+      },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: FIGHTER, initiative: 20, speed: 30 },
+          { id: DEVIL, initiative: 5, speed: 30 },
+        ],
+      },
+    );
+    return log;
+  };
+
+  const hurtAtTheStart = (log: readonly GameEvent[]): number => {
+    const before = at(log);
+    const turned = unwrap(resolveTurn(before, supply()), 'the turn');
+    const after = fold(SEED, [...log, ...turned.events]);
+    return before.creatures[FIGHTER]!.vitals.hp - after.creatures[FIGHTER]!.vitals.hp;
+  };
+
+  /**
+   * "At the start of each of its turns, the devil deals 5 (1d10) Piercing
+   * damage to any creature it is grappling or any creature grappling it." No
+   * choice, no feet, and the hold is the whole of the reach.
+   */
+  it('hurts the creature it is holding when its turn begins', () => {
+    expect(hurtAtTheStart(holding())).toBeGreaterThan(0);
+  });
+
+  /** And nobody at all where there is no hold. */
+  it('hurts nobody where nothing is held', () => {
+    const loose = holding().filter(
+      (event) => !(event.type === 'condition-applied' && event.condition === 'grappled'),
+    );
+    expect(hurtAtTheStart(loose)).toBe(0);
+  });
+
+  /** And a block that prints no such sentence hurts nobody it is holding. */
+  it('hurts nobody for a block that prints no such sentence', () => {
+    expect(hurtAtTheStart(holding('bandit'))).toBe(0);
+  });
+});
+
+describe('SRD Blurred Form: a mode on the rolls made against its holder', () => {
+  const MEPHIT = id('mephit');
+
+  const swungAt = (state: GameState): readonly string[] =>
+    rollModesFor(state, { roller: WATCHER, against: MEPHIT, family: 'attack' }).modes.map(
+      (mode) => mode.source,
+    );
+
+  /**
+   * "Attack rolls against the mephit are made with Disadvantage unless the
+   * mephit has the Incapacitated condition." The first printed trait whose
+   * mode sits at the other end of the blow.
+   */
+  it('gives the attacker Disadvantage and the mephit nothing', () => {
+    const log = field('steam-mephit', MEPHIT);
+    expect(swungAt(at(log))).toEqual(['Blurred Form']);
+    // And it is a rule about rolls *against* it, not about its own.
+    expect(
+      rollModesFor(at(log), { roller: MEPHIT, against: WATCHER, family: 'attack' }).modes,
+    ).toEqual([]);
+  });
+
+  /** The gate is the sentence's last clause, and it is read on every roll. */
+  it('gives nobody anything while the mephit is Incapacitated', () => {
+    const log = [
+      ...field('steam-mephit', MEPHIT),
+      {
+        type: 'condition-applied' as const,
+        id: MEPHIT,
+        condition: 'incapacitated' as const,
+        source: 'the test',
+      },
+    ];
+    expect(swungAt(at(log))).toEqual([]);
+  });
+});
+
+describe('SRD Beast of Burden: SRD Powerful Build on a stat block', () => {
+  const MULE = id('mule');
+
+  /**
+   * "The mule counts as one size larger for the purpose of determining its
+   * carrying capacity." A Large row off a Medium creature, which is the grant
+   * `capacitySizeOf` has read since the Goliath's own line landed.
+   */
+  it('reads the mule’s capacity a row up from the size it is', () => {
+    const mule = at(field('mule', MULE));
+    const strength = mule.creatures[MULE]!.sheet.abilities.str;
+
+    // Still Medium: the sentence is about this table and about nothing else.
+    expect(mule.creatures[MULE]!.size).toBe('medium');
+    // SRD: a Medium creature carries 15 pounds per point of Strength and a
+    // Large one twice that, so the step is the doubling and nothing else.
+    expect(carryingCapacity(mule, MULE).carry).toBe(strength * 15 * 2);
+
+    // Not vacuous: a Medium block that prints no such sentence reads its own
+    // row. The pony is the same size and the same shape of creature.
+    const pony = at(field('pony', id('pony')));
+    const ponyStrength = pony.creatures[id('pony')]!.sheet.abilities.str;
+    expect(carryingCapacity(pony, id('pony')).carry).toBe(ponyStrength * 15);
   });
 });

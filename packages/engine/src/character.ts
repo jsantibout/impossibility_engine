@@ -1421,6 +1421,30 @@ export function printedLight(
   return null;
 }
 
+/**
+ * SRD Aberrant Ground: the radius of the expensive ground a stat block drags
+ * about with it, or null.
+ *
+ * > "The ground in a 10-foot Emanation originating from the mouther is
+ * > Difficult Terrain."
+ *
+ * **Here rather than in `monster.ts` beside its siblings, for
+ * {@link printedLight}'s reason word for word**: what spends it is
+ * `terrainAt`, one function along from `lightAt` in the same deliberately
+ * leaf-ward module, and an edge from there to `monster.ts` would pull half the
+ * engine in through the geometry.
+ *
+ * A radius and not a patch, because the patch is derived on every read: an
+ * Emanation moves when its creature does, so there is no moment at which one
+ * could be taken off and put back. See `carriedDifficultGround`.
+ */
+export function printedDifficultGround(sheet: CharacterSheet): number | null {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'emanation-is-difficult-terrain') return trait.feet;
+  }
+  return null;
+}
+
 /** One light a creature's own features are shedding, named so a report can say which. */
 export interface ShedLight {
   /** The feature shedding it, and what it is called. */

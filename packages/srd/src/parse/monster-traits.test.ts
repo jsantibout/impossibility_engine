@@ -322,6 +322,340 @@ describe('a trait that says what being Bloodied buys', () => {
   });
 });
 
+describe('a trait that reads the creature being swung at', () => {
+  /**
+   * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against any
+   * creature that doesn't have all its Hit Points" — the same predicate SRD
+   * Colossus Slayer writes as "if it's missing any of its Hit Points", read
+   * off the target rather than off the holder.
+   */
+  it('reads SRD Blood Frenzy off the target rather than the holder', () => {
+    expect(traitOf('sahuagin-warrior', 'Blood Frenzy')).toEqual({
+      kind: 'advantage-against-a-wounded-target',
+    });
+  });
+
+  it('refuses a sentence that drops the target clause', () => {
+    expect(
+      parseTraitShape(
+        "The sahuagin has Advantage on attack rolls against any creature that doesn't have all its Hit Points.",
+      ),
+    ).toEqual({ kind: 'advantage-against-a-wounded-target' });
+    expect(parseTraitShape('The sahuagin has Advantage on attack rolls.')).toBeNull();
+  });
+});
+
+describe('a trait that is an aura', () => {
+  /**
+   * SRD Aura of Authority, which is SRD Aura of Protection's shape worn by a
+   * stat block: a reach in feet, the holder and its allies inside it, and a
+   * gate on the holder.
+   */
+  it('reads the radius, the rolls and nothing else', () => {
+    expect(traitOf('hobgoblin-captain', 'Aura of Authority')).toEqual({
+      kind: 'allies-in-emanation-have-advantage',
+      feet: 10,
+      rolls: ['attack-roll', 'saving-throw'],
+    });
+  });
+
+  it('refuses the same aura with the Incapacitated clause read away', () => {
+    const printed = find('hobgoblin-captain').traits.find(
+      (trait) => trait.name === 'Aura of Authority',
+    )!.text;
+    expect(
+      parseTraitShape(
+        printed.replace(", provided the hobgoblin doesn't have the Incapacitated condition", ''),
+      ),
+    ).toBeNull();
+  });
+
+  /**
+   * SRD Aberrant Ground: an Emanation that is Difficult Terrain, which moves
+   * when the creature does.
+   */
+  it('reads the Gibbering Mouther’s ground as an emanation', () => {
+    expect(traitOf('gibbering-mouther', 'Aberrant Ground')).toEqual({
+      kind: 'emanation-is-difficult-terrain',
+      feet: 10,
+    });
+  });
+});
+
+describe('a trait that says how a creature jumps or leaves a reach', () => {
+  /**
+   * SRD Running Leap, which is SRD Standing Leap's opposite: it *requires* the
+   * ten feet where the frog's sentence removes them, so both numbers are the
+   * rule.
+   */
+  it('reads both numbers of a running leap', () => {
+    expect(traitOf('lion', 'Running Leap')).toEqual({
+      kind: 'long-jump-with-a-running-start',
+      runningStartFeet: 10,
+      longJumpFeet: 25,
+    });
+    expect(traitOf('saber-toothed-tiger', 'Running Leap')).toEqual({
+      kind: 'long-jump-with-a-running-start',
+      runningStartFeet: 10,
+      longJumpFeet: 25,
+    });
+  });
+
+  /**
+   * SRD Agile is SRD Flyby with one word changed, and the word is the whole
+   * rule — so the two sentences reach two kinds and neither block gets the
+   * other's.
+   */
+  it('tells a creature that walks away from one that flies away', () => {
+    expect(traitOf('deer', 'Agile')).toEqual({ kind: 'does-not-provoke-when-leaving-reach' });
+    expect(traitOf('rat', 'Agile')).toEqual({ kind: 'does-not-provoke-when-leaving-reach' });
+    expect(traitOf('gargoyle', 'Flyby')).toEqual({
+      kind: 'does-not-provoke-when-flying-out-of-reach',
+    });
+  });
+});
+
+describe('a trait about what a creature does to a thing rather than a creature', () => {
+  it('reads SRD Siege Monster', () => {
+    expect(traitOf('earth-elemental', 'Siege Monster')).toEqual({
+      kind: 'deals-double-damage-to-objects',
+    });
+  });
+
+  it('refuses a doubling against anything the sentence does not name', () => {
+    expect(
+      parseTraitShape('The elemental deals double damage to objects and structures.'),
+    ).toEqual({ kind: 'deals-double-damage-to-objects' });
+    expect(parseTraitShape('The elemental deals double damage to Plants.')).toBeNull();
+  });
+});
+
+describe('a trait a damage type sets off', () => {
+  /**
+   * SRD Lightning Absorption, printed on the Flesh Golem and the Shambling
+   * Mound, both of which are immune to the type they absorb.
+   */
+  it('reads the type a block absorbs', () => {
+    expect(traitOf('flesh-golem', 'Lightning Absorption')).toEqual({
+      kind: 'absorbs-a-damage-type',
+      damageType: 'lightning',
+    });
+    expect(traitOf('shambling-mound', 'Lightning Absorption')).toEqual({
+      kind: 'absorbs-a-damage-type',
+      damageType: 'lightning',
+    });
+  });
+
+  /**
+   * And the Iron Golem's Fire Absorption, which is the same sentence under
+   * another heading — the rule this reader has followed since Pack Tactics:
+   * matched on the sentence and never on the name above it.
+   */
+  it('reads the same sentence printed under another heading', () => {
+    expect(traitOf('iron-golem', 'Fire Absorption')).toEqual({
+      kind: 'absorbs-a-damage-type',
+      damageType: 'fire',
+    });
+  });
+
+  /** A sentence naming two types is a rule nobody wrote. */
+  it('refuses a sentence whose two types disagree', () => {
+    expect(
+      parseTraitShape(
+        'Whenever the golem is subjected to Lightning damage, it regains a number of Hit Points equal to the Fire damage dealt.',
+      ),
+    ).toBeNull();
+    expect(
+      parseTraitShape(
+        'Whenever the golem is subjected to Sonic damage, it regains a number of Hit Points equal to the Sonic damage dealt.',
+      ),
+    ).toBeNull();
+  });
+
+  /**
+   * SRD Aversion to Fire, and the glossary's order for the two nouns whichever
+   * order the block prints them in.
+   */
+  it('reads the type and the rolls a penalty follows', () => {
+    expect(traitOf('flesh-golem', 'Aversion to Fire')).toEqual({
+      kind: 'penalised-after-taking-a-damage-type',
+      damageType: 'fire',
+      rolls: ['ability-check', 'attack-roll'],
+    });
+  });
+
+  it('refuses the same sentence with another span on the end of it', () => {
+    expect(
+      parseTraitShape(
+        'If the golem takes Fire damage, it has Disadvantage on attack rolls and ability checks until the end of its next turn.',
+      ),
+    ).toEqual({
+      kind: 'penalised-after-taking-a-damage-type',
+      damageType: 'fire',
+      rolls: ['ability-check', 'attack-roll'],
+    });
+    expect(
+      parseTraitShape(
+        'If the golem takes Fire damage, it has Disadvantage on attack rolls and ability checks for 1 hour.',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('a trait a turn boundary owes', () => {
+  /**
+   * SRD Fire Aura, printed four ways: the Azer's choice and its Incapacitated
+   * clause, the Salamander's choice without one, the Balor's no choice at all.
+   * Every part that varies is carried.
+   */
+  it('reads the moment, the radius, the dice, the choice and the gate', () => {
+    expect(traitOf('azer-sentinel', 'Fire Aura')).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 5,
+      dice: '1d10',
+      damageType: 'fire',
+      chosen: true,
+      unlessIncapacitated: true,
+    });
+    expect(traitOf('salamander', 'Fire Aura')).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 5,
+      dice: '2d6',
+      damageType: 'fire',
+      chosen: true,
+      unlessIncapacitated: false,
+    });
+    expect(traitOf('balor', 'Fire Aura')).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 5,
+      dice: '3d8',
+      damageType: 'fire',
+      chosen: false,
+      unlessIncapacitated: false,
+    });
+  });
+
+  /**
+   * And the Fire Elemental's, which is the anchoring rule doing its work: its
+   * sentence ends "Creatures and flammable objects in the Emanation start
+   * burning", and there is no burning here.
+   */
+  it('refuses the aura whose sentence sets the room alight', () => {
+    expect(traitOf('fire-elemental', 'Fire Aura')).toBeNull();
+  });
+
+  /** SRD Barbed Hide: the same moment, caught by the hold rather than by feet. */
+  it('reads the damage a hold owes at the start of a turn', () => {
+    expect(traitOf('barbed-devil', 'Barbed Hide')).toEqual({
+      kind: 'damages-creatures-it-is-holding',
+      moment: 'start',
+      dice: '1d10',
+      damageType: 'piercing',
+    });
+  });
+
+  it('refuses a hold sentence that names only one direction', () => {
+    expect(
+      parseTraitShape(
+        'At the start of each of its turns, the devil deals 5 (1d10) Piercing damage to any creature it is grappling.',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('three more sentences the engine already had a seam for', () => {
+  /**
+   * SRD Freeze: the same trigger SRD Aversion to Fire prints, with a Speed on
+   * the end of it instead of a roll mode.
+   */
+  it('reads the Speed a damage type costs', () => {
+    expect(traitOf('water-elemental', 'Freeze')).toEqual({
+      kind: 'speed-cut-after-taking-a-damage-type',
+      damageType: 'cold',
+      feet: 20,
+    });
+  });
+
+  /**
+   * SRD Blurred Form, which is the first printed trait whose mode sits on the
+   * rolls made **against** its holder.
+   */
+  it('reads the Disadvantage an attacker takes, gate and all', () => {
+    expect(traitOf('steam-mephit', 'Blurred Form')).toEqual({
+      kind: 'disadvantage-on-attacks-against-it',
+    });
+    expect(
+      parseTraitShape('Attack rolls against the mephit are made with Disadvantage.'),
+    ).toBeNull();
+  });
+
+  /** SRD Beast of Burden, which is SRD Powerful Build on a stat block. */
+  it('reads the step a carrying capacity is read at', () => {
+    expect(traitOf('mule', 'Beast of Burden')).toEqual({
+      kind: 'carries-as-a-larger-creature',
+      sizesLarger: 1,
+    });
+  });
+});
+
+/**
+ * The **third answer**: sentences read so that the table gets them, and that
+ * no rule will ever consult.
+ *
+ * `docs/design/content.md` settles the test — "a table fact that a rule then
+ * reads is a debt; a table fact nothing reads afterwards is a handover" — and
+ * every kind below is on the second side of it. They are anchored as hard as
+ * everything else here, because a kind is a claim about what was read and not
+ * a label stuck on a heading.
+ */
+describe('the sentences that are fiction, read so the table gets them', () => {
+  const handovers: readonly (readonly [string, string, string])[] = [
+    ['green-hag', 'Mimicry', 'mimics-sounds'],
+    ['raven', 'Mimicry', 'mimics-sounds'],
+    ['homunculus', 'Telepathic Bond', 'speaks-telepathically-with-its-master'],
+    ['vampire-familiar', 'Vampiric Connection', 'is-perceived-through-by-its-master'],
+    ['sahuagin-warrior', 'Shark Telepathy', 'controls-a-kind-of-creature'],
+    ['rust-monster', 'Iron Scent', 'pinpoints-a-substance'],
+    ['xorn', 'Treasure Sense', 'pinpoints-a-substance'],
+    ['dryad', 'Speak with Beasts and Plants', 'speaks-with-a-kind-of-creature'],
+    ['ghost', 'Ethereal Sight', 'sees-into-another-plane'],
+    ['phase-spider', 'Ethereal Sight', 'sees-into-another-plane'],
+    ['gelatinous-cube', 'Transparent', 'goes-unnoticed-until-it-moves'],
+    ['couatl', 'Shielded Mind', 'thoughts-cannot-be-read'],
+    ['flesh-golem', 'Immutable Form', 'cannot-shape-shift'],
+    ['barbed-devil', 'Diabolical Restoration', 'revives-on-another-plane'],
+    ['lemure', 'Hellish Restoration', 'revives-on-another-plane'],
+    ['chuul', 'Sense Magic', 'senses-magic-nearby'],
+    ['commoner', 'Training', 'has-a-skill-the-gm-chooses'],
+    ['half-dragon', 'Draconic Origin', 'has-a-damage-type-the-gm-chooses'],
+    ['fire-elemental', 'Water Susceptibility', 'is-hurt-by-water'],
+    ['vampire-spawn', 'Running Water', 'is-hurt-by-water'],
+    ['vampire-spawn', 'Forbiddance', 'cannot-enter-a-home-uninvited'],
+    ['vampire-spawn', 'Vampire Weakness', 'a-heading-over-the-lines-that-follow'],
+  ];
+
+  it.each(handovers)('reads %s’s %s as %s', (block, line, kind) => {
+    expect(traitOf(block, line)).toEqual({ kind });
+  });
+
+  /**
+   * And each of them is still anchored: the shortest sentence on the list is
+   * the Flesh Golem's four words, and a fifth word is a different rule.
+   */
+  it('refuses a handover sentence that says one more thing', () => {
+    expect(parseTraitShape("The golem can't shape-shift.")).toEqual({
+      kind: 'cannot-shape-shift',
+    });
+    expect(parseTraitShape("The golem can't shape-shift or be shape-shifted.")).toBeNull();
+    expect(
+      parseTraitShape('The dryad can communicate with Beasts and Plants as if they shared a language, and they obey it.'),
+    ).toBeNull();
+  });
+});
+
 describe('the reader is a list of matched sentences and not an interpreter', () => {
   it('reads nothing out of a trait nobody has matched', () => {
     expect(parseTraitShape('The elemental can move through a space as narrow as 1 inch.')).toBeNull();

@@ -29,7 +29,12 @@ import {
   type CharacterSheet,
   type MovementMode,
 } from '../character.js';
-import { bestPrintedMeleeAttack, hasPrintedTrait, printedLeap } from '../monster.js';
+import {
+  bestPrintedMeleeAttack,
+  hasPrintedTrait,
+  printedLeap,
+  printedRunningLeap,
+} from '../monster.js';
 import { castingIdOf } from '../spells.js';
 import {
   altitudeOf,
@@ -842,7 +847,20 @@ function checkJump(
     // cover increases by a number of feet equal to your Dexterity modifier" —
     // the running Long Jump alone, off the score as it stands.
     const lengthened = running && leap === null ? jumpBonusFor(state, id) : 0;
-    const own = leap === null ? longJumpDistance(sheet, running) + lengthened : leap.longJumpFeet;
+    // **SRD Running Leap**, which is a second bound on the same jump rather
+    // than a replacement of it: "With a 10-foot running start, the lion can
+    // Long Jump up to 25 feet." The longer of the block's number and the
+    // creature's own governs, which is what "up to" says — the reading the
+    // bought jump below already takes — and it is read only on a jump that
+    // *was* run, because the running start is half the sentence.
+    const printedRun = running ? printedRunningLeap(sheet) : null;
+    const own =
+      leap === null
+        ? Math.max(
+            longJumpDistance(sheet, running) + lengthened,
+            printedRun === null ? 0 : printedRun.longJumpFeet,
+          )
+        : leap.longJumpFeet;
 
     // SRD *Jump*: "that creature can jump up to 30 feet by spending 10 feet of
     // movement." A bought jump is a **second** bound beside the creature's own
@@ -1344,6 +1362,14 @@ function provokedBy(
   // creature that flew part of the way sends two moves and each is judged on
   // its own.
   if (mode === 'fly' && hasPrintedTrait(sheet, 'does-not-provoke-when-flying-out-of-reach')) {
+    return { provoked: [], unverified: [] };
+  }
+  // **SRD Agile**, "doesn't provoke an Opportunity Attack when it **moves** out
+  // of an enemy's reach" — the Deer's and the Rat's sentence, which is the one
+  // above with the mode clause taken off. So it is asked of every mode and the
+  // flier's stays narrow: a gargoyle on foot still provokes and a deer never
+  // does.
+  if (hasPrintedTrait(sheet, 'does-not-provoke-when-leaving-reach')) {
     return { provoked: [], unverified: [] };
   }
 

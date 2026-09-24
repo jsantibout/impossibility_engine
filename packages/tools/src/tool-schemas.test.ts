@@ -182,8 +182,11 @@ describe('toolSchemas', () => {
     // the Command word's slot grew both surfaces by the same amount.
     expect(toolSchemas(player())).toHaveLength(83);
     expect(toolSchemas(dm())).toHaveLength(102);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(118063);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142193);
+    // Re-pinned again for the bestiary traits track: `end_turn.burns` — the
+    // creatures a Fire Aura's holder chooses to burn, `fought`'s twin, on the
+    // one tool both surfaces publish — grew both by the same amount.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(118264);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142394);
   });
 });
 

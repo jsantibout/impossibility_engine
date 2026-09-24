@@ -27,7 +27,10 @@ import type { MonsterSave } from '@ie/srd';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
 import { currentCombatant, extraActionsOwedAtTurnStart, spendAction } from '../combat.js';
-import { conditionInstanceId, type CheckContext } from '../conditions.js';
+import { conditionInstanceId, isIncapacitated, type CheckContext } from '../conditions.js';
+// SRD Fire Aura's emanation, measured the way every other reach in the engine
+// is. A type-only edge would not do: the distance is read at the boundary.
+import { distanceBetween } from '../positioning.js';
 import { forSeconds, isDue, timeView, type TurnMoment } from '../time.js';
 import {
   mayAttempt,
@@ -39,7 +42,14 @@ import {
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { printedSaveOf, RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
+import {
+  printedBoundaryDamage,
+  type PrintedBoundaryDamage,
+  printedSaveOf,
+  RECHARGE_DIE,
+  rechargeMade,
+  rechargeOfLine,
+} from '../monster.js';
 import { rollRecorded } from '../rolls.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
@@ -206,6 +216,147 @@ function collectDueDamage(
   }
 
   return ok({ events, unverified });
+}
+
+/**
+ * SRD Fire Aura and SRD Barbed Hide: the damage a stat block's own turn
+ * boundary owes.
+ *
+ * "At the end of each of the azer's turns, each creature of the azer's choice
+ * in a 5-foot Emanation originating from the azer takes 5 (1d10) Fire damage
+ * unless the azer has the Incapacitated condition." "At the start of each of
+ * its turns, the devil deals 5 (1d10) Piercing damage to any creature it is
+ * grappling or any creature grappling it."
+ *
+ * **The sibling of the saves an area raises at a boundary**, and it lands in
+ * the same place for the same reason: what catches a creature as a turn begins
+ * is a question about the world the previous end left behind, so the end is
+ * settled and then the start.
+ *
+ * **"Of the azer's choice" is a choice and the engine never makes it.** The
+ * command that ends the turn takes the creatures the table named and burns
+ * exactly those of them the emanation reaches; an answer that names nobody
+ * burns nobody, which is a legal way for a DM to play an azer and is the only
+ * safe default — picking for them would be the engine playing somebody's
+ * creature. A sentence that prints no choice catches everybody inside, which
+ * is the other half of the same rule.
+ *
+ * **Never the holder itself.** The book's "each creature in a 5-foot Emanation
+ * originating from the azer" is the SRD's Emanation, which "doesn't extend
+ * around a corner and ignores the creature it originates from"; and a devil
+ * does not grapple itself.
+ *
+ * **A creature nobody has placed is caught by nothing**, which is the answer
+ * every other reach in this engine gives — an aura, a carried light, a patch
+ * of expensive ground. The hold needs no lattice at all, because a grapple is
+ * a relation the engine holds outright.
+ *
+ * **The holder is re-read between lines**, so a block printing two of these
+ * asks the second one about the world the first left behind: a creature that
+ * was Incapacitated by its own aura dropping something on it would stop
+ * burning, which is the same re-reading `settleAreaEffects` does of its queue.
+ * No SRD block prints two, and the loop is written as though one did.
+ *
+ * **One answer serves the moment it was given for.** `burns` comes off the
+ * command that ended a turn, and this function is called twice — once for the
+ * finisher's end and once for the beginner's start. No SRD block prints a
+ * start-of-turn emanation with a choice in it, so the list is never asked of
+ * two creatures today; the day one is printed, the choice needs a creature
+ * beside it rather than a bare list, and this is where that would be read.
+ */
+function settlePrintedBoundaryDamage(
+  state: GameState,
+  supply: Supply | undefined,
+  who: CharacterId | undefined,
+  moment: TurnMoment,
+  chosen: readonly CharacterId[],
+): Result<BoundarySettlement> {
+  if (who === undefined) return ok({ events: [], unverified: [] });
+  const holder = state.creatures[who];
+  if (holder === undefined || holder.vitals.dead) return ok({ events: [], unverified: [] });
+
+  const owed = printedBoundaryDamage(holder.sheet).filter(
+    (line) => line.moment === moment,
+  );
+  if (owed.length === 0) return ok({ events: [], unverified: [] });
+
+  if (supply === undefined) {
+    return err(
+      'boundary_damage_owed',
+      `${who} has ${owed.length} printed line(s) that hurt somebody at the ${moment} of its turn; advancing needs a generator to roll them`,
+    );
+  }
+
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  let current = state;
+
+  for (const line of owed) {
+    // Off `current` rather than the `holder` snapshot, so a second line is
+    // asked about the world the first left behind — see the note above.
+    const standing = current.creatures[who];
+    if (standing === undefined || standing.vitals.dead) break;
+    if (line.unlessIncapacitated && isIncapacitated(standing.conditions)) continue;
+
+    for (const victim of caughtByBoundaryDamage(current, who, line, chosen)) {
+      // The holder's own sheet, because the dice are the block's and the
+      // victim contributes nothing — `collectDueDamage`'s reading of a
+      // scheduled hit, which throws from whichever sheet the notation belongs
+      // to and adds no ability modifier either way.
+      const label = `${line.damageType} damage from ${who}`;
+      const rolled = rollSpellDice(supply, holder.sheet, label, line.damageType, line.dice);
+      if (!rolled.ok) return rolled;
+
+      const hurt = dealSpellDamage(current, victim, rolled.value, label, supply, { by: who });
+      if (!hurt.ok) return hurt;
+      events.push(...hurt.value.events);
+      current = hurt.value.events.reduce(applyEvent, current);
+      unverified.push(...hurt.value.unverified);
+    }
+  }
+
+  return ok({ events, unverified });
+}
+
+/**
+ * Whom one such line catches, in a fixed order.
+ *
+ * Sorted by id, because two replays of one log have to throw the same dice at
+ * the same creatures in the same order — the rule `settleStartOfTurnRecharges`
+ * states about its own list.
+ */
+function caughtByBoundaryDamage(
+  state: GameState,
+  who: CharacterId,
+  line: PrintedBoundaryDamage,
+  chosen: readonly CharacterId[],
+): readonly CharacterId[] {
+  if (line.catches.kind === 'held') {
+    // Both directions of the hold, because the sentence prints both: whoever
+    // this creature is grappling, and whoever is grappling it.
+    const holds = grapplesOn(state, who).map((grapple) => grapple.grappler);
+    const held = Object.keys(state.creatures)
+      .filter((other) =>
+        grapplesOn(state, other as CharacterId).some((grapple) => grapple.grappler === who),
+      )
+      .map((other) => other as CharacterId);
+    return [...new Set([...holds, ...held])].sort();
+  }
+
+  const scene = state.scene;
+  if (scene === null) return [];
+  const reach = line.catches.feet;
+  const named = line.catches.chosen ? new Set<string>(chosen) : null;
+
+  return Object.keys(state.creatures)
+    .sort()
+    .filter((other) => other !== who)
+    .filter((other) => named === null || named.has(other))
+    .filter((other) => {
+      const apart = distanceBetween(scene, who, other as CharacterId);
+      return apart.ok && apart.value <= reach;
+    })
+    .map((other) => other as CharacterId);
 }
 
 /**
@@ -1660,10 +1811,34 @@ export function resolvePendingSaves(
  * effect's own hook says. Either way the caster's Concentration, the other
  * targets, and anything an unrelated source put there are left alone.
  */
+/**
+ * What ending the turn takes beside its own identity.
+ *
+ * One field, and it is a **decision the rules leave open** rather than a
+ * number: SRD Fire Aura burns "each creature of the azer's choice", and the
+ * engine has nobody to ask. So the door that ends the turn takes the answer
+ * and never invents one — an absent or empty list burns nobody, which is a
+ * legal way to play an azer.
+ *
+ * It rides on the command rather than beside it so that the answer is part of
+ * what the command *was*: `once` keys on the command id, and `identify`
+ * refuses `command_id_reused` for an id sent back with a different payload —
+ * so a second list under the first id is a refusal rather than a quiet
+ * second burning, which is the direction to be wrong in.
+ */
+export interface TurnCommand extends CommandIdentity {
+  /**
+   * SRD Fire Aura: "each creature of the azer's choice". The creatures the
+   * table named; anybody in it the emanation does not reach is simply not
+   * caught.
+   */
+  readonly burns?: readonly CharacterId[];
+}
+
 export function resolveTurn(
   state: GameState,
   supply?: Supply,
-  command: CommandIdentity = {},
+  command: TurnCommand = {},
 ): Result<TurnResolution> {
   // A retried advance is the duplicate nobody notices. It doubles no effect
   // and spends no resource — it **skips a combatant's whole turn**, and the
@@ -1868,6 +2043,37 @@ export function resolveTurn(
     // this moment hand over", rather than two that could drift apart.
     const ending = currentCombatant(state.combat).id;
     const beginning = after.combat === null ? undefined : currentCombatant(after.combat).id;
+
+    // **SRD Fire Aura and SRD Barbed Hide**, which are the block's own version
+    // of what the areas above just settled — so they land here, in the same
+    // two moments and the same order: the finisher's end, then the beginner's
+    // start. Before the payouts and the death save for the areas' own reason,
+    // which is that only this order leaves room for a start-of-turn heal to
+    // matter.
+    const burnt = settlePrintedBoundaryDamage(
+      after,
+      supply,
+      ending,
+      'end-of-turn',
+      command.burns ?? [],
+    );
+    if (!burnt.ok) return burnt;
+    advanced.push(...burnt.value.events);
+    unverified.push(...burnt.value.unverified);
+    after = burnt.value.events.reduce(applyEvent, after);
+
+    const barbed = settlePrintedBoundaryDamage(
+      after,
+      supply,
+      beginning,
+      'start-of-turn',
+      command.burns ?? [],
+    );
+    if (!barbed.ok) return barbed;
+    advanced.push(...barbed.value.events);
+    unverified.push(...barbed.value.unverified);
+    after = barbed.value.events.reduce(applyEvent, after);
+
     const paid = settleBoundaryPayouts(after, supply, ending, beginning);
     if (!paid.ok) return paid;
     advanced.push(...paid.value.events);

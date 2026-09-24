@@ -1014,6 +1014,154 @@ export const printedLeap = (
 };
 
 /**
+ * SRD Running Leap: the distance a block's own running jump covers, or null.
+ *
+ * "With a 10-foot running start, the lion can Long Jump up to 25 feet."
+ * {@link printedLeap}'s opposite number and read separately for that reason:
+ * SRD Standing Leap *removes* the running start and replaces both distances,
+ * while this one keeps the running start and states one distance the jump may
+ * reach.
+ *
+ * **A second bound rather than a replacement**, which is what "can Long Jump
+ * up to 25 feet" says: a creature whose Strength already carried it further
+ * does not get a shorter jump for having the trait. `checkJump` takes the
+ * longer of the two, exactly as it does with a jump a spell bought.
+ *
+ * The running start is carried rather than assumed, because the number is the
+ * line's: every SRD block prints ten, and a homebrew line may print any.
+ */
+export const printedRunningLeap = (
+  sheet: CharacterSheet,
+): { readonly runningStartFeet: number; readonly longJumpFeet: number } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'long-jump-with-a-running-start') {
+      return { runningStartFeet: trait.runningStartFeet, longJumpFeet: trait.longJumpFeet };
+    }
+  }
+  return null;
+};
+
+/**
+ * SRD Lightning Absorption: the type a block turns into Hit Points, or null.
+ *
+ * "Whenever the golem is subjected to Lightning damage, it regains a number of
+ * Hit Points equal to the Lightning damage dealt."
+ *
+ * **"Subjected to" and not "takes", and the difference is the whole trait.**
+ * Both blocks that print this are immune to the type they absorb, so an amount
+ * read after Immunity is always nought and the sentence would be dead text.
+ * The amount is therefore what was rolled at the creature before its own
+ * defences, which is the ruling this repository records here and applies in
+ * `dealSpellDamage`.
+ */
+export const printedAbsorption = (sheet: CharacterSheet): string | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'absorbs-a-damage-type') return trait.damageType;
+  }
+  return null;
+};
+
+/**
+ * SRD Aversion to Fire: the type that costs a block its rolls, and which.
+ *
+ * "If the golem takes Fire damage, it has Disadvantage on attack rolls and
+ * ability checks until the end of its next turn."
+ *
+ * **"Takes", which is the other word and the other reading**: the penalty
+ * follows damage the creature actually lost Hit Points to, so a defence that
+ * turned the whole blow aside turns the clause aside with it.
+ * {@link printedAbsorption} is the same trigger read the other way, and the
+ * book's own two verbs are what tell them apart.
+ */
+export const printedTypeAversion = (
+  sheet: CharacterSheet,
+): { readonly damageType: string; readonly rolls: readonly RollFamily[] } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'penalised-after-taking-a-damage-type') {
+      return { damageType: trait.damageType, rolls: trait.rolls.map((roll) => SUNLIT_ROLL[roll]) };
+    }
+  }
+  return null;
+};
+
+/**
+ * SRD Freeze: the Speed a damage type costs a block, and which type.
+ *
+ * "If the elemental takes Cold damage, its Speed decreases by 20 feet until
+ * the end of its next turn." {@link printedTypeAversion}'s sibling — the same
+ * trigger and the same span with a Speed on the end of it — so "takes" is read
+ * the same way: the cut follows damage that landed.
+ */
+export const printedTypeSlow = (
+  sheet: CharacterSheet,
+): { readonly damageType: string; readonly feet: number } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'speed-cut-after-taking-a-damage-type') {
+      return { damageType: trait.damageType, feet: trait.feet };
+    }
+  }
+  return null;
+};
+
+/** One printed sentence that hurts somebody when a turn begins or ends. */
+export interface PrintedBoundaryDamage {
+  readonly moment: TurnMoment;
+  readonly dice: string;
+  readonly damageType: string;
+  /**
+   * Who it catches: a radius round the holder, or whoever the hold reaches.
+   *
+   * Two shapes rather than an optional radius, because they are two questions
+   * and the boundary asks a different thing of each — `distanceBetween` for
+   * the first and `grapplesOn` for the second.
+   */
+  readonly catches:
+    | { readonly kind: 'emanation'; readonly feet: number; readonly chosen: boolean }
+    | { readonly kind: 'held' };
+  /** SRD Fire Aura's "unless the azer has the Incapacitated condition". */
+  readonly unlessIncapacitated: boolean;
+}
+
+/**
+ * SRD Fire Aura and SRD Barbed Hide: what a block's own turn boundary owes.
+ *
+ * Both sentences are the same moment — "at the end of each of the azer's
+ * turns", "at the start of each of its turns" — and differ in whom they catch,
+ * so they are one reader over two shapes rather than two readers that would
+ * have to agree about the moment.
+ *
+ * **In printed order, and all of them**, because a block may print two: the
+ * list is what the boundary walks, and returning the first would be a rule
+ * silently dropped by a stat block that happened to print a second.
+ */
+export const printedBoundaryDamage = (
+  sheet: CharacterSheet,
+): readonly PrintedBoundaryDamage[] => {
+  const found: PrintedBoundaryDamage[] = [];
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'damages-creatures-in-an-emanation') {
+      found.push({
+        moment: trait.moment === 'start' ? 'start-of-turn' : 'end-of-turn',
+        dice: trait.dice,
+        damageType: trait.damageType,
+        catches: { kind: 'emanation', feet: trait.feet, chosen: trait.chosen },
+        unlessIncapacitated: trait.unlessIncapacitated,
+      });
+    }
+    if (trait.kind === 'damages-creatures-it-is-holding') {
+      found.push({
+        moment: trait.moment === 'start' ? 'start-of-turn' : 'end-of-turn',
+        dice: trait.dice,
+        damageType: trait.damageType,
+        catches: { kind: 'held' },
+        unlessIncapacitated: false,
+      });
+    }
+  }
+  return found;
+};
+
+/**
  * The Speeds a block prints beside its walking one, onto the sheet.
  *
  * The parser has read "Speed 20 ft., Fly 40 ft." into five numbers and a flag
@@ -1223,6 +1371,139 @@ function printedMagicResistance(
 }
 
 /**
+ * SRD Aura of Authority, onto the sheet as the aura it is.
+ *
+ * "While in a 10-foot Emanation originating from the hobgoblin, the hobgoblin
+ * and its allies have Advantage on attack rolls and saving throws, provided
+ * the hobgoblin doesn't have the Incapacitated condition."
+ *
+ * **SRD Aura of Protection's shape with a roll mode inside it**, and nothing
+ * here is new: `reach: { kind: 'aura', feet }` has meant "the holder and the
+ * allies within" since the Paladin's aura landed, `standingFor` walks it for
+ * every grant kind rather than for the one it was built for, and
+ * `not-incapacitated` is the sentence's last clause word for word. So a
+ * printed aura is the same three fields a class feature fills in.
+ *
+ * **One effect per roll the sentence names**, for `printedSunlight`'s reason:
+ * a `roll-mode` grant carries one selector and the line names a list.
+ *
+ * Read from **Traits**, which is where the book prints it — though nothing
+ * here depends on that, because {@link printedStanding} dispatches on the
+ * shape the parser read and a heading says what a line costs.
+ */
+function printedAllyAura(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'allies-in-emanation-have-advantage') return [];
+  const feet = line.trait.feet;
+  return line.trait.rolls.map(
+    (roll): StandingEffect => ({
+      feature: key,
+      // The block's own heading, so a roll reports the rule the book printed.
+      name: line.name,
+      reach: { kind: 'aura', feet },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
+        },
+      },
+      requires: [{ kind: 'not-incapacitated' }],
+    }),
+  );
+}
+
+/**
+ * SRD Blood Frenzy, onto the sheet as the roll mode it is.
+ *
+ * "The sahuagin has Advantage on attack rolls against any creature that
+ * doesn't have all its Hit Points."
+ *
+ * `printedBloodiedAdvantage`'s mirror image across the blow: that sentence
+ * reads the holder's own Hit Points and this one reads the Hit Points of
+ * whoever is being swung at, which is a narrowing on the *roll* rather than a
+ * requirement on the holder — so it sits on the selector beside
+ * `againstMagic`, and `not-incapacitated` and its siblings have nothing to say
+ * about it.
+ */
+function printedFrenzy(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'advantage-against-a-wounded-target') return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'attack', relation: 'roller', targetMissingHitPoints: true },
+        },
+      },
+    },
+  ];
+}
+
+/**
+ * SRD Blurred Form, onto the sheet as the standing effect it is.
+ *
+ * "Attack rolls against the mephit are made with Disadvantage unless the
+ * mephit has the Incapacitated condition."
+ *
+ * `printedSunlight`'s shape from the other end of the blow: the first printed
+ * trait whose mode sits on the rolls made **against** its holder, which is
+ * what `relation: 'against-holder'` has meant since Dodge and Blur. The gate
+ * is on the holder and is the sentence's last clause word for word.
+ */
+function printedBlur(line: MonsterLine, key: string): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'disadvantage-on-attacks-against-it') return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'disadvantage',
+          selector: { roll: 'attack', relation: 'against-holder' },
+        },
+      },
+      requires: [{ kind: 'not-incapacitated' }],
+    },
+  ];
+}
+
+/**
+ * SRD Beast of Burden, onto the sheet as the grant SRD Powerful Build already
+ * is.
+ *
+ * "The mule counts as one size larger for the purpose of determining its
+ * carrying capacity." One sentence, one grant, and `capacitySizeOf` has read
+ * that grant since the Goliath's own line landed — so this is the stat block
+ * saying the same thing and nothing else changes.
+ */
+function printedCarryingCapacity(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'carries-as-a-larger-creature') return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: { kind: 'carrying-capacity', sizesLarger: line.trait.sizesLarger },
+    },
+  ];
+}
+
+/**
  * SRD Nimble Escape, SRD Cunning Action, SRD Deathless Agility and SRD Shadow
  * Stealth: a named action paid for out of a Bonus Action.
  *
@@ -1329,6 +1610,10 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
         ...printedSunlight(line, key),
         ...printedBloodiedAdvantage(line, key),
         ...printedMagicResistance(line, key),
+        ...printedAllyAura(line, key),
+        ...printedFrenzy(line, key),
+        ...printedBlur(line, key),
+        ...printedCarryingCapacity(line, key),
         ...printedBonusActionAllowance(line, key, costsABonusAction),
       ];
     }),

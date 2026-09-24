@@ -21,6 +21,16 @@ import { canUseFeatureThisTurn, spendReaction } from '../combat.js';
 import { damageReductionsOf, reductionApplies } from '../damage-reduction.js';
 import { isIncapacitated } from '../conditions.js';
 import {
+  hasPrintedTrait,
+  printedAbsorption,
+  printedLineSource,
+  printedTypeAversion,
+  printedTypeSlow,
+} from '../monster.js';
+import { OBJECT_CREATURE_TYPE } from '../objects.js';
+import { endOfNextTurn } from '../time.js';
+import { schedule } from './conditions.js';
+import {
   applyEvent,
   type CreatureState,
   type GameEvent,
@@ -161,6 +171,166 @@ export function adjustmentsFor(
     left -= off;
   }
   return adjustments;
+}
+
+/**
+ * SRD Siege Monster: "The elemental deals double damage to objects and
+ * structures."
+ *
+ * **An adjustment, in SRD's own order.** "Modifiers to damage are applied in
+ * the following order: adjustments such as bonuses, penalties, or
+ * **multipliers** are applied first; Resistance is applied second" — so the
+ * doubling goes in beside {@link adjustmentsFor}'s reduction rather than being
+ * applied to what comes back, and a door with Resistance to Bludgeoning takes
+ * half of twenty rather than twice of five.
+ *
+ * **Per type, because that is the shape an adjustment has here.** A blow of
+ * two kinds is doubled in both, which is what "double damage" says about a
+ * blow rather than about a die.
+ *
+ * **"Structures" names nothing this engine holds**, and that is the whole of
+ * what is handed over: a declared object is the one thing that can be broken,
+ * so the multiplier lands on `OBJECT_CREATURE_TYPE` and a castle wall is
+ * whatever the table declared it as.
+ *
+ * **One road of two, and the gap is stated rather than assumed away.** A blow
+ * held open at a Reaction window settles through `settleDamage` in
+ * `commands/reactions.ts`, which reaches `applyDamage` directly and never
+ * comes here — and the window is not offered off the *target's* Reactions
+ * alone: `offersForDamage` walks every creature and skips only a reactor whose
+ * feature reaches `self`, so a Bard within sixty feet of an Earth Elemental
+ * smashing a door holds that blow open with Cutting Words and the doubling is
+ * skipped. The same is true of {@link printedTypeTriggers} one function down.
+ * The fix is one call in `settleDamage`; that file belongs to another track
+ * this batch, so the gap is written here and reported rather than half-closed.
+ */
+function siegeDoubling(
+  state: GameState,
+  target: CharacterId,
+  by: CharacterId | undefined,
+  components: readonly DamageComponent[],
+): Record<string, number> {
+  if (by === undefined) return {};
+  if (state.creatures[target]?.creatureType !== OBJECT_CREATURE_TYPE) return {};
+  const dealer = state.creatures[by];
+  if (dealer === undefined || !hasPrintedTrait(dealer.sheet, 'deals-double-damage-to-objects')) {
+    return {};
+  }
+
+  const extra: Record<string, number> = {};
+  for (const component of components) {
+    extra[component.type] = (extra[component.type] ?? 0) + Math.max(0, component.total);
+  }
+  return extra;
+}
+
+/**
+ * What a blow of a named type does to the creature's own printed traits.
+ *
+ * Two sentences, two verbs, and the verbs are the whole of what tells them
+ * apart — see {@link printedAbsorption} and {@link printedTypeAversion}:
+ *
+ * - SRD Lightning Absorption is "**subjected to**", so the amount is what was
+ *   rolled at the creature before its own defences. Both blocks that print it
+ *   are immune to the type, and an amount read after Immunity would always be
+ *   nought.
+ * - SRD Aversion to Fire is "**takes**", so the clause follows damage that
+ *   actually landed and a defence that turned the whole blow aside turns the
+ *   clause aside with it.
+ *
+ * **Outside a fight the penalty is reported rather than hung**, because its
+ * span is a moment in the turn order and there is no order to pin it in. That
+ * is `schedule`'s own refusal, taken here in the direction every unsettled
+ * clause on a stat-block line takes: the blow lands, and the sentence the
+ * engine could not carry is named.
+ *
+ * **Only on the road that lands damage here**, which is the gap
+ * {@link siegeDoubling} states above and it is the same gap: a blow somebody
+ * held open at a Reaction window settles in `commands/reactions.ts` and never
+ * reaches this function, so a Flesh Golem struck by a Lightning Bolt a Bard
+ * answered absorbs nothing. One call in `settleDamage` closes both.
+ */
+function printedTypeTriggers(
+  state: GameState,
+  target: CharacterId,
+  components: readonly DamageComponent[],
+  byType: Readonly<Record<string, number>>,
+): { readonly events: readonly GameEvent[]; readonly unverified: readonly string[] } {
+  const sheet = state.creatures[target]?.sheet;
+  if (sheet === undefined) return { events: [], unverified: [] };
+
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+
+  const absorbed = printedAbsorption(sheet);
+  if (absorbed !== null) {
+    const raw = components
+      .filter((component) => component.type === absorbed)
+      .reduce((sum, component) => sum + Math.max(0, component.total), 0);
+    // `heal` clamps at the maximum, so nothing here has to.
+    if (raw > 0) events.push({ type: 'healed', id: target, amount: raw });
+  }
+
+  const aversion = printedTypeAversion(sheet);
+  if (aversion !== null && (byType[aversion.damageType] ?? 0) > 0) {
+    // One grant per roll the sentence names, because a `RollModifier` carries
+    // one selector — `printedSunlight` reads the same nouns the same way — and
+    // they share a source, so one deadline ends all of them.
+    // **Named for the rule and not for the heading**, which is the one place
+    // this reader differs from `printedSunlight`: a sheet's `stated.traits`
+    // carries the shapes the parser read and not the headings they were
+    // printed under, and a `roll-modifier-granted`'s source is both what a
+    // roll reports and the key its deadline ends. So the source says what the
+    // rule *is* — which names a damage type and no catalogue entry.
+    const hung = printedLineSource(target, `Disadvantage after ${aversion.damageType} damage`);
+    const timer = schedule(state, { kind: 'grants', on: target, source: hung }, endOfNextTurn(target));
+    if (!timer.ok) {
+      unverified.push(
+        `${target} took ${aversion.damageType} damage and its block gives it Disadvantage until the end of its next turn; there is no turn order for that moment to be pinned in, so nothing was hung`,
+      );
+    } else {
+      for (const roll of aversion.rolls) {
+        events.push({
+          type: 'roll-modifier-granted',
+          id: target,
+          modifier: {
+            source: hung,
+            // The block's own heading is not in hand here, so the grant is
+            // named by the line that dealt the damage; what a roll reports is
+            // `ActiveRollModifier.source`, which is the key the deadline ends.
+            modifier: { mode: 'disadvantage', selector: { roll, relation: 'roller' } },
+          },
+        });
+      }
+      events.push(timer.value);
+    }
+  }
+
+  // SRD Freeze: "If the elemental takes Cold damage, its Speed decreases by 20
+  // feet until the end of its next turn." The same trigger, the same span, and
+  // a Speed on the end of it instead of a roll mode — so the reading of
+  // "takes" is the same and so is the deadline.
+  const slowed = printedTypeSlow(sheet);
+  if (slowed !== null && (byType[slowed.damageType] ?? 0) > 0) {
+    const hung = printedLineSource(target, `Speed cut after ${slowed.damageType} damage`);
+    const timer = schedule(state, { kind: 'grants', on: target, source: hung }, endOfNextTurn(target));
+    if (!timer.ok) {
+      unverified.push(
+        `${target} took ${slowed.damageType} damage and its block cuts its Speed by ${slowed.feet} feet until the end of its next turn; there is no turn order for that moment to be pinned in, so nothing was hung`,
+      );
+    } else {
+      events.push(
+        {
+          type: 'speed-modifier-granted',
+          id: target,
+          modifier: { source: hung, change: 'add', feet: -slowed.feet },
+        },
+        timer.value,
+      );
+    }
+  }
+
+  return { events, unverified };
 }
 
 /** A standing reduction, rolled: what it took off and what the log says about it. */
@@ -523,10 +693,22 @@ export function dealSpellDamage(
 
   // A creature's own defences and the ones its features grant, together. The
   // stat block's entries alone would miss a Sorcerer's Elemental Affinity.
+  // The ward's reduction and SRD Siege Monster's multiplier, which are one
+  // list because the book makes them one step: "adjustments such as bonuses,
+  // penalties, or multipliers are applied first; Resistance is applied
+  // second." Nothing in the SRD prints both on one blow, and the sum is what
+  // either would be alone where only one is present.
+  const adjustments = adjustmentsFor(components, warded.value.amount);
+  for (const [type, extra] of Object.entries(
+    siegeDoubling(state, target, options.by, components),
+  )) {
+    adjustments[type] = (adjustments[type] ?? 0) + extra;
+  }
+
   const applied = applyDamage(
     components,
     options.ignoresDefenses === true ? {} : defensesOf(state, target),
-    adjustmentsFor(components, warded.value.amount),
+    adjustments,
   );
   const resolved = resolveDamage(
     state,
@@ -563,6 +745,12 @@ export function dealSpellDamage(
   // shares, and comes back on the events and the report below — see
   // `commands/drop-rewards.ts`.
 
+  // **After the blow has landed, because both sentences are about it having
+  // landed.** The heal reads what was rolled and the penalty reads what was
+  // taken, and a `healed` written before the `damage-taken` it answers would
+  // be a log nobody could narrate in order.
+  const triggered = printedTypeTriggers(state, target, components, applied.byType);
+
   return ok({
     // The faces, then the ward's own die, then what the two came to: the
     // chronology of the moment, which is the rule the line above states. The
@@ -573,6 +761,7 @@ export function dealSpellDamage(
       ...warded.value.events,
       ...wardCounted,
       ...resolved.value.events,
+      ...triggered.events,
     ],
     // What landed, which is what the defences left of the roll *and* what a
     // damage threshold let through. `damageTakenIn` reads it off the event the
@@ -586,7 +775,7 @@ export function dealSpellDamage(
     // half.** An Undead Fortitude save thrown against an amount with no type
     // is reported by `resolveDamage` too, and this road used to drop it on the
     // floor while the DM's own door reported it.
-    unverified: resolved.value.unverified,
+    unverified: [...resolved.value.unverified, ...triggered.unverified],
   });
 }
 

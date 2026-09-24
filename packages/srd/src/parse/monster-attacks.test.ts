@@ -186,9 +186,10 @@ describe('parseTraitShape', () => {
 
   it('is null for a trait whose sentence nothing reads', () => {
     // A trait with a mechanic somebody has matched is `monster-traits.test.ts`'s
-    // subject; this is the other half, and Fire Aura is one of the many the
-    // reader still says nothing about.
-    expect(parseTraitShape(trait('azer-sentinel', 'Fire Aura').text)).toBeNull();
+    // subject; this is the other half. The Giant Spider's Web Walker is one of
+    // the many the reader still says nothing about: a web's restriction is not
+    // a thing the lattice holds, so ignoring one is a rule with nowhere to go.
+    expect(parseTraitShape(trait('giant-spider', 'Web Walker').text)).toBeNull();
   });
 });
 
@@ -1122,7 +1123,29 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Vile Appearance). This section read no save at all before that: a
       // trait is not a line a creature spends, so a save on one was a die
       // nothing could ever throw until the fold learned to raise it.
-      traits: { printed: 337, read: 147 },
+      // And eleven more with the second batch of traits that have a mechanic:
+      // four Siege Monsters, two Running Leaps, two Agiles, one Blood Frenzy,
+      // one Aura of Authority and one Aberrant Ground. The Giant Boar's
+      // Bloodied Fury and the Gray Ooze's Corrosive Form are still refused,
+      // which is the count saying so.
+      // And four more when a damage type became a trigger: two Lightning
+      // Absorptions, the Iron Golem's Fire Absorption under another heading
+      // over the same sentence, and one Aversion to Fire.
+      // And thirty-seven more when the residue was sorted: three sentences
+      // the engine already had a seam for — Freeze, Blurred Form and Beast of
+      // Burden — and thirty-four that are the **third answer**, read so the
+      // table gets them and consulted by no rule, which `HANDOVER_TRAIT_KINDS`
+      // holds the reason for one kind at a time, one family at a time. The
+      // other half of the residue
+      // is still prose and still on the ledger: an Amorphous that squeezes
+      // through an inch and a Web Walker that ignores a web are rules, and
+      // calling one fiction would retire a debt by renaming it.
+      // And five more with the two sentences a turn boundary owes: three Fire
+      // Auras (the Azer, the Salamander and the Balor), the Remorhaz's Heat
+      // Aura under another heading over the same sentence, and the Barbed
+      // Devil's Barbed Hide. The Fire Elemental's is refused whole, because
+      // its sentence goes on to set the room alight.
+      traits: { printed: 337, read: 204 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

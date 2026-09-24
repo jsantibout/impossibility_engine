@@ -1207,6 +1207,19 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Undead Fortitude | `resolveDamage`, which throws the save and pins the floor on `damage-taken` |
  * | SRD Magic Resistance | `adaptMonster`, as a `roll-mode` narrowed to saves a spell forced |
  * | SRD Illumination | `lightAt`, which derives a carried patch on every read |
+ * | SRD Agile | `provokedBy`, the same reader SRD Flyby goes through |
+ * | SRD Running Leap | `checkJump`, as a second bound on a running Long Jump |
+ * | SRD Aura of Authority | `adaptMonster`, as a `roll-mode` on an aura reach |
+ * | SRD Blood Frenzy | the same, narrowed by `RollSelector.targetMissingHitPoints` |
+ * | SRD Siege Monster | `dealSpellDamage`, as SRD's first-applied multiplier |
+ * | SRD Aberrant Ground | `terrainAt`, which derives a carried patch the way `lightAt` does |
+ * | SRD Lightning Absorption | `dealSpellDamage`, which heals what the blow rolled before Immunity |
+ * | SRD Aversion to Fire | the same, hanging a `roll-mode` on a turn-order deadline |
+ * | SRD Freeze | the same again, with a Speed on the end of it |
+ * | SRD Blurred Form | `adaptMonster`, as the first printed `against-holder` mode |
+ * | SRD Beast of Burden | `capacitySizeOf`, which reads SRD Powerful Build's own grant |
+ * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named |
+ * | SRD Barbed Hide | the same, at the start, caught by the hold rather than by feet |
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1215,15 +1228,28 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * anchored to a creature and move with it. `carriedLight` is that patch.
  */
 export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
+  'absorbs-a-damage-type',
+  'advantage-against-a-wounded-target',
   'advantage-when-ally-is-within-5-feet-of-the-target',
   'advantage-while-bloodied',
+  'allies-in-emanation-have-advantage',
+  'carries-as-a-larger-creature',
   'climbs-without-a-check',
+  'damages-creatures-in-an-emanation',
+  'damages-creatures-it-is-holding',
+  'deals-double-damage-to-objects',
   'disadvantage-in-sunlight',
+  'disadvantage-on-attacks-against-it',
   'does-not-provoke-when-flying-out-of-reach',
+  'does-not-provoke-when-leaving-reach',
+  'emanation-is-difficult-terrain',
   'hides-in-dim-light-or-darkness',
   'jumps-without-a-running-start',
+  'long-jump-with-a-running-start',
   'magic-resistance',
+  'penalised-after-taking-a-damage-type',
   'sheds-light',
+  'speed-cut-after-taking-a-damage-type',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',
 ];
@@ -1254,14 +1280,73 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * The reason is per kind rather than one sentence for the list, because the
  * day one of them stops being a handover it will be one of them and not all
  * three.
+ *
+ * **The breathing traits were the first three and are no longer alone.** The
+ * test that admitted them admits every sentence below: each names planes,
+ * minds, sounds, a narrated substance or a GM's choice, and not one of them
+ * names a thing a rule consults.
+ *
+ * **What is deliberately *not* here is the other half of the residue**, and it
+ * is worth naming family by family, because a line with no note beside it
+ * looks like a line nobody read. Each of these states a mechanic the engine
+ * would execute the day it had one seam, so calling any of them fiction would
+ * retire a debt by renaming it. They stay unread and stay on the ledger's
+ * residue list:
+ *
+ * | Lines | The one seam each waits on |
+ * |---|---|
+ * | Amorphous ×4, Compression, Air Form, Fire Form, Water Form, Ooze Cube | a space narrower than the lattice's five feet, and a creature's space entered and stopped in |
+ * | Earth Glide ×2, Tunneler, Incorporeal Movement ×4, Ephemeral, Ice Walk | ground and walls as material rather than as declared regions |
+ * | Web Walker ×4, Adhesive, Spider Climb (the Swarm's) | a restriction with a *source*, so a web's Restrained can be told from a rope's |
+ * | Swarm ×7 | a healing rule a stat block states. `HealingRule` exists and `healingRuleOf` reads granted state; nothing writes one when a block arrives, so "can't regain Hit Points" has no door |
+ * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
+ * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
+ * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
+ * | Berserk, Vampire Spawn's Stake to the Heart | a creature somebody else is playing: a d6 and a compulsion, a coup de grâce a DM adjudicates |
+ * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
+ * | Succubus Form, Incubus Form, Troll Spawn, Soul Bag | one stat block becoming another, at a rest or on a 24-hour timer |
  */
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
+  'a-heading-over-the-lines-that-follow':
+    'SRD Vampire Weakness: "The vampire has these weaknesses:". A heading the book prints over the three lines that follow it, each of which is counted on its own. It states no rule, so there is nothing to build and nothing to wait for.',
   'breathes-air-and-water':
     'SRD Amphibious. The engine models no drowning and no suffocation, so "can breathe air and water" — and the four hours a Limited Amphibiousness gives before it must submerge — say what the fiction is and name nothing a rule reads afterwards.',
   'breathes-only-water':
     'SRD Water Breathing, the same sentence the other way round. A creature that can breathe only underwater is a fact about where the DM may put it; nothing in the engine happens when it is put somewhere else.',
+  'cannot-enter-a-home-uninvited':
+    'SRD Forbiddance: "The vampire can\'t enter a residence without an invitation from an occupant." Whose home a place is, and who has spoken from inside it, are facts about the story rather than about anything the engine could be told: there is no rule that would read them and no move that would be refused, because a vampire under this sentence is simply not sent in. It tells a DM what their vampire will not do.',
+  'cannot-shape-shift':
+    'SRD Immutable Form: "The golem can\'t shape-shift." A creature shape-shifts here by holding a feature that says so, and the golem holds none; the sentence forbids a thing nothing was going to offer it, which is a promise to the table rather than a rule the engine enforces.',
+  'controls-a-kind-of-creature':
+    'SRD Shark Telepathy: "can magically control sharks within 120 feet of itself". The engine has nothing that makes one creature act at another\'s word — a compulsion is a creature somebody else is playing — and no notion of what kind of animal a stat block is beyond its own type. Who the sharks obey is the table\'s.',
+  'goes-unnoticed-until-it-moves':
+    'SRD Transparent: a DC 15 Wisdom (Perception) check to notice the cube at all. Whether anybody has looked, and what they were looking for, is the table\'s to say; the engine rolls the check when a DM asks for one and nothing in it waits on the answer.',
+  'has-a-damage-type-the-gm-chooses':
+    'SRD Draconic Origin: "a type of dragon associated with one of the following damage types (GM\'s choice)". The block states no type, so there is nothing to pin; the attack lines that read it already ask for the ruling and refuse to roll until somebody has answered.',
+  'has-a-skill-the-gm-chooses':
+    'SRD Training: "proficiency in one skill of the GM\'s choice and Advantage whenever it makes an ability check using that skill." Both halves are mechanics the engine holds, and the block names no skill for either to be about — so the sentence is a slot the DM fills rather than a rule the sheet can carry.',
   'holds-its-breath':
     'SRD Hold Breath. A span with nothing at the end of it: the clock could count the hour, but there is no rule waiting for it to run out, so the number is the table\'s to narrate.',
+  'is-hurt-by-water':
+    'SRD Water Susceptibility and SRD Running Water. A gallon thrown and a river waded are things a DM narrates rather than rules anything sets off, and the damage that follows a ruling already has a door built for it: the DM states the amount and the engine applies it. So the sentence is the number to use through a door that exists, which is what a handover is.',
+  'is-perceived-through-by-its-master':
+    'SRD Vampiric Connection: a master who sees through the familiar\'s senses. Sight is asked of the creature rolling, and there is nothing that could borrow one creature\'s senses for another; what the vampire knows is narration.',
+  'mimics-sounds':
+    'SRD Mimicry, on the Green Hag and the Raven. What a sound is, who heard it and whether they believed it are all the table\'s; the Insight check is one a DM calls for and nothing afterwards reads the answer.',
+  'pinpoints-a-substance':
+    'SRD Iron Scent and SRD Treasure Sense: "can pinpoint the location of ferrous metal within 30 feet of itself." The scene holds creatures, landmarks and declared objects, and none of them has a substance the sense could find — so what is in the room is the DM\'s to say and the trait tells them the creature already knows.',
+  'revives-on-another-plane':
+    'SRD Diabolical Restoration and SRD Hellish Restoration: a body that comes back in the Nine Hells. There is one plane here and no map of any other, so a death that moves a creature somewhere the engine cannot address is a thing that happens to the story.',
+  'sees-into-another-plane':
+    'SRD Ethereal Sight: "can see 60 feet into the Ethereal Plane." There is nothing on the Ethereal Plane to see, because the engine holds one scene and no second place for anybody to stand in.',
+  'senses-magic-nearby':
+    'SRD Sense Magic: "works like the Detect Magic spell but isn\'t itself magical." What is magical in the room is a fact about the fiction the engine keeps no register of, and the spell it points at is itself a handover for the same reason.',
+  'speaks-telepathically-with-its-master':
+    'SRD Telepathic Bond. The engine holds no conversation, no language and no distance a thought has to cross; who can speak to whom is the whole of what this says and nothing reads it.',
+  'speaks-with-a-kind-of-creature':
+    'SRD Speak with Beasts and Plants: "can communicate with Beasts and Plants as if they shared a language." A language is a fact on the sheet that nothing consults, and what a Beast says back is the DM\'s.',
+  'thoughts-cannot-be-read':
+    'SRD Shielded Mind: "The couatl\'s thoughts can\'t be read by any means." Nothing here reads a thought, so the defence guards a door that was never there; it is a fact about the couatl for whoever is narrating.',
 };
 
 /** Whether this line's trait is one the engine reads and hands over. */

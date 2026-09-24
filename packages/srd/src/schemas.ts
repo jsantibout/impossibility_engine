@@ -1527,6 +1527,356 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('magic-resistance'),
   }),
+  z.object({
+    /**
+     * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against
+     * any creature that doesn't have all its Hit Points."
+     *
+     * **A bare kind, because the sentence carries no number and no menu.** One
+     * mode, one family, one narrowing — and the narrowing is a fact about the
+     * creature being swung at rather than about the holder, which is what
+     * tells it from `advantage-while-bloodied` one member up. The book's
+     * "doesn't have all its Hit Points" is the same predicate SRD Colossus
+     * Slayer writes as "if it's missing any of its Hit Points"; a creature at
+     * full Hit Points is not it.
+     */
+    kind: z.literal('advantage-against-a-wounded-target'),
+  }),
+  z.object({
+    /**
+     * SRD Aura of Authority: "While in a 10-foot Emanation originating from
+     * the hobgoblin, the hobgoblin and its allies have Advantage on attack
+     * rolls and saving throws, provided the hobgoblin doesn't have the
+     * Incapacitated condition."
+     *
+     * A printed aura, which is the shape SRD Aura of Protection is already
+     * written in — a reach in feet, the holder and its allies inside it, and a
+     * gate on the holder. The radius is part of the shape for
+     * {@link MonsterTraitSchema}'s stated reason, and `rolls` for
+     * `disadvantage-in-sunlight`'s: the sentence names a list and a kind per
+     * breadth would put one rule in two places.
+     *
+     * **The Incapacitated clause is not carried**, because every printed
+     * emanation the book gates gates it the same way and the engine's
+     * `not-incapacitated` requirement is that clause exactly. A sentence
+     * without it is a different sentence and this refuses it.
+     */
+    kind: z.literal('allies-in-emanation-have-advantage'),
+    /** "a 10-foot Emanation", measured from the holder. */
+    feet: z.number().int().min(0),
+    rolls: z
+      .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
+      .min(1),
+  }),
+  z.object({
+    /**
+     * SRD Agile, on the Deer and the Rat: "The deer doesn't provoke an
+     * Opportunity Attack when it moves out of an enemy's reach."
+     *
+     * SRD Flyby without the flying, and its own kind rather than a field on
+     * it: a gargoyle keeps its Opportunity Attack when it walks away and a
+     * deer never does, so folding the two together would hand every flier the
+     * wider rule. The wider one implies the narrower and nothing in the
+     * bestiary prints both.
+     */
+    kind: z.literal('does-not-provoke-when-leaving-reach'),
+  }),
+  z.object({
+    /**
+     * SRD Running Leap, on the Lion and the Saber-Toothed Tiger: "With a
+     * 10-foot running start, the lion can Long Jump up to 25 feet."
+     *
+     * `jumps-without-a-running-start`'s opposite number, and its own kind for
+     * that reason: SRD Standing Leap *removes* the running start and prints
+     * both jumps, and this one *requires* it and prints one. A creature
+     * holding this still needs the ten feet, which is why they are carried
+     * rather than assumed — the Minotaur's charge prints thirty and a homebrew
+     * line may print any number.
+     */
+    kind: z.literal('long-jump-with-a-running-start'),
+    /** "With a 10-foot running start" — what the jump has to be bought with. */
+    runningStartFeet: z.number().int().min(0),
+    /** "can Long Jump up to 25 feet" — the distance it then reaches. */
+    longJumpFeet: z.number().int().min(0),
+  }),
+  z.object({
+    /**
+     * SRD Siege Monster: "The elemental deals double damage to objects and
+     * structures."
+     *
+     * A bare kind for `magic-resistance`'s reason: nothing in the sentence
+     * varies across the four blocks that print it. "Structures" names nothing
+     * this engine holds — a declared object is the whole of what can be broken
+     * — so the multiplier lands on an object and the word is the table's.
+     */
+    kind: z.literal('deals-double-damage-to-objects'),
+  }),
+  z.object({
+    /**
+     * SRD Aberrant Ground: "The ground in a 10-foot Emanation originating from
+     * the mouther is Difficult Terrain."
+     *
+     * Difficult Terrain that is **derived from where the creature stands**
+     * rather than declared over a region, because an Emanation moves when its
+     * creature does. The radius is part of the shape for
+     * {@link MonsterTraitSchema}'s stated reason.
+     */
+    kind: z.literal('emanation-is-difficult-terrain'),
+    feet: z.number().int().min(0),
+  }),
+  z.object({
+    /**
+     * SRD Lightning Absorption, on the Flesh Golem and the Shambling Mound:
+     * "Whenever the golem is subjected to Lightning damage, it regains a
+     * number of Hit Points equal to the Lightning damage dealt."
+     *
+     * **The type is the shape and the amount is the blow's**, so there is one
+     * field: the sentence names one type and reads the amount off the damage,
+     * and a kind carrying a number would be a heal the book never printed.
+     *
+     * Both blocks that print it are **immune** to the type they absorb, which
+     * is what makes the ruling load-bearing rather than pedantic: "dealt" read
+     * after Immunity is always nought and the trait is dead text. So the
+     * amount is what was rolled at the creature before its own defences, and
+     * the reader says so where it applies it.
+     */
+    kind: z.literal('absorbs-a-damage-type'),
+    /** Lower-cased, in the engine's own vocabulary — `lightning`. */
+    damageType: z.string().min(1),
+  }),
+  z.object({
+    /**
+     * SRD Aversion to Fire, on the Flesh Golem: "If the golem takes Fire
+     * damage, it has Disadvantage on attack rolls and ability checks until the
+     * end of its next turn."
+     *
+     * {@link kind}`: 'absorbs-a-damage-type'`'s opposite number — the same
+     * trigger with a penalty on the other end of it — and `rolls` for
+     * `disadvantage-in-sunlight`'s reason.
+     *
+     * **The span is anchored and not carried.** One block in the book prints
+     * this sentence and it prints one span; a line naming another would be a
+     * different sentence, and a field that could hold any of them would invite
+     * a reader to guess at the one the anchor refused.
+     */
+    kind: z.literal('penalised-after-taking-a-damage-type'),
+    damageType: z.string().min(1),
+    rolls: z
+      .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
+      .min(1),
+  }),
+  z.object({
+    /**
+     * SRD Freeze, on the Water Elemental: "If the elemental takes Cold damage,
+     * its Speed decreases by 20 feet until the end of its next turn."
+     *
+     * `penalised-after-taking-a-damage-type`'s sibling — the same trigger and
+     * the same span with a Speed on the end of it instead of a roll mode — and
+     * its own kind because the two grant different things and a union member
+     * that carried either would be a shape nothing could read without asking
+     * which half it was.
+     */
+    kind: z.literal('speed-cut-after-taking-a-damage-type'),
+    damageType: z.string().min(1),
+    feet: z.number().int().min(1),
+  }),
+  z.object({
+    /**
+     * SRD Fire Aura, on the Azer Sentinel and the Salamander: "At the end of
+     * each of the azer's turns, each creature of the azer's choice in a 5-foot
+     * Emanation originating from the azer takes 5 (1d10) Fire damage unless the
+     * azer has the Incapacitated condition."
+     *
+     * **The sibling of the start-of-turn saves the boundary already settles**,
+     * and a damage roll rather than a save: nobody rolls anything but the dice.
+     *
+     * Every part of the sentence that varies between the blocks that print it
+     * is carried, which is the rule {@link MonsterTraitSchema} states:
+     *
+     * - the **moment**, because the book writes both and they are a round
+     *   apart;
+     * - the **radius**, which is five feet on three blocks and ten on another;
+     * - the **dice**, which are 1d10, 2d6 and 3d8 across the blocks that print
+     *   it, and the **type**, which a homebrew line may vary;
+     * - **whose choice it is**, because the Azer burns whom it likes and the
+     *   Balor burns everybody, and a reader that assumed either would be
+     *   playing somebody's creature for them;
+     * - the **Incapacitated clause**, which the Azer alone prints — so a
+     *   reader that assumed it would keep a Stunned Balor from burning, and one
+     *   that dropped it would have a Stunned Azer burning.
+     *
+     * The Fire Elemental's is refused whole, which is the anchoring rule doing
+     * its work: its sentence ends "Creatures and flammable objects in the
+     * Emanation start burning", and there is no burning here.
+     */
+    kind: z.literal('damages-creatures-in-an-emanation'),
+    /** "At the **end** of each of the azer's turns". */
+    moment: z.enum(['start', 'end']),
+    /** "a 5-foot Emanation originating from the azer". */
+    feet: z.number().int().min(0),
+    /** "5 (**1d10**) Fire damage" — the notation, which is what is rolled. */
+    dice: z.string().regex(/^\d+d\d+$/),
+    /** Lower-cased, in the engine's own vocabulary. */
+    damageType: z.string().min(1),
+    /**
+     * "each creature **of the azer's choice**".
+     *
+     * A choice the engine has nobody to make, so the command that ends the
+     * turn takes the creatures the table names and an empty answer burns
+     * nobody. False is the Balor's sentence: everybody inside, no choice.
+     */
+    chosen: z.boolean(),
+    /** "unless the azer has the Incapacitated condition". */
+    unlessIncapacitated: z.boolean(),
+  }),
+  z.object({
+    /**
+     * SRD Barbed Hide, on the Barbed Devil: "At the start of each of its turns,
+     * the devil deals 5 (1d10) Piercing damage to any creature it is grappling
+     * or any creature grappling it."
+     *
+     * The same moment read the same way, caught by the grapple relation rather
+     * than by feet — so there is no radius and no choice, and both directions
+     * of the hold are in the sentence.
+     */
+    kind: z.literal('damages-creatures-it-is-holding'),
+    moment: z.enum(['start', 'end']),
+    dice: z.string().regex(/^\d+d\d+$/),
+    damageType: z.string().min(1),
+  }),
+  z.object({
+    /**
+     * SRD Blurred Form, on the Steam Mephit: "Attack rolls against the mephit
+     * are made with Disadvantage unless the mephit has the Incapacitated
+     * condition."
+     *
+     * A bare kind for `magic-resistance`'s reason — one mode, one family, one
+     * gate — and it is the first printed trait whose mode sits on the rolls
+     * made **against** its holder rather than on the holder's own.
+     */
+    kind: z.literal('disadvantage-on-attacks-against-it'),
+  }),
+  z.object({
+    /**
+     * SRD Beast of Burden, on the Mule: "The mule counts as one size larger
+     * for the purpose of determining its carrying capacity."
+     *
+     * SRD Powerful Build's sentence on a stat block, which is the grant the
+     * engine already reads: a *step* rather than a named size, because the
+     * book writes it as a relation and a named one would be wrong the moment
+     * the holder were enlarged.
+     */
+    kind: z.literal('carries-as-a-larger-creature'),
+    sizesLarger: z.number().int().min(1),
+  }),
+
+  // ---------------------------------------------------------------------
+  // What follows is the **third answer**: sentences the parser reads so that
+  // the table gets them, and that no rule will ever consult. See
+  // `HANDOVER_TRAIT_KINDS` in `packages/content/scripts/coverage-data.ts`,
+  // which carries the reason per kind and is pinned the opposite way round
+  // from the reader roster — a kind named there must be named *nowhere* in
+  // `packages/engine/src`, because a handover with a reader is a mislabelled
+  // debt.
+  //
+  // **Bare, every one of them.** The other members carry numbers because a
+  // rule reads them; nothing reads these, and the block's own sentence is on
+  // the line beside the shape for whoever is narrating. A field here would be
+  // a number kept for nobody.
+  // ---------------------------------------------------------------------
+
+  z.object({
+    /**
+     * SRD Mimicry, on the Green Hag and the Raven: "The hag can mimic animal
+     * sounds and humanoid voices. A creature that hears the sounds can tell
+     * they are imitations only with a successful DC 14 Wisdom (Insight)
+     * check."
+     *
+     * Two sentences at two DCs and one kind, because what a mimic *is* is the
+     * same either way and the DC is the table's to call for.
+     */
+    kind: z.literal('mimics-sounds'),
+  }),
+  z.object({
+    /** SRD Telepathic Bond, on the Homunculus: two creatures on one plane. */
+    kind: z.literal('speaks-telepathically-with-its-master'),
+  }),
+  z.object({
+    /**
+     * SRD Vampiric Connection: the bond above, and a master who sees through
+     * the familiar's eyes.
+     */
+    kind: z.literal('is-perceived-through-by-its-master'),
+  }),
+  z.object({
+    /** SRD Shark Telepathy: "can magically control sharks within 120 feet". */
+    kind: z.literal('controls-a-kind-of-creature'),
+  }),
+  z.object({
+    /**
+     * SRD Iron Scent and SRD Treasure Sense: "can pinpoint the location of
+     * ferrous metal within 30 feet of itself."
+     */
+    kind: z.literal('pinpoints-a-substance'),
+  }),
+  z.object({
+    /** SRD Speak with Beasts and Plants, on the Dryad. */
+    kind: z.literal('speaks-with-a-kind-of-creature'),
+  }),
+  z.object({
+    /** SRD Ethereal Sight, on the Ghost and the Phase Spider. */
+    kind: z.literal('sees-into-another-plane'),
+  }),
+  z.object({
+    /** SRD Transparent, on the Gelatinous Cube: a check to notice it at all. */
+    kind: z.literal('goes-unnoticed-until-it-moves'),
+  }),
+  z.object({
+    /** SRD Shielded Mind, on the Couatl. */
+    kind: z.literal('thoughts-cannot-be-read'),
+  }),
+  z.object({
+    /** SRD Immutable Form, on the Flesh Golem: "The golem can't shape-shift." */
+    kind: z.literal('cannot-shape-shift'),
+  }),
+  z.object({
+    /**
+     * SRD Diabolical Restoration and SRD Hellish Restoration: a body that
+     * comes back somewhere the engine has no map of.
+     */
+    kind: z.literal('revives-on-another-plane'),
+  }),
+  z.object({
+    /** SRD Sense Magic, on the Chuul: *Detect Magic* that is not magical. */
+    kind: z.literal('senses-magic-nearby'),
+  }),
+  z.object({
+    /** SRD Training, on the Commoner: a skill the GM chooses. */
+    kind: z.literal('has-a-skill-the-gm-chooses'),
+  }),
+  z.object({
+    /** SRD Draconic Origin, on the Half-Dragon: a damage type the GM chooses. */
+    kind: z.literal('has-a-damage-type-the-gm-chooses'),
+  }),
+  z.object({
+    /**
+     * SRD Water Susceptibility and SRD Running Water: damage from water, which
+     * is a substance this world does not hold.
+     */
+    kind: z.literal('is-hurt-by-water'),
+  }),
+  z.object({
+    /** SRD Forbiddance, on the Vampire Spawn: a threshold and an invitation. */
+    kind: z.literal('cannot-enter-a-home-uninvited'),
+  }),
+  z.object({
+    /**
+     * SRD Vampire Weakness: "The vampire has these weaknesses:" — a heading
+     * the book prints over the three lines that follow it, and a rule of
+     * nothing on its own.
+     */
+    kind: z.literal('a-heading-over-the-lines-that-follow'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 
