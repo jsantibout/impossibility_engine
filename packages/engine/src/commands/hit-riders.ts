@@ -86,12 +86,24 @@ const NOTHING: HitRiderOutcome = { events: [], unverified: [] };
  *
  * **It answers null for a rider whose price can no longer be paid**, and that
  * is the same question {@link applyHitRider} asks a moment later for the same
- * reason. `hitRiderAsked` checked the pool at the swing; a *held* swing
- * settles a command later and `mayAct` lets its holder spend the same pool in
- * between, so a rider can arrive at the settlement unaffordable and be dropped
- * unspent. Dice that had already ridden on the blow would be a rider that was
- * dropped and still hurt somebody. The two readings are one function apart and
- * both read `remaining`, so they cannot drift.
+ * reason. `hitRiderAsked` checked the pool at the *swing*; a held swing settles
+ * a command later and `mayAct` lets its holder act in between, so a rider can
+ * arrive at the settlement unaffordable and be dropped unspent. Dice that had
+ * already ridden on the blow would be a rider that was dropped and still hurt
+ * somebody.
+ *
+ * **Two of the three roads out of a swing cannot drift and the third is not
+ * closed.** In the unheld swing this and `applyHitRider` run inside one
+ * command; in `resolveAttackDamage` only the damage roll stands between them.
+ * The third is the deferred one: where the blow opened a Reaction window, the
+ * rider rides on the hold and `settleDamage` runs it a whole command later,
+ * and `mayAct` does not refuse a pool use while damage is pending. So a holder
+ * who spent the same pool inside that window would have the dice ride and the
+ * rider reported dropped. No SRD content reaches it — a Goliath's boon is
+ * gated `onlyIfChoice`, so one pool has one spender, and a second swing in the
+ * same turn is refused before this is asked — and a homebrew that put two
+ * spenders on one pool would want the price settled at the swing rather than a
+ * fourth reading here.
  *
  * The source names the option rather than the feature, because that is what a
  * log reader has to see: a Goliath's blow says "Fire's Burn", not "Giant

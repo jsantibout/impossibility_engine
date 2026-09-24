@@ -171,10 +171,14 @@ export interface ReactionAmount {
 /**
  * What a reaction actually does, once the engine has agreed it may happen.
  *
- * Four members for nine features, and each member exists because at least two
- * features write it. A feature whose effect fits none of them is `manual` with
- * a note — the same answer `FeatureGrant` gives, and the honest one far more
- * often than a fifth member would be.
+ * Five members for ten features, and each member exists because at least two
+ * features write it. The fifth is `damage-back`, and its second writer is not a
+ * feature at all: SRD Hellish Rebuke says the same sentence as a *spell* on the
+ * same window, which is the evidence the rule asks for — a shape two
+ * independent sentences reach for rather than one trait's quirk. A feature
+ * whose effect fits none of them is `manual` with a note — the same answer
+ * `FeatureGrant` gives, and the honest one far more often than a sixth member
+ * would be.
  */
 export type ReactionEffect =
   /**

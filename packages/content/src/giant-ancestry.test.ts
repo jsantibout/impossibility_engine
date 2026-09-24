@@ -143,6 +143,57 @@ const warlock = (): CharacterChoices => ({
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });
 
+/**
+ * A Cleric, for the one option on the same host that teleports nobody.
+ *
+ * SRD Channel Divinity's Turn Undead: an effect list a Bonus Action buys that
+ * puts nobody anywhere, which is what makes it the honest other half of the
+ * symmetry `destination_required` is one side of. The build is `cleric.test.ts`'s
+ * own, so this file asserts a refusal rather than re-deriving a Cleric.
+ */
+const priest = (): CharacterChoices => ({
+  name: 'Kael',
+  classId: 'cleric',
+  level: 3,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 14, dex: 12, con: 13, int: 10, wis: 15, cha: 8 },
+  },
+  abilityIncreases: { wis: 2, con: 1 },
+  classSkills: ['insight', 'religion'],
+  languages: ['Dwarvish', 'Giant'],
+  alignment: 'Lawful Good',
+  subclassId: 'life-domain',
+  cantrips: ['sacred-flame', 'guidance', 'light'],
+  spellbook: [],
+  preparedSpells: [
+    'inflict-wounds',
+    'healing-word',
+    'bane',
+    'blindness-deafness',
+    'hold-person',
+    'guiding-bolt',
+  ],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: ['chain-shirt', 'shield'],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'human:skillful': ['perception'], 'cleric:divine-order': ['Protector'] },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'ray-of-frost'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'alert' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+});
+
 const plain = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 3,
   abilities: { str: 16, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
@@ -451,6 +502,31 @@ describe("Cloud's Jaunt teleports its holder as a Bonus Action", () => {
   it('refuses a use that names nowhere to go', () => {
     const out = usePoolOption(fold('seed', seen), KOTH, JAUNT, supply(scripted({})));
     expect(isErr(out) ? out.code : 'ok').toBe('destination_required');
+  });
+
+  /**
+   * And the other half of the same symmetry, which is what keeps a destination
+   * from being quietly ignored: an option that teleports nobody takes no space.
+   * SRD Turn Undead is such an option, on the same host.
+   */
+  it('refuses a destination named for an option that teleports nobody', () => {
+    const cleric: readonly GameEvent[] = [
+      ...(unwrap(createCharacter(SRD_CONTENT, priest(), KAEL), 'cleric') as GameEvent[]),
+      { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
+      { type: 'landmark-added', name: 'the road', at: { x: 200, y: 200, z: 0 } },
+      { type: 'creature-placed', id: KAEL, placement: { from: { landmark: 'the road' }, feet: 0 } },
+    ];
+    const out = usePoolOption(
+      fold('seed', cleric),
+      KAEL,
+      {
+        feature: 'cleric:channel-divinity',
+        option: 'turn-undead',
+        teleportTo: { from: { landmark: 'the road' }, feet: 10, bearing: 0 },
+      },
+      supply(scripted({})),
+    );
+    expect(isErr(out) ? out.code : 'ok').toBe('no_teleport_clause');
   });
 
   /** And an empty pool is refused, with the Bonus Action still in hand. */
@@ -1014,11 +1090,22 @@ describe('the trait declares itself executed and says what the scene answers', (
     expect(trait.automation).toBe('engine');
   });
 
-  it('names what the scene still answers for the two that ask it', () => {
-    expect(trait.note).toContain('scene');
+  /**
+   * A note is a document with two jobs: it says what the engine does, and it
+   * hands the table what the engine cannot see. Both of the Goliath's are
+   * facts this file has just asserted the behaviour of, so the note is held to
+   * naming them rather than to containing a word.
+   */
+  it('hands the table the two facts the engine cannot see for itself', () => {
+    // Cloud's Jaunt: sight is declared between creatures, so a destination
+    // measured from a landmark is reported unchecked.
+    expect(trait.note).toContain('see where they are going');
+    // Hill's Tumble: a creature nobody has measured is knocked down and said
+    // out loud, which is what the swing above proved.
+    expect(trait.note).toContain('how big the target is');
   });
 
-  it('folds and replays prefix by prefix with a boon spent', () => {
+  it('folds to the same state from the same prefix, with a boon spent', () => {
     const log = swing(
       table("Fire's Burn"),
       {

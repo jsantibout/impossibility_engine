@@ -692,6 +692,37 @@ describe('the fields a chosen shape, a derived DC and a bought swing add', () =>
     );
   });
 
+  /**
+   * **A teleport is admitted on the pool host and refused on this one**, and
+   * the reason is the destination: a pool use states one
+   * (`UsePoolOptionCommand.teleportTo`) and a blow carries none, so a rider
+   * that teleported would reach `resolveTeleportEffect` with nothing stated —
+   * which throws rather than refuses. Refused here, where a refusal is still
+   * possible.
+   */
+  it('refuses a teleport on an option a blow buys, and admits one an action does', () => {
+    expect(
+      rider({
+        options: [
+          {
+            id: 'blink',
+            name: 'Blink',
+            effects: [{ kind: 'teleport', feet: 30, requiresSight: true }],
+          },
+        ],
+      }),
+    ).toContain(
+      'feature_effect_not_read @ classes[warden].features[0].grants.options[0].effects[0].kind',
+    );
+    expect(
+      shaped({
+        reach: 0,
+        durationSeconds: undefined,
+        effects: [{ kind: 'teleport', feet: 30, requiresSight: true }],
+      }),
+    ).toEqual([]);
+  });
+
   /** SRD Hill's Tumble's "a Large or smaller creature", held to the printed sizes. */
   it('refuses a size clause naming a size nobody prints', () => {
     expect(rider({ ...RIDE, targetNoLargerThan: 'enormous' })).toContain(
