@@ -42,8 +42,9 @@ homebrew.
   the Hydra's declared head count. **A printed saving throw is an effect
   list**: the DM's door rolls it, the engine applies the failure's damage,
   condition, grapple, push, Speed cut or lowered maximum, and hands over each
-  sentence it could not read; a printed teleport is spent at its distance, and
-  a printed Reaction adds to an ally's roll.
+  sentence it could not read; a printed teleport is spent at its distance, a
+  printed Reaction adds to an ally's roll, and a block's aura, absorption and
+  frenzy are read off its traits.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
@@ -68,7 +69,8 @@ homebrew.
   marked as theirs, and **passive defences** the attack path consults while
   the defender elects nothing. A casting may revive the dead, break an
   attunement, mask a type for magic alone, heat an object out of a hand, cap
-  its own running copies, ward a fall, or lift a creature a save did not spare.
+  its own running copies, ward a fall, or lift a creature a save did not spare;
+  a spell may print branches and run the one named.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
 - **Items and objects** — grants live while worn or wielded, attunement,
