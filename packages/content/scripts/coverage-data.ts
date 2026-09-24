@@ -178,6 +178,14 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // plate left at 18, a +2 swallowed by the floor and a +6 clearing it.
   'barkskin',
   'beacon-of-hope',
+  // `later-blows.test.ts` (engine): each of the four faces cast off a level
+  // 3 slot with the save forced to fail — the chosen ability over checks and
+  // saves and over no other ability, the attack Disadvantage narrowed to the
+  // caster and not to the fighter beside them, the extra 1d8 on a mace hit
+  // and on a Magic Missile and on nobody else — a made save curses nothing,
+  // and the slot table buys ten minutes at level 4 and eight hours with no
+  // Concentration at level 5.
+  'bestow-curse',
   'black-tentacles',
   'bless',
   'blight',
@@ -256,6 +264,14 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // and the Bonus Action dealing the damage again on a later turn.
   'heat-metal',
   'heroism',
+  // `later-blows.test.ts` (engine): the 1d6 Necrotic on a mace swing and on a
+  // Fire Bolt at the cursed creature and on neither aimed at anybody else,
+  // the chosen ability's Disadvantage over checks and not saves, eight hours
+  // out of a level 3 slot, and the Bonus Action that curses a new creature —
+  // refused while the first stands, refused on one out of sight, refused on
+  // the creature it already marks. Hunter's Mark's own Bonus Action is
+  // driven in the same file.
+  'hex',
   'hideous-laughter',
   'hold-monster',
   'hold-person',
