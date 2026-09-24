@@ -38,7 +38,7 @@ import {
 } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { conferredSource, featureSource, hungSource } from '../progression.js';
-import { type Point } from '../positioning.js';
+import { type Placement, type Point } from '../positioning.js';
 import { spendAttack } from '../combat.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
@@ -71,6 +71,7 @@ import { dealSpellDamage } from './damage.js';
 import { rollSpellDice } from './rolls.js';
 import { runEffects } from './spell-resolution.js';
 import { areaTargets, type SpellTargetOutcome } from './targeting.js';
+import { teleportTo } from './teleport.js';
 
 export interface ActivateFeatureCommand extends CommandIdentity {
   readonly feature: string;
@@ -1040,6 +1041,20 @@ export interface UsePoolOptionCommand extends CommandIdentity {
    * total is refused rather than trusted.
    */
   readonly among?: readonly HitPointShare[];
+  /**
+   * Where a `teleport` effect on this option puts its holder — SRD Cloud's
+   * Jaunt: "As a Bonus Action, you magically teleport up to 30 feet to an
+   * unoccupied space you can see."
+   *
+   * **The holder's decision, stated at the use and never derived**, which is
+   * the shape `CastSpellRequest.teleportTo` already takes for the same effect:
+   * the engine checks the distance, the space and the sight, and which space
+   * is a choice the book gives its holder. Required for an option that
+   * teleports and refused for one that does not, exactly as {@link damageType}
+   * is — a destination quietly ignored is a caller who thinks they said
+   * something.
+   */
+  readonly teleportTo?: Placement;
 }
 
 /** One creature's share of a distributing option's hit points. */
@@ -1145,6 +1160,24 @@ export function usePoolOption(
     const typed = statedTypeFor(option, command.damageType);
     if (!typed.ok) return typed;
 
+    // Where a teleporting option goes, under the same rule and the same two
+    // refusals `declaredFacts` states for a casting: required where the option
+    // teleports, refused where it does not.
+    const goes = teleportIn(typed.value);
+    if (goes === null) {
+      if (command.teleportTo !== undefined) {
+        return err(
+          'no_teleport_clause',
+          `${option.name} teleports nobody; where they would go is not a fact it asks for`,
+        );
+      }
+    } else if (command.teleportTo === undefined) {
+      return err(
+        'destination_required',
+        `${option.name} teleports its holder and the engine will not choose where; name the space`,
+      );
+    }
+
     // **The shape, settled before the targets, because it is what finds
     // them.** SRD Breath Weapon prints two templates and gives the choice to
     // the breather; an option that prints one takes no answer at all.
@@ -1154,6 +1187,24 @@ export function usePoolOption(
     const found = targetsOf(state, id, option, shaped.value, command);
     if (!found.ok) return found;
     const targets = found.value;
+
+    // **The teleport's pre-flight, run before anything is spent.** It is pure,
+    // rolls nothing and changes nothing, so asking twice costs a caller
+    // nothing and asking once would cost them the Bonus Action and the use:
+    // the distance, the occupied space, the scene's extent and the declared
+    // sight are all reachable here, and `resolveTeleportEffect` throws rather
+    // than refuses if it arrives with no destination. The same move
+    // `castOrRelease` makes for the same effect.
+    if (goes !== null && command.teleportTo !== undefined) {
+      for (const target of targets) {
+        const reachable = teleportTo(state, target, {
+          placement: command.teleportTo,
+          within: goes.feet,
+          ...(goes.requiresSight === undefined ? {} : { requiresSight: goes.requiresSight }),
+        });
+        if (!reachable.ok) return reachable;
+      }
+    }
 
     if (remaining(creature.resources, option.pool) < 1) {
       return err('exhausted', `${id} has no uses of ${option.featureName} left`);
@@ -1208,6 +1259,7 @@ export function usePoolOption(
         casterLevel: sheet.level,
       },
       targets,
+      ...(command.teleportTo === undefined ? {} : { teleportTo: command.teleportTo }),
       unverified,
       supply,
       events,
@@ -1534,6 +1586,22 @@ function divideHitPoints(
   }
 
   return ok({ events, outcomes, unverified: [] });
+}
+
+/**
+ * The `teleport` an option's effect list performs, or null for every other
+ * option in the book.
+ *
+ * `teleportOf`'s twin on the other host, and read by the same three readers
+ * that must agree about a casting's: the stated-fact check's *is a destination
+ * required*, the pre-flight's *may this use reach that space*, and the
+ * resolver's *put them there*. A list holds at most one — two would be two
+ * destinations for one use, which nothing could state.
+ */
+function teleportIn(
+  effects: readonly SpellEffect[],
+): Extract<SpellEffect, { kind: 'teleport' }> | null {
+  return effects.find((effect) => effect.kind === 'teleport') ?? null;
 }
 
 /**

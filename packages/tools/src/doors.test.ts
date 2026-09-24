@@ -816,7 +816,14 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   choice_required: { fields: ['cast_spell.choice', 'take_ready.response.choice'] },
   fought_fact_required: { fields: ['cast_spell.fought', 'take_ready.response.fought'] },
   destination_required: {
-    fields: ['activate_spell.to', 'cast_spell.teleportTo', 'take_ready.response.teleportTo'],
+    fields: [
+      'activate_spell.to',
+      'cast_spell.teleportTo',
+      'take_ready.response.teleportTo',
+      // And the third host of an effect list, now that one of its options
+      // teleports: SRD Cloud's Jaunt names a space the same way a casting does.
+      'use_pool_option.teleportTo',
+    ],
   },
   // The sixth stated fact, and the same two casting callers. SRD Shillelagh's
   // "A Club or Quarterstaff you are holding" and Magic Weapon's "You touch a

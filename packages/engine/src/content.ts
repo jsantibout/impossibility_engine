@@ -2273,7 +2273,20 @@ function featureOptionProblems(
 
     const record = effect as unknown as Record<string, unknown>;
     const kind = String(record['kind']);
-    if (!CONFERRED_EFFECT_KINDS.has(kind)) {
+    // **A pool use states a destination, so a pool option may teleport.** SRD
+    // Cloud's Jaunt: "As a Bonus Action, you magically teleport up to 30 feet
+    // to an unoccupied space you can see." That was the one clause in the
+    // refusal below a feature could not answer — "a destination stated at the
+    // cast" — and `UsePoolOptionCommand.teleportTo` is where the holder now
+    // states it, checked by the same pre-flight a casting's is.
+    //
+    // **The other two hosts of this list still may not**, and it is the same
+    // absence in both: a bottle is drunk and a rider rides on a blow, and
+    // neither call carries a space. An item that teleported would reach
+    // `resolveTeleportEffect` with nothing stated, which throws rather than
+    // refuses — so it is refused here, where a refusal is still possible.
+    const teleports = kind === 'teleport' && host === 'pool';
+    if (!teleports && !CONFERRED_EFFECT_KINDS.has(kind)) {
       say(
         'feature_effect_not_read',
         `"${kind}" needs the casting a feature has none of — an id to weld a condition to, an attack modifier nobody rolled, or a destination stated at the cast — so ${featureId} may not confer one`,

@@ -3099,6 +3099,11 @@ const USE_POOL_OPTION = tool({
       .describe(
         'Which of the damage types the option prints this use deals — SRD Divine Spark’s "Necrotic or Radiant damage (your choice)". Leaving it out for an option that prints a choice is refused, and naming one for an option that prints a single type is refused too.',
       ),
+    teleportTo: placementSchema
+      .optional()
+      .describe(
+        'Where an option that teleports puts its holder — SRD Cloud’s Jaunt’s "up to 30 feet to an unoccupied space you can see". Measured from a landmark or a creature like every other destination, never as a raw coordinate. The engine checks the distance, the space and the sight; which space is yours. Leaving it out for an option that teleports is refused, and naming one for an option that does not is refused too.',
+      ),
     among: z
       .array(
         z.strictObject({
@@ -3133,6 +3138,9 @@ const USE_POOL_OPTION = tool({
           ...(towards.value === undefined ? {} : { towards: towards.value }),
           ...(args.target === undefined ? {} : { target: who(args.target) }),
           ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
+          ...(args.teleportTo === undefined
+            ? {}
+            : { teleportTo: placementOf(args.teleportTo) }),
           ...(args.among === undefined
             ? {}
             : {
