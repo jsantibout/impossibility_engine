@@ -302,6 +302,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // slot, the caster's own uneven split, a Sanctuary ward turning them away
   // and a Resistance halving each dart rather than the pool.
   'magic-missile',
+  // `slot-changes-the-ending.test.ts` (engine): the illusion cast at a level 3
+  // slot with a Concentration and a deadline, the same illusion at a level 4
+  // slot with neither and still findable, and the Investigation check it could
+  // not offer said out loud on the casting that has no timer to hang it on.
+  'major-image',
   'mass-cure-wounds',
   'mind-blank',
   'mind-spike',
@@ -418,6 +423,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // recorded as the second. Saying "untested" of a spell with its own suite
   // would be the same report telling a different lie.
   'sorcerous-burst',
+  // `spare-the-dying.test.ts` (engine): the dying ally made Stable, the hale
+  // one and the corpse refused, the shortlist offering the first and excluding
+  // the other two, thirty feet reached by a level 5 cleric and refused to a
+  // level 4 one, and the shortlist bounded by the same band.
+  'spare-the-dying',
   // Driven end to end by `casting-terrain.test.ts`: the Sphere conjured at a
   // point through `resolveSpell`, and the glossary's rate charged over it.
   // The move that costs twice the ground it crosses is Grease's in the same

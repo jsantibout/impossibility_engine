@@ -4,7 +4,7 @@ import type { CharacterSheet } from '../character.js';
 import {
   damageTypesDealt,
   durationSecondsAt,
-  ranged,
+  rangeFeetAt,
   type OutcomeRiders,
   type SpellDefinition,
   type SpellEffect,
@@ -307,12 +307,25 @@ export function alteredCasting(
      * then, which the SRD's own minimum immediately raises.
      */
     readonly spellcastingModifier?: number;
+    /**
+     * The caster's character level, which the one spell in the book whose
+     * **reach** grows reads — SRD Spare the Dying's "The range doubles when
+     * you reach levels 5 (30 feet), 11 (60 feet), and 17 (120 feet)".
+     *
+     * Optional for {@link spellcastingModifier}'s reason, and one for the same
+     * kind of reason: a caller that supplies none is asking about a spell that
+     * prints no band, and level one is the printed Range for every spell that
+     * does. `rangeFeetAt` reads it before an option multiplies what it finds,
+     * which is the order the SRD writes — the Cantrip Upgrade is the spell's
+     * own reach and a Metamagic doubles the reach the spell has.
+     */
+    readonly casterLevel?: number;
   },
   options: readonly CastingOption[],
 ): Result<AlteredCasting> {
   let castLevel = base.castLevel;
   let castingTime = base.castingTime;
-  let reachFeet = ranged(definition.range);
+  let reachFeet = rangeFeetAt(definition, base.casterLevel ?? 1);
   let extended: number | undefined;
   const modifier = base.spellcastingModifier ?? 0;
   const costs = new Map<string, number>();
@@ -390,7 +403,12 @@ export function alteredCasting(
         }
         reachFeet = alters.touchBecomesFeet;
       } else {
-        reachFeet = definition.range.feet * alters.multiplier;
+        // **The reach the caster actually has, doubled** — not the printed
+        // number. SRD Distant Spell doubles "the range of that spell", which
+        // for a cantrip whose own upgrade has already widened it is the wider
+        // number; reading `range.feet` here would quietly undo the Cantrip
+        // Upgrade on every casting that bought a Metamagic.
+        reachFeet = rangeFeetAt(definition, base.casterLevel ?? 1)! * alters.multiplier;
       }
     } else if (alters.kind === 'duration') {
       const printed = durationSecondsAt(definition, castLevel);

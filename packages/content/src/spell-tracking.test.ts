@@ -73,6 +73,7 @@ const FOE = id('foe');
 const BEAST = id('beast');
 const RAVEN = id('raven');
 const CORPSE = id('corpse');
+const DYING = id('dying');
 
 /** The one thing this table puts in a hand — see the setup below. */
 const HEATED = 'quarterstaff';
@@ -168,6 +169,7 @@ const SETUP: readonly GameEvent[] = [
   added(BEAST, 'Beast'),
   added(RAVEN, 'Beast', 'tiny'),
   added(CORPSE),
+  added(DYING),
   // **And one creature who has just died**, for the spell that raises one.
   // SRD Revivify reaches "a creature that has died within the last minute",
   // and a corpse is what it is aimed at — the refusal of a living target is
@@ -175,6 +177,11 @@ const SETUP: readonly GameEvent[] = [
   // rule the types and the size above are held to. Nothing here moves the
   // clock, so the death is always this instant.
   { type: 'creature-died', id: CORPSE, cause: 'the fixture' },
+  // **And one still on the floor**, for the spell whose target rule wants a
+  // creature rather than a body: SRD Spare the Dying reaches "a creature that
+  // has 0 Hit Points and isn't dead", and the refusal of the hale ally beside
+  // it is the spell working rather than the fixture being in the way.
+  { type: 'hit-points-dropped-to-zero', id: DYING, source: 'the fixture' },
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
@@ -195,11 +202,13 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: BEAST, placement: { from: { creature: WIZARD }, feet: 5, bearing: 180 } },
   { type: 'creature-placed', id: RAVEN, placement: { from: { creature: WIZARD }, feet: 5, bearing: 270 } },
   { type: 'creature-placed', id: CORPSE, placement: { from: { creature: WIZARD }, feet: 5, bearing: 45 } },
+  { type: 'creature-placed', id: DYING, placement: { from: { creature: WIZARD }, feet: 5, bearing: 135 } },
   { type: 'sight-declared', from: WIZARD, to: ALLY, seen: true },
   { type: 'sight-declared', from: WIZARD, to: FOE, seen: true },
   { type: 'sight-declared', from: WIZARD, to: BEAST, seen: true },
   { type: 'sight-declared', from: WIZARD, to: RAVEN, seen: true },
   { type: 'sight-declared', from: WIZARD, to: CORPSE, seen: true },
+  { type: 'sight-declared', from: WIZARD, to: DYING, seen: true },
   // **And a thing in the ally's hand**, for the spell that heats one: SRD Heat
   // Metal refuses an object its target is neither wearing nor wielding, and
   // the fixture supplies the wielding rather than the spell being excused the
@@ -240,9 +249,11 @@ const cast = (
   const sized = definition.targets.mustBeSize;
   const raises = definition.effects.some((effect) => effect.kind === 'revive');
   const heats = dropsAnObject(definition);
-  const at = raises
+  const at = raises || definition.targets.mustBeDead === true
     ? CORPSE
-    :
+    : definition.targets.mustBeDying === true
+      ? DYING
+      :
     sized !== undefined
       ? SIZED[`${wanted ?? 'Humanoid'}/${sized}`]
       : wanted === undefined
@@ -1538,9 +1549,20 @@ describe('every spell this batch added is cast for real', () => {
    * And each of the last two passes' five carries a blocker the markers cannot
    * see, which is the whole reason they are their own passes rather than part
    * of the third.
+   *
+   * **Unless the blocker has since been paid**, which is the one exit a
+   * marker-less reading has that is not a loss: Spare the Dying's range
+   * doubling is `rangeAtLevel` now, so the spell is executed, its tracked
+   * entries are gone and there is no reading left for this to demand. The
+   * spells that are still tracked are the ones the claim is about, and
+   * `EXECUTED_SINCE` is where a departure is recorded rather than deleted.
    */
   it('keeps a marker-less reading for every spell the last two passes added', () => {
-    for (const spellId of [...ADDED_FOURTH, ...ADDED_FIFTH]) {
+    const stillTracked = [...ADDED_FOURTH, ...ADDED_FIFTH].filter(
+      (spellId) => !EXECUTED_SINCE.includes(spellId),
+    );
+    expect(stillTracked.length).toBeGreaterThan(0);
+    for (const spellId of stillTracked) {
       const written = ADJUDICATED[spellId] ?? [];
       expect(
         written.filter((entry) => entry.marker === null).length,
@@ -1839,6 +1861,15 @@ describe('every spell this batch added is cast for real', () => {
     // `OutcomeRiders.breaksConcentration` is it. Only the doused flames are
     // left, which are a fact about a room.
     'sleet-storm',
+    // **Spare the Dying leaves with both of the shapes it was the only
+    // claimant of.** Four words were the whole spell and no effect kind
+    // reached the event a DM declares; the sentence that chooses the target
+    // reads vitals, which no target rule could state; and the range is the one
+    // in the book that grows with the caster rather than with the slot.
+    // `stabilise`, `mustBeDying` and `rangeAtLevel` are the three, and
+    // `a-range-that-scales-with-caster-level` and
+    // `an-effect-that-stabilises-a-dying-creature` are retired by being built.
+    'spare-the-dying',
     'spike-growth',
     // **Thaumaturgy leaves by the same door and by Prestidigitation's.** Its
     // six wonders are six branches, so the casting records which one was
@@ -2080,6 +2111,11 @@ describe('every spell this batch added is cast for real', () => {
     // And the fourth, finished by the consent track: a `willing` list to
     // declare into.
     'resistance',
+    // The fifth, and the shortest paragraph in the book to need three
+    // mechanisms: `stabilise` for the four words that are the spell,
+    // `TargetRule.mustBeDying` for the sentence that chooses whom, and
+    // `rangeAtLevel` for the Cantrip Upgrade. Nothing is left over.
+    'spare-the-dying',
   ];
 
   /**

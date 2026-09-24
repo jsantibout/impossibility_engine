@@ -4375,6 +4375,11 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     // `checkShape` has already established is the whole effect.
     'fall-ward',
     'end-attunement',
+    // The fifth, and the plainest of them: SRD Spare the Dying's whole content
+    // is "The creature becomes Stable", so `stabilise` carries no field
+    // either. Who it may be aimed at is `TargetRule.mustBeDying`, which is
+    // swept where every other target rule is.
+    'stabilise',
   ]);
 
   /**

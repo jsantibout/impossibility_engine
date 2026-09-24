@@ -167,6 +167,7 @@ import {
   resolveCreatureTypeOverrideEffect,
   resolveEndAttunementEffect,
   resolveReviveEffect,
+  resolveStabiliseEffect,
   reviveProblem,
 } from './spell-effect-creatures.js';
 import {
@@ -892,21 +893,26 @@ export function castOrRelease(
     // two readings are the same sheet and this is the cheaper of them.
     const elected = electedCastingOptions(caster.sheet, casterId, request.usingOptions);
     if (!elected.ok) return elected;
+    // The two numbers `alteredCasting` reads off the caster, from one call:
+    // the head count two of the ten options are measured in — SRD's "up to
+    // your Charisma modifier" — and the level the one growing **reach** in the
+    // book is read off, SRD Spare the Dying's Cantrip Upgrade. Both off the
+    // same numbers every other derivation of this casting reads, and therefore
+    // off the sheet as it stands — and both the *item's* where an item is
+    // casting it, exactly as its dice are.
+    const asCast = numbersFor(
+      state,
+      casterId,
+      sheetAsItStands(state, casterId) ?? caster.sheet,
+      route,
+    );
     const altered = alteredCasting(
       definition,
       {
         castLevel: paidLevel,
         castingTime: casting.value.castingTime,
-        // The head count two of the ten options are measured in — SRD's "up to
-        // your Charisma modifier" — read off the same numbers every other
-        // derivation of this casting reads, and therefore off the sheet as it
-        // stands.
-        spellcastingModifier: numbersFor(
-          state,
-          casterId,
-          sheetAsItStands(state, casterId) ?? caster.sheet,
-          route,
-        ).spellcastingModifier,
+        spellcastingModifier: asCast.spellcastingModifier,
+        casterLevel: asCast.casterLevel,
       },
       elected.value,
     );
@@ -2868,6 +2874,8 @@ function resolveOneEffect(
       return resolveHealEffect(ctx, effect, target, victim, world);
     case 'revive':
       return resolveReviveEffect(ctx, effect, target, world);
+    case 'stabilise':
+      return resolveStabiliseEffect(ctx, target, world);
     case 'turn-payout':
       return resolveTurnPayoutEffect(ctx, effect, target, world);
     case 'healing-rule':

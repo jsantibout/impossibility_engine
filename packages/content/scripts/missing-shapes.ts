@@ -188,8 +188,6 @@ export const MISSING_SHAPES = {
     '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
   'a-rider-on-a-later-weapon-attack':
     '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. **And the weapon half is built too**: a casting now names the particular weapon it was aimed at (`CastSpellRequest.weapon`), the `weapon-rider` grant hangs on whoever holds it keyed by that weapon’s id, and what it may change is the **substituted ability**, the **replaced damage die** and a **flat** plus of the weapon’s own type reaching the attack roll and the damage roll alike — with a band table apiece, off the slot and off the caster’s level. Shillelagh and Magic Weapon are what that finished. **And the type a swing chooses is built too**: `weapon-rider.damageTypes` is the offer Shillelagh’s second sentence makes, answered on the attack command under the spell’s own name rather than pinned at the casting, and it replaces the weapon’s own type where it is taken. What is left is every rider that is neither of those builds: a damage type chosen at the moment of the attack on a rider that is **not** keyed to one weapon (Conjure Minor Elementals), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse), and a substitution on an **Unarmed Strike**, which is not a weapon and so is not a thing a casting can name (Alter Self). **And the casting that *makes* the attack it rides is built**: `weapon-attack` is the door no effect kind opened — the attack command takes the cantrip beside the weapon, spends the Action as the casting’s, substitutes the spellcasting ability into the attack and damage rolls, adds the Cantrip Upgrade’s dice off a band table keyed by character level and offers the type the sentence prints, with nothing granted and nothing left standing. True Strike is what that finished.',
-  'a-range-that-scales-with-caster-level':
-    '`SpellDefinition.range` in spell-definitions.ts is one fixed `SpellRange`, and `ranged(definition.range)` is checked on every casting — tracked or executed, before a target is looked at. `docs/design/spell-definitions.md` keeps the two scaling axes apart on purpose — "**Cantrips scale by caster level and levelled spells by slot**, and they are separate fields rather than one overloaded number" — and both of them reach *dice*. Exactly one spell in the book prints a range that grows with the caster, and the engine would refuse the casting the SRD allows.',
   'a-cap-on-how-many-castings-run-at-once':
     '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
@@ -261,8 +259,6 @@ export const MISSING_SHAPES = {
     '`docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." An ally reaching in to cut somebody free, or shaking a sleeper awake, is neither, and the derivation has no third branch.',
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
-  'an-effect-that-stabilises-a-dying-creature':
-    '`PROGRESS.md`: "**Every one of the event types the union declares is now emitted by a command**", and `stabilised` is one of the nine a DM declares. The command exists, the event exists, and no `SpellEffect` reaches either — the recurring finding in this repository that a pure function nothing calls is a rule nothing enforces, arriving on the cantrip whose whole content is that one word.',
   'a-distance-a-creature-travels-inside-an-area':
     '`docs/design/space-and-areas.md`, on what a persistent area cannot see: "**The path.** Movement records where a move started and where it ended and nothing in between", and `docs/design/casting.md`: "Distance travelled inside an area, which no move records | Spike Growth". Inferring the crossing from a straight line would be the engine inventing a route nobody took.',
   'light-and-obscurement-the-scene-holds':
@@ -3296,26 +3292,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'Constructs automatically succeed on the save',
       why: 'an-automatic-success-by-creature-type',
       note: 'the third outcome by creature type the book prints and the union does not have, beside the automatic failure and the Disadvantage it does — and the sentence is eight words with no mechanical marker in any of them.',
-    },
-  ],
-  'spare-the-dying': [
-    {
-      marker: 'hit-points',
-      clause: "Choose a creature within range that has 0 Hit Points and isn't dead",
-      why: 'an-effect-that-stabilises-a-dying-creature',
-      note: 'the target rule reads a fact about vitals, which a rule counting targets and naming creature types cannot state — and it selects for an effect no spell can reach, so neither half of the sentence has a reader.',
-    },
-    {
-      marker: null,
-      clause: 'The creature becomes Stable',
-      why: 'an-effect-that-stabilises-a-dying-creature',
-      note: 'four words, no marker, and the whole content of the cantrip: the command exists and the event exists and no spell effect reaches either, which is the gap this shape was named for.',
-    },
-    {
-      marker: null,
-      clause: 'The range doubles when you reach levels 5',
-      why: 'a-range-that-scales-with-caster-level',
-      note: 'the only spell in the book whose reach grows with the caster, printed as a Cantrip Upgrade that names no mechanic the markers know — and a definition holds one fixed range, checked before a target is looked at.',
     },
   ],
   // — the two the same derivation named ——————————————————————————————————————

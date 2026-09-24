@@ -43,11 +43,14 @@ import {
 
 /** Each landed definition, the shape its marker-less entry carries, and the sentence. */
 const LANDED: readonly (readonly [string, ShapeId, string])[] = [
-  [
-    'spare-the-dying',
-    'a-range-that-scales-with-caster-level',
-    'The range doubles when you reach levels 5',
-  ],
+  // **Spare the Dying is not here any more, and that is the form working
+  // rather than the form failing.** Its marker-less entry carried
+  // `a-range-that-scales-with-caster-level` — a Cantrip Upgrade no mechanical
+  // marker can see — through the commits between the definition being written
+  // and the mechanism being built. The mechanism is built, `rangeAtLevel` is
+  // the field, and a shape nothing is blocked on is one the guard deletes. So
+  // the reading left by being **paid**, which is the one exit from this list
+  // that is not a loss.
   [
     'enthrall',
     'a-bonus-narrowed-to-a-skill',
@@ -169,7 +172,12 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // so rather than the list staying the size it was written at.
         'a-cap-on-how-many-castings-run-at-once',
         'a-condition-a-spell-suppresses',
-        'a-range-that-scales-with-caster-level',
+        // **`a-range-that-scales-with-caster-level` came off this list by being
+        // built**, which is the third way an entry leaves and the only one
+        // that is a payment rather than a reshuffle: Spare the Dying was its
+        // only claimant, `rangeAtLevel` is the field, and a shape nothing is
+        // blocked on is one the guard deletes. So there is no longer a shape
+        // here for the counterfactual to retire.
         'an-automatic-success-by-creature-type',
         // The sixth, and the one that arrived by a different road: the spell
         // was already written and the reading was in its `unmodelled`, so what
@@ -467,7 +475,6 @@ describe('the report tells a reading from a marker', () => {
     report.split('\n').find((line) => line.startsWith(`- **${name}** (`)) ?? '';
 
   it.each([
-    ['Spare the Dying'],
     ['Enthrall'],
     ['Flesh to Stone'],
     ['Calm Emotions'],

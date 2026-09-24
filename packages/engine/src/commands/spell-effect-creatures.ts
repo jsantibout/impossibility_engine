@@ -115,6 +115,79 @@ export function resolveReviveEffect(
 }
 
 /**
+ * Why this creature may not be stabilised, or null where it may.
+ *
+ * > SRD Spare the Dying: "Choose a creature within range that has **0 Hit
+ * > Points and isn't dead**."
+ *
+ * **Written once and read from both ends**, which is `reviveProblem`'s rule
+ * with one more consumer: `namedTargets` asks it for `TargetRule.mustBeDying`,
+ * before an action is spent and before a shortlist offers anybody, and
+ * {@link resolveStabiliseEffect} asks it where the event is written, for the
+ * caller that never went through targeting at all. Two readings of one
+ * sentence is two answers, and this sentence has two clauses to get wrong.
+ *
+ * The two refusals are the two `stabiliseCreature` already makes in the same
+ * words — SRD names the state rather than a creature, and a corpse is Raise
+ * Dead's business — under one code, because they are one clause of one spell
+ * and a caller who aimed at the wrong body wants the reason rather than the
+ * taxonomy.
+ */
+export function dyingProblem(
+  state: GameState,
+  target: CharacterId,
+  name: string,
+): Result<true> {
+  const victim = state.creatures[target];
+  // A creature the casting cannot find is targeting's refusal, not this one.
+  if (victim === undefined) return ok(true);
+
+  if (victim.vitals.dead) {
+    return err(
+      'target_not_dying',
+      `${name} reaches a creature that is dying, and ${target} is dead`,
+    );
+  }
+  if (victim.vitals.hp > 0) {
+    return err(
+      'target_not_dying',
+      `${name} reaches a creature at 0 Hit Points, and ${target} has ${victim.vitals.hp}`,
+    );
+  }
+  return ok(true);
+}
+
+/**
+ * A dying creature that is not going to die of it.
+ *
+ * SRD Spare the Dying: "The creature becomes Stable." One word, and the event
+ * it writes is the one `stabiliseCreature` writes when a DM declares the same
+ * fact — so a Healer's Kit, a Medicine check and this cantrip all reach
+ * `Vitals.stable` by the same door, and every reader of it is reached however
+ * the creature came to be Stable.
+ *
+ * **The clause is checked here as well as in the target rule**, and the
+ * duplication is `resolveReviveEffect`'s: the target rule exists so the
+ * refusal is free, and this exists so the rule is *in the resolver* rather
+ * than in whichever caller happened to remember it.
+ */
+export function resolveStabiliseEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { name, events, outcomes } = ctx;
+
+  const allowed = dyingProblem(world, target, name);
+  if (!allowed.ok) return allowed;
+
+  const steadied = { type: 'stabilised' as const, id: target };
+  events.push(steadied);
+  outcomes.push({ target, affected: true });
+  return ok(applyEvent(world, steadied));
+}
+
+/**
  * Why this Attunement may not be broken, or null where it may.
  *
  * Written once and asked twice, for {@link reviveProblem}'s reason: the

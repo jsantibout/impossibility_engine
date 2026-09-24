@@ -299,42 +299,37 @@ describe('the blocked-on map covers the undefined population', () => {
   });
 
   /**
-   * The one spell in the book whose **range** grows with the caster.
+   * The one spell in the book whose **range** grows with the caster, and the
+   * two shapes it was the only claimant of — **both built, so both retired**.
    *
-   * `SpellDefinition.range` is one fixed `SpellRange` and `ranged()` is checked
-   * on every casting before a target is looked at, so a defined Spare the Dying
-   * would refuse the level 5 cleric the SRD lets stabilise an ally at thirty
-   * feet. The engine's path arrives and answers wrongly, which is this map's
-   * own definition of debt rather than fiction — and it is the only spell that
-   * prints the clause, which is exactly when a one-consumer shape is cheap to
-   * name and impossible to reconstruct later.
+   * The entry this replaces said that `SpellDefinition.range` was one fixed
+   * `SpellRange` checked before a target is looked at, so the level 5 cleric
+   * the SRD lets stabilise an ally at thirty feet would be refused. It is
+   * `rangeAtLevel` now, read by `rangeFeetAt` at the cast and at the shortlist
+   * alike; the four words beside it are the `stabilise` effect, writing the
+   * `stabilised` a DM's declaration writes; and the sentence that chooses the
+   * target is `TargetRule.mustBeDying`.
    *
-   * **The spell is written now and the shape is exactly where it was**, which
-   * is the move this whole file exists to make checkable. The Cantrip Upgrade
-   * trips no mechanical marker, so while a tracked entry had to carry one the
-   * reading could not come with the definition — and the shape would have been
-   * retired for want of a claimant the moment Spare the Dying was written. It
-   * is carried by a marker-less entry instead, and `marker-less-blockers.test.ts`
-   * asserts the counterfactual directly.
+   * So the spell has no tracked entry at all and neither
+   * `a-range-that-scales-with-caster-level` nor
+   * `an-effect-that-stabilises-a-dying-creature` is in `MISSING_SHAPES`. That
+   * is the **right** way for a one-claimant shape to leave: it was named
+   * because it was cheap to name and impossible to reconstruct later, it was
+   * carried by a marker-less entry so the reading survived the move, and what
+   * retires it is the mechanism arriving rather than the claim being dropped.
    */
-  it('files the one spell whose range scales with the caster', () => {
-    expect(consumersOf('a-range-that-scales-with-caster-level').blocks).toEqual([
-      'spare-the-dying',
-    ]);
+  it('retires the two shapes Spare the Dying was the only claimant of', () => {
+    expect(MISSING_SHAPES['a-range-that-scales-with-caster-level']).toBeUndefined();
+    expect(MISSING_SHAPES['an-effect-that-stabilises-a-dying-creature']).toBeUndefined();
     expect(BLOCKED_ON['spare-the-dying']).toBeUndefined();
     expect(SRD_CONTENT.spell('spare-the-dying')).not.toBeNull();
-    expect(consumersOf('a-range-that-scales-with-caster-level').unseen).toEqual([
-      'spare-the-dying',
-    ]);
-    // And the stabilising half is kept too, under the marker the sentence that
-    // chooses the target does trip.
-    expect(
-      (TRACKED_ADJUDICATED['spare-the-dying'] ?? []).map((entry) => entry.why),
-    ).toEqual([
-      'an-effect-that-stabilises-a-dying-creature',
-      'an-effect-that-stabilises-a-dying-creature',
-      'a-range-that-scales-with-caster-level',
-    ]);
+    expect(TRACKED_ADJUDICATED['spare-the-dying']).toBeUndefined();
+    // And the definition really does all three: the effect, the target rule
+    // and the band the reach grows by.
+    const definition = SRD_CONTENT.spell('spare-the-dying');
+    expect(definition?.effects.map((effect) => effect.kind)).toEqual(['stabilise']);
+    expect(definition?.targets.mustBeDying).toBe(true);
+    expect(definition?.rangeAtLevel).toEqual({ 5: 30, 11: 60, 17: 120 });
   });
 });
 

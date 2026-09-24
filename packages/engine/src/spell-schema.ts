@@ -4026,6 +4026,10 @@ function checkEffect(
 
     case 'dispel':
     case 'interrupt-casting':
+    // SRD Spare the Dying's whole content is one word and it carries no
+    // fields, so there is nothing here to be wrong. Who it may be aimed at is
+    // `TargetRule.mustBeDying`, checked where every other target rule is.
+    case 'stabilise':
       return;
 
     // **Its own arm rather than a third name on the fall-through above**,
@@ -4856,6 +4860,65 @@ export function checkSpellDefinition(
       code: 'bad_range',
       reason: 'a ranged spell reaches more than nothing',
     });
+  }
+
+  /*
+   * The one clause in the book that grows a **reach** with the caster — SRD
+   * Spare the Dying's "The range doubles when you reach levels 5 (30 feet), 11
+   * (60 feet), and 17 (120 feet)" — held to four rules.
+   *
+   * The Cantrip Upgrade applies to cantrips, which is `checkScaling`'s fork
+   * word for word and the same code: a levelled spell scales with its slot,
+   * and `rangeFeetAt` reads a character level that would silently mean nothing
+   * on one. Then the shape, which is a band table read exactly as
+   * `durationAtSlot`'s is: a whole character level for a key and a distance
+   * for a value. And then the reachability rule the rest of this file keeps —
+   * Touch, Self and a Range the DM decides have no printed number for a band
+   * to replace, so a table beside one is a sentence nothing could ever apply.
+   */
+  if (definition.rangeAtLevel !== undefined) {
+    if (definition.level !== 0) {
+      found.push({
+        field: 'rangeAtLevel',
+        code: 'cantrip_scaling_on_spell',
+        reason: 'the Cantrip Upgrade applies to cantrips; a levelled spell scales with its slot',
+      });
+    }
+    if (definition.range.kind !== 'ranged') {
+      found.push({
+        field: 'rangeAtLevel',
+        code: 'range_without_a_distance',
+        reason: `a band replaces a printed distance, and this spell's Range is ${definition.range.kind}`,
+      });
+    }
+    if (
+      readsAsObject(
+        definition.rangeAtLevel,
+        'rangeAtLevel',
+        'a growing range is a table of character level to feet',
+        found,
+      )
+    ) {
+      const bands = definition.rangeAtLevel as Record<string, unknown>;
+      for (const key of Object.keys(bands)) {
+        const level = Number(key);
+        if (!Number.isInteger(level) || level < 1 || level > 20) {
+          found.push({
+            field: `rangeAtLevel.${key}`,
+            code: 'bad_caster_level',
+            reason: `a band begins at a character level, 1 to 20; "${key}" is not one`,
+          });
+        }
+        const feet = bands[key];
+        if (typeof feet !== 'number' || !Number.isInteger(feet) || feet <= 0) {
+          found.push({
+            field: `rangeAtLevel.${key}`,
+            code: 'bad_range',
+            reason: `a band reaches a whole number of feet, more than nothing; got ${String(feet)}`,
+          });
+        }
+      }
+    }
   }
 
   /**
@@ -7851,6 +7914,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'buff',
   'heal',
   'revive',
+  'stabilise',
   'attack-damage',
   'save',
   'condition',

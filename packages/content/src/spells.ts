@@ -14790,12 +14790,13 @@ export const TSUNAMI: SpellDefinition = {
  * > creature becomes Stable. _Cantrip Upgrade._ The range doubles when you
  * > reach levels 5 (30 feet), 11 (60 feet), and 17 (120 feet)."
  *
- * Three sentences, and two of them are debt. `stabilised` is one of the events
- * a DM declares and no `SpellEffect` reaches it; and this is **the one spell in
- * the book whose range grows with the caster**, where `range` is a single fixed
- * `SpellRange` checked on every casting, so a level 5 cleric aiming thirty feet
- * away is refused the reach the SRD gives them. The definition prints the
- * fifteen feet the book prints for a level 1 caster and says the rest.
+ * Three sentences and three mechanisms, all three of them written. `stabilise`
+ * is the effect kind, and the event it emits is the one `stabiliseCreature`
+ * emits when a DM declares the same fact; `mustBeDying` is the target rule,
+ * which selects by a fact about **vitals** and is the reading
+ * `a-target-rule-the-format-cannot-state` had lost; and `rangeAtLevel` is the
+ * one clause in the book that grows a *reach* with the caster, read by
+ * `rangeFeetAt` at the cast and at the shortlist alike.
  */
 export const SPARE_THE_DYING: SpellDefinition = {
   id: 'spare-the-dying',
@@ -14804,17 +14805,17 @@ export const SPARE_THE_DYING: SpellDefinition = {
   school: 'necromancy',
   castingTime: 'action',
   concentration: false,
-  // "Range: 15 feet" — the range a level 1 caster has, and the only one a
-  // fixed `SpellRange` can hold.
+  // "Range: 15 feet" — the reach of a caster who has reached none of the
+  // three levels below.
   range: { kind: 'ranged', feet: 15 },
-  targets: { count: 1 },
-  effects: [],
-  unmodelled: [
-    'nobody is stabilised: `stabilised` is an event a DM declares and no spell effect reaches it, so the one word this cantrip consists of is the table’s to say',
-    'and the target rule goes with it — "a creature within range that has 0 Hit Points and isn’t dead" selects by a fact about vitals, and a target rule counts targets and names creature types',
-    'the range does not double at levels 5, 11 and 17: a definition holds one fixed range, checked before a target is looked at, and the two scaling axes the format has reach dice rather than reach',
-    'so a caster above level 4 is refused a casting the book allows, and the DM stabilises the ally at thirty feet themselves',
-  ],
+  // _Cantrip Upgrade._ "The range doubles when you reach levels 5 (30 feet),
+  // 11 (60 feet), and 17 (120 feet)." The three numbers in the parentheses
+  // rather than the doubling, for `rangeAtLevel`'s own reason.
+  rangeAtLevel: { 5: 30, 11: 60, 17: 120 },
+  // "Choose a creature within range that has 0 Hit Points and isn't dead."
+  targets: { count: 1, mustBeDying: true },
+  // "The creature becomes Stable." The whole of the spell.
+  effects: [{ kind: 'stabilise' }],
 };
 
 /**
