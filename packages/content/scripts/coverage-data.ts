@@ -1039,6 +1039,12 @@ export interface StatBlockLine {
   readonly multiattack?: unknown;
   /** The spells a Spellcasting line declares, where the parser read them. */
   readonly spellcasting?: unknown;
+  /** The spells a line **casts**, which is the book's other opening about spells. */
+  readonly casts?: unknown;
+  /** Where a line teleports its creature. */
+  readonly teleports?: unknown;
+  /** The flat addend a Reaction line puts on somebody's D20 Test. */
+  readonly addsToRoll?: unknown;
 }
 
 /** Every line of every section of one block, which is what the shapes count over. */
@@ -1061,7 +1067,10 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.trait !== undefined ||
   line.save !== undefined ||
   line.multiattack !== undefined ||
-  line.spellcasting !== undefined;
+  line.spellcasting !== undefined ||
+  line.casts !== undefined ||
+  line.teleports !== undefined ||
+  line.addsToRoll !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.

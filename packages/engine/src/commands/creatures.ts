@@ -166,10 +166,12 @@ export function addCreature(
           ...(adapted.spellcasting === null
             ? []
             : [{ type: 'spellcasting-declared' as const, id, spellcasting: adapted.spellcasting }]),
-          // And the pools its per-day castings come out of, which a pool is
+          // And the pools its per-day uses come out of, which a pool is
           // declared rather than derived for: the size is a fact somebody has
-          // to state, and here the block states it.
-          ...adapted.spellPools.map((pool) => ({
+          // to state, and here the block states it. The Spellcasting line's
+          // castings are most of them; a printed Reaction's "(2/Day)" is the
+          // other, and both arrive as the same declaration.
+          ...adapted.pools.map((pool) => ({
             type: 'resource-pool-declared' as const,
             id,
             pool,

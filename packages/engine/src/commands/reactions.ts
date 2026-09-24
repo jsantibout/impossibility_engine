@@ -764,7 +764,12 @@ export function takeTestReaction(
           ? undefined
           : {
               source: feature.name,
-              flat: bonus.kind === 'level' ? bonus.level : modifierFor(sheet, bonus.ability),
+              flat:
+                bonus.kind === 'level'
+                  ? bonus.level
+                  : bonus.kind === 'flat'
+                    ? bonus.amount
+                    : modifierFor(sheet, bonus.ability),
             },
       );
     } else {

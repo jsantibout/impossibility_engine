@@ -23,9 +23,11 @@ import type { NamedAction } from './combat.js';
 import type {
   Armor,
   MonsterAttack,
+  MonsterCastLine,
   MonsterMultiattack,
   MonsterRecharge,
   MonsterSave,
+  MonsterTeleport,
   MonsterTrait,
   WeaponMastery,
 } from '@ie/srd';
@@ -160,6 +162,17 @@ export interface StatedBonusAction {
    * `forcePrintedSave` spends whichever slot the heading names.
    */
   readonly save?: MonsterSave;
+  /**
+   * The spells this line casts — see {@link StatedAction.casts}, which this is
+   * the same field as and for the reason `save` is on both.
+   *
+   * **Where most of the book's cast lines are.** SRD Divine Aid is printed
+   * under Bonus Actions on three blocks at CR 5 or below, and the Cultist
+   * Fanatic's Spiritual Weapon on a fourth.
+   */
+  readonly casts?: MonsterCastLine;
+  /** Where this line teleports its creature — see {@link StatedAction.teleports}. */
+  readonly teleports?: MonsterTeleport;
 }
 
 /**
@@ -222,6 +235,32 @@ export interface StatedAction {
    * before the save. Those are still handed over whole.
    */
   readonly save?: MonsterSave;
+  /**
+   * The spells this line casts, where its sentence is the book's cast
+   * template — see `MonsterCastLineSchema`.
+   *
+   * **The same position `save` is in, and for the same reason.** A line that
+   * casts prints no attack roll, so it was never an attack and has always come
+   * down this road as prose; what changes is that a caller now has a third
+   * thing it can do with it. The ability is the *line's* — either the one it
+   * states outright, or a reference to the block's own Spellcasting line,
+   * which the engine resolves and refuses rather than assumes.
+   *
+   * **What the heading says is not here**: how often the line may be taken is
+   * `perDay`, and which slot it costs is which of the two sections it was
+   * pinned under.
+   */
+  readonly casts?: MonsterCastLine;
+  /**
+   * Where this line teleports its creature, where its sentence is the book's
+   * teleport template — see `MonsterTeleportSchema`.
+   *
+   * SRD Blink Dog: "The dog teleports up to 40 feet to an unoccupied space it
+   * can see." The distance and the sight clause are both rules the engine
+   * already holds, because SRD Misty Step prints the same sentence about a
+   * caster — so the line is the same mechanism at the heading's price.
+   */
+  readonly teleports?: MonsterTeleport;
 }
 
 /**

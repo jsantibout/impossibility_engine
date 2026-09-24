@@ -101,6 +101,7 @@ import { routeLabel } from './item-casting.js';
 import { schedule } from './conditions.js';
 import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
+import { teleportTo } from './teleport.js';
 import { type MoveResolution, moveWithin } from './movement.js';
 import { castOrRelease } from './spell-resolution.js';
 import {
@@ -1180,6 +1181,248 @@ export function forcePrintedSave(
           ),
           ...unsettled,
         ],
+        duplicate: false,
+      });
+    },
+  );
+}
+
+/** Which line the caller is taking, and where it is putting the creature. */
+export interface PrintedTeleportCommand extends CommandIdentity {
+  readonly line: string;
+  /**
+   * Where to, relative to something already established.
+   *
+   * **The one fact the table supplies, and it is not a number the engine
+   * owns.** "An unoccupied space it can see" is a space out of several, and
+   * the engine chooses none of them — the same boundary `eligibleTargets`
+   * draws for targeting and `CastSpellRequest.teleportTo` draws for Misty
+   * Step, which is the very same sentence about a caster. Absent is asked
+   * about rather than refused, because a missing fact is not a wrong one.
+   */
+  readonly to?: Placement;
+}
+
+export interface PrintedTeleportOutcome {
+  readonly events: readonly GameEvent[];
+  /** How far they went, on the same 5-foot lattice as everything else. */
+  readonly feet: number;
+  /** What the engine could not check — a sight clause nobody has declared. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Take the teleport a creature's stat block prints, at the distance it prints.
+ *
+ * SRD Blink Dog, Teleport (Recharge 4–6): "The dog teleports up to 40 feet to
+ * an unoccupied space it can see." Every clause of that is a rule the engine
+ * already holds, because SRD Misty Step prints the same sentence about a
+ * caster and `teleportTo` is what settles it: the distance measured from where
+ * the creature is standing, the space refused if somebody is in it or the
+ * scene cannot contain it, and the declared sight of whatever the destination
+ * is measured from.
+ *
+ * **The third door on one line, beside the two that already exist.**
+ * {@link takeStatedAction} and {@link takeStatedBonusAction} spend the slot and
+ * hand the sentence over, for every line including this one, and they still
+ * do; {@link forcePrintedSave} rolls a save where the line forces one. This
+ * one moves the creature, and it refuses `line_states_no_teleport` for a line
+ * whose sentence says something else.
+ *
+ * **The economy is the one those doors already spend**, in the same order and
+ * for the same reason: the recharge and the day's uses are checked *before*
+ * the slot, so a refusal leaves no footprint, and the same events go into the
+ * log, because the same line was taken. Which slot is the heading's answer —
+ * the Blink Dog's is a Bonus Action and the Nalfeshnee's an Action — so both
+ * sections are searched, Actions first.
+ *
+ * **Every refusal the destination can raise happens before the slot goes.**
+ * `teleportTo` is pure and rolls nothing, so it is asked once over the world
+ * as it stands and again over the world the spend leaves; the first asking is
+ * what keeps "that space is 45 feet away" from being a refusal that has
+ * already cost the creature its turn. That is the pre-flight `castOrRelease`
+ * already runs for Misty Step, arrived at by the other road.
+ *
+ * Nothing is spent by the move itself: a teleport is not a move, so no Speed,
+ * no Difficult Terrain and no Opportunity Attack — the list `teleportTo`'s own
+ * note takes from the SRD rather than from taste.
+ */
+export function takePrintedTeleport(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedTeleportCommand,
+): Result<PrintedTeleportOutcome> {
+  return once(
+    state,
+    `printed-teleport:${id}`,
+    command,
+    () => ({ events: [], feet: 0, unverified: [], duplicate: true }),
+    (stamp) => {
+      // **The same two holds `relocateCreature` refuses**, because this is the
+      // same authoritative position change: a declared move is an intent
+      // `completeIfSettled` will later apply, and a held attack was measured
+      // against where its target is standing.
+      if (state.pendingMove !== null) {
+        return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
+      }
+      if (state.pendingAttack !== null) {
+        return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        // Which slot the line costs is the heading's answer and the heading
+        // has not been read yet, so the refusal names neither.
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+
+      // Read off the sheet, where `creature-added` pinned the block's own
+      // lines. Actions first, for `forcePrintedSave`'s reason: the book writes
+      // this sentence under both headings and what the heading changes is what
+      // the line costs.
+      const action = statedActionOf(creature.sheet, command.line);
+      const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
+      const line: StatedAction | StatedBonusAction | null = action ?? bonus;
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions with nothing the engine could read beneath it; a heading the parser did read as an attack, and a heading printed under another section, are each taken by the command that owns them`,
+        );
+      }
+
+      const printed = line.teleports;
+      if (printed === undefined) {
+        return err(
+          'line_states_no_teleport',
+          `${line.name} states no teleport this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      // **A line already used and not yet back**, and **a line whose day's
+      // worth is gone** — both before the economy, because a refusal after the
+      // slot is gone is a refusal with a footprint, and **before the
+      // destination**, which is where this differs from `forcePrintedSave`
+      // above: asking for a space is homework, and setting a caller homework
+      // for a line the creature cannot use at all is an errand with nothing at
+      // the end of it.
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
+      // Where to, which is the table's to say. Asked for rather than refused:
+      // a space nobody has named is a fact that is missing rather than a call
+      // that is wrong.
+      const destination = command.to;
+      if (destination === undefined) {
+        return needsContext(
+          'undeclared_destination',
+          `${line.name} sends ${id} "up to ${printed.feet} feet to an unoccupied space it can see", and nobody has said which space`,
+          [
+            {
+              kind: 'position',
+              subject: id,
+              need: `the space ${id} is teleporting to`,
+              because:
+                'the book offers a choice of unoccupied spaces and the engine makes none of them',
+              satisfyWith: 'takePrintedTeleport again with its destination filled in',
+            },
+          ],
+        );
+      }
+
+      const relocation = {
+        placement: destination,
+        within: printed.feet,
+        ...(printed.mustSee ? { requiresSight: true as const } : {}),
+      };
+
+      // **The pre-flight, before anything is spent.** Pure, rolls nothing and
+      // changes nothing, so asking twice costs the caller nothing and asking
+      // once would cost them their turn.
+      const reachable = teleportTo(state, id, relocation);
+      if (!reachable.ok) return reachable;
+
+      // The slot the **heading** names: one Action on a turn, or the one Bonus
+      // Action, each refused by the primitive that owns its rule.
+      const spent =
+        action !== null
+          ? spendAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            })
+          : spendBonusAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            });
+      if (!spent.ok) return spent;
+
+      const events: GameEvent[] = [
+        action !== null
+          ? { type: 'action-spent', id }
+          : { type: 'bonus-action-spent' as const, id },
+        // SRD *Monsters*: "a monster can use the stat block part once."
+        ...(recharge === null
+          ? []
+          : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+        ...(perDay === null
+          ? []
+          : [
+              {
+                type: 'resource-spent' as const,
+                id,
+                key: perDayTallyKey(line.name),
+                amount: 1,
+                tally: 'dawn' as const,
+              },
+            ]),
+        // The same event the door that hands the sentence over writes, because
+        // the same line was taken.
+        action !== null
+          ? {
+              type: 'stated-action-taken' as const,
+              id,
+              // The **printed** heading rather than what the caller typed.
+              line: line.name,
+              ...(stamp === null ? {} : { command: stamp }),
+            }
+          : {
+              type: 'stated-bonus-action-taken' as const,
+              id,
+              line: line.name,
+              turn: state.combat.turnsTaken,
+              ...(stamp === null ? {} : { command: stamp }),
+            },
+      ];
+
+      // And the move itself, over the world the spend leaves — which is the
+      // same world for every rule the geometry reads, and is asked again
+      // rather than reused so that nothing here depends on that being true.
+      const moved = teleportTo(events.reduce(applyEvent, state), id, relocation, stamp);
+      if (!moved.ok) return moved;
+
+      return ok({
+        events: [...events, ...moved.value.events],
+        feet: moved.value.feet,
+        unverified: moved.value.unverified.map((gap) => `${line.name}: ${gap}`),
         duplicate: false,
       });
     },

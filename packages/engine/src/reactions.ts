@@ -151,7 +151,22 @@ export type FeatureReactionWindow = Extract<
 export type ReactionAddend =
   | { readonly kind: 'ability'; readonly ability: Ability; readonly label: string }
   /** Resolved at creation, because it is a column of *that class's* table. */
-  | { readonly kind: 'level'; readonly level: number; readonly label: string };
+  | { readonly kind: 'level'; readonly level: number; readonly label: string }
+  /**
+   * A number the sentence simply prints.
+   *
+   * SRD Sphinx of Wonder, Burst of Ingenuity: "The sphinx **adds 2** to the
+   * roll." Neither of the two above it: nothing about the holder decides it,
+   * so there is nothing to read off a sheet and nothing a class table could
+   * have said. A stat block prints its numbers, which is the same argument
+   * `StatedValues` makes about every other number on one.
+   *
+   * **Not `level` with the level renamed**, which would have worked and would
+   * have been a lie the log repeated: a reader asking where a reaction's
+   * arithmetic came from would be told a class level that no creature here
+   * has.
+   */
+  | { readonly kind: 'flat'; readonly amount: number; readonly label: string };
 
 /**
  * How much a reaction is worth.
@@ -357,7 +372,20 @@ export function reactionsOf(creature: {
 export type ReactionReach =
   | { readonly kind: 'self' }
   /** SRD Cutting Words: "a creature that you can see within 60 feet". */
-  | { readonly kind: 'within'; readonly feet: number };
+  | { readonly kind: 'within'; readonly feet: number }
+  /**
+   * SRD Sphinx of Wonder: "The sphinx **or** another creature within 30 feet".
+   *
+   * The union of the two above it, and a third member rather than a flag
+   * because it is a third sentence the book actually writes: SRD *Feather
+   * Fall* says "you or a creature you can see within 60 feet of you falls" in
+   * the same shape. `within` alone excludes the roller — which is right for
+   * Cutting Words, where the Bard is answering somebody else's roll and
+   * "another creature" is the whole of what the clause says — and a feature
+   * whose sentence names its holder first would silently lose the case the
+   * SRD wrote it for.
+   */
+  | { readonly kind: 'self-or-within'; readonly feet: number };
 
 /**
  * A Reaction a class feature offers, resolved at creation onto the sheet.
@@ -458,7 +486,11 @@ export function reactionAddends(
   const labels: string[] = [];
   for (const addend of amount.plus ?? []) {
     total +=
-      addend.kind === 'level' ? addend.level : abilityModifier(abilities[addend.ability]);
+      addend.kind === 'level'
+        ? addend.level
+        : addend.kind === 'flat'
+          ? addend.amount
+          : abilityModifier(abilities[addend.ability]);
     labels.push(addend.label);
   }
   return { total, labels };
@@ -523,7 +555,11 @@ function reaches(
   }
 
   if (actor === null) return false;
-  if (reactor === actor) return false;
+  // **"The sphinx or another creature"**: the holder's own roll is one the
+  // sentence names, and nothing about distance or sight is asked about a
+  // creature answering itself — which is the reading the `self` arm above
+  // already takes of the same fact.
+  if (reactor === actor) return feature.reach.kind === 'self-or-within';
   if (state.scene === null) {
     unverified.push(
       `no scene is set, so ${reactor} was not offered ${feature.name} against ${actor}`,
