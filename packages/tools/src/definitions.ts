@@ -188,6 +188,7 @@ import {
   endRest,
   equipItem,
   extendFeature,
+  extinguishFire,
   INITIATIVE_LABEL,
   joinCombat,
   MAX_LEVEL,
@@ -1147,6 +1148,38 @@ const STABILISE_CREATURE = tool({
       context,
       stabiliseCreature(context.campaign.state(), who(args.who), identity(context)),
       { stabilised: args.who },
+    ),
+});
+
+/**
+ * SRD *Burning* [Hazard]: "As an action, you can extinguish fire on yourself
+ * by giving yourself the Prone condition and rolling on the ground."
+ *
+ * **On the player's door, because it is a creature's own Action.** The whole
+ * of the call is who is rolling: the Prone the sentence charges, the fire
+ * going out and the Action being spent are all the engine's, and there is no
+ * number anywhere in it. `extinguishFire` has been the only writer of
+ * `hazard-ended` since Burning landed and nothing above the engine could reach
+ * it, so a creature a Magmin set alight burned until it died.
+ *
+ * **No target, which the sentence says twice** — "extinguish fire *on
+ * yourself*" by "giving *yourself* the Prone condition". The book's other
+ * three endings (doused, submerged, suffocated) need a world with water in it
+ * and have no door on either surface.
+ */
+const EXTINGUISH_FIRE = tool({
+  name: 'extinguish_fire',
+  description:
+    'Put out a fire you are standing in, which SRD Burning makes an Action: you give yourself the Prone condition and roll on the ground. A creature that is not burning is refused, and so is one with no Action left. The Prone is the method rather than a price, so a creature that cannot be given it still puts the fire out and is told so. `look` reports who is burning.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('The creature rolling on the ground. Its own Action, never another’s.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      extinguishFire(context.campaign.state(), who(args.who), identity(context)),
+      { extinguished: args.who },
     ),
 });
 
@@ -5498,6 +5531,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   EQUIP_ITEM,
   EVOKE_CONJURED,
   EXTEND_FEATURE,
+  EXTINGUISH_FIRE,
   HEAL_WITH_FEATURE,
   LET_GO_OF_CONJURED,
   LOOK,

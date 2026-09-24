@@ -20,8 +20,9 @@
  * beside them (the engine's).
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { asCharacterId, type CharacterId, err, ok, type Result } from '@ie/shared';
 import type { CreatureSize } from '@ie/srd/schemas';
+import type { DamageDefenses } from '../attack.js';
 import type { Content } from '../content.js';
 import type { GameEvent, GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -30,6 +31,7 @@ import {
   objectSheet,
   OBJECT_CONDITION_IMMUNITIES,
   OBJECT_CREATURE_TYPE,
+  OBJECT_DAMAGE_IMMUNITIES,
   type ObjectBuild,
 } from '../objects.js';
 import { creatureOf } from './command.js';
@@ -144,4 +146,101 @@ export function declareObject(
       },
     ]);
   });
+}
+
+/**
+ * What the engine calls a thing a **printed line** made.
+ *
+ * SRD Giant Spider's Web: the web is a thing in the room with its own Armour
+ * Class and Hit Points, and somebody has to be able to name it to burn it.
+ *
+ * **Derived rather than minted**, which is the rule the engine already keeps
+ * for the two other ids it issues: a summoned creature's is its casting's and
+ * its stat block's (`summonedId`), and an item copy's is the count at the gain
+ * (`itemInstanceFor`). There is no randomness here and no clock — a replay
+ * raises the same web under the same name, and a retry of one command raises
+ * no second one.
+ *
+ * The noun is the **line's own word**, so nothing here names a catalogue and a
+ * homebrew line printing "cocoon" gets a cocoon. The spinner and the creature
+ * caught are both in it because the sentence is about the pair: two spiders
+ * webbing one victim leave two webs, and one spider webbing two victims leaves
+ * two more. The count is the use, which is what tells this web from the one
+ * the same spider spun last round.
+ */
+export const printedObjectId = (
+  noun: string,
+  by: CharacterId,
+  target: CharacterId,
+  use: number,
+): CharacterId => asCharacterId(`${noun.replace(/\s+/g, '-')}:${by}:${target}:${use}`);
+
+/**
+ * A thing a **printed line** brings into being, with the numbers the line
+ * prints.
+ *
+ * SRD Giant Spider's Web: "The target has the Restrained condition until the
+ * web is destroyed (AC 10; HP 5; Vulnerability to Fire damage; Immunity to
+ * Poison and Psychic damage)." SRD Ettercap's Web Strand is the same sentence
+ * with Bludgeoning in the run.
+ *
+ * **{@link declareObject}'s sibling, and the split is where the numbers come
+ * from.** A declared object is a substance and a size, and the engine answers
+ * the Armour Class and the Hit Points off the SRD's two tables; a printed one
+ * is a thing the book has already given numbers to, and reading a table for it
+ * would be the engine overruling the page. So this takes them and pins them,
+ * which is rule 5 pointed the same way as everywhere else: what a command read
+ * out of content goes into the event, and the fold opens nothing.
+ *
+ * **The caller is the engine rather than a DM**, which is the whole of what is
+ * new here. Every other object in the game exists because somebody described
+ * it; this one exists because a creature spun it, and its id is derived from
+ * the use that made it — see {@link printedObjectId}.
+ *
+ * **No size, deliberately.** The book prints none for a web, and a size
+ * invented here would be a fact about the room nobody stated; a table that
+ * wants to say how far the strands reach says it by placing the thing.
+ */
+export function raisePrintedObject(
+  state: GameState,
+  id: CharacterId,
+  printed: {
+    /** What to call it — the line's own noun, and whose it is. */
+    readonly name: string;
+    readonly armorClass: number;
+    readonly hitPoints: number;
+    readonly vulnerabilities?: readonly string[];
+    readonly resistances?: readonly string[];
+    readonly immunities?: readonly string[];
+  },
+): Result<GameEvent[]> {
+  if (creatureOf(state, id) !== null) {
+    return err('already_present', `${id} is already in this game`);
+  }
+
+  const defenses: Record<string, DamageDefenses> = {};
+  for (const type of printed.vulnerabilities ?? []) defenses[type] = { vulnerable: true };
+  for (const type of printed.resistances ?? []) defenses[type] = { resistant: true };
+  // Immunity last, because it is the strongest of the three and the book never
+  // prints one type under two headings — a line that did would be saying one
+  // thing twice, and the stronger answer is the safe one to take.
+  for (const type of printed.immunities ?? []) defenses[type] = { immune: true };
+  // And the rule beneath the line, which every object has whatever its own
+  // sentence says: SRD "Damage Types and Objects". The web prints both of them
+  // itself; a homebrew line that printed neither still gets them.
+  for (const type of OBJECT_DAMAGE_IMMUNITIES) defenses[type] = { immune: true };
+
+  return ok([
+    {
+      type: 'creature-added',
+      id,
+      name: printed.name,
+      sheet: objectSheet(printed.armorClass),
+      maxHp: printed.hitPoints,
+      diesAtZero: true,
+      creatureType: OBJECT_CREATURE_TYPE,
+      defenses,
+      conditionImmunities: OBJECT_CONDITION_IMMUNITIES,
+    },
+  ]);
 }

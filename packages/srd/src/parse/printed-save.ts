@@ -126,6 +126,7 @@ import type {
   PrintedSaveClause,
   PrintedSaveEffect,
   PrintedSaveTrigger,
+  PrintedSeconds,
   PrintedSpan,
 } from '../schemas.js';
 
@@ -318,9 +319,17 @@ const BY_MARGIN = /^Failure by (\d+) or More$/;
  * is the only thing it adds. Every other rung the book prints is an ordinary
  * sentence about a condition — see {@link deepenBy}, which reads those the way
  * a failure clause is read anywhere else.
+ *
+ * **Two punctuations and a span**, because SRD Cockatrice prints the same
+ * sentence with the phrase set off by commas and a lifetime on the end of it:
+ * "The target has the Petrified condition, instead of the Restrained
+ * condition, for 24 hours." The span is the deepened condition's own —
+ * `RepeatSave.onFailure.lasts` — and it is the one field that heading may add,
+ * so it is read here rather than left to a clause that would have had nothing
+ * to attach to.
  */
 const SECOND_FAILURE =
-  /^The target has the ([A-Z][a-z]+) condition instead of the ([A-Z][a-z]+) condition$/;
+  /^The target has the ([A-Z][a-z]+) condition,? instead of the ([A-Z][a-z]+) condition(?:,? (for \d+ (?:hour|minute)s?))?$/;
 
 /**
  * The type slot of a printed amount, which the book writes two ways.
@@ -551,6 +560,76 @@ const EARLY_ENDINGS_ON_WAKING =
 const ENDS_EARLY_ON_WAKING =
   /^which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it$/;
 /**
+ * SRD Homunculus: "While Poisoned, the target has the Unconscious condition,
+ * **which ends early if the target takes any damage**."
+ *
+ * {@link ENDS_EARLY_ON_WAKING} with the waking half absent, which is the book
+ * printing one of the pair rather than both — the case the two fields were
+ * kept apart for. The "any" is the homunculus's own wording and buys nothing:
+ * damage is damage.
+ */
+const ENDS_EARLY_ON_DAMAGE = /^which ends early if the target takes (?:any )?damage$/;
+/**
+ * SRD Giant Spider's Web: "The target has the Restrained condition until the
+ * web is destroyed (AC 10; HP 5; Vulnerability to Fire damage; Immunity to
+ * Poison and Psychic damage)." SRD Ettercap's Web Strand prints it with
+ * Bludgeoning in the immunity run.
+ *
+ * **A lifetime that is a *thing*.** Every other span this file reads is a
+ * clock or another condition; this one is an object the line brings into
+ * being, with numbers of its own and somebody free to burn it. Matched whole
+ * rather than as a `until …` tail on {@link HAS_CONDITION}, because the
+ * parenthesis is where the object's whole record is and a tail that swallowed
+ * it would have read a span out of a stat line.
+ *
+ * The noun is captured, because the thing has to be called something and the
+ * book is the only place that says what.
+ */
+const HELD_BY_OBJECT = new RegExp(
+  `^${SUBJECT}has the ([A-Z][a-z]+) condition until the ([a-z][a-z ]*) is destroyed ` +
+    `\\(AC (\\d+); HP (\\d+)((?:; [^)]+?)*)\\)$`,
+);
+
+/** One run of the object's defence line: "Immunity to Bludgeoning, Poison, and Psychic damage". */
+const DEFENCE_RUN = /^(Vulnerability|Resistance|Immunity) to (.+) damage$/;
+
+/**
+ * The defences a printed object's parenthesis states, or null where it states
+ * one this reader cannot key.
+ *
+ * Null rather than a partial answer, for the rule the whole file keeps: an
+ * object whose Vulnerability to Fire went unread is a web nobody can burn, and
+ * that is worse than a line the table applies by hand.
+ */
+function objectDefencesOf(
+  run: string,
+): {
+  readonly vulnerabilities?: string[];
+  readonly resistances?: string[];
+  readonly immunities?: string[];
+} | null {
+  const found: Record<'Vulnerability' | 'Resistance' | 'Immunity', string[]> = {
+    Vulnerability: [],
+    Resistance: [],
+    Immunity: [],
+  };
+  for (const clause of run.split(';').map((part) => part.trim()).filter((part) => part !== '')) {
+    const match = DEFENCE_RUN.exec(clause);
+    if (match === null) return null;
+    const types = match[2]!
+      .split(/, and |,? and |, /)
+      .map((word) => word.trim().toLowerCase())
+      .filter((word) => word !== '');
+    if (types.length === 0 || types.some((type) => !DAMAGE_TYPES.has(type))) return null;
+    found[match[1] as 'Vulnerability' | 'Resistance' | 'Immunity'].push(...types);
+  }
+  return {
+    ...(found.Vulnerability.length === 0 ? {} : { vulnerabilities: found.Vulnerability }),
+    ...(found.Resistance.length === 0 ? {} : { resistances: found.Resistance }),
+    ...(found.Immunity.length === 0 ? {} : { immunities: found.Immunity }),
+  };
+}
+/**
  * SRD Ghost: "The target is immune to this ghost's Horrific Visage for 24
  * hours." SRD Mummy's Dreadful Glare prints it word for word.
  *
@@ -601,9 +680,17 @@ const REPEATS_AFTER =
  *
  * "if it is still Restrained" needs no field: an instance that is gone has no
  * timer, so the save is not owed.
+ *
+ * **And the subject is optional**, because the book prints the clause both
+ * ways: the Gorgon continues its own sentence with "and repeats the save…"
+ * and SRD Cockatrice starts a new one — "The target repeats the save at the
+ * end of its next turn if it is still Restrained…". One rule in two dressings,
+ * which is the reading {@link REPEATS_AFTER} already takes of its own pair.
  */
-const REPEATS_NEXT_TURN =
-  /^(?:and )?repeats the save at the end of its next turn(?: if it is still [A-Z][a-z]+)?, ending the effect on itself on a success$/;
+const REPEATS_NEXT_TURN = new RegExp(
+  `^(?:and )?${SUBJECT}repeats the save at the end of its next turn` +
+    `(?: if it is still [A-Z][a-z]+)?, ending the effect on itself on a success$`,
+);
 /**
  * SRD Brass Dragon Wyrmling: "The target has the Incapacitated condition until
  * the end of its next turn, **at which point it repeats the save**." SRD
@@ -819,13 +906,28 @@ const alsoEndsOnWaking = (
   last: ConditionEffect,
   condition: ConditionEffect['condition'],
 ): ConditionEffect => ({
+  ...alsoEndsOnDamage(last, condition),
+  endsWhenWoken: last.endsWhenWoken?.includes(condition) === true
+    ? last.endsWhenWoken
+    : [...(last.endsWhenWoken ?? []), condition],
+});
+
+/**
+ * The first half of that pair on its own — SRD Homunculus, whose sleep a blow
+ * ends and nobody may shake off.
+ *
+ * Split out of {@link alsoEndsOnWaking} rather than written beside it, so the
+ * two spellings cannot drift: the pair is this and the waking mark, and a
+ * homebrew line saying only the second would be the mirror image.
+ */
+const alsoEndsOnDamage = (
+  last: ConditionEffect,
+  condition: ConditionEffect['condition'],
+): ConditionEffect => ({
   ...last,
   endsOnDamage: last.endsOnDamage?.includes(condition) === true
     ? last.endsOnDamage
     : [...(last.endsOnDamage ?? []), condition],
-  endsWhenWoken: last.endsWhenWoken?.includes(condition) === true
-    ? last.endsWhenWoken
-    : [...(last.endsWhenWoken ?? []), condition],
 });
 
 /**
@@ -864,6 +966,31 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
   const { graded } = where;
   const words = clause.replace(/\.$/, '').trim();
   if (words === '') return true;
+
+  // **Before the semicolon list below**, whose own note names this sentence as
+  // the thing it comes apart on: SRD Giant Spider's "(AC 10; HP 5; …)" is one
+  // stat line written with the book's list punctuation, not a list of clauses.
+  // And before {@link HAS_CONDITION}, whose `until …` tail would otherwise
+  // swallow the whole parenthesis as a span and read nothing out of it. The
+  // narrower sentence goes first, which is the order every pair here is tried
+  // in.
+  const web = HELD_BY_OBJECT.exec(words);
+  if (web !== null) {
+    const name = CONDITIONS[web[1]!];
+    const defences = objectDefencesOf(web[5] ?? '');
+    if (name === undefined || defences === null) return false;
+    into.effects.push({
+      kind: 'condition',
+      condition: name,
+      heldByObject: {
+        noun: web[2]!,
+        armorClass: Number(web[3]),
+        hitPoints: Number(web[4]),
+        ...defences,
+      },
+    });
+    return true;
+  }
 
   /**
    * A semicolon list, read one clause at a time.
@@ -961,13 +1088,24 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     // condition the book's "which" names, which is the one this sentence
     // added rather than the one carrying it.
     const woken = whileSo[3] !== undefined && ENDS_EARLY_ON_WAKING.test(whileSo[3]);
+    // **And the half of that pair the homunculus prints alone**: a sleep a blow
+    // ends and nobody may shake off. Read here rather than carried for
+    // `ENDS_EARLY_ON_WAKING`'s reason — the verb is one the engine spends —
+    // and onto the condition the book's "which" names, which is the one this
+    // sentence added.
+    const struck = !woken && whileSo[3] !== undefined && ENDS_EARLY_ON_DAMAGE.test(whileSo[3]);
     const amended = amendCondition(
       into.effects,
       (effect) => effect.condition === host,
-      (last) => (woken ? alsoEndsOnWaking(alsoImplies(last, name), name) : alsoImplies(last, name)),
+      (last) =>
+        woken
+          ? alsoEndsOnWaking(alsoImplies(last, name), name)
+          : struck
+            ? alsoEndsOnDamage(alsoImplies(last, name), name)
+            : alsoImplies(last, name),
     );
     if (!amended) return false;
-    if (woken) return true;
+    if (woken || struck) return true;
     // **Carried with the noun it is about.** The book's words are "which ends
     // early if…", and which condition that "which" names is the whole of the
     // ruling: SRD Pseudodragon ends the *Unconscious* early and not the
@@ -1585,7 +1723,21 @@ function readRung(second: string): Rung | null {
     const deeper = CONDITIONS[named[1]!];
     const shallow = CONDITIONS[named[2]!];
     if (deeper === undefined || shallow === undefined) return null;
-    return { deepening: { condition: deeper }, instead: shallow, carried: [] };
+    // SRD Cockatrice's "for 24 hours", which is the deepened condition's own
+    // lifetime and the one field this heading may add. A span the reader
+    // cannot measure refuses the rung rather than dropping it: a Petrified
+    // that outlived its sentence is worse than a line left to the table.
+    let lasts: PrintedSeconds | undefined;
+    if (named[3] !== undefined) {
+      const span = spanOf(named[3]);
+      if (span === null || span.kind !== 'seconds') return null;
+      lasts = span;
+    }
+    return {
+      deepening: { condition: deeper, ...(lasts === undefined ? {} : { lasts }) },
+      instead: shallow,
+      carried: [],
+    };
   }
 
   const read = readSection(text, { graded: true });
@@ -1792,10 +1944,24 @@ export function parsePrintedSave(text: string): MonsterSave | null {
       // rung it was printed under.
       handedOver.push(...deepened.carried.map((sentence) => `_Second Failure:_ ${sentence}`));
     } else if (section.kind === 'by-margin') {
-      // The same failure with one more thing said about it, so the rung is
-      // read **against** what the first one imposed: "While Poisoned, the
-      // target also has…" names a clause that is already there.
-      const deeper = readSection(section.text, { seed: read.effects });
+      // **A rung that imposes states the whole failure; a rung that names one
+      // states an addition.** SRD Homunculus writes its deeper rung out in
+      // full — "The target has the Poisoned condition **for 1 minute**" — and
+      // SRD Pseudodragon writes only what is added to the rung above: "While
+      // Poisoned, the target **also** has the Unconscious condition." Read
+      // against the first rung's clauses, the homunculus's Poisoned lands
+      // twice under one source with two different spans, which is a rule
+      // nobody printed; read on its own, the pseudodragon's "While Poisoned"
+      // has no host and reads nothing at all.
+      //
+      // So the rung is tried alone first and seeded only where that failed,
+      // and the answer is the sentence's own grammar rather than a flag.
+      // `MonsterSave.onFailureBy.effects` replaces the failure's list either
+      // way, which is what makes the two readings interchangeable here.
+      const alone = readSection(section.text);
+      const deeper = alone.readSomething
+        ? alone
+        : readSection(section.text, { seed: read.effects });
       if (!deeper.readSomething || deeper.damage !== null) return null;
       onFailureBy = { by: section.margin, effects: deeper.effects };
       // Under its own heading, as the `_Failure or Success:_` branch does:
@@ -1894,4 +2060,48 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(gatedEither.length === 0 ? {} : { either: [...gatedEither] }),
     ...(handedOver.length === 0 ? {} : { handedOver }),
   };
+}
+
+/**
+ * SRD Cockatrice's Petrifying Bite: "_Hit:_ 3 (1d4 + 1) Piercing damage. **If
+ * the target is a creature, it is subjected to the following effect.
+ * _Constitution Saving Throw:_ DC 11. _First Failure:_ …**" SRD Homunculus
+ * writes the opening as "and the target is subjected to the following effect."
+ *
+ * The book's own way of printing a saving throw **inside a hit's rider**, and
+ * the whole of what is different about it is where the targeting clause sits:
+ * a line that forces a save states who it catches inside the template — "DC
+ * 13, one creature the spider can see within 60 feet" — and a rider states it
+ * in front, because the creature the save catches is the one the attack just
+ * hit.
+ */
+const RIDER_SAVE =
+  /^(?:If the target is (a creature), it|[Aa]nd the target) is subjected to the following effect\. _([A-Za-z]+) Saving Throw:_ DC (\d+)\. (_(?:First )?Failure:_ .*)$/;
+
+/**
+ * The save a **hit's rider** forces, or null where the rider forces none.
+ *
+ * **One reader and not two.** Everything after the opening is the same grammar
+ * `parsePrintedSave` reads — the failure's clauses, a graded second rung, a
+ * margin rung, a `_Failure or Success:_` coda — so the rider's opening is
+ * rewritten into the template's and handed to that function whole. A second
+ * copy of the grammar here would be a second answer to "what does a Restrained
+ * that repeats its save mean", free to disagree with the first.
+ *
+ * **The gate is read or the rider is not.** The only opening this takes with a
+ * condition on it is the book's "If the target is a creature", which is the
+ * clause every printing of this shape uses — a creature and not an object. A
+ * rider whose gate says anything else (SRD Bearded Devil's "and doesn't
+ * already have an infernal wound") comes back null and stays prose, because a
+ * gate dropped in silence is a rule nobody printed.
+ *
+ * `targets` on the result is that gate in the book's own words, which is what
+ * the field has always held: who the line catches.
+ */
+export function parseRiderSave(rider: string): MonsterSave | null {
+  const flat = rider.replace(/\s+/g, ' ').trim();
+  const match = RIDER_SAVE.exec(flat);
+  if (match === null) return null;
+  const who = match[1] ?? 'the target';
+  return parsePrintedSave(`_${match[2]!} Saving Throw:_ DC ${match[3]!}, ${who}. ${match[4]!}`);
 }

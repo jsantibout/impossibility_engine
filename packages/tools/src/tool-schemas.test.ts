@@ -166,8 +166,8 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
-    expect(toolSchemas(player())).toHaveLength(86);
-    expect(toolSchemas(dm())).toHaveLength(108);
+    expect(toolSchemas(player())).toHaveLength(87);
+    expect(toolSchemas(dm())).toHaveLength(109);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -237,10 +237,13 @@ describe('toolSchemas', () => {
     // (Magic Mouth's stated ending) and a new `end_spell_on_self` door on both
     // surfaces (Gaseous Form's target ending its own cloud at the price the
     // book charges) — one tool and 1,504 bytes on each.
-    expect(toolSchemas(player())).toHaveLength(86);
-    expect(toolSchemas(dm())).toHaveLength(108);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(130140);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(165650);
+    // And again for the webs-and-wounds track: `extinguish_fire` on both
+    // surfaces — a creature's own action against its own fire, no number in
+    // it — one tool and 596 bytes on each.
+    expect(toolSchemas(player())).toHaveLength(87);
+    expect(toolSchemas(dm())).toHaveLength(109);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(130736);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(166246);
   });
 });
 

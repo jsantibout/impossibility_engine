@@ -36,7 +36,12 @@ import { type Applying, unhandledEvent } from './common.js';
 import { releaseCasting, releaseGrants } from './release.js';
 import { dropOrphanedAreaEffects } from './areas.js';
 import { openTurnStart, reachStartOfTurn } from './turns.js';
-import { dropOrphanedSaves, dropStrandedDamage, expireEffects } from './expiry.js';
+import {
+  dropOrphanedSaves,
+  dropStrandedDamage,
+  expireEffects,
+  liftWhatBrokenObjectsHeld,
+} from './expiry.js';
 import {
   endEarlyEndedConditions,
   endTriggeredCastings,
@@ -299,6 +304,13 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // After the drops rather than before them: what ends an attunement is a
     // death or an item gone, and both are facts the event itself left behind.
     endLostAttunements(
+      // **Outside the three `drop*` passes and inside the attunements**, which
+      // is where the other "its cause has gone" readings sit: what this lifts
+      // is a condition whose lifetime was a *thing* — SRD Giant Spider's web —
+      // and what it needs to have seen first is the damage that destroyed the
+      // thing, which the event itself left behind. Nothing downstream of it
+      // reads a Restrained the burnt web was holding.
+      liftWhatBrokenObjectsHeld(
       dropOrphanedAreaEffects(
         dropStrandedDamage(
           dropOrphanedSaves(
@@ -357,6 +369,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
             ),
           ),
         ),
+      ),
       ),
     ),
     ),

@@ -133,13 +133,12 @@ export interface StatedAttack extends MonsterAttack {
    * **Carried from the line onto the attack** for the reason the recharge is:
    * the book prints it on the heading, and `Feature` owns it in `@ie/srd`.
    *
-   * **Carried and not yet read**, which is a debt and is written down as one:
-   * `wrongFormFor` is the reader, and today only the two hand-over doors in
-   * `commands/actions.ts` ask it. A swing at one of these headings is still
-   * made in whatever form the creature is in — a werewolf in wolf form can
-   * still draw its longbow — because `commands/attacks.ts` belonged to another
-   * track the batch this field landed in. `monster-forms.test.ts` pins which
-   * modules ask, so the day the swing asks too, the pin says so.
+   * **Read by every door a line comes through.** `wrongFormFor` is the
+   * reader; the two hand-over doors in `commands/actions.ts` ask it, and so
+   * does `resolveAttack` the moment it has found the printed line, before
+   * anything is spent — so a werewolf in its own skin cannot bite and, in the
+   * wolf, cannot draw its longbow. `monster-forms.test.ts` pins which modules
+   * ask, so a door that stops asking fails rather than going quiet.
    */
   readonly onlyInForms?: readonly string[];
 }

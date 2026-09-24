@@ -8,6 +8,8 @@
     "Attachment",
     "attachSource",
     "attachedTo",
+    "heldByObjectSource",
+    "heldByObject",
     "CreatureState",
     "AppliedCommand",
     "CommandStamp",
@@ -115,7 +117,8 @@
     "expireEffects",
     "timersApartFrom",
     "dropStrandedDamage",
-    "dropOrphanedSaves"
+    "dropOrphanedSaves",
+    "liftWhatBrokenObjectsHeld"
   ],
   "fold/endings.ts": [
     "AllyVerdict",

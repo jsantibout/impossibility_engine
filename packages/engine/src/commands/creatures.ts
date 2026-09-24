@@ -26,7 +26,12 @@ import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import type { KeptBond } from '../state.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { addCombatant } from '../combat.js';
-import { adaptMonster, type PrintedSpeedMode, withPrintedSpeeds } from '../monster.js';
+import {
+  adaptMonster,
+  hasPrintedTrait,
+  type PrintedSpeedMode,
+  withPrintedSpeeds,
+} from '../monster.js';
 import type { Placement } from '../positioning.js';
 import { hitPointFloorFor, speedOf } from '../standing.js';
 import { applyDamageToVitals, damagePastThreshold, healingRuleOf, isDown } from '../vitals.js';
@@ -197,6 +202,22 @@ export function addCreature(
           ),
           ...adapted.caveats.map(
             (printed) => `${id}: ${printed} — a defence the engine does not recognise`,
+          ),
+          // **What a trait the engine read says besides what it read.** SRD
+          // Swarm prints three sentences under one heading and the engine
+          // holds the last of them; the other two describe a lattice it has
+          // not got — a creature standing in another's space, an opening with
+          // a width — and go to the table with the heading they came under,
+          // in the book's own words.
+          //
+          // Reported at *arrival* rather than at use, which is the one thing
+          // that makes this different from a rider's residue: a trait is not
+          // spent, so there is no later moment to say it at.
+          ...monster.traits.flatMap((line) =>
+            (line.trait?.handedOver ?? []).map(
+              (clause) =>
+                `${id}: ${line.name} reads "${clause}" — the engine does not apply that; a DM does`,
+            ),
           ),
         ],
         duplicate: false,
@@ -945,6 +966,21 @@ export function healCreature(
     // took place.
     if (healingRuleOf(creature.healingRules) === 'prevented') return ok([]);
 
+    // **And what the creature's own block says it is.** SRD Swarm: "The swarm
+    // can't regain Hit Points or gain Temporary Hit Points."
+    //
+    // Read off the printed trait rather than hung as a `GrantedHealingRule`,
+    // and the record is the argument: that one is "a healing rule a running
+    // effect hung on a creature, ended by its source", and a swarm's anatomy
+    // is not a running effect and is ended by nothing. It is the same reading
+    // `hasPrintedTrait` already serves Pack Tactics and Undead Fortitude —
+    // a permanent fact the block states, pinned onto the sheet at arrival and
+    // asked for where the rule bites.
+    //
+    // **At this door and nowhere else**, for the reason the grant above is at
+    // this door: every way hit points come back passes through here.
+    if (hasPrintedTrait(creature.sheet, 'regains-no-hit-points')) return ok([]);
+
     const events: GameEvent[] = [
       { type: 'healed', id, amount, ...(stamp === null ? {} : { command: stamp }) },
     ];
@@ -1070,6 +1106,14 @@ export function removeCreatureEverywhere(
  * Points and receive more of them, you choose whether to keep the ones you
  * have or gain the new ones." Keeping the larger pool is that choice made the
  * only way it is ever made.
+ *
+ * **The one creature the book says may not have any** is the swarm, and this
+ * is the door its sentence's second half meets: "The swarm can't regain Hit
+ * Points **or gain Temporary Hit Points**." The first half is `healCreature`'s
+ * and the two are asked separately because they are two doors, not because
+ * they are two rules — a `HealingRule` of `prevented` is Chill Touch's
+ * sentence, which says nothing whatever about Temporary Hit Points and must
+ * not be read as though it did.
  */
 export function grantTemporaryHpTo(
   state: GameState,
@@ -1078,12 +1122,18 @@ export function grantTemporaryHpTo(
   command: CommandIdentity = {},
 ): Result<GameEvent[]> {
   return once(state, `temp-hp:${id}`, { ...command, amount }, () => [], (stamp) => {
-  if (creatureOf(state, id) === null) {
+  const creature = creatureOf(state, id);
+  if (creature === null) {
     return unknownCreature(id);
   }
   if (!Number.isFinite(amount) || amount < 0) {
     return err('bad_amount', `temporary hit points must be a non-negative number, got ${amount}`);
   }
+  // **An empty batch rather than a refusal**, which is the answer
+  // `healCreature` gives the other half of the same sentence and for its
+  // reason: nothing was done wrong, and a log with no `temporary-hp-granted`
+  // in it says exactly what happened.
+  if (hasPrintedTrait(creature.sheet, 'regains-no-hit-points')) return ok([]);
   return ok([
     { type: 'temporary-hp-granted', id, amount, ...(stamp === null ? {} : { command: stamp }) },
   ]);

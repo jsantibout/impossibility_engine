@@ -1305,7 +1305,6 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | Lines | The one seam each waits on |
  * |---|---|
  * | Bearded Devil's Infernal Glaive | a check a **neighbour** may attempt. `availableChecks` and `resolveEffectCheck` are self-only twins, and the wound's DC 12 Wisdom (Medicine) is rolled by the target *or a creature within 5 feet of it*. The start-of-turn 1d10 is `ScheduledDamage`, which the boundary already settles, and the minute is an ordinary deadline; what is missing is the reach on the check and the once-per-target gate ("doesn't already have an infernal wound") |
- * | Cockatrice's Petrifying Bite, Homunculus's Bite | a **graded** failure on a hit. `PrintedSaveLine` grades already — `_First Failure:_`, `onFailureBy` — and `HitOption` does not: a rider compiles to one effect list against one DC, so two rungs would be two lists off one save and there is no door from a swing to the printed-save reader that holds them |
  * | Death Dog's Bite, Mummy's Rotting Fist, Otyugh's Bite, Incubus's Restless Touch | a clock that runs for days. Three mechanisms under one sentence each: a Hit Point maximum that does **not** come back at a Long Rest (a mark that withholds `hit-point-maximum-restored`), a deadline that re-arms every 24 hours, and a rest whose benefit is denied to the creature that finished it. `a-clock-that-runs-for-days` |
  * | Shadow's Draining Swipe | an ability score an effect lowers. The sheet holds the six authoritatively and nothing in the engine moves one, so "the target's Strength score decreases by 1d4. The target dies if this reduces that score to 0" has no record to write to: `an-ability-score-an-effect-lowers` |
  * | Werebear, Wereboar, Wererat, Weretiger, Werewolf | `a-creature-somebody-else-is-playing`. "If the cursed target drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM's control" is one stat block swapped for another *and* a player's character handed to the DM, and the second half is the one nothing here can do |
@@ -1366,6 +1365,7 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Beast of Burden | `capacitySizeOf`, which reads SRD Powerful Build's own grant |
  * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named |
  * | SRD Barbed Hide | the same, at the start, caught by the hold rather than by feet |
+ * | SRD Swarm's healing sentence | `healCreature` and `grantTemporaryHpTo`, the two doors hit points come back through |
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1394,6 +1394,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'long-jump-with-a-running-start',
   'magic-resistance',
   'penalised-after-taking-a-damage-type',
+  'regains-no-hit-points',
   'sheds-light',
   'speed-cut-after-taking-a-damage-type',
   'takes-a-named-action-as-a-bonus-action',
@@ -1453,7 +1454,6 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Lines | The one seam each waits on |
  * |---|---|
  * | Ooze Cube | `a-second-place-to-put-a-creature`: the cube holds a Large creature or four Medium ones **inside itself**, they have Total Cover there, and a neighbour pulls one out on a check. The narrow-gap half of its paragraph is the movement family below; the rest is not, and reading the whole as fiction would lose four rules |
- * | Swarm ×7 | a healing rule a stat block states. `HealingRule` exists and `healingRuleOf` reads granted state; nothing writes one when a block arrives, so "can't regain Hit Points" has no door |
  * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
@@ -1546,7 +1546,7 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'burrows-through-solid-rock':
     'SRD Tunneler: "can burrow through solid rock at half its Burrow Speed and leaves a 10-foot-diameter tunnel in its wake." The same absent material as Earth Glide, and the tunnel besides: a hole left in the world is a change to the map the DM is drawing, and the engine draws none.',
   'ignores-a-webs-restrictions':
-    'SRD Web Walker: "ignores movement restrictions caused by webs, and the spider knows the location of any other creature in contact with the same web." A web is not a thing in this scene — the Giant Spider\'s own Web line is a save the engine has not read either — so there is no restriction with a source for this to be an exception to, and no web for two creatures to be in contact with.',
+    'SRD Web Walker: "ignores movement restrictions caused by webs, and the spider knows the location of any other creature in contact with the same web." A web **is** a thing in the scene now — the Giant Spider\'s own Web line raises one — and the sentence is a handover for a reason the object does not change: what a web does to a creature is the Restrained condition the save imposed, so this would have to be an exemption from a *condition* rather than from a movement cost, and a Restrained creature some rule quietly let walk is a condition read away. The second clause names knowledge about a place, which the vocabulary does not hold.',
   'walks-on-ice':
     'SRD Ice Walk: "can move across and climb icy surfaces without needing to make an ability check. Additionally, Difficult Terrain composed of ice or snow doesn\'t cost it extra movement." A patch of Difficult Terrain is declared and has no composition, and an icy surface is a description of a place rather than a fact about it, so the exemption names nothing the mover reads.',
   'cannot-wear-or-carry-anything':
@@ -1591,6 +1591,27 @@ export const hasUnexecutedTrait = (line: StatBlockLine): boolean => {
 
 /** What that row is called, so the ledger names it rather than matching a string. */
 export const UNEXECUTED_TRAIT_SHAPE = 'A trait shape nothing spends';
+
+/**
+ * A read trait whose heading says more than the engine spends.
+ *
+ * {@link SAVE_HANDOVER_SHAPE} and {@link RIDER_HANDOVER_SHAPE} on the third
+ * half of the sheet, and the same claim: `parseTraitShape` reads a heading's
+ * regular sentence and carries the rest verbatim in `MonsterTrait.handedOver`,
+ * `addCreature` hands the residue to the table the moment the block arrives,
+ * and the heading is **read** and still **unpaid**.
+ *
+ * SRD Swarm is the sentence that made the field necessary and is the whole of
+ * this row today: "can occupy another creature's space", "can move through any
+ * opening large enough for a Tiny rat" and "can't regain Hit Points or gain
+ * Temporary Hit Points" are one heading, of which the engine holds the last.
+ * Counted apart from {@link UNEXECUTED_TRAIT_SHAPE} for that row's own reason —
+ * learning to recognise two thirds of a heading must never be able to retire a
+ * debt on its own.
+ */
+export const TRAIT_HANDOVER_SHAPE = 'A trait whose heading says more than the engine spends';
+export const hasHandedOverTrait = (line: StatBlockLine): boolean =>
+  ((line.trait as { handedOver?: readonly string[] } | undefined)?.handedOver?.length ?? 0) > 0;
 
 /**
  * The shapes that run over a line the parser **read**.
@@ -1741,7 +1762,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    *
    * | Lines | The kind, and the seam |
    * |---|---|
-   * | Giant Spider's Web, Ettercap's Web Strand | a condition held by an **object the line creates**, with its own AC 10, HP 5 and defences. `declareObject` already holds a thing that can be broken; what is missing is `heldByObject` on the condition, so that burning the web ends the Restrained. `a-condition-an-object-holds` |
    * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
    * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | `a-second-place-to-put-a-creature`: a creature inside another one, which is a position the lattice has no word for |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
@@ -1755,6 +1775,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   [RIDER_SHAPE, hasUnappliedRider],
   [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
+  [TRAIT_HANDOVER_SHAPE, hasHandedOverTrait],
   // The two economy rows, each with the half that is now executed taken out of
   // it — exactly as the Multiattack and Spellcasting rows above were narrowed.
   // The economy on these lines was always right; what waited was the sentence,
@@ -1807,13 +1828,13 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * rules and the pair is what a reader needs.
  *
  * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
- * own note — Coven Magic, the Swarm's healing rule, Regeneration, Berserk and
+ * own note — Coven Magic, Regeneration, Berserk and
  * the rest — and keeping the two apart is what stops one sentence being
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
   'ettercap/Reel':
-    'a-condition-an-object-holds. The Roper\'s Reel under the same heading is executed now, and this one is not the same sentence: it pulls "one creature within 30 feet of itself that is Restrained by its Web Strand", and the web is a thing the engine has no record of. Reading it as a grapple would have been a rule nobody printed. It lands the day the Web Strand save creates an object the Restrained is held by.',
+    'a pull whose **gate** is a hold. The web is a thing the engine keeps a record of now — the Web Strand save raises an object and files the Restrained under `held-by:<it>` — and the Roper\'s Reel under the same heading is executed. What is left is the clause between the two: "one creature within 30 feet of itself **that is Restrained by its Web Strand**" is a printed pull narrowed to whoever this creature\'s own web is holding, and `takePrintedPull` drags whoever it is holding by a *grapple*. It lands the day a printed pull may say which hold it reads.',
   'magmin/Ignited Illumination':
     'a light a use turns on and off. `sheds-light` exists and `carriedLight` derives a patch that moves with its holder — but the magmin\'s block prints no such trait: the radii are printed on this Bonus Action and nowhere else, so what is missing is a *toggle*, a light patch a use hangs and a second use takes away, rather than a reader for a trait the block does not have.',
   'will-o-wisp/Vanish':

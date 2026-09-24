@@ -64,6 +64,8 @@ import { recordD20Test, rollSpellDice, savingSupport, withFlatAddend } from './r
 import { shoveAwayFrom } from './spell-effect-movement.js';
 import { conditionLanding } from './spell-effect-riders.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
+import { printedObjectId, raisePrintedObject } from './objects.js';
+import { heldByObjectSource } from '../state.js';
 
 export interface PrintedClausesLanded {
   readonly events: readonly GameEvent[];
@@ -358,7 +360,37 @@ export function applyPrintedClauses(
         // A grapple is the grapple every other door makes: sourced to the
         // grappler, escaped at the printed DC through `escapeGrapple`.
         const grapple = clause.escapeDc !== undefined;
-        const conditionSource = grapple ? grappleSource(source) : lineSource;
+
+        // **The thing the line makes, and the condition it holds.** SRD Giant
+        // Spider's Web: "The target has the Restrained condition until the web
+        // is destroyed (AC 10; HP 5; …)." The object is raised first, because
+        // the condition's whole lifetime is its id, and its numbers are the
+        // line's own — nothing is read off the Object Hit Points table, which
+        // is what `raisePrintedObject` exists to say.
+        //
+        // The id is derived from the use that made it, so a replay raises the
+        // same web and two spiders webbing one creature leave two.
+        let web: CharacterId | null = null;
+        if (clause.heldByObject !== undefined) {
+          const printed = clause.heldByObject;
+          const id = printedObjectId(printed.noun, source, target, useTag);
+          const spun = raisePrintedObject(current, id, {
+            name: `${source}'s ${printed.noun}`,
+            armorClass: printed.armorClass,
+            hitPoints: printed.hitPoints,
+            ...(printed.vulnerabilities === undefined
+              ? {}
+              : { vulnerabilities: printed.vulnerabilities }),
+            ...(printed.resistances === undefined ? {} : { resistances: printed.resistances }),
+            ...(printed.immunities === undefined ? {} : { immunities: printed.immunities }),
+          });
+          if (!spun.ok) return spun;
+          land(spun.value);
+          web = id;
+        }
+
+        const conditionSource =
+          web !== null ? heldByObjectSource(web) : grapple ? grappleSource(source) : lineSource;
         // The host's own ability and DC on every repeat this line hangs: SRD
         // writes "repeats **the** save", and the anchor is the printed `end`
         // of the `target`'s turn, which is the only pair the reader produces.

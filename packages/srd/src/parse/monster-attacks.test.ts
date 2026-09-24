@@ -1160,7 +1160,13 @@ describe('what a stat block’s sections print, and what is read', () => {
       // that states a mechanic: the Cube that holds creatures inside itself,
       // the Hag's Soul Bag, the Troll Limb's d12, and the Swarm's Spider
       // Climb, whose sentence is a gate on a kind that already has a reader.
-      traits: { printed: 337, read: 235 },
+      // And seven more with the Swarm, which is the first heading read in
+      // **part**: the healing sentence is a rule two engine doors hold and the
+      // two space clauses beside it go back to the table on the trait's own
+      // `handedOver`. Before that field the heading had only two answers —
+      // claim the lattice or refuse the whole of it — and the second is the
+      // one it had been given.
+      traits: { printed: 337, read: 242 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read
@@ -1195,7 +1201,11 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Half-Dragon's Dragon's Breath, whose "damage of the type chosen for
       // the Draconic Origin trait" is read as a type still unanswered and
       // refuses to roll until a DM has declared it.
-      actions: { printed: 811, read: 761 },
+      // And two more with the web: SRD Giant Spider's and SRD Ettercap's are a
+      // Restrained whose lifetime is a **thing** — an object the line creates,
+      // with its own Armour Class, Hit Points and defences, read whole out of
+      // the parenthesis the book prints them in.
+      actions: { printed: 811, read: 763 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

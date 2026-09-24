@@ -14,8 +14,15 @@
 import type { CharacterId } from '@ie/shared';
 import { hasExpired, type TimeView } from '../time.js';
 import { type PendingSave, type ScheduledDamage, type TimedEffect } from '../timers.js';
-import type { GameState } from '../state.js';
-import { endTimedCondition, releaseCasting, releaseGrants } from './release.js';
+import { heldByObject, type GameState } from '../state.js';
+import { removeConditionInstance } from '../conditions.js';
+import {
+  endTimedCondition,
+  instancesLifted,
+  releaseCasting,
+  releaseGrants,
+  releaseInstanceGrants,
+} from './release.js';
 import { clearTemporaryHp } from './vitals.js';
 
 /**
@@ -230,5 +237,71 @@ export function expireEffects(state: GameState): GameState {
       current = releaseCasting(current, caster?.id ?? null, castingId);
     }
   }
+}
+
+/**
+ * Lift what a **broken thing** was holding.
+ *
+ * SRD Giant Spider's Web: "The target has the Restrained condition until the
+ * web is destroyed (AC 10; HP 5; Vulnerability to Fire damage; Immunity to
+ * Poison and Psychic damage)." SRD Ettercap's Web Strand prints the same
+ * sentence, and its Reel pulls "one creature … that is Restrained by its Web
+ * Strand".
+ *
+ * **Derived, because nobody decides that a web has burned.** A thing that
+ * reaches 0 Hit Points is destroyed by `applyDamageToVitals`, which is itself
+ * derived off the damage — so there is no event to hang an ending on, and a
+ * command that had to remember to write one would be the failure the whole of
+ * this file exists to prevent. The reading `dropStrandedDamage` and a broken
+ * Concentration already take.
+ *
+ * **Read off the source, which is where every hold's lifetime is read.**
+ * `holdStillStands` finds a grapple by `grapple:<who>` and an attach by
+ * `attach:<who>`; `held-by:<object>` is the third spelling of the same idea,
+ * so the web needed no field on the instance, no migration and no new event.
+ *
+ * **It is read here and nowhere else**, which is the difference between it and
+ * the other two rather than an oversight: those two are lifetimes a *payout*
+ * may also hang on, and `holdStillStands` asks about them at every turn
+ * boundary. No printed line files a payout under a web — the sentence says
+ * what the web holds and never what it costs — so there is one reader, and a
+ * homebrew line that wrote one would want that function widened in the same
+ * commit rather than a debt nothing could ever settle.
+ *
+ * **Gone counts as destroyed**, which is the one case that is not the book's:
+ * an object a DM removed from the game is a web that is not there, and a
+ * Restrained whose cause has left the world is the orphan every other pass
+ * here is written to refuse.
+ */
+export function liftWhatBrokenObjectsHeld(state: GameState): GameState {
+  let current = state;
+  for (const id of Object.keys(state.creatures).sort()) {
+    const creature = current.creatures[id as CharacterId];
+    if (creature === undefined) continue;
+    const doomed = creature.conditions.instances.filter((instance) => {
+      const object = heldByObject(instance.source);
+      if (object === null) return false;
+      const holder = current.creatures[object];
+      return holder === undefined || holder.vitals.dead;
+    });
+    if (doomed.length === 0) continue;
+
+    let conditions = creature.conditions;
+    for (const instance of doomed) conditions = removeConditionInstance(conditions, instance.id);
+    current = {
+      ...current,
+      creatures: {
+        ...current.creatures,
+        [id]: {
+          ...releaseInstanceGrants(
+            creature,
+            instancesLifted(creature.conditions.instances, conditions.instances),
+          ),
+          conditions,
+        },
+      },
+    };
+  }
+  return current;
 }
 

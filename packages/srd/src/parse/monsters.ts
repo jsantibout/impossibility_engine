@@ -33,7 +33,7 @@ import {
   type ParseProblem,
 } from '../schemas.js';
 import { ABILITY_OVERRIDES } from './overrides.js';
-import { parsePrintedSave } from './printed-save.js';
+import { parsePrintedSave, parseRiderSave } from './printed-save.js';
 /**
  * The spell list, for one job: turning a printed spell **name** into the id
  * the rest of the system knows that spell by.
@@ -327,6 +327,15 @@ export function parseAttackLine(text: string): MonsterAttack | null {
 
   const qualified = qualification?.trim() ?? '';
 
+  // **The save template, where the rider is one.** SRD Cockatrice and SRD
+  // Homunculus print the book's own saving-throw template inside a hit, and
+  // what it says is two effect lists against one DC — a shape the printed-save
+  // reader has held since the Gorgon's breath was read and the *rider* reader
+  // cannot hold at all. So it is lifted out here, once, and the sentences it
+  // consumed leave `rider`: a clause read twice by two readers is two answers
+  // to one sentence.
+  const riderSave = rest === '' ? null : parseRiderSave(rest);
+
   const attack = {
     kind,
     modifier,
@@ -334,7 +343,8 @@ export function parseAttackLine(text: string): MonsterAttack | null {
     range,
     damage,
     qualification: qualified === '' ? null : qualified,
-    rider: rest === '' ? null : rest,
+    rider: rest === '' || riderSave !== null ? null : rest,
+    ...(riderSave === null ? {} : { riderSave }),
   };
 
   // Validated here rather than trusted: this is the one place in the parser
@@ -809,6 +819,30 @@ const HELD_CREATURE_DAMAGE = new RegExp(
  */
 const SPEED_CUT_BY_A_TYPE = new RegExp(
   `^If ${SUBJECT} takes (\\w+) damage, its Speed decreases by (\\d+) feet until the end of its next turn\\.$`,
+);
+
+/**
+ * SRD Swarm, printed on all seven swarms: "The swarm can occupy another
+ * creature's space and vice versa, and the swarm can move through any opening
+ * large enough for a Tiny rat. The swarm can't regain Hit Points or gain
+ * Temporary Hit Points."
+ *
+ * **Three sentences and one mechanic**, which is why this is the first pattern
+ * here to capture what it does *not* read. The two space clauses name a
+ * lattice the engine has not got — one occupant per five-foot space, and no
+ * width on anything for an opening to be large enough for — and the third is a
+ * rule `healCreature` and `grantTemporaryHpTo` each hold a door for. Anchored
+ * end to end like every pattern above it, so the Swarm of Insects' extra
+ * Climb Speed sentence is refused whole rather than read down to the part that
+ * fits.
+ *
+ * The two clauses are captured separately because they are two facts about the
+ * world, joined by the book's "and" rather than by a full stop.
+ */
+const SWARM_TRAIT = new RegExp(
+  `^(${SUBJECT} can occupy another creature['’]s space and vice versa), and ` +
+    `(${SUBJECT} can move through any opening large enough for a Tiny ${SUBJECT})\\. ` +
+    `${SUBJECT} can['’]t regain Hit Points or gain Temporary Hit Points\\.$`,
 );
 
 /**
@@ -1376,6 +1410,18 @@ export function parseTraitShape(text: string): MonsterTrait | null {
         damageType,
       };
     }
+  }
+
+  // SRD Swarm, on the seven swarms: three sentences under one heading, of
+  // which the engine holds the last. The other two go back on the trait's own
+  // `handedOver` rather than taking the heading down with them — see
+  // {@link SWARM_TRAIT}.
+  const swarm = SWARM_TRAIT.exec(text);
+  if (swarm !== null) {
+    return {
+      kind: 'regains-no-hit-points',
+      handedOver: [`${swarm[1]!}.`, `${swarm[2]!}.`],
+    };
   }
 
   if (BLURRED_FORM.test(text)) return { kind: 'disadvantage-on-attacks-against-it' };
