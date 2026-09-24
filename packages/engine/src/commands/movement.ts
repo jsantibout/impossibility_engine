@@ -1828,11 +1828,20 @@ export interface FallCommand extends CommandIdentity {
  * {@link deprivedOfFlight} is the conditions half, in `conditions.ts` with the
  * conditions; the grant half and the area half are already inside `speedOf`.
  *
- * "Held aloft by magic" is the clause that is **not** read, because nothing
- * records it: a Fly Speed a spell granted is a Fly Speed, and a creature
- * levitating on somebody else's magic has no Speed of its own for this to
- * find. Both are the same gap — a spell cannot grant a mode yet — and neither
- * is silently decided here.
+ * "Held aloft by magic" is the clause that is **not** read, and the reason has
+ * changed: something records it now. `CreatureState.lifts` is the record — SRD
+ * Levitate hangs one, and `GrantedLift`'s own note says so — and this function
+ * still does not consult it, because a creature the spell is holding up has no
+ * Fly Speed of its own and leaves by the `no-flight` door two lines above
+ * before the exception could matter. What is left of the original gap is the
+ * other half: a Fly Speed a spell *granted* is a Fly Speed and is
+ * indistinguishable here from a printed one, because a spell cannot grant a
+ * mode yet. Neither is silently decided here.
+ *
+ * The day the clause is read is the day something is aloft **and** flying: a
+ * creature with wings that somebody's magic is also holding up, whose Fly
+ * Speed drops to 0 and which the lift should catch. Nothing writes that
+ * sentence, so it is named rather than built.
  */
 export type FlightLoss =
   | { readonly kind: 'falls'; readonly feet: number }

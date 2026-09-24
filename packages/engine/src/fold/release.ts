@@ -6,8 +6,8 @@
  * `releaseOnTarget` is the same operation narrowed to one creature, which is
  * the whole of Dispel Magic's "one creature, object, or magical effect"
  * distinction. Beneath them is the grant enumerator: `grantsOf`,
- * `grantSourcesOf` and `withoutGrants`, the one walk over the eighteen sourced
- * grant families that five call sites used to make by hand.
+ * `grantSourcesOf` and `withoutGrants`, the one walk over every sourced grant
+ * family that five call sites used to make by hand.
  *
  * `spellOn` and `withoutTarget` are here for the same reason as each other:
  * they are the two directions of being *on* a creature. `spellOn` is the one
@@ -33,7 +33,7 @@ import type { CreatureState, GameState, PendingCasting } from '../state.js';
 /**
  * A grant a running effect hung on a creature, read only for what hung it.
  *
- * The eighteen families below all carry more than this — a `Bonus`, a base Armour
+ * Every family below carries more than this — a `Bonus`, a base Armour
  * Class, a `RollModifier`, a list of damage types, a change to a Speed, a die
  * on later attacks, a list of condition names, a payout at a turn boundary, a
  * rule about what a turn may be spent on —
@@ -75,7 +75,7 @@ type GrantFamily = Exclude<
 type HeldGrants = { readonly [K in GrantFamily]: readonly SourcedGrant[] };
 
 /**
- * The eighteen families as one value, and the only place the list is written.
+ * Every family as one value, and the only place the list is written.
  *
  * The annotation is a mapped type over {@link GrantFamily}, so a family
  * declared on `CreatureState` makes **this literal** a compile error naming the
@@ -124,14 +124,14 @@ const countGrants = (held: Record<string, readonly SourcedGrant[]>): number =>
 /**
  * Every source that has hung a grant on this creature.
  *
- * One enumerator over the eighteen families — the bonuses Bless adds, the Armour
+ * One enumerator over every family — the bonuses Bless adds, the Armour
  * Class Mage Armor supplies, the Advantage Blur grants, the Resistance
  * Stoneskin grants, the ten feet Longstrider adds, the die Divine Favor hangs
  * on later attacks, the d8 Shillelagh puts in a Quarterstaff, the Charmed Mind
  * Blank refuses, the Temporary Hit Points Heroism pays each turn, the Action
  * Stinking Cloud forbids, the die a Bard put in somebody's hand — so a reader
  * asking "is this casting still holding anything here" asks it once rather
- * than eighteen times.
+ * than once per family.
  *
  * **Sorted and deduplicated**, so the answer is fixed however the families are
  * visited and whatever order the grants arrived in; serialised state reaches
@@ -160,7 +160,7 @@ export function grantSourcesOf(creature: CreatureState): readonly string[] {
 }
 
 /**
- * Every grant whose source the predicate names, taken off all eighteen families.
+ * Every grant whose source the predicate names, taken off every family.
  *
  * The one removal. The three callers differ only in which sources they name —
  * `releaseCasting` and `releaseOnTarget` match the casting id inside the
