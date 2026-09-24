@@ -165,7 +165,18 @@ describe('the coverage table cannot claim more than the tests prove', () => {
     for (const id of PARTIAL_SPELLS) {
       const definition = SPELL_DEFINITIONS.find((d) => d.id === id);
       expect(definition, id).toBeDefined();
-      expect(definition!.unmodelled ?? [], id).not.toEqual([]);
+      // **A branch's debts count**, and for a spell that prints branches they
+      // may be all of them: SRD Command's own list is empty and every line it
+      // owes belongs to one of the five words. `spell-honesty.test.ts` reads
+      // them the same way, and for the same reason — a clause filed one level
+      // down is still the spell's.
+      const owed = [
+        ...(definition!.unmodelled ?? []),
+        ...Object.values(definition!.options ?? {}).flatMap(
+          (branch) => branch.unmodelled ?? [],
+        ),
+      ];
+      expect(owed, id).not.toEqual([]);
     }
   });
 

@@ -666,6 +666,35 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: the Sphere "moves 10 feet away from you" at the start of each of your turns. An area moves today only because a caster spends an action on it or carries it; nothing moves one on the clock.',
     },
   ],
+  // **Executed by the second arm of a choice made at the casting**, and the
+  // entry it leaves behind is what that arm does not reach. Three of the five
+  // words run — Halt's rule, Drop's empty hands, Grovel's Prone, each hung on
+  // the Wisdom save inside its own branch — and what is left of all five is
+  // one sentence: "follow the command **on its next turn**". Every word is
+  // obeyed inside a turn somebody else is directing, which is the id these
+  // entries already named before any of it was built.
+  command: [
+    {
+      clause: 'the Wisdom saving throw is not rolled for Approach',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'SRD: "The target moves toward you by the shortest and most direct route, ending its turn if it moves within 5 feet of you." The whole of what a failure buys is a route and a turn spent walking it, and a failure that imposes nothing is a die thrown for nothing — which the definition validator refuses rather than accepts. So this word has no effects at all, and the save goes to the table with the sentence.',
+    },
+    {
+      clause: 'the Wisdom saving throw is not rolled for Flee',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'SRD: "The target spends its turn moving away from you by the fastest available means." Approach’s reading with the direction reversed: a whole turn spent running is a creature being played, the engine adjudicates legality and walks nobody anywhere, and a save with nothing to gate is not rolled.',
+    },
+    {
+      clause: 'the hands are emptied at the casting rather than on the target’s next turn',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'Two clauses of one sentence. SRD defers every word to the target’s next turn and a rider settles with the save that raised it, so the mace is on the floor a round before the book puts it there; and "and then ends its turn" is the rest of that same directed turn, which `OutcomeRiders.spends` cannot say — the one slot a spell may not spend is the movement, and a turn ended is the movement gone with the rest.',
+    },
+    {
+      clause: 'the Prone lands at the casting rather than on the target’s next turn',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'Drop’s reading on the other word: the Prone is an ordinary condition hung on an ordinary failed save, and what is early is *when* — the book has the creature grovel on its own turn, inside the turn the caster is directing. The turn it then ends is the same missing thing, for the same reason.',
+    },
+  ],
   compulsion: [
     {
       clause: 'the Bonus Action that designates a direction',
@@ -1272,6 +1301,17 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the clause this shape’s own test was built to hand back. It was filed `table` on the strength of one field — "the definition is tracked and carries no `SpellArea`, because a template no effect resolves over is a radius with no place attached" — and `spell-honesty.test.ts` pinned both halves so that the day Darkness grew an area the reading would fail rather than go quietly on calling a rule fiction. That day is P3-S: Darkness holds a Sphere, the Sphere holds magical darkness, and Sunburst’s own 60-foot Sphere overlaps it perfectly well. What is missing is the **trigger**, and `docs/design/light-and-sight.md` says exactly where its edge is: the mutual dispel runs "on pinning a patch", and Sunburst pins none — it is a flash, Instantaneous, leaving no light behind. So `lightDispelledBy` is built and reachable from every casting that lays light, and a casting that lays none has no way to call it.',
     },
   ],
+  // **Executed by `maxRunning` and by the branches**, and the entry that
+  // outlived both is the one clause of the six wonders that is not narration.
+  // The other five were always fiction; this one is an ordinary roll modifier
+  // with nowhere to stand.
+  thaumaturgy: [
+    {
+      clause: 'the Advantage on Charisma (Intimidation) checks is not granted',
+      why: 'a-target-rule-the-format-cannot-state',
+      note: 'The mode itself is ordinary — a `RollModifier` naming a Charisma ability check narrowed to the Intimidation skill, which is the pair `RollSelector` already carries. What it has nowhere to land is a creature: Thaumaturgy prints Range 30 feet and `targets: { count: 0 }`, because the wonder happens within range rather than on somebody, so the per-target loop runs no times at all. The target rule that would hand the mode its creature is "the caster and nobody else", and `TargetRule` cannot state it — `notTheCaster` is the only sentence of that family it has, and it is the other one. Writing `{ count: 1, self: true }` instead would let a caster boom an ally’s voice, which is a rule the book does not grant.',
+    },
+  ],
   web: [
     {
       clause: 'flammable',
@@ -1733,20 +1773,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'there is deliberately no RollModifier member for D20 Tests as a family, and three SRD spells write the phrase; the toll on the caster and the target’s own minus four both need it, and the second needs a deadline anchored to a rest as well.',
     },
   ],
-  command: [
-    {
-      marker: 'saving-throw',
-      clause: 'follow the command on its next turn',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'the Wisdom save is ordinary and what it gates is a creature’s whole next turn spent doing what somebody else said. A spell may spend that creature’s slots now, which is not the same thing and does not finish this: what the save would have to produce is one of five orders being **obeyed**, and obedience is a decision the engine has no business taking for anybody.',
-    },
-    {
-      marker: 'condition',
-      clause: 'The target has the Prone condition and then ends its turn',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'the Prone half is an ordinary `condition` effect, and the clause beside it is the nearest of the five to sayable: a turn ended is every slot of it gone, which a spell may now spend. What still refuses it is that this is one option of five a creature **chose to obey**, so writing Grovel alone would be a Command that only ever meant one word — which is the whole reason all five options are the table’s together. **Read again on 2026-09-24 and the second blocker has a name**: three of the five are each writable on their own now — `OutcomeRiders.drops` lets go of a named object, Prone is an ordinary condition, and `forbids` takes movement, the action and the Bonus Action together — and what none of them has is a way to say *only if the caster spoke this word*. That is the second arm of `a-choice-made-at-the-casting`, a choice of which effects run rather than which value one of them carries, which `SpellDefinition.choiceStated`’s own docstring records as deliberately absent. So this spell waits on two shapes and the map names the one that would still be owed after the other was built.',
-    },
-  ],
   'freedom-of-movement': [
     {
       marker: 'speed',
@@ -2090,14 +2116,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // clause, the phrase and the reasoning are the same phrase and the same
   // reasoning — a re-worded note would be a second reading of a paragraph
   // somebody had already read.
-  thaumaturgy: [
-    {
-      marker: 'roll-mode',
-      clause: 'Advantage on Charisma (Intimidation) checks',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the mode is ordinary — a RollModifier selects a Charisma check and grants Advantage — and it belongs to one of six branches picked at the table. The stated choice IE built substitutes a **value** into an effect the definition already has; what this needs is a choice of **which effects run**, because Booming Voice is a roll-mode the other five wonders do not have at all. A definition’s effects run on every casting, so granting it here would intimidate every time the caster flickered a candle.',
-    },
-  ],
   'protection-from-evil-and-good': [
     {
       marker: 'roll-mode',

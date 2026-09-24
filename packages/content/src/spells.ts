@@ -7946,7 +7946,7 @@ export const COMMAND: SpellDefinition = {
         },
       ],
       unmodelled: [
-        '"and then ends its turn" is not applied: a turn ended early is every remaining slot of it gone at once, and nothing hangs that off a settled outcome',
+        'the hands are emptied at the casting rather than on the target’s next turn, and "and then ends its turn" is not applied at all: both are the directed turn itself — "follow the command on its next turn" defers every one of the five words to a turn somebody else is deciding, and a rider settles with the save that raised it',
       ],
     },
     flee: {
@@ -7971,7 +7971,7 @@ export const COMMAND: SpellDefinition = {
         },
       ],
       unmodelled: [
-        '"and then ends its turn" is not applied: the Prone lands and the turn it cuts short does not, for the reason Drop’s does not',
+        'the Prone lands at the casting rather than on the target’s next turn, and the turn it cuts short is not cut short, for the reason Drop’s object hits the floor early: the word is obeyed inside a turn somebody else is directing, and nothing defers a rider into one',
       ],
     },
     halt: {
@@ -10623,7 +10623,7 @@ export const THAUMATURGY: SpellDefinition = {
   // different word for the same number, and the same field answers it.
   maxRunning: 3,
   unmodelled: [
-    'the cap counts every casting rather than only the four wonders that last a minute: Invisible Hand and Phantom Sound are instantaneous in the book and leave a record here, so a door flung open counts against the three',
+    'the cap counts every casting rather than only the four wonders that last a minute: the two the book calls instantaneous leave a record here as the other four do, so a door flung open counts against the three',
   ],
 };
 

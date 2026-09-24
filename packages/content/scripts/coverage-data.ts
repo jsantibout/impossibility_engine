@@ -467,6 +467,14 @@ export interface SpellCoverage {
  * one of the seven arms above, so an arm for it would be a claim about a
  * population that does not exist.
  *
+ * **The ninth arm is a branch that resolves something**, and it is the first
+ * arm about a list that is not `effects`. `SpellDefinition.options` is a
+ * choice of which effects run — SRD Command's five words — so a definition
+ * whose own list is empty may still knock a creature Prone, empty its hands
+ * or forbid its next turn the moment a caster speaks the word. Reading
+ * `effects` alone would call that spell tracked while it was doing three of
+ * the five things it prints.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -480,7 +488,10 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.areaLight !== undefined ||
   definition.areaObscurement !== undefined ||
   definition.conjures !== undefined ||
-  definition.maxRunning !== undefined;
+  definition.maxRunning !== undefined ||
+  Object.values(definition.options ?? {}).some(
+    (branch) => (branch.effects ?? []).length > 0,
+  );
 
 /** Every definition the engine resolves something of, by id. */
 export const EXECUTED_SPELL_IDS: ReadonlySet<string> = new Set(

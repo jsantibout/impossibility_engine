@@ -1219,7 +1219,13 @@ describe('the four wands whose remainder was a note', () => {
    * than the page rather than stronger.
    */
   it('prices Command at one charge and Fear at three off one pool', () => {
-    const commanded = castFrom('wand-of-fear', 'command', { targets: [OTHER] });
+    // The tenth stated fact, which a wand's casting states exactly as a
+    // cleric's does: SRD Command prints five words and the engine speaks none
+    // of them.
+    const commanded = castFrom('wand-of-fear', 'command', {
+      targets: [OTHER],
+      option: 'halt',
+    });
     expect(left(commanded.log, 'wand-of-fear')).toBe(6);
 
     const frightened = unwrap(
