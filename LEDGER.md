@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 104 spells | 71 | 0 | 33 |
+| Spells in reach, not executed | 103 spells | 70 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 21 features | 15 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -51,14 +51,13 @@ hold at all. An executed spell with nothing left is not here.
 |---|---|---|
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-choice-made-at-the-casting` | 4 | 2 |
-| `a-reduction-an-effect-applies-to-damage` | 2 | 2 |
 | `an-area-that-filters-its-catch` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 5 | 1 |
-| `a-repeat-save-that-does-something-on-a-failure` | 4 | 1 |
+| `an-action-the-engine-has-no-spender-for` | 4 | 1 |
+| `a-repeat-save-that-does-something-on-a-failure` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
-| `an-action-the-engine-has-no-spender-for` | 3 | 1 |
 | `a-condition-benefit-an-effect-takes-away` | 2 | 1 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
@@ -68,6 +67,7 @@ hold at all. An executed spell with nothing left is not here.
 | `what-a-creature-is-holding` | 2 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
+| `a-reaction-window-that-opens-on-being-targeted` | 1 | 1 |
 | `a-second-roll-sequenced-after-the-first` | 1 | 1 |
 | `a-wall-or-several-templates-in-one-area` | 1 | 1 |
 | `a-world-fact-nothing-can-represent` | 1 | 1 |
@@ -139,11 +139,6 @@ sums to the population.
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
 - **Plant Growth** (level 3) — executed-partial
 
-#### `a-reduction-an-effect-applies-to-damage` — blocks 2, finishes 2
-
-- **Resistance** (level 0) — tracked
-- **Shield** (level 1) — executed-partial
-
 #### `an-area-that-filters-its-catch` — blocks 2, finishes 2
 
 - **Entangle** (level 1) — no-definition
@@ -165,11 +160,17 @@ sums to the population.
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
-#### `a-repeat-save-that-does-something-on-a-failure` — blocks 4, finishes 1
+#### `an-action-the-engine-has-no-spender-for` — blocks 4, finishes 1
+
+- **Sleep** (level 1) — executed-partial — also waits on 1
+- **Speak with Animals** (level 1) — tracked
+- **Gaseous Form** (level 3) — executed-partial — also waits on 2
+- **Haste** (level 3) — executed-partial — also waits on 2
+
+#### `a-repeat-save-that-does-something-on-a-failure` — blocks 3, finishes 1
 
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Searing Smite** (level 1) — executed-partial
-- **Sleep** (level 1) — tracked — also waits on 1
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
 #### `a-stat-block-created-mid-fight` — blocks 3, finishes 1
@@ -183,12 +184,6 @@ sums to the population.
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Animal Messenger** (level 2) — tracked
 - **Animate Dead** (level 3) — tracked — also waits on 1
-
-#### `an-action-the-engine-has-no-spender-for` — blocks 3, finishes 1
-
-- **Speak with Animals** (level 1) — tracked
-- **Gaseous Form** (level 3) — executed-partial — also waits on 2
-- **Haste** (level 3) — executed-partial — also waits on 2
 
 #### `a-condition-benefit-an-effect-takes-away` — blocks 2, finishes 1
 
@@ -232,6 +227,10 @@ sums to the population.
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 
 - **Command** (level 1) — tracked
+
+#### `a-reaction-window-that-opens-on-being-targeted` — blocks 1, finishes 1
+
+- **Shield** (level 1) — executed-partial
 
 #### `a-second-roll-sequenced-after-the-first` — blocks 1, finishes 1
 
@@ -441,7 +440,7 @@ sums to the population.
 
 #### `an-outcome-that-reads-the-targets-defences` — blocks 1, finishes 0
 
-- **Sleep** (level 1) — tracked — also waits on 1
+- **Sleep** (level 1) — executed-partial — also waits on 1
 
 #### `senses-beyond-declared-sight` — blocks 1, finishes 0
 
