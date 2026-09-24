@@ -318,7 +318,8 @@ export function damagePenaltyOf(
   const entries: {
     source: string;
     roll: DamageReduction['roll'];
-    notation: string;
+    /** What the amount was made of, named apart so the log can add up. */
+    parts: { readonly source: string; readonly amount: number }[];
     rolled: number;
     amount: number;
   }[] = [];
@@ -336,7 +337,19 @@ export function damagePenaltyOf(
     entries.push({
       source: penalty.label,
       roll: rolled,
-      notation: penalty.dice ?? String(penalty.flat ?? 0),
+      // **The die and the printed number apart.** A grant may carry both —
+      // `checkDamagePenalty` asks only that it carry one of them — and a
+      // single contribution naming the notation would say the d8 showed nine.
+      // Every number in this engine's log has to be one that could have
+      // happened.
+      parts: [
+        ...(penalty.dice === undefined
+          ? []
+          : [{ source: penalty.dice, amount: rolled?.total ?? 0 }]),
+        ...(penalty.flat === undefined
+          ? []
+          : [{ source: 'the printed number', amount: penalty.flat }]),
+      ],
       rolled: amount,
       amount,
     });
@@ -354,18 +367,19 @@ export function damagePenaltyOf(
   }
 
   // **The log is written after the trimming, not during it**, which is the
-  // whole reason the loop above writes no event. The die showed what it
-  // showed — `natural` and `total` are the face, and a reader can see the
-  // d8 — but what the blow actually lost is the trimmed amount, and an
-  // outcome line naming the throw would tell a table five where three came
-  // off. SRD Enlarge/Reduce is the sentence that makes the two differ.
+  // whole reason the loop above writes no event. The grant came to what it
+  // came to — `natural` and `total` are the throw, and the contributions name
+  // the die and the printed number apart so a reader can add them up — but
+  // what the blow actually lost is the trimmed amount, and an outcome line
+  // naming the throw would tell a table five where three came off. SRD
+  // Enlarge/Reduce is the sentence that makes the two differ.
   const events: GameEvent[] = entries.map((entry) => ({
     type: 'roll-recorded',
     who: dealer,
     label: entry.source,
     natural: entry.rolled,
     total: entry.rolled,
-    contributions: [{ source: entry.notation, amount: entry.rolled }],
+    contributions: entry.parts,
     outcome: `${entry.amount} subtracted from the damage`,
   }));
 

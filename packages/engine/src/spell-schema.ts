@@ -3982,9 +3982,21 @@ function checkLiftAgainstDeadlines(
   for (const [where, effects] of lists) {
     effects.forEach((effect, i) => {
       if (typeof effect !== 'object' || effect === null) return;
-      const moved = (effect as { readonly movement?: { readonly kind?: unknown } }).movement;
-      if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
-        holders.push({ where, at: i });
+      // **Both branches, for the reason the deadlines below are counted on
+      // both**: `releaseGrants` has a creature and no scene, so it takes the
+      // lift off without setting anybody down, and it neither knows nor could
+      // know which branch hung either of the two. A lift written on a success
+      // and a deadline written on a failure are the same pair one slot apart,
+      // which is exactly the shape this check says a refusal has to cover.
+      for (const moved of [
+        (effect as { readonly movement?: { readonly kind?: unknown } }).movement,
+        (effect as {
+          readonly onSuccessRiders?: { readonly movement?: { readonly kind?: unknown } };
+        }).onSuccessRiders?.movement,
+      ]) {
+        if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
+          holders.push({ where, at: i });
+        }
       }
       // Read off the same slot `grantCarried` reads, and with the same
       // tolerance for input nobody can walk: a `modifiers` that is not a list

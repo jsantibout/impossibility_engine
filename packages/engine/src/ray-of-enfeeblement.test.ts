@@ -438,6 +438,32 @@ describe('what a failed save costs, through the public API', () => {
     expect(out.code).toBe('penalty_subtracts_nothing');
   });
 
+  it('names the die and the printed number apart, so the line adds up', () => {
+    const game = new Game();
+    game.push([
+      {
+        type: 'damage-penalty-granted',
+        id: GOBLIN,
+        penalty: { source: 'the fixture', label: 'Weakening', dice: '1d4', flat: 2 },
+      },
+    ]);
+    game.until(GOBLIN);
+    const hit = game.swing('longsword').events;
+
+    const line = penaltyLine(hit);
+    expect(line, 'the penalty wrote no line').toBeDefined();
+    // A grant may carry both, and a single contribution naming the notation
+    // would say the d4 showed six.
+    expect(line!.contributions.map((part) => part.source)).toEqual([
+      '1d4',
+      'the printed number',
+    ]);
+    expect(line!.contributions.reduce((sum, part) => sum + part.amount, 0)).toBe(line!.total);
+    expect(line!.contributions[1]!.amount).toBe(2);
+    expect(line!.contributions[0]!.amount).toBeGreaterThanOrEqual(1);
+    expect(line!.contributions[0]!.amount).toBeLessThanOrEqual(4);
+  });
+
   it('is refused at authoring if the number it subtracts is not a hit point', () => {
     const out = written({
       kind: 'save',
@@ -545,6 +571,67 @@ describe('what a casting with no duration may not leave standing, on either bran
     expect(out.ok).toBe(false);
     if (out.ok) throw new Error('unreachable');
     expect(out.code).toBe('grant_without_lifetime');
+  });
+
+  /**
+   * And the pair a lift may not be written beside, on **either** slot.
+   *
+   * A `grants` deadline is keyed by the casting's source and the creature and
+   * knows nothing about which branch hung what: when it fires, `releaseGrants`
+   * takes off everything that source hung there, the lift among them, with a
+   * creature and no scene to set anybody down in. So a lift on a success and a
+   * deadline on a failure are the same pair one slot apart, which is the shape
+   * `checkLiftAgainstDeadlines` says a refusal has to cover.
+   */
+  it.each([
+    [
+      'a lift on the failure and a deadline on the success',
+      {
+        movement: { feet: 20, kind: 'lift' },
+        onSuccessRiders: {
+          modifiers: [
+            {
+              kind: 'mode',
+              modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+              lasts: 'start-of-casters-next-turn',
+            },
+          ],
+        },
+      },
+    ],
+    [
+      'a lift on the success and a deadline on the failure',
+      {
+        modifiers: [
+          {
+            kind: 'mode',
+            modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+            lasts: 'start-of-casters-next-turn',
+          },
+        ],
+        onSuccessRiders: { movement: { feet: 20, kind: 'lift' } },
+      },
+    ],
+    [
+      'both of them on the success',
+      {
+        onSuccessRiders: {
+          movement: { feet: 20, kind: 'lift' },
+          modifiers: [
+            {
+              kind: 'mode',
+              modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+              lasts: 'start-of-casters-next-turn',
+            },
+          ],
+        },
+      },
+    ],
+  ])('refuses %s', (_what, slots) => {
+    const out = written({ kind: 'save', ability: 'con', condition: 'poisoned', ...slots });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error('unreachable');
+    expect(out.code).toBe('lift_beside_a_shorter_grant');
   });
 
   /** And the same slot is fine the moment the casting has something to end it. */
