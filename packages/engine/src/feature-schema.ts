@@ -2010,6 +2010,27 @@ function grantProblems(
     }
   }
 
+  // The spell whose summons a forgone attack is about — SRD Pact of the
+  // Chain's "**your** familiar". Rule 5's reason: the id is the feature's own
+  // answer and is never checked against a character's choices, so a typo in
+  // one would refuse every order its holder ever gave and say nothing here.
+  if (grant.kind === 'summons-attack') {
+    if (typeof grant.from !== 'string' || grant.from.trim() === '') {
+      found.push({
+        field: 'grants.from',
+        code: 'unknown_granted_spell',
+        reason:
+          'a forgone attack names the spell whose summons may take it; a blank id names nothing, and every summons would be somebody else’s',
+      });
+    } else if (!context.spellExists(grant.from)) {
+      found.push({
+        field: 'grants.from',
+        code: 'unknown_granted_spell',
+        reason: `this content holds no spell with the id "${grant.from}", so no creature is ever the familiar this sentence is about`,
+      });
+    }
+  }
+
   // A hit point maximum that raises nothing, and a step counted in levels
   // nobody has.
   //

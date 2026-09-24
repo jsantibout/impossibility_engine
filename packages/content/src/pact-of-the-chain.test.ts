@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap } from '@ie/shared';
+import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
   checkCharacter,
   createCharacter,
   createRng,
   createRollIssuer,
   fold,
+  orderSummonsAttack,
   pactSlotKey,
   remaining,
   resolveSpell,
@@ -275,5 +276,170 @@ describe('Pact of the Chain', () => {
     const cast = castFamiliar(table(throughTheFeat()), 'imp');
     expect(cast.ok).toBe(false);
     expect(cast.ok ? '' : cast.code).toBe('form_not_offered');
+  });
+});
+
+/**
+ * "Additionally, when you take the Attack action, you can forgo one of your own
+ * attacks to allow your familiar to make one attack of its own with its
+ * Reaction."
+ *
+ * Two prices in one sentence, and the sentence is also the permission that
+ * overrides Find Familiar's own "A familiar can't attack".
+ */
+describe('the attack a Warlock forgoes', () => {
+  const OGRE = asCharacterId('ogre');
+  /** What the casting called the creature it raised: `<casting id>:<block>`. */
+  const impIn = (log: readonly GameEvent[]): CharacterId => {
+    const arrived = log.find(
+      (event): event is Extract<GameEvent, { type: 'creature-added' }> =>
+        event.type === 'creature-added' && event.id.endsWith(':imp'),
+    );
+    if (arrived === undefined) throw new Error('no familiar arrived');
+    return arrived.id;
+  };
+
+  /** The Warlock, an ogre, a fight, a familiar, and the Attack action taken. */
+  const fought = (): GameEvent[] => {
+    const start: GameEvent[] = [
+      ...(unwrap(createCharacter(SRD_CONTENT, chained(), WHO), 'creation') as GameEvent[]),
+      {
+        type: 'creature-added',
+        id: OGRE,
+        name: 'an ogre',
+        maxHp: 200,
+        diesAtZero: true,
+        creatureType: 'Giant',
+        sheet: {
+          level: 1,
+          abilities: { str: 19, dex: 8, con: 16, int: 5, wis: 7, cha: 7 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: false, medium: false, heavy: false, shields: false },
+          baseSpeed: 40,
+          spellcastingAbility: null,
+          // Armour Class 1, so the sting lands and the log has damage in it.
+          stated: { armorClass: 1, proficiencyBonus: 2, initiative: -1 },
+        },
+      },
+      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+      { type: 'landmark-added', name: 'the well', at: { x: 100, y: 100, z: 0 } },
+      { type: 'creature-placed', id: WHO, placement: { from: { landmark: 'the well' }, feet: 0 } },
+      {
+        type: 'creature-placed',
+        id: OGRE,
+        placement: { from: { creature: WHO }, feet: 5, bearing: 90 },
+      },
+    ];
+    // The familiar, summoned before the fight so it has a rung of its own.
+    const summoned = unwrap(castFamiliar(start, 'imp', 'the imp'), 'find familiar').events;
+    const imp = impIn(summoned);
+    return [
+      ...start,
+      ...summoned,
+      { type: 'creature-placed', id: imp, placement: { from: { creature: OGRE }, feet: 5 } },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: WHO, initiative: 20, speed: 30 },
+          { id: imp, initiative: 15, speed: 20 },
+          { id: OGRE, initiative: 1, speed: 40 },
+        ],
+      },
+    ];
+  };
+
+  const order = (log: readonly GameEvent[], over: Record<string, unknown> = {}) =>
+    orderSummonsAttack(
+      fold('seed', log),
+      WHO,
+      { feature: FIEND, summons: impIn(log), target: OGRE, commandId: 'sting', ...over },
+      supply('sting'),
+    );
+
+  it('buys the familiar one attack of its own, at its Reaction', () => {
+    const log = fought();
+    const before = fold('seed', log);
+    // Nothing taken yet: the Attack action is the Warlock's to take.
+    expect(before.combat?.budgets[WHO]?.attacksRemaining).toBeNull();
+    expect(before.combat?.budgets[impIn(log)]?.reaction).toBe(true);
+
+    const out = unwrap(order(log), 'the sting');
+    const after = fold('seed', [...log, ...out.events]);
+
+    // **Both prices paid.** A Warlock 5 makes one attack in an Attack action,
+    // so the attack forgone here is that one: the Action is spent and nothing
+    // is left of it. And the Imp's Reaction is gone.
+    expect(after.combat?.budgets[WHO]?.action).toBe(false);
+    expect(after.combat?.budgets[WHO]?.attacksRemaining).toBe(0);
+    expect(after.combat?.budgets[impIn(log)]?.reaction).toBe(false);
+    expect(
+      out.events.some((event) => event.type === 'damage-taken' && event.id === OGRE),
+    ).toBe(true);
+  });
+
+  /** And a second order in the same turn has no attack left to give up. */
+  it('is refused a second time in one Attack action', () => {
+    const log = fought();
+    const once = unwrap(order(log), 'the sting');
+    const again = order([...log, ...once.events], { commandId: 'again' });
+    expect(again.ok).toBe(false);
+    expect(again.ok ? '' : again.code).toBe('no_attacks_left');
+  });
+
+  /**
+   * SRD Find Familiar: "A familiar can't attack." The Pact's sentence is the
+   * permission that overrides it, and nothing else does: the Imp still may not
+   * take the Attack action on its own turn.
+   */
+  it('is the only door a familiar attacks through', () => {
+    const log = fought();
+    const imp = fold('seed', log).creatures[impIn(log)];
+    expect(imp?.actionRules.map((rule) => rule.label)).toContain('Find Familiar');
+    expect(unwrap(order(log), 'the sting').events.length).toBeGreaterThan(0);
+  });
+
+  /** "with its Reaction" — and a familiar that has spent one has none to give. */
+  it('is refused when the familiar has already taken its Reaction', () => {
+    const log = fought();
+    const spent = [...log, { type: 'reaction-spent', id: impIn(log) }] as GameEvent[];
+    const out = order(spent);
+    expect(out.ok).toBe(false);
+    expect(out.ok ? '' : out.code).toBe('no_reaction');
+  });
+
+  /**
+   * "when you take the Attack action" — and a Warlock who has already spent
+   * their Action on something else cannot take it.
+   */
+  it('is refused when the Action has gone elsewhere', () => {
+    const log = [...fought(), { type: 'action-spent', id: WHO }] as GameEvent[];
+    const out = order(log);
+    expect(out.ok).toBe(false);
+    expect(out.ok ? '' : out.code).toBe('no_action');
+  });
+
+  /** "**your** familiar" — and the ogre is nobody's. */
+  it('is refused for a creature the Warlock did not summon', () => {
+    const out = order(fought(), { summons: OGRE });
+    expect(out.ok).toBe(false);
+    expect(out.ok ? '' : out.code).toBe('not_your_summons');
+  });
+
+  /** And a Warlock who never took the Pact has no such sentence. */
+  it('is not offered to a Warlock who took something else', () => {
+    const log = [
+      ...(unwrap(createCharacter(SRD_CONTENT, unchained(), WHO), 'creation') as GameEvent[]),
+    ];
+    const out = orderSummonsAttack(
+      fold('seed', log),
+      WHO,
+      { feature: FIEND, summons: OGRE, target: OGRE, commandId: 'nope' },
+      supply('nope'),
+    );
+    expect(out.ok).toBe(false);
+    expect(out.ok ? '' : out.code).toBe('no_such_feature');
   });
 });

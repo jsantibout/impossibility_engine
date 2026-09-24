@@ -4192,6 +4192,23 @@ export interface KnownFact {
 }
 
 /**
+ * A swing this character may give up so that a creature of theirs may take one
+ * — SRD Pact of the Chain's forgone attack.
+ *
+ * The compiled copy of the `summons-attack` grant, in the shape every other
+ * feature-derived sheet line takes: the feature's id, so a caller can say which
+ * one they are spending; its printed name, so a refusal can say it in words;
+ * and the spell whose summons the sentence is about, which is the whole of what
+ * "**your** familiar" comes to.
+ */
+export interface ForgoneAttack {
+  readonly feature: string;
+  readonly name: string;
+  /** SRD's "your familiar": the creature kept from this spell. */
+  readonly from: string;
+}
+
+/**
  * The facts this creature's features let them know, as the sheet stands.
  *
  * Through `sheetAsItStands`, like every other reader here, so a Hunter

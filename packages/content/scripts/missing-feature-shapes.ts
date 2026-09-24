@@ -832,48 +832,14 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Warlock —
-  'warlock:eldritch-invocations': [
-    {
-      clause: 'Pact of the Blade is a conjured weapon its holder attacks with using Charisma',
-      why: 'an-attack-the-class-redefines',
-      note: 'Charisma **in place of** Strength or Dexterity on the attack and the damage, which is not a bonus and is the half `imbuesWeapon` has no field for; the type offer beside it is written already, and the weapon conjured into an empty hand is a feature doing what only a casting’s `conjures` does today. Thirsting Blade and Eldritch Smite are printed on top of it.',
-    },
-    {
-      clause: 'Pact of the Chain casts Find Familiar as a Magic action',
-      why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'the summons is built and the price is not: the book gives Find Familiar an hour and this route gives it an action, which is a casting time the definition pinned and no grant can rewrite. The slot it does not spend is `atWill`, which is written.',
-    },
-    {
-      clause: 'a familiar with eight extra forms',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the form is a `choiceStated` answered off the definition’s own printed list, and a granted route may fix that answer — SRD Wild Companion’s Fey — but not widen the list it is checked against.',
-    },
-    {
-      clause: 'an attack forgone to buy the familiar one of its own',
-      why: 'an-attack-the-class-redefines',
-      note: 'the second half of the shape’s own sentence, "an attack traded for something else", with the thing bought standing on somebody else’s Reaction.',
-    },
-    {
-      clause: 'Gaze of Two Minds borrows the senses of a willing creature',
-      why: 'senses-beyond-declared-sight',
-      note: 'the spell map’s own id, whose description already names this sentence — "one creature **borrowing** another’s (Find Familiar)" — and nothing here has state for a creature to see out of another’s eyes.',
-    },
-    {
-      clause: 'the first is fiction and the second is the component rules, and this engine models neither',
-      why: 'table',
-      note: 'Pact of the Tome’s book appearing after a rest and vanishing with its maker, and its use as a Spellcasting Focus. Components are declared nowhere in this engine, so the focus is a rule the table keeps rather than a shape anybody is waiting on.',
-    },
-    {
-      clause: 'nothing here drowns anybody, so breathing underwater is left to the table',
-      why: 'table',
-      note: 'Gift of the Depths’ first clause. Suffocation is a rule the engine holds none of, so a creature that can breathe underwater is indistinguishable from one that cannot, and there is no shape anybody is waiting on.',
-    },
-    {
-      clause: 'checked as a Warlock cantrip and not as one that deals damage',
-      why: 'expressible',
-      note: 'the narrowing is readable off the definition the choice names — nothing stands in the way — and a cantrip that deals none simply reaches no damage roll.',
-    },
-  ],
+  // `warlock:eldritch-invocations` stood here with five clauses, four of them
+  // the two Pacts'. They are built: a feature may conjure the weapon it
+  // imbues, an imbuing may offer an ability and grant proficiency in one
+  // object, a granted route may state its own casting time, and a granted
+  // route may widen the list of forms a summons is checked against. The fifth
+  // — Gaze of Two Minds — is not an option this catalogue offers, so it is
+  // filed under the spell map's `senses-beyond-declared-sight` where the
+  // sentence it names lives. The line went with the conversion.
   'warlock:contact-patron': [
     {
       clause: 'Contact Other Plane always prepared',

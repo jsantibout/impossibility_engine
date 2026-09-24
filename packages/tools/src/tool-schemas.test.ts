@@ -166,8 +166,8 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
-    expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
+    expect(toolSchemas(player())).toHaveLength(84);
+    expect(toolSchemas(dm())).toHaveLength(103);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -180,10 +180,17 @@ describe('toolSchemas', () => {
     // Re-pinned again for the bookkeeping spells track: `cast_spell.object` (the
     // eighth stated fact — Remove Curse's attunement, Heat Metal's object) and
     // the Command word's slot grew both surfaces by the same amount.
-    expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(118063);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142193);
+    // Re-pinned for the two Pacts: `order_summons_attack` is a new door on
+    // both surfaces — SRD Pact of the Chain's "forgo one of your own attacks
+    // to allow your familiar to make one attack of its own", which is the only
+    // way a familiar attacks at all — and two descriptions grew: the weapon
+    // `activate_feature` may now **conjure** rather than find, and the third
+    // span `extend_feature` refuses. One tool on each surface; the lengths sum
+    // with whatever the other tracks of this batch moved.
+    expect(toolSchemas(player())).toHaveLength(84);
+    expect(toolSchemas(dm())).toHaveLength(103);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(120031);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(144161);
   });
 });
 

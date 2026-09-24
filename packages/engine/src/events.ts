@@ -2693,6 +2693,19 @@ export type GameEvent =
       readonly feature: string;
       /** The turn it was used on, from the combat's own never-reused counter. */
       readonly turn: number;
+      /**
+       * The command this is the record of, where this is the only durable
+       * trace it leaves.
+       *
+       * Absent on every writer that has one — Cleave's allowance and the Light
+       * property's are riders on a swing whose own event carries the stamp, and
+       * an attack stamped twice would be two entries in `appliedCommands` for
+       * one swing. Present for SRD Pact of the Chain's forgone attack, which
+       * spends its holder's Attack action and its familiar's Reaction and
+       * writes nothing else of its own that could be identified — the same
+       * reading `stated-bonus-action-taken` two members along already takes.
+       */
+      readonly command?: CommandStamp;
     }
   /**
    * A creature taking one of the lines its stat block prints under **Bonus

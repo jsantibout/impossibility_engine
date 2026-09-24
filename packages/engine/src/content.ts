@@ -250,6 +250,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'spells',
   'standing',
   'strike-style',
+  'summons-attack',
   'trade',
   'unarmored-defense',
   'weapon-and-armor-training',

@@ -1816,6 +1816,43 @@ export type FeatureGrant =
       readonly flatByLevel?: readonly number[];
     }
   /**
+   * A swing the holder gives up so that a creature of theirs may take one.
+   *
+   * SRD Pact of the Chain: "Additionally, when you take the Attack action, you
+   * can forgo one of your own attacks to allow your familiar to make one
+   * attack of its own with its Reaction."
+   *
+   * **Two economies in one sentence, which is why it is a kind of its own.**
+   * Every other grant here spends something of the holder's and does something
+   * to somebody; this spends something of the holder's *and* something of a
+   * second creature's, and what happens is that second creature's own attack.
+   * A `pool` option's menu cannot say it — an option's effects run on the
+   * holder's behalf, and there is no pool here to spend in any case, because
+   * the book prints no count and no rest.
+   *
+   * **The price is the pair the sentence prints and is not parameterised**:
+   * one attack of an Attack action the holder has already taken, and the
+   * summoned creature's Reaction. There is one such sentence in the book, and a
+   * field offering a second price would be a choice nobody can make.
+   *
+   * The attack itself is the ordinary one — `resolveAttack` with `free: true`,
+   * exactly as an Opportunity Attack is — so the familiar's printed line, its
+   * reach, the target's cover and every defence apply without being
+   * reimplemented here.
+   */
+  | {
+      readonly kind: 'summons-attack';
+      /**
+       * The spell whose summons this sentence is about — SRD's "**your**
+       * familiar", which is the creature Find Familiar left.
+       *
+       * Named by the content, on `freeCasting.spell`'s rule: a Warlock who
+       * also keeps a steed may not order the steed to sting, and the only
+       * thing that tells the two apart is the spell each is kept from.
+       */
+      readonly from: string;
+    }
+  /**
    * A fact the holder simply **knows** about one other creature.
    *
    * SRD Hunter's Lore: "While a creature is marked by your _Hunter's Mark_,

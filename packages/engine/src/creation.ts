@@ -37,6 +37,7 @@ import type {
   FailedSaveDamage,
   HealingTouch,
   CastingOption,
+  ForgoneAttack,
   HitOption,
   KnownFact,
   ObjectMaker,
@@ -3817,6 +3818,17 @@ export function planCharacter(
     });
   }
 
+  // A feature that lets its holder give up one of their own swings so that a
+  // creature of theirs may take one — SRD Pact of the Chain. Carried across
+  // whole for `knows`' reason: nothing about the sentence is a column of any
+  // class table, and what varies between two holders is which creature they
+  // have summoned, which is state.
+  const forgoneAttacks: ForgoneAttack[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'summons-attack') continue;
+    forgoneAttacks.push({ feature: feature.id, name: feature.name, from: grant.from });
+  }
+
   // A feature whose use is spent to heal its holder. The die is resolved here
   // because one of the two reads it off a class table — "roll your Martial
   // Arts die" is 1d6 at Monk 1 and 1d10 at Monk 11 — and the addend stays
@@ -4540,6 +4552,7 @@ export function planCharacter(
     ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
     ...(objectMakers.length === 0 ? {} : { objectMakers }),
     ...(knows.length === 0 ? {} : { knows }),
+    ...(forgoneAttacks.length === 0 ? {} : { forgoneAttacks }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(onDroppingAHostile.length === 0 ? {} : { onDroppingAHostile }),
