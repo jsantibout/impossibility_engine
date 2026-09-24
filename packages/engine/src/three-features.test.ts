@@ -424,7 +424,7 @@ describe('SRD Breath Weapon — an exhalation in place of one attack', () => {
     expect(line.outcomes.map((one) => one.target).sort()).toEqual([OGRE, THUG].sort());
   });
 
-  it('refuses a shape it does not offer, and refuses breathing outside the Attack action', () => {
+  it('refuses a shape it does not offer, and refuses a use that names none', () => {
     const log = swing(table());
 
     const wrong = breathe(log, { shape: 'sphere' });

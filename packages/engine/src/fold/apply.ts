@@ -706,8 +706,10 @@ function settleConjuredLines(state: GameState): GameState {
     //
     // **Only where nothing that is left backs the wielding.** A Warlock who
     // bonds a Longsword while carrying one of their own has two lines — the
-    // key `mergeKey` gives a conjured line is the bond's — and the pack's copy
-    // is what keeps the wielding standing when the pact weapon goes.
+    // conjured one is keyed by the record it was given at the conjuring, and a
+    // conjured *handful* by the casting or the activation it names, but never
+    // by the kind the pack's copy is under — and the pack's copy is what keeps
+    // the wielding standing when the pact weapon goes.
     //
     // It writes `equipped` without going back through `withEquipment`, so the
     // sheet's armour view is not recomputed. Harmless by construction rather

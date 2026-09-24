@@ -118,7 +118,11 @@ export function copyNamed(
   if (lines.length === 1) return ok(lines[0]!);
   return err(
     'ambiguous_copy',
-    `${creature.id} has ${lines.length} of ${named}, each with a record of its own (${lines
+    // **Each named where it has a name**, which is not every line any more: a
+    // conjured thing of one carries a record and the Longsword bought beside
+    // it does not, so "each with a record of its own" would be a sentence the
+    // list under it contradicts.
+    `${creature.id} has ${lines.length} of ${named}, named where they have a name (${lines
       .map((line) => line.instance ?? 'an unlabelled copy')
       .join(', ')}); name the one you mean`,
   );

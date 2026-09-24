@@ -491,13 +491,18 @@ describe('Pact of the Blade', () => {
   /**
    * And what the second line costs, pinned rather than discovered.
    *
-   * Two unlabelled lines of one kind are a question, and `copyNamed` refuses
-   * rather than guessing — so the pack's Longsword cannot be dropped, given
-   * away or used **by name** while a pact Longsword stands beside it. That is
+   * Two lines of one kind are a question, and `copyNamed` refuses rather than
+   * guessing — so the pack's Longsword cannot be dropped, given away or used
+   * by the **kind's** name while a pact Longsword stands beside it. That is
    * the right answer: the alternative is the engine choosing which Longsword
    * the caller meant, and the one it chose wrongly would be the one that
    * vanishes. Swinging is untouched, because an attack names a weapon by its
    * catalogue id and never by its copy.
+   *
+   * What the conjured copy's own record changed is the test above: the pact
+   * Longsword has a name of its own now, so the question has an answer for
+   * one of the two. The pack's copy still has none, which is why this refusal
+   * stands.
    */
   it('makes the kind ambiguous while the bond stands, and leaves the swing alone', () => {
     const log = [
