@@ -4912,6 +4912,22 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             }
           }
         }
+        // The list a rest's replacement comes from — the half a definition
+        // cannot check for itself, because a class is another population.
+        // SRD Elven Lineage names the Wizard list; a mark naming a class this
+        // world does not print would refuse every replacement anybody offered,
+        // at the rest rather than here, and would read as the trait simply not
+        // working.
+        if (grant.kind === 'spells' && grant.rechosenOn !== undefined) {
+          const named = grant.rechosenOn.fromClass;
+          if (typeof named === 'string' && named !== '' && classOf.get(named) === undefined) {
+            problems.push({
+              field: `${grantsAt}.rechosenOn.fromClass`,
+              code: 'unknown_rechoice_list',
+              reason: `${feature.id} lets a rest replace its spell from the ${named} spell list, and this world holds no class with that id`,
+            });
+          }
+        }
         // A grant written in terms of another feature's choice — the SRD's
         // ancestries, lineages and legacies. The half a definition cannot check
         // for itself: whether the feature it names is a sibling that asks

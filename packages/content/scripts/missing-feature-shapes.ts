@@ -1028,13 +1028,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Species and backgrounds. Read here; `origins.ts` is somebody else's file. —
-  'elf:elven-lineage': [
-    {
-      clause: 'is an option re-chosen on a rest',
-      why: 'an-option-re-chosen-on-a-rest',
-      note: 'the High Elf alone: every other clause of every lineage is applied, and what is left is a cantrip swapped for another one whenever the Elf finishes a Long Rest, which nothing rewires a compiled grant for.',
-    },
-  ],
   'gnome:gnomish-lineage': [
     {
       clause: 'an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates',

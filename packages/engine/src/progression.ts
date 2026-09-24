@@ -871,7 +871,49 @@ export type RestRechoice =
    * named spells — and a feature that swapped every prepared spell would be the
    * class's own re-preparation rather than a feature at all.
    */
-  | { readonly kind: 'prepared-spells'; readonly swap: number };
+  | { readonly kind: 'prepared-spells'; readonly swap: number }
+  /**
+   * The one spell a `spells` grant hands over, handed over as a different one.
+   *
+   * SRD Elven Lineage, High Elf: "You know the Prestidigitation cantrip.
+   * Whenever you finish a Long Rest, you can replace that cantrip with a
+   * different cantrip from the Wizard spell list."
+   *
+   * **The third member because the SRD writes a third sentence**, and what
+   * makes it third is *whose* answer is re-asked: the land is the feature's own
+   * question, the swap is a line of the character's prepared list, and this is
+   * a spell **nobody chose** — a fixed grant, on the sheet from level 1, whose
+   * one entry the rest lets its holder replace. There is no question at
+   * creation to re-ask, so the offer carries the terms instead: which spell is
+   * standing there now, and what may stand there in its place.
+   *
+   * Nothing here is new machinery either. The answer lands in
+   * `CharacterChoices.featureChoices` under {@link rechosenSpellKey} and the
+   * character is re-planned by the same call, so the grant is compiled out of
+   * the answer the next time anything reads it.
+   */
+  | {
+      readonly kind: 'granted-spell';
+      /** The spell the grant prints — the one the replacement stands in for. */
+      readonly granted: string;
+      /** The class whose spell list a replacement must be on: SRD's Wizard. */
+      readonly fromClass: string;
+      /** The highest level a replacement may be. SRD's "cantrip" is 0. */
+      readonly maxLevel: number;
+    };
+
+/**
+ * Where the replacement for a re-chosen granted spell is filed.
+ *
+ * The granted spell's own id is the key, because the sentence is "replace
+ * **that** cantrip": one grant hands over one spell, the validator holds it to
+ * one, and the answer belongs to the thing it replaces rather than to a
+ * question the feature never asked. One function because creation, the rest
+ * and the validator all have to agree about it — `choiceAnswerKey`'s argument,
+ * one host along.
+ */
+export const rechosenSpellKey = (featureId: string, granted: string): string =>
+  choiceAnswerKey(featureId, granted);
 
 /**
  * The mechanical shapes a feature's choice can take.
@@ -934,6 +976,34 @@ export type FeatureGrant =
   | {
       readonly kind: 'spells';
       readonly fixed?: readonly string[];
+      /**
+       * SRD Elven Lineage, High Elf: "Whenever you finish a Long Rest, you can
+       * replace that cantrip with a different cantrip from the Wizard spell
+       * list."
+       *
+       * A mark on the grant rather than a `rechosen-on-a-rest` grant beside it,
+       * and the sentence is why: what is re-asked is **this grant's own
+       * fixed spell**, so the terms — which spell is standing there, which list
+       * may replace it, how high it may be — are all read off the grant that
+       * prints it. A second grant would have to name the first, and two
+       * declarations of one cantrip is how the two come to disagree.
+       *
+       * Exactly one entry in {@link fixed}, which the validator holds it to:
+       * the book says "replace **that** cantrip", and a grant handing over two
+       * spells has no *that*.
+       *
+       * The answer is filed under {@link rechosenSpellKey} and read back here
+       * by creation, so the swap survives a level-up and a re-plan without
+       * anything having to remember it.
+       */
+      readonly rechosenOn?: {
+        /** Which rest re-asks it. */
+        readonly rest: RestKind;
+        /** The class whose spell list a replacement must be on: SRD's Wizard. */
+        readonly fromClass: string;
+        /** The highest level a replacement may be. SRD's "cantrip" is 0. */
+        readonly maxLevel: number;
+      };
       /**
        * The abilities the feature offers for the spells it grants, where the
        * source is not a class and has none of its own.

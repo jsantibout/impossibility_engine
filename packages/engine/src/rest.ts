@@ -12,6 +12,7 @@ import type { Rng } from './dice.js';
 import { timerKey } from './timers.js';
 import type { GameEvent, GameState } from './events.js';
 import { once, type CommandIdentity } from './idempotency.js';
+import { rechosenSpellKey } from './progression.js';
 import { hitDieSides, remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 import { castingIdOf } from './spells.js';
@@ -307,12 +308,27 @@ function rechoiceEvents(
 
   const featureChoices: Record<string, readonly string[]> = {};
   for (const [feature, answer] of Object.entries(choosesAgain)) {
+    // **Both re-choices a feature answers for, found by the feature rather than
+    // by the kind.** The caller names the feature that re-asks, which is the
+    // one thing a player can see; which of the two questions that feature
+    // re-asks — its own option, or the spell one of its grants hands over — is
+    // read off the offer, and the answer is filed under the key that offer
+    // names. A caller that had to know the difference would be reading the
+    // grant vocabulary to answer a rest.
     const offer = offerFor(
-      (one) => one.feature === feature && one.rechooses.kind === 'this-features-choice',
+      (one) =>
+        one.feature === feature &&
+        (one.rechooses.kind === 'this-features-choice' ||
+          one.rechooses.kind === 'granted-spell'),
       `${feature}’s own choice`,
     );
     if (!offer.ok) return offer;
-    featureChoices[feature] = answer;
+    const rechooses = offer.value.rechooses;
+    featureChoices[
+      rechooses.kind === 'granted-spell'
+        ? rechosenSpellKey(feature, rechooses.granted)
+        : feature
+    ] = answer;
   }
 
   let preparedSpells: readonly string[] | undefined;

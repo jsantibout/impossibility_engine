@@ -96,6 +96,16 @@ interface LineageRow {
    * castings the Proficiency Bonus counts, on the lineage's own pool.
    */
   readonly prepared?: string;
+  /**
+   * SRD Elven Lineage, High Elf: "Whenever you finish a Long Rest, you can
+   * replace that cantrip with a different cantrip from the Wizard spell list."
+   *
+   * The one row of the three tables that prints it, so it is a column of the
+   * row rather than a rule about lineages: nothing else the SRD prints here
+   * lets a granted spell be swapped, and a row that says nothing is a cantrip
+   * kept for good.
+   */
+  readonly cantripRechosenFrom?: string;
 }
 
 /** SRD: "Intelligence, Wisdom, or Charisma is your spellcasting ability." */
@@ -124,6 +134,18 @@ const lineageSpells = (
             fixed: row.cantrips,
             abilities: LINEAGE_ABILITIES,
             onlyIfChoice: option,
+            ...(row.cantripRechosenFrom === undefined
+              ? {}
+              : {
+                  // "a different cantrip from the Wizard spell list" — the list
+                  // and the level are the trait's, not the character's class's,
+                  // which is why they are written here and read at the rest.
+                  rechosenOn: {
+                    rest: 'long' as const,
+                    fromClass: row.cantripRechosenFrom,
+                    maxLevel: 0,
+                  },
+                }),
           },
         ]),
     ...(row.prepared === undefined
@@ -193,7 +215,12 @@ const FIENDISH_LEGACIES: Readonly<Record<string, string>> = {
  */
 const ELVEN_SPELLS: Readonly<Record<string, LineageRow>> = {
   Drow: { cantrips: ['dancing-lights'], atThree: 'faerie-fire', atFive: 'darkness' },
-  'High Elf': { cantrips: ['prestidigitation'], atThree: 'detect-magic', atFive: 'misty-step' },
+  'High Elf': {
+    cantrips: ['prestidigitation'],
+    cantripRechosenFrom: 'wizard',
+    atThree: 'detect-magic',
+    atFive: 'misty-step',
+  },
   'Wood Elf': { cantrips: ['druidcraft'], atThree: 'longstrider', atFive: 'pass-without-trace' },
 };
 
@@ -424,8 +451,8 @@ export const ELF: SpeciesDefinition = {
       id: 'elf:elven-lineage',
       name: 'Elven Lineage',
       level: 1,
-      automation: 'manual',
-      note: 'Every lineage\'s benefits are applied but one sentence, which is why this is not marked as executed. The Wood Elf "Speed increases to 35 feet" is five feet of standing Speed and the Drow "range of your Darkvision increases to 120 feet" is a sense at its own range, each granted only to the lineage that chose it. The cantrip each lineage knows is granted outright, and the level 3 and level 5 spells arrive at those character levels, always prepared, free once before a Long Rest and castable with any slot the Elf has - all of them cast off the Intelligence, Wisdom or Charisma this trait asks the player to choose. What is left is the High Elf alone: "whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list" is an option re-chosen on a rest, and nothing rewires a grant at the table.',
+      automation: 'engine',
+      note: 'Every lineage\'s benefits are applied. The Wood Elf "Speed increases to 35 feet" is five feet of standing Speed and the Drow "range of your Darkvision increases to 120 feet" is a sense at its own range, each granted only to the lineage that chose it. The cantrip each lineage knows is granted outright, and the level 3 and level 5 spells arrive at those character levels, always prepared, free once before a Long Rest and castable with any slot the Elf has - all of them cast off the Intelligence, Wisdom or Charisma this trait asks the player to choose. The High Elf\'s last sentence is applied too: "whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list" is a mark on the grant that prints the cantrip, so a finished Long Rest offers the swap, a Wizard cantrip named there replaces Prestidigitation on the record, and a levelled spell or a cantrip off another class\'s list is refused. Silence keeps what the Elf woke up with.',
       choice: { kind: 'option', choose: 1, from: ['Drow', 'High Elf', 'Wood Elf'] },
       grants: [
         {

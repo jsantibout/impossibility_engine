@@ -9,6 +9,7 @@ import {
   advanceCharacter,
   createCharacter,
   rechooseCharacter,
+  restRechoices,
   type CharacterChoices,
 } from './creation.js';
 import { LONG_REST, SHORT_REST, beginRest, endRest } from './rest.js';
@@ -603,5 +604,224 @@ describe('a question re-asked on a rest is held to two things', () => {
     expect(
       codes({ kind: 'rechosen-on-a-rest', rest: 'short', rechooses: { kind: 'your-name' } }),
     ).toContain('rechooses_nothing');
+  });
+
+  /**
+   * And the mark's own three rules, which are the same sentence read off a
+   * `spells` grant instead of off a grant of its own.
+   */
+  it('holds a re-chosen grant to one spell, a rest, a list and a ceiling', () => {
+    const well = {
+      kind: 'spells',
+      fixed: ['prestidigitation'],
+      rechosenOn: { rest: 'long', fromClass: 'wizard', maxLevel: 0 },
+    };
+    expect(codes(well)).toEqual([]);
+    expect(codes({ ...well, fixed: ['prestidigitation', 'mending'] })).toContain(
+      'rechooses_nothing',
+    );
+    expect(codes({ ...well, rechosenOn: { ...well.rechosenOn, fromClass: '' } })).toContain(
+      'rechooses_nothing',
+    );
+    expect(codes({ ...well, rechosenOn: { ...well.rechosenOn, rest: 'nightly' } })).toContain(
+      'bad_rest_kind',
+    );
+    expect(codes({ ...well, rechosenOn: { ...well.rechosenOn, maxLevel: 10 } })).toContain(
+      'bad_rechosen_level',
+    );
+    expect(codes({ ...well, rechosenOn: { ...well.rechosenOn, maxLevel: -1 } })).toContain(
+      'bad_rechosen_level',
+    );
+  });
+});
+
+// — a High Elf, whose cantrip is granted and may be swapped for another ——————
+
+/**
+ * SRD Elven Lineage, High Elf: "You know the Prestidigitation cantrip.
+ * Whenever you finish a Long Rest, you can replace that cantrip with a
+ * different cantrip from the Wizard spell list."
+ *
+ * The third printed re-choice, and the first whose answer stands in for
+ * something the feature **granted** rather than for something the player
+ * picked: the cantrip is on the sheet from level 1 without anybody having
+ * chosen it, so what the rest re-asks is which spell that one grant hands
+ * over now.
+ */
+const elf = (lineage: string, over: Partial<CharacterChoices> = {}): CharacterChoices => ({
+  name: 'Wren',
+  classId: 'fighter',
+  level: 1,
+  speciesId: 'elf',
+  size: 'Medium',
+  backgroundId: 'soldier',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { str: 2, dex: 1 },
+  classSkills: ['acrobatics', 'animal-handling'],
+  languages: ['Dwarvish', 'Orc'],
+  alignment: 'Neutral',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: {
+    'elf:elven-lineage': [lineage],
+    'elf:keen-senses': ['perception'],
+  },
+  featureSpellcasting: { 'elf:elven-lineage': 'int' },
+  feats: {
+    'fighter:fighting-style': { featId: 'defense' },
+    'soldier:savage-attacker': { featId: 'savage-attacker' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+  ...over,
+});
+
+const WREN = id('wren');
+const THAL = id('thal');
+
+const grantedSpellsOf = (state: GameState, who: CharacterId): readonly string[] =>
+  (state.creatures[who]?.spellcasting?.granted ?? [])
+    .map((one) => one.spellId)
+    .slice()
+    .sort();
+
+describe('Elven Lineage: the High Elf cantrip re-chosen on a Long Rest', () => {
+  it('offers the swap, replaces the cantrip, and the newcomer can be cast', () => {
+    const log: GameEvent[] = [
+      ...born(elf('High Elf'), WREN),
+      ...born(elf('Wood Elf', { name: 'Thal' }), THAL),
+      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+      { type: 'landmark-added', name: 'the camp', at: { x: 100, y: 100, z: 0 } },
+      { type: 'creature-placed', id: WREN, placement: { from: { landmark: 'the camp' }, feet: 0 } },
+      { type: 'creature-placed', id: THAL, placement: { from: { landmark: 'the camp' }, feet: 10 } },
+    ];
+    expect(grantedSpellsOf(fold('seed', log), WREN)).toContain('prestidigitation');
+
+    // The offer itself, which is what a door prints for the player.
+    const offers = restRechoices(SRD_CONTENT, elf('High Elf'));
+    expect(offers).toHaveLength(1);
+    expect(offers[0]?.feature).toBe('elf:elven-lineage');
+    expect(offers[0]?.rest).toBe('long');
+    expect(offers[0]?.rechooses).toEqual({
+      kind: 'granted-spell',
+      granted: 'prestidigitation',
+      fromClass: 'wizard',
+      maxLevel: 0,
+    });
+
+    const settled = rested(log, WREN, 'long', {
+      choosesAgain: { 'elf:elven-lineage': ['fire-bolt'] },
+    });
+    const after = unwrap(settled, 'end rest');
+    const state = fold('seed', [
+      ...log,
+      ...unwrap(beginRest(fold('seed', log), WREN, 'long'), 'begin'),
+      clock(LONG_REST),
+      ...after.events,
+    ]);
+
+    expect(grantedSpellsOf(state, WREN)).toContain('fire-bolt');
+    expect(grantedSpellsOf(state, WREN)).not.toContain('prestidigitation');
+
+    const cast = unwrap(
+      resolveSpell(state, WREN, { spellId: 'fire-bolt', targets: [THAL] }, roller(state)),
+      'cast the newcomer',
+    );
+    expect(cast.events.length).toBeGreaterThan(0);
+  });
+
+  it('refuses a spell that is not a cantrip', () => {
+    const log = born(elf('High Elf'), WREN);
+    const refused = rested(log, WREN, 'long', {
+      choosesAgain: { 'elf:elven-lineage': ['mage-armor'] },
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('spell_level_not_allowed');
+  });
+
+  it('refuses a cantrip that is not on the Wizard list', () => {
+    const log = born(elf('High Elf'), WREN);
+    const refused = rested(log, WREN, 'long', {
+      choosesAgain: { 'elf:elven-lineage': ['sacred-flame'] },
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('spell_not_on_class_list');
+  });
+
+  it('offers nothing on a Short Rest', () => {
+    const log = born(elf('High Elf'), WREN);
+    const refused = rested(log, WREN, 'short', {
+      choosesAgain: { 'elf:elven-lineage': ['fire-bolt'] },
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('rest_rechoice_not_earned');
+  });
+
+  it('offers a Wood Elf nothing at all', () => {
+    expect(restRechoices(SRD_CONTENT, elf('Wood Elf'))).toEqual([]);
+    const log = born(elf('Wood Elf'), WREN);
+    const refused = rested(log, WREN, 'long', {
+      choosesAgain: { 'elf:elven-lineage': ['fire-bolt'] },
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('no_such_rechoice');
+  });
+});
+
+/**
+ * The rules creation holds a replacement to that are about the **answer**
+ * rather than about the grant: one spell, a different one, and only for
+ * somebody the grant reached.
+ *
+ * All three are `checkCharacter` problems, which `planCharacter` turns into
+ * the refusal a rest returns.
+ */
+describe('a replacement for a granted spell is one spell, and a different one', () => {
+  const KEY = 'elf:elven-lineage:prestidigitation';
+
+  it('refuses two spells where the grant prints one', () => {
+    const refused = createCharacter(
+      SRD_CONTENT,
+      elf('High Elf', {
+        featureChoices: {
+          ...elf('High Elf').featureChoices,
+          [KEY]: ['fire-bolt', 'ray-of-frost'],
+        },
+      }),
+      WREN,
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('wrong_rechosen_count');
+  });
+
+  it('refuses replacing the cantrip with itself', () => {
+    const refused = createCharacter(
+      SRD_CONTENT,
+      elf('High Elf', {
+        featureChoices: { ...elf('High Elf').featureChoices, [KEY]: ['prestidigitation'] },
+      }),
+      WREN,
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('spell_not_replaced');
+  });
+
+  it('refuses a High Elf’s answer on a Wood Elf, who was never offered it', () => {
+    const refused = createCharacter(
+      SRD_CONTENT,
+      elf('Wood Elf', {
+        featureChoices: { ...elf('Wood Elf').featureChoices, [KEY]: ['fire-bolt'] },
+      }),
+      WREN,
+    );
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('choice_not_asked');
   });
 });

@@ -292,6 +292,9 @@ const HOLLOW_NOTE =
 /** The damage types the game has, for the one grant that names one outright. */
 const DAMAGE_KINDS: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 
+/** The highest level the SRD prints a spell at, for a ceiling a grant states. */
+const TOP_SPELL_LEVEL = 9;
+
 /** A whole number of at least one — what the SRD prints for a pool's size. */
 const isCount = (value: unknown): boolean =>
   typeof value === 'number' && Number.isInteger(value) && value >= 1;
@@ -1765,6 +1768,52 @@ function grantProblems(
         field: 'grants.rechooses',
         code: 'rechooses_nothing',
         reason: `a rest re-asks this feature's own choice or a line of the prepared list, and "${String((rechooses as { kind?: unknown } | undefined)?.kind)}" is neither`,
+      });
+    }
+  }
+
+  // The other spelling of the same sentence, and the three facts a re-choice
+  // on a **grant** needs before anything can answer it: SRD Elven Lineage's
+  // "you can replace **that** cantrip with a different cantrip from the
+  // **Wizard** spell list".
+  //
+  // The one fixed spell is the load-bearing rule. The offer names the spell
+  // being replaced, the answer is filed under it, and creation reads it back —
+  // so a grant handing over two spells has no *that*, and every one of those
+  // three readers would have to invent which one the rest meant.
+  if (grant.kind === 'spells' && grant.rechosenOn !== undefined) {
+    const rechosen = grant.rechosenOn;
+    if (rechosen.rest !== 'short' && rechosen.rest !== 'long') {
+      found.push({
+        field: 'grants.rechosenOn.rest',
+        code: 'bad_rest_kind',
+        reason: `a rest is short or long, and "${String(rechosen.rest)}" is neither`,
+      });
+    }
+    if ((grant.fixed ?? []).length !== 1) {
+      found.push({
+        field: 'grants.rechosenOn',
+        code: 'rechooses_nothing',
+        reason: `a rest replaces the one spell this grant prints, and ${(grant.fixed ?? []).length} are printed`,
+      });
+    }
+    if (typeof rechosen.fromClass !== 'string' || rechosen.fromClass.trim() === '') {
+      found.push({
+        field: 'grants.rechosenOn.fromClass',
+        code: 'rechooses_nothing',
+        reason:
+          'a replacement comes from a named class’s spell list, and a grant naming none would refuse every answer',
+      });
+    }
+    if (
+      !Number.isInteger(rechosen.maxLevel) ||
+      rechosen.maxLevel < 0 ||
+      rechosen.maxLevel > TOP_SPELL_LEVEL
+    ) {
+      found.push({
+        field: 'grants.rechosenOn.maxLevel',
+        code: 'bad_rechosen_level',
+        reason: `a replacement's ceiling is a spell level from 0 to ${TOP_SPELL_LEVEL}, not ${String(rechosen.maxLevel)}`,
       });
     }
   }
