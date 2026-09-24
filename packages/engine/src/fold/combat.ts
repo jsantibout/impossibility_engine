@@ -315,6 +315,14 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
             // take nothing off the turn's own Speed, and measuring one against
             // the other would be the fork `spendableSpeed` exists to prevent.
             event.grant,
+            // **The shape of the move, kept on the turn it was made on.** Both
+            // ends or neither: an event written before the field existed, or
+            // by a mover with no map under them, records no segment — and a
+            // charge gate reading the turn back then finds nothing, which is
+            // the answer "no record is no charge" names.
+            event.from === undefined || event.to === undefined
+              ? undefined
+              : { from: event.from, to: event.to, feet: event.feet },
           ),
         ),
       );

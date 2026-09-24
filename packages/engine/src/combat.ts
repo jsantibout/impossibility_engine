@@ -17,6 +17,11 @@ import {
   type ConditionState,
 } from './conditions.js';
 import type { RollIssuer } from './rolls.js';
+// Type-only, and deliberately: this module sits beneath the geometry and a
+// value edge to it would be an economy that could not be reasoned about
+// without a map. What a `MoveSegment` needs is the shape of a coordinate, and
+// nothing here ever measures one.
+import type { Point } from './positioning.js';
 
 /**
  * Initiative and the turn economy.
@@ -766,6 +771,28 @@ export interface GrantedAttacks {
   readonly unarmedOnly: boolean;
 }
 
+/**
+ * One move a creature made on its own turn, as the two ends of it.
+ *
+ * The feet are carried beside the points rather than derived from them,
+ * because they are **what the turn was charged**: a move across Difficult
+ * Terrain costs more feet than it covers, and the sentence a charge gate reads
+ * — "moved 20+ feet straight toward it" — is about distance covered. Both
+ * numbers are true of the same move and they are not the same number, so the
+ * one that is stored is the one nothing else can recover, and the gate
+ * measures the points.
+ *
+ * A segment is only ever the creature's own movement. Forced movement writes
+ * no `movement-spent` at all, which is what keeps a shove from buying somebody
+ * else's charge.
+ */
+export interface MoveSegment {
+  readonly from: Point;
+  readonly to: Point;
+  /** What the turn was charged for it, which is not always what it covered. */
+  readonly feet: number;
+}
+
 export interface TurnBudget {
   readonly action: boolean;
   readonly bonusAction: boolean;
@@ -798,6 +825,28 @@ export interface TurnBudget {
    * seed**, and a remainder cannot.
    */
   readonly movementSpent: number;
+  /**
+   * The moves this turn was made of, in the order they were taken.
+   *
+   * **The shape of the movement, beside the amount of it.** SRD Boar: "if the
+   * boar moved 20+ feet straight toward it immediately before the hit."
+   * {@link movementSpent} cannot answer that and never could — twenty feet
+   * spent walking in a circle is not a charge, and two ten-foot steps in one
+   * line are — so the segments the turn was actually made of are kept, and the
+   * swing reads the run back from itself while the bearing holds.
+   *
+   * **A list rather than one "last move", and the book is why.** The charge
+   * lines say "moved 20+ feet straight toward it", which a creature may do in
+   * as many steps as it likes: a mover that stepped ten feet and then ten more
+   * along the same bearing has charged, and a reader holding only the last
+   * step would see ten.
+   *
+   * Cleared with the rest of the budget at the turn boundary, because the
+   * sentence is about the move that preceded *this* swing. A move that
+   * recorded no points — a mover with no scene — leaves nothing here, and the
+   * gate is simply not met: **no record is no charge**.
+   */
+  readonly movementSegments: readonly MoveSegment[];
   /**
    * Feet of extra movement banked this turn, which today is only a Dash.
    *
@@ -962,6 +1011,7 @@ const fullBudget = (): TurnBudget => ({
   extraActions: [],
   grantedAttacks: null,
   movementSpent: 0,
+  movementSegments: [],
   movementGained: 0,
   grantedMoves: [],
   attacksRemaining: null,
@@ -1632,6 +1682,16 @@ export function spendMovement(
   allowance: number,
   spend?: Spend,
   grant?: string,
+  /**
+   * The two ends of the move, where the mover was on a map.
+   *
+   * Eighth and last, appended rather than folded into an options object, for
+   * `applyConditionTo`'s reason: every existing call site passes none, and the
+   * two that matter — the command and the reducer's backstop — pass the same
+   * one off the same event. A move with no points recorded simply records no
+   * segment, which is what "no record is no charge" means.
+   */
+  segment?: MoveSegment,
 ): Result<CombatState> {
   if (!Number.isFinite(feet) || feet < 0) {
     return err('bad_distance', `${feet} is not a distance that can be moved`);
@@ -1653,6 +1713,12 @@ export function spendMovement(
   // turn's own thirty feet exactly where they were. A grant nobody handed this
   // creature is refused by name rather than falling back on the Speed, because
   // a mover asking to spend one meant to keep their own movement.
+  // The turn's own record of what it was made of, kept whichever allowance
+  // paid for the move: SRD Tactical Shift's feet are still the creature's own
+  // movement, and a boar that charged on them charged.
+  const recorded = (budget: TurnBudget): Pick<TurnBudget, 'movementSegments'> | undefined =>
+    segment === undefined ? undefined : { movementSegments: [...budget.movementSegments, segment] };
+
   if (grant !== undefined) {
     const held = budget.value.grantedMoves.find((one) => one.source === grant);
     if (held === undefined) {
@@ -1672,6 +1738,7 @@ export function spendMovement(
           grantedMoves: budget.value.grantedMoves.map((one) =>
             one.source === grant ? { ...one, feet: one.feet - feet } : one,
           ),
+          ...recorded(budget.value),
         },
         budget.value,
       ),
@@ -1684,7 +1751,12 @@ export function spendMovement(
   }
 
   return ok(
-    withBudget(state, id, { movementSpent: budget.value.movementSpent + feet }, budget.value),
+    withBudget(
+      state,
+      id,
+      { movementSpent: budget.value.movementSpent + feet, ...recorded(budget.value) },
+      budget.value,
+    ),
   );
 }
 

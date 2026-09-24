@@ -68,7 +68,7 @@ import { readFileSync } from 'node:fs';
 import { SPELL_DEFINITIONS, SRD_CONTENT, SRD_MAGIC_ITEMS } from '@ie/content';
 import {
   adaptMonster,
-  readPrintedRider,
+  readPrintedRiders,
   type ClassDefinition,
   type FeatureDefinition,
   type SpellDefinition,
@@ -1020,7 +1020,7 @@ export const isReadLine = (line: StatBlockLine): boolean =>
 /**
  * A read attack line whose printed rider nothing applies.
  *
- * **Asked of the engine's own reader**, never of the string. `readPrintedRider`
+ * **Asked of the engine's own reader**, never of the string. `readPrintedRiders`
  * is what the swing itself calls, so a sentence it can turn into an effect list
  * is one the hit now executes and is not a debt — and a sentence it refuses is
  * still handed to the DM and still counted here. A predicate that only asked
@@ -1037,7 +1037,38 @@ export const isReadLine = (line: StatBlockLine): boolean =>
 export const hasUnappliedRider = (line: StatBlockLine): boolean => {
   const rider =
     line.attack === undefined ? null : (line.attack as { rider: string | null }).rider;
-  return rider !== null && readPrintedRider(rider) === null;
+  // **Nothing at all was read**, which is what this row has always meant and
+  // is the narrower of the two questions a sequence reader can be asked. A
+  // line the engine reads three quarters of is counted by
+  // {@link RIDER_HANDOVER_SHAPE} instead, and both rows are unpaid.
+  return rider !== null && readPrintedRiders(rider).riders.length === 0;
+};
+
+/**
+ * A read attack line whose rider says more than the engine applies.
+ *
+ * `SAVE_HANDOVER_SHAPE`'s twin on the other half of the sheet, and it arrived
+ * with the reader that made it possible. `readPrintedRiders` goes clause by
+ * clause and carries the rest back verbatim, so SRD Gibbering Mouther's Prone
+ * is applied and the sentence about its victim being absorbed is not; the
+ * swing reports that residue at the hit, exactly as `forcePrintedSave` reports
+ * a save's.
+ *
+ * **A line with a residue is still unpaid**, and that is the whole reason the
+ * row exists beside the other. Without it, learning to recognise three
+ * quarters of a sentence would retire a debt on its own — the one failure a
+ * generated report is here to make impossible — because the line would drop
+ * out of {@link RIDER_SHAPE} and land nowhere.
+ *
+ * The two rows **overlap**, like every other pair in the table: SRD
+ * Salamander's whole rider is one handed-over sentence, so nothing was read
+ * *and* something was handed back, and both rows count it once.
+ */
+export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
+export const hasHandedOverRider = (line: StatBlockLine): boolean => {
+  const rider =
+    line.attack === undefined ? null : (line.attack as { rider: string | null }).rider;
+  return rider !== null && readPrintedRiders(rider).handedOver.length > 0;
 };
 
 /**
@@ -1215,6 +1246,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
   [RIDER_SHAPE, hasUnappliedRider],
+  [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],
   ['A recharge', (line) => /\(Recharge/.test(line.name)],
   ['A use the block limits per day', (line) => /\(\d+\/Day/.test(line.name)],

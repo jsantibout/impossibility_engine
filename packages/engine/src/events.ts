@@ -906,6 +906,23 @@ export type GameEvent =
        * one must not lift the other, so the cause is part of the record.
        */
       readonly source: string;
+      /**
+       * Conditions **this cause** carries, beyond the ones the condition
+       * always does.
+       *
+       * SRD Crocodile: "While Grappled, the target has the Restrained
+       * condition." A per-source implication rather than a fact about the
+       * Grappled condition — a Wolf's grapple carries nothing — so it cannot
+       * live in `conditions.ts`'s static table and has to be pinned here: the
+       * fold opens no catalogue, and a replay that had to look up a crocodile
+       * would be a fold reading a book.
+       *
+       * The lifetime it buys is the one implication already had:
+       * `ConditionInstance.impliedBy` names the instance that carried it, and
+       * `removeConditionInstance` takes the two off together. Absent on every
+       * log written before this existed, which folds exactly as it always did.
+       */
+      readonly implies?: readonly ConditionName[];
       readonly command?: CommandStamp;
     }
   /**
@@ -1736,6 +1753,30 @@ export type GameEvent =
        * a feature could hand one over says.
        */
       readonly grant?: string;
+      /**
+       * Where this move started and where it ended, as the engine worked them
+       * out.
+       *
+       * **The shape of the move, which nothing recorded.** SRD Boar: "if the
+       * boar moved 20+ feet straight toward it immediately before the hit" —
+       * a fact about the turn so far, and the reason `readPrintedRider`
+       * refused the charge for as long as it did. Feet alone cannot answer it:
+       * twenty feet spent walking in a circle is not a charge, and two
+       * ten-foot steps in one line are.
+       *
+       * So the *segment* rides on the event that already charges the turn for
+       * it, `fold/combat.ts` keeps this turn's segments on
+       * `TurnBudget.movementSegments`, and the swing reads them. No second
+       * event and no second seam: `creature-moved` stays the scene's.
+       *
+       * **Both optional, and forced movement carries neither.** A shove is not
+       * the creature's own move — it writes no `movement-spent` at all — and a
+       * move outside a scene has no points to state. A log written before this
+       * field existed folds exactly as it always did, which is what keeps the
+       * two frozen fixtures byte-identical: no record is no charge.
+       */
+      readonly from?: Point;
+      readonly to?: Point;
     }
   /**
    * A slot of somebody's turn that a **spell** used up.

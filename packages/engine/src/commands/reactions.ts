@@ -377,7 +377,11 @@ export function settleDamage(
       const bought = applyHitRider(
         all.reduce(applyEvent, state),
         supply,
-        { attacker: pending.rider.attacker, target: pending.target },
+        // What the target actually took, after its defences and after every
+        // reduction a Reaction bought — which is what SRD Specter's "an amount
+        // equal to the damage taken" reads, and the whole reason the defender
+        // answers before the rider fires.
+        { attacker: pending.rider.attacker, target: pending.target, dealt: applied.total },
         pending.rider.option,
       );
       if (bought.ok) {

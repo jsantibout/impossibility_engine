@@ -25,7 +25,7 @@
 
 import { type CharacterId } from '@ie/shared';
 import { type GameEvent, type GameState } from '../events.js';
-import { bearingBetween, moveCreature } from '../positioning.js';
+import { bearingBetween, distanceBetween, moveCreature } from '../positioning.js';
 import { type ForcedMovement } from '../spell-definitions.js';
 
 /** What a shove came to: the event it wrote, or the reason it wrote none. */
@@ -82,5 +82,60 @@ export function shoveAwayFrom(
 
   // Nobody spent their Speed on this, nobody provoked anything, and no
   // Difficult Terrain was charged — a shove is not the creature's movement.
+  return { events: [{ type: 'creature-moved', id: target, placement, forced: true }], unverified: [] };
+}
+
+/**
+ * Pull a creature straight toward the creature that caused it.
+ *
+ * SRD Merrow: "the merrow pulls the target up to 15 feet straight toward
+ * itself"; SRD Shambling Mound pulls five. The same lattice arithmetic as
+ * {@link shoveAwayFrom} with the bearing reversed, and **capped at
+ * adjacency**, which is the one thing the reversal adds: a push has the whole
+ * room to travel into and a pull has only the gap, so fifteen feet of pull
+ * across a ten-foot gap is a creature dragged through the thing pulling it.
+ * The book leaves the amount to the puller ("up to"), so stopping at the
+ * puller's face is inside the sentence rather than a correction to it.
+ *
+ * Everything else is its twin's, including the reason it reports rather than
+ * refuses: by the time a rider runs the blow has landed, and a `creature-moved`
+ * the fold would refuse is worse than a hit whose shove did not happen.
+ */
+export function pullToward(
+  state: GameState,
+  target: CharacterId,
+  source: CharacterId,
+  movement: ForcedMovement,
+  /** What the log calls the thing that pulled: the line's own name. */
+  name: string,
+): PushOutcome {
+  const scene = state.scene;
+  if (scene === null) {
+    return {
+      events: [],
+      unverified: [`nobody has said where anybody is standing, so ${target} was not pulled`],
+    };
+  }
+
+  // The bearing from the creature being pulled **to** the one pulling, which
+  // is the reversal: `shoveAwayFrom` measures the other way and applies it
+  // from the same anchor.
+  const bearing = bearingBetween(scene, target, source);
+  if (!bearing.ok) return { events: [], unverified: [`${name}: ${bearing.reason}`] };
+
+  // "Up to", capped at the gap. `distanceBetween` measures volume to volume,
+  // so a Huge puller's flank is where the gap ends and the pull stops there.
+  const gap = distanceBetween(scene, target, source);
+  if (!gap.ok) return { events: [], unverified: [`${name}: ${gap.reason}`] };
+  const feet = Math.min(movement.feet, gap.value);
+  if (feet <= 0) return { events: [], unverified: [] };
+
+  const placement = { from: { creature: target }, feet, bearing: bearing.value } as const;
+
+  const moved = moveCreature(scene, target, placement, { forced: true });
+  if (!moved.ok) {
+    return { events: [], unverified: [`${name}: ${target} could not be pulled: ${moved.reason}`] };
+  }
+
   return { events: [{ type: 'creature-moved', id: target, placement, forced: true }], unverified: [] };
 }

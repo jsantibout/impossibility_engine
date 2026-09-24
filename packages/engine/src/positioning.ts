@@ -1203,6 +1203,58 @@ export function distanceBetweenPoints(a: Point, b: Point): number {
 }
 
 /**
+ * The compass bearing from one bare point to another, or null where there is
+ * none.
+ *
+ * {@link bearingBetween}'s twin with the creatures taken out, and the one that
+ * measures a move rather than a relation: SRD Boar's "moved 20+ feet straight
+ * toward it" is a question about two coordinates a turn recorded, and by the
+ * time anything asks it the creature is no longer standing at either. Same
+ * metric and the same conventions — degrees, 0 is +y, 90 is +x — so an answer
+ * from this and an answer from the other are comparable, which is the whole
+ * point of there being one convention.
+ *
+ * Null for two points in the same space, exactly as its twin errs for two
+ * creatures in one: a move that went nowhere has no direction, and north is
+ * not the honest answer.
+ */
+export function bearingBetweenPoints(from: Point, to: Point): number | null {
+  const east = to.x - from.x;
+  const north = to.y - from.y;
+  if (east === 0 && north === 0) return null;
+  return ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
+}
+
+/**
+ * How far apart two bearings are, in degrees, the short way round.
+ *
+ * 0 through 180, so a comparison never has to know which of the two was the
+ * larger number or whether either had wrapped past north — the bug every
+ * hand-written bearing comparison has, and the reason this is a function
+ * rather than a subtraction at the call site.
+ */
+export function bearingsApart(a: number, b: number): number {
+  const gap = Math.abs(((a - b) % 360) + 360) % 360;
+  return gap > 180 ? 360 - gap : gap;
+}
+
+/**
+ * **The lattice's own tolerance**, in degrees, for "straight toward".
+ *
+ * A grid offers eight directions out of a space and no more, so two bearings
+ * that differ by less than half a step are the same direction as far as
+ * anything standing on it is concerned. A boar that ran due north and ended
+ * with its target one square to the north-east ran straight at it; a boar that
+ * ran north at something due east did not, and 90 degrees is refused.
+ *
+ * Exact equality would be the stricter reading and the wrong one: a melee
+ * swing is taken from an adjacent space, adjacency on this lattice is a
+ * multiple of 45 degrees, and a run of any other bearing would then never
+ * qualify however straight it was.
+ */
+export const SAME_BEARING_DEGREES = 45;
+
+/**
  * How far apart two creatures are, or null where nobody has said.
  *
  * Null is a real answer rather than a failure: positions are declared, so an

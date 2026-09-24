@@ -284,7 +284,16 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
 
     case 'condition-applied': {
       const creature = creatureOf(state, event, event.id);
-      const conditions = applyCondition(creature.conditions, event.condition, event.source);
+      // The implications this *cause* carries, pinned on the event because the
+      // fold opens no catalogue: SRD Crocodile's "While Grappled, the target
+      // has the Restrained condition" is a fact about one set of jaws and not
+      // about the Grappled condition.
+      const conditions = applyCondition(
+        creature.conditions,
+        event.condition,
+        event.source,
+        event.implies,
+      );
       // **And nothing else.** This case used to also put the creature into the
       // casting's list of who it was on, by hand — a growth pass called
       // `alsoOn`. It reached conditions and nothing else, so a Web that

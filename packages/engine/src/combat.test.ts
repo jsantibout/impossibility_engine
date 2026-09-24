@@ -256,6 +256,10 @@ describe('startCombat', () => {
       // Nothing happened yet, so nothing is stored. The 30 feet a fresh turn
       // offers are `speedOf`'s answer, not a number seeded in here.
       movementSpent: 0,
+      // The shape of the turn's movement, beside the amount of it: SRD Boar's
+      // "moved 20+ feet straight toward it" is a question feet cannot answer,
+      // and an empty list is a turn nobody has moved on.
+      movementSegments: [],
       movementGained: 0,
       // Empty: feet a feature hands over belong to the turn it handed them on,
       // and nothing has handed this one anything.

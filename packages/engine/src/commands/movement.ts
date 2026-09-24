@@ -509,7 +509,17 @@ export function moveWithin(
           : spent;
       }
       spentFromGrant = true;
-      events.push({ type: 'movement-spent', id, feet: cost, grant: command.usingGrant });
+      events.push({
+        type: 'movement-spent',
+        id,
+        feet: cost,
+        grant: command.usingGrant,
+        // The shape of the move, for the sentence that reads it: SRD Boar's
+        // "moved 20+ feet straight toward it immediately before the hit". Feet
+        // a feature handed over are still the creature's own movement.
+        from,
+        to,
+      });
     } else if (
       state.combat !== null &&
       state.combat.budgets[id] !== undefined &&
@@ -544,7 +554,7 @@ export function moveWithin(
             )
           : spent;
       }
-      events.push({ type: 'movement-spent', id, feet: cost });
+      events.push({ type: 'movement-spent', id, feet: cost, from, to });
     }
 
     // — what it provokes ———————————————————————————————————————————————————
