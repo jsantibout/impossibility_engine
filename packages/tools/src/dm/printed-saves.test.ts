@@ -172,15 +172,18 @@ describe('the door that rolls a printed line’s saving throw', () => {
   });
 
   it('refuses a line whose sentence it could not structure, naming the other door', () => {
-    // SRD Gorgon's Petrifying Breath forces a save in its prose and prints a
-    // second rung of failure the reader is anchored against, so the engine
-    // will not roll it — it is handed over whole, as it always was.
-    const t = fight('petrifying', 'gorgon');
+    // SRD Brass Dragon Wyrmling's Sleep Breath prints a second rung of failure
+    // that deepens into a condition **for 1 minute** with endings of its own,
+    // and `repeats.onFailure` is a bare condition name — so the line stays
+    // prose and is handed over whole, as the whole family was. (The Gorgon's
+    // Petrifying Breath, which used to stand here, is read now: its second
+    // rung says only which condition replaces which.)
+    const t = fight('sleeping', 'brass-dragon-wyrmling');
     turnOf(t, 'fang');
 
     const out = t.call('force_printed_save', {
       who: 'fang',
-      line: 'Petrifying Breath (Recharge 5–6)',
+      line: 'Sleep Breath',
       targets: ['grish'],
     });
     expect(out.status).toBe('refused');
@@ -234,17 +237,32 @@ describe('`look` says which printed lines the engine will roll', () => {
   });
 
   it('says false for a line that forces a save its reader could not structure', () => {
-    // SRD Gorgon: Petrifying Breath prints `_Constitution Saving Throw:_` and
-    // the engine still will not roll it, so the flag is about what the engine
-    // will do rather than about what the English says.
+    // SRD Brass Dragon Wyrmling: Sleep Breath prints `_Constitution Saving
+    // Throw:_` and the engine still will not roll it, so the flag is about
+    // what the engine will do rather than about what the English says.
+    const t = fight('the-wyrmling-is-read', 'brass-dragon-wyrmling');
+    const block = blockOf(t, 'fang');
+
+    const sleep = block.actions.find((one) => one.name === 'Sleep Breath')!;
+    expect(sleep.text).toContain('Saving Throw');
+    expect(sleep.engineRollsTheSave).toBe(false);
+
+    // And the line beside it the engine *will* roll, under the same heading.
+    const fire = block.actions.find((one) => one.name.startsWith('Fire Breath'))!;
+    expect(fire.engineRollsTheSave).toBe(true);
+  });
+
+  it('says true for the graded failure it now reads', () => {
+    // SRD Gorgon's Petrifying Breath used to stand for the family the reader
+    // refused whole. Its second rung says only which condition replaces
+    // which, which is `RepeatSave.onFailure`, so the engine rolls it.
     const t = fight('the-gorgon-is-read', 'gorgon');
     const block = blockOf(t, 'fang');
 
     const petrifying = block.actions.find((one) => one.name.startsWith('Petrifying Breath'))!;
-    expect(petrifying.text).toContain('Saving Throw');
-    expect(petrifying.engineRollsTheSave).toBe(false);
+    expect(petrifying.engineRollsTheSave).toBe(true);
 
-    // And the Bonus Action the engine *will* roll, one section along.
+    // And the Bonus Action the engine will roll, one section along.
     const trample = block.bonusActions.find((one) => one.name === 'Trample')!;
     expect(trample.engineRollsTheSave).toBe(true);
   });

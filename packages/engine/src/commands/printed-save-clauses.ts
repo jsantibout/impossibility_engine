@@ -137,6 +137,18 @@ export function applyPrintedClauses(
                 ability: save.ability,
                 dc: save.dc,
                 onSuccess: 'end-on-target',
+                // SRD Gorgon: "_Second Failure:_ The target has the Petrified
+                // condition instead of the Restrained condition." The printed
+                // field is `RepeatSave.onFailure` word for word, so it is
+                // pinned on and `deepenedBy` does the rest — the deeper
+                // condition under the same source, the shallow one lifted and
+                // the timer gone with it, which is why the save is repeated
+                // once. A line that printed both a span and a deepening would
+                // race its own deadline; none does, and the reader is what
+                // says so.
+                ...(clause.repeats.onFailure === undefined
+                  ? {}
+                  : { onFailure: { condition: clause.repeats.onFailure.condition } }),
                 label: `${ABILITY_NAMES[save.ability]} save vs ${line}`,
               };
         const landed = conditionLanding(
@@ -150,6 +162,13 @@ export function applyPrintedClauses(
             repeat,
             {},
             grapple ? escapeCheck(source, clause.escapeDc!) : undefined,
+            // SRD Couatl: "it has the Restrained condition until the grapple
+            // ends." SRD Chuul: "While Poisoned, the target has the Paralyzed
+            // condition." One lifetime, the cause's, which is exactly what
+            // `ConditionInstance.impliedBy` means — so the implied condition
+            // lifts at the escape, at the cure and at the deadline, through
+            // the doors those already go through.
+            clause.implies,
           ),
         );
         if (!landed.ok) return landed;
@@ -158,7 +177,11 @@ export function applyPrintedClauses(
           break;
         }
         land(landed.value.events);
-        conditions.push(clause.condition);
+        // What the **line** said, which is this clause and whatever it said
+        // the clause carries. The implications a condition always has are not
+        // here and should not be: those are what the condition means, and a
+        // caller reading this is reading what the block printed.
+        conditions.push(clause.condition, ...(clause.implies ?? []));
         break;
       }
 
