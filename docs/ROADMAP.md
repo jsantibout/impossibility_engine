@@ -2446,3 +2446,30 @@ Appended after wave seven's first spells track (2026-09-24):
   stand-up command** at all, so Hideous Laughter's "can't end the Prone
   condition on itself" waits on one; `castOnHit` does not pin `onEnd`. The
   spell population did not move: all four keep a clause.
+- **Dismissals, a window another casting widens, a duration a slot changes,
+  and a range that grows with the caster.** A slot may change what *kind* of
+  ending a casting has (`untilDispelledAtSlot`, the third member of the
+  family `durationSecondsAt` and `concentrationAt` make — Major Image); a
+  casting may be dismissed by its target at the price the book charges
+  (`dismissibleBy: 'target'`, `end_spell_on_self` — Gaseous Form) or by a
+  caster who said so at the casting (`offersEndAfterTrigger` /
+  `endsAfterTrigger`, pinned through the rite — Magic Mouth); a Speed may be
+  **replaced** rather than added to (`SpeedChange.only`: `speedOf` answers 0
+  for every other mode before an accumulator runs, so a Longstrider on a
+  cloud puts no legs back), and a spell may forbid casting (`forbids:
+  casting`); an effect may stabilise a dying creature and a target rule may
+  read vitals (`stabilise`, `mustBeDying`, `mustBeDead`); a cantrip's reach
+  may grow with the caster's level (`rangeAtLevel`, read at the cast and at
+  the shortlist, so a Distant Spell doubles the reach the caster has rather
+  than the printed number — Spare the Dying). Gentle Repose's `preserves`
+  writes no event: the record holds when the keeping began and `revive` reads
+  the union of the running castings' spans, clamped at the death — so a
+  repose that has **ended** hands the window back, and the sentence's word
+  *spent* wants a span accumulated on the creature by an event, a primitive
+  nobody has approved; the residue is filed under `healing-that-raises-the-dead`
+  and no new id was minted, because a built mechanism's id would be born
+  unclaimed. **Owed:** a readied Major Image at a level 4+ slot still
+  schedules a deadline (one guard in the stated-action file) and Bestow
+  Curse's level 9 arm is now one line (`untilDispelledAtSlot: 9`) — both
+  handed to the compulsions brief. Merged after the Haste/Slow track with
+  `double` and `only` composed in one union, in that order.

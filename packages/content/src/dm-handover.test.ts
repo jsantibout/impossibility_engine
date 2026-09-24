@@ -237,7 +237,9 @@ const SETUP: readonly GameEvent[] = [
   {
     type: 'creature-placed',
     id: CORPSE,
-    placement: { from: { creature: CLERIC }, feet: 5, bearing: 90 },
+    // Bearing 180: the Raven already stands at 90, and two fixtures on one
+    // square is a corrupt log rather than a crowd.
+    placement: { from: { creature: CLERIC }, feet: 5, bearing: 180 },
   },
   { type: 'sight-declared', from: CLERIC, to: CORPSE, seen: true },
   {
@@ -797,6 +799,14 @@ describe('each of the forty-seven is cast, and hands its own text to the table',
     // the spell casts and hands its text over — and `verdict-only-save.test.ts`
     // is where the mark's own behaviour is driven.
     if (definition.effects.length === 0) {
+      expect(out.cast.outcomes).toEqual([]);
+      return;
+    }
+    // Gentle Repose is the other exception: its one effect, `preserves`, writes
+    // no event and reports no outcome — what Revivify needs is on the record,
+    // the moment the keeping began — so the corpse it was aimed at is filed
+    // into `aimed` and nothing comes back in the outcomes to be about it.
+    if (definition.effects.every((effect) => effect.kind === 'preserves')) {
       expect(out.cast.outcomes).toEqual([]);
       return;
     }

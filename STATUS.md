@@ -78,9 +78,9 @@ homebrew.
   its own running copies, ward a fall, or lift a creature a save did not spare;
   a spell may print branches and run the one named, hang a rider on a made
   save, make a creature subtract from its own damage rolls, or pick out D20
-  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its Concentration, a save may be nothing but its verdict, a
-  casting may leave something behind when it ends, and a repeat save may be
-  raised by a blow; a tracked spell read to
+  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its Concentration, a save may be nothing but its verdict, a casting may leave something behind when it ends or be dismissed by its
+  target at the book's price, a slot may change what kind of ending a casting
+  has, a Speed may be replaced, and a repeat save may be raised by a blow; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
@@ -112,8 +112,7 @@ homebrew.
 - **No feature in a level 5 character's reach is `manual`**; the Champion's
   second Fighting Style at level 7 still is. Every pool buys something.
 - **A Druid's known forms are the ones it was made with**; no rest replaces
-  one yet, the form's limbs decide nothing about what can be held, and the
-  block's senses are not carried.
+  one yet, and the block's senses are not carried.
 - **A summons still carries one debt**: a printed line whose numbers are the
   summoner's (the Otherworldly Steed's), and a creature stowed somewhere that
   is not the scene.
@@ -132,8 +131,8 @@ homebrew.
   caller putting an object in the turn order.
 - A conferral refuses by name what it cannot do: spell attack bonuses,
   ability scores an item sets, curses, Speed from an item.
-- **Two corpus migrations are owed**: a weapon mastery is a ceiling rather
-  than a quota, and a size nobody chooses defaults rather than refusing.
+- **Two corpus migrations are owed**: a weapon mastery is a ceiling, not a
+  quota; a size nobody chooses defaults rather than refusing.
 - Homebrew may add beside printed content, never override an id.
 
 ## Rulings that stand
