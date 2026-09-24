@@ -598,6 +598,7 @@ describe('what a casting with no duration may not leave standing, on either bran
           ],
         },
       },
+      'effects[0].movement.kind',
     ],
     [
       'a lift on the success and a deadline on the failure',
@@ -611,6 +612,7 @@ describe('what a casting with no duration may not leave standing, on either bran
         ],
         onSuccessRiders: { movement: { feet: 20, kind: 'lift' } },
       },
+      'effects[0].onSuccessRiders.movement.kind',
     ],
     [
       'both of them on the success',
@@ -626,12 +628,18 @@ describe('what a casting with no duration may not leave standing, on either bran
           ],
         },
       },
+      'effects[0].onSuccessRiders.movement.kind',
     ],
-  ])('refuses %s', (_what, slots) => {
+  ])('refuses %s', (_what, slots, field) => {
     const out = written({ kind: 'save', ability: 'con', condition: 'poisoned', ...slots });
     expect(out.ok).toBe(false);
     if (out.ok) throw new Error('unreachable');
     expect(out.code).toBe('lift_beside_a_shorter_grant');
+    // **The field an author would have to change**, which is the one this
+    // refusal's own docstring promises to name — and a lift may now be written
+    // on either branch, so a path that always said `movement` would point at
+    // nothing for two of these three.
+    expect(out.reason.startsWith(`${field}:`), out.reason).toBe(true);
   });
 
   /** And the same slot is fine the moment the casting has something to end it. */

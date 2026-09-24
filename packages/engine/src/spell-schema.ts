@@ -3976,7 +3976,11 @@ function checkLiftAgainstDeadlines(
   found: SpellDefinitionProblem[],
 ): void {
   const lists = effectLists(definition as unknown as Record<string, unknown>);
-  const holders: { readonly where: string; readonly at: number }[] = [];
+  // The slot travels with the holder, because the refusal names the field an
+  // author would have to change and a lift may now be written on either
+  // branch — pointing at `effects[0].movement.kind` for a lift that is at
+  // `effects[0].onSuccessRiders.movement.kind` is a refusal about nothing.
+  const holders: { readonly where: string; readonly at: number; readonly slot: string }[] = [];
   let deadlines = 0;
 
   for (const [where, effects] of lists) {
@@ -3988,15 +3992,18 @@ function checkLiftAgainstDeadlines(
       // know which branch hung either of the two. A lift written on a success
       // and a deadline written on a failure are the same pair one slot apart,
       // which is exactly the shape this check says a refusal has to cover.
-      for (const moved of [
-        (effect as { readonly movement?: { readonly kind?: unknown } }).movement,
-        (effect as {
-          readonly onSuccessRiders?: { readonly movement?: { readonly kind?: unknown } };
-        }).onSuccessRiders?.movement,
-      ]) {
-        if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
-          holders.push({ where, at: i });
-        }
+      const slots: readonly (readonly [string, unknown])[] = [
+        ['', (effect as { readonly movement?: unknown }).movement],
+        [
+          '.onSuccessRiders',
+          (effect as { readonly onSuccessRiders?: { readonly movement?: unknown } })
+            .onSuccessRiders?.movement,
+        ],
+      ];
+      for (const [slot, moved] of slots) {
+        if (typeof moved !== 'object' || moved === null) continue;
+        if ((moved as { readonly kind?: unknown }).kind !== 'lift') continue;
+        holders.push({ where, at: i, slot });
       }
       // Read off the same slot `grantCarried` reads, and with the same
       // tolerance for input nobody can walk: a `modifiers` that is not a list
@@ -4023,7 +4030,7 @@ function checkLiftAgainstDeadlines(
   if (deadlines === 0) return;
   for (const holder of holders) {
     found.push({
-      field: `${holder.where}[${holder.at}].movement.kind`,
+      field: `${holder.where}[${holder.at}]${holder.slot}.movement.kind`,
       code: 'lift_beside_a_shorter_grant',
       reason:
         'a grant that ends before its casting takes every grant that casting hung on the creature with it, and a lift is one of them — the creature would be left in the air with nothing holding it up, so one casting may not both lift a creature and hand out a grant with a deadline of its own',
