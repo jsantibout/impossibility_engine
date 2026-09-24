@@ -74,6 +74,30 @@ export function levelForXp(xp: number): number {
   return level;
 }
 
+/**
+ * What one option of an `option` question demands before it may be taken.
+ *
+ * SRD prints the line on the invocation rather than on the feature —
+ * "**Prerequisite:** Level 5+ Warlock, Pact of the Blade feature" — so it is a
+ * fact about the named option and is checked per answer. Both clauses the SRD
+ * writes are here and neither is a guess: a level in the class that granted
+ * the feature, and another option of the **same** question already taken,
+ * which is what "the Pact of the Blade feature" is once a Pact is an
+ * invocation.
+ *
+ * A prerequisite that is not met is a refusal rather than a silent omission:
+ * an option filed on a sheet whose grants nothing honours is the failure this
+ * repository refuses to build.
+ */
+export interface OptionPrerequisite {
+  /** The option this line is printed over — one of the question's `from`. */
+  readonly option: string;
+  /** SRD's "Level 2+ Warlock", read at the granting class's own level. */
+  readonly level?: number;
+  /** SRD's "Pact of the Blade feature": another option of this same question. */
+  readonly requiresOption?: string;
+}
+
 /** What a feature asks the player to decide, when it asks anything. */
 export type FeatureQuestion =
   | { readonly kind: 'skill'; readonly choose: number; readonly from?: readonly Skill[] }
@@ -82,6 +106,27 @@ export type FeatureQuestion =
       readonly choose: number;
       readonly school?: string;
       readonly maxLevel?: number;
+      /**
+       * SRD Pact of the Tome: "The spells can be from **any class's spell
+       * list**."
+       *
+       * Every other feature that offers a spell offers one from the list of
+       * the class that is asking, which is what creation checks a pick
+       * against; this is the sentence that widens it, and it widens it to the
+       * whole catalogue rather than to a second list. Absent is the ordinary
+       * narrowing and is every other question in the book.
+       */
+      readonly fromAnyList?: true;
+      /**
+       * SRD Pact of the Tome: "two level 1 spells that have the **Ritual
+       * tag**."
+       *
+       * A property of the spell the definition already carries, asked of the
+       * answer rather than of the grant — the reading {@link school} takes one
+       * field along. One writer, and it is here rather than on the grant
+       * because it is a rule about what may be *chosen*.
+       */
+      readonly ritualOnly?: true;
     }
   /**
    * One of a named set the feature itself lists.
@@ -91,7 +136,41 @@ export type FeatureQuestion =
    * a way that showed immediately: there is no Protector feat, so the feat
    * category check refused a legal character.
    */
-  | { readonly kind: 'option'; readonly choose: number; readonly from: readonly string[] }
+  | {
+      readonly kind: 'option';
+      /** The count where the book prints one: "choose one of the following". */
+      readonly choose?: number;
+      /**
+       * The count where the book prints a **column** instead. Exactly one of
+       * the two, which `checkFeatureDefinition` holds it to.
+       *
+       * SRD Eldritch Invocations: "You gain one invocation of your choice ...
+       * You gain more invocations at higher levels, as shown in the
+       * Invocations column of the Warlock Features table." The same sentence
+       * Weapon Mastery prints one member along, and read the same way — at the
+       * level of the class that granted the feature rather than the
+       * character's, which is what `weaponsAsked` already settled.
+       *
+       * **Exactly the count that level holds in total**, which is where it
+       * parts company with the weapon question beside it: SRD's Weapon Mastery
+       * is re-chosen on every Long Rest, so naming fewer is a standing decision
+       * and only naming more is refused, while an invocation is gained and kept
+       * — so a Warlock who named four of five has an invocation nobody has
+       * spent, and creation says so.
+       */
+      readonly chooseByLevel?: readonly number[];
+      readonly from: readonly string[];
+      /**
+       * What an option costs before it may be taken at all.
+       *
+       * SRD prints a **Prerequisite** line over most Eldritch Invocations —
+       * "Level 2+ Warlock", "Level 5+ Warlock, Pact of the Blade feature" —
+       * and it is a rule about one option rather than about the feature, which
+       * is why it hangs here rather than on the question. An option with no
+       * entry asks nothing, which is every option the SRD prints bare.
+       */
+      readonly prerequisites?: readonly OptionPrerequisite[];
+    }
   | { readonly kind: 'subclass'; readonly choose: 1 }
   | { readonly kind: 'feat'; readonly choose: number; readonly category?: string }
   /**
@@ -1030,6 +1109,43 @@ export type FeatureGrant =
       readonly kind: 'spells';
       readonly fixed?: readonly string[];
       /**
+       * The feature casts these spells for **nothing**, as often as it likes.
+       *
+       * SRD Armor of Shadows: "You can cast _Mage Armor_ on yourself without
+       * expending a spell slot." Mask of Many Faces, Misty Visions,
+       * Otherworldly Leap and Fiendish Vigor print the same sentence over
+       * another spell, and not one of them prints a count.
+       *
+       * **The third price, not a pool of infinity.** {@link freeCasting} names
+       * a pool and a number of uses, and a slot route is a slot; an at-will
+       * casting spends neither, which is exactly what `GrantedSpell.atWill`
+       * already says for a stat block's "**At Will:** _Etherealness_". So this
+       * field produces that flag and brings no machinery of its own.
+       *
+       * Never beside {@link freeCasting}, which `checkContent` refuses: a
+       * casting is priced once, and a grant naming both would be a pool that
+       * can never run out wearing a pool's name.
+       */
+      readonly atWill?: true;
+      /**
+       * SRD Fiendish Vigor: "When you cast the spell with this feature, you
+       * don't roll the die for the Temporary Hit Points; you automatically get
+       * the highest number on the die."
+       *
+       * A rule about the dice of a casting made **through this grant**, which
+       * is why it is here and not on the spell: a Warlock who prepared False
+       * Life some other way rolls it. The reading `maximisedHealing` already
+       * gives SRD Beacon of Hope — every die is still thrown and still says
+       * what it showed, and each takes its highest face — so nothing is added
+       * to the dice layer.
+       *
+       * Its one SRD writer is a Temporary Hit Point roll, which is the only
+       * roll it reaches today; a grant that named it over a spell rolling
+       * nothing of the kind would change nothing, and `checkContent` says so
+       * rather than letting a feature promise what no resolver would honour.
+       */
+      readonly maximisedDice?: true;
+      /**
        * SRD Elven Lineage, High Elf: "Whenever you finish a Long Rest, you can
        * replace that cantrip with a different cantrip from the Wizard spell
        * list."
@@ -1217,6 +1333,24 @@ export type FeatureGrant =
        * from the one {@link GrantGate.choiceFrom} names.
        */
       readonly damageTypesFromChoice?: boolean;
+      /**
+       * The spell a `casting-damage` grant reaches comes from the choice this
+       * feature asked for — {@link damageTypesFromChoice} on the other
+       * narrowing of the same `when`.
+       *
+       * SRD Agonizing Blast: "Choose one of your known Warlock cantrips that
+       * deals damage. You can add your Charisma modifier to **that spell's**
+       * damage rolls." The engine knows no spell by name and neither does the
+       * class table: which cantrip it is, is the player's answer, so the grant
+       * says where to read it rather than naming one.
+       *
+       * Read off the **keyed** answer {@link GrantGate.choiceFrom} names —
+       * which is that field's second job, stated in its own docstring — so an
+       * invocation's cantrip is read from the question that asked for it and
+       * not from the list of invocations taken. An unanswered question grants
+       * nothing at all rather than a narrowing that reaches every casting.
+       */
+      readonly spellFromChoice?: boolean;
       /** SRD Aura Expansion: this feature makes the aura this many feet. */
       readonly auraFeet?: number;
       /**

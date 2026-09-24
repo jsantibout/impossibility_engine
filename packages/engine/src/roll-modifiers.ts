@@ -345,6 +345,28 @@ export interface RollSelector {
    * this validator exists to refuse.
    */
   readonly againstMagic?: true;
+  /**
+   * The save is the one made **to maintain Concentration**.
+   *
+   * SRD Eldritch Mind, and SRD War Caster beside it: "You have Advantage on
+   * Constitution saving throws that you make to maintain Concentration." A
+   * save was selected by its family, its ability, what it was about and
+   * whether magic forced it, and none of those tells this save from any other
+   * Constitution save — so the nearest sayable thing was *Advantage on every
+   * Constitution saving throw the Warlock ever makes*, which is a far larger
+   * benefit and one that would help against a Disintegrate.
+   *
+   * **What the roller decides, not what this asks** — {@link
+   * RollQuery.concentration}, answered by the one site that throws this die.
+   * Silence is a miss, which is the reading {@link againstMagic} takes and for
+   * the same reason: a save the engine cannot classify gives nothing rather
+   * than giving everything.
+   *
+   * **Legal only on a saving throw**, and only on the `roller` end: the SRD
+   * sentence is about a save its holder makes, and a rule about a save made
+   * *against* them is somebody else's Concentration.
+   */
+  readonly onlyConcentration?: true;
 }
 
 /** A mode, and the rolls it reaches. */
@@ -594,6 +616,18 @@ export interface RollQuery {
    * spell.
    */
   readonly magical?: boolean;
+  /**
+   * Whether this saving throw is the one made **to maintain Concentration** —
+   * what {@link RollSelector.onlyConcentration} matches.
+   *
+   * Answered by the site that throws the die, because it is the only thing
+   * that knows: one site says yes, the Concentration save `resolveDamage`
+   * settles after a blow, and every other Constitution save says nothing.
+   *
+   * Absent means "nobody said it was", and a selector that asks for one reads
+   * that as a miss rather than a guess — the reading {@link magical} takes.
+   */
+  readonly concentration?: boolean;
 }
 
 /**
@@ -663,6 +697,11 @@ export function selectorMatches(
   // magical effects." A roll nobody classified is a miss, not a guess — see
   // {@link RollQuery.magical}.
   if (selector.againstMagic === true && query.magical !== true) return false;
+
+  // SRD Eldritch Mind: "Advantage on Constitution saving throws that you make
+  // to maintain Concentration." Read exactly as the line above is — the site
+  // that throws the die says which save this is, and silence is a miss.
+  if (selector.onlyConcentration === true && query.concentration !== true) return false;
 
   // SRD Innate Sorcery: "the attack rolls of Sorcerer spells you cast." Two
   // narrowings of one sentence, read the same way `againstMagic` is: a swing
@@ -857,6 +896,30 @@ export function rollSelectorProblems(
       code: 'against_magic_off_a_saving_throw',
       reason: `only a saving throw records what it was forced by, so "against spells and other magical effects" cannot pick out a ${selector.roll}`,
     });
+  }
+
+  // SRD Eldritch Mind and War Caster are sentences about a save their holder
+  // makes, and only a saving throw the caster rolls carries the fact they read.
+  // See {@link RollSelector.onlyConcentration}.
+  if (selector.onlyConcentration !== undefined) {
+    if (selector.onlyConcentration !== true) {
+      found.push({
+        code: 'bad_concentration_gate',
+        reason: '"a save you make to maintain Concentration" is written onlyConcentration: true, or left off',
+      });
+    }
+    if (selector.roll !== 'saving-throw') {
+      found.push({
+        code: 'concentration_off_a_saving_throw',
+        reason: `Concentration is maintained by a saving throw, so naming it on a ${selector.roll} would pick out nothing for ever`,
+      });
+    }
+    if (selector.relation !== 'roller') {
+      found.push({
+        code: 'concentration_against_the_holder',
+        reason: 'the save that maintains Concentration is made by whoever is concentrating, so a rule about saves made against them is somebody else\'s spell',
+      });
+    }
   }
 
   // SRD Innate Sorcery is a sentence about attack rolls its holder makes, and

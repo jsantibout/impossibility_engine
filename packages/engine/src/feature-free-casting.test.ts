@@ -731,4 +731,61 @@ describe('a free casting is validated where the rest of the catalogue is', () =>
     expect(isErr(parsed)).toBe(true);
     if (isErr(parsed)) expect(parsed.reason).toContain('grants.freeCasting.declares.usesByLevel');
   });
+
+  /**
+   * The **third** price, beside the pool above and the slot beside it.
+   *
+   * SRD Armor of Shadows: "You can cast _Mage Armor_ on yourself without
+   * expending a spell slot" — no count, no pool, nothing that runs out. What
+   * the checker asks of it is what it asks of a free casting: will anything
+   * ever read it, and has the casting been priced twice.
+   */
+  describe('a casting an invocation prices at nothing', () => {
+    it('accepts an at-will grant on a class that casts', () => {
+      expect(codesOf({ kind: 'spells', fixed: ['mage-armor'], atWill: true })).toEqual([]);
+    });
+
+    it('refuses one on a source with no spellcasting to make it with', () => {
+      const castless = {
+        ...(withGrant({ kind: 'spells', fixed: ['mage-armor'], atWill: true }) as object),
+      };
+      delete (castless as Record<string, unknown>)['spellcasting'];
+      expect(
+        checkContent({
+          classes: [castless as ClassDefinition],
+          spells: SRD_CONTENT.spells,
+          spellEntries: SRD_CONTENT.spellEntries,
+        }).map((problem) => problem.code),
+      ).toContain('free_casting_without_a_caster');
+    });
+
+    /** A casting is priced once: a pool that can never run out is not a pool. */
+    it('refuses a grant that is at will and out of a pool at once', () => {
+      expect(
+        codesOf({
+          kind: 'spells',
+          fixed: ['bless'],
+          atWill: true,
+          freeCasting: { spell: 'bless', pool: 'thornsong', declares: { minimum: 1, recovers: 'long-rest' } },
+        }),
+      ).toContain('casting_priced_twice');
+    });
+
+    it('refuses a licence that hands over no spell', () => {
+      expect(codesOf({ kind: 'spells', atWill: true })).toContain('at_will_without_a_spell');
+    });
+
+    /**
+     * SRD Fiendish Vigor's die rule rides the route the at-will grant makes,
+     * so a grant that makes no casting has no dice to maximise.
+     */
+    it('refuses a maximised die on a grant that casts nothing', () => {
+      expect(codesOf({ kind: 'spells', fixed: ['bless'], maximisedDice: true })).toContain(
+        'maximised_dice_without_a_casting',
+      );
+      expect(
+        codesOf({ kind: 'spells', fixed: ['false-life'], atWill: true, maximisedDice: true }),
+      ).toEqual([]);
+    });
+  });
 });

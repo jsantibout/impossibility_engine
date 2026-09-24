@@ -1,6 +1,6 @@
 import { type Content } from './content.js';
 import { describe, expect, it } from 'vitest';
-import { SORCERY_POINTS, SRD_CONTENT } from '@ie/content';
+import { ELDRITCH_INVOCATIONS, SORCERY_POINTS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -109,6 +109,27 @@ const sorcerer = (level: number): CharacterChoices => ({
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });
 
+/**
+ * The invocations the Invocations column asks for at this level, taken from
+ * those that ask no second question.
+ *
+ * SRD Eldritch Invocations: "You gain more invocations at higher levels, as
+ * shown in the Invocations column of the Warlock Features table." The order is
+ * the order the prerequisites allow — nothing here is legal below its level.
+ */
+const invocations = (level: number): readonly string[] =>
+  [
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+    'Misty Visions',
+    'Mask of Many Faces',
+    'Otherworldly Leap',
+    'Ascendant Step',
+    'Master of Myriad Forms',
+  ].slice(0, ELDRITCH_INVOCATIONS[level - 1] ?? 0);
+
 const warlock = (level: number): CharacterChoices => ({
   name: 'Kael',
   classId: 'warlock',
@@ -140,7 +161,10 @@ const warlock = (level: number): CharacterChoices => ({
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'] },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'warlock:eldritch-invocations': invocations(level),
+  },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',

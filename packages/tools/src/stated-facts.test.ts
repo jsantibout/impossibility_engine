@@ -152,7 +152,12 @@ const pactMage = (name: string): Record<string, unknown> => ({
   backgroundEquipment: 'A',
   equipped: [],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'], 'wizard:scholar': ['arcana'] },
+  // The three the Invocations column asks a Warlock 2 for.
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'wizard:scholar': ['arcana'],
+    'warlock:eldritch-invocations': ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight"],
+  },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',

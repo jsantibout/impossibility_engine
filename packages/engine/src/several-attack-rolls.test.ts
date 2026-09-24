@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SRD_CONTENT } from '@ie/content';
+import { ELDRITCH_INVOCATIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import { createRng, restoreRng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -33,6 +33,23 @@ const GOBLIN = id('goblin');
 const OGRE = id('ogre');
 const BOAR = id('boar');
 
+/**
+ * The invocations the Invocations column asks for at this level, taken from
+ * those that ask no second question — SRD Eldritch Invocations.
+ */
+const invocations = (level: number): readonly string[] =>
+  [
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+    'Misty Visions',
+    'Mask of Many Faces',
+    'Otherworldly Leap',
+    'Ascendant Step',
+    'Master of Myriad Forms',
+  ].slice(0, ELDRITCH_INVOCATIONS[level - 1] ?? 0);
+
 const warlock = (level: number): CharacterChoices => ({
   name: 'Kael',
   classId: 'warlock',
@@ -60,7 +77,10 @@ const warlock = (level: number): CharacterChoices => ({
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'] },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'warlock:eldritch-invocations': invocations(level),
+  },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',

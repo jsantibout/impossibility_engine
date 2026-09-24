@@ -1992,7 +1992,9 @@ export function resolveDamage(
     // Count only what this operation issues: a caller may hand the same issuer to
     // several operations in a turn, and `count` runs from where it was created.
     const issuedBefore = supply.issuer.count;
-    const support = savingSupport(after, id, caster, 'con', supply);
+    // The one site that can say which save this is — SRD Eldritch Mind's
+    // "Constitution saving throws that you make to maintain Concentration".
+    const support = savingSupport(after, id, caster, 'con', supply, undefined, undefined, true);
     // **The sheet as it stands.** SRD Amulet of Health prints "Your
     // Constitution is 19 while you wear this amulet", and this is the
     // Constitution save the book most often has in mind. Read off `after`,

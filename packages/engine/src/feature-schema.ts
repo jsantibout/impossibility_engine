@@ -684,6 +684,74 @@ function choiceProblems(
       }
     }
 
+    // **An option choice is sized the same two ways**, and the weapon
+    // paragraph above is the whole argument: SRD Eldritch Invocations prints a
+    // column where Divine Order prints "choose one", so exactly one of the two
+    // says how many, and a column read off a class table has one entry per row.
+    if (question.kind === 'option') {
+      const shapes = [
+        question.choose === undefined ? null : 'choose',
+        question.chooseByLevel === undefined ? null : 'chooseByLevel',
+      ].filter((shape): shape is string => shape !== null);
+
+      if (shapes.length !== 1) {
+        found.push({
+          field: at,
+          code: shapes.length === 0 ? 'unsized_option_choice' : 'ambiguous_option_choice',
+          reason:
+            shapes.length === 0
+              ? 'an option choice says how many it offers through `choose` or through `chooseByLevel`, and this says neither'
+              : 'an option choice is sized by a number or by a column of the class table, not by both',
+        });
+      }
+
+      if (question.chooseByLevel !== undefined && question.chooseByLevel.length !== context.levels) {
+        found.push({
+          field: `${at}.chooseByLevel`,
+          code: 'not_a_table_column',
+          reason: `a column of this source's table has ${context.levels} entries, not ${question.chooseByLevel.length}`,
+        });
+      }
+
+      const counts =
+        question.chooseByLevel ?? (question.choose === undefined ? [] : [question.choose]);
+      const bad = counts.findIndex((count) => !Number.isInteger(count) || count < 0);
+      if (bad !== -1) {
+        found.push({
+          field: at,
+          code: 'bad_option_choice',
+          reason: `a feature offers a whole number of options, not ${String(counts[bad])}`,
+        });
+      }
+
+      // A Prerequisite is printed over an option the question offers, and it
+      // names another one: both halves are read against `from`, because a line
+      // over an option nobody is offered is a rule nothing would ever apply.
+      for (const line of question.prerequisites ?? []) {
+        if (!question.from.includes(line.option)) {
+          found.push({
+            field: `${at}.prerequisites`,
+            code: 'prerequisite_not_offered',
+            reason: `${feature.id} prints a prerequisite over ${line.option} and offers ${question.from.join(', ')}, so the line would gate nothing`,
+          });
+        }
+        if (line.requiresOption !== undefined && !question.from.includes(line.requiresOption)) {
+          found.push({
+            field: `${at}.prerequisites`,
+            code: 'prerequisite_not_offered',
+            reason: `${feature.id} requires ${line.requiresOption} before ${line.option} and offers no such option, so nobody could ever take it`,
+          });
+        }
+        if (line.level === undefined && line.requiresOption === undefined) {
+          found.push({
+            field: `${at}.prerequisites`,
+            code: 'empty_prerequisite',
+            reason: `${feature.id} prints a prerequisite over ${line.option} that demands nothing, which reads as a rule and is none`,
+          });
+        }
+      }
+    }
+
     const gate = question.onlyIfChoice;
     if (gate === undefined) return;
     if (index === 0 || offered.length === 0) {

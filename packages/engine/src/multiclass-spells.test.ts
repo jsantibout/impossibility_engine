@@ -272,6 +272,8 @@ const hexblade = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
     'human:skillful': ['perception'],
     'wizard:scholar': ['arcana'],
     'evoker:evocation-savant': ['burning-hands', 'scorching-ray'],
+    // The three the Invocations column asks a Warlock 3 for.
+    'warlock:eldritch-invocations': ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight"],
   },
   feats: {
     'sage:magic-initiate-wizard': {

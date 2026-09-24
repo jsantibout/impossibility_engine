@@ -46,7 +46,11 @@ const kael = (): Record<string, unknown> => ({
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'] },
+  // The three the Invocations column asks a Warlock 3 for.
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'warlock:eldritch-invocations': ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight"],
+  },
   feats: {
     'acolyte:magic-initiate-cleric': {
       featId: 'magic-initiate',

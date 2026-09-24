@@ -885,14 +885,44 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Warlock —
   'warlock:eldritch-invocations': [
     {
-      clause: 'each is its own small rule',
-      why: 'table',
-      note: 'an invocation that does nothing is that invocation’s debt, and none of them is content here yet.',
+      clause: 'Eldritch Spear and Repelling Blast change what a casting costs or catches',
+      why: 'a-feature-that-changes-what-a-casting-costs',
+      note: 'a range one feature lengthens and a push another hangs on one cantrip’s hit: both are the caster’s own trick riding on a casting the definition already settled.',
     },
     {
-      clause: 'several of them grant spells or change how a spell is cast',
-      why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'the half of the list that names a mechanic rather than a catalogue entry.',
+      clause: 'the three Pacts and what hangs off them are a conjured weapon',
+      why: 'an-attack-the-class-redefines',
+      note: 'Pact of the Blade’s weapon attacks with Charisma and changes its damage type, which is the shape Monk’s Martial Arts waits on; Thirsting Blade and Eldritch Smite are printed on top of it.',
+    },
+    {
+      clause: 'a familiar’s extra forms',
+      why: 'a-stat-block-created-mid-fight',
+      note: 'Pact of the Chain and Investment of the Chain Master, on the same missing summons Find Familiar and Arcane Hand wait on.',
+    },
+    {
+      clause: 'Gaze of Two Minds and One with Shadows are a perception and a light gate',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'One with Shadows casts only "while you’re in an area of Dim Light or Darkness", and the engine holds no Bright, Dim or Darkness for a feature to read; Gaze of Two Minds borrows another creature’s senses, which is the same absence one seat along.',
+    },
+    {
+      clause: 'Gift of the Depths wants a Swim Speed equal to a Speed',
+      why: 'movement-modes',
+      note: 'the same missing derivation Acrobatic Movement and Dragon Wings wait on; the Water Breathing beside it is a free casting the vocabulary already writes, so this clause is the whole of what blocks the invocation.',
+    },
+    {
+      clause: 'the first is fiction and the second is the component rules, and this engine models neither',
+      why: 'table',
+      note: 'Pact of the Tome’s book appearing after a rest and vanishing with its maker, and its use as a Spellcasting Focus. Components are declared nowhere in this engine, so the focus is a rule the table keeps rather than a shape anybody is waiting on.',
+    },
+    {
+      clause: 'Four invocations are Repeatable and this refuses a second copy',
+      why: 'an-option-re-chosen-on-a-rest',
+      note: 'SRD: "You can’t pick the same invocation more than once unless its description says otherwise." An option question takes each answer once and has no word for the exception, which is the same missing word an option a rest re-asks wants.',
+    },
+    {
+      clause: 'checked as a Warlock cantrip and not as one that deals damage',
+      why: 'expressible',
+      note: 'the narrowing is readable off the definition the choice names — nothing stands in the way — and a cantrip that deals none simply reaches no damage roll.',
     },
   ],
   'warlock:contact-patron': [
