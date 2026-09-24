@@ -5,7 +5,7 @@ import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/sh
 import { createRng, restoreRng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { reactionOpportunities, resolveSpell } from './commands.js';
+import { reactionOpportunities, resolveDeclaredCast, resolveSpell } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { remaining } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
@@ -719,6 +719,65 @@ describe('what an election of these six may not do', () => {
     const refused = attempt(log, fireball({ usingOptions: [option], ...over }));
     expect(isErr(refused) && refused.code).toBe('no_points');
     expect(fold('seed', log).creatures[CASTER]!.vitals.hp).toBeGreaterThan(0);
+  });
+
+  /**
+   * A declaration pins what a settlement will read, and an **election** is the
+   * one thing it cannot pin — which is what `election_on_a_declaration`
+   * already says of an elected feature. Four of the six survive because what
+   * they need is pinned: the sparing is the targets, the type is `damageType`,
+   * the mode is `saveModes`, and Subtle Spell's mark is the whole point of a
+   * declaration. The two rerolls are read at a roll the settlement makes, off
+   * a bag it rebuilds from the sheet, and are refused instead.
+   */
+  it.each([
+    ['empowered-spell', 'Empowered Spell'],
+    ['seeking-spell', 'Seeking Spell'],
+  ])('refuses %s on a casting held open for a Counterspell', (option, name) => {
+    // Chromatic Orb, because it is the one spell here that both rolls damage
+    // and makes an attack: a refusal that reached `option_does_not_reach`
+    // first would be this test passing for the wrong sentence.
+    const refused = attempt(table(sorcerer([name, 'Distant Spell'])), {
+      spellId: 'chromatic-orb',
+      targets: [TARGET],
+      slotLevel: 1,
+      damageType: 'fire',
+      hold: true,
+      usingOptions: [option],
+    } as Request);
+    expect(isErr(refused) && refused.code).toBe('election_on_a_declaration');
+  });
+
+  /**
+   * And the other half of that sentence, asserted rather than assumed: the
+   * mode SRD Heightened Spell bought is pinned on the declaration and is still
+   * on the save when the casting settles a moment later.
+   */
+  it('carries a Heightened mode through a declaration to its settlement', () => {
+    const { log, state } = cast(
+      table(sorcerer(['Heightened Spell', 'Distant Spell'])),
+      fireball({ hold: true, usingOptions: ['heightened-spell'], saveModes: { [TARGET]: 'disadvantage' } }),
+    );
+    const open = Object.keys(state.pendingCastings)[0]!;
+    const settled = unwrap(resolveDeclaredCast(state, open, supply(state)), 'settle');
+    const hers = settled.events.find(
+      (event) =>
+        event.type === 'roll-recorded' && event.who === TARGET && event.label.includes('save'),
+    );
+    expect(
+      hers !== undefined && hers.type === 'roll-recorded' ? (hers.modes ?? []) : [],
+    ).toEqual([{ source: 'Heightened Spell', mode: 'disadvantage' }]);
+    // And nobody else's, which is what makes it the pinned map rather than a
+    // mode the settlement hung on every save it rolled.
+    const others = settled.events.filter(
+      (event) =>
+        event.type === 'roll-recorded' && event.who !== TARGET && event.label.includes('save'),
+    );
+    expect(others.length).toBe(3);
+    for (const other of others) {
+      expect(other.type === 'roll-recorded' ? (other.modes ?? []) : ['x']).toEqual([]);
+    }
+    expect(log.length).toBeGreaterThan(0);
   });
 
   it('refuses Seeking Spell with the pool empty, before the attack is rolled', () => {
