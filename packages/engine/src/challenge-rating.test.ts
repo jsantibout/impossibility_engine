@@ -34,14 +34,23 @@ import type { CharacterSheet } from './character.js';
  * this gate — so a creature nobody has rated is asked about rather than
  * spared.
  *
- * **The reader is exercised over a definition written here**, and that is
+ * **The reader is exercised over a definition written here**, and that was
  * deliberate rather than convenient: SRD Animal Messenger is the book's one
- * writer of this clause and it cannot be written yet — what its failure buys
- * is an errand, so the only thing left for the die to decide is its own
- * verdict, and `verdict_before_the_record` refuses `recordsOutcome` in a
- * casting's own effect list. The same move `castingOf`'s docstring already
- * makes for an arithmetic no registered spell could reach: being pure over a
- * definition is what lets the rule be asked at all.
+ * writer of this clause and it could not be written on the day this file was
+ * — what its failure buys is an errand, so the only thing left for the die to
+ * decide was its own verdict, and nothing carried one. The same move
+ * `castingOf`'s docstring already makes for an arithmetic no registered spell
+ * could reach: being pure over a definition is what lets the rule be asked at
+ * all, whether or not the book has a writer for it yet.
+ *
+ * **It has one now.** `save.verdictOnly` is where a verdict goes — rolled by
+ * the casting and reported in the casting's own outcomes, with no record
+ * written — and SRD Animal Messenger is written off it in `spells.ts`, with
+ * this clause beside it. So the errand above stays what it is, a definition
+ * kept here to hold the *rule* rather than the spell: what it adds is a
+ * failure the engine can hold, and the SRD sentence is driven where the SRD
+ * spell lives — `target-size.test.ts` casts it at a rated Raven, and
+ * `verdict-only-save.test.ts` is where the mark's own behaviour is proved.
  */
 
 const id = (s: string): CharacterId => asCharacterId(s);

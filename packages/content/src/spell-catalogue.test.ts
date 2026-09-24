@@ -194,8 +194,11 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   const sized = definition?.targets.mustBeSize;
   // **And a rating, where a save of this spell's spares a creature by one.**
   // Derived from the effect rather than listed by spell id, as the corpse, the
-  // Attunement and the object below are: the next definition that reads a
-  // Challenge Rating needs no line here.
+  // Attunement and the object below are: the next definition whose own effect
+  // list reads a Challenge Rating needs no line here. A branch's list is not
+  // read, and that is the stated limit rather than an oversight — no
+  // definition prints this clause under a `SpellOption`, and the day one does
+  // it fails here rather than being quietly excused.
   const rated = (definition?.effects ?? []).some(
     (effect) =>
       effect.kind === 'save' &&
