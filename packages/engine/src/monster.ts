@@ -1693,7 +1693,8 @@ export type PrintedRider =
   | PrintedForcedMoveRider
   | PrintedSpeedCutRider
   | PrintedMaximumRider
-  | PrintedModeRider;
+  | PrintedModeRider
+  | PrintedDroppedToZeroRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -1905,6 +1906,66 @@ export interface PrintedSpeedCutRider {
  */
 export interface PrintedMaximumRider {
   readonly kind: 'hit-point-maximum';
+}
+
+/**
+ * What the blow leaves behind **only if it was the blow that emptied them** —
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points, the
+ * target becomes Stable, and it has the Poisoned condition for 1 hour"; SRD
+ * Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by this
+ * attack."
+ *
+ * **A gate on the outcome rather than a gate on the swing**, which is what
+ * makes it its own member and not a {@link PrintedHitGate}. Every gate in that
+ * union is answerable before the damage is dealt — a size, a creature type, a
+ * roll's mode, half a creature's Hit Points — and this one is answerable only
+ * after: the fact it reads is *this* blow having taken the last hit point, and
+ * nothing before the blow can know it.
+ *
+ * **"Reduces to 0" is not "is at 0".** A creature already on the floor that is
+ * hit again takes a Death Saving Throw failure, which is the rule the damage
+ * path already writes; it does not land this rider a second time. So the swing
+ * hands in whether the drop happened rather than reading a nought off the
+ * state, because the two are indistinguishable afterwards.
+ *
+ * The three clauses are the three the book writes, and they are independent:
+ * SRD prints the Stable with a condition, and the Mouther prints the death
+ * alone. A line that printed both would be a sentence nobody wrote, and
+ * nothing here needs to rule on it — {@link applyHitRider}'s order does.
+ */
+export interface PrintedDroppedToZeroRider {
+  readonly kind: 'on-dropping-to-zero';
+  /** SRD's "the target becomes Stable". */
+  readonly stable?: true;
+  /** SRD Gibbering Mouther's "The target dies". */
+  readonly dies?: true;
+  /** SRD's "it has the Poisoned condition for 1 hour", in printed order. */
+  readonly conditions?: readonly PrintedDroppedCondition[];
+}
+
+/** One condition a drop to 0 leaves, for the span the line prints on it. */
+export interface PrintedDroppedCondition {
+  readonly condition: ConditionName;
+  /**
+   * SRD Phase Spider: "While Poisoned, the target **also** has the Paralyzed
+   * condition."
+   *
+   * {@link PrintedGrappleRider.whileHeld} one clause along and for its exact
+   * reason: a condition that lasts as long as another is
+   * `ConditionInstance.impliedBy`, so it lifts with the one that carried it
+   * through the doors that already exist. Here the carrier is the hour rather
+   * than a hold.
+   */
+  readonly implies?: readonly ConditionName[];
+  /**
+   * SRD's "for 1 hour", as the clock's own unit.
+   *
+   * Required rather than optional, and that is the sentence: every printed
+   * drop-to-0 condition names a span, and one that did not would be a
+   * Paralyzed nothing could ever lift — the rule
+   * {@link PrintedSpeedCutRider.lasts} already states about a Speed.
+   */
+  readonly lastsSeconds: number;
 }
 
 /**
@@ -2160,6 +2221,49 @@ const PRINTED_MODE_AGAINST_TARGET = new RegExp(
  */
 const WHILE_GRAPPLED = /^While Grappled, the target has the ([A-Za-z]+) condition(?: and (.+?))?\.$/;
 
+/**
+ * The two ways the book writes "this blow took their last hit point".
+ *
+ * SRD Phase Spider writes it about the damage and SRD Vampire Familiar about
+ * the attack; they are one rule, and a reader that took only one of them would
+ * hand a whole line to the DM over a preposition.
+ */
+const REDUCED_TO_ZERO =
+  '(?:this damage reduces the target to 0 Hit Points|the target is reduced to 0 Hit Points by this attack)';
+
+/**
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points, the
+ * target becomes Stable, and it has the Poisoned condition for 1 hour." SRD
+ * Vampire Familiar writes "but has" for "and it has" and means the same thing.
+ *
+ * The condition half is optional because nothing says it has to be there, and
+ * the span inside it is not: a condition with no ending is the one shape this
+ * reader refuses everywhere else.
+ */
+const DROPPED_TO_ZERO_STABLE = new RegExp(
+  `^If ${REDUCED_TO_ZERO}, the target becomes Stable(?:,? (?:and|but) (?:it )?has the ([A-Za-z]+) condition for (\\d+) (hours?|minutes?))?\\.$`,
+);
+
+/** SRD Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by this attack." */
+const DIES_AT_ZERO = /^The target dies if it is reduced to 0 Hit Points by this attack\.$/;
+
+/**
+ * SRD Phase Spider: "While Poisoned, the target also has the Paralyzed
+ * condition." SRD Vampire Familiar: "While it has the Poisoned condition, the
+ * target has the Paralyzed condition."
+ *
+ * {@link WHILE_GRAPPLED}'s twin, and it is read **after** it rather than in
+ * place of it: a grapple is a relation and its implication is filed under the
+ * hold, and this one is filed under the condition the clause before it named.
+ * The two spellings are the book's; the "also" is not, and it is optional for
+ * that reason.
+ */
+const WHILE_CONDITION =
+  /^While (?:it has the )?([A-Za-z]+)(?: condition)?, the target (?:also )?has the ([A-Za-z]+) condition\.$/;
+
+/** The book's two units for a span a hit leaves behind, as the clock counts. */
+const SECONDS_IN: Readonly<Record<string, number>> = { hour: 3600, minute: 60 };
+
 /** SRD Bearded Devil's Beard: "Until this poison ends, the target can't regain Hit Points." */
 const NO_HEALING_WHILE_IT_LASTS = new RegExp(
   `^Until this [a-z]+ ends, the target can${APOSTROPHE}t regain Hit Points\\.$`,
@@ -2383,6 +2487,18 @@ type ClauseRead =
       readonly conditions: readonly ConditionName[];
       readonly handedOver?: string;
     }
+  /**
+   * "While Poisoned, the target also has the Paralyzed condition" — the same
+   * borrowed lifetime one clause along, and it borrows it from a *condition*
+   * rather than from a hold. It names which condition, because the clause
+   * before it may have imposed more than one and a reader that guessed would
+   * file the Paralyzed under whichever happened to be first.
+   */
+  | {
+      readonly kind: 'while-condition';
+      readonly condition: ConditionName;
+      readonly implies: ConditionName;
+    }
   | { readonly kind: 'no-healing' };
 
 /** One rider and no residue, which is what most clauses read to. */
@@ -2535,6 +2651,31 @@ function readClause(text: string): ClauseRead | null {
     };
   }
 
+  // After the grapple's own implication, which is a relation's, and before the
+  // plain condition shapes, whose openings this cannot be mistaken for.
+  const alongside = WHILE_CONDITION.exec(text);
+  if (alongside !== null) {
+    const host = conditionWord(alongside[1]!);
+    const carried = conditionWord(alongside[2]!);
+    if (host === null || carried === null) return null;
+    return { kind: 'while-condition', condition: host, implies: carried };
+  }
+
+  const emptied = DROPPED_TO_ZERO_STABLE.exec(text);
+  if (emptied !== null) {
+    if (emptied[1] === undefined) return one({ kind: 'on-dropping-to-zero', stable: true });
+    const condition = conditionWord(emptied[1]);
+    const unit = SECONDS_IN[emptied[3]!.replace(/s$/, '')];
+    if (condition === null || unit === undefined) return null;
+    return one({
+      kind: 'on-dropping-to-zero',
+      stable: true,
+      conditions: [{ condition, lastsSeconds: Number(emptied[2]) * unit }],
+    });
+  }
+
+  if (DIES_AT_ZERO.test(text)) return one({ kind: 'on-dropping-to-zero', dies: true });
+
   if (NO_HEALING_WHILE_IT_LASTS.test(text)) return { kind: 'no-healing' };
 
   const grapple = PRINTED_GRAPPLE.exec(text);
@@ -2662,6 +2803,29 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
       }
       riders[riders.length - 1] = { ...host, whileHeld: read.conditions };
       if (read.handedOver !== undefined) handedOver.push(read.handedOver);
+      continue;
+    }
+
+    if (read.kind === 'while-condition') {
+      const host = riders.at(-1);
+      // The condition it names has to be one the clause before it actually
+      // imposed. A sentence about some other condition names a lifetime that
+      // is not there, which is the same refusal a while-held clause with
+      // nothing in front of it gets.
+      const carrier =
+        host?.kind === 'on-dropping-to-zero'
+          ? (host.conditions ?? []).find((one) => one.condition === read.condition)
+          : undefined;
+      if (host === undefined || host.kind !== 'on-dropping-to-zero' || carrier === undefined) {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = {
+        ...host,
+        conditions: (host.conditions ?? []).map((held) =>
+          held === carrier ? { ...held, implies: [...(held.implies ?? []), read.implies] } : held,
+        ),
+      };
       continue;
     }
 

@@ -105,6 +105,7 @@ import {
   standingWeaponRollRule,
   strikeStyleFor,
   weaponRiderDamageType,
+  type HitDropToZero,
   type HitForcedMove,
   type HitGrapple,
   type HitOption,
@@ -603,6 +604,25 @@ function chargeRun(
   };
 }
 
+/**
+ * Whether **this blow** took the target's last hit point.
+ *
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points"; SRD
+ * Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by this
+ * attack." The clause is about the *transition* and not about the number, and
+ * the two are indistinguishable from the world afterwards — a creature already
+ * on the floor that is hit again is a Death Saving Throw failure, which is the
+ * rule the damage path writes, and not a second landing of this rider.
+ *
+ * So it is asked of both sides of the damage, here, where the swing holds
+ * them; `applyHitRider` takes the answer rather than guessing at it.
+ */
+function emptiedBy(before: GameState, after: GameState, target: CharacterId): boolean {
+  const was = before.creatures[target]?.vitals;
+  const now = after.creatures[target]?.vitals;
+  return was !== undefined && now !== undefined && was.hp > 0 && now.hp === 0;
+}
+
 /** What a stat block's own line buys on a hit, and what it could not. */
 interface PrintedRiderOnASwing {
   /** The effect list the hit buys, or null where the line is still prose. */
@@ -667,6 +687,7 @@ function printedRiderOnASwing(
   let grapples: HitGrapple | undefined;
   let forcedMove: HitForcedMove | undefined;
   let lowersHitPointMaximum: 'damage-taken' | undefined;
+  let onDroppingToZero: HitDropToZero | undefined;
   let saveDc: number | undefined;
   let span: { readonly lasts: TurnAnchor; readonly lastsOn: HitRiderAnchor } | undefined;
 
@@ -770,6 +791,28 @@ function printedRiderOnASwing(
 
       case 'hit-point-maximum':
         lowersHitPointMaximum = 'damage-taken';
+        break;
+
+      // SRD Phase Spider, SRD Vampire Familiar, SRD Gibbering Mouther. **No
+      // span is claimed for it**, deliberately: the hour it prints is a number
+      // of seconds carried on the clause itself, and `claimSpan` is about the
+      // one turn-order deadline a hit may carry. A line that also printed one
+      // would be two different endings on one blow, which is the case that
+      // reader already refuses.
+      case 'on-dropping-to-zero':
+        onDroppingToZero = {
+          ...(rider.stable === undefined ? {} : { stable: rider.stable }),
+          ...(rider.dies === undefined ? {} : { dies: rider.dies }),
+          ...(rider.conditions === undefined
+            ? {}
+            : {
+                conditions: rider.conditions.map((one) => ({
+                  condition: one.condition,
+                  ...(one.implies === undefined ? {} : { implies: one.implies }),
+                  durationSeconds: one.lastsSeconds,
+                })),
+              }),
+        };
         break;
 
       case 'speed-cut': {
@@ -894,7 +937,8 @@ function printedRiderOnASwing(
     effects.length === 0 &&
     grapples === undefined &&
     forcedMove === undefined &&
-    lowersHitPointMaximum === undefined
+    lowersHitPointMaximum === undefined &&
+    onDroppingToZero === undefined
   ) {
     return { option: null, unverified };
   }
@@ -918,6 +962,7 @@ function printedRiderOnASwing(
       ...(grapples === undefined ? {} : { grapples }),
       ...(forcedMove === undefined ? {} : { forcedMove }),
       ...(lowersHitPointMaximum === undefined ? {} : { lowersHitPointMaximum }),
+      ...(onDroppingToZero === undefined ? {} : { onDroppingToZero }),
     },
     unverified,
   };
@@ -2553,7 +2598,16 @@ export function resolveAttack(
         // The blow's own total after this creature's defences, for the one
         // clause that reads it: SRD Specter's "an amount equal to the damage
         // taken". Zero where the hit dealt none, which lowers nothing.
-        { attacker: id, target: command.target, dealt: hurt.value.amount ?? 0 },
+        //
+        // And whether this blow was the one that emptied them, which is the
+        // other fact only a caller holding the world on both sides of the
+        // damage can answer � see {@link HitOption.onDroppingToZero}.
+        {
+          attacker: id,
+          target: command.target,
+          dealt: hurt.value.amount ?? 0,
+          droppedToZero: emptiedBy(state, landed.reduce(applyEvent, state), command.target),
+        },
         riding,
       );
       if (!bought.ok) return bought;
@@ -3006,7 +3060,12 @@ export function resolveAttackDamage(
       const paid = applyHitRider(
         [...landed, ...rider.value.events].reduce(applyEvent, state),
         supply,
-        { attacker: pending.attacker, target: pending.target, dealt: hurt.value.amount ?? 0 },
+        {
+          attacker: pending.attacker,
+          target: pending.target,
+          dealt: hurt.value.amount ?? 0,
+          droppedToZero: emptiedBy(state, landed.reduce(applyEvent, state), pending.target),
+        },
         pending.rider,
       );
       if (!paid.ok) return paid;

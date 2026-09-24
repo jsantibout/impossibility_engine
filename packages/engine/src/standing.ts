@@ -2073,6 +2073,51 @@ export interface HitOption {
    * halves this too, and a blow that dealt nothing lowers nothing.
    */
   readonly lowersHitPointMaximum?: 'damage-taken';
+  /**
+   * What the blow leaves behind **only if it was the blow that emptied them**
+   * — SRD Phase Spider: "If this damage reduces the target to 0 Hit Points,
+   * the target becomes Stable, and it has the Poisoned condition for 1 hour."
+   *
+   * Beside {@link effects} rather than inside it, for the reason
+   * {@link lowersHitPointMaximum} is: it reads a fact about the blow rather
+   * than about a creature, and an effect list is resolved against a target
+   * with no knowledge of what put it where it is. The fact here is narrower
+   * still — not the amount, but whether this damage took the last hit point —
+   * and "reduces to 0" is not "is at 0": a creature already on the floor takes
+   * a Death Saving Throw failure instead, which is the rule the damage path
+   * already writes.
+   */
+  readonly onDroppingToZero?: HitDropToZero;
+}
+
+/**
+ * What a hit that empties its target leaves on the floor.
+ *
+ * `PrintedDroppedToZeroRider` compiled onto a swing, and the three clauses are
+ * independent because the book prints them apart: SRD Phase Spider and SRD
+ * Vampire Familiar write the Stable with a poison, SRD Gibbering Mouther
+ * writes the death alone.
+ */
+export interface HitDropToZero {
+  /** SRD's "the target becomes Stable". */
+  readonly stable?: true;
+  /** SRD Gibbering Mouther's "The target dies". */
+  readonly dies?: true;
+  /** SRD's "it has the Poisoned condition for 1 hour", in printed order. */
+  readonly conditions?: readonly HitDropCondition[];
+}
+
+/** One condition such a hit leaves, and how long the line says it runs. */
+export interface HitDropCondition {
+  readonly condition: ConditionName;
+  /**
+   * SRD Phase Spider: "While Poisoned, the target also has the Paralyzed
+   * condition" — carried by the instance, so it lifts with it, exactly as
+   * {@link HitGrapple.whileHeld} is carried by the hold.
+   */
+  readonly implies?: readonly ConditionName[];
+  /** SRD's "for 1 hour", in the seconds the clock counts. */
+  readonly durationSeconds: number;
 }
 
 /**

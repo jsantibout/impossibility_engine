@@ -404,7 +404,19 @@ export function settleDamage(
         // reduction a Reaction bought — which is what SRD Specter's "an amount
         // equal to the damage taken" reads, and the whole reason the defender
         // answers before the rider fires.
-        { attacker: pending.rider.attacker, target: pending.target, dealt: applied.total },
+        {
+          attacker: pending.rider.attacker,
+          target: pending.target,
+          dealt: applied.total,
+          // And whether this blow was the one that emptied them — the other
+          // fact a rider reads off the damage rather than off a sheet, and one
+          // only a caller holding the world on both sides can answer. The
+          // Reaction the defender just took is part of "this damage", which is
+          // the whole reason it is asked here and not at the swing.
+          droppedToZero:
+            (state.creatures[pending.target]?.vitals.hp ?? 0) > 0 &&
+            all.reduce(applyEvent, state).creatures[pending.target]?.vitals.hp === 0,
+        },
         pending.rider.option,
       );
       if (bought.ok) {

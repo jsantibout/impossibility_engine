@@ -207,6 +207,20 @@ export function applyHitRider(
      * that does not read it.
      */
     readonly dealt?: number;
+    /**
+     * Whether **this blow** took the target's last hit point.
+     *
+     * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points."
+     * Handed in rather than read off the state, and the difference is a rule:
+     * by the time this runs the world says only that the target is *at* 0, and
+     * a creature already on the floor that is hit again takes a Death Saving
+     * Throw failure. Only the caller, which held the world on both sides of
+     * the damage, can tell the two apart.
+     *
+     * Absent where the caller is not settling damage, exactly as
+     * {@link dealt} is.
+     */
+    readonly droppedToZero?: boolean;
   },
   option: HitOption,
 ): Result<HitRiderOutcome> {
@@ -319,8 +333,23 @@ export function applyHitRider(
   }
   events.push(...lowering);
 
+  // **What a blow that emptied the target leaves**, on the world the lowered
+  // maximum has already been written onto — SRD Specter's sentence and SRD
+  // Phase Spider's can both ride on one homebrew line, and a maximum lowered
+  // after the Stable would be a creature stabilised at a number that then
+  // moved. Last of the three because it is the one clause that can end the
+  // creature.
+  const emptied = onDroppingToZero(
+    lowering.reduce(applyEvent, held),
+    hit,
+    option,
+    supply,
+  );
+  if (!emptied.ok) return emptied;
+  events.push(...emptied.value);
+
   const timed = fileDeadlines(
-    [...shoved.events, ...lowering].reduce(applyEvent, held),
+    [...shoved.events, ...lowering, ...emptied.value].reduce(applyEvent, held),
     resolved.value.outcomes,
     resolved.value.held,
     { attacker: hit.attacker, option },
@@ -380,6 +409,80 @@ function makeTheGrapple(
     return ok([]);
   }
   return ok(landed.value.events);
+}
+
+/**
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points, the
+ * target becomes Stable, and it has the Poisoned condition for 1 hour." SRD
+ * Gibbering Mouther: "The target dies."
+ *
+ * **Nothing here refuses**, which is the rule the shove above it keeps and for
+ * the same reason: the blow has landed. A creature immune to the condition is
+ * reported by {@link conditionLanding} and the Stable still stands; a creature
+ * already dead is not made deader, which is the reading `applyPrintedClauses`
+ * takes of the same event.
+ *
+ * The order is the book's own: Stable, then what the hour hangs, then the
+ * death — so a log read forwards never shows a condition hung on a corpse.
+ * Only one line in the SRD prints the death and it prints nothing else, so the
+ * order is the engine's to fix rather than a rule anybody wrote down.
+ */
+function onDroppingToZero(
+  world: GameState,
+  hit: {
+    readonly attacker: CharacterId;
+    readonly target: CharacterId;
+    readonly droppedToZero?: boolean;
+  },
+  option: HitOption,
+  supply: Supply,
+): Result<readonly GameEvent[]> {
+  const leaves = option.onDroppingToZero;
+  if (leaves === undefined || hit.droppedToZero !== true) return ok([]);
+
+  const events: GameEvent[] = [];
+  let current = world;
+  const land = (made: readonly GameEvent[]): void => {
+    events.push(...made);
+    current = made.reduce(applyEvent, current);
+  };
+
+  if (leaves.stable === true && current.creatures[hit.target]?.vitals.stable !== true) {
+    land([{ type: 'stabilised', id: hit.target }]);
+  }
+
+  // **Sourced per use**, the reading the lowered maximum one function up
+  // already takes of a Multiattack: two bites from one spider are two hours,
+  // and under a shared source the second would merely move the first's
+  // deadline.
+  const source = `${featureSource(option.feature)}:${supply.issuer.count}`;
+  for (const one of leaves.conditions ?? []) {
+    const applied = applyConditionTo(
+      current,
+      hit.target,
+      one.condition,
+      source,
+      [],
+      { kind: 'seconds', seconds: one.durationSeconds },
+      undefined,
+      {},
+      undefined,
+      one.implies,
+    );
+    const landed = conditionLanding(applied);
+    if (!landed.ok) return landed;
+    if (landed.value.landed) land(landed.value.events);
+  }
+
+  // SRD Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by
+  // this attack." `creature-died` and not damage — a healthy creature taking
+  // exactly its maximum drops to 0 and does not die, which is the distinction
+  // this event exists for.
+  if (leaves.dies === true && current.creatures[hit.target]?.vitals.dead !== true) {
+    land([{ type: 'creature-died', id: hit.target, cause: option.name }]);
+  }
+
+  return ok(events);
 }
 
 /**
