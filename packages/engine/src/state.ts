@@ -1479,6 +1479,19 @@ export interface PendingCasting {
    */
   readonly option?: string;
   /**
+   * The ending the caster chose at the casting, kept for the settlement.
+   *
+   * Beside the branch above and for its reason: SRD Magic Mouth takes a minute
+   * to cast, so the caster's "you can have the spell end after it delivers its
+   * message" is said a minute before there is a casting to hang it on, and a
+   * settlement takes no fresh request to ask again. See
+   * `OngoingSpell.endsAfterTrigger`, which is where it lands.
+   *
+   * Absent for every spell that prints no such choice, which is what makes a
+   * declaration written before this folds to exactly the state it always did.
+   */
+  readonly endsAfterTrigger?: true;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "It does so with Advantage if you or your allies are

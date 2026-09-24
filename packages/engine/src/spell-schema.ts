@@ -144,6 +144,7 @@ const DEFENSE_KINDS: ReadonlySet<string> = new Set<DefenseKind>([
 /** Every operation {@link SpeedChange} names, as data, for untyped input. */
 const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>([
   'add',
+  'only',
   'halve',
   'zero',
   'match-walk',
@@ -1010,6 +1011,23 @@ function checkSpeedChange(
 
   checkSpeedMode(value, change, path, found, carries);
 
+  // **The two operations that carry feet**, and the second carries them for a
+  // different sentence: `add` is signed and changes what is there, while
+  // `only` states the whole of what is left — SRD Gaseous Form's "a Fly Speed
+  // of 10 feet" — so it is a distance rather than a difference and zero is not
+  // one.
+  if (change === 'only') {
+    if (!Number.isInteger(feet) || (feet as number) <= 0) {
+      found.push({
+        field: `${path}.feet`,
+        code: 'bad_speed_change',
+        reason:
+          'a Speed that replaces every other one is a distance rather than a difference; the SRD prints "a Fly Speed of 10 feet" and a Speed of nothing is not a method of movement',
+      });
+    }
+    return;
+  }
+
   if (change === 'add') {
     if (!Number.isInteger(feet) || feet === 0) {
       found.push({
@@ -1065,12 +1083,11 @@ function checkSpeedMode(
         reason: `only the standalone \`speed\` effect names a mode; a rider and an area both say "its Speed" and nothing reads a ${field} here`,
       });
     }
-    if (change === 'match-walk') {
+    if (change === 'match-walk' || change === 'only') {
       found.push({
         field: `${path}.change`,
         code: 'bad_speed_change',
-        reason:
-          '"match-walk" gives a Speed in a mode, and a rider and an area have no mode to give it in',
+        reason: `"${change}" gives a Speed in a mode, and a rider and an area have no mode to give it in`,
       });
     }
     return;
@@ -1081,7 +1098,9 @@ function checkSpeedMode(
   // Grappled's 0, Slow's halving and Ray of Frost's ten feet about the
   // creature rather than about a mode, so a `halve` naming one would promise
   // a narrowing no reader performs.
-  const gives = change === 'add' || change === 'match-walk';
+  // `only` gives a Speed too — it gives the *whole* of one — so a mode is not
+  // merely legal on it but required, which the clause below says.
+  const gives = change === 'add' || change === 'match-walk' || change === 'only';
   if (mode !== undefined && !gives) {
     found.push({
       field: `${path}.mode`,
@@ -1102,6 +1121,19 @@ function checkSpeedMode(
       code: 'bad_speed_change',
       reason:
         '"a Climb Speed equal to its Speed" names the mode it gives; matching the walking Speed to itself changes nothing',
+    });
+  }
+
+  // **And the only method of movement names which one it is**, for the reason
+  // the match above does: `speedOf` answers 0 for every mode but the one this
+  // grant names, and a grant naming none would take every Speed away and give
+  // none back.
+  if (change === 'only' && mode === undefined) {
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_speed_change',
+      reason:
+        '"the target\u2019s only method of movement is a Fly Speed of 10 feet" names the mode it leaves; a replacement naming none leaves nothing at all',
     });
   }
 
@@ -1679,8 +1711,18 @@ export function checkActionRule(
     // **A rule that forbids nothing is a sentence somebody meant to finish.**
     // It would validate, load, land on a creature and refuse nothing at all,
     // which is the silent wrong answer this whole file exists to refuse.
-    if ((rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0) {
-      bad('a rule that forbids no slot and no action forbids nothing; name what the spell takes away');
+    // **And a casting is the third thing a sentence of this shape may take**
+    // — SRD Gaseous Form: "the target can't attack or cast spells" — so it
+    // counts here, and a rule whose whole content is the casting forbids
+    // something.
+    if (rule.casting !== undefined && rule.casting !== true) {
+      bad('a rule either forbids casting or says nothing about it; `casting` is `true` or absent');
+    }
+    if (
+      (rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0 &&
+      rule.casting !== true
+    ) {
+      bad('a rule that forbids no slot, no action and no casting forbids nothing; name what the spell takes away');
     }
     return;
   }
@@ -5672,6 +5714,49 @@ export function checkSpellDefinition(
         field: 'concentrationEndsAtSlot',
         code: 'bad_slot_level',
         reason: `a band at level ${drops} is not a *higher* slot than this level ${definition.level} spell`,
+      });
+    }
+  }
+
+  /*
+   * The two endings the SRD prints as exceptions to the free dismissal, held
+   * to the reachability rule the rest of this file keeps.
+   *
+   * Both need a casting to end: an Instantaneous spell leaves nothing running,
+   * so an ending offered on one is a permission nothing could ever use. And a
+   * target's ending needs a target — SRD Gaseous Form is cast on a creature,
+   * and a spell aimed at nobody has nobody to take the Magic action.
+   */
+  if (definition.offersEndAfterTrigger === true && !castingPersists(definition)) {
+    found.push({
+      field: 'offersEndAfterTrigger',
+      code: 'dismissal_without_a_casting',
+      reason:
+        'an Instantaneous casting is over already, so there is nothing for its caster to have chosen to end',
+    });
+  }
+
+  if (definition.dismissibleBy !== undefined) {
+    if (definition.dismissibleBy !== 'target') {
+      found.push({
+        field: 'dismissibleBy',
+        code: 'bad_dismissal',
+        reason: `"${String(definition.dismissibleBy)}" is not somebody who may end a casting; the SRD names the target and nobody else`,
+      });
+    }
+    if (!castingPersists(definition)) {
+      found.push({
+        field: 'dismissibleBy',
+        code: 'dismissal_without_a_casting',
+        reason:
+          'an Instantaneous casting is over already, so there is nothing for its target to end',
+      });
+    }
+    if (definition.targets.count === 0 && definition.targets.unlimited !== true) {
+      found.push({
+        field: 'dismissibleBy',
+        code: 'dismissal_without_a_target',
+        reason: 'this spell is cast on nobody, so there is no target to take the action',
       });
     }
   }

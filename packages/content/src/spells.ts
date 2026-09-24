@@ -6811,15 +6811,23 @@ export const MAGIC_MOUTH: SpellDefinition = {
   effects: [],
   // "Duration: Until dispelled" — no deadline, so no timer.
   untilDispelled: true,
-  // **Eight sentences handed over and one that is not.** The object, the
+  // "When you cast this spell, you can have the spell end after it delivers
+  // its message, or it can remain and repeat its message whenever the trigger
+  // occurs." The free dismissal is printed for a **time span** and this spell
+  // has none, so without the caster's word at the casting there is no way out
+  // of it at all. What fires it is the table's — the engine holds no mouth and
+  // no message — so what the fact buys is the permission, and the DM spends it
+  // when the mouth has spoken.
+  offersEndAfterTrigger: true,
+  // **Eight sentences handed over and one that is executed.** The object, the
   // message, the mouth and the circumstance somebody watches for are fiction —
   // "condition" here means circumstance rather than any of the fifteen the
   // engine applies, which is what the tracked map's `'table'` reading of the
-  // opening sentence says. What is left is the caster's choice at the casting,
-  // and it is a debt this definition's own note already named: SRD prints the
-  // free dismissal for a **time span** and this spell lasts until dispelled, so
-  // `endOngoingSpell` refuses it and there is no way to end it early whichever
-  // way the choice went.
+  // opening sentence says. What was left is the caster's choice at the
+  // casting, and it is written now: `offersEndAfterTrigger` is the printed
+  // offer, `CastSpellRequest.endsAfterTrigger` is the answer, and the record
+  // keeps it so `endOngoingSpell` stops refusing a casting whose caster said
+  // it could end.
   dmDecides: [
     'You implant a message within an object in range—a message that is uttered when a trigger condition is met.',
     "Choose an object that you can see and that isn't being worn or carried by another creature.",
@@ -6830,9 +6838,7 @@ export const MAGIC_MOUTH: SpellDefinition = {
     'The trigger can be as general or as detailed as you like, though it must be based on visual or audible conditions that occur within 30 feet of the object.',
     'For example, you could instruct the mouth to speak when any creature moves within 30 feet of the object or when a silver bell rings within 30 feet of it.',
   ],
-  unmodelled: [
-    'the choice the caster makes at the casting — "When you cast this spell, you can have the spell end after it delivers its message" — is not offered: `endOngoingSpell` ends a casting by id and refuses this one, because SRD prints the free dismissal for a **time span** and this spell lasts until dispelled, so there is no way for the caster to end it early however the choice went (`a-casting-dismissed-early`, the same duration form Instant Summons carries)',
-  ],
+
 };
 
 /**
@@ -7069,8 +7075,27 @@ export const GASEOUS_FORM: SpellDefinition = {
       kind: 'roll-mode',
       modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'con' } },
     },
+    // "While in this form, the target's **only** method of movement is a Fly
+    // Speed of 10 feet, and it can hover." One operation rather than a Speed
+    // granted beside four taken away: `speedOf` answers 0 for every other
+    // mode, so a Longstrider standing on the same creature does not put ten
+    // feet of walking back into a body that has no legs. The hovering is what
+    // `flightLost` reads, so a cloud that stops does not fall.
+    { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true },
+    // "Finally, the target can't attack or cast spells." Two halves of one
+    // sentence in one rule: the Attack action is one of the twelve a spender
+    // names itself as, and a casting is the third thing a `forbids` may take —
+    // read by `castSpell`, because a casting comes out of three different
+    // slots and no one of them names it.
+    { kind: 'action-rule', rule: { kind: 'forbids', actions: ['attack'], casting: true } },
   ],
   durationSeconds: 3600,
+  // "or if it takes a Magic action to end the spell on itself" — both
+  // exceptions to the free dismissal in one clause: the **target** ends it,
+  // and the book charges an action. `endOngoingSpellOnSelf` is the door, and
+  // it ends the casting on that target alone, exactly as the trigger below
+  // does for the same sentence's other half.
+  dismissibleBy: 'target',
   // "The spell ends on the target if it drops to 0 Hit Points" — on that
   // target, which is the half of the sentence a higher slot makes visible:
   // level 4 puts two creatures in mist and one of them falling leaves the
@@ -7078,10 +7103,8 @@ export const GASEOUS_FORM: SpellDefinition = {
   endsEarly: [{ on: 'target-drops-to-0', ends: 'target' }],
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
-    'the target ending it "as a Magic action" is not offered: `endOngoingSpell` is the caster’s door and costs nothing, and this sentence prints both exceptions — the **target** ends it, and the book charges a Magic action for the ending',
-    'the movement is not changed: "the target’s only method of movement is a Fly Speed of 10 feet, and it can hover" needs a movement mode, and the engine tracks one Speed and no modes — so the target keeps the Speed it had',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
-    'the things the cloud cannot do are not forbidden: "The target can’t talk or manipulate objects", "any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with", and "the target can’t attack or cast spells" are an action economy rider and a fact about what is in a creature’s hands, and the engine has neither',
+    'two of the things the cloud cannot do are not forbidden: "The target can’t talk or manipulate objects" and "any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with" — talking is nothing anybody spends, and what is in a creature’s hands is a fact the engine does not hold. The other two of that sentence are taken away: the Attack action and the casting',
   ],
 };
 

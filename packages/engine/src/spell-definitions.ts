@@ -998,7 +998,7 @@ export type ModifierRider =
        * Speed in. `checkSpeedChange` refuses the member at the door too, for
        * untyped input.
        */
-      readonly change: Exclude<SpeedChange, 'match-walk'>;
+      readonly change: Exclude<SpeedChange, 'match-walk' | 'only'>;
       /** Signed feet, required by `add` and refused by the other two. */
       readonly feet?: number;
       /**
@@ -4995,6 +4995,53 @@ export interface SpellDefinition {
    * deadline, so a field that meant both would have made that spell wrong.
    */
   readonly untilDispelledAtSlot?: number;
+  /**
+   * The spell offers its caster, **at the casting**, an ending the book
+   * otherwise gives them none of.
+   *
+   * > SRD Magic Mouth: "When you cast this spell, you can have the spell end
+   * > after it delivers its message, or it can remain and repeat its message
+   * > whenever the trigger occurs."
+   *
+   * The free dismissal `endOngoingSpell` performs is printed for a **Time
+   * Span** duration, and this spell lasts until dispelled — so without the
+   * caster's word at the casting there is no way out of it at all, which is
+   * the refusal `not_dismissible` states. This is the offer; the answer is
+   * `CastSpellRequest.endsAfterTrigger`, and it is pinned on the ongoing
+   * record because a definition corrected next month must not decide whether
+   * a casting made today can be let go.
+   *
+   * **The trigger itself is the table's.** The engine holds no mouth and no
+   * message, so nothing here fires: what the fact buys is the *permission*,
+   * and the DM ends the casting when the mouth has spoken.
+   *
+   * Refused on a definition that leaves no casting running, which is the
+   * reachability rule every other field of this shape keeps.
+   */
+  readonly offersEndAfterTrigger?: true;
+  /**
+   * Somebody other than the caster may end the casting, and pays for it.
+   *
+   * > SRD Gaseous Form: "The spell ends on the target if it drops to 0 Hit
+   * > Points **or if it takes a Magic action to end the spell on itself**."
+   *
+   * Both exceptions to the general dismissal in one clause: the **target**
+   * ends it rather than the caster, and the book charges a Magic action where
+   * a dismissal costs none. `endOngoingSpellOnSelf` is the door, and it ends
+   * the casting **on that target** rather than everywhere — which is the half
+   * a higher slot makes visible, exactly as the `target-drops-to-0` trigger
+   * beside it in the same sentence does.
+   *
+   * **A bare `'target'` rather than a record with a price in it**, because
+   * both SRD spells that print the clause print the same price: Animal Shapes
+   * and Gaseous Form each charge a Magic action. A spell that charged
+   * something else would be a second field rather than a second value, for
+   * the reason `concentrationEndsAtSlot` is not folded into `durationAtSlot`.
+   *
+   * Refused on a definition that leaves no casting running, and on one that is
+   * cast at nobody: a target's ending needs a target.
+   */
+  readonly dismissibleBy?: 'target';
   /**
    * Parts of the printed spell this definition does **not** do.
    *

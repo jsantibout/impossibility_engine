@@ -246,6 +246,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'flame-blade',
   'flame-strike',
   'fog-cloud',
+  // `dismissals-and-the-cloud.test.ts` (engine): the Fly Speed of 10 that is
+  // the whole of how the cloud moves, the walking and swimming Speeds it
+  // takes away, the hovering that keeps a stopped cloud up, the Attack
+  // action and the casting it refuses, and the Magic action its target
+  // spends to end it — which its caster's ally may not spend at all.
+  'gaseous-form',
   'goodberry',
   'grease',
   'greater-invisibility',
@@ -302,6 +308,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // slot, the caster's own uneven split, a Sanctuary ward turning them away
   // and a Resistance halving each dart rather than the pool.
   'magic-missile',
+  // `dismissals-and-the-cloud.test.ts` (engine): the rite of a minute
+  // declared with the ending its caster chose, settled, and then ended by
+  // that caster — and the same rite with nothing said refused
+  // `not_dismissible`, because the book prints a casting that runs until
+  // dispelled no ending at all.
+  'magic-mouth',
   // `slot-changes-the-ending.test.ts` (engine): the illusion cast at a level 3
   // slot with a Concentration and a deadline, the same illusion at a level 4
   // slot with neither and still findable, and the Investigation check it could

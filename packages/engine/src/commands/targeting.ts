@@ -227,6 +227,21 @@ export interface AimedRolls {
 export interface CastSpellRequest extends CommandIdentity {
   readonly spellId: string;
   /**
+   * The eleventh stated fact: the caster chooses, **at the casting**, that
+   * this casting can be ended early.
+   *
+   * > SRD Magic Mouth: "When you cast this spell, you can have the spell end
+   * > after it delivers its message, or it can remain and repeat its message
+   * > whenever the trigger occurs."
+   *
+   * Refused where the spell prints no such choice, required nowhere, and
+   * pinned on the ongoing record where it was said — see
+   * `SpellDefinition.offersEndAfterTrigger`, which is the printed clause it
+   * answers. `false` and absent mean the same thing and both leave the casting
+   * with no ending its caster can reach, which is what the book prints.
+   */
+  readonly endsAfterTrigger?: boolean;
+  /**
    * Who to aim at. Empty for an area spell, which picks its own.
    *
    * Maestro has already resolved "him" to an id by the time this arrives; the
@@ -1095,6 +1110,20 @@ export function declaredFacts(
         );
       }
     }
+  }
+
+  // — the ending the caster chooses at the casting —————————————————————————
+  //
+  // SRD Magic Mouth's "you can have the spell end after it delivers its
+  // message", which takes the shape the designation above takes: **refused**
+  // where the spell prints no such clause, and never required, because the
+  // other half of the sentence — "or it can remain and repeat its message" —
+  // is what a casting that says nothing has chosen.
+  if (request.endsAfterTrigger !== undefined && definition.offersEndAfterTrigger !== true) {
+    return err(
+      'no_early_ending',
+      `${definition.name} does not let its caster choose at the casting that it can be ended early`,
+    );
   }
 
   // — is the caster fighting the target ————————————————————————————————————

@@ -764,8 +764,8 @@ describe('every member of the change vocabulary has a user or a written reason',
     return found;
   };
 
-  it('declares the four the SRD writes and no more', () => {
-    expect(declared()).toEqual(['add', 'halve', 'zero', 'match-walk']);
+  it('declares the five the SRD writes and no more', () => {
+    expect(declared()).toEqual(['add', 'only', 'halve', 'zero', 'match-walk']);
   });
 
   it('writes every member from some definition, or says why not', () => {

@@ -2453,11 +2453,9 @@ describe('a consumer count is a query', () => {
    * `speed-and-movement-modes` was the example and is gone; `movement-modes`
    * is the half of it that stands, and it now spans all three populations —
    * one executed definition, two tracked ones and a run of undefined spells —
-   * which is the property being asserted. The executed claimant is Gaseous
-   * Form, whose Fly Speed of 10 feet is the one clause of a partial definition
-   * this shape still holds; it had none until that spell was written, because
-   * IE-033 built the modifier half, which was the only half any *definition*
-   * had.
+   * which is the property being asserted. The executed claimants were Gaseous
+   * Form, Levitate and Wind Walk; the first has since left the shape by being
+   * built, and the other two still hold a clause each.
    */
   it('adds all three populations up', () => {
     const modes = consumersOf('movement-modes');
@@ -2474,7 +2472,14 @@ describe('a consumer count is a query', () => {
     // twenty feet up walks its ordinary Speed sideways through the air,
     // because `checkRise` refuses a rise and asks nothing of a creature that
     // is already off the ground.
-    expect(modes.executed).toEqual(['gaseous-form', 'levitate', 'wind-walk']);
+    //
+    // **And Gaseous Form has left the shape altogether**, which is the third
+    // way a claimant goes: not moving column and not being dropped, but being
+    // built. Its "only method of movement is a Fly Speed of 10 feet, and it
+    // can hover" is one `SpeedChange` now — `only`, which replaces every
+    // other Speed rather than adding a mode beside them — so the shape has
+    // one fewer executed claimant and still spans two populations.
+    expect(modes.executed).toEqual(['levitate', 'wind-walk']);
     // **Fly and Spider Climb left the shape rather than moving column**,
     // which is what building a writer looks like from here: the two are
     // executed definitions now, and neither has a clause this shape still
@@ -3142,10 +3147,13 @@ describe('the shape that was built three tranches before its entries were re-rea
    */
   it('files the two clauses the twelve carry under a marker', () => {
     expect(TRACKED_ADJUDICATED['hallucinatory-terrain']?.map((e) => e.why)).toEqual(['engine']);
-    expect(TRACKED_ADJUDICATED['magic-mouth']?.map((e) => e.why)).toEqual([
-      'table',
-      'a-casting-dismissed-early',
-    ]);
+    // **And Magic Mouth's second entry has left by being paid**, which is the
+    // other end of the paragraph above: the sentence a marker could not see
+    // was carried until the mechanism arrived, `offersEndAfterTrigger` is it,
+    // and what is left of the spell is the one clause a marker *could* have
+    // demanded. So the narrowing this assertion was written to make holds
+    // with nothing beside it.
+    expect(TRACKED_ADJUDICATED['magic-mouth']?.map((e) => e.why)).toEqual(['table']);
     for (const id of ['hallucinatory-terrain', 'magic-mouth']) {
       expect(
         (TRACKED_ADJUDICATED[id] ?? []).filter((entry) => entry.marker !== null).length,

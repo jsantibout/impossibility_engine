@@ -614,6 +614,36 @@ export interface OngoingSpell {
    * casting that was keeping nothing.
    */
   readonly preserving?: number;
+  /**
+   * The caster said at the casting that this one could be ended early — SRD
+   * Magic Mouth.
+   *
+   * > "When you cast this spell, you can have the spell end after it delivers
+   * > its message."
+   *
+   * The free dismissal is printed for a **Time Span** duration and this
+   * casting runs until dispelled, so without this it has no ending at all;
+   * `endOngoingSpell` reads it and is the only reader. What fires it is the
+   * table's — the engine holds no mouth and no message — so the fact buys the
+   * permission and the DM spends it when the mouth has spoken.
+   *
+   * Pinned at the cast rather than read back out of the definition, for the
+   * reason `endOngoingSpell` reads a *timer* rather than a duration: a
+   * definition corrected next month must not decide whether a casting made
+   * today can be let go.
+   */
+  readonly endsAfterTrigger?: true;
+  /**
+   * Somebody other than the caster may end this casting, and pays for it —
+   * SRD Gaseous Form's "if it takes a Magic action to end the spell on
+   * itself".
+   *
+   * `endOngoingSpellOnSelf` is the door and the only reader. Pinned at the
+   * cast for {@link endsAfterTrigger}'s reason, and absent on every other
+   * casting in the book — which is what every record written before the field
+   * existed means by saying nothing.
+   */
+  readonly dismissibleBy?: 'target';
 }
 
 /**

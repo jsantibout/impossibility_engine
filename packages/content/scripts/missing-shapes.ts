@@ -955,19 +955,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // casting — which a level 4 slot is what makes visible.
   'gaseous-form': [
     {
-      clause: 'the target ending it "as a Magic action" is not offered',
-      why: 'a-casting-dismissed-early',
-      note: 'SRD: "or if it takes a Magic action to end the spell on itself." The general dismissal is built — `endOngoingSpell` ends a casting by id — and this sentence prints both of the exceptions it does not carry: the creature ending it is the **target** rather than the caster, and the book charges a Magic action where a dismissal costs none.',
-    },
-    {
-      clause: 'a Fly Speed of 10 feet',
-      why: 'movement-modes',
-      note: 'SRD: "the target’s only method of movement is a Fly Speed of 10 feet, and it can hover." The engine tracks one Speed and no modes, so there is no way to say that walking is gone and flying is not — the target simply keeps the Speed it had.',
-    },
-    {
       clause: 'the things the cloud cannot do are not forbidden',
       why: 'an-action-the-engine-has-no-spender-for',
-      note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." Forbidding a named action is `ActionRule`’s `forbids` and four definitions write it; what this sentence forbids is **talking** and **handling an object**, and no command takes either — the second is the Utilize action, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one. Gate G1 read it as mis-filed for that reason, and the gap it names is the feature book’s.',
+      note: 'two of the four, and the other two are built: "Finally, the target can\u2019t attack or cast spells" is one `forbids` rule naming the Attack action and, through the field this track gave that arm, the casting. What is left is "The target can\u2019t talk or manipulate objects" and "any objects it was carrying or holding can\u2019t be dropped, used, or otherwise interacted with" \u2014 talking is not an action anything spends, and what is in a creature\u2019s hands is a fact the engine does not hold. The Magic action its target takes to end the spell is no longer here either: `endOngoingSpellOnSelf` is that door and it charges that price.',
     },
   ],
   'gust-of-wind': [
@@ -1634,12 +1624,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'a message that is uttered when a trigger condition is met',
       why: 'table',
       note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds. **P3-S6 read this spell to the end**: eight of its nine sentences are in the definition’s `dmDecides` now, and the ninth is the entry beside this one.',
-    },
-    {
-      marker: null,
-      clause: 'you can have the spell end after it delivers its message',
-      why: 'a-casting-dismissed-early',
-      note: 'the choice the caster makes at the casting is not offered, and it is the one sentence of this spell that is a debt rather than fiction: `endOngoingSpell` ends a casting of the caster’s own by id and refuses this one, because SRD prints the free dismissal for a **time span** and this spell lasts until dispelled. So there is no way to end it early however the choice went, which is the very exception the shape’s own description names. The definition’s `unmodelled` line has said so since it was written and no map entry carried it, which is the hole P3-S6 closed.',
     },
   ],
   'see-invisibility': [

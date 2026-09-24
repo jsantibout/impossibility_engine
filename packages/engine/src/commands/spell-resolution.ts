@@ -516,6 +516,19 @@ export function resolveDeclaredCast(
               // And the branch the declaration named, read back off the record
               // rather than from a fresh request there is none of.
               ...(pending.option === undefined ? {} : { option: pending.option }),
+              // And the three the atomic path pins one function along: the
+              // moment a body began being kept, the ending the caster chose,
+              // and the ending the spell gives its target. A rite of a minute
+              // leaves the same record a breath of an Action leaves.
+              ...(definition.effects.some((effect) => effect.kind === 'preserves')
+                ? { preserving: state.elapsed }
+                : {}),
+              ...(pending.endsAfterTrigger === undefined
+                ? {}
+                : { endsAfterTrigger: pending.endsAfterTrigger }),
+              ...(definition.dismissibleBy === undefined
+                ? {}
+                : { dismissibleBy: definition.dismissibleBy }),
               // The designation and the stated type reach the record the area
               // detectors read, exactly as they do on the atomic path: without
               // them a held Spirit Guardians catches a creature its caster
@@ -2138,6 +2151,16 @@ function resolveOnTargets(
     ...(definition.effects.some((effect) => effect.kind === 'preserves')
       ? { preserving: state.elapsed }
       : {}),
+    // **And the two endings the SRD prints as exceptions to the free
+    // dismissal.** One is the caster's word at the casting — SRD Magic Mouth's
+    // "you can have the spell end after it delivers its message" — and the
+    // other is the definition's own — SRD Gaseous Form's Magic action taken by
+    // the target. Both are pinned rather than looked up again, for the reason
+    // `endOngoingSpell` reads a timer rather than a printed Duration: a book
+    // corrected next month must not decide whether a casting made today can be
+    // let go.
+    ...(request.endsAfterTrigger === true ? { endsAfterTrigger: true as const } : {}),
+    ...(definition.dismissibleBy === undefined ? {} : { dismissibleBy: definition.dismissibleBy }),
   });
 
   /**
@@ -2612,6 +2635,10 @@ function resolveOnTargets(
               // And the word spoken, for the same reason: a Command declared
               // as Halt settles as Halt and as no other word.
               ...(request.option === undefined ? {} : { option: request.option }),
+              // And the ending chosen, for the same reason: SRD Magic Mouth is
+              // a rite of a minute, so the choice is made before there is a
+              // casting to put it on.
+              ...(request.endsAfterTrigger === true ? { endsAfterTrigger: true as const } : {}),
               // The fourth, and the one settlement could not possibly work
               // out again: where the caster said they were going.
               ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -3252,6 +3279,12 @@ export function resolveEffects(
         // And the moment the body began being kept — see
         // `OngoingSpell.preserving`, which `revive` is the one reader of.
         ...(becomes.preserving === undefined ? {} : { preserving: becomes.preserving }),
+        // And the two endings that are exceptions to the free dismissal — see
+        // `OngoingSpell.endsAfterTrigger` and `OngoingSpell.dismissibleBy`.
+        ...(becomes.endsAfterTrigger === undefined
+          ? {}
+          : { endsAfterTrigger: becomes.endsAfterTrigger }),
+        ...(becomes.dismissibleBy === undefined ? {} : { dismissibleBy: becomes.dismissibleBy }),
       },
     });
   }
@@ -3763,6 +3796,10 @@ interface OngoingRecordPlan {
   readonly option?: string;
   /** When this casting began keeping a body — see `OngoingSpell.preserving`. */
   readonly preserving?: number;
+  /** The ending its caster chose — see `OngoingSpell.endsAfterTrigger`. */
+  readonly endsAfterTrigger?: true;
+  /** Who else may end it — see `OngoingSpell.dismissibleBy`. */
+  readonly dismissibleBy?: 'target';
 }
 
 /**

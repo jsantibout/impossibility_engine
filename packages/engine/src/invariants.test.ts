@@ -76,6 +76,7 @@ import {
   dropItem,
   endConcentration,
   endOngoingSpell,
+  endOngoingSpellOnSelf,
   detachFrom,
   escapeGrapple,
   letGoOfAttachment,
@@ -1327,6 +1328,45 @@ const draining = (): readonly GameEvent[] => {
 };
 
 /**
+ * A in a mist of A's own making, with the Magic action the book charges for
+ * getting out of it still unspent.
+ *
+ * SRD Gaseous Form is the one casting in the book whose **target** may end it,
+ * and the caster may be the target — "a willing creature you touch", which
+ * includes you — so one creature is enough for the retry to be about the
+ * ending rather than about whose spell it is.
+ */
+const misting = (): readonly GameEvent[] => {
+  const armed: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['gaseous-form'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 2, recovers: 'long-rest' },
+    },
+  ];
+  const cast = [
+    ...armed,
+    ...unwrap(
+      resolveSpell(fold('s', armed), A, { spellId: 'gaseous-form', targets: [A], slotLevel: 3 }, supply()),
+      'the mist',
+    ).events,
+  ];
+  // The casting was the Action; the turn has to come round before the cloud
+  // has one to spend on getting out.
+  let log: readonly GameEvent[] = cast;
+  for (let n = 0; n < 2; n += 1) {
+    log = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
+  }
+  return log;
+};
+
+/**
  * A holding a conjured thing, and a hand that can let go of it.
  *
  * Goodberry, because it is the smallest of the shape: the casting puts ten
@@ -2566,6 +2606,16 @@ const GUARDED: readonly Guarded[] = [
     log: draining(),
     run: (s, commandId) => endOngoingSpell(s, A, 'cast:1', null, { commandId }),
   },
+  /**
+   * And the **target's** door out of the same casting, which is a spender: a
+   * retry that got past the guard would charge a second Magic action for an
+   * ending that had already happened.
+   */
+  {
+    name: 'endOngoingSpellOnSelf',
+    log: misting(),
+    run: (s, commandId) => endOngoingSpellOnSelf(s, A, 'cast:1', { commandId }),
+  },
   {
     // And the same command when it also moves a point. A retry that got past
     // the guard would move the force a second twenty feet, which no event
@@ -3583,6 +3633,13 @@ const SPENDERS: readonly Spender[] = [
    * at all, which is what this case is here to hold it to.
    */
   { name: 'continueCasting', run: (s) => continueCasting(s, B, 'cast:1', {}) },
+  /**
+   * The Magic action SRD Gaseous Form charges its **target** for ending the
+   * spell on itself. The casting id need only be well-formed: `mayAct` is
+   * asked immediately after the duplicate check and before the record is
+   * looked up, which is what this case holds it to.
+   */
+  { name: 'endOngoingSpellOnSelf', run: (s) => endOngoingSpellOnSelf(s, B, 'cast:1', {}) },
   /**
    * The three of the nine DM-declared events that are **not** declarations.
    *

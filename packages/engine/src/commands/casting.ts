@@ -558,6 +558,12 @@ export interface CastingPlan {
   readonly spellId: string;
   readonly targets: readonly CharacterId[];
   /**
+   * The ending its caster chose at the casting — SRD Magic Mouth, whose rite
+   * takes a minute, so the choice is made before there is a casting to put it
+   * on. See `PendingCasting.endsAfterTrigger`, which is where it waits.
+   */
+  readonly endsAfterTrigger?: true;
+  /**
    * How many of the casting's attack rolls each of `targets` takes, aligned to
    * that list by position.
    *
@@ -903,6 +909,23 @@ function castSpellWith(
     return err('shape_shifted', `${id} cannot cast while in ${worn.name}`);
   }
 
+  // SRD Gaseous Form: "the target can't attack or **cast spells**." The third
+  // sentence of this shape and the first that comes from a spell rather than
+  // from a feature the caster switched on, so it is read off the action rules
+  // standing on the creature — `ActionRule`'s `forbids` arm, whose `casting`
+  // field is the same word `activated` and `shapeShifts` carry one host along.
+  // Read here rather than at a spend, because a casting comes out of three
+  // different slots and no one of them names it.
+  const stilled = actionRulesOn(state, id).find(
+    (held) => held.rule.kind === 'forbids' && held.rule.casting === true,
+  );
+  if (stilled !== undefined) {
+    return err(
+      'casting_forbidden',
+      `${id} cannot cast: ${stilled.label} forbids it until ${stilled.until}`,
+    );
+  }
+
   // SRD: "You must have training with any armor you are wearing to cast spells
   // while wearing it."
   if (untrainedArmorPenalty(caster.sheet)) {
@@ -1092,6 +1115,12 @@ function castSpellWith(
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
         ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
         ...(command.hold.option === undefined ? {} : { option: command.hold.option }),
+        // And the ending its caster chose at the casting, carried the same
+        // way: SRD Magic Mouth is a rite of a minute, so the choice is made
+        // before there is a casting to put it on.
+        ...(command.hold.endsAfterTrigger === undefined
+          ? {}
+          : { endsAfterTrigger: command.hold.endsAfterTrigger }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.willing === undefined ? {} : { willing: command.hold.willing }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
@@ -1727,7 +1756,16 @@ export function endOngoingSpell(
     const timeSpan = Object.values(state.timers).some(
       (timer) => timer.target.kind === 'casting' && timer.target.castingId === castingId,
     );
-    if (!timeSpan && caster.concentration?.castingId !== castingId) {
+    // **And the one exception the book prints to that.** SRD Magic Mouth:
+    // "When you cast this spell, you can have the spell end after it delivers
+    // its message." The spell runs until dispelled and so has no time span,
+    // and the caster's word at the casting is what gives them a way out —
+    // read off the record, which is where the word was pinned, for the same
+    // reason the time span is read off a timer rather than off a Duration.
+    //
+    // What fires it is the table's: the engine holds no mouth and no message,
+    // so the permission is here and the moment is the DM's.
+    if (!timeSpan && record.endsAfterTrigger !== true && caster.concentration?.castingId !== castingId) {
       return err(
         'not_dismissible',
         `${record.spell} runs until dispelled and takes no Concentration, and SRD gives its caster no way to end it — the free dismissal is printed for a time span`,
@@ -1752,6 +1790,99 @@ export function endOngoingSpell(
         type: 'spell-ended',
         castingId,
         on,
+        reason: 'dismissed',
+        ...(stamp === null ? {} : { command: stamp }),
+      },
+    ]);
+  });
+}
+
+/**
+ * The **target** of a casting ends it on itself, and pays the action the book
+ * charges.
+ *
+ * > SRD Gaseous Form: "The spell ends on the target if it drops to 0 Hit
+ * > Points **or if it takes a Magic action to end the spell on itself**."
+ *
+ * One sentence and both exceptions to {@link endOngoingSpell} in it, which is
+ * why this is a second door rather than a flag on that one. That command is
+ * SRD's free dismissal — "**you** can dismiss it (no action required)" — and
+ * every word of it is wrong here: the creature ending this one is not the
+ * caster, it spends a Magic action, and what it ends is the casting **on
+ * itself** rather than everywhere. A spell at a level 4 slot has two creatures
+ * in mist and one of them condensing leaves the other one a cloud, which is
+ * exactly what the `target-drops-to-0` trigger in the same sentence already
+ * does.
+ *
+ * **Read off the record rather than off the catalogue**, which is
+ * {@link endOngoingSpell}'s rule and the reason `dismissibleBy` is pinned at
+ * the cast: a definition corrected next month must not decide whether a
+ * casting made today can be let go.
+ *
+ * **It is a spender**, so it is in `invariants.test.ts`'s `SPENDERS` list and
+ * charges through `spendAction` with the Magic action named — which means an
+ * action rule standing on the creature is asked, and a turn that has already
+ * spent its action is refused. A creature the casting is not on is refused
+ * outright: `no_effect_there` is the same answer `endOngoingSpell` gives a
+ * caller releasing a spell that is not there to release.
+ */
+export function endOngoingSpellOnSelf(
+  state: GameState,
+  id: CharacterId,
+  castingId: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `end-on-self:${castingId}:${id}`, command, () => [], (stamp) => {
+    const owed = mayAct(state, id);
+    if (owed !== null) return owed;
+
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const record = state.ongoing[castingId];
+    if (record === undefined) {
+      return err('not_ongoing', `${castingId} is not a spell that is still running`);
+    }
+
+    if (record.dismissibleBy !== 'target') {
+      return err(
+        'not_dismissible_by_target',
+        `${record.spell} gives its target no way to end it; only its caster may dismiss a casting`,
+      );
+    }
+
+    if (!isOn(state, record, id)) {
+      return err('no_effect_there', `${record.spell} is not on ${id}, so it cannot end there`);
+    }
+
+    if (isIncapacitated(creature.conditions)) {
+      return err('incapacitated', `${id} is Incapacitated and can't take an action`);
+    }
+
+    if (state.combat === null) {
+      return ok([
+        {
+          type: 'spell-ended',
+          castingId,
+          on: id,
+          reason: 'dismissed',
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+      ]);
+    }
+
+    const spent = spendAction(state.combat, id, creature.conditions, {
+      rules: actionRulesOn(state, id),
+      as: 'magic',
+    });
+    if (!spent.ok) return spent;
+
+    return ok([
+      { type: 'action-spent', id },
+      {
+        type: 'spell-ended',
+        castingId,
+        on: id,
         reason: 'dismissed',
         ...(stamp === null ? {} : { command: stamp }),
       },
