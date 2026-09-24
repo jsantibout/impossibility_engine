@@ -20,7 +20,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
-import { type DieEffect, explodeOnMax, parseNotation, rerollDice, type Rng } from '../dice.js';
+import { type DieEffect, explodeOnMax, parseNotation, rerollDice } from '../dice.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
 import { type RecordedRoll } from '../rolls.js';
 import { abilityModifier, type CharacterSheet } from '../character.js';
@@ -275,7 +275,13 @@ export function takeCastingReroll(
  * that reaches the target is the number the faces add up to.
  */
 export function rerollLowestDamageDice(
-  rng: Rng,
+  /**
+   * The whole supply and not a bare generator, which is `rollSpellDice`'s
+   * shape one function along and taken for its reason: a roller inside a
+   * command is handed what a command holds, and the boundary sweep reads a
+   * bare `Rng` on the engine's surface as a primitive a door might reach.
+   */
+  supply: Supply,
   components: readonly DamageComponent[],
   count: number,
   source: string,
@@ -295,7 +301,7 @@ export function rerollLowestDamageDice(
   for (const at of new Set(chosen.map((one) => one.at))) {
     const component = out[at]!;
     const thrown = rerollDice(
-      rng,
+      supply.rng,
       component.roll!,
       chosen.filter((one) => one.at === at).map((one) => one.index),
       source,

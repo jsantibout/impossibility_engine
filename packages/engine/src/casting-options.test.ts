@@ -318,11 +318,16 @@ describe('Metamagic compiles the options the player chose onto the sheet', () =>
 
   /**
    * An option the player did not take is not on the sheet at all, which is the
-   * whole of how a menu of ten becomes a menu of two.
+   * whole of how a menu of ten becomes a menu of two. Asserted over a *pair
+   * the player did take*, because all ten are priced now: what this says is
+   * that the other eight are absent.
    */
-  it('leaves off an option whose name the player did not pick', () => {
+  it('leaves off every option whose name the player did not pick', () => {
     const sheet = sheetOf(sorcerer(5, ['Careful Spell', 'Subtle Spell']));
-    expect(sheet.castingOptions ?? []).toEqual([]);
+    expect((sheet.castingOptions ?? []).map((option) => option.option)).toEqual([
+      'careful-spell',
+      'subtle-spell',
+    ]);
   });
 
   /** A Sorcerer 1 has no Metamagic, so there is nothing to elect. */

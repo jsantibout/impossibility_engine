@@ -129,7 +129,7 @@ const empowered = (
   );
   if (ctx.alters.reroll === null || !hasDice) return ok(components);
   const taken = takeCastingReroll(ctx.alters)!;
-  return rerollLowestDamageDice(ctx.supply.rng, components, taken.count, taken.source);
+  return rerollLowestDamageDice(ctx.supply, components, taken.count, taken.source);
 };
 
 /**

@@ -725,11 +725,10 @@ describe('what an election of these six may not do', () => {
     const log = table(sorcerer(['Seeking Spell', 'Distant Spell']), [drained]);
     const refused = attempt(log, {
       spellId: 'chromatic-orb',
-      targets: [TARGET],
+      targets: [ARMOURED],
       slotLevel: 1,
       damageType: 'fire',
       usingOptions: ['seeking-spell'],
-      targets: [ARMOURED],
     } as Request);
     expect(isErr(refused) && refused.code).toBe('no_points');
   });
