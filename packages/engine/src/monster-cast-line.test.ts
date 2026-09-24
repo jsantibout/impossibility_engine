@@ -466,7 +466,7 @@ describe('the rest of the book’s cast lines', () => {
   });
 });
 
-describe('the line is the only way to the route it opens', () => {
+describe('a casting does not find the route a line holds open', () => {
   /**
    * **The price is the heading's, so the route must not be reachable around
    * it.** A Priest whose Bless could be cast straight through `resolveSpell`
@@ -485,6 +485,43 @@ describe('the line is the only way to the route it opens', () => {
     );
     expect(isErr(around) && around.code).toBe('spell_not_available');
     expect(tallied(table.state.creatures[PRIEST]!.resources, perDayTallyKey(DIVINE_AID))).toBe(0);
+  });
+
+  /**
+   * **And the road that is still open, recorded rather than argued about.**
+   *
+   * `chooseRoute`'s named-source branch does not come through `routesFor`: it
+   * looks a source up on `granted` directly. So a caller that names the
+   * line's own source reaches the route and pays **none** of the heading's
+   * price — no recharge expended, no day's use counted — which is a gap and
+   * not a feature. The source is not even obscure: `look` reports it, and
+   * `routeLabel` writes it into every `spell-cast`.
+   *
+   * Closing it is one line in `chooseRoute` — refuse a grant whose
+   * `throughLine` is set unless the printed line's own door is calling — and
+   * a licence has to travel from that door to reach it, which is
+   * `commands/casting.ts` and `commands/targeting.ts`. This track owns
+   * neither, so the gap is written down here, asserted, and will fail loudly
+   * on the day somebody closes it. That is the same discipline the breach
+   * record in `origin-and-feature-sweep.test.ts` keeps.
+   */
+  it('records the road still open: naming the source reaches the route unpaid', () => {
+    const table = inTheChapel(PRIEST, 'priest');
+    const named = unwrap(
+      resolveSpell(
+        table.state,
+        PRIEST,
+        { spellId: 'bless', targets: [ALLY, OTHER], source: 'priest:divine-aid-3-day' },
+        supply(),
+      ),
+      'Bless through the named source',
+    );
+    const after = table.add(named.events);
+    // It casts, at the heading's casting time — and the heading's *price* goes
+    // nowhere, which is the whole of the gap.
+    expect(after.combat!.budgets[PRIEST]!.bonusAction).toBe(false);
+    expect(tallied(after.creatures[PRIEST]!.resources, perDayTallyKey(DIVINE_AID))).toBe(0);
+    expect(after.creatures[PRIEST]!.expendedLines).toEqual([]);
   });
 
   /**

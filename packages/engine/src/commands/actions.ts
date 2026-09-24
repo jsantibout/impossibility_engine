@@ -1691,12 +1691,18 @@ export function castPrintedLine(
           ...stated,
           spellId: wanted,
           targets: printed.selfOnly === true ? [id] : named,
-          // **The one road into a route the line holds open.** `routesFor`
-          // leaves it out of what a casting finds for itself, because the
-          // price is the heading's and a casting that reached it unasked
-          // would pay nothing; `chooseRoute` looks a named source up
-          // directly, and this is that name — read off the grant rather than
-          // rebuilt, so two spellings of one key cannot drift apart.
+          // **The route the line holds open, named.** `routesFor` leaves it
+          // out of what a casting finds for itself, because the price is the
+          // heading's and a casting that reached it unasked would pay
+          // nothing; `chooseRoute` looks a named source up directly, and this
+          // is that name — read off the grant rather than rebuilt, so two
+          // spellings of one key cannot drift apart.
+          //
+          // **It is not the only road, and that is recorded rather than
+          // claimed away**: any caller that names the same source reaches the
+          // same route without this door's price. See
+          // `GrantedSpell.throughLine` for what would close it and why the
+          // line is not here.
           source: route.source,
         },
         supply,

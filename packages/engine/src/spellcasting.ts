@@ -156,7 +156,20 @@ export interface GrantedSpell {
    * A route like that must not be castable **around** the line, or the price
    * would simply not be paid: a Priest would cast Bless all day. So
    * {@link routesFor} leaves it out of the routes a casting finds for itself,
-   * and `castPrintedLine` names its source, which is the one road in.
+   * and `castPrintedLine` names its source.
+   *
+   * **Half of that is closed and half is recorded**, which is said here rather
+   * than claimed away. A casting that names no source cannot reach one of
+   * these — `routesFor` is the whole of what it searches. A casting that
+   * **names the source** still can: `chooseRoute`'s named branch looks a
+   * source up on `granted` directly, without passing through `routesFor`, and
+   * the string is published (`look` reports it, and `routeLabel` writes it
+   * into every `spell-cast`). Closing that is one line in `chooseRoute` —
+   * refuse a grant whose `throughLine` is set unless the printed line's own
+   * door is calling — and it needs a licence to travel from that door, which
+   * is `commands/casting.ts` and `commands/targeting.ts` rather than this
+   * file. `monster-cast-line.test.ts` records the gap as a test, so the day it
+   * closes the test says so.
    *
    * Absent is every other grant in the book — a feat's, a feature's, an
    * item's — each of which carries its own price and is cast wherever its
@@ -345,7 +358,12 @@ export type CastingRoute =
  * itself, because the price is the heading's rather than the route's: a
  * creature that could reach one from here would cast it without the day's use
  * or the recharge going anywhere. `castPrintedLine` names the source, which
- * `chooseRoute` looks up directly, and that is the one road in.
+ * `chooseRoute` looks up directly.
+ *
+ * **This closes the road a casting takes when it names nothing, and only
+ * that one.** `chooseRoute`'s named-source branch does not come through here,
+ * so a caller that names the line's source still reaches the route — see
+ * {@link GrantedSpell.throughLine}, which says what would close it and where.
  */
 export function routesFor(
   spellcasting: SpellcastingState,
