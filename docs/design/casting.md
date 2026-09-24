@@ -51,6 +51,15 @@ says which shape it was written in; `ongoing-compatibility.ts` upgrades an
 older one and needs legacy content only for a record that never wrote its
 area down.
 
+A casting may host a repeat save of its own (SRD Searing Smite: the target
+"takes 1d6 Fire damage and then makes a Constitution saving throw" at the
+start of each of its turns): the casting's timer carries the `RepeatSave`, the
+boundary raises it with the casting's own mark as the source, `beforeTheSave`
+is paid through the damage funnel before the die is thrown, and a success ends
+the casting. A smite cast on a hit keeps its record and timer when the spell
+prints a duration (`castOnHit`), which is how Shining Smite's minute and
+Concentration are enforced; Divine Smite is Instantaneous and leaves none.
+
 ## A summons and its one lifetime
 
 A casting that leaves a record holds its creature there and takes it away

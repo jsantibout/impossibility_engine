@@ -1717,3 +1717,15 @@ Appended after wave four (2026-09-23), four tracks merged and one in flight:
   (Sea Hag's glare, then Incubus' threshold branch); and the attach family
   (Water Elemental's Whelm, Darkmantle, Stirge) as a hold with a per-turn
   payout.
+- **True Strike and Searing Smite merged.** A `weapon-attack` effect is the
+  cantrip cast with the swing, refused at `cast_spell` (`cast_with_a_swing`)
+  and taken by `attack.cantrip`; the Cantrip Upgrade is a band table keyed by
+  character level because `DiceScaling` cannot say "no dice below 5". A
+  Magic-action swing emits no `attack-made`, so `target-attacks` (the Attack
+  action) does not fire for it — Invisibility survives a True Strike miss or
+  hit alike until the damage lands. A smite with a duration now keeps its
+  record and timer (`castOnHit`'s `keptRunning`), which gave Shining Smite the
+  Concentration cap it never had; a casting hosts a repeat save with a payout
+  before the roll (`beforeTheSave`), raised with the casting's own mark as the
+  source. Two defensive paths are undriven by any SRD spell: a payout that
+  orphans its own save, and several payouts in one boundary.

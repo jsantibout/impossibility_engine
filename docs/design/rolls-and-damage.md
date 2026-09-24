@@ -94,8 +94,18 @@ Damage is typed components, not a number: each component has a type and a
 source, meets the target's defences per type (resistance, vulnerability,
 immunity — the creature's own plus granted ones with a source that can end),
 and a critical doubles the dice of every component that came from the hit.
-`reduceDamage` takes its amount off the total. `resolveDamage` lands the
-damage and settles the Concentration save it put at risk in one command.
+`reduceDamage` takes its amount off the total. A granted reduction (SRD
+Resistance's d4, `damage-reduction.ts`) is rolled where the damage lands and
+fed to `adjustmentsFor` on both the ordinary and the held road, so it comes off
+before the halving — the SRD's order — and once per turn through the
+`feature-used` ledger. `resolveDamage` lands the damage and settles the
+Concentration save it put at risk in one command.
+
+A cantrip may be cast **with** a swing (SRD True Strike): `AttackCommand.cantrip`
+names it, the attack command casts it as the Magic action before the roll, a
+`weapon-attack` effect imposes the spellcasting ability on both rolls and
+offers its damage type, and no `attack-made` is emitted because no Attack
+action was spent. Nothing outlives the swing.
 
 ## Reaction windows
 
