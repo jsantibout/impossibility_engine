@@ -33,6 +33,7 @@ import {
   type FeatureDefinition,
   type FeatureGrant,
   type CastingOptionGrant,
+  type HitOptionGrant,
   type PoolOptionGrant,
   type SubclassDefinition,
 } from './progression.js';
@@ -2246,11 +2247,18 @@ function featureOptionProblems(
   // declaring one confers something even with an empty list, so it is counted
   // here beside the other two.
   const adds = (option as unknown as { readonly extraDamage?: unknown }).extraDamage;
+  // **And feet the rider hands its holder are the fifth**, which is the whole
+  // of SRD Cunning Strike's Withdraw: "Immediately after the attack, you move
+  // up to half your Speed without provoking Opportunity Attacks" — a move, no
+  // save, nothing hung on the creature that was struck. Counted here for the
+  // reason the shove above it is: an option that buys one buys something.
+  const walks = (option as unknown as { readonly handsMove?: unknown }).handsMove;
   if (
     option.effects.length === 0 &&
     divides === undefined &&
     shoves === undefined &&
-    adds === undefined
+    adds === undefined &&
+    walks === undefined
   ) {
     say('empty_feature_option', 'an option that confers an empty list buys nothing', `${at}.effects`);
   }
@@ -3019,6 +3027,30 @@ function hitRiderProblems(
     );
   }
 
+  // SRD Cunning Strike: "the number of Sneak Attack damage dice you must forgo
+  // to add the effect."
+  //
+  // **One currency, and the grant says which.** A rider priced in a pool *and*
+  // in another feature's dice is two prices for one purchase with nothing to
+  // say which is paid first, and neither half of the engine would know that
+  // the other had charged. The book prices each of these sentences once.
+  if (grant.forgoesDiceOf !== undefined) {
+    if (!isString(grant.forgoesDiceOf) || grant.forgoesDiceOf.trim() === '') {
+      say(
+        'bad_rider_dice_source',
+        'the feature whose dice a rider forgoes is named by its id, and a blank name names nothing',
+        `${at}.forgoesDiceOf`,
+      );
+    }
+    if (grant.pool !== undefined) {
+      say(
+        'rider_priced_twice',
+        `${featureId} is paid for both out of ${grant.pool} and in dice ${String(grant.forgoesDiceOf)} rolls, and a rider is bought with one currency`,
+        `${at}.forgoesDiceOf`,
+      );
+    }
+  }
+
   if (!Array.isArray(grant.options) || grant.options.length === 0) {
     say(
       'rider_without_options',
@@ -3027,6 +3059,54 @@ function hitRiderProblems(
     );
     return found;
   }
+
+  // The two halves of the dice price, each refused without the other. A count
+  // with no feature to take it from is a number the swing would silently not
+  // spend — `rider_cost_without_a_pool`'s rule one currency along — and a
+  // feature named with nothing costing anything is a price nobody pays, which
+  // is the same silence read the other way round.
+  (grant.options as readonly HitOptionGrant[]).forEach((option, index) => {
+    if (option?.costsDice === undefined) return;
+    if (!Number.isInteger(option.costsDice) || option.costsDice < 1) {
+      say(
+        'bad_rider_dice_cost',
+        `a rider forgoes a whole number of dice of at least one, got ${String(option.costsDice)}`,
+        `${at}.options[${index}].costsDice`,
+      );
+    }
+    if (grant.forgoesDiceOf === undefined) {
+      say(
+        'dice_cost_without_a_source',
+        `${featureId} prices "${String(option.id)}" in dice and names no feature to forgo them from; an option the book charges nothing for omits both`,
+        `${at}.options[${index}].costsDice`,
+      );
+    }
+  });
+  if (
+    grant.forgoesDiceOf !== undefined &&
+    !(grant.options as readonly HitOptionGrant[]).some((option) => option?.costsDice !== undefined)
+  ) {
+    say(
+      'dice_source_without_a_cost',
+      `${featureId} forgoes dice ${String(grant.forgoesDiceOf)} rolls and no option it prints costs any`,
+      `${at}.forgoesDiceOf`,
+    );
+  }
+
+  // SRD Cunning Strike's Trip prints the size gate and Poison does not, so the
+  // clause is the option's as readily as the grant's — and either spelling is
+  // held to the same printed vocabulary, because `effectiveSizeOf` is the one
+  // reader of both and a size nobody prints refuses every swing silently.
+  (grant.options as readonly HitOptionGrant[]).forEach((option, index) => {
+    if (option?.targetNoLargerThan === undefined) return;
+    if (!CREATURE_SIZE_NAMES.has(String(option.targetNoLargerThan))) {
+      say(
+        'bad_rider_size_limit',
+        `a rider that reaches only smaller creatures names one of the printed sizes, not "${String(option.targetNoLargerThan)}"`,
+        `${at}.options[${index}].targetNoLargerThan`,
+      );
+    }
+  });
 
   found.push(
     ...featureOptionsProblems(
@@ -4781,6 +4861,43 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           problems.push(
             ...hitRiderProblems(feature.id, grant, `${grantsAt}`, source.levels),
           );
+          // And the two names a rider's price uses that only the catalogue can
+          // check. The feature whose dice pay is `recoversSooner.withFeature`'s
+          // question exactly — an id nothing in reach carries is a price the
+          // swing refuses at the table rather than here — and a rider that
+          // forgoes its *own* dice is a feature paying itself.
+          if (grant.forgoesDiceOf !== undefined) {
+            const payer = byId(source.inScope ?? source.features).get(grant.forgoesDiceOf);
+            if (payer === undefined || payer.id === feature.id) {
+              problems.push({
+                field: `${grantsAt}.forgoesDiceOf`,
+                code: 'bad_forgone_dice',
+                reason: `${feature.id} is paid for with dice ${grant.forgoesDiceOf} rolls, and no other feature ${source.where} reaches carries that id`,
+              });
+            }
+          }
+          // SRD Cunning Strike's Poison: "you must have a Poisoner's Kit on
+          // your person." A kit is an item, so the id is held to the catalogue
+          // the feature was loaded with — an item nobody sells is a rider that
+          // can never be bought.
+          //
+          // **A catalogue with no items at all judges nothing**, the rule a
+          // conjured item's own check already follows: a fixture holding one
+          // class and no equipment is not a class file with a broken rider.
+          // Guarded, because this door takes JSON text: `hitRiderProblems` has
+          // already said `rider_without_options` about a value that is not a
+          // list, and traversing it here would turn that value into a throw.
+          const offered = Array.isArray(grant.options) ? grant.options : [];
+          offered.forEach((option, index) => {
+            if (option?.requiresItem === undefined || items.length === 0) return;
+            if (!items.some((item) => item.id === option.requiresItem)) {
+              problems.push({
+                field: `${grantsAt}.options[${index}].requiresItem`,
+                code: 'unknown_required_item',
+                reason: `"${String(option.id)}" needs ${option.requiresItem} on its holder's person, and no item carries that id`,
+              });
+            }
+          });
         }
         // And the item's other sizing, refused for the sharper half of the same
         // reason: no class table has ever rolled, and only the doors that hand

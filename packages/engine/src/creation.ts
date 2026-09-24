@@ -3429,6 +3429,7 @@ export function planCharacter(
     const ability = grant.saveAbility ?? castingAbilityFor(feature.id);
 
     for (const option of grant.options) {
+      const sizedTo = option.targetNoLargerThan ?? grant.targetNoLargerThan;
       hitOptions.push({
         feature: feature.id,
         featureName: feature.name,
@@ -3448,10 +3449,23 @@ export function planCharacter(
         ...(grant.fromGrant === undefined ? {} : { fromGrant: grant.fromGrant }),
         // SRD Hill's Tumble: "when you hit a **Large or smaller** creature".
         // On the grant because the SRD writes it in the trigger sentence, and
-        // carried onto each option because the swing is what reads it.
-        ...(grant.targetNoLargerThan === undefined
-          ? {}
-          : { targetNoLargerThan: grant.targetNoLargerThan }),
+        // carried onto each option because the swing is what reads it — or on
+        // the option itself, where the book prints the clause on one of
+        // several: SRD Cunning Strike gates Trip on a size and Poison on
+        // nothing. The narrower sentence wins.
+        ...(sizedTo === undefined ? {} : { targetNoLargerThan: sizedTo }),
+        // SRD Cunning Strike: "the number of Sneak Attack damage dice you must
+        // forgo". The feature whose dice pay is the grant's, because it is
+        // written once in the trigger sentence; the count is the option's,
+        // because the book writes it on each effect.
+        ...(grant.forgoesDiceOf === undefined ? {} : { forgoesDiceOf: grant.forgoesDiceOf }),
+        ...(option.costsDice === undefined ? {} : { costsDice: option.costsDice }),
+        // "you must have a Poisoner's Kit on your person" — an item id, read
+        // off the inventory at the swing.
+        ...(option.requiresItem === undefined ? {} : { requiresItem: option.requiresItem }),
+        // "you move up to half your Speed without provoking Opportunity
+        // Attacks" — the feet SRD Tactical Shift already hands a turn.
+        ...(option.handsMove === undefined ? {} : { handsMove: option.handsMove }),
         effects: option.effects,
         ability,
         ...(option.lasts === undefined ? {} : { lasts: option.lasts }),

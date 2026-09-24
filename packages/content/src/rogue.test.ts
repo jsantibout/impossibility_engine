@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { featureGrants, type FeatureDefinition } from '@ie/engine';
+import { featureGrants, type FeatureDefinition, type FeatureGrant } from '@ie/engine';
 import { ROGUE, SNEAK_ATTACK_DICE, SRD_CONTENT, THIEF, WIZARD } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap } from '@ie/shared';
 import { armorClass, proficiencyBonusForLevel, skillModifier } from '@ie/engine';
@@ -280,5 +280,85 @@ describe('Steady Aim is declared rather than left to the table', () => {
     expect(compiled?.action).toBe('bonus-action');
     expect(compiled?.onlyIfUnmoved).toBe(true);
     expect(compiled?.hangs).toHaveLength(2);
+  });
+});
+
+/**
+ * Cunning Strike, as the catalogue writes it and as the sheet compiles it.
+ *
+ * The execution is `packages/engine/src/cunning-strike.test.ts`'s; what is
+ * here is the transcription, and the two clauses it is easiest to get wrong
+ * are both about **where the SRD prints a thing**. The die cost is on each
+ * effect ("Each effect has a die cost") rather than on the feature, and the
+ * size gate is on Trip alone — so a Poison put in an Ogre is legal and a Trip
+ * is not.
+ */
+describe('Cunning Strike prices three effects in Sneak Attack dice', () => {
+  const cunning = ROGUE.features.find((feature) => feature.id === 'rogue:cunning-strike');
+
+  const onHit = (): Extract<FeatureGrant, { kind: 'on-hit' }> => {
+    const grant = featureGrants(cunning as FeatureDefinition)[0];
+    if (grant?.kind !== 'on-hit') throw new Error('expected a hit rider');
+    return grant;
+  };
+
+  it('is executed, and is bought by a hit rather than by an action', () => {
+    expect(cunning?.automation).toBe('engine');
+    expect(cunning?.level).toBe(5);
+    expect(onHit().options.map((option) => option.id)).toEqual(['poison', 'trip', 'withdraw']);
+  });
+
+  it('spends the dice Sneak Attack rolls, and no pool at all', () => {
+    // "the number of Sneak Attack damage dice you must forgo" — a sibling
+    // feature named by id, which is the one the class prints at level 1.
+    expect(onHit().forgoesDiceOf).toBe('rogue:sneak-attack');
+    expect(ROGUE.features.some((feature) => feature.id === 'rogue:sneak-attack')).toBe(true);
+    expect(onHit().pool).toBeUndefined();
+    expect(onHit().options.map((option) => option.costsDice)).toEqual([1, 1, 1]);
+  });
+
+  it('derives its DC from Dexterity, which the feature prints and the class has not', () => {
+    // "the DC equals 8 plus your Dexterity modifier and Proficiency Bonus" —
+    // a Rogue casts nothing, so a derived spell save DC would be short.
+    expect(onHit().saveAbility).toBe('dex');
+    expect(ROGUE.spellcasting).toBeUndefined();
+  });
+
+  it('gates the size on Trip and on neither of the others', () => {
+    const sized = onHit().options.filter((option) => option.targetNoLargerThan !== undefined);
+    expect(sized.map((option) => option.id)).toEqual(['trip']);
+    expect(sized[0]?.targetNoLargerThan).toBe('large');
+    expect(onHit().targetNoLargerThan).toBeUndefined();
+  });
+
+  it('asks Poison for a kit the catalogue sells, and gives it a minute with a way out', () => {
+    const poison = onHit().options.find((option) => option.id === 'poison');
+    expect(poison?.requiresItem).toBe('poisoners-kit');
+    expect(SRD_CONTENT.item('poisoners-kit')).not.toBeNull();
+    expect(poison?.durationSeconds).toBe(60);
+    const save = poison?.effects[0];
+    expect(save).toMatchObject({
+      kind: 'save',
+      ability: 'con',
+      condition: 'poisoned',
+      repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+    });
+  });
+
+  it('buys Withdraw a move and nothing else', () => {
+    const withdraw = onHit().options.find((option) => option.id === 'withdraw');
+    expect(withdraw?.effects).toEqual([]);
+    expect(withdraw?.handsMove).toEqual({ share: 'half-speed' });
+  });
+
+  it('reaches the sheet of a Rogue who has the level for it, and not one who has not', () => {
+    const options = built().creatures.nyx!.sheet.hitOptions ?? [];
+    expect(options.map((option) => option.option)).toEqual(['poison', 'trip', 'withdraw']);
+    expect(options.every((option) => option.forgoesDiceOf === 'rogue:sneak-attack')).toBe(true);
+    // Every one of them derives its DC from the feature's own ability rather
+    // than from a class that casts nothing.
+    expect(options.every((option) => option.ability === 'dex')).toBe(true);
+
+    expect(built({ level: 4, featureChoices: { 'human:skillful': ['perception'], 'rogue:expertise': ['stealth', 'sleight-of-hand'] } }).creatures.nyx!.sheet.hitOptions).toBeUndefined();
   });
 });

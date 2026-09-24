@@ -35,7 +35,7 @@ import {
   spellSaveDcWith,
   type CharacterSheet,
 } from '../character.js';
-import { canUseFeatureThisTurn } from '../combat.js';
+import { canUseFeatureThisTurn, currentCombatant } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
@@ -43,7 +43,15 @@ import { sizeAtMost } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
 import { attachSource } from '../state.js';
 import { remaining } from '../resources.js';
-import { sheetAsItStands, type HitHoldPayout, type HitOption } from '../standing.js';
+import {
+  attackDamageDiceOf,
+  sheetAsItStands,
+  speedOf,
+  type AttackContext,
+  type HitHoldPayout,
+  type HitOption,
+} from '../standing.js';
+import { carrying } from './inventory.js';
 import { type EffectTarget, timerKey } from '../timers.js';
 import { turnAnchored, type Duration } from '../time.js';
 import { type Supply } from './casting.js';
@@ -124,6 +132,50 @@ export function riderDamageOnTheBlow(
     source: option.name,
     type: option.extraDamage.damageType,
     dice: option.extraDamage.dice,
+  };
+}
+
+/**
+ * The dice this rider is **paying with**, for the gather that takes them off.
+ *
+ * SRD Cunning Strike: "You remove the die before rolling." The damage gather
+ * is the one loop that knows whether the feature being charged fired on this
+ * blow at all, so the price goes *into* it rather than being taken beside it —
+ * see {@link AttackContext.forgoing}.
+ *
+ * `undefined` for every rider whose price is not dice, which is all of them
+ * but one.
+ */
+export function riderDicePrice(option: HitOption | null): AttackContext['forgoing'] {
+  if (option?.forgoesDiceOf === undefined) return undefined;
+  return { feature: option.forgoesDiceOf, dice: option.costsDice ?? 0 };
+}
+
+/**
+ * Whether the blow paid the rider's price, and the sentence it owes if not.
+ *
+ * SRD Cunning Strike buys an effect "when you deal Sneak Attack damage", and
+ * `forgone` is the gather's answer to whether this blow dealt any: zero means
+ * the feature did not qualify — no Advantage on the roll, no ally beside the
+ * target, the allowance already spent this turn — and a rider that could not
+ * be paid for does not happen.
+ *
+ * **Dropped and reported rather than refused**, which is the answer
+ * {@link applyHitRider} already gives a pool that emptied inside a hold, and
+ * for the same reason: by the time the price can be asked the die has been
+ * thrown, and a rules refusal arriving after the blow has landed is a refusal
+ * with a footprint.
+ */
+export function riderPricePaid(
+  option: HitOption | null,
+  forgone: number,
+): { readonly option: HitOption | null; readonly unverified: readonly string[] } {
+  if (option?.forgoesDiceOf === undefined || forgone > 0) return { option, unverified: [] };
+  return {
+    option: null,
+    unverified: [
+      `${option.featureName} rode on this hit and was dropped unspent: it is paid for with dice ${option.forgoesDiceOf} rolls, and this blow dealt none`,
+    ],
   };
 }
 
@@ -267,6 +319,41 @@ export function hitRiderAsked(
       return err(
         'exhausted',
         `${option.featureName} costs ${option.costs} of ${id}'s ${option.pool} and they have ${remaining(creature.resources, option.pool)} left`,
+      );
+    }
+  }
+
+  // SRD Cunning Strike: "the number of Sneak Attack damage dice you must forgo
+  // to add the effect."
+  //
+  // **The half a sheet can answer, answered here with the pool.** Whether this
+  // creature holds those dice at all, and whether it holds enough of them, are
+  // facts about the character — so a Rogue 1 who somehow named a rider costing
+  // three keeps their action and their swing. The other half cannot be asked
+  // yet: "if you have Advantage on the roll" is a fact about a die nobody has
+  // thrown, and `standingAttackDamage` settles it where the dice are gathered.
+  if (option.forgoesDiceOf !== undefined) {
+    const held = attackDamageDiceOf(state, id, option.forgoesDiceOf);
+    const price = option.costsDice ?? 0;
+    if (held === null || held < price) {
+      return err(
+        'no_dice_to_forgo',
+        held === null
+          ? `${option.featureName} is paid for with dice ${option.forgoesDiceOf} rolls, and ${id} has no such feature`
+          : `${option.name} costs ${price} of the dice ${option.forgoesDiceOf} rolls, and ${id} rolls ${held}`,
+      );
+    }
+  }
+
+  // SRD Cunning Strike's Poison: "To use this effect, you must have a
+  // Poisoner's Kit on your person." A kit is an item, so the fact is the
+  // engine's — and it is asked here with the rest, before the die.
+  if (option.requiresItem !== undefined) {
+    const line = carrying(state, id).find((one) => one.id === option.requiresItem);
+    if (line === undefined) {
+      return err(
+        'item_not_carried',
+        `${option.name} needs ${option.requiresItem} on ${id}'s person, and they are carrying none`,
       );
     }
   }
@@ -505,6 +592,38 @@ export function applyHitRider(
   );
   if (!emptied.ok) return emptied;
   events.push(...emptied.value);
+
+  // **The feet the rider hands over**, after everything it imposed and before
+  // the deadlines, because it is neither: SRD Cunning Strike's Withdraw is
+  // "Immediately after the attack, you move up to half your Speed", which is
+  // the turn's business rather than the target's.
+  //
+  // Half of the Speed the rider fired at, floored and pinned onto the event —
+  // the rule SRD Tactical Shift's own grant keeps, so a Speed that changes
+  // later moves no foot of what has already been handed over. What it provokes
+  // is nothing, and no field says so: `spendMovement` charges a granted move
+  // out of that grant alone and `moveCreature` offers nobody a swing for it.
+  //
+  // **Only on the holder's own turn**, because feet a feature hands over
+  // belong to a turn budget and a swing taken on somebody else's turn — an
+  // Opportunity Attack, a Reaction — has none to hand them to. Said out loud
+  // rather than refused: the blow has landed.
+  if (option.handsMove !== undefined) {
+    const theirs = state.combat !== null && currentCombatant(state.combat).id === hit.attacker;
+    const feet = theirs ? Math.floor(speedOf(state, hit.attacker) / 2) : 0;
+    if (feet > 0) {
+      events.push({
+        type: 'movement-granted',
+        id: hit.attacker,
+        source: featureSource(option.feature),
+        feet,
+      });
+    } else {
+      unverified.push(
+        `${option.name} hands ${hit.attacker} half their Speed to move immediately, and ${theirs ? 'they have no Speed to halve' : 'it is not their turn, so there is no turn budget to hand it to'}`,
+      );
+    }
+  }
 
   const timed = fileDeadlines(
     [...shoved.value.events, ...lowering, ...emptied.value].reduce(applyEvent, held),

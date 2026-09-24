@@ -236,6 +236,27 @@ export interface HeldHitOption {
   readonly weapons?: readonly WeaponSelector[];
   /** Whether an Unarmed Strike counts, which no set of weapons can say. */
   readonly unarmedStrike?: boolean;
+  /**
+   * What one use forgoes, where the price is another feature's damage dice —
+   * SRD Cunning Strike's "(Cost: 1d6)".
+   *
+   * Reported for {@link HeldFeature.pool}'s reason and because that field
+   * cannot say it: a rider priced in dice names no pool, so a caller reading
+   * the record alone would see `pool: null` and take the option for free. The
+   * feature whose dice pay is named beside the count, because "one die" is
+   * only a price if you can see which pile it comes off.
+   */
+  readonly costsDice?: { readonly dice: number; readonly feature: string };
+  /**
+   * A thing the holder must be carrying — SRD Cunning Strike's Poison: "you
+   * must have a Poisoner's Kit on your person."
+   *
+   * The catalogue id, for the same reason {@link weapons} is reported: the
+   * engine refuses the swing (`item_not_carried`) before the die, and a caller
+   * handed the option id and not the requirement would be refused by a rule it
+   * was never told.
+   */
+  readonly requiresItem?: string;
 }
 
 /**
@@ -1119,6 +1140,11 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       oncePerTurn: one.oncePerTurn === true,
       ...(one.weapons === undefined ? {} : { weapons: one.weapons }),
       ...(one.unarmedStrike === undefined ? {} : { unarmedStrike: one.unarmedStrike }),
+      // The price a rider names no pool for, so the record does not read free.
+      ...(one.forgoesDiceOf === undefined || one.costsDice === undefined
+        ? {}
+        : { costsDice: { dice: one.costsDice, feature: one.forgoesDiceOf } }),
+      ...(one.requiresItem === undefined ? {} : { requiresItem: one.requiresItem }),
     };
     const found = riders.get(one.feature);
     if (found === undefined) riders.set(one.feature, [entry]);
