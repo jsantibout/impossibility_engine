@@ -2593,7 +2593,7 @@ export function resolveAttack(
     // **The rider, once the price has been asked.** A Cunning Strike on a blow
     // that turned out not to be a Sneak Attack is dropped unspent and said out
     // loud — the answer a pool emptied inside a hold already gets — and
-    // everything below reads `bought` rather than `riding` so a dropped rider
+    // everything below reads `charged` rather than `riding` so a dropped rider
     // neither rides the damage, nor goes onto the hold a defender answers in,
     // nor resolves afterwards.
     const priced = riderPricePaid(riding, fromFeatures.forgone);
@@ -3107,7 +3107,7 @@ export function resolveAttackDamage(
     });
 
     // **The rider, once the price has been asked**, for the unheld swing's
-    // reason. Everything after this reads `bought` rather than `pending.rider`,
+    // reason. Everything after this reads `charged` rather than `pending.rider`,
     // so a Cunning Strike on a blow the hold turned out not to have made a
     // Sneak Attack of neither rides the damage nor resolves after it.
     const priced = riderPricePaid(pending.rider ?? null, fromFeatures.forgone);
