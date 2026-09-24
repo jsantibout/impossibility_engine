@@ -53,9 +53,11 @@ import {
   DIRECTIONAL_AREAS,
   isCreatureType,
   namesAnObject,
+  optionEffects,
   ranged,
   type SpellArea,
   type SpellDefinition,
+  statedChoiceReaches,
   statesFoughtFact,
   statesWillingFact,
   targetCountFor,
@@ -1191,43 +1193,6 @@ export function declaredFacts(
     );
   }
 
-  // — the one value the spell asks its caster to choose ————————————————————
-  //
-  // The fifth stated fact, and the same two refusals a fourth time. The list
-  // is the spell's, the answer is the caster's, and the engine makes neither:
-  // picking Blinded because Blindness/Deafness prints it first is the engine
-  // answering "(your choice)" on the caster's behalf, and it would answer the
-  // same way for ever.
-  const choice = definition.choiceStated;
-  // SRD Wild Companion: the feature a casting comes through may fix the value
-  // — "the familiar is Fey" — in which case the caster is not asked, and is
-  // refused if they answer otherwise.
-  if (fixedChoice !== undefined && request.choice !== undefined && request.choice !== fixedChoice) {
-    return err(
-      'choice_fixed',
-      `${definition.name} is cast through a feature that fixes ${fixedChoice}, not ${request.choice}`,
-    );
-  }
-  const answered = request.choice ?? fixedChoice;
-  if (choice === undefined) {
-    if (answered !== undefined) {
-      return err(
-        'no_choice_clause',
-        `${definition.name} offers the caster no choice; which one this is is not a fact it asks for`,
-      );
-    }
-  } else if (answered === undefined) {
-    return err(
-      'choice_required',
-      `${definition.name} prints ${choice.options.join(', ')} and the engine will not choose between them; name which`,
-    );
-  } else if (!choice.options.includes(answered)) {
-    return err(
-      'unknown_choice',
-      `${definition.name} prints ${choice.options.join(', ')}, not ${answered}`,
-    );
-  }
-
   // — which of the spell's printed branches this casting runs ————————————
   //
   // The tenth stated fact, and the same two refusals a seventh time. SRD
@@ -1258,6 +1223,58 @@ export function declaredFacts(
         `${definition.name} prints ${names.join(', ')}, not ${request.option}`,
       );
     }
+  }
+
+  // — the one value the spell asks its caster to choose ————————————————————
+  //
+  // The fifth stated fact, and the same two refusals a fourth time. The list
+  // is the spell's, the answer is the caster's, and the engine makes neither:
+  // picking Blinded because Blindness/Deafness prints it first is the engine
+  // answering "(your choice)" on the caster's behalf, and it would answer the
+  // same way for ever.
+  const choice = definition.choiceStated;
+  // **And which branch was named decides whether it is asked for**, which is
+  // why this reads the option and therefore runs after it. SRD Bestow Curse
+  // prints "Choose one ability" inside the **first** of its four bullets and
+  // asks nothing of the other three, so a casting that curses the target's
+  // attacks against the caster is a casting the book puts no question to. The
+  // test is the validator's own: does the list this casting actually runs hold
+  // a slot for the value — `statedChoiceReaches` over `optionEffects`, the two
+  // functions the resolution and the schema already share, so a branch that
+  // grows a slot starts being asked the same day.
+  //
+  // Identity for every spell that prints no branches, which is all but a
+  // handful: the common list is the list, and the question is the spell's.
+  const asked =
+    choice !== undefined &&
+    statedChoiceReaches(optionEffects(definition, request.option), choice.of, choice.options[0]!);
+  // SRD Wild Companion: the feature a casting comes through may fix the value
+  // — "the familiar is Fey" — in which case the caster is not asked, and is
+  // refused if they answer otherwise.
+  if (fixedChoice !== undefined && request.choice !== undefined && request.choice !== fixedChoice) {
+    return err(
+      'choice_fixed',
+      `${definition.name} is cast through a feature that fixes ${fixedChoice}, not ${request.choice}`,
+    );
+  }
+  const answered = request.choice ?? fixedChoice;
+  if (!asked) {
+    if (answered !== undefined) {
+      return err(
+        'no_choice_clause',
+        `${definition.name} offers the caster no choice; which one this is is not a fact it asks for`,
+      );
+    }
+  } else if (answered === undefined) {
+    return err(
+      'choice_required',
+      `${definition.name} prints ${choice!.options.join(', ')} and the engine will not choose between them; name which`,
+    );
+  } else if (!choice!.options.includes(answered)) {
+    return err(
+      'unknown_choice',
+      `${definition.name} prints ${choice!.options.join(', ')}, not ${answered}`,
+    );
   }
 
   // SRD Transmuted Spell prints its own list — "Acid, Cold, Fire, Lightning,

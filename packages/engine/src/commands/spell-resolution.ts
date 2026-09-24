@@ -78,6 +78,7 @@ import {
 import { remaining, tallied } from '../resources.js';
 import {
   breaksAttunement,
+  concentrationAt,
   dropsAnObject,
   outcomeRidersOf,
   creatureTypesRead,
@@ -2443,7 +2444,12 @@ function resolveOnTargets(
       // slot that paid for it. Absent otherwise, so every casting nothing
       // altered writes exactly the event it always wrote.
       ...(castLevel === paidLevel ? {} : { effectiveLevel: castLevel }),
-      concentration: definition.concentration,
+      // **The slot decides this too, for the two spells whose sentence says
+      // so.** SRD Bestow Curse: "If you use a level 5+ spell slot, the spell
+      // doesn't require Concentration." Read here rather than off the
+      // definition's flag, so the one casting that is exempt does not start a
+      // Concentration the caster never had to hold — see `concentrationAt`.
+      concentration: concentrationAt(definition, castLevel),
       castingTime: casting.castingTime,
       ...(casting.castingSeconds === undefined
         ? {}

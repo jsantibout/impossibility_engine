@@ -24,6 +24,7 @@ import {
   DM_DECIDES,
   modifierRidersOf,
   persists as castingPersists,
+  optionEffectLists,
   statedChoiceCollides,
   statedChoiceReaches,
 } from './spell-definitions.js';
@@ -1786,6 +1787,21 @@ function checkModifierRider(
   }
   if (rider?.kind === 'damage-penalty') {
     checkDamagePenalty(rider, path, found);
+    return;
+  }
+  // The twenty-first sourced grant, reached from a settled outcome rather than
+  // from an effect. Its notation and its type are the two things it carries and
+  // both are checked exactly as the effect kind's are — one grant, two doors,
+  // one set of rules about what may go through either.
+  if (rider?.kind === 'later-blow') {
+    if (typeof rider.dice !== 'string' || !parseNotation(rider.dice).ok) {
+      found.push({
+        field: `${path}.dice`,
+        code: 'bad_dice',
+        reason: `"${String(rider.dice)}" is not dice notation`,
+      });
+    }
+    checkDamageType(rider.damageType, `${path}.damageType`, found);
     return;
   }
   if (rider?.kind === 'mode') {
@@ -4410,6 +4426,8 @@ function grantCarried(effect: SpellEffect): string | null {
           // ever struck, for ever.
           case 'damage-penalty':
             return 'an amount taken off the damage the target deals';
+          case 'later-blow':
+            return 'extra damage on the caster’s later blows';
           case 'mode':
             // The third rider with an escape of its own, and it arrived with
             // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
@@ -4509,6 +4527,8 @@ function grantOnASuccess(effect: SpellEffect): string | null {
           return 'a bonus';
         case 'damage-penalty':
           return 'an amount taken off the damage the target deals';
+        case 'later-blow':
+          return 'extra damage on the caster’s later blows';
         case 'mode':
           if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
           break;
@@ -5141,11 +5161,20 @@ export function checkSpellDefinition(
     // — silent, because the casting is refused until the caster answers and
     // then the answer goes nowhere. Probed with the first printed value, which
     // is the one the definition itself is written around.
+    //
+    // **Over the branches as well as the common list**, because a spell that
+    // prints branches may print the choice inside one of them: SRD Bestow
+    // Curse's "Choose one ability" is the first of four bullets and the other
+    // three hold no slot for it. Read as "somewhere a casting of this spell
+    // could put it", which is the union — `declaredFacts` then asks the
+    // narrower question of the branch actually named, off the same two
+    // functions, so a choice this accepts is one some casting really is asked.
+    const everywhere = [...definition.effects, ...optionEffectLists(definition).flat()];
     if (
       known &&
       Array.isArray(choice.options) &&
       choice.options.length > 0 &&
-      !statedChoiceReaches(definition.effects, choice.of, choice.options[0]!)
+      !statedChoiceReaches(everywhere, choice.of, choice.options[0]!)
     ) {
       found.push({
         field: 'choiceStated',
@@ -5160,7 +5189,7 @@ export function checkSpellDefinition(
     // one of them to the caster validates here and then contradicts itself at
     // the table, which is the one way "the definition declares the slot and
     // the casting fills it" could still land a selector nothing matches.
-    if (known && statedChoiceCollides(definition.effects, choice.of)) {
+    if (known && statedChoiceCollides(everywhere, choice.of)) {
       found.push({
         field: 'choiceStated',
         code: 'stated_choice_collides',
@@ -5326,6 +5355,40 @@ export function checkSpellDefinition(
         code: 'cap_without_a_casting',
         reason:
           'an Instantaneous casting leaves no record, so a cap on how many run at once would count a population that is always empty',
+      });
+    }
+  }
+
+  // **And the other half of the same sentence.** SRD Bestow Curse's level 5+
+  // slot drops the Concentration as well as lengthening the duration, and the
+  // two are separate fields because the book moves them separately — so this
+  // is held to the same two rules the table beside it is: a *higher* slot than
+  // the spell's own level, and one of the nine.
+  //
+  // **And a spell that does not require Concentration has none to drop**,
+  // which is the reachability rule every other field here keeps: a number no
+  // casting could ever act on is a sentence somebody meant to finish.
+  if (definition.concentrationEndsAtSlot !== undefined) {
+    const drops = definition.concentrationEndsAtSlot;
+    if (!definition.concentration) {
+      found.push({
+        field: 'concentrationEndsAtSlot',
+        code: 'concentration_drop_without_concentration',
+        reason:
+          'this spell does not require Concentration, so there is none for a higher slot to drop',
+      });
+    }
+    if (!Number.isInteger(drops) || drops < 1 || drops > 9) {
+      found.push({
+        field: 'concentrationEndsAtSlot',
+        code: 'bad_slot_level',
+        reason: `"${String(drops)}" is not one of the nine spell slot levels`,
+      });
+    } else if (drops <= definition.level) {
+      found.push({
+        field: 'concentrationEndsAtSlot',
+        code: 'bad_slot_level',
+        reason: `a band at level ${drops} is not a *higher* slot than this level ${definition.level} spell`,
       });
     }
   }
@@ -5551,13 +5614,42 @@ export function checkSpellDefinition(
       resolves &&
       activation.effects.length === 0 &&
       activation.movesArea === undefined &&
-      activation.redirects !== true
+      activation.redirects !== true &&
+      activation.reAims !== true
     ) {
       found.push({
         field: 'activation.effects',
         code: 'activation_does_nothing',
         reason: 'an activation with no effects must be the one whose whole content is moving the area',
       });
+    }
+    /*
+     * SRD Hunter's Mark's "move the mark to a new creature", held to the two
+     * things the sentence needs: a mark to move, and no second sentence of its
+     * own.
+     *
+     * What moves is the creature an `attack-rider` names, so a definition that
+     * marks nobody has nothing for the Bonus Action to re-aim; and the effects
+     * it lays on the new creature are the casting's own, so a list here would
+     * be a second place for one sentence to be got wrong — see
+     * `SpellActivation.reAims`.
+     */
+    if (activation.reAims === true) {
+      if (!definition.effects.some((effect) => effect.kind === 'attack-rider' && effect.marksTarget === true)) {
+        found.push({
+          field: 'activation.reAims',
+          code: 're_aims_nothing',
+          reason: 'an action that moves a mark needs the spell to mark somebody; nothing in its effects does',
+        });
+      }
+      if (resolves && activation.effects.length > 0) {
+        found.push({
+          field: 'activation.effects',
+          code: 're_aim_resolves_effects',
+          reason:
+            'a re-aiming action lays the casting’s own effects on the new creature and resolves nothing of its own',
+        });
+      }
     }
     /*
      * SRD Gust of Wind's "you can change the direction in which the Line
@@ -7417,6 +7509,7 @@ const RIDER_DEPTH_LIMIT = 6;
 export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'bonus',
   'damage-penalty',
+  'later-blow',
   'mode',
   'speed-change',
   'action',

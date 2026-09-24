@@ -472,7 +472,11 @@ function resolveOneAttackRoll(
       })),
       definition.name,
       supply,
-      { by: casterId },
+      // **A spell's damage that no attack roll bought**, which is what SRD
+      // Bestow Curse's "or a spell" widens its die to — see
+      // `dealSpellDamage`'s `fromSpell`. The attack road one function up does
+      // not say it, because it has already gathered its riders itself.
+      { by: casterId, fromSpell: true },
     );
     if (!splashed.ok) return splashed;
 
@@ -772,7 +776,11 @@ export function resolveAutoDamageEffect(
       dealt.value,
       name,
       supply,
-      { by: casterId },
+      // **A spell's damage that no attack roll bought**, which is what SRD
+      // Bestow Curse's "or a spell" widens its die to — see
+      // `dealSpellDamage`'s `fromSpell`. The attack road one function up does
+      // not say it, because it has already gathered its riders itself.
+      { by: casterId, fromSpell: true },
     );
     if (!hurt.ok) return hurt;
 
@@ -994,7 +1002,11 @@ export function resolveSaveDamageEffect(
     components,
     name,
     supply,
-    { by: casterId },
+    // **A spell's damage that no attack roll bought**, which is what SRD
+    // Bestow Curse's "or a spell" widens its die to — see
+    // `dealSpellDamage`'s `fromSpell`. The attack road one function up does
+    // not say it, because it has already gathered its riders itself.
+    { by: casterId, fromSpell: true },
   );
   if (!hurt.ok) return hurt;
 

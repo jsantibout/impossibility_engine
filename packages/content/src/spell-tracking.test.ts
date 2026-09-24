@@ -1706,6 +1706,17 @@ describe('every spell this batch added is cast for real', () => {
     // finished total if it came out under seventeen, which is read last and
     // through plate. Nothing is left but willingness and the bark.
     'barkskin',
+    // **Bestow Curse leaves by its four faces being four branches.** Each
+    // carries the Wisdom save that gates it, because a save in the common list
+    // would be one roll no branch could read; the ability the first face
+    // prints is `choiceStated` substituted into two `mode` riders on that
+    // save, asked for by that branch alone; "attack rolls against you" is
+    // `ModifierRider.counterpart`, the field written for this sentence; and
+    // the slot table is `durationAtSlot` beside the new
+    // `concentrationEndsAtSlot`. Two faces and the level 9 ending are what it
+    // leaves, and it leaves them as an executed-partial spell rather than a
+    // tracked one.
+    'bestow-curse',
     // **Command leaves by the second arm of a choice made at the casting.**
     // Three of its five words were each writable alone — a drop, a Prone, a
     // rule forbidding three slots — and what none of them had was a way to
@@ -1746,6 +1757,14 @@ describe('every spell this batch added is cast for real', () => {
     // same damage again through the record, and what is left is an object
     // nobody is wearing or wielding.
     'heat-metal',
+    // **Hex leaves by the rider on later blows and a mark that moves.** Its
+    // four sentences were four different absences and none of them is one
+    // now: the 1d6 is `attack-rider` with `marksTarget`, the chosen ability is
+    // `choiceStated` over an `ability-check` selector, the slot table is
+    // `durationAtSlot`, and the Bonus Action that curses a new creature is an
+    // `activation` that re-aims what the casting already granted — legal only
+    // while the creature it marks is at 0 Hit Points.
+    'hex',
     // **Ice Knife leaves by a second parent rather than a sixth rider.** "Hit
     // or miss, the shard then explodes" hangs off neither branch of the
     // attack, so `attack.then` is a second resolution sequenced after the
@@ -2029,6 +2048,10 @@ describe('every spell this batch added is cast for real', () => {
   const FINISHED_OUTRIGHT: readonly string[] = [
     'aid',
     'expeditious-retreat',
+    // The fifth, and it prints nothing the engine leaves alone: the die that
+    // rides later blows, the ability the caster names, the slot table, and the
+    // Bonus Action that curses a new creature once the first one drops.
+    'hex',
     // The third, and the three shapes it was waiting on all arrived together:
     // a family of D20 Tests picked out by an ability, a penalty on the
     // target’s own damage rolls, and a success branch that does something.

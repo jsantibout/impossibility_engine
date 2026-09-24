@@ -6208,9 +6208,20 @@ export const HUNTERS_MARK: SpellDefinition = {
   // Two keys, because the SRD prints two bands; a level 4 slot falls in the
   // first because 5 has not been reached.
   durationAtSlot: { 3: 28800, 5: 86400 },
+  // "If the target drops to 0 Hit Points before this spell ends, you can take
+  // a Bonus Action to move the mark to a new creature **you can see within
+  // range**." The range is the spell's own ninety feet, printed again on the
+  // Bonus Action; the sight is `requiresSight` above. What moves is the rider
+  // this casting granted, which is what {@link SpellActivation.reAims} names.
+  activation: {
+    action: 'bonus-action',
+    range: { kind: 'ranged', feet: 90 },
+    reAims: true,
+    label: "Hunter's Mark (a new quarry)",
+    effects: [],
+  },
   unmodelled: [
     'the Advantage on a Wisdom (Perception or Survival) check made to find the quarry is not granted: a roll modifier selects Wisdom (Perception) and Wisdom (Survival) perfectly well, and what nothing can select is *which* check is being made to find the quarry — so a grant would hand the ranger Advantage on every Perception check they ever roll',
-    'moving the mark to a new creature when the quarry drops to 0 Hit Points is not offered: nothing reads a threshold on a creature current Hit Points, and an activation resolves effects at a target rather than re-aiming what the casting already granted',
   ],
 };
 
@@ -13074,11 +13085,22 @@ export const ENSNARING_STRIKE: SpellDefinition = {
  * > with a spell slot of level 2 (up to 4 hours), 3–4 (up to 8 hours), or 5+
  * > (24 hours)."
  *
- * The hour, the Bonus Action and the Concentration are the definition's; the
- * three sentences between them are three different absences, which is why this
- * spell sat in `BLOCKED_ON` naming two shapes and prints a third — the extra
- * die rides *every later attack the caster makes*, and the extra dice a spell
- * can hang ride the one attack its casting was declared on.
+ * **Three sentences, and each one is a mechanism this engine already has.**
+ * The extra die is `attack-rider` with `marksTarget` — SRD Hunter's Mark's own
+ * effect with Necrotic dice, hung on the Warlock and read again on every later
+ * attack roll they land on the cursed creature. The chosen ability is
+ * `choiceStated` of `ability`, which is SRD Enhance Ability's sentence with the
+ * mode reversed: `statedChoice` puts the caster's answer on the selector, and
+ * the selector says `ability-check` because the SRD does and a saving throw is
+ * a different roll. And the slot table is `durationAtSlot`, three keys for the
+ * three bands the book prints.
+ *
+ * **The Bonus Action that curses a new creature is an `activation` that
+ * re-aims**, and the whole of what it resolves is this definition's own
+ * effects laid on somebody else — see {@link SpellActivation.reAims}, which is
+ * why the list below is empty. Its legality is the printed condition and
+ * nothing looser: the creature the casting marks has to be at 0 Hit Points or
+ * dead, which the command reads off the rider the casting granted.
  */
 export const HEX: SpellDefinition = {
   id: 'hex',
@@ -13090,14 +13112,42 @@ export const HEX: SpellDefinition = {
   range: { kind: 'ranged', feet: 90 },
   targets: { count: 1 },
   requiresSight: true,
-  effects: [],
-  durationSeconds: 3600,
-  unmodelled: [
-    'the extra 1d6 Necrotic is not dealt: it rides every later attack the caster lands on this target for the hour, where the extra dice a spell can hang belong to the one attack its casting was declared on',
-    'the ability chosen at the casting is not asked for, and the Disadvantage on ability checks made with it is not granted — a per-casting choice has nowhere to be recorded, and the modifier that would read it waits on the same thing',
-    'the target dropping to 0 Hit Points does not free the curse to move: no outcome reads the target’s Hit Points, so the Bonus Action that re-curses a new creature on a later turn is never offered',
-    'and the longer Concentration a bigger slot buys — four hours at level 2, eight at 3–4, twenty-four at 5 and above — is not applied; the hour is the hour whatever the slot',
+  effects: [
+    // "you deal an extra 1d6 Necrotic damage **to the target** whenever you
+    // hit it **with an attack roll**" — the target names the mark and the
+    // sentence names no weapon, so a Fire Bolt at the cursed creature carries
+    // it and a mace swung at anybody else does not.
+    { kind: 'attack-rider', dice: '1d6', damageType: 'necrotic', marksTarget: true },
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'disadvantage',
+        // "ability checks made with the chosen ability" — a check and not a
+        // save, which is the narrowing `RollSelector` keeps apart on purpose.
+        // The ability printed here is the slot `statedChoice` fills.
+        selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+      },
+    },
   ],
+  // "choose one ability when you cast the spell" — one of the six, with no
+  // list printed, so the list is the six.
+  choiceStated: { of: 'ability', options: ['str', 'dex', 'con', 'int', 'wis', 'cha'] },
+  // "you can take a Bonus Action **on a later turn** to curse a new creature."
+  // No range is printed on the Bonus Action, so it is the spell's own: a new
+  // creature is placed under a casting of Hex, and a casting of Hex reaches
+  // ninety feet and a creature its caster can see.
+  activation: {
+    action: 'bonus-action',
+    range: { kind: 'ranged', feet: 90 },
+    reAims: true,
+    label: 'Hex (a new creature)',
+    effects: [],
+  },
+  durationSeconds: 3600,
+  // "level 2 (up to 4 hours), 3–4 (up to 8 hours), or 5+ (24 hours)": three
+  // bands and therefore three keys, with a level 4 slot falling in the second
+  // because 5 has not been reached.
+  durationAtSlot: { 2: 14400, 3: 28800, 5: 86400 },
 };
 
 /**
@@ -13263,10 +13313,30 @@ export const FIND_STEED: SpellDefinition = {
  * > Necrotic damage."
  *
  * A touch-range save with a duration is the ordinary shape, and every one of
- * this spell's six blockers is in the four alternatives underneath it — a
- * choice made when the slot is spent, a modifier naming the caster as a third
- * participant, a boundary save whose *failure* spends an action, and a rider
- * that fires on damage from a spell as well as from an attack.
+ * this spell's blockers is in the four alternatives underneath it. They are
+ * `SpellDefinition.options`: four branches of which a casting runs exactly
+ * one, each carrying **its own** Wisdom save, because a save in the common
+ * list would be one roll whose outcome no branch could read.
+ *
+ * **The ability is the branch's question and not the spell's.** "Choose one
+ * ability" is printed inside the first bullet alone, so `choiceStated` is
+ * asked for only where the branch holds a slot for it — `declaredFacts` reads
+ * the branch that was named, and a casting that curses the target's attacks is
+ * asked nothing. What the failure hands out is two `mode` riders on the save
+ * it failed, one over ability checks and one over saving throws, which is the
+ * pair the SRD prints and the pair a `RollSelector` keeps apart.
+ *
+ * **"Attack rolls against you" is `ModifierRider.counterpart`**, the field
+ * written for this sentence and named after it: the holder is the cursed
+ * creature and the caster is the participant the relation does not name, bound
+ * to an id by the resolver because the fold opens no catalogue and "you" is
+ * not a fact a book can hold.
+ *
+ * **The slot table is two sentences and both are written.** `durationAtSlot`
+ * carries the lengths and `concentrationEndsAtSlot` carries the clause beside
+ * them — "the spell doesn't require Concentration" from level 5 up — which is
+ * a fact about the casting rather than about its length and so is its own
+ * field. The level 9 arm is out of reach and says so below.
  */
 export const BESTOW_CURSE: SpellDefinition = {
   id: 'bestow-curse',
@@ -13277,15 +13347,93 @@ export const BESTOW_CURSE: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1 },
+  // **Empty, and the save is in each branch.** "must succeed on a Wisdom
+  // saving throw or become cursed ... the target suffers **one** of the
+  // following effects of your choice" is one roll per casting whatever the
+  // choice, and a save in the common list would be a roll whose outcome the
+  // branch could not read — the rule `SpellDefinition.options` states.
   effects: [],
+  options: {
+    ability: {
+      label: 'Disadvantage on checks and saves with one ability',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          modifiers: [
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                // The ability printed here is the slot `statedChoice` fills.
+                selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+              },
+            },
+            {
+              kind: 'mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: 'saving-throw', relation: 'roller', ability: 'str' },
+              },
+            },
+          ],
+        },
+      ],
+    },
+    'attacks-against-you': {
+      label: 'Disadvantage on attack rolls against you',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          modifiers: [
+            {
+              kind: 'mode',
+              modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+              // "against **you**": the caster, bound to an id at the casting.
+              counterpart: 'caster',
+            },
+          ],
+        },
+      ],
+    },
+    dodge: {
+      label: 'A Wisdom save at the start of each of its turns or Dodge',
+      unmodelled: [
+        'this branch resolves nothing at all, so the opening Wisdom save the other three roll — "must succeed on a Wisdom saving throw or become cursed" — is not raised for it either, and nobody is cursed',
+        'the Wisdom save at the start of each of the target’s turns is not raised, and a failure does not compel the Dodge action: a repeat save hung on a casting ends the spell on a success and this one ends nothing, and its failure spends an action rather than deepening a condition',
+      ],
+    },
+    'extra-damage': {
+      label: 'An extra 1d8 Necrotic when you damage it',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          modifiers: [
+            // "If you deal damage to the target with an attack roll **or a
+            // spell**, the target takes an extra 1d8 Necrotic damage." The
+            // rider hangs the grant on the caster and names this creature,
+            // which is SRD Hunter's Mark's shape with the trigger widened past
+            // the roll.
+            { kind: 'later-blow', dice: '1d8', damageType: 'necrotic', alsoSpells: true },
+          ],
+        },
+      ],
+    },
+  },
+  // "Choose one ability" — one of the six, with no list printed, so the list
+  // is the six. Asked for by the first branch alone.
+  choiceStated: { of: 'ability', options: ['str', 'dex', 'con', 'int', 'wis', 'cha'] },
   durationSeconds: 60,
+  // "a level 4 spell slot ... up to 10 minutes. ... level 5+ ... 8 hours
+  // (level 5–6 slot) or 24 hours (level 7–8 slot)."
+  durationAtSlot: { 4: 600, 5: 28800, 7: 86400 },
+  // "If you use a level 5+ spell slot, the spell doesn’t require
+  // Concentration."
+  concentrationEndsAtSlot: 5,
   unmodelled: [
-    'the Wisdom save is not raised, and nobody is cursed: the curse is four alternatives chosen when the spell is cast, and a casting has nowhere to record a choice made at the moment it was made',
-    'so the Disadvantage on ability checks and saving throws made with a chosen ability is not granted — the modifier selects by ability and *which* ability is the field that does not exist',
-    'nor is the Disadvantage on attack rolls against the caster: a selector says whether it reaches the roller or the creature rolled against, and the caster of the spell is a third participant it cannot name',
-    'nor the Wisdom save at the start of each of the target’s turns that forces the Dodge action on a failure — a repeat save releases an effect on a success and does nothing on a failure, and spending somebody’s action is not something any rider reaches',
-    'nor the extra 1d8 Necrotic, which fires on damage from a spell as well as from an attack roll, where a rider hangs on the one attack its casting settled',
-    'and the slot table is three different durations rather than three lengths: ten minutes at level 4, then eight and twenty-four hours *without Concentration* at 5–8, then until dispelled at 9 — a table of seconds can say the first and none of the rest',
+    'the level 9 slot’s "the spell lasts until dispelled" is not applied: `untilDispelled` is a property of the spell rather than of the slot it was cast with, and a table of seconds cannot say "no ending at all" — a level 9 casting runs the twenty-four hours a level 7 one does',
   ],
 };
 

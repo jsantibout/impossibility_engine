@@ -5209,6 +5209,30 @@ export interface GrantedAttackRider {
   readonly weaponOnly?: true;
   /** SRD Hunter's Mark's "**to the target**". Absent reaches any target. */
   readonly target?: CharacterId;
+  /**
+   * SRD Bestow Curse's "with an attack roll **or a spell**".
+   *
+   * Every other writer of this grant prints the attack roll alone — SRD Divine
+   * Favor's weapons, SRD Hunter's Mark's and SRD Hex's "whenever you hit it
+   * with an attack roll" — and one spell in the book widens the trigger past
+   * the roll to the damage itself.
+   *
+   * **It is read on the road an attack does not take.** An attack's damage
+   * gathers its riders before the blow is rolled, through
+   * {@link grantedAttackRiders}, so this flag changes nothing there; what it
+   * buys is the *other* road, a casting's damage that no attack roll bought —
+   * a Fireball, a Sacred Flame, a Magic Missile — which `dealSpellDamage`
+   * answers for and {@link spellDamageRiders} reads. A blow that took the
+   * attack road never takes this one, which is what `fromSpell` says at the
+   * three effect resolvers that raise a casting's damage without an attack.
+   *
+   * **Three more sites are a spell's damage and are not marked**, and the gap
+   * is named rather than absorbed: a casting's scheduled hit, an ongoing
+   * casting's per-turn payout and the burn a repeat save collects all arrive
+   * through `commands/turns.ts`, so the die does not ride them yet. See
+   * `dealSpellDamage`'s own note, where the seam is named.
+   */
+  readonly alsoSpells?: true;
 }
 
 /**
@@ -5247,6 +5271,40 @@ export function grantedAttackRiders(
       // `spellOfSource` gives the readable half back, so the log says "Divine
       // Favor" rather than `Divine Favor#cast:3`. The casting id stays in the
       // grant, which is what ends it.
+      source: spellOfSource(rider.source),
+      type: rider.damageType,
+      dice: rider.dice,
+    }));
+}
+
+/**
+ * The riders on this creature's later blows that reach a **spell's** damage.
+ *
+ * {@link grantedAttackRiders}' sibling, and the two are deliberately not one
+ * function: that one is asked by an attack roll, before the blow, and this is
+ * asked by the funnel every casting's damage goes through, which no attack
+ * roll has been near. A rider printed about an attack roll — SRD Divine
+ * Favor's, SRD Hunter's Mark's, SRD Hex's — must not reach a Fireball, so
+ * {@link GrantedAttackRider.alsoSpells} is the filter and the one spell that
+ * prints the wider sentence is the one creature it lets through.
+ *
+ * **`weaponOnly` is not consulted and could not be**: there is no weapon on
+ * this road at all, and a rider that names one has nothing here to name. The
+ * flag above is the whole of what selects, beside the creature the rider is
+ * about.
+ *
+ * Returned in the shape `dealSpellDamage` takes its components in, so the die
+ * is a component of its own with its own type and source: it meets the
+ * target's defences separately, exactly as the attack road's does.
+ */
+export function spellDamageRiders(
+  creature: CreatureState | undefined,
+  target: CharacterId,
+): readonly { readonly source: string; readonly type: string; readonly dice: string }[] {
+  if (creature === undefined) return [];
+  return creature.attackRiders
+    .filter((rider) => rider.alsoSpells === true && rider.target === target)
+    .map((rider) => ({
       source: spellOfSource(rider.source),
       type: rider.damageType,
       dice: rider.dice,

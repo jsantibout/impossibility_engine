@@ -2648,7 +2648,7 @@ const CONTINUE_CASTING = tool({
 const ACTIVATE_SPELL = tool({
   name: 'activate_spell',
   description:
-    'Use a spell that is still running, on a later turn — Vampiric Touch striking again, Spiritual Weapon moving and then striking, Moonbeam’s beam walked across the room, Levitate lifting its target higher, Gust of Wind blowing a new way. The engine spends the action the spell asks for, reads the numbers the casting was made with, and rolls what it does. Name `to` for where the area ends up and `via` for the spaces it crossed getting there, `altitude` for how far up or down to move a creature the spell is holding, and `towards` for the direction a Line blasts in now.',
+    'Use a spell that is still running, on a later turn — Vampiric Touch striking again, Spiritual Weapon moving and then striking, Moonbeam’s beam walked across the room, Levitate lifting its target higher, Gust of Wind blowing a new way. The engine spends the action the spell asks for, reads the numbers the casting was made with, and rolls what it does. Name `to` for where the area ends up and `via` for the spaces it crossed getting there, `altitude` for how far up or down to move a creature the spell is holding, and `towards` for the direction a Line blasts in now. A spell that marks somebody — Hunter’s Mark, Hex — moves the mark here too: name the new creature in `targets`, and the engine refuses it while the marked one is still on its feet.',
   mutates: true,
   establishes: ['route'],
   input: z.object({

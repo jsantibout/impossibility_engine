@@ -23,6 +23,7 @@ import {
   teleportOf,
   breaksAttunement,
   dropsAnObject,
+  optionEffects,
   weaponRiderOf,
 } from '@ie/engine';
 
@@ -649,13 +650,24 @@ describe('every definition in the catalogue actually casts', () => {
     // and it owes the stronger obligation instead: it must say what the DM is
     // being left to do, or it is a definition that quietly does nothing.
     const definition = SRD_CONTENT.spell(spellId)!;
-    if (definition.effects.length === 0 && definition.areaTrigger !== undefined) {
+    // **A branch's effects are the spell's**, which is the reading
+    // `spell-tracking.test.ts` already takes of a branch's debts: SRD Bestow
+    // Curse's own list is empty and every one of its four faces carries the
+    // Wisdom save that gates it, so a sweep that read `effects` alone would
+    // call a spell that resolved a save a spell that resolved nothing. The
+    // harness speaks the first branch in key order, so this reads the same
+    // one.
+    const run = optionEffects(
+      definition,
+      definition.options === undefined ? undefined : Object.keys(definition.options).sort()[0]!,
+    );
+    if (run.length === 0 && definition.areaTrigger !== undefined) {
       // The third case, and it is a spell rather than a stub: SRD Web's webs
       // simply appear, and every save Web ever calls for comes from a creature
       // starting its turn in them or walking into them. A casting that
       // resolves nothing here is correct; the trigger is where the spell is.
       expect(out.outcomes).toEqual([]);
-    } else if (definition.effects.length === 0) {
+    } else if (run.length === 0) {
       expect(out.outcomes).toEqual([]);
       expect(out.unverified.length).toBeGreaterThan(0);
     } else {

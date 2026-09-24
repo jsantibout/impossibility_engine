@@ -828,6 +828,53 @@ export interface ConditionRider {
  * "for the duration" fits the casting exactly.
  */
 export type ModifierRider =
+  /**
+   * Extra damage the same outcome hangs on the **caster's later blows**
+   * against the creature it settled on.
+   *
+   * SRD Bestow Curse, the fourth of its four faces: "If you deal damage to the
+   * target with an attack roll **or a spell**, the target takes an extra 1d8
+   * Necrotic damage." One Wisdom save, one consequence, and the consequence
+   * outlives the roll that bought it — which is the argument every member of
+   * this union makes.
+   *
+   * **It is `later-blow` and not `attack-rider`, because a rider kind may
+   * never be an effect kind**, the rule `bonus`, `mode`, `speed-change`,
+   * `action` and `healing` all keep. What it grants *is* the `attack-rider`
+   * grant: the same `attack-rider-granted` event, the same
+   * {@link GrantedAttackRider} read by the same gatherer, so there is one
+   * mechanism with two doors into it rather than two that could disagree.
+   *
+   * **The grant lands on the caster and is about the host's target**, which is
+   * the one thing this rider does that no other member does. That is not an
+   * exception invented here: it is what `resolveAttackRiderEffect` has always
+   * done — SRD Hunter's Mark marks a quarry ninety feet away and the die is
+   * the ranger's — and the marked creature is the creature the outcome settled
+   * on, so `marksTarget` needs no field of its own here. The reason the effect
+   * kind cannot be written in a branch is the reason this exists: an effect
+   * appended after a save does not know how the save went.
+   *
+   * **It carries no `lasts`**, for the reason `bonus` carries none: the
+   * sentence runs for the casting's own duration, and an Instantaneous host
+   * would leave a die nothing could take back. `checkGrantLifetimes` refuses
+   * that pairing.
+   */
+  | {
+      readonly kind: 'later-blow';
+      /** The extra dice the sentence prints, e.g. `1d8`. */
+      readonly dice: string;
+      /** The type it prints: Bestow Curse's Necrotic. */
+      readonly damageType: string;
+      /**
+       * SRD's "with an attack roll **or a spell**".
+       *
+       * Absent is the attack roll alone, which is what SRD Hunter's Mark and
+       * SRD Hex print and what the effect kind's own writers mean. See
+       * {@link GrantedAttackRider.alsoSpells}, which is where the difference
+       * is read and where the two roads a blow can take are told apart.
+       */
+      readonly alsoSpells?: true;
+    }
   | {
       readonly kind: 'bonus';
       readonly bonus: Bonus;
@@ -4472,6 +4519,19 @@ export interface SpellDefinition {
    * it absent for long enough that three spells were waiting on it. The two
    * fields are neighbours rather than alternatives: a definition may print
    * both, and one casting may state a branch *and* a value inside it.
+   *
+   * **Which branch was named decides whether the choice is asked for.** SRD
+   * Bestow Curse prints "Choose one ability" inside the first of its four
+   * bullets and asks nothing of the other three, so `declaredFacts` runs
+   * {@link statedChoiceReaches} over the list *this* casting will run and
+   * demands a value only where one would land. The validator asks the wider
+   * question — does it land anywhere a casting could put it — which is the
+   * pairing to know about before writing a definition whose choice reaches
+   * one branch and whose route also *fixes* the value: `fixesChoice` is
+   * answered on every branch and this asks for it on one, so the branches
+   * that hold no slot would refuse the fixed value with `no_choice_clause`.
+   * No content meets both halves today, and the day one does it is this
+   * sentence that says where to look.
    */
   readonly choiceStated?: StatedChoice;
   /**
@@ -4654,18 +4714,43 @@ export interface SpellDefinition {
    * level", "eight hours from level 3" — would have made one of the two wrong
    * silently, and there is no arithmetic that produces both.
    *
-   * **Five definitions write it** — Hunter's Mark, the three Dominates and
-   * Mass Suggestion — and SRD Hex prints a sixth table that this field would
-   * take whole, which is what makes it a member rather than a guess. Hex has
-   * no definition to write it in: it is blocked on the ability chosen at its
-   * casting and on the Bonus Action that re-marks a dropped target.
+   * **Seven definitions write it** — Hunter's Mark, Hex, the three Dominates,
+   * Mass Suggestion and Bestow Curse. Hex's was the sixth table this docstring
+   * named as unwritten, and it is written now; Bestow Curse's is the seventh
+   * and prints the other half of the sentence beside it, which is
+   * {@link concentrationEndsAtSlot}.
    *
-   * What it deliberately does *not* express is SRD Major Image's "lasts until
-   * dispelled, **without requiring Concentration**, if cast with a level 4+
-   * spell slot" — one spell in the whole book, and a different sentence: it
-   * changes what kind of duration the spell has rather than how long it runs.
+   * What it deliberately does *not* express is SRD Major Image's "lasts
+   * **until dispelled**, without requiring Concentration, if cast with a level
+   * 4+ spell slot" — a table of seconds cannot say "until dispelled", which is
+   * an ending rather than a length. The Concentration half of that sentence is
+   * the neighbouring field.
    */
   readonly durationAtSlot?: Readonly<Record<number, number>>;
+  /**
+   * The slot from which the spell **stops requiring Concentration**.
+   *
+   * > SRD Bestow Curse: "If you use a level 5+ spell slot, the spell doesn't
+   * > require Concentration, and the duration becomes 8 hours (level 5–6 slot)
+   * > or 24 hours (level 7–8 slot)."
+   *
+   * The other half of the sentence {@link durationAtSlot} writes, and a
+   * separate field because it says something a table of seconds cannot: how
+   * long the spell runs and whether the caster has to hold it are two facts,
+   * and the SRD moves them independently — a level 4 Bestow Curse is ten
+   * minutes *of Concentration*, and a level 5 one is eight hours of none.
+   *
+   * **A band at this level or above**, which is how the SRD writes every clause
+   * of this shape and how the table beside it is read: one number rather than a
+   * per-slot record, because no spell in the book turns Concentration back on
+   * at a higher slot. {@link concentrationAt} is the one reader.
+   *
+   * **Refused on a definition that does not require Concentration in the first
+   * place** (`concentration_drop_without_concentration`) and on a band at or
+   * below the spell's own level, for the reason the duration table refuses one:
+   * the SRD prints both under "Using a Higher-Level Spell Slot".
+   */
+  readonly concentrationEndsAtSlot?: number;
   /**
    * Parts of the printed spell this definition does **not** do.
    *
@@ -5161,6 +5246,38 @@ export interface SpellActivation {
    * sentence names.
    */
   readonly redirects?: true;
+  /**
+   * Whether this action moves what the casting **already granted** onto a new
+   * creature.
+   *
+   * > SRD Hunter's Mark: "If the target drops to 0 Hit Points before this
+   * > spell ends, you can take a Bonus Action to move the mark to a new
+   * > creature you can see within range."
+   * > SRD Hex: "If the target drops to 0 Hit Points before this spell ends,
+   * > you can take a Bonus Action on a later turn to curse a new creature."
+   *
+   * **Beside {@link movesArea} and {@link redirects} rather than inside
+   * either**, and the three are the SRD's own three sentences: Moonbeam
+   * *carries* a Cylinder to a new point, Gust of Wind *turns* a Line that has
+   * not moved, and this puts the same casting's grants on somebody else. An
+   * area is not involved at all.
+   *
+   * **What it resolves is the definition's own effects**, which is why a
+   * re-aiming activation carries an empty {@link effects} list and the
+   * validator insists on one: the book prints no second sentence for the later
+   * turn — Hunter's Mark moves *the mark* and Hex curses a new creature with
+   * *the curse* — so a list here would be a second place for one sentence to
+   * be got wrong, and a Foe Slayer's d10 would have to be re-derived rather
+   * than replaced.
+   *
+   * **The mark is `attack-rider.marksTarget` and nothing else**, which is what
+   * makes the legality readable without a spell id: the rider the casting hung
+   * names the creature it is about, so the command reads that creature's
+   * vitals for the printed condition and refuses `quarry_still_standing` while
+   * they stand. `checkSpellDefinition` refuses the field on a definition that
+   * marks nobody, because there would be nothing to move.
+   */
+  readonly reAims?: true;
   /** How the log reads: "Vampiric Touch (again)". */
   readonly label: string;
   /**
@@ -5269,6 +5386,28 @@ export function durationSecondsAt(
     }
   }
   return best ?? definition.durationSeconds;
+}
+
+/**
+ * Whether a casting of this spell at this slot requires Concentration.
+ *
+ * {@link durationSecondsAt}'s sibling and the one reader of
+ * {@link SpellDefinition.concentrationEndsAtSlot}, so the place that writes the
+ * casting's `concentration` and any later reader cannot come to disagree about
+ * which band a slot falls in.
+ *
+ * SRD Bestow Curse: "If you use a level 5+ spell slot, the spell **doesn't
+ * require Concentration**." So the answer is the definition's own flag until
+ * the band is reached and false from there up — "at this level or above",
+ * which is the reading the duration table takes of its own keys.
+ *
+ * Identity for every spell that prints no such clause, which is all but two of
+ * them.
+ */
+export function concentrationAt(definition: SpellDefinition, castLevel: number): boolean {
+  if (!definition.concentration) return false;
+  const drops = definition.concentrationEndsAtSlot;
+  return drops === undefined || castLevel < drops;
 }
 
 /**
@@ -5517,6 +5656,42 @@ export function statedChoice(
     if (effect.kind === 'buff' && effect.only?.[key] !== undefined) {
       return { ...effect, only: { ...effect.only, [key]: chosen } } as SpellEffect;
     }
+    // **And the same selector where a settled outcome hangs it**, which is the
+    // third host and the one SRD Bestow Curse writes: "Choose one ability. The
+    // target has Disadvantage on ability checks **and saving throws** made with
+    // that ability", off a Wisdom save the same sentence asks for. Written as
+    // two `roll-mode` effects the modes would land on a creature that made the
+    // save, so they are {@link ModifierRider}s on the save that gates them —
+    // and a substitution that could not reach a rider would have left the
+    // ability the caster named on the placeholder the definition prints.
+    //
+    // `modifiers` is one field name on the three hosts that carry it, which is
+    // what lets this be one arm rather than three — see {@link
+    // modifierRidersOf}, which reads the same three.
+    //
+    // **The `mode` rider and not the `bonus` one beside it**, because the
+    // `bonus` rider carries no narrowing at all: the standalone `buff` has
+    // `only` and the rider is the arithmetic without it, so there is no field
+    // here for a skill or an ability to be substituted into.
+    if (
+      (effect.kind === 'save' || effect.kind === 'attack' || effect.kind === 'save-damage') &&
+      effect.modifiers !== undefined
+    ) {
+      const riders = effect.modifiers.map((rider) =>
+        rider.kind === 'mode' && rider.modifier.selector[key] !== undefined
+          ? {
+              ...rider,
+              modifier: {
+                ...rider.modifier,
+                selector: { ...rider.modifier.selector, [key]: chosen },
+              },
+            }
+          : rider,
+      );
+      if (riders.some((rider, i) => rider !== effect.modifiers![i])) {
+        return { ...effect, modifiers: riders } as SpellEffect;
+      }
+    }
     return effect;
   });
 }
@@ -5543,15 +5718,17 @@ export function statedChoiceCollides(
 ): boolean {
   if (of === 'condition' || of === 'creature-type') return false;
   const sibling = of === 'ability' ? 'skill' : 'ability';
+  const pinned = (
+    pair: { readonly ability?: string; readonly skill?: string } | undefined,
+  ): boolean => pair !== undefined && pair[of] !== undefined && pair[sibling] !== undefined;
   return effects.some((effect) => {
-    if (effect.kind === 'roll-mode') {
-      const selector = effect.modifier.selector;
-      return selector[of] !== undefined && selector[sibling] !== undefined;
-    }
-    if (effect.kind === 'buff' && effect.only !== undefined) {
-      return effect.only[of] !== undefined && effect.only[sibling] !== undefined;
-    }
-    return false;
+    if (effect.kind === 'roll-mode') return pinned(effect.modifier.selector);
+    if (effect.kind === 'buff') return pinned(effect.only);
+    // The third host, for {@link statedChoice}'s reason: a rider carries the
+    // same pair and the same rule about it.
+    return modifierRidersOf(effect).some(
+      (rider) => rider.kind === 'mode' && pinned(rider.modifier.selector),
+    );
   });
 }
 

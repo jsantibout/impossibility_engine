@@ -193,7 +193,7 @@ export const MISSING_SHAPES = {
   'a-cap-on-how-many-castings-run-at-once':
     '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
-    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. What is left is the *other* half of the sentence PROGRESS.md quotes: a slot that changes **what kind** of duration the spell has. SRD Major Image is the one spell in the book that prints it — "The spell lasts until dispelled, **without requiring Concentration**, if cast with a level 4+ spell slot" — so a table of seconds cannot say it, and a member with one writer is what the format’s own unused-member sweep exists to refuse.',
+    'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. **And the Concentration half is built too**: `concentrationEndsAtSlot` is the slot from which a spell stops requiring Concentration, which SRD Bestow Curse prints at level 5 and SRD Major Image prints at level 4, beside its other clause. What is left is the *last* half of the sentence PROGRESS.md quotes: a slot that changes what kind of **ending** a casting has. Major Image and Bestow Curse’s level 9 arm are the two that print it, and a table of seconds says a length rather than an ending.',
   'a-deadline-anchored-to-a-rest':
     '`docs/design/time-and-turns.md`: "`duration.ts` has two types" — "A span of time" and "A moment in the turn order". A rest is neither, and the SRD anchors effects to one constantly. The clock records `lastShortRestAt` and a rest is a span the engine measures, so the fact is there and no deadline can name it.',
   'an-effect-that-fires-when-the-casting-ends':
@@ -237,15 +237,13 @@ export const MISSING_SHAPES = {
   'a-dc-the-caster-does-not-set':
     'every saving throw a spell forces is measured against the casting’s pinned `saveDc`. The audit names the asymmetry from the other side — "**Three members of the definition format have zero catalogue users**, not one: `roll-mode.save` ..., `SpellCheck.dc` ..., and `’end-casting’` as a `save.repeats.onSuccess` value" — so an *ability check* may already name a printed DC and a *saving throw* may not.',
   'a-condition-benefit-an-effect-takes-away':
-    'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets. **And Mind Spike is finished too**: the further shape it needed was the denial narrowed to the caster alone, which is this shape meeting the-effects-source-as-a-participant, and `DeniedBenefit.against` is it — an id bound from a role at the cast, read by `deniedBenefitsOf` off the creature on the other side of the question, and absent for a roll with no second participant, so the Initiative Advantage the spell does not take away goes on standing. A blanket denial would have been wrong for it rather than merely coarse. What is left is Shining Smite, which hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target — and needs `attack-damage`, the cast-on-hit host, to carry riders at all.',
+    'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets. **And Mind Spike is finished too**: the further shape it needed was the denial narrowed to the caster alone — what used to be filed as a second shape, the effect’s source as a participant, since retired because `RollSelector.counterpart` and `DeniedBenefit.against` had both answered it — and `DeniedBenefit.against` is it — an id bound from a role at the cast, read by `deniedBenefitsOf` off the creature on the other side of the question, and absent for a roll with no second participant, so the Initiative Advantage the spell does not take away goes on standing. A blanket denial would have been wrong for it rather than merely coarse. What is left is Shining Smite, which hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target — and needs `attack-damage`, the cast-on-hit host, to carry riders at all.',
   'a-random-outcome-that-is-not-a-d20':
     '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **Two consumers have now left the count without the gap closing, and both are recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count. **Gust of Wind left the same way and for the same reason**: it was tracked and filed here for the 50 percent chance of snuffing a lantern, the push and both saving throws are executed now, and the clause went with it into that spell’s own `unmodelled` list. So the census fell by one on a day nothing was built, which is what this paragraph exists to say out loud.',
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
     '**built for the spell vocabulary, and this is what is left of it.** PROGRESS.md ranked it at 19 open spells and Magic Missile was the one it named; the `auto-damage` effect is that sentence — typed damage with a flat addend and nothing rolled to decide whether it lands, dealt as a pool of separate hits among the creatures the caster named, with the count and the split an `attack` already carried. Magic Missile is executed off it, Heat Metal’s opening 2d8 is expressible by it and waits on the two clauses beside it, and Shield’s clause has left this id for the shape that actually blocks it. What is left is the **item** half, which is a different door: `packages/engine/src/content.ts` admits fourteen effect kinds to a conferral and this is not one of them, so a Potion of Poison’s 4d6, a talisman that burns whoever touches it and a manual that scorches whoever cannot read it are still filed here. A conferral has no casting, no slot and no caster level for a `DiceScaling` to read, which is what admitting the kind has to answer for rather than assume.',
-  'the-effects-source-as-a-participant':
-    '`docs/design/rolls-and-damage.md` lists it among what the roll-modifier vocabulary deliberately does not reach: "The effect’s *source* as a participant — “against **you**”, meaning the caster | Bestow Curse". `relation` is one bit wide — `roller` or `against-holder` — and the caster of the spell is a third participant no selector can name.',
   'an-area-moved-by-the-casters-own-movement':
     'spell-definitions.ts keeps two allowances apart because the SRD does — `CastingOrigin.movableBy`, a rider on an action that also strikes, and `SpellActivation.movesArea`, where "the move *is* the action". A pack or a pillar that comes along when the caster walks, costing no action at all, is a third sentence and neither field says it.',
   'an-outcome-that-breaks-concentration':
@@ -614,6 +612,23 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'end of every 30 days',
       why: 'a-repeat-save-on-the-clock',
       note: 'A repeat save is raised by a turn boundary. This one runs on elapsed time, which `Deadline` can express and `RepeatSave` cannot, and the Greater Restoration that ends it sooner is the same missing hook from the other side.',
+    },
+  ],
+  'bestow-curse': [
+    {
+      clause: 'the opening Wisdom save the other three roll',
+      why: 'a-repeat-save-that-does-something-on-a-failure',
+      note: 'the same debt seen from the branch rather than from the clause. Each of this spell’s four faces carries the save that gates it, because a save in the common list would be one roll no branch could read — so a branch that can resolve nothing rolls nothing, and the third face resolves nothing because the sentence after its save is the shape below. The two entries are one gap and are filed apart because the honesty guard reads a clause at a time.',
+    },
+    {
+      clause: 'at the start of each of the target’s turns is not raised',
+      why: 'a-repeat-save-that-does-something-on-a-failure',
+      note: 'the third of the four faces, and the one branch of the spell that is still a debt. A repeat save hung on a casting ends the casting on a success and this one ends nothing — a third value the vocabulary does not carry — and its failure compels the Dodge action for that turn, where a failure branch applies a condition. Both halves are the shape’s own sentence.',
+    },
+    {
+      clause: 'is not applied: `untilDispelled` is a property of the spell',
+      why: 'a-duration-the-slot-changes',
+      note: 'the one arm of the slot table left. The lengths are `durationAtSlot` and the Concentration is `concentrationEndsAtSlot`, both written; what a table of seconds cannot say is an ending rather than a length, which is what a level 9 slot buys. SRD Major Image prints the same clause and names the same shape.',
     },
   ],
   'black-tentacles': [
@@ -1005,11 +1020,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'Advantage on a Wisdom (Perception or Survival) check made to find the quarry',
       why: 'a-fact-only-the-table-can-declare',
       note: 'SRD: "You also have Advantage on any Wisdom (Perception or Survival) check you make to find it." A `RollModifier` selects a check by ability and by skill, so Wisdom (Perception) and Wisdom (Survival) are each perfectly expressible — two grants, one sentence. What no selector can say is which of those checks is the one being made *to find the quarry*, and that is a fact about the attempt rather than about the roll. Granted unconditionally it would hand the ranger Advantage on every Perception check they roll for the hour the spell runs, which is the silent wrong answer this discipline exists to refuse.',
-    },
-    {
-      clause: 'moving the mark to a new creature when the quarry drops to 0 Hit Points',
-      why: 'an-outcome-that-reads-the-targets-hit-points',
-      note: 'SRD: "If the target drops to 0 Hit Points before this spell ends, you can take a Bonus Action to move the mark to a new creature you can see within range." The vitals are there and nothing reads a threshold on them, which is the whole of this shape; and the second half is a later action that re-aims what the casting already granted, where every registered `SpellActivation` resolves effects at a target instead.',
     },
   ],
   // **Hypnotic Pattern is off this map entirely**, and both of the clauses it
@@ -2672,58 +2682,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'Strength (Athletics) check against your spell save DC',
       why: 'a-check-another-creature-may-attempt',
       note: 'the check may be made by the target "or a creature within reach of it", and a casting check is rolled by somebody the casting touched — so the second half of that list has no one to be.',
-    },
-  ],
-  hex: [
-    {
-      marker: 'dice',
-      clause: 'extra 1d6 Necrotic damage',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the die joins every attack the caster lands on this target for the hour, where the extra dice a spell hangs belong to the one attack its casting was declared on — Divine Smite settles at the hit and this waits for the next one.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'The target has Disadvantage on ability checks made with the chosen ability',
-      why: 'expressible',
-      note: 'the over-count this entry used to be, corrected. `choiceStated` records the ability the caster names and `statedChoice` puts it on the selector, which is Enhance Ability sentence with the mode reversed — so nothing blocks the clause, and the only reason it is unwritten is that nobody has written this definition. The entry said so at length and filed itself under `a-choice-made-at-the-casting` anyway, because the value that means it lived on `BlockedClause` and not here, and widening this type reaches both generators and every guard over this map. Gate G1 took that decision.',
-    },
-    {
-      marker: 'extra-damage',
-      clause: 'whenever you hit it with an attack roll',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the trigger half of the same sentence, and the half that makes it a standing rider rather than a settlement: there is no later attack for a finished casting to read.',
-    },
-    {
-      marker: 'hit-points',
-      clause: 'If the target drops to 0 Hit Points before this spell ends',
-      why: 'an-outcome-that-reads-the-targets-hit-points',
-      note: 'the curse moves to a new creature when this one falls, and no outcome asks the vitals a question — so the Bonus Action on a later turn that re-curses is never offered.',
-    },
-  ],
-  'bestow-curse': [
-    {
-      marker: 'saving-throw',
-      clause: 'at the start of each of its turns or be forced to take the Dodge action',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'a boundary save whose failure spends the action for its holder: the repeat save releases an effect on a success and its failure branch does nothing at all, and the economy is guarded by the conditions the engine names.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'Disadvantage on attack rolls against you',
-      why: 'the-effects-source-as-a-participant',
-      note: 'the selector says whether a modifier reaches the roller or the creature rolled against, and the caster of the spell is a third participant it cannot name — the sentence that shape was named for.',
-    },
-    {
-      marker: 'dice',
-      clause: 'the target takes an extra 1d8 Necrotic damage',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the die is hung on damage the caster deals later rather than on the casting, which is the rider shape; and this one fires on damage from a spell as well as from an attack roll, which is the half the build did not reach.',
-    },
-    {
-      marker: 'extra-damage',
-      clause: 'If you deal damage to the target with an attack roll or a spell',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the trigger half of the same sentence, and the half that widens it past an attack: a rider selects the attack its casting settled, and there is no selector for damage of any origin.',
     },
   ],
   'call-lightning': [

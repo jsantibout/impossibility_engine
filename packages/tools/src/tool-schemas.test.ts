@@ -218,10 +218,14 @@ describe('toolSchemas', () => {
     // already existed, so neither count moves — the player's grew by 3,883 and
     // the DM's by 8,058, because `attack` is published on both doors and the
     // two checks are the DM's alone.
+    // And again for the curses track: one sentence on `activate_spell`'s
+    // description, because two spells (Hex, Hunter's Mark) now offer a later
+    // Bonus Action through it and nothing told a model so — the same 181
+    // bytes on both surfaces, no tool added.
     expect(toolSchemas(player())).toHaveLength(85);
     expect(toolSchemas(dm())).toHaveLength(105);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(127878);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(160030);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(128059);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(160211);
   });
 });
 
