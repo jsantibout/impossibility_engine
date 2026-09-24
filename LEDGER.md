@@ -37,7 +37,7 @@ state is displayed as zero.
 | Features manual, or a pool with nothing to buy | 8 features | 2 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 189 items | on 117 of 244 blocks | 0 | 127 blocks already clean |
+| CR ≤ 5 stat-block items handed over or unapplied | 180 items | on 115 of 244 blocks | 0 | 129 blocks already clean |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -557,9 +557,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 568 and hands over 170. Reading is not spending: a further 19 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 189 items over 244 blocks — 127 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 577 and hands over 161. Reading is not spending: a further 19 of the read attack lines carry a printed rider nothing applies, and 0 read trait lines state a mechanic no engine reader asks for. So the population is 180 items over 244 blocks — 129 of which already carry none of them.
 
-**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 189 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 30 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, which say what a creature is and name nothing any rule consults, because nothing here drowns. They are neither spent nor waiting, so they are not among the 180 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -570,10 +570,11 @@ overlap: one sentence can force a save and recharge.
 |---|---|---|---|
 | A hit whose line says more than the engine applies | 27 | 27 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive |
 | An effect a hit buys | 19 | 19 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Black Pudding (CR 4) / Dissolving Pseudopod |
-| A use the block limits per day | 16 | 15 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
 | A save a line forces | 11 | 11 | Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
-| A recharge | 5 | 5 | Blink Dog (CR 0.25) / Teleport (Recharge 4–6); Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
+| A use the block limits per day | 9 | 8 | Darkmantle (CR 0.5) / Darkness Aura (1/Day); Gnoll Warrior (CR 0.5) / Rampage (1/Day); Night Hag (CR 5) / Nightmare Haunting (1/Day; Requires Soul Bag) |
+| A line that casts, read and not spent | 7 | 7 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Doppelganger (CR 3) / Read Thoughts |
 | A save whose line says more than the engine spends | 5 | 5 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Gibbering Mouther (CR 2) / Gibbering; Steam Mephit (CR 0.25) / Steam Breath (Recharge 6) |
+| A recharge | 4 | 4 | Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6); Ghost (CR 4) / Possession (Recharge 6) |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |
 | A creature that casts | 0 | 0 | — |
@@ -585,7 +586,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 141
+### Handed-over lines matching no enumerated shape — 140
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -615,7 +616,6 @@ of it off the ledger.
 - Commoner (CR 0) [trait] Training
 - Couatl (CR 4) [trait] Shielded Mind
 - Deer (CR 0) [trait] Agile
-- Doppelganger (CR 3) [action] Read Thoughts
 - Doppelganger (CR 3) [bonus action] Shape-Shift
 - Dryad (CR 1) [trait] Speak with Beasts and Plants
 - Dryad (CR 1) [bonus action] Tree Stride

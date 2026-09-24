@@ -2011,3 +2011,27 @@ Appended after wave seven's first spells track (2026-09-24):
   definition still says it is the table's. A lifted creature may walk sideways
   through the air, since `checkRise` refuses only a rise: recorded under
   `movement-modes`. Both spells moved from tracked to executed-partial.
+- **Three stat-block sentences read, two spent.** The parser reads a line that
+  casts (`casts`: the list, and the ability either "the same as Spellcasting"
+  or stated with its DC), a line that teleports (`teleports`) and a Reaction
+  that adds to somebody's roll (`addsToRoll`), each anchored end to end. The
+  teleport is a third door on one line beside the stated action and the
+  printed save — `takePrintedTeleport`, spending the heading's slot, the
+  recharge and the day's uses, and settling the destination through the same
+  distance, occupancy and sight rules Misty Step uses; every refusal it can
+  raise happens before the slot goes. The Sphinx of Wonder's Burst of
+  Ingenuity is the first Reactions-section line ever compiled onto a sheet,
+  and **the brief's shape for it was wrong**: `intervene` with a bonus already
+  is "adds to the roll", so what was missing was a flat addend a stat block
+  prints and a reach of "the sphinx or another creature within 30 feet"
+  (`self-or-within`), not a new reaction kind. **The cast line is read and
+  not spent, on purpose.** The heading prices the use — Divine Aid is a Bonus
+  Action that casts Bless, whose own casting time is an Action — and the only
+  place a casting's slot is decided is `castingOf`, which the bookkeeping
+  spells track owns this batch. A door built without that hook would spend an
+  Action where the book prints a Bonus Action. So the debt has a ledger row
+  of its own, "A line that casts, read and not spent", and `casts` is not
+  pinned onto the stated action until the door exists. **Ruling for the door:**
+  a route may state a casting time (`GrantedSpell.castingTime`, one
+  call-site change in `castingOf`) — a line is a route the way a feature's
+  free casting is, not a pipeline of its own. Main re-ingested.
