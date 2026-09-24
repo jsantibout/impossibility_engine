@@ -542,8 +542,10 @@ export function applyHitRider(
 
   // **The armour, beside the hazard and for its reason**: what it changes is
   // not the creature but the thing the creature is wearing, and an effect list
-  // hangs what it hangs on a creature.
-  events.push(...corrodeArmor(state, hit, option, unverified));
+  // hangs what it hangs on a creature. On the world the effects left, which is
+  // the rule the grapple below keeps — what the target is wearing is a fact
+  // this rider has to read after everything before it has had its say.
+  events.push(...corrodeArmor(resolved.value.state, hit, option, unverified));
 
   // **The grapple, after the effect list and before the deadlines**, because
   // it is neither: it hangs no condition the option's own span is about — SRD
