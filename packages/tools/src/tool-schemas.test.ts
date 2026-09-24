@@ -200,8 +200,8 @@ describe('toolSchemas', () => {
     // bytes on both, which is the tool being published once.
     expect(toolSchemas(player())).toHaveLength(84);
     expect(toolSchemas(dm())).toHaveLength(103);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(122027);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146157);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(122208);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146338);
   });
 });
 
