@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { expect as unwrap } from '@ie/shared';
 import { extendContent } from './content.js';
-import { checkCharacter, type CharacterChoices } from './creation.js';
+import { checkCharacter, planCharacter, type CharacterChoices } from './creation.js';
 
 /**
  * An option a feature lets its holder take more than once, driven through
@@ -21,10 +21,11 @@ import { checkCharacter, type CharacterChoices } from './creation.js';
  * `packages/content/src/eldritch-invocations.test.ts`.
  *
  * **And the `ability-score` question is here because nothing else can reach
- * it.** No SRD feature gates points on a repeatable option; the check that
- * reads them finds its own answer key, so a repeated question asking for
- * points would report the *first* copy's answer once per copy — one mistake
- * told twice, which is the second-worst thing a validator can do. Homebrew is
+ * it.** No SRD feature gates points on a repeatable option, and both readers
+ * of one used to find their own answer key — so a repeated question asking
+ * for points would have had its first copy checked twice, its second checked
+ * by nothing, and its second spent by nothing: an answer accepted, unread and
+ * unpaid, which is the shape `unaskedAnswers` exists to refuse. Homebrew is
  * the only door onto that pairing, and this is it.
  */
 
@@ -67,6 +68,14 @@ const RITES = {
         { key: 'honed', kind: 'skill', choose: 1, onlyIfChoice: 'Honing' },
         { key: 'spent', kind: 'ability-score', spreads: [[2]], onlyIfChoice: 'Honing' },
       ],
+    },
+    {
+      id: 'rite-keeper:lore',
+      name: 'Lore',
+      level: 1,
+      automation: 'engine',
+      note: 'Two fields of study, and they are two rather than one field studied twice.',
+      choice: { kind: 'skill', choose: 2 },
     },
     {
       id: 'rite-keeper:subclass',
@@ -115,7 +124,11 @@ const keeper = (
   equipped: [],
   hitPoints: { method: 'fixed' },
   subclassId: 'order-of-the-hour',
-  featureChoices: { 'human:skillful': ['perception'], ...featureChoices },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'rite-keeper:lore': ['nature', 'insight'],
+    ...featureChoices,
+  },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',
@@ -179,11 +192,12 @@ describe('an option a feature lets its holder take twice', () => {
   });
 
   /**
-   * One mistake, told once. `checkAbilityChoice` finds its own answer key, so
-   * a question asked twice would otherwise report the first copy's answer once
-   * per copy — see `creation.ts`, where the guard says so.
+   * **Each copy's spread is held to the feature's own sentence on its own.**
+   * The reader used to find its own answer key, which would have validated
+   * the first copy twice and the second never — an answer accepted and read
+   * by nothing, which is what `askedWithKeys` exists to prevent.
    */
-  it('reports a bad spread of points once however many copies asked for them', () => {
+  it('holds each copy’s spread to the sentence, and only the bad one', () => {
     const problems = codes(
       keeper({
         [RITE]: ['Honing', 'Honing'],
@@ -194,5 +208,57 @@ describe('an option a feature lets its holder take twice', () => {
       }),
     );
     expect(problems.filter((code) => code === 'ability_spread_not_offered')).toHaveLength(1);
+
+    // And the same mistake in the second copy is caught, which is what a
+    // reader that only ever looked at the first would have missed.
+    const second = codes(
+      keeper({
+        [RITE]: ['Honing', 'Honing'],
+        [`${RITE}:honed`]: ['athletics'],
+        [`${RITE}:honed#2`]: ['stealth'],
+        [`${RITE}:spent`]: ['wis', 'wis'],
+        [`${RITE}:spent#2`]: ['con'],
+      }),
+    );
+    expect(second.filter((code) => code === 'ability_spread_not_offered')).toHaveLength(1);
+  });
+
+  /** And both copies are **spent**, not merely validated. */
+  it('pays out every copy’s points', () => {
+    const scores = unwrap(
+      planCharacter(
+        CONTENT,
+        keeper({
+          [RITE]: ['Honing', 'Honing'],
+          [`${RITE}:honed`]: ['athletics'],
+          [`${RITE}:honed#2`]: ['stealth'],
+          [`${RITE}:spent`]: ['wis', 'wis'],
+          [`${RITE}:spent#2`]: ['con', 'con'],
+        }),
+      ),
+      'plan',
+    ).sheet.abilities;
+    // Wisdom 15 and Constitution 13 + 2 from the background, each raised by
+    // one copy's two points.
+    expect(scores.wis).toBe(17);
+    expect(scores.con).toBe(17);
+  });
+
+  /**
+   * A skill named twice in one answer is one proficiency wearing two of the
+   * feature's picks, and it is refused where that question is checked rather
+   * than by the across-copies rule.
+   */
+  it('refuses a skill named twice inside one answer', () => {
+    expect(
+      codes(
+        keeper({
+          [RITE]: ['Honing', 'Warding'],
+          [`${RITE}:honed`]: ['athletics'],
+          [`${RITE}:spent`]: ['wis', 'wis'],
+          'rite-keeper:lore': ['nature', 'nature'],
+        }),
+      ),
+    ).toContain('duplicate_skill');
   });
 });

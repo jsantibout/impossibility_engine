@@ -526,7 +526,11 @@ function abilityPointsFrom(
   const feat = choices.feats[feature.id];
   const raises = featureChoicesOf(feature).find((question) => question.kind === 'ability-score');
   if (raises !== undefined && feat === undefined) {
-    spend(choices.featureChoices[choiceAnswerKey(feature.id, raises.key)] ?? []);
+    // **Every copy, where the option that asks may be taken more than once.**
+    // A repeated question is two spreads rather than one, and a spender that
+    // read the base key alone would validate the second and pay out nothing —
+    // an answer accepted, unread and unspent.
+    spend(answersAcrossCopies(choices, choiceAnswerKey(feature.id, raises.key)));
   }
 
   if (feat !== undefined) {
@@ -1452,15 +1456,13 @@ function checkFeatureChoices(
 
       // Ability points are answered one ability per point and may be answered
       // with a feat instead, so neither the length rule below nor the "one
-      // answer, in one place" assumption behind it holds. **Once, whatever the
-      // copy**: `checkAbilityChoice` finds its own key, so a repeated question
-      // asking for points would otherwise report the first copy's answer once
-      // per copy. No SRD feature writes that pairing; this is what keeps it
-      // from becoming two identical problems if one ever does.
+      // answer, in one place" assumption behind it holds. **Once per copy**,
+      // and the key is handed down rather than found again: a repeated
+      // question asking for points is two separate spreads, each held to the
+      // feature's own sentence on its own, and `abilityPointsFrom` spends
+      // both. No SRD feature writes that pairing; homebrew may.
       if (asked.kind === 'ability-score') {
-        if (answerKey === choiceAnswerKey(feature.id, asked.key)) {
-          problems.push(...checkAbilityChoice(choices, feature, asked));
-        }
+        problems.push(...checkAbilityChoice(choices, feature, asked, answerKey));
         continue;
       }
 
@@ -1574,6 +1576,17 @@ function checkFeatureChoices(
       }
 
       if (asked.kind === 'skill') {
+        // **A skill named twice is one proficiency wearing two of the
+        // feature's picks**, which is `duplicate_option`'s refusal one member
+        // along and `classSkills`' word for word. It was the one question
+        // whose duplicates nothing refused, and `repeatsNameTheSame` was
+        // catching it by accident across copies of a repeated question — which
+        // is not where a rule about one answer belongs.
+        for (const picked of duplicates(made)) {
+          problems.push(
+            problem('duplicate_skill', 'featureChoices', `${feature.name} chose ${picked} twice`),
+          );
+        }
         for (const picked of made) {
           if (!(SKILLS as readonly string[]).includes(picked)) {
             problems.push(
@@ -1633,8 +1646,18 @@ function checkAbilityChoice(
   choices: CharacterChoices,
   feature: FeatureDefinition,
   asked: Extract<FeatureChoice, { kind: 'ability-score' }>,
+  /**
+   * The copy being checked — {@link repeatAnswerKey}'s, where the option that
+   * asks may be taken more than once.
+   *
+   * Passed in rather than found here, and that is the whole of what the
+   * repeat vocabulary cost this function: a reader that kept asking
+   * `choiceAnswerKey` would see the first copy and silently drop the rest,
+   * which is the failure `askedWithKeys` exists to prevent and would have
+   * been an answer validated by nothing.
+   */
+  answerKey: string,
 ): CreationProblem[] {
-  const answerKey = choiceAnswerKey(feature.id, asked.key);
   const made = choices.featureChoices[answerKey] ?? [];
   const offers = asked.spreads.map(spreadOf).join(', or ');
 
