@@ -411,13 +411,11 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
    * Shape column and refilled by both rests — and the feature is *becoming a
    * Beast*, which nothing does.
    */
-  'druid:druidic': [
-    {
-      clause: 'recorded as a proficiency and read by nobody',
-      why: 'table',
-      note: 'a language and the messages it hides are narration; there is no rule here for the engine to own.',
-    },
-  ],
+  // `druid:druidic` stood here and left the population by being read: the
+  // language is on the sheet through a `language` grant and Speak with Animals
+  // through a fixed `spells` grant, which is the whole of what the paragraph
+  // says the engine owns. The hidden messages and the DC 15 check are the
+  // table's, which is a handover rather than a debt.
   'druid:beast-spells': [
     {
       clause: 'Casting while Wild Shaped is not modelled, because Wild Shape is not',
@@ -706,13 +704,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Rogue —
-  'rogue:thieves-cant': [
-    {
-      clause: 'A language with no mechanics attached',
-      why: 'table',
-      note: 'narration, like Druidic: a language the sheet records and no rule reads.',
-    },
-  ],
+  // `rogue:thieves-cant` left with Druidic: the Cant is a `language` grant and
+  // the "one other language of your choice" beside it is a `language`
+  // question, held to the catalogue and to the word *other*.
   'rogue:reliable-talent': [
     {
       clause: 'the dice layer substitutes values on damage dice, not on a D20 Test',

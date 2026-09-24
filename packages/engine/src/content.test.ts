@@ -1612,6 +1612,22 @@ const SKYSPEECH = JSON.stringify({
   ],
 });
 
+/**
+ * The tongues the SRD's own classes grant, which a world replacing the
+ * language table has to keep holding.
+ *
+ * A `language` grant must reach something — the rule
+ * `unknown_granted_language` states, and the same rule a fixed spell grant
+ * and a granted feat are held to — so a world built from
+ * `SRD_CONTENT_INPUT`'s classes with a language table of its own still needs
+ * the two a Druid and a Rogue are given. Read off the catalogue rather than
+ * spelled again, so a thirteenth class granting a third tongue is carried
+ * here by the same line.
+ */
+const RARE_A_CLASS_GRANTS = SRD_CONTENT.languages.filter(
+  (one) => one.availability === 'rare',
+);
+
 describe('languages and alignments go through the same door as the book', () => {
   const world = unwrap(extendContent(SRD_CONTENT, JSON.parse(SKYSPEECH)), 'extend');
   /** A character valid in every other respect, so only the tongue is on trial. */
@@ -1652,6 +1668,11 @@ describe('languages and alignments go through the same door as the book', () => 
           { id: 'skyspeech', name: 'Skyspeech', availability: 'everyone' },
           { id: 'deep-hymn', name: 'Deep Hymn' },
           { id: 'root-cant', name: 'Root Cant' },
+          // A world that replaces the tongues still has to hold the ones its
+          // *classes* grant, which is the rule `unknown_granted_language`
+          // states: the SRD Druid knows Druidic and the SRD Rogue knows
+          // Thieves' Cant, and these classes are `SRD_CONTENT_INPUT`'s.
+          ...RARE_A_CLASS_GRANTS,
         ],
       }),
       'elsewhere',
@@ -1669,6 +1690,7 @@ describe('languages and alignments go through the same door as the book', () => 
         languages: [
           { id: 'deep-hymn', name: 'Deep Hymn' },
           { id: 'root-cant', name: 'Root Cant' },
+          ...RARE_A_CLASS_GRANTS,
         ],
       }),
       'babel',

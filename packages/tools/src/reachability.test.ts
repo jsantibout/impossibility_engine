@@ -397,6 +397,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'critical-range': 'SRD Improved Critical: the natural roll a hit crits on, read by the attack pipeline',
   'ability-score-increase': 'an ability score raised at creation; every modifier derived from it follows',
   'save-proficiency': 'saving throws this character is proficient in, read by every save it rolls',
+  language:
+    'SRD Druidic and SRD Thieves’ Cant: a tongue written onto the sheet when the character is made, which `sheet` reports beside the two they chose and no caller elects',
   'weapon-and-armor-training':
     'weapon categories and armour training added when the character was made, which `proficientWith` and every armour check read',
   initiative: 'a bonus the engine adds when Initiative is rolled, which no caller states',
