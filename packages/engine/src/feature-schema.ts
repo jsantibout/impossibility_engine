@@ -27,7 +27,6 @@ import {
   type RollSelector,
 } from './roll-modifiers.js';
 import { LIGHT_LEVELS } from './positioning.js';
-import { hasOutcomeRiders } from './spell-definitions.js';
 import { checkActionRule } from './spell-schema.js';
 import { hours, TURN_ANCHORS } from './time.js';
 
@@ -1748,39 +1747,6 @@ function grantProblems(
   }
 
   if (grant.kind === 'standing') {
-    // The two `casting-*` members whose own docstrings promise a refusal, and
-    // the three things they can say that would compile onto a sheet and do
-    // nothing at all.
-    (grant.effects ?? []).forEach((effect, index) => {
-      const at = `grants.effects[${index}]`;
-      if (effect.kind === 'casting-range') {
-        // SRD Eldritch Spear's "30 times your Warlock level". A rate of zero
-        // is a feature that lengthens nothing while claiming to, which is
-        // `fall-damage-reduction`'s rule on the same arithmetic.
-        if (!Number.isInteger(effect.perClassLevel) || effect.perClassLevel < 1) {
-          found.push({
-            field: `${at}.perClassLevel`,
-            code: 'bad_casting_range',
-            reason: `a range lengthens by a whole number of feet for each class level, not ${String(effect.perClassLevel)}`,
-          });
-        }
-        // The level is the character's and content never knows one.
-        if (effect.classLevel !== undefined) {
-          found.push({
-            field: `${at}.classLevel`,
-            code: 'level_pinned_by_content',
-            reason: 'a class level is pinned by creation, and content that wrote one would be a catalogue stating a character’s number',
-          });
-        }
-      }
-      if (effect.kind === 'casting-rider' && !hasOutcomeRiders(effect.rides)) {
-        found.push({
-          field: `${at}.rides`,
-          code: 'empty_casting_rider',
-          reason: 'a rider that fills no slot hangs nothing on the hit it rides, so the grant promises a benefit no reader could apply',
-        });
-      }
-    });
     (grant.effects ?? []).forEach((effect, index) => {
       if (effect.kind !== 'casting-damage') return;
       const at = `grants.effects[${index}]`;

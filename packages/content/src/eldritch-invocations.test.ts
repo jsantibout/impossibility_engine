@@ -1016,6 +1016,41 @@ describe('One with Shadows', () => {
     const bright = castIt('bright');
     expect(bright.ok ? '' : bright.reason).not.toContain('declareLight');
   });
+
+  /**
+   * A room and a creature standing in it are ordinary missing facts, and both
+   * have a `ContextRequest` kind and a door — so those two ask rather than
+   * refuse. Only the light is the ruling.
+   */
+  it('asks for a room, and for somewhere to stand in it', () => {
+    const creation = unwrap(
+      createCharacter(SRD_CONTENT, warlock(SHADOWS), WHO),
+      'creation',
+    ) as GameEvent[];
+    const cast = (log: readonly GameEvent[]) =>
+      resolveSpell(
+        fold('seed', log),
+        WHO,
+        { spellId: 'invisibility', targets: [WHO] },
+        supply('nowhere'),
+      );
+
+    const roomless = cast(creation);
+    expect(roomless.ok ? null : roomless.kind).toBe('needs-context');
+    expect(roomless.ok ? [] : (roomless.requests ?? []).map((one) => one.kind)).toEqual(['scene']);
+
+    const unplaced = cast([
+      ...creation,
+      { type: 'scene-set', extent: { width: 100, depth: 100, height: 20 } },
+    ]);
+    expect(unplaced.ok ? null : unplaced.kind).toBe('needs-context');
+    expect(unplaced.ok ? [] : (unplaced.requests ?? []).map((one) => one.kind)).toEqual([
+      'position',
+    ]);
+    expect(unplaced.ok ? '' : (unplaced.requests ?? [])[0]?.satisfyWith).toContain(
+      'placeCreatureInScene',
+    );
+  });
 });
 
 // ─── the invocations a Warlock may take more than once ──────────────────────

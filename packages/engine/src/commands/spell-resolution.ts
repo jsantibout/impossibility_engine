@@ -756,12 +756,43 @@ export function castOrRelease(
     if (route.kind === 'granted' && (route.grant.requires ?? []).length > 0) {
       if (!requirementsHold(state, casterId, route.grant.requires, route.grant.source)) {
         const unsaid = unsaidRequirements(state, casterId, route.grant.requires);
+        // **A room and a creature in it are ordinary missing facts**, and both
+        // already have a kind and a door. Only the *light* is the ruling
+        // above, so only the light refuses.
+        const nowhere = unsaid.find((one) => one.missing !== 'light');
+        if (nowhere !== undefined) {
+          return nowhere.missing === 'scene'
+            ? needsContext(
+                'no_scene',
+                `${route.grant.source} reads where its holder stands before it will cast ${definition.name} for nothing, and nobody has described a room`,
+                [
+                  {
+                    kind: 'scene',
+                    subject: casterId,
+                    need: 'a scene to stand in',
+                    because: `${route.grant.source} reads the world before it will cast ${definition.name} for nothing`,
+                    satisfyWith: 'a setScene command',
+                  },
+                ],
+              )
+            : needsContext(
+                'unplaced',
+                `${route.grant.source} reads where its holder stands before it will cast ${definition.name} for nothing, and nobody has placed ${casterId}`,
+                [
+                  {
+                    kind: 'position',
+                    subject: casterId,
+                    need: `where ${casterId} is standing`,
+                    because: `${route.grant.source} reads the world before it will cast ${definition.name} for nothing`,
+                    satisfyWith: `a placeCreatureInScene command for ${casterId}`,
+                  },
+                ],
+              );
+        }
         const silence =
           unsaid.length === 0
             ? ''
-            : unsaid.some((one) => one.missing === 'position')
-              ? ` — and nobody has said where ${casterId} is standing, which a placeCreatureInScene command would settle`
-              : ` — and nobody has said how bright it is where ${casterId} is standing, which a declareLight command would settle`;
+            : ` — and nobody has said how bright it is where ${casterId} is standing, which a declareLight command would settle`;
         return err(
           'route_not_open',
           `${route.grant.source} casts ${definition.name} only while its own clause holds, and it does not right now${silence}`,

@@ -3036,8 +3036,16 @@ export function requirementsHold(
 /** A requirement nobody can answer yet, and which fact is missing. */
 export interface UnsaidRequirement {
   readonly requirement: StandingRequirement;
-  /** Nobody has placed the creature, or nobody has lit the space. */
-  readonly missing: 'position' | 'light';
+  /**
+   * Which silence it is, and they are three different problems: nobody has
+   * described a room, nobody has put the creature in it, or nobody has said
+   * how bright it is where they are standing.
+   *
+   * Only the last is an *answer* rather than a gap — see the paragraph on the
+   * "no default ambient" ruling above — which is exactly why the three are
+   * told apart here rather than lumped together as "unsaid".
+   */
+  readonly missing: 'scene' | 'position' | 'light';
 }
 
 /**
@@ -3070,7 +3078,11 @@ export function unsaidRequirements(
     if (requirement.kind !== 'in-sunlight' && requirement.kind !== 'in-dim-light-or-darkness') {
       continue;
     }
-    const where = state.scene === null ? null : positionOf(state.scene, who);
+    if (state.scene === null) {
+      found.push({ requirement, missing: 'scene' });
+      continue;
+    }
+    const where = positionOf(state.scene, who);
     if (where === null) {
       found.push({ requirement, missing: 'position' });
       continue;

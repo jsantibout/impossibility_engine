@@ -1346,8 +1346,15 @@ function repeatsNameTheSame(
   for (const question of askedOf(choices, feature)) {
     const keys = answerKeysOf(choices, feature, question);
     if (keys.length < 2) continue;
+    // **Deduplicated within a copy before it is compared across them**, which
+    // is the whole rule: the sentence is "each *time* you do so, choose a
+    // different one", so what may not repeat is one copy against another. A
+    // single copy naming one thing twice is that question's own business —
+    // `['wis', 'wis']` is two points into one score, which is a spread the
+    // book prints — and a duplicate a question really does forbid is refused
+    // where that question is checked.
     const named = keys.flatMap((key) => [
-      ...(choices.featureChoices[key] ?? []),
+      ...new Set(choices.featureChoices[key] ?? []),
       ...(choices.feats[key] === undefined ? [] : [choices.feats[key]!.featId]),
     ]);
     for (const again of duplicates(named)) {
