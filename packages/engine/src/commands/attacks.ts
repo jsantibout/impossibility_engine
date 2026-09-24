@@ -72,6 +72,7 @@ import {
   unreadActionsOf,
 } from '../monster.js';
 import { wrongFormFor } from '../forms.js';
+import { forcePrintedSaveOn, withDeclaredDamage } from './printed-save-clauses.js';
 import type { HazardName } from '../hazards.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -1154,6 +1155,82 @@ function printedRiderOnASwing(
     },
     unverified,
   };
+}
+
+/**
+ * **The saving throw a hit's own line forces**, rolled through the reader a
+ * DM's printed save already goes through.
+ *
+ * SRD Cockatrice's Petrifying Bite: "_Hit:_ 3 (1d4 + 1) Piercing damage. If
+ * the target is a creature, it is subjected to the following effect.
+ * _Constitution Saving Throw:_ DC 11. _First Failure:_ The target has the
+ * Restrained condition… _Second Failure:_ The target has the Petrified
+ * condition, instead of the Restrained condition, for 24 hours." SRD
+ * Homunculus prints the same shape with a margin rung.
+ *
+ * **A door and not a second reader**, which is the whole of the ruling. What a
+ * hit buys is a {@link HitOption} — one effect list against one DC — and these
+ * lines are two lists off one save, which `PrintedSaveLine` has graded since
+ * the Gorgon's breath was read. Teaching the rider reader to grade a second
+ * time would have been two answers to "what does a failure by 5 mean", free to
+ * disagree; so the sentences are structure by the time the swing sees them
+ * (`MonsterAttack.riderSave`) and this hands them to `forcePrintedSaveOn`.
+ *
+ * **Rolled whether or not a Reaction is holding the damage.** The two lines
+ * the book prints here grade by the *margin of the save*, never by what the
+ * blow came to, so there is nothing for a defender's answer to change — which
+ * is what lets this sit outside the guard that holds a rider back.
+ *
+ * **An object is told rather than asked.** The Cockatrice's gate is "If the
+ * target is a creature", and a declared object is not one; the sentence is
+ * handed back with the reason, because the blow has landed and a refusal here
+ * would be a refusal with a footprint. Every absent fact is reported the same
+ * way and for that reason.
+ */
+function printedSaveOnTheHit(
+  world: GameState,
+  attacker: CharacterId,
+  target: CharacterId,
+  printed: StatedAttack | null,
+  supply: Supply,
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+  const line = printed?.riderSave;
+  if (line === undefined || printed === null) return ok({ events: [], unverified: [] });
+
+  if (world.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE) {
+    return ok({
+      events: [],
+      unverified: [
+        `${printed.name} subjects a creature to a saving throw, and ${target} is an object — nothing was rolled`,
+      ],
+    });
+  }
+
+  // The one fact the reader may still be owed, asked here rather than at the
+  // door: a type nobody has declared is a missing fact, and by now the blow
+  // has landed. Reported, never refused.
+  const answered = withDeclaredDamage(world, attacker, printed.name, line);
+  if (!answered.ok) {
+    return ok({ events: [], unverified: [answered.reason] });
+  }
+
+  const issuedBefore = supply.issuer.count;
+  const landed = forcePrintedSaveOn(world, attacker, target, printed.name, answered.value, supply);
+  if (!landed.ok) return landed;
+  return ok({
+    events: [
+      ...landed.value.events,
+      // The dice this door threw, so the fold's running count of what the
+      // generator has produced matches the log — the bracket every other
+      // roller in this file puts round its own throws.
+      {
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      },
+    ],
+    unverified: landed.value.unverified,
+  });
 }
 
 /**
@@ -3027,6 +3104,19 @@ export function resolveAttack(
       unverified.push(...bought.value.unverified);
     }
 
+    // **And the save this creature's own line forces**, on the world
+    // everything above has left — see {@link printedSaveOnTheHit}.
+    const forced = printedSaveOnTheHit(
+      [...landed, ...mastered.value.events, ...riderEvents].reduce(applyEvent, state),
+      id,
+      command.target,
+      printed,
+      supply,
+    );
+    if (!forced.ok) return forced;
+    riderEvents.push(...forced.value.events);
+    unverified.push(...forced.value.unverified);
+
     return ok({
       events: [...landed, ...mastered.value.events, ...riderEvents],
       attack: attack.value,
@@ -3515,6 +3605,19 @@ export function resolveAttackDamage(
       bought.push(...paid.value.events);
       unverified.push(...paid.value.unverified);
     }
+
+    // And the save the line forces, on the half of a held swing that lands the
+    // blow — see the unheld path's copy of this call.
+    const forced = printedSaveOnTheHit(
+      [...landed, ...rider.value.events, ...bought].reduce(applyEvent, state),
+      pending.attacker,
+      pending.target,
+      printed,
+      supply,
+    );
+    if (!forced.ok) return forced;
+    bought.push(...forced.value.events);
+    unverified.push(...forced.value.unverified);
 
     return ok({
       events: [...landed, ...rider.value.events, ...bought],

@@ -33,7 +33,7 @@ import {
   type ParseProblem,
 } from '../schemas.js';
 import { ABILITY_OVERRIDES } from './overrides.js';
-import { parsePrintedSave } from './printed-save.js';
+import { parsePrintedSave, parseRiderSave } from './printed-save.js';
 /**
  * The spell list, for one job: turning a printed spell **name** into the id
  * the rest of the system knows that spell by.
@@ -327,6 +327,15 @@ export function parseAttackLine(text: string): MonsterAttack | null {
 
   const qualified = qualification?.trim() ?? '';
 
+  // **The save template, where the rider is one.** SRD Cockatrice and SRD
+  // Homunculus print the book's own saving-throw template inside a hit, and
+  // what it says is two effect lists against one DC — a shape the printed-save
+  // reader has held since the Gorgon's breath was read and the *rider* reader
+  // cannot hold at all. So it is lifted out here, once, and the sentences it
+  // consumed leave `rider`: a clause read twice by two readers is two answers
+  // to one sentence.
+  const riderSave = rest === '' ? null : parseRiderSave(rest);
+
   const attack = {
     kind,
     modifier,
@@ -334,7 +343,8 @@ export function parseAttackLine(text: string): MonsterAttack | null {
     range,
     damage,
     qualification: qualified === '' ? null : qualified,
-    rider: rest === '' ? null : rest,
+    rider: rest === '' || riderSave !== null ? null : rest,
+    ...(riderSave === null ? {} : { riderSave }),
   };
 
   // Validated here rather than trusted: this is the one place in the parser

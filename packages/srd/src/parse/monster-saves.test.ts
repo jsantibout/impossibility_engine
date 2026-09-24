@@ -1058,15 +1058,21 @@ describe('the lines the reader does not reach', () => {
    * deepening could carry a lifetime — and it is the half most easily lost by
    * widening the rung grammar, because what it buys is a *refusal*.
    *
-   * The sentence is SRD Cockatrice's, whose Petrifying Bite prints the "instead
-   * of" spelling with a span threaded through its middle: "The target has the
-   * Petrified condition, instead of the Restrained condition, for 24 hours."
-   * Asserted here through the template rather than off the block, because that
-   * line opens with `_Melee Attack Roll:_` and would be refused for its
-   * opening whatever this reader did with its rung — an assertion that passes
-   * for the wrong reason is not a guard. Beside it, a rung that says two
-   * things: a deepening is one condition and what ends it, and a rule riding
-   * on the deeper condition has nowhere to be written.
+   * **SRD Cockatrice's spelling is read now and was the fixture here**, which
+   * is worth leaving written down: "The target has the Petrified condition,
+   * instead of the Restrained condition, for 24 hours" is the same sentence
+   * with the phrase set off by commas and the deepened condition's own
+   * lifetime on the end of it, and `RepeatSave.onFailure.lasts` is the field
+   * that holds the second half. So the refusal this guard is about is the one
+   * beside it: a rung that says two things, where a deepening is one condition
+   * and what ends it, and a rule riding on the deeper condition has nowhere to
+   * be written.
+   *
+   * Asserted through the template rather than off the block, because the
+   * cockatrice's line opens with `_Melee Attack Roll:_` — its save reaches the
+   * reader through `parseRiderSave` and would be refused here for its opening
+   * whatever this did with its rung, and an assertion that passes for the
+   * wrong reason is not a guard.
    */
   it('refuses a graded failure whose second rung it still cannot hold', () => {
     const graded = (rung: string) =>
@@ -1077,17 +1083,36 @@ describe('the lines the reader does not reach', () => {
           `_Second Failure:_ ${rung}`,
       );
 
-    // The rung that is read, so the fixture is known to be a rung this reader
-    // reaches at all — and then the two that are not.
+    // The two rungs that are read, so the fixture is known to be a rung this
+    // reader reaches at all — the Gorgon's bare spelling and the Cockatrice's
+    // with its commas and its day of stone.
     expect(graded('The target has the Petrified condition instead of the Restrained condition.'))
       .not.toBeNull();
     expect(
       graded(
         'The target has the Petrified condition, instead of the Restrained condition, for 24 hours.',
-      ),
-    ).toBeNull();
+      )?.onFailure,
+    ).toEqual([
+      {
+        kind: 'condition',
+        condition: 'restrained',
+        repeats: {
+          at: 'end',
+          of: 'target',
+          onFailure: { condition: 'petrified', lasts: { kind: 'seconds', seconds: 86400 } },
+        },
+      },
+    ]);
+    // And the rung that is not: a deepening is one condition and what ends it.
     expect(
       graded('The target has the Petrified condition and is pushed up to 10 feet straight away from the gorgon.'),
+    ).toBeNull();
+    // Nor a span this reader cannot measure, which would be a Petrified that
+    // outlived its own sentence.
+    expect(
+      graded(
+        'The target has the Petrified condition, instead of the Restrained condition, for 2 days.',
+      ),
     ).toBeNull();
   });
 

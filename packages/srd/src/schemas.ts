@@ -182,50 +182,6 @@ export const MonsterRechargeSchema = z.union([
 export type MonsterRecharge = z.infer<typeof MonsterRechargeSchema>;
 
 /**
- * The numbers a printed attack line states, read out of the book's template.
- *
- * A 2024 stat block does not describe its attacks in free English: it writes
- * `_Melee Attack Roll:_ +4, reach 5 ft. _Hit:_ 5 (1d6 + 2) Piercing damage`,
- * the same sentence in four hundred blocks. Everything before the rider is a
- * number, and a number the engine must supply itself rather than ask a caller
- * for — the same argument `adaptMonster` makes about a printed Armour Class.
- *
- * **What is deliberately not read are the two English fields.** `rider` is the
- * clause after the damage — "If the target is a Medium or smaller creature, it
- * has the Prone condition", "_Constitution Saving Throw:_ DC 10" — and
- * `qualification` is a condition on the roll itself. Both are effects, and
- * structuring an effect is a vocabulary rather than a template. Dropping
- * either would quietly make the creature weaker than the book prints it, so
- * both travel with the numbers and the command that rolls the attack reports
- * them — each at the moment it would have mattered.
- */
-export const MonsterAttackSchema = z.object({
-  kind: z.enum(['melee', 'ranged', 'melee-or-ranged']),
-  /** The printed bonus to the attack roll, used whole. */
-  modifier: z.number().int(),
-  /** Feet of reach, for the melee half. Null for a purely ranged attack. */
-  reach: z.number().int().min(0).nullable(),
-  /** Normal and long range in feet. Null for a purely melee attack. */
-  range: z
-    .object({ normal: z.number().int().min(0), long: z.number().int().min(0) })
-    .nullable(),
-  damage: z.array(MonsterDamageSchema).min(1),
-  /**
-   * A condition the book puts on the **roll**, kept as printed and evaluated
-   * by nobody: "with Advantage if the target is Grappled by the ankheg".
-   *
-   * Its own field rather than part of `rider` because the two are read at
-   * different moments. A rider is what a *hit* does, so it is reported when
-   * one lands; this could have changed whether the attack landed at all, and
-   * the outcome it matters most to is the miss.
-   */
-  qualification: z.string().min(1).nullable(),
-  /** Everything the line says after the damage, verbatim. Null where it says nothing. */
-  rider: z.string().min(1).nullable(),
-});
-export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
-
-/**
  * One clause of a Multiattack sentence: a count, and the printed name or names
  * it attaches to.
  *
@@ -1119,6 +1075,74 @@ export const MonsterSaveSchema = z.object({
   handedOver: z.array(z.string().min(1)).optional(),
 });
 export type MonsterSave = z.infer<typeof MonsterSaveSchema>;
+
+/**
+ * The numbers a printed attack line states, read out of the book's template.
+ *
+ * A 2024 stat block does not describe its attacks in free English: it writes
+ * `_Melee Attack Roll:_ +4, reach 5 ft. _Hit:_ 5 (1d6 + 2) Piercing damage`,
+ * the same sentence in four hundred blocks. Everything before the rider is a
+ * number, and a number the engine must supply itself rather than ask a caller
+ * for — the same argument `adaptMonster` makes about a printed Armour Class.
+ *
+ * **What is deliberately not read are the two English fields.** `rider` is the
+ * clause after the damage — "If the target is a Medium or smaller creature, it
+ * has the Prone condition", "_Constitution Saving Throw:_ DC 10" — and
+ * `qualification` is a condition on the roll itself. Both are effects, and
+ * structuring an effect is a vocabulary rather than a template. Dropping
+ * either would quietly make the creature weaker than the book prints it, so
+ * both travel with the numbers and the command that rolls the attack reports
+ * them — each at the moment it would have mattered.
+ */
+export const MonsterAttackSchema = z.object({
+  kind: z.enum(['melee', 'ranged', 'melee-or-ranged']),
+  /** The printed bonus to the attack roll, used whole. */
+  modifier: z.number().int(),
+  /** Feet of reach, for the melee half. Null for a purely ranged attack. */
+  reach: z.number().int().min(0).nullable(),
+  /** Normal and long range in feet. Null for a purely melee attack. */
+  range: z
+    .object({ normal: z.number().int().min(0), long: z.number().int().min(0) })
+    .nullable(),
+  damage: z.array(MonsterDamageSchema).min(1),
+  /**
+   * A condition the book puts on the **roll**, kept as printed and evaluated
+   * by nobody: "with Advantage if the target is Grappled by the ankheg".
+   *
+   * Its own field rather than part of `rider` because the two are read at
+   * different moments. A rider is what a *hit* does, so it is reported when
+   * one lands; this could have changed whether the attack landed at all, and
+   * the outcome it matters most to is the miss.
+   */
+  qualification: z.string().min(1).nullable(),
+  /** Everything the line says after the damage, verbatim. Null where it says nothing. */
+  rider: z.string().min(1).nullable(),
+  /**
+   * The saving throw the **rider** forces, where the rider is the book's save
+   * template printed inside a hit.
+   *
+   * SRD Cockatrice's Petrifying Bite: "_Hit:_ 3 (1d4 + 1) Piercing damage. If
+   * the target is a creature, it is subjected to the following effect.
+   * _Constitution Saving Throw:_ DC 11. _First Failure:_ … _Second Failure:_
+   * …" SRD Homunculus prints the same shape with a margin rung.
+   *
+   * **Here rather than in `rider`, and the reason is which reader spends it.**
+   * A hit's rider compiles to one effect list against one DC — `HitOption` —
+   * and this shape is two lists off one save, which the *printed-save* reader
+   * has held since the Gorgon's Petrifying Breath was read. So the sentences
+   * are lifted out of the rider at ingest and handed to the reader that
+   * already grades a failure, rather than teaching the rider reader to grade a
+   * second time. What is left in `rider` is whatever the line said besides.
+   *
+   * **Beside `save` on the line rather than in it**, because they are two
+   * different openings at two different moments: `Feature.save` is a line a
+   * creature *spends* and is rolled by whoever forces it, and this one is
+   * rolled because a blow landed. A line printing both would be two saves, and
+   * the book prints none such.
+   */
+  riderSave: MonsterSaveSchema.optional(),
+});
+export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
 
 /**
  * One spell a printed Spellcasting line offers, and what the line prices it
