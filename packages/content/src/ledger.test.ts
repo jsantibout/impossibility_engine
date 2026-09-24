@@ -415,11 +415,43 @@ describe('the three totals are the three populations added up', () => {
 
   it('splits each population into what waits on a shape and what does not', () => {
     const [spells, features] = totals;
-    expect(spells?.size).toBe(ledger.spells.length);
     expect(spells?.blocked).toBe(ledger.spells.filter((one) => one.wait === 'shape').length);
-    expect(spells?.free).toBe(ledger.spells.filter((one) => one.wait === 'none').length);
     expect(features?.size).toBe(ledger.features.length);
     expect(features?.blocked).toBe(ledger.features.filter((one) => one.wait === 'shape').length);
+  });
+
+  /**
+   * **The spells row counts what is owed, and a spell read to the end is not
+   * owed.** P3-S6's ruling: a spell whose every printed sentence is the
+   * table's or the engine's is *finished*, and counting it in the size of the
+   * population the roadmap ranks by puts work on the road to zero that nobody
+   * may ever do — the same argument the bestiary's own row already makes about
+   * a handed-over trait, which it counts apart for the same reason.
+   *
+   * So the size is the two columns that are still work, the handed-over count
+   * rides beside them in a column of its own, and the two sets are disjoint
+   * and together are the population `auditLedger` measured.
+   */
+  it('leaves a spell read to the end out of the spells row’s size', () => {
+    const [spells] = totals;
+    const owed = ledger.spells.filter((one) => one.wait !== 'none');
+    const read = ledger.spells.filter((one) => one.wait === 'none');
+    expect(read.length).toBeGreaterThan(0);
+    expect(spells?.size).toBe(owed.length);
+    expect(spells?.size).toBe((spells?.blocked ?? 0) + (spells?.pending ?? 0));
+    expect(spells?.handedOver).toBe(read.length);
+    expect(spells?.free).toBe(0);
+    expect(owed.length + read.length).toBe(ledger.spells.length);
+  });
+
+  /**
+   * And the column applies to one population, which is a fact about the other
+   * four rather than a placeholder: a feature, an item, a glossary rule and a
+   * stat block are each built or not built, and none of them has a reading
+   * that says *this one is finished and nobody may build it*.
+   */
+  it('reports nothing handed over on the four rows that hand nothing over', () => {
+    for (const row of totals.slice(1)) expect(row.handedOver, row.name).toBe(0);
   });
 
   /** Every row's three parts add to the population they split, or one is lost. */
@@ -468,6 +500,30 @@ describe('the three totals are the three populations added up', () => {
     const [spells] = ledgerTotals({ ...ledger, spells: [unread] });
     expect(spells?.pending).toBe(1);
     expect(spells?.free).toBe(0);
+    expect(spells?.size).toBe(1);
+    expect(spells?.handedOver).toBe(0);
+  });
+
+  /**
+   * The other direction, driven the same way: a ledger of nothing but
+   * handed-over spells has a size of zero and still says how many there were.
+   * A row that simply dropped them would read as an empty population, which is
+   * the failure the heading in §1 exists to prevent.
+   */
+  it('counts a handed-over spell apart rather than dropping it', () => {
+    const read: (typeof ledger.spells)[number] = {
+      id: 'water-walk',
+      name: 'Water Walk',
+      level: 3,
+      status: 'tracked',
+      shapes: [],
+      wait: 'none',
+    };
+    const [spells] = ledgerTotals({ ...ledger, spells: [read] });
+    expect(spells?.size).toBe(0);
+    expect(spells?.split).toBe(0);
+    expect(spells?.handedOver).toBe(1);
+    expect(spells?.free).toBe(0);
   });
 
   /**
@@ -502,6 +558,7 @@ describe('the three totals are the three populations added up', () => {
         unit: 'spells',
         blocked: 0,
         pending: 0,
+        handedOver: 0,
         free: 0,
         split: 0,
         splitUnit: 'spells',
@@ -512,6 +569,7 @@ describe('the three totals are the three populations added up', () => {
         unit: 'features',
         blocked: 0,
         pending: 0,
+        handedOver: 0,
         free: 0,
         split: 0,
         splitUnit: 'features',
@@ -547,6 +605,38 @@ describe('everything is grouped by the shape it waits on', () => {
   it('prints the waits-on-a-definition list as a section rather than a number', () => {
     expect(report).toContain('#### Waiting on a definition');
     expect(report).toContain('| Ledger | Size | Waits on an engine shape | Waits on a definition |');
+  });
+
+  /**
+   * **The handed-over spells are listed under their own heading, and nothing
+   * is hidden by leaving them out of the size.** A reader has to be able to
+   * see what the table is being asked to narrate — a count subtracted with no
+   * list behind it is exactly the silently-missing entry the report's own
+   * header refuses.
+   */
+  it('prints the handed-over spells under a heading with the count', () => {
+    const ledger = auditLedger();
+    const read = ledger.spells.filter((one) => one.wait === 'none');
+    expect(read.length).toBeGreaterThan(0);
+    expect(report).toContain(`#### Read to the end, handed over whole — ${read.length}`);
+    for (const one of read) expect(report, one.id).toContain(`- **${one.name}** (level ${one.level}) — ${one.status}`);
+  });
+
+  /** The table gains the column, and §1 says in prose what it counts. */
+  it('gives the populations table a column for what was handed over whole', () => {
+    expect(report).toContain(
+      '| Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |',
+    );
+    expect(report).toContain('read to the end and handed over whole is');
+  });
+
+  /**
+   * And the feature population keeps the heading it had, because nothing over
+   * there has been read to the end: the generic renderer must not have grown
+   * a spells-only sentence.
+   */
+  it('leaves the other population’s heading alone', () => {
+    expect(report).toContain('#### Waiting on no shape —');
   });
 });
 
