@@ -34,19 +34,19 @@ homebrew.
   turn spent by a spell, joining a running fight, the clock, turn-anchored
   deadlines, repeat saves and delayed damage at the boundary, Short and Long
   Rests. A fight **ends** when no hostile remains or they surrender.
-- **Monsters that fight from their own printed lines** — Multiattack as a named
-  sequence, an opportunity attack reaching for the best printed melee attack,
-  recharge enforced and returned on a rest, spendable Bonus Actions, daily
-  limits cleared at a declared dawn, sunlight sensitivity on five blocks, and
-  the Hydra's declared head count. **A printed saving throw is an effect
+- **Monsters that fight from their own printed lines** — Multiattack as a
+  named sequence, an opportunity attack reaching for the best printed melee
+  attack, recharge and daily limits enforced, sunlight sensitivity, and the
+  Hydra's declared head count. **A printed saving throw is an effect
   list**: the DM's door rolls it, the engine applies the failure's damage,
   condition, grapple, push, Speed cut or lowered maximum, and hands over each
   sentence it could not read; a printed teleport is spent at its distance, a
   printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (a
   hazard beside its conditions, 1d4 at its turns, an action to put out) or
   wear its armour down; a Parry raises Armour Class in the hit window, a printed Reaction may spend
-  another printed line, a cast line is spent at its heading's price through
-  the block's own numbers, and a creature carries its Challenge Rating.
+  another printed line, a cast line is spent at its heading's price, a creature carries its
+  Challenge Rating and may take the form its block prints, and a Roper reels
+  what it holds.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon

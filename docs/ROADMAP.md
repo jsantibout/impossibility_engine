@@ -2394,3 +2394,27 @@ Appended after wave seven's first spells track (2026-09-24):
   over a homebrew), and the report's "untested" line is the honest output —
   a test that casts the SRD spell and reads the verdict is its own small
   brief. Fable-built content, reviewed by the track's Opus reviewer.
+- **Forms, a reel, and the traits that describe a world the lattice does not
+  hold.** A creature may take the form its own block prints —
+  `CreatureState.form`, three facts: the word the block's gated headings read
+  (`onlyInForms`, read off the heading like `recharge`; the brief's
+  `attack.qualification` was null on every one), the size the line prints,
+  and the Speeds the Imp and Quasit print per form — through
+  `takePrintedForm`, the fourth printed-line door, with `wrongFormFor` gating
+  the two hand-over doors; twelve of thirteen Shape-Shift printings read, the
+  Vampire's refused (gated on sunlight, and it transforms what it wears). A
+  Roper reels what it grapples (`takePrintedPull` over `pullToward`). Thirteen
+  trait kinds are the **third answer** — a gap an inch wide, solid rock, a
+  web, ice, another creature's space, a heart — under one shared note saying
+  what would have to become true for the reason to be false; four the brief
+  named as fiction were declined (Ooze Cube, Soul Bag, Troll Spawn, Spider
+  Climb) because each names a live primitive. **Four brief claims wrong
+  against the book:** Ettercap's Reel pulls by a web, the Magmin's block
+  prints no light trait for its Bonus Action to toggle, Vanish is
+  Concentration on something that is not a casting, and Succubus's Charm is a
+  cast line at a fixed level. Every unbuilt CR ≤ 5 line is now pinned with its
+  seam in `LINE_RESIDUE_SEAMS`. **Owed:** the form gate on a printed
+  *attack* is read and not applied — one call in `resolveAttack` — and Leap
+  waits on a lifetime for a jump a Bonus Action buys. A latent defect in the
+  reachability sweep's import scanner is fixed: a relative import following an
+  `@ie/srd` one had been silently dropped. Main re-ingested.

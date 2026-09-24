@@ -46,7 +46,7 @@ for exactly this reason.
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
-| CR ≤ 5 stat-block items handed over or unapplied | 127 items | on 91 of 244 blocks | 0 | 153 blocks already clean | 0 |
+| CR ≤ 5 stat-block items handed over or unapplied | 91 items | on 82 of 244 blocks | 0 | 162 blocks already clean | 0 |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -498,9 +498,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 629 and hands over 109. Reading is not spending: a further 15 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 127 items over 244 blocks — 153 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 665 and hands over 73. Reading is not spending: a further 15 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 91 items over 244 blocks — 162 of which already carry none of them.
 
-**A third answer, counted apart from both:** 53 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 127 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 91 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -527,7 +527,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 88
+### Handed-over lines matching no enumerated shape — 52
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -540,63 +540,39 @@ they are two debts: that nothing spends a legendary action, and that
 nothing applies what the line says. Leaving it out of one would take half
 of it off the ledger.
 
-- Air Elemental (CR 5) [trait] Air Form
-- Ankheg (CR 2) [trait] Tunneler
-- Black Pudding (CR 4) [trait] Amorphous
 - Black Pudding (CR 4) [trait] Corrosive Form
 - Bugbear Stalker (CR 3) [trait] Abduct
 - Bugbear Warrior (CR 1) [trait] Abduct
 - Bulette (CR 5) [bonus action] Leap
 - Cat (CR 0) [trait] Jumper
-- Doppelganger (CR 3) [bonus action] Shape-Shift
 - Dryad (CR 1) [bonus action] Tree Stride
-- Earth Elemental (CR 5) [trait] Earth Glide
 - Ettercap (CR 2) [bonus action] Reel
-- Ettercap (CR 2) [trait] Web Walker
 - Fire Elemental (CR 5) [trait] Fire Aura
-- Fire Elemental (CR 5) [trait] Fire Form
 - Flesh Golem (CR 5) [trait] Berserk
 - Gelatinous Cube (CR 2) [trait] Ooze Cube
 - Ghost (CR 4) [action] Etherealness
-- Ghost (CR 4) [trait] Incorporeal Movement
 - Giant Boar (CR 2) [trait] Bloodied Fury
 - Giant Frog (CR 0.25) [action] Swallow
 - Giant Seahorse (CR 0.5) [bonus action] Bubble Dash
-- Giant Spider (CR 1) [trait] Web Walker
 - Giant Toad (CR 1) [action] Swallow
-- Gray Ooze (CR 0.5) [trait] Amorphous
 - Gray Ooze (CR 0.5) [trait] Corrosive Form
 - Green Hag (CR 3) [trait] Coven Magic
 - Half-Dragon (CR 5) [bonus action] Leap
-- Imp (CR 1) [action] Shape-Shift
 - Incubus (CR 4) [trait] Succubus Form
 - Lamia (CR 4) [bonus action] Leap
 - Magmin (CR 0.5) [bonus action] Ignited Illumination
-- Mimic (CR 2) [trait] Adhesive (Object Form Only)
-- Mimic (CR 2) [bonus action] Shape-Shift
 - Night Hag (CR 5) [trait] Coven Magic
-- Night Hag (CR 5) [bonus action] Shape-Shift
 - Night Hag (CR 5) [trait] Soul Bag
-- Nightmare (CR 3) [trait] Confer Fire Resistance
 - Nightmare (CR 3) [action] Ethereal Stride
-- Ochre Jelly (CR 2) [trait] Amorphous
-- Octopus (CR 0) [trait] Compression
 - Phase Spider (CR 3) [bonus action] Ethereal Jaunt
-- Phase Spider (CR 3) [trait] Web Walker
-- Quasit (CR 1) [action] Shape-Shift
-- Roper (CR 5) [action] Reel
 - Roper (CR 5) [action] Tentacle
 - Rust Monster (CR 0.5) [action] Destroy Metal
 - Sahuagin Warrior (CR 0.5) [bonus action] Aquatic Charge
 - Sea Hag (CR 2) [trait] Coven Magic
 - Sea Hag (CR 2) [action] Illusory Appearance
 - Seahorse (CR 0) [action] Bubble Dash
-- Shadow (CR 0.5) [trait] Amorphous
-- Specter (CR 1) [trait] Incorporeal Movement
-- Spider (CR 0) [trait] Web Walker
 - Succubus (CR 4) [action] Charm
 - Succubus (CR 4) [trait] Incubus Form
-- Succubus (CR 4) [bonus action] Shape-Shift
 - Swarm of Bats (CR 0.25) [trait] Swarm
 - Swarm of Crawling Claws (CR 3) [trait] Swarm
 - Swarm of Insects (CR 0.5) [trait] Spider Climb
@@ -611,20 +587,8 @@ of it off the ledger.
 - Troll Limb (CR 0.5) [trait] Troll Spawn
 - Unicorn (CR 5) [legendary action] Charging Horn
 - Unicorn (CR 5) [legendary action] Shimmering Shield
-- Vampire Spawn (CR 5) [trait] Stake to the Heart
 - Vampire Spawn (CR 5) [trait] Sunlight
-- Water Elemental (CR 5) [trait] Water Form
-- Werebear (CR 5) [bonus action] Shape-Shift
-- Wereboar (CR 4) [bonus action] Shape-Shift
-- Wererat (CR 2) [bonus action] Shape-Shift
 - Weretiger (CR 4) [bonus action] Prowl (Tiger or Hybrid Form Only)
-- Weretiger (CR 4) [bonus action] Shape-Shift
-- Werewolf (CR 3) [bonus action] Shape-Shift
-- White Dragon Wyrmling (CR 2) [trait] Ice Walk
-- Will-o'-Wisp (CR 2) [trait] Ephemeral
-- Will-o'-Wisp (CR 2) [trait] Incorporeal Movement
 - Will-o'-Wisp (CR 2) [bonus action] Vanish
 - Wraith (CR 5) [action] Create Specter
-- Wraith (CR 5) [trait] Incorporeal Movement
 - Xorn (CR 5) [bonus action] Charge
-- Xorn (CR 5) [trait] Earth Glide
