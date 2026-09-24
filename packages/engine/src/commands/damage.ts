@@ -711,6 +711,16 @@ export interface ImprovisedDamageResolution {
   /** What actually landed, after them. */
   readonly amount: number;
   readonly concentration: ConcentrationConsequence;
+  /**
+   * Clauses the funnel applied without being able to check them.
+   *
+   * The same report `resolveDamage` hands the DM's stated-amount door, on the
+   * door beside it: this one names a kind, so SRD Undead Fortitude is applied
+   * whole and says nothing — but a feature watching the creature fall still
+   * needs a side the table has declared and a scene it has laid out, and a
+   * brazier dropped by nobody's ally is as silent as one dropped by somebody's.
+   */
+  readonly unverified: readonly string[];
   /** True when this command id had already been applied; `events` is empty. */
   readonly duplicate: boolean;
 }
@@ -728,6 +738,7 @@ export function rollImprovisedDamage(
       rolled: 0,
       amount: 0,
       concentration: { kind: 'none' },
+      unverified: [],
       duplicate: true,
     };
   }, (stamp) => {
@@ -775,6 +786,7 @@ export function rollImprovisedDamage(
       rolled: rawDamageTotal(rolled.value),
       amount: hurt.value.amount,
       concentration: hurt.value.concentration,
+      unverified: hurt.value.unverified,
       duplicate: false,
     });
   });

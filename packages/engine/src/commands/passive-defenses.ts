@@ -391,6 +391,9 @@ export function answerTheBlow(
     if (!burned.ok) return burned;
     events.push(...burned.value.events);
     current = burned.value.events.reduce(applyEvent, current);
+    // The flames are damage like any other, so what the funnel could not check
+    // about them rides home beside the fence this command already reports on.
+    unverified.push(...burned.value.unverified);
   }
 
   return ok({ events, deflected: false, unverified });

@@ -83,6 +83,22 @@ export interface TurnResolution {
   /** Saves left outstanding, because no generator was supplied. */
   readonly pending: readonly PendingSave[];
   /**
+   * Clauses the boundary applied without being able to check them.
+   *
+   * A turn boundary settles more of the rules than any other command — a
+   * scheduled hit, every persistent area that owes something, the payouts a
+   * running spell hands over, the repeat saves — and each of those roads deals
+   * damage through the same funnel, which reports what a feature watching the
+   * fall could not settle. `settleAreaEffects` has gathered its share since it
+   * was written and had nowhere to hand it: the boundary said nothing, so a
+   * Warlock's Dark One's Blessing went unpaid at a turn boundary and the table
+   * was never told which fact was missing.
+   *
+   * Empty for almost every boundary, which is every boundary that drops
+   * nobody.
+   */
+  readonly unverified: readonly string[];
+  /**
    * True when this command id had already been applied.
    *
    * **Two commands share this shape**, and the distinction matters to a
@@ -127,11 +143,12 @@ export function dueDamageOf(state: GameState): readonly (ScheduledDamage & { rea
 function collectDueDamage(
   state: GameState,
   supply: Supply,
-): Result<readonly GameEvent[]> {
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
   const due = dueDamageOf(state);
-  if (due.length === 0) return ok([]);
+  if (due.length === 0) return ok({ events: [], unverified: [] });
 
   const events: GameEvent[] = [];
+  const unverified: string[] = [];
   let current = state;
 
   for (const scheduled of due) {
@@ -169,9 +186,29 @@ function collectDueDamage(
     const cleared: GameEvent = { type: 'scheduled-damage-collected', key: scheduled.key };
     events.push(cleared, ...hurt.value.events);
     current = [cleared, ...hurt.value.events].reduce(applyEvent, current);
+    // And what a feature watching the fall could not settle. An Acid Arrow
+    // whose acid drops a goblin beside a Warlock owes the same sentence a
+    // Fire Bolt does, and the debt falling due at a boundary changes nothing
+    // about which facts the engine is missing.
+    unverified.push(...hurt.value.unverified);
   }
 
-  return ok(events);
+  return ok({ events, unverified });
+}
+
+/**
+ * What a boundary's payouts wrote, and what they could not check.
+ *
+ * `{ events, unverified }` rather than a bare list, which is the shape every
+ * other settlement in the engine already has: a payout of damage goes through
+ * the same funnel a Fire Bolt does, and the funnel reports the facts a feature
+ * watching the fall was missing. A caller with nowhere to put that report says
+ * so — `beginCombat` returns events alone and drops it, which is a gap named
+ * rather than one hidden.
+ */
+export interface BoundaryPayment {
+  readonly events: readonly GameEvent[];
+  readonly unverified: readonly string[];
 }
 
 /** One creature's payout, and the arrangement that owes it. */
@@ -256,8 +293,9 @@ function settleTurnPayouts(
   state: GameState,
   supply: Supply,
   due: readonly DuePayout[],
-): Result<readonly GameEvent[]> {
+): Result<BoundaryPayment> {
   const events: GameEvent[] = [];
+  const unverified: string[] = [];
   let current = state;
   // **Where the generator stood before this boundary threw anything**, read
   // once and written back once at the end — `forcePrintedSave`'s shape, and
@@ -319,6 +357,10 @@ function settleTurnPayouts(
       if (!hurt.ok) return hurt;
       events.push(...hurt.value.events);
       current = hurt.value.events.reduce(applyEvent, current);
+      // The same report a spell's own damage carries: a payout that drops a
+      // creature is a creature dropped, and the feature watching it needs the
+      // same facts wherever the blow came from.
+      unverified.push(...hurt.value.unverified);
       continue;
     }
 
@@ -345,7 +387,7 @@ function settleTurnPayouts(
     });
   }
 
-  return ok(events);
+  return ok({ events, unverified });
 }
 
 /**
@@ -373,9 +415,9 @@ export function settleBoundaryPayouts(
   supply: Supply | undefined,
   ended: CharacterId | undefined,
   begun: CharacterId | undefined,
-): Result<readonly GameEvent[]> {
+): Result<BoundaryPayment> {
   const due = payoutsDue(state, ended, begun);
-  if (due.length === 0) return ok([]);
+  if (due.length === 0) return ok({ events: [], unverified: [] });
 
   if (supply === undefined) {
     return err(
@@ -1080,14 +1122,14 @@ function burnBeforeTheSave(
   state: GameState,
   pending: PendingSave,
   supply: Supply,
-): Result<readonly GameEvent[]> {
+): Result<BoundaryPayment> {
   const payout = state.timers[pending.effectKey]?.repeatSave?.beforeTheSave;
-  if (payout === undefined) return ok([]);
+  if (payout === undefined) return ok({ events: [], unverified: [] });
 
   const victim = state.creatures[pending.target];
   // Gone from the game between the boundary and the roll. The save above is
   // refused for the same absence; this simply has nobody to burn.
-  if (victim === undefined || victim.vitals.dead) return ok([]);
+  if (victim === undefined || victim.vitals.dead) return ok({ events: [], unverified: [] });
 
   const label = spellOfSource(pending.source);
   // The recipient's own sheet, for the reason a scheduled hit takes one: the
@@ -1108,7 +1150,7 @@ function burnBeforeTheSave(
           ...rolled.value,
           { source: label, type: payout.damageType, roll: null, flat, total: flat },
         ];
-  if (components.length === 0) return ok([]);
+  if (components.length === 0) return ok({ events: [], unverified: [] });
 
   // The caster is named so the hit can be answered and attributed, and is
   // omitted rather than guessed at when the casting has outlived them — the
@@ -1119,7 +1161,9 @@ function burnBeforeTheSave(
     ...(by === undefined ? {} : { by: by as CharacterId }),
   });
   if (!hurt.ok) return hurt;
-  return ok(hurt.value.events);
+  // Searing Smite's fire drops a creature exactly as any other blow does, and
+  // what the watcher could not check travels with it.
+  return ok({ events: hurt.value.events, unverified: hurt.value.unverified });
 }
 
 /**
@@ -1145,13 +1189,20 @@ export function resolvePendingSaves(
     // that owes the *next* save. So `duplicate` says which of the two empty
     // answers this is, and `pending` says what is still owed, exactly as it
     // would to a caller who had never sent the command at all.
-    return { events: [], saves: [], pending: pendingSavesOf(state), duplicate: true };
+    return {
+      events: [],
+      saves: [],
+      pending: pendingSavesOf(state),
+      unverified: [],
+      duplicate: true,
+    };
   }, (stamp) => {
     const owed = pendingSavesOf(state);
-    if (owed.length === 0) return ok({ events: [], saves: [], pending: [] });
+    if (owed.length === 0) return ok({ events: [], saves: [], pending: [], unverified: [] });
 
     const events: GameEvent[] = [];
     const saves: ResolvedRepeatSave[] = [];
+    const unverified: string[] = [];
     const issuedBefore = supply.issuer.count;
     // **The world a payout leaves behind, and nothing else's.** Every save
     // below is still weighed against the state the boundary raised it in —
@@ -1171,8 +1222,9 @@ export function resolvePendingSaves(
       // SRD Searing Smite prints the order and the order is the rule.
       const burning = burnBeforeTheSave(burnt, pending, supply);
       if (!burning.ok) return burning;
-      events.push(...burning.value);
-      burnt = burning.value.reduce(applyEvent, burnt);
+      events.push(...burning.value.events);
+      unverified.push(...burning.value.unverified);
+      burnt = burning.value.events.reduce(applyEvent, burnt);
 
       // And what the fire left: a casting the damage ended — its caster's
       // Concentration broken by a hit it dealt them — has taken its timer with
@@ -1267,7 +1319,7 @@ export function resolvePendingSaves(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
-    return ok({ events, saves, pending: [] });
+    return ok({ events, saves, pending: [], unverified });
   });
 }
 
@@ -1305,7 +1357,7 @@ export function resolveTurn(
   // every other, so a retry reports the duplicate rather than reporting
   // whatever the first advance made true.
   return once(state, 'turn', command, () => {
-    return { events: [], saves: [], pending: [], duplicate: true };
+    return { events: [], saves: [], pending: [], unverified: [], duplicate: true };
   }, (stamp) => {
     if (state.combat === null) return err('no_combat', 'no combat is running');
 
@@ -1427,6 +1479,13 @@ export function resolveTurn(
       { type: 'turn-advanced', ...(stamp === null ? {} : { command: stamp }) },
     ];
     let after = advanced.reduce(applyEvent, state);
+    // **What this boundary applied without being able to check it.** The
+    // boundary settles four things that can deal damage — a scheduled hit, the
+    // persistent areas, the payouts a running spell hands over, and a repeat
+    // save's own fire — and all four go through one funnel, which reports the
+    // facts a feature watching the fall was missing. Gathered in the order the
+    // boundary settles them, and handed to the caller below.
+    const unverified: string[] = [];
 
     // A hit the last turn promised — SRD Acid Arrow's "at the end of its next
     // turn". Collected **before** everything below it, for two reasons that both
@@ -1444,8 +1503,9 @@ export function resolveTurn(
       }
       const collected = collectDueDamage(after, supply);
       if (!collected.ok) return collected;
-      advanced.push(...collected.value);
-      after = collected.value.reduce(applyEvent, after);
+      advanced.push(...collected.value.events);
+      unverified.push(...collected.value.unverified);
+      after = collected.value.events.reduce(applyEvent, after);
     }
 
     // What the boundary's areas owe: the finishing creature's end first, then
@@ -1464,6 +1524,7 @@ export function resolveTurn(
         const dealt = settleAreaEffects(after, supply);
         if (!dealt.ok) return dealt;
         advanced.push(...dealt.value.events);
+        unverified.push(...dealt.value.unverified);
         after = dealt.value.events.reduce(applyEvent, after);
       }
     }
@@ -1495,8 +1556,9 @@ export function resolveTurn(
     const beginning = after.combat === null ? undefined : currentCombatant(after.combat).id;
     const paid = settleBoundaryPayouts(after, supply, ending, beginning);
     if (!paid.ok) return paid;
-    advanced.push(...paid.value);
-    after = paid.value.reduce(applyEvent, after);
+    advanced.push(...paid.value.events);
+    unverified.push(...paid.value.unverified);
+    after = paid.value.events.reduce(applyEvent, after);
 
     // SRD *Monsters*: "At the start of each of the monster's turns, roll 1d6."
     // Beside the payouts because it is the same half of the boundary — what
@@ -1538,8 +1600,10 @@ export function resolveTurn(
 
     const raised = pendingSavesOf(after);
 
-    if (raised.length === 0) return ok({ events: advanced, saves: [], pending: [] });
-    if (supply === undefined) return ok({ events: advanced, saves: [], pending: raised });
+    if (raised.length === 0) return ok({ events: advanced, saves: [], pending: [], unverified });
+    if (supply === undefined) {
+      return ok({ events: advanced, saves: [], pending: raised, unverified });
+    }
 
     const settled = resolvePendingSaves(after, supply);
     if (!settled.ok) return settled;
@@ -1548,6 +1612,7 @@ export function resolveTurn(
       events: [...advanced, ...settled.value.events],
       saves: settled.value.saves,
       pending: [],
+      unverified: [...unverified, ...settled.value.unverified],
     });
   });
 }

@@ -37,6 +37,7 @@ import {
   resolveAttack,
   resolveDamage,
   resolveSpell,
+  resolveTurn,
   setScene,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -496,6 +497,68 @@ function glare(before: GameState, target: CharacterId) {
 const temporaryHp = (state: GameState, who: CharacterId): number =>
   state.creatures[who]!.vitals.temporaryHp;
 
+/**
+ * Rook puts SRD Spirit Guardians up: a 15-foot Emanation on themselves, whose
+ * damage falls due at the end of somebody else's turn rather than at the cast.
+ *
+ * Declared rather than created, because what the fixture needs is a caster
+ * with one spell and a slot to spend on it — the same shape `facing` uses for
+ * Bren's Shield of Faith.
+ */
+function guardians(from: GameState): GameState {
+  let state = after(from, [
+    {
+      type: 'spellcasting-declared',
+      id: ALLY,
+      spellcasting: declaredCasting({ ability: 'wis', classId: 'cleric', prepared: ['spirit-guardians'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: ALLY,
+      pool: { key: 'spell-slot:3', label: 'level 3', max: 2, recovers: 'long-rest' },
+    },
+  ]);
+
+  // Kael is up first; the spirits are Rook's, so the turn moves to them.
+  state = after(state, unwrap(resolveTurn(state, supply('to-rook'), { commandId: 'to-rook' }), 'to Rook').events);
+
+  const cast = unwrap(
+    resolveSpell(
+      state,
+      ALLY,
+      {
+        spellId: 'spirit-guardians',
+        targets: [],
+        slotLevel: 3,
+        // "Radiant (if you are good or neutral) or Necrotic (if you are evil)"
+        // — an alignment the engine does not hold, so the caster states it.
+        damageType: 'radiant',
+        // Kael is inside the Emanation and this fixture is not about a Warlock
+        // taking Radiant damage from their own ally.
+        unaffected: [WARLOCK],
+        commandId: 'the-spirits',
+      },
+      supply('the-spirits'),
+    ),
+    'Spirit Guardians',
+  );
+  return after(state, cast.events);
+}
+
+/** Advance the order until the boundary's own areas have dropped the goblin. */
+function untilTheGoblinFalls(from: GameState) {
+  let state = from;
+  for (let step = 0; step < 12; step += 1) {
+    const out = unwrap(
+      resolveTurn(state, supply(`boundary-${step}`), { commandId: `boundary-${step}` }),
+      'the boundary',
+    );
+    state = after(state, out.events);
+    if (state.creatures[NEAR]!.vitals.hp === 0) return { out, state };
+  }
+  throw new Error('the spirits never reached the goblin');
+}
+
 describe('the feature that watches an enemy fall', () => {
   it('pays a Warlock 3 with Charisma 16 six Temporary Hit Points for their own kill', () => {
     const table = theWarlock();
@@ -803,5 +866,21 @@ describe('what the engine could not check reaches the caller on every road', () 
       return;
     }
     throw new Error('no seed dropped the goblin with Sacred Flame');
+  });
+
+  /**
+   * **A persistent area settling at a turn boundary**, which reaches the same
+   * resolver by a road no casting command is on: SRD Spirit Guardians is a
+   * clause on the spell — "ends its turn there" — and what settles it is
+   * `resolveTurn`, a round after anybody cast anything.
+   *
+   * `settleAreaEffects` has gathered the report since it was written; the
+   * boundary that calls it was throwing it away.
+   */
+  it('reports it on a persistent area settling at a turn boundary', () => {
+    const state = guardians(unsided(NEAR));
+    const boundary = untilTheGoblinFalls(state);
+    expect(boundary.state.creatures[NEAR]!.vitals.hp).toBe(0);
+    expect(watcherSaid(boundary.out.unverified, NEAR)).toBe(true);
   });
 });
