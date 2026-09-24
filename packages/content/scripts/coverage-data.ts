@@ -1210,6 +1210,24 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * The two rows **overlap**, like every other pair in the table: SRD
  * Salamander's whole rider is one handed-over sentence, so nothing was read
  * *and* something was handed back, and both rows count it once.
+ *
+ * ### What is left on this row at CR ≤ 5, and the one seam each waits on
+ *
+ * Written out family by family for `HANDOVER_TRAIT_KINDS`' reason: a line with
+ * no note beside it looks like a line nobody read. None of these is fiction —
+ * each states a mechanic the engine would execute the day it had one seam — so
+ * calling any of them a handover would retire a debt by renaming it.
+ *
+ * | Lines | The one seam each waits on |
+ * |---|---|
+ * | Bearded Devil's Infernal Glaive | a check a **neighbour** may attempt. `availableChecks` and `resolveEffectCheck` are self-only twins, and the wound's DC 12 Wisdom (Medicine) is rolled by the target *or a creature within 5 feet of it*. The start-of-turn 1d10 is `ScheduledDamage`, which the boundary already settles, and the minute is an ordinary deadline; what is missing is the reach on the check and the once-per-target gate ("doesn't already have an infernal wound") |
+ * | Cockatrice's Petrifying Bite, Homunculus's Bite | a **graded** failure on a hit. `PrintedSaveLine` grades already — `_First Failure:_`, `onFailureBy` — and `HitOption` does not: a rider compiles to one effect list against one DC, so two rungs would be two lists off one save and there is no door from a swing to the printed-save reader that holds them |
+ * | Death Dog's Bite, Mummy's Rotting Fist, Otyugh's Bite, Incubus's Restless Touch | a clock that runs for days. Three mechanisms under one sentence each: a Hit Point maximum that does **not** come back at a Long Rest (a mark that withholds `hit-point-maximum-restored`), a deadline that re-arms every 24 hours, and a rest whose benefit is denied to the creature that finished it. `a-clock-that-runs-for-days` |
+ * | Shadow's Draining Swipe | an ability score an effect lowers. The sheet holds the six authoritatively and nothing in the engine moves one, so "the target's Strength score decreases by 1d4. The target dies if this reduces that score to 0" has no record to write to: `an-ability-score-an-effect-lowers` |
+ * | Werebear, Wereboar, Wererat, Weretiger, Werewolf | `a-creature-somebody-else-is-playing`. "If the cursed target drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM's control" is one stat block swapped for another *and* a player's character handed to the DM, and the second half is the one nothing here can do |
+ * | Salamander's Flame Spear | fiction. "The spear magically returns to the salamander's hand" — nothing tracks where a thrown weapon went, and nothing would read the answer |
+ * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
+ * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
  */
 export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
 export const hasHandedOverRider = (line: StatBlockLine): boolean => {
@@ -1566,6 +1584,22 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
     'How many attacks the Attack action holds',
     (line) => line.name === 'Multiattack' && line.multiattack === undefined,
   ],
+  /**
+   * A line that forces a save and that the reader got nothing structured out
+   * of. Eleven at CR ≤ 5, and each is named here with the one seam it waits
+   * on, for the reason `RIDER_HANDOVER_SHAPE`'s own table is written out: a
+   * line with no note beside it looks like a line nobody read.
+   *
+   * | Lines | The kind, and the seam |
+   * |---|---|
+   * | Giant Spider's Web, Ettercap's Web Strand | a condition held by an **object the line creates**, with its own AC 10, HP 5 and defences. `declareObject` already holds a thing that can be broken; what is missing is `heldByObject` on the condition, so that burning the web ends the Restrained. `a-condition-an-object-holds` |
+   * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
+   * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | `a-second-place-to-put-a-creature`: a creature inside another one, which is a position the lattice has no word for |
+   * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
+   * | Gold Dragon Wyrmling's Weakening Breath | **neither half is missing any more**, and that is worth writing down: "Disadvantage on Strength-based D20 Tests" is the `d20-test` roll family with an ability on it and "subtracts 2 (1d4) from its damage rolls" is `damagePenaltyOf`, both built for SRD Ray of Enfeeblement. What this waits on is the printed-save reader growing an arm that writes them, not a shape |
+   * | Rust Monster's Antennae | the same sentence Black Pudding's Pseudopod prints, on a **save** rather than on a hit. `EquippedItem.penalty` is the record and the hit side executes it; the save reader has no arm for it, and the line's "armor or a weapon" half needs a penalty a weapon can hold as well |
+   * | Sprite's Heart Sight | a reveal: what one creature comes to **know** about another. The knowledge vocabulary exists for Hunter's Lore; an emotion and an alignment are not among the facts it holds |
+   */
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
   [CAST_LINE_SHAPE, hasUnspentCastLine],
