@@ -19,7 +19,14 @@
  */
 
 import { typeMagicSees } from '../creature-type.js';
-import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
+import {
+  ABILITY_NAMES,
+  type CharacterId,
+  type ConditionName,
+  needsContext,
+  ok,
+  type Result,
+} from '@ie/shared';
 import {
   type AttackResult,
   type DamageComponent,
@@ -1193,6 +1200,35 @@ export function resolveSaveEffect(
    */
   let thrown: D20TestResult | null = null;
   if (!consents) {
+    // **The one fact this save may read that a creature can honestly lack**,
+    // asked for before a die moves. SRD Animal Messenger spares a target whose
+    // Challenge Rating "isn't 0", and a creature nobody has rated has no rating
+    // rather than a rating of zero — a player character has none at all, and
+    // zero is the one answer that would always pass. So the absence is a missing
+    // fact and not a wrong one, which is what `needsContext` is for.
+    //
+    // Nothing is spent by asking: a casting is one `Result`, so a resolver that
+    // refuses leaves no events behind it.
+    if (
+      effect.autoSucceedIf !== undefined &&
+      'challengeRatingAbove' in effect.autoSucceedIf &&
+      victim.cr === null
+    ) {
+      return needsContext(
+        'undeclared_challenge_rating',
+        `${name} spares a target whose Challenge Rating is above ${effect.autoSucceedIf.challengeRatingAbove}, and nobody has said what ${target}'s is`,
+        [
+          {
+            kind: 'creature',
+            subject: target,
+            need: `${target}'s Challenge Rating`,
+            because: `${name} reads it off the target, and an unstated rating is not a rating of 0`,
+            satisfyWith: `add ${target} from the stat block it is playing — addCreature pins the Challenge Rating the book prints`,
+          },
+        ],
+      );
+    }
+
     // A saving throw, and a condition on a failure.
     //
     // **Which is also what the save is *about*.** SRD Fey Ancestry grants
@@ -1223,17 +1259,26 @@ export function resolveSaveEffect(
     // Immunity and a granted one answer alike — and applied as the mirror of the
     // automatic failure `againstType` writes on the other resolver: the die is
     // still thrown and recorded, and the total is overridden.
-    const spared =
-      effect.autoSucceedIf !== undefined &&
-      conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo);
+    // **Or what the target *is*, which is the field's other member.** SRD
+    // Animal Messenger: "if the target's Challenge Rating isn't 0, it
+    // automatically succeeds" — a number the book prints on a stat block and
+    // `creature-added` pins, read here exactly as the Immunity above is read and
+    // overriding the same total. The rating is never null by this point: a
+    // target nobody has rated was asked about above, before a die moved.
+    const sparedBy =
+      effect.autoSucceedIf === undefined
+        ? null
+        : 'challengeRatingAbove' in effect.autoSucceedIf
+          ? (victim.cr ?? 0) > effect.autoSucceedIf.challengeRatingAbove
+            ? `${name}: a creature whose Challenge Rating is above ${effect.autoSucceedIf.challengeRatingAbove} automatically succeeds on the save`
+            : null
+          : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
+            ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
+            : null;
     const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
       dc: saveDc,
       conditions: support.conditions,
-      ...(spared
-        ? {
-            autoSucceed: `${name}: a creature with Immunity to the ${effect.autoSucceedIf!.immuneTo} condition automatically succeeds on the save`,
-          }
-        : {}),
+      ...(sparedBy === null ? {} : { autoSucceed: sparedBy }),
       // SRD Charm Person: "It does so with Advantage if you or your allies are
       // fighting **it**." The fact was stated at the casting and refused if it
       // was not — `declaredFacts` asked before a slot went — so the only

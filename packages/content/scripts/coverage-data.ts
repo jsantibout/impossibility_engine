@@ -1469,11 +1469,14 @@ export const hasHandedOverSave = (line: StatBlockLine): boolean =>
  * `takePrintedTeleport`, and the Sphinx of Wonder's Burst of Ingenuity answers
  * the `test-rolled` window off its own sheet.
  *
- * **`casts` is deliberately not in it.** A cast line is *read* — `isReadLine`
- * says so — and no door spends one yet: the block's own heading may price the
- * casting at a Bonus Action where the spell prints an Action, and nothing in
- * the casting path can yet be told so. Reading a sentence never retires the
- * debt of executing it, which is the discipline this whole table keeps.
+ * **`casts` is in it now**, and the row it used to have its own entry for is
+ * gone. What stood between reading a cast line and spending one was one fact
+ * the casting pipeline could not be told — which slot the *heading* prices the
+ * use at, since SRD Divine Aid is printed under Bonus Actions and offers
+ * *Bless*, whose own casting time is an Action. `GrantedSpell.castingTime` is
+ * that fact, read in `castingOf`; `adaptMonster` compiles the line into the
+ * route it is, and `castPrintedLine` spends the heading's recharge or day's
+ * use and hands the casting to the ordinary pipeline.
  */
 export const isExecutedLine = (line: StatBlockLine): boolean =>
   line.teleports !== undefined ||
@@ -1483,6 +1486,9 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // unlike the line below it there is nothing left over, and unlike
   // `usesLine` beside it there is no second line to perform.
   line.addsToAc !== undefined ||
+  // **A line that casts is spent** — `castPrintedLine` hands one of its spells
+  // to the casting pipeline at the heading's price.
+  line.casts !== undefined ||
   // **The addend, narrowed the way the adapter narrows it.** `test-rolled` is
   // the instant a check or a save has landed and an attack roll is not one of
   // them, so `triggeringTests` in `monster.ts` compiles nothing for a trigger
@@ -1493,28 +1499,21 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   (line.addsToRoll !== undefined && !line.addsToRoll.tests.includes('attack-roll'));
 
 /**
- * A line that casts, read and with nothing yet spending it.
+ * **The row a cast line used to have is gone**, and this is where it was.
  *
- * `hasHandedOverSave`'s sibling and on the ledger's over-read list for exactly
- * its reason: the line **is** read — the ability, the printed DC and the menu
- * of spells are structure on the sheet — and it is not **paid**, because no
- * door hands one of those spells to the casting pipeline.
+ * "A line that casts, read and not spent" counted fourteen lines the parser
+ * understood and nothing performed, and its own note said what stood between
+ * the two: which slot the *heading* prices the use at. `GrantedSpell.castingTime`
+ * is that fact, `adaptMonster` compiles the line into the route it is, and
+ * `castPrintedLine` spends the heading's price and hands the casting to the
+ * ordinary pipeline — so the debt is retired rather than shrunk, exactly as
+ * the Multiattack and Spellcasting rows shrank when their sentences became
+ * structure the engine runs. {@link isExecutedLine} counts `casts` now, which
+ * is what takes those lines out of the two economy rows as well.
  *
- * What stands between the two is one fact the pipeline cannot yet be told:
- * which slot the *heading* prices the casting at. SRD Divine Aid is printed
- * under **Bonus Actions** and offers *Bless*, whose own casting time is an
- * Action, and `castingOf` derives that time from the definition alone. A door
- * built without it would spend an Action where the book prints a Bonus
- * Action, which is the engine getting a rule wrong on its own — worse than a
- * line read and not yet executed, and the reason this row exists rather than
- * that door.
- *
- * It retires the moment something spends one, exactly as the Multiattack and
- * Spellcasting rows shrank when their sentences became structure the engine
- * runs.
+ * Written down rather than deleted, because a row that leaves a report is a
+ * claim somebody may want to check.
  */
-export const CAST_LINE_SHAPE = 'A line that casts, read and not spent';
-export const hasUnspentCastLine = (line: StatBlockLine): boolean => line.casts !== undefined;
 
 /**
  * A Reaction whose **response** is another line of the same block.
@@ -1568,7 +1567,6 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ],
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
-  [CAST_LINE_SHAPE, hasUnspentCastLine],
   [REACTION_USE_SHAPE, hasHandedOverResponse],
   [RIDER_SHAPE, hasUnappliedRider],
   [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
@@ -1577,7 +1575,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   // it — exactly as the Multiattack and Spellcasting rows above were narrowed.
   // The economy on these lines was always right; what waited was the sentence,
   // and a line the engine now performs is no longer waiting on anything. See
-  // {@link isExecutedLine}, which is also why a cast line stays in both.
+  // {@link isExecutedLine}, which counts a cast line among them now.
   ['A recharge', (line) => /\(Recharge/.test(line.name) && !isExecutedLine(line)],
   [
     'A use the block limits per day',

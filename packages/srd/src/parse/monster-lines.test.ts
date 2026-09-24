@@ -171,6 +171,73 @@ describe('a line that casts', () => {
       saveDc: 17,
     });
   });
+
+  /**
+   * SRD Imp, Quasit and Sprite each print "casts _Invisibility_ **on itself**",
+   * and the Oni prints the same clause under Bonus Actions. The target is not
+   * a choice the caller makes and is not a clause the shape had a field for,
+   * so the four lines were prose — which is a creature that cannot turn
+   * invisible in an engine that could have settled every part of it.
+   *
+   * **A fixed target is a field and not a second shape.** Everything else the
+   * sentence says is what every other cast line says, and reading it down to
+   * the part that fits — casting Invisibility on whoever the caller named —
+   * would be the thing the anchors exist to refuse.
+   */
+  it('reads a line that casts on the creature itself', () => {
+    expect(
+      parseCastLine(
+        'The sprite casts _Invisibility_ on itself, requiring no spell components and using Charisma as the spellcasting ability.',
+      ),
+    ).toEqual({ spells: ['invisibility'], ability: 'cha', selfOnly: true });
+    expect(
+      parseCastLine(
+        'The oni casts _Invisibility_ on itself, requiring no spell components and using the same spellcasting ability as Spellcasting.',
+      ),
+    ).toEqual({ spells: ['invisibility'], ability: 'spellcasting', selfOnly: true });
+  });
+
+  /**
+   * SRD Imp prints "using Charisma as the **spell-casting** ability", where
+   * the book's line break fell inside the word. The hyphen is typesetting and
+   * the sentence is the same sentence, which is the reading `spellIdOf`
+   * already takes of "Long-strider".
+   */
+  it('reads the word the book hyphenated at a line break', () => {
+    expect(lineOf('imp', 'Invisibility').casts).toEqual({
+      spells: ['invisibility'],
+      ability: 'cha',
+      selfOnly: true,
+    });
+    expect(lineOf('quasit', 'Invisibility').casts).toEqual({
+      spells: ['invisibility'],
+      ability: 'cha',
+      selfOnly: true,
+    });
+    expect(lineOf('sprite', 'Invisibility').casts).toEqual({
+      spells: ['invisibility'],
+      ability: 'cha',
+      selfOnly: true,
+    });
+    expect(lineOf('oni', 'Invisibility').casts).toEqual({
+      spells: ['invisibility'],
+      ability: 'spellcasting',
+      selfOnly: true,
+    });
+  });
+
+  /**
+   * And the clause is still read whole or not at all: SRD Unicorn's Blessing
+   * casts "on that creature" — a target the caller names — and stays prose,
+   * which is the line above this one is not.
+   */
+  it('refuses a target clause that is not the caster', () => {
+    expect(
+      parseCastLine(
+        'The imp casts _Invisibility_ on another creature, requiring no spell components and using Charisma as the spellcasting ability.',
+      ),
+    ).toBeNull();
+  });
 });
 
 describe('a line that teleports', () => {
@@ -373,10 +440,14 @@ describe('the corpus', () => {
       'drider/Magic of the Spider Queen (Recharge 5–6)',
       'dust-mephit/Sleep (1/Day)',
       'ice-mephit/Fog Cloud (1/Day)',
+      'imp/Invisibility',
       'mage/Misty Step (3/Day)',
+      'oni/Invisibility',
       'planetar/Divine Aid (2/Day)',
       'priest-acolyte/Divine Aid (1/Day)',
       'priest/Divine Aid (3/Day)',
+      'quasit/Invisibility',
+      'sprite/Invisibility',
       'stone-golem/Slow (Recharge 5–6)',
     ]);
 

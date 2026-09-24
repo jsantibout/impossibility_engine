@@ -2193,6 +2193,20 @@ export type SpellEffect =
        * to decide whether it meant any or all, and no SRD sentence of this
        * shape names two.
        *
+       * **Two members, because the book spares a creature two ways.** SRD
+       * Animal Messenger: "(if the target's Challenge Rating isn't 0, it
+       * automatically succeeds)" — a fact about what the creature *is*,
+       * printed on its stat block and pinned at its arrival
+       * (`CreatureState.cr`), rather than a defence it holds. The two are one
+       * field because they are one sentence in the grammar of a save: the die
+       * is thrown, recorded, and overridden. A creature whose rating nobody
+       * has stated is **asked about** rather than read as a zero — a player
+       * character has no Challenge Rating at all, and zero is the one answer
+       * that would always pass.
+       *
+       * A member per sentence, so neither can be set with the other: a spell
+       * that spared two ways would be two sentences and would say so.
+       *
        * **Only half of Sleep's sentence, and the half that is left is not a
        * missing field.** "Creatures that don't sleep, such as elves" is not a
        * fact this engine holds about anybody: the SRD prints it of no creature
@@ -2202,10 +2216,21 @@ export type SpellEffect =
        * `FeatureGrant` member carries. So the definition writes this half and
        * hands the table the other.
        */
-      readonly autoSucceedIf?: {
-        /** SRD Sleep's "Immunity to the Exhaustion condition". */
-        readonly immuneTo: ConditionName;
-      };
+      readonly autoSucceedIf?:
+        | {
+            /** SRD Sleep's "Immunity to the Exhaustion condition". */
+            readonly immuneTo: ConditionName;
+          }
+        | {
+            /**
+             * SRD Animal Messenger's "if the target's Challenge Rating isn't
+             * 0" — the rating the sentence spares everything above. Written as
+             * a threshold rather than as the word *isn't* because a threshold
+             * is what a rule can compare, and 0 is the only number the SRD
+             * prints in this position.
+             */
+            readonly challengeRatingAbove: number;
+          };
       /**
        * Write the verdict onto the casting, because the sentence says somebody
        * knows it.

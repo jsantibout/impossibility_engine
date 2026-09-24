@@ -48,6 +48,7 @@ import type {
 } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
 import { declaredCasting, type GrantedSpell, type SpellcastingState } from './spellcasting.js';
+import type { CastingTime } from './spells.js';
 import type { PoolDeclaration } from './resources.js';
 import type { ReactionFeature } from './reactions.js';
 import type { D20TestKind } from './checks.js';
@@ -1939,6 +1940,135 @@ function printedSpellcasting(monster: Monster): {
   };
 }
 
+/**
+ * The book's cast lines, onto the creature as the **routes** they are.
+ *
+ * SRD Priest, Divine Aid (3/Day), under **Bonus Actions**: "The priest casts
+ * _Bless, Dispel Magic, Healing Word,_ or _Lesser Restoration,_ using the same
+ * spellcasting ability as Spellcasting." Every part of that is already
+ * something a `GrantedSpell` carries — a menu of spells, whose ability, whose
+ * printed DC — so the line is a route rather than a pipeline of its own, and
+ * one grant per spell is what makes the menu a menu.
+ *
+ * **What the heading says is what the use costs, and it is the one thing a
+ * route could not carry until now.** `GrantedSpell.castingTime` is read by
+ * `castingOf` and by nothing else, so a Divine Aid printed under Bonus Actions
+ * spends the Bonus Action even though *Bless* prints an Action.
+ *
+ * **The grant pays nothing and the door pays everything.** A cast line's
+ * economy is the *heading's* — a recharge, or a count between dawns — and
+ * `takeStatedAction` has spent both correctly since printed lines landed. So
+ * the grant is `atWill` and holds no pool: two ledgers for one heading is how
+ * a creature comes to cast four Blesses out of a 3/Day line, and the price is
+ * paid once, at the door, in the ledger the hand-over door already reads.
+ *
+ * **Actions and Bonus Actions only**, which is where the book prints all
+ * fourteen and is the same pair `forcePrintedSave` and `takePrintedTeleport`
+ * search: what a heading changes is what the line costs, and a trait costs
+ * nothing while a legendary action's economy is one the engine does not hold.
+ *
+ * **"The same spellcasting ability as Spellcasting" is a reference and is
+ * resolved rather than assumed.** A block that prints no Spellcasting line has
+ * not said which ability, so the line is refused whole and the reason goes on
+ * the sheet's caveats — the engine picking Charisma for it would be the engine
+ * inventing a number the book declined to print. The SRD prints no such block;
+ * a homebrew one may.
+ *
+ * And a spell already granted by another line is refused the same way, for
+ * `printedSpellcasting`'s reason: two routes to one spell is a choice
+ * `chooseRoute` makes without being asked.
+ */
+function printedCastLines(
+  monster: Monster,
+  declared: SpellcastingState | null,
+): {
+  readonly granted: readonly GrantedSpell[];
+  readonly caveats: readonly string[];
+} {
+  const granted: GrantedSpell[] = [];
+  const caveats: string[] = [];
+  /** Every spell the block already offers, so no two routes reach one spell. */
+  const taken = new Set<string>(
+    (declared?.granted ?? []).map((grant) => grant.spellId),
+  );
+  /** The Spellcasting line's own ability and numbers, which a reference names. */
+  const reference = declared?.classes[0] ?? null;
+
+  const sections: readonly (readonly [readonly MonsterLine[], CastingTime])[] = [
+    [monster.actions, 'action'],
+    [monster.bonusActions, 'bonus-action'],
+  ];
+
+  for (const [lines, castingTime] of sections) {
+    for (const line of lines) {
+      const printed = line.casts;
+      if (printed === undefined) continue;
+
+      if (printed.ability === 'spellcasting' && reference === null) {
+        caveats.push(
+          `${line.name} casts "using the same spellcasting ability as Spellcasting" and this block prints no Spellcasting line, so the ability it means is not stated anywhere`,
+        );
+        continue;
+      }
+      const clash = printed.spells.filter((spellId) => taken.has(spellId));
+      if (clash.length > 0) {
+        caveats.push(
+          `${line.name} offers ${clash.join(', ')}, which this block already casts by another route`,
+        );
+        continue;
+      }
+
+      const ability = printed.ability === 'spellcasting' ? reference!.ability : printed.ability;
+      // **The line's own DC where it prints one, and the Spellcasting line's
+      // where the line points at it.** A reference names that line, and the
+      // number that line prints is the number the referenced ability produces
+      // — so a Priest's Bless is settled at the Priest's printed DC rather
+      // than at one derived from a stat block's abilities, which SRD Adult
+      // Bronze Dragon shows are not the same thing. A line that states an
+      // ability and no DC derives one, as it always would.
+      const numbers =
+        printed.saveDc !== undefined
+          ? { saveDc: printed.saveDc }
+          : printed.ability === 'spellcasting'
+            ? {
+                ...(reference!.saveDc === undefined ? {} : { saveDc: reference!.saveDc }),
+                ...(reference!.attackBonus === undefined
+                  ? {}
+                  : { attackBonus: reference!.attackBonus }),
+              }
+            : {};
+
+      for (const spellId of printed.spells) {
+        taken.add(spellId);
+        granted.push({
+          spellId,
+          source: printedTraitKey(monster.id, line.name),
+          ability,
+          // The heading's price, and the only thing about this route that is
+          // not the spell's own.
+          castingTime,
+          // **And the heading this route is taken through, which is the only
+          // road to it.** The price is the heading's, so a casting that
+          // reached this route any other way would pay nothing at all:
+          // `routesFor` leaves it out of what a casting searches, and
+          // `chooseRoute` refuses a caller that names its source without the
+          // printed line's own licence. See `GrantedSpell.throughLine`.
+          throughLine: line.name,
+          // Paid at the door, out of the heading's recharge or its day's
+          // count — see the note above.
+          freeCastPool: null,
+          // SRD offers no slot for any of these, and the creature holds none.
+          slotCasting: false,
+          atWill: true,
+          ...numbers,
+        });
+      }
+    }
+  }
+
+  return { granted, caveats };
+}
+
 export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster {
   const { defenses, caveats } = buildDefenses(monster);
 
@@ -1952,7 +2082,19 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     if (SKILL_SET.has(name)) skills[name as Skill] = bonus;
   }
 
-  const { spellcasting, spellPools } = printedSpellcasting(monster);
+  const { spellcasting: declared, spellPools } = printedSpellcasting(monster);
+  // **The cast lines are grants beside that declaration, not a second one.**
+  // A creature holds one `SpellcastingState`, and a block that prints both a
+  // Spellcasting line and a Divine Aid prints one creature's magic two ways.
+  // A block that prints only cast lines has grants and no class at all, which
+  // is a shape `routesFor` has always read.
+  const castLines = printedCastLines(monster, declared);
+  const spellcasting =
+    castLines.granted.length === 0
+      ? declared
+      : declared === null
+        ? { classes: [], granted: castLines.granted }
+        : { ...declared, granted: [...declared.granted, ...castLines.granted] };
   const { reactions, pools: reactionPools } = printedReactions(monster);
   const attacks = printedAttacks(monster);
   const traits = printedTraits(monster);
@@ -1994,13 +2136,15 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       // no attack could be read out of, and what the structure buys is a door
       // that executes it rather than quotes it.
       //
-      // **A line that *casts* is read and is deliberately not pinned here.**
-      // `Feature.casts` is structure the catalogue carries and the ledger
-      // counts, and nothing in the engine spends one yet — so a field on the
-      // sheet would be a sentence that validates, loads, lands on a creature
-      // and does nothing, which is the failure this repository finds most
-      // often. It arrives with the door that reads it.
       ...(line.teleports === undefined ? {} : { teleports: line.teleports }),
+      // **And the spells it casts, which arrive with the door that reads
+      // them.** The field was deliberately absent for a batch because nothing
+      // spent one, and the note that stood here said a field nothing reads is
+      // the failure this repository finds most often. `castPrintedLine` is the
+      // reader: it takes the menu off this field, checks the spell against it,
+      // and hands the casting to the pipeline through the route the adapter
+      // compiled above.
+      ...(line.casts === undefined ? {} : { casts: line.casts }),
     }));
 
   // **The Bonus Actions section, carried whole and executed not at all.** A
@@ -2025,9 +2169,12 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // line costs rather than what it does.
     ...(line.save === undefined ? {} : { save: line.save }),
     // And where it teleports, which is on both sections for the reason the
-    // save is: what a heading changes is what the use costs. A line that
-    // *casts* is not pinned here — see the note beside the Actions section.
+    // save is: what a heading changes is what the use costs.
     ...(line.teleports === undefined ? {} : { teleports: line.teleports }),
+    // And the spells it casts, on both sections for that same reason — and
+    // nine of the book's fourteen cast lines are printed under this heading,
+    // which is the whole reason a route may state a casting time.
+    ...(line.casts === undefined ? {} : { casts: line.casts }),
   }));
 
   const stated: StatedValues = {
@@ -2114,7 +2261,11 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     pools: [...spellPools, ...reactionPools].sort((a, b) =>
       a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
     ),
-    caveats,
+    // And the cast lines the adapter refused whole, for the reason it refused
+    // them: an ability the block never stated, or a spell it already casts by
+    // another route. Reported rather than guessed at, which is the same
+    // channel a qualified defence already comes back through.
+    caveats: [...caveats, ...castLines.caveats],
   };
 }
 

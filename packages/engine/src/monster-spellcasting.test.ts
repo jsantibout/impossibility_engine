@@ -194,11 +194,15 @@ describe('adding the creature declares what it casts', () => {
   it('leaves the creature holding the spells and the uses', () => {
     const state = at(log);
     const creature = state.creatures[CULTIST]!;
+    // The Spellcasting line's four, and the Bonus Action cast line's one:
+    // "Spiritual Weapon (2/Day)" is a route beside the declaration rather than
+    // part of it, so the grants are the block's magic however it is printed.
     expect(creature.spellcasting.granted.map((g) => g.spellId)).toEqual([
       'light',
       'thaumaturgy',
       'command',
       'hold-person',
+      'spiritual-weapon',
     ]);
     expect(remaining(creature.resources, printedSpellPoolKey('hold-person'))).toBe(1);
     expect(remaining(creature.resources, printedSpellPoolKey('command'))).toBe(2);

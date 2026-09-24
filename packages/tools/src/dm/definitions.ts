@@ -89,6 +89,7 @@ import type { D20TestResult, Duration, ModeSource, TestResolution } from '@ie/en
 import {
   applyConditionTo,
   awardItems,
+  castPrintedLine,
   changeCoins,
   COPPER_PER,
   damageTakenIn,
@@ -130,6 +131,7 @@ import {
   creatureId,
   damageTypeSchema,
   placementSchema,
+  pointSchema,
   printedLineName,
   sensesFields,
   sizeSchema,
@@ -1633,8 +1635,151 @@ const TELEPORT_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * A caller's point in the engine's vocabulary, with the floor for a `z`
+ * nobody stated — the reading `pointSchema` prints on the field itself.
+ */
+const aPoint = (input: z.infer<typeof pointSchema>) => ({
+  x: input.x,
+  y: input.y,
+  z: input.z ?? 0,
+});
+
+/**
+ * Cast one of the spells a creature's stat block prints on a line, at the
+ * heading's price and through the block's own numbers.
+ *
+ * SRD Priest, Divine Aid (3/Day): "The priest casts _Bless, Dispel Magic,
+ * Healing Word,_ or _Lesser Restoration,_ using the same spellcasting ability
+ * as Spellcasting." The engine settles every part of that — the menu, the
+ * ability, the printed save DC, the day's count, and the slot the *heading*
+ * prices the use at, which is a Bonus Action over a spell that prints an
+ * Action — and hands the casting to the same pipeline a Wizard's goes through.
+ *
+ * **It is here and not on the model's surface, by {@link TELEPORT_PRINTED_LINE}'s
+ * rule.** What the call takes that the block does not state is **which spell**
+ * off a menu of four, and whom it is aimed at: a choice the book hands to
+ * whoever is running the creature, exactly as the space a teleport lands in
+ * is. A model choosing a monster's spell is a model playing the monster.
+ *
+ * **It states no number.** The DC, the ability, the recharge and the day's
+ * count are the block's, pinned at `add_creature`; the spell is one of the
+ * ids the line prints, which `look` reports.
+ *
+ * **The other doors over the same line are untouched.**
+ * {@link TAKE_PRINTED_ACTION} and {@link TAKE_PRINTED_BONUS_ACTION} still
+ * spend the slot and hand the sentence back, so a DM who would rather
+ * adjudicate the spell themselves has lost nothing.
+ */
+const CAST_PRINTED_LINE = tool({
+  name: 'cast_printed_line',
+  description:
+    'Have the engine cast one of the spells a creature’s stat block prints on a line — the Priest’s Divine Aid, the Dust Mephit’s Sleep, the Imp’s Invisibility. Name the heading as the block prints it and which spell off its menu; the engine reads the ability and any printed save DC off the block, spends whichever slot the heading names along with its recharge or daily limit, and runs the casting through the ordinary pipeline, so the record, the Concentration, the save DC and the durations are all the engine’s. You state no number and no DC. Which spell is yours because the line offers a menu and the engine chooses none of it; a line that casts "on itself" needs no target. Only some printed lines can be taken this way: `look` says which, under `grantedSpells[].throughLine`. For a line that casts and says more besides, and for this one if you would rather adjudicate the spell yourself, use `take_printed_action` or `take_printed_bonus_action`.',
+  mutates: true,
+  // Which spell is answered by re-sending *this* call with it filled in, so
+  // the door the refusal names is this tool.
+  selfAnswers: ['route'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    spell: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which spell off the line’s menu, by its SRD id. Omit it and the engine comes back listing the ids the line offers.',
+      ),
+    targets: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Whom the spell is aimed at, exactly as `cast_spell` takes them. Omit or send an empty list for an area spell, and for a line that casts on the creature itself.',
+      ),
+    at: pointSchema
+      .optional()
+      .describe('Where an area spell is centred, for a spell that asks for a point.'),
+    towards: pointSchema.optional().describe('Point a Cone, Cube or Line at this exact spot.'),
+    teleportTo: placementSchema
+      .optional()
+      .describe('Where a teleporting spell puts its target — the Mage’s Misty Step.'),
+    damageType: damageTypeSchema
+      .optional()
+      .describe('Which of the types a spell prints this casting uses, where it prints a list.'),
+    choice: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Which of the values a spell prints this casting chose, where it prints a list.'),
+    fought: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Which of the targets this creature or its allies are already fighting, for a spell that prints the clause.',
+      ),
+    unaffected: z
+      .array(creatureId)
+      .optional()
+      .describe('Creatures this casting designates unaffected, for a spell that offers it.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      castPrintedLine(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.spell === undefined ? {} : { spell: args.spell }),
+          casting: {
+            targets: (args.targets ?? []).map(who),
+            ...(args.at === undefined ? {} : { at: aPoint(args.at) }),
+            ...(args.towards === undefined ? {} : { towards: aPoint(args.towards) }),
+            ...(args.teleportTo === undefined
+              ? {}
+              : {
+                  teleportTo: {
+                    from:
+                      args.teleportTo.fromLandmark !== undefined
+                        ? { landmark: args.teleportTo.fromLandmark }
+                        : { creature: who(args.teleportTo.fromCreature!) },
+                    feet: args.teleportTo.feet,
+                    ...(args.teleportTo.bearing === undefined
+                      ? {}
+                      : { bearing: args.teleportTo.bearing }),
+                    ...(args.teleportTo.elevation === undefined
+                      ? {}
+                      : { elevation: args.teleportTo.elevation }),
+                  },
+                }),
+            ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
+            ...(args.choice === undefined ? {} : { choice: args.choice }),
+            ...(args.fought === undefined ? {} : { fought: args.fought.map(who) }),
+            ...(args.unaffected === undefined ? {} : { unaffected: args.unaffected.map(who) }),
+          },
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        // Which slot was spent is the heading's answer and the caller does not
+        // know it, so both events are searched — see {@link lineTaken}.
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        castingId: value.castingId,
+        outcomes: value.outcomes,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
+  CAST_PRINTED_LINE,
   AWARD_COIN,
   AWARD_ITEMS,
   DECLARE_DAMAGE_TYPE,

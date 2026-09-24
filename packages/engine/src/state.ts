@@ -403,6 +403,23 @@ export interface CreatureState {
    */
   readonly size: CreatureSize | null;
   /**
+   * The Challenge Rating this creature's stat block prints, 1/8 as `0.125`.
+   *
+   * **A fact about the creature and not a fact about the fight.** It is the
+   * book's measure of how dangerous the thing is, and the SRD writes rules
+   * that read it of a *target*: Animal Messenger's "if the target's Challenge
+   * Rating isn't 0, it automatically succeeds" is the first one here. Pinned
+   * at the arrival from the block, exactly as {@link size} and
+   * {@link creatureType} are, so no rule that asks has to open a catalogue.
+   *
+   * Null when nobody has said, which is a real state rather than a zero: a
+   * player character has no Challenge Rating at all, and every log written
+   * before the field existed says the same. A rule that reads it asks for it —
+   * calling an unstated rating zero would hand a spell the one answer that is
+   * never checkable.
+   */
+  readonly cr: number | null;
+  /**
    * Which side of the fight this creature is on, or null if nobody has said.
    *
    * Who counts as an ally is fiction, not arithmetic — it changes when a

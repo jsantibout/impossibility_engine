@@ -68,8 +68,6 @@ import {
   MONSTER_LINE_SHAPES,
   PARTIAL_SPELLS,
   RIDER_HANDOVER_SHAPE,
-  CAST_LINE_SHAPE,
-  hasUnspentCastLine,
   REACTION_USE_SHAPE,
   hasHandedOverResponse,
   RIDER_SHAPE,
@@ -506,11 +504,11 @@ const OVER_READ_LINES: ReadonlySet<string> = new Set([
   // and the sentence about its victim being absorbed does not. A residue
   // leaves the line unpaid, and `unpaid` below says so too.
   RIDER_HANDOVER_SHAPE,
-  // A line that casts, which is the newest of them and the same argument
-  // again: the parser reads the ability, the printed DC and the menu, and
-  // nothing spends one — so the gate below would hide a debt that the shape's
-  // own note says is still owed.
-  CAST_LINE_SHAPE,
+  // **A line that casts was the newest of them and has left.** It was here on
+  // exactly this argument — read, and not paid, because no door handed one of
+  // its spells to the casting pipeline — and `castPrintedLine` is that door:
+  // the heading's recharge or day's use is spent and the casting is an
+  // ordinary casting. A shape leaving this list is the list working.
   // A Reaction whose response is another line of the same block. Read — the
   // trigger is a window the engine holds and the response is a name on the
   // sheet — and not paid, because the engine offers the Reaction and hands the
@@ -545,7 +543,6 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     hasHandedOverRider(line) ||
     hasUnexecutedTrait(line) ||
     hasHandedOverSave(line) ||
-    hasUnspentCastLine(line) ||
     hasHandedOverResponse(line);
   for (const monster of low) {
     const lines = statBlockLines(monster);

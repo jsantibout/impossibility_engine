@@ -1443,19 +1443,31 @@ export function parseSpellcastingLine(text: string): MonsterSpellcasting | null 
  * as Spellcasting" is a **reference** to another line of the same block, and
  * it is carried as one.
  *
+ * **A fourth clause varies and is a field rather than a refusal:** "on
+ * itself". SRD Imp, Quasit and Sprite print "The imp casts _Invisibility_ **on
+ * itself**" and SRD Oni prints it under Bonus Actions — a target the sentence
+ * fixes rather than one the caller chooses, which is one flag and no second
+ * shape. Every other word of those four lines is what every cast line says.
+ *
+ * **And the word the book hyphenated at a line break is the same word.** SRD
+ * Imp prints "using Charisma as the spell-casting ability", where the hyphen
+ * is typesetting rather than content — the reading `spellIdOf` already takes
+ * of the Druid's "Long-strider".
+ *
  * **What the anchors refuse is the point of them.** SRD Vampire's Beguile and
  * SRD Mummy's Dread Command each print a second sentence about a second rule;
  * SRD Unicorn's Blessing touches a creature first and names a target; SRD
- * Imp's Invisibility is cast "on itself"; SRD Lich's Protective Magic casts
- * "in response to the spell's trigger". Every one of those is a clause this
- * shape has no field for, and a line read down to the part that fits is a
- * creature doing something nobody printed.
+ * Lich's Protective Magic casts "in response to the spell's trigger". Every
+ * one of those is a clause this shape has no field for, and a line read down
+ * to the part that fits is a creature doing something nobody printed — which
+ * is why the target clause is anchored to the two words the book prints and
+ * not to a target at all.
  */
 const CAST_LINE = new RegExp(
-  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?,? ` +
+  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?( on itself)?,? ` +
     `(?:requiring no [A-Za-z ]+ components and )?` +
     `using (?:(the same) spellcasting ability as Spellcasting` +
-    `|(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as (?:the )?spellcasting ability)` +
+    `|(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as (?:the )?spell-?casting ability)` +
     `(?: \\(spell save DC (\\d+)\\))?\\.$`,
 );
 
@@ -1528,13 +1540,16 @@ export function parseCastLine(text: string): MonsterCastLine | null {
   const spells = readCastMenu(matched[1]!);
   if (spells === null) return null;
 
-  const stated = matched[3] === undefined ? undefined : ABILITY_KEYS[matched[3]];
-  if (matched[3] !== undefined && stated === undefined) return null;
+  const stated = matched[4] === undefined ? undefined : ABILITY_KEYS[matched[4]];
+  if (matched[4] !== undefined && stated === undefined) return null;
 
   const line = {
     spells,
     ability: stated ?? ('spellcasting' as const),
-    ...(matched[4] === undefined ? {} : { saveDc: Number(matched[4]) }),
+    // "on itself" — the two words the book prints, and the whole of what they
+    // say. A target this line fixes is not a target the caller offers.
+    ...(matched[2] === undefined ? {} : { selfOnly: true as const }),
+    ...(matched[5] === undefined ? {} : { saveDc: Number(matched[5]) }),
   };
 
   // Validated rather than trusted, for the reason `parseSaveLine` validates

@@ -540,6 +540,18 @@ export function castOrRelease(
   request: CastSpellRequest,
   supply: Supply,
   held: HeldCasting | null,
+  /**
+   * The printed heading this casting is being **taken through**, where a
+   * printed line's own door is what called — see `chooseRoute`'s licence.
+   *
+   * **A parameter and never a field on the request**, which is the whole of
+   * what makes it a licence: `CastSpellRequest` is what a tool schema
+   * publishes, and a caller that could set this would be granting itself
+   * permission to cast a stat block's rationed spell for nothing. It is
+   * absent for every casting but `castPrintedLine`'s, and `resolveSpell` —
+   * the entry point every other caller uses — cannot supply one at all.
+   */
+  taking?: { readonly throughLine: string },
 ): Result<SpellResolution> {
   // **The duplicate check comes first, always.** A retry arrives at whatever
   // the world has become since its first run — the caster removed, the free
@@ -760,6 +772,10 @@ export function castOrRelease(
         ? chooseRoute(caster.spellcasting, request.spellId, request.source, {
             ritual: request.ritual === true,
             fromBook: ritualsFromBookOn(state, casterId),
+            // The printed line's own door saying it is the one calling, and
+            // absent for every other caster — so a route a heading prices is
+            // refused `route_through_line_only` however its source was named.
+            ...(taking === undefined ? {} : { throughLine: taking.throughLine }),
           })
         : // The sheet as it stands, because a wand that printed no numbers
           // leaves them to the wielder's own — and an item that sets the
@@ -846,7 +862,11 @@ export function castOrRelease(
     // How long this casting takes, and whether it is a Ritual. Refused here,
     // before a slot, an action or a die — and computed once, because the
     // arithmetic and the refusals are three consequences of one SRD sentence.
-    const casting = castingOf(definition, request);
+    //
+    // **The route goes in because a route may price the use.** A stat block's
+    // heading is a Bonus Action over a spell that prints an Action, and this
+    // is the one place a casting's slot is decided.
+    const casting = castingOf(definition, request, route);
     if (!casting.ok) return casting;
 
     const slotLevel = request.slotLevel ?? definition.level;
@@ -1555,10 +1575,24 @@ export interface CastingTiming {
 export function castingOf(
   definition: SpellDefinition,
   request: CastSpellRequest,
+  route?: CastingRoute | null,
 ): Result<CastingTiming> {
   if (request.ritual !== true) {
+    // **What the route prices the use at, where it prices it.** A stat block's
+    // heading is the one thing in the book that says how long a casting takes
+    // without being the spell: SRD Divine Aid is a Bonus Action offering
+    // *Bless*, whose own casting time is an Action. A route is the right host
+    // for it because a route is already how a casting learns whose ability and
+    // whose DC it uses — and this is the one place a casting's slot is
+    // decided, so the action economy, the event and the settlement all read
+    // one answer.
+    //
+    // **A span of seconds does not travel with it**, and cannot: the only
+    // casting time that takes one is `long`, which no printed heading prices a
+    // use at, and `castSpell` refuses a `long` casting that names no span.
+    const stated = route?.kind === 'granted' ? route.grant.castingTime : undefined;
     return ok({
-      castingTime: definition.castingTime,
+      castingTime: stated ?? definition.castingTime,
       ...(definition.castingSeconds === undefined
         ? {}
         : { castingSeconds: definition.castingSeconds }),

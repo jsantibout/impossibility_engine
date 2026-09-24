@@ -8425,6 +8425,24 @@ export const FAERIE_FIRE: SpellDefinition = {
  * hours at level 2 and forty-eight more for every level above it, written out
  * rather than computed, because the SRD prints a different table for each
  * spell that has one.
+ *
+ * **The Challenge Rating the save reads is held now**, which is one of the two
+ * facts this spell was waiting on: `CreatureState.cr` is pinned at the arrival
+ * from the block and `save.autoSucceedIf.challengeRatingAbove` reads it, so a
+ * Venomous Snake would be spared and a Raven would not.
+ *
+ * **What is still missing is where the verdict goes.** The save is inverted —
+ * "must succeed on a Charisma saving throw, **or** it attempts to deliver a
+ * message for you" — so a success is the Beast declining the errand, and the
+ * errand is narration from the first word to the last. The failure therefore
+ * imposes no condition and hangs no rider, and the third thing that lifts
+ * `save_imposes_nothing` is `recordsOutcome`, which `verdict_before_the_record`
+ * refuses in a casting's own effect list for a reason that is not a preference:
+ * the list resolves before `spell-ongoing` is pushed, so the record the verdict
+ * would be written onto does not exist yet. Whether a save whose whole content
+ * is its verdict may be written there — published by the casting that rolled
+ * it, in its own outcomes — is a decision nobody has taken, and this spell is
+ * the one that asks for it.
  */
 export const ANIMAL_MESSENGER: SpellDefinition = {
   id: 'animal-messenger',
@@ -8454,7 +8472,7 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
     9: 1_296_000,
   },
   unmodelled: [
-    'the Charisma saving throw is not rolled: the parenthesis that decides it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — reads a Challenge Rating nothing in the engine holds, which is the second of the three facts `a-target-rule-the-format-cannot-state` names and the one still missing',
+    'the Charisma saving throw is not rolled, and the Challenge Rating is no longer why: `CreatureState.cr` holds the rating the block prints and `save.autoSucceedIf.challengeRatingAbove` reads it. What the failure buys is an errand and nothing a rule can hold, so the only thing left for the die to decide is its own verdict — and `verdict_before_the_record` refuses `recordsOutcome` in a casting’s own effect list, because that list resolves before the record the verdict would be written onto exists',
     'the errand is the DM’s: the location, the recipient "who matches a general description", the message of up to twenty-five words, the 25 or 50 miles a day and the Beast returning if it does not arrive are all narration',
   ],
 };

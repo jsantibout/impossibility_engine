@@ -1233,6 +1233,19 @@ export const MonsterCastLineSchema = z.object({
    * the fact, and a line that prints none is left to derive.
    */
   saveDc: z.number().int().min(1).optional(),
+  /**
+   * The line casts **on the creature itself**, and on nothing else.
+   *
+   * SRD Imp, Quasit and Sprite: "The imp casts _Invisibility_ **on itself**,
+   * requiring no spell components and using Charisma as the spellcasting
+   * ability"; SRD Oni prints it under Bonus Actions. A target the sentence
+   * fixes rather than one the caller chooses — the one clause of those four
+   * lines that the menu above cannot say, and the reason they were prose.
+   *
+   * Absent is every other line in the book, where whom the spell reaches is
+   * the spell's own rule and the caller's answer.
+   */
+  selfOnly: z.literal(true).optional(),
 });
 export type MonsterCastLine = z.infer<typeof MonsterCastLineSchema>;
 

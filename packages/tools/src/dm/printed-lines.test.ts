@@ -421,3 +421,134 @@ describe('a printed teleport, taken through the door that moves the creature', (
     expect(out.code).toBe('unknown_tool');
   });
 });
+
+/**
+ * The fourth door over one line: the spell a stat block prints on it.
+ *
+ * SRD Priest, Divine Aid (3/Day): "The priest casts _Bless, Dispel Magic,
+ * Healing Word,_ or _Lesser Restoration,_ using the same spellcasting ability
+ * as Spellcasting." The engine settles every part of that, including the slot
+ * the *heading* prices the use at — a Bonus Action over a spell that prints an
+ * Action. What is left over is **which** of the four, which is the DM's for
+ * the reason the space a teleport lands in is.
+ */
+describe('a printed cast line, taken through the door that casts it', () => {
+  const DIVINE_AID = 'Divine Aid (3/Day)';
+
+  /** A priest and a goblin, with somebody to bless. */
+  function chapel(seed = 'the-blessing') {
+    const t = table(seed);
+    expectOk(t.call('add_creature', { id: 'bera', monsterId: 'priest' }));
+    expectOk(t.call('add_creature', { id: 'pell', monsterId: 'commoner' }));
+    expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
+    expectOk(t.call('declare_side', { who: 'bera', side: 'faithful' }));
+    expectOk(t.call('declare_side', { who: 'pell', side: 'faithful' }));
+    expectOk(t.call('declare_side', { who: 'grish', side: 'goblins' }));
+    expectOk(t.call('set_scene', { width: 120, depth: 80, height: 20 }));
+    expectOk(t.call('add_landmark', { name: 'the altar', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'bera', fromLandmark: 'the altar', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'pell', fromCreature: 'bera', feet: 5, bearing: 90 }));
+    expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'bera', feet: 25, bearing: 0 }));
+    expectOk(
+      t.call('roll_initiative', {
+        combatants: [{ who: 'bera' }, { who: 'pell' }, { who: 'grish' }],
+      }),
+    );
+    return t;
+  }
+
+  it('casts the spell, spends the heading’s Bonus Action and the day’s use', () => {
+    const t = chapel();
+    turnOf(t, 'bera');
+
+    const out = expectOk(
+      t.call('cast_printed_line', {
+        who: 'bera',
+        line: DIVINE_AID,
+        spell: 'bless',
+        targets: ['bera', 'pell'],
+      }),
+    );
+    // The casting is an ordinary casting, with an id and a record.
+    expect(out.events.some((event) => event.type === 'spell-cast')).toBe(true);
+    expect(out.resolution['castingId']).toBe('cast:1');
+    // The heading's slot went and the Action did not: *Bless* prints an Action
+    // and Divine Aid is printed under Bonus Actions.
+    expect(out.events.some((event) => event.type === 'bonus-action-spent')).toBe(true);
+    expect(out.events.some((event) => event.type === 'action-spent')).toBe(false);
+    // And one of the three uses the heading rations.
+    expect(
+      out.events.some(
+        (event) =>
+          event.type === 'resource-spent' &&
+          /Divine Aid/.test(String((event as { key?: string }).key)),
+      ),
+    ).toBe(true);
+    const taken = out.events.filter((event) => event.type === 'stated-bonus-action-taken');
+    expect((taken[0] as { line: string }).line).toBe(DIVINE_AID);
+    expect(out.resolution['line']).toBe(DIVINE_AID);
+  });
+
+  it('asks which spell rather than choosing one off the menu', () => {
+    const t = chapel('which-spell');
+    turnOf(t, 'bera');
+    const out = t.call('cast_printed_line', { who: 'bera', line: DIVINE_AID, targets: ['pell'] });
+    expect(out.status).toBe('needs-context');
+    if (out.status !== 'needs-context') return;
+    expect(out.code).toBe('undeclared_spell');
+  });
+
+  it('refuses a spell the line does not offer', () => {
+    const t = chapel('not-on-the-line');
+    turnOf(t, 'bera');
+    const out = t.call('cast_printed_line', {
+      who: 'bera',
+      line: DIVINE_AID,
+      spell: 'fireball',
+      targets: ['grish'],
+    });
+    expect(out.status).toBe('refused');
+    if (out.status !== 'refused') return;
+    expect(out.code).toBe('spell_not_on_the_line');
+  });
+
+  /**
+   * The price is the heading's, so the route must not be reachable around it:
+   * a Priest whose Bless could be cast straight through `cast_spell` would
+   * cast it all day.
+   */
+  it('cannot be cast around the line it is printed on', () => {
+    const t = chapel('around-the-line');
+    turnOf(t, 'bera');
+    const out = t.call('cast_spell', {
+      caster: 'bera',
+      spellId: 'bless',
+      targets: ['pell'],
+      fought: [],
+    });
+    expect(out.status).toBe('refused');
+    if (out.status !== 'refused') return;
+    expect(out.code).toBe('spell_not_available');
+  });
+
+  it('says on look which line holds a route open', () => {
+    const t = chapel('looking-at-the-route');
+    const bera = t.surface.observe().creatures.find((one) => one.id === 'bera');
+    const bless = bera?.grantedSpells.find((one) => one.spellId === 'bless');
+    expect(bless?.throughLine).toBe(DIVINE_AID);
+    // And the Spellcasting line's own grants are open to `cast_spell` as they
+    // always were, which is what makes the field a claim rather than a label.
+    const light = bera?.grantedSpells.find((one) => one.spellId === 'light');
+    expect(light?.throughLine).toBeNull();
+  });
+
+  it('is the DM’s door and not the model’s', () => {
+    const surface = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'blessing' }));
+    const dm = createDmSurface(createCampaign({ content: SRD_CONTENT, seed: 'blessing' }));
+    expect(dm.tools.map((definition) => definition.name)).toContain('cast_printed_line');
+    const out = surface.call({ tool: 'cast_printed_line', input: {}, commandId: 'toolu_1' });
+    expect(out.status).toBe('invalid');
+    if (out.status !== 'invalid') return;
+    expect(out.code).toBe('unknown_tool');
+  });
+});

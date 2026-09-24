@@ -313,6 +313,25 @@ export type GameEvent =
        * both frozen fixtures fold unchanged and neither was regenerated.
        */
       readonly device?: DeviceRecord;
+      /**
+       * The Challenge Rating this creature's stat block prints — 1/8 as
+       * `0.125`, exactly as the parser reads it.
+       *
+       * Pinned here for the reason {@link size} above is: the book answers it,
+       * so nobody above the engine is asked to, and a rule that reads one does
+       * not have to open a catalogue at the moment it asks. SRD Animal
+       * Messenger is the first such rule — "if the target's Challenge Rating
+       * isn't 0, it automatically succeeds" — and until this field existed
+       * `adaptMonster` read a rating off every block and `creature-added`
+       * carried it nowhere.
+       *
+       * **Optional, and absent means nobody has said**, which is what every
+       * log written before this field existed says and what a character says
+       * for ever: the SRD prints no Challenge Rating for a player character.
+       * So both frozen fixtures fold unchanged and neither was regenerated,
+       * and the one rule that reads it asks rather than assuming a zero.
+       */
+      readonly cr?: number;
       /** Which side of the fight this creature is on. See {@link CreatureState.side}. */
       readonly side?: string;
       readonly command?: CommandStamp;

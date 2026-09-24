@@ -167,7 +167,7 @@ describe('toolSchemas', () => {
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(84);
-    expect(toolSchemas(dm())).toHaveLength(103);
+    expect(toolSchemas(dm())).toHaveLength(104);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -198,10 +198,17 @@ describe('toolSchemas', () => {
     // is on both for the reason `take_damage_reaction` is, because the
     // creature answering is whoever was hit. One pin each and the same 802
     // bytes on both, which is the tool being published once.
+    // Re-pinned again for the cast-line track, which opened one more door on
+    // the DM's surface alone: `cast_printed_line` casts one of the spells a
+    // stat block prints on a line, at the heading's price and through the
+    // block's own numbers — and *which* spell off a menu of four is the same
+    // decision `teleport_printed_line`'s destination is, which is why neither
+    // is on a model's surface. One more pin on the DM surface and none on the
+    // player's; the lengths sum with whatever the other tracks moved.
     expect(toolSchemas(player())).toHaveLength(84);
-    expect(toolSchemas(dm())).toHaveLength(103);
+    expect(toolSchemas(dm())).toHaveLength(104);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(122027);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146157);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(150004);
   });
 });
 

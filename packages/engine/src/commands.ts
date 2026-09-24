@@ -294,6 +294,7 @@ export type {
 export { activateSpell } from './commands/activation.js';
 export type { ActivateSpellCommand } from './commands/activation.js';
 export {
+  castPrintedLine,
   forcePrintedSave,
   HELP,
   HIDE,
@@ -332,6 +333,9 @@ export type {
   ReadyCommand,
   ReadyRelease,
   ReadyResponse,
+  PrintedCastingCommand,
+  PrintedCastingFacts,
+  PrintedCastingOutcome,
   PrintedSaveCommand,
   PrintedSaveOnACreature,
   PrintedSaveOutcome,

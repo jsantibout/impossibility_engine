@@ -1,6 +1,6 @@
 import type { Ability } from '@ie/shared';
 import type { SlotKind } from './resources.js';
-import type { CastingNumbers } from './spells.js';
+import type { CastingNumbers, CastingTime } from './spells.js';
 import type { StandingRequirement } from './standing.js';
 
 /**
@@ -117,6 +117,65 @@ export interface GrantedSpell {
    * Absent asks nothing, which is every granted route in the book but one.
    */
   readonly requires?: readonly StandingRequirement[];
+  /**
+   * How long a casting made through **this route** takes, over what the spell
+   * prints.
+   *
+   * SRD Priest, Divine Aid (3/Day), printed under **Bonus Actions**: "The
+   * priest casts _Bless, Dispel Magic, Healing Word,_ or _Lesser
+   * Restoration_…" — and *Bless*'s own casting time is an Action. What a stat
+   * block's heading prices is the *use*, not the spell, so the price belongs
+   * on the route the use opens rather than on the definition every other
+   * caster reads.
+   *
+   * **A route may state a casting time; it is not a pipeline of its own.** The
+   * one place a casting's slot is decided is `castingOf`, so this is read
+   * there and nowhere else, and everything downstream — the action economy,
+   * the event, the settlement — sees one answer. A feature's free casting is
+   * the same shape one host along.
+   *
+   * Absent is every route written before this and every route that has nothing
+   * to say, which is the ordinary case: the spell's own casting time stands.
+   *
+   * **A Ritual still wins**, because a Ritual is not a use of this route at
+   * all: SRD's "takes 10 minutes longer" is a rule about the *spell*, and
+   * `castingOf` settles it first.
+   */
+  readonly castingTime?: CastingTime;
+  /**
+   * This route is open **only through the printed line that granted it**, by
+   * the heading the block prints.
+   *
+   * A stat block's cast line is a route whose price is not the route's: SRD
+   * Priest's Divine Aid rations three uses a day and SRD Drider's Magic of the
+   * Spider Queen comes back on a d6, and those two ledgers are the *heading's*
+   * — checked and spent by `castPrintedLine`, which is also where the
+   * hand-over door reads them, so two doors on one heading cannot disagree
+   * about what is left of it.
+   *
+   * A route like that must not be castable **around** the line, or the price
+   * would simply not be paid: a Priest would cast Bless all day.
+   *
+   * **Two roads lead to a route and both are closed.** {@link routesFor}
+   * leaves one of these out of what a casting *searches*, which closes the
+   * road a caller takes when it names no source. `chooseRoute`'s named branch
+   * does not come through here — it looks a source up on `granted` directly,
+   * and the source is published (`look` reports it, `routeLabel` writes it
+   * into every `spell-cast`) — so that road is closed by a **licence**: it
+   * refuses `route_through_line_only` unless the printed line's own door says
+   * it is the one calling. The licence is an argument between engine
+   * functions and is on no request and no tool schema, because a licence a
+   * caller could set is a caller granting itself the licence.
+   *
+   * And a casting like this is not **readied**: `releaseReady` settles without
+   * ever asking `castingOf`, so the heading's price would go nowhere —
+   * `readied_printed_line`, refused before the slot.
+   *
+   * Absent is every other grant in the book — a feat's, a feature's, an
+   * item's — each of which carries its own price and is cast wherever its
+   * holder likes.
+   */
+  readonly throughLine?: string;
 }
 
 /** One class's half of a creature's spellcasting, on that class's terms. */
@@ -293,6 +352,18 @@ export type CastingRoute =
  * than one is a real state rather than a bug: a Ranger/Sorcerer may have
  * prepared Cure Wounds twice, once through each class, and the two cast
  * against different save DCs.
+ *
+ * **Except a route a printed line holds open** — see
+ * {@link GrantedSpell.throughLine}. Those are not routes a casting finds for
+ * itself, because the price is the heading's rather than the route's: a
+ * creature that could reach one from here would cast it without the day's use
+ * or the recharge going anywhere. `castPrintedLine` names the source, which
+ * `chooseRoute` looks up directly.
+ *
+ * **This closes the road a casting takes when it names nothing, and only that
+ * one.** `chooseRoute`'s named-source branch does not come through here, and
+ * closes its own road with a licence — see {@link GrantedSpell.throughLine},
+ * which says what the licence is and why it is internal.
  */
 export function routesFor(
   spellcasting: SpellcastingState,
@@ -315,7 +386,7 @@ export function routesFor(
     }
   }
   for (const grant of spellcasting.granted) {
-    if (grant.spellId === spellId) {
+    if (grant.spellId === spellId && grant.throughLine === undefined) {
       routes.push({ kind: 'granted', ability: grant.ability, grant });
     }
   }

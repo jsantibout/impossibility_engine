@@ -91,6 +91,12 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // to Medium exactly as it always has — so both frozen fixtures fold
             // unchanged and neither was regenerated.
             size: event.size ?? null,
+            // Absent means nobody has said, which is what every log written
+            // before this field existed says and what a character says for
+            // ever — so both frozen fixtures fold unchanged and neither was
+            // regenerated, and the rule that reads a rating asks rather than
+            // reading an absence as a zero.
+            cr: event.cr ?? null,
             side: event.side ?? null,
             // Nobody has said, which is what every log written before this
             // field existed says — so both frozen fixtures fold unchanged and
