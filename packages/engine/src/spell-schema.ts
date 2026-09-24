@@ -1789,6 +1789,21 @@ function checkModifierRider(
     checkDamagePenalty(rider, path, found);
     return;
   }
+  // The twenty-first sourced grant, reached from a settled outcome rather than
+  // from an effect. Its notation and its type are the two things it carries and
+  // both are checked exactly as the effect kind's are — one grant, two doors,
+  // one set of rules about what may go through either.
+  if (rider?.kind === 'later-blow') {
+    if (typeof rider.dice !== 'string' || !parseNotation(rider.dice).ok) {
+      found.push({
+        field: `${path}.dice`,
+        code: 'bad_dice',
+        reason: `"${String(rider.dice)}" is not dice notation`,
+      });
+    }
+    checkDamageType(rider.damageType, `${path}.damageType`, found);
+    return;
+  }
   if (rider?.kind === 'mode') {
     checkRollModifier(rider.modifier, `${path}.modifier`, found);
     // The third rider that may carry a deadline of its own. Whether it *must*
@@ -4389,6 +4404,8 @@ function grantCarried(effect: SpellEffect): string | null {
           // ever struck, for ever.
           case 'damage-penalty':
             return 'an amount taken off the damage the target deals';
+          case 'later-blow':
+            return 'extra damage on the caster’s later blows';
           case 'mode':
             // The third rider with an escape of its own, and it arrived with
             // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
@@ -4488,6 +4505,8 @@ function grantOnASuccess(effect: SpellEffect): string | null {
           return 'a bonus';
         case 'damage-penalty':
           return 'an amount taken off the damage the target deals';
+        case 'later-blow':
+          return 'extra damage on the caster’s later blows';
         case 'mode':
           if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
           break;
@@ -7468,6 +7487,7 @@ const RIDER_DEPTH_LIMIT = 6;
 export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'bonus',
   'damage-penalty',
+  'later-blow',
   'mode',
   'speed-change',
   'action',

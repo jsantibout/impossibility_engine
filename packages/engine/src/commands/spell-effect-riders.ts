@@ -392,13 +392,48 @@ export function applyRiders(
     // deadline of its own that ends the grant **sooner** than the casting,
     // which is what `EffectTarget.grants` was built for and what an
     // Instantaneous host has no alternative to.
-    held.add(target);
+    // **Whom the casting is holding something on, and one rider holds it
+    // elsewhere.** Every member of this union lands on the creature the
+    // outcome settled on — except `later-blow`, whose die is thrown by the
+    // *caster* on a later turn, which is the asymmetry
+    // `resolveAttackRiderEffect` has always had and for the same SRD reason:
+    // SRD Hunter's Mark marks a quarry ninety feet away and the extra die is
+    // the ranger's.
+    held.add(modifier.kind === 'later-blow' ? casterId : target);
     const granted: GameEvent =
+      // SRD Bestow Curse's fourth face: "If you deal damage to the target with
+      // an attack roll or a spell, the target takes an extra 1d8 Necrotic
+      // damage." The **same** grant `resolveAttackRiderEffect` writes — one
+      // event, one record, one gatherer — reached from a settled outcome
+      // because an effect appended after a save does not know how it went.
+      //
+      // **No die substitution is read here**, which is the one thing this arm
+      // does not share with that resolver. SRD Foe Slayer names a spell —
+      // "the damage die of your _Hunter's Mark_" — and no feature in the book
+      // names a spell that writes this rider, so `alters` is not carried into
+      // `applyRiders` at all; the day one does, it arrives here the way it
+      // arrived there.
+      modifier.kind === 'later-blow'
+        ? {
+            type: 'attack-rider-granted',
+            id: casterId,
+            rider: {
+              source,
+              dice: modifier.dice,
+              damageType: modifier.damageType,
+              // "**to the target**": the creature this outcome settled on, so
+              // the rider needs no `marksTarget` of its own — a rider hung on
+              // an outcome is always about the creature that outcome was
+              // about.
+              target,
+              ...(modifier.alsoSpells === undefined ? {} : { alsoSpells: modifier.alsoSpells }),
+            },
+          }
       // SRD Ray of Enfeeblement: "it also subtracts 1d8 from all its damage
       // rolls." The payload is assembled by `damagePenaltyGranted`, beside the
       // resolver for the grant on the other side of a blow, so the two are one
       // reading of one family rather than two.
-      modifier.kind === 'damage-penalty'
+      : modifier.kind === 'damage-penalty'
         ? damagePenaltyGranted(target, source, definition.name, modifier)
         : modifier.kind === 'action'
         ? {

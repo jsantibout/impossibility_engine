@@ -54,7 +54,12 @@ import {
   type ReactionOffer,
 } from '../reactions.js';
 import { remaining, tallied } from '../resources.js';
-import { actionRulesOn, type CastingDamageFeature, defensesOf } from '../standing.js';
+import {
+  actionRulesOn,
+  type CastingDamageFeature,
+  defensesOf,
+  spellDamageRiders,
+} from '../standing.js';
 import {
   type ConcentrationConsequence,
   type Supply,
@@ -773,7 +778,7 @@ export function reactionContributions(
 export function dealSpellDamage(
   state: GameState,
   target: CharacterId,
-  components: readonly DamageComponent[],
+  blow: readonly DamageComponent[],
   source: string,
   supply: Supply,
   options: {
@@ -788,6 +793,22 @@ export function dealSpellDamage(
      * creature with no defences", which `applyDefenses` already answers for.
      */
     readonly ignoresDefenses?: boolean;
+    /**
+     * This blow is a **spell's** damage that no attack roll bought.
+     *
+     * SRD Bestow Curse's fourth face: "If you deal damage to the target with
+     * an attack roll **or a spell**, the target takes an extra 1d8 Necrotic
+     * damage." The attack half is already answered a road away — every attack
+     * gathers its riders through `grantedAttackRiders` before the blow is
+     * rolled, and hands them in as components — so what this flag marks is the
+     * *other* road, and gathering on both would throw the die twice.
+     *
+     * **Set by the three sites that raise a casting's damage without an attack
+     * roll** and by nothing else: a fall, a Fire Shield's flames, a feature's
+     * pool, a monster's printed save and a DM's stated amount are none of them
+     * "a spell", and the flag is what keeps the sentence to what it says.
+     */
+    readonly fromSpell?: true;
   },
 ): Result<{
   readonly events: readonly GameEvent[];
@@ -818,6 +839,38 @@ export function dealSpellDamage(
 }> {
   const victim = state.creatures[target];
   if (victim === undefined) return unknownCreature(target);
+
+  // **The die a curse hangs on every blow its caster lands, on the road an
+  // attack does not take.** SRD Bestow Curse: "If you deal damage to the
+  // target with an attack roll **or a spell**, the target takes an extra 1d8
+  // Necrotic damage." A component of its own, so it meets the target's
+  // defences separately — which is the whole reason it is not folded into the
+  // spell's own dice — and thrown **before** the two subtractions below,
+  // because it is part of the damage roll they come off.
+  //
+  // The dealer's own sheet where they are still here, for the reason
+  // `burnBeforeTheSave` reads the recipient's: the components kept are the
+  // rider's own, so nothing off the sheet reaches the number and the roll
+  // cannot fail for want of a caster who has since died.
+  const issuedBeforeRider = supply.issuer.count;
+  const carried =
+    options.fromSpell === true && options.by !== undefined
+      ? spellDamageRiders(state.creatures[options.by], target)
+      : [];
+  const riders: DamageComponent[] = [];
+  for (const rider of carried) {
+    const rolled = rollSpellDice(
+      supply,
+      state.creatures[options.by!]?.sheet ?? victim.sheet,
+      rider.source,
+      rider.type,
+      rider.dice,
+    );
+    if (!rolled.ok) return rolled;
+    riders.push(...rolled.value);
+  }
+  const riderCounted = rollsIssuedSince(supply, issuedBeforeRider);
+  const components = riders.length === 0 ? blow : [...blow, ...riders];
 
   // **What the creature that swung has to take off its own roll, first.** SRD
   // Ray of Enfeeblement: "it also subtracts 1d8 from all its damage rolls."
@@ -932,6 +985,7 @@ export function dealSpellDamage(
     // is owed until the creature is down.
     events: [
       ...(dice === null ? [] : [dice]),
+      ...riderCounted,
       ...penalty.value.events,
       ...penaltyCounted,
       ...warded.value.events,

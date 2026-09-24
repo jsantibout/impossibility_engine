@@ -621,11 +621,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the third of the four faces, and the one branch of the spell that is still a debt. A repeat save hung on a casting ends the casting on a success and this one ends nothing — a third value the vocabulary does not carry — and its failure compels the Dodge action for that turn, where a failure branch applies a condition. Both halves are the shape’s own sentence.',
     },
     {
-      clause: 'the extra 1d8 Necrotic is not dealt',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the fourth face. The die rides every later blow the caster lands on the cursed creature, which is exactly `attack-rider` with `marksTarget` — and `attack-rider` is an **effect**, where what a branch’s failed save can hand out is a **rider**. So the grant has no host on the branch that gates it, and the sentence widens the trigger past an attack roll to damage from a spell besides.',
-    },
-    {
       clause: 'is not applied: `untilDispelled` is a property of the spell',
       why: 'a-duration-the-slot-changes',
       note: 'the one arm of the slot table left. The lengths are `durationAtSlot` and the Concentration is `concentrationEndsAtSlot`, both written; what a table of seconds cannot say is an ending rather than a length, which is what a level 9 slot buys. SRD Major Image prints the same clause and names the same shape.',

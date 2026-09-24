@@ -828,6 +828,53 @@ export interface ConditionRider {
  * "for the duration" fits the casting exactly.
  */
 export type ModifierRider =
+  /**
+   * Extra damage the same outcome hangs on the **caster's later blows**
+   * against the creature it settled on.
+   *
+   * SRD Bestow Curse, the fourth of its four faces: "If you deal damage to the
+   * target with an attack roll **or a spell**, the target takes an extra 1d8
+   * Necrotic damage." One Wisdom save, one consequence, and the consequence
+   * outlives the roll that bought it — which is the argument every member of
+   * this union makes.
+   *
+   * **It is `later-blow` and not `attack-rider`, because a rider kind may
+   * never be an effect kind**, the rule `bonus`, `mode`, `speed-change`,
+   * `action` and `healing` all keep. What it grants *is* the `attack-rider`
+   * grant: the same `attack-rider-granted` event, the same
+   * {@link GrantedAttackRider} read by the same gatherer, so there is one
+   * mechanism with two doors into it rather than two that could disagree.
+   *
+   * **The grant lands on the caster and is about the host's target**, which is
+   * the one thing this rider does that no other member does. That is not an
+   * exception invented here: it is what `resolveAttackRiderEffect` has always
+   * done — SRD Hunter's Mark marks a quarry ninety feet away and the die is
+   * the ranger's — and the marked creature is the creature the outcome settled
+   * on, so `marksTarget` needs no field of its own here. The reason the effect
+   * kind cannot be written in a branch is the reason this exists: an effect
+   * appended after a save does not know how the save went.
+   *
+   * **It carries no `lasts`**, for the reason `bonus` carries none: the
+   * sentence runs for the casting's own duration, and an Instantaneous host
+   * would leave a die nothing could take back. `checkGrantLifetimes` refuses
+   * that pairing.
+   */
+  | {
+      readonly kind: 'later-blow';
+      /** The extra dice the sentence prints, e.g. `1d8`. */
+      readonly dice: string;
+      /** The type it prints: Bestow Curse's Necrotic. */
+      readonly damageType: string;
+      /**
+       * SRD's "with an attack roll **or a spell**".
+       *
+       * Absent is the attack roll alone, which is what SRD Hunter's Mark and
+       * SRD Hex print and what the effect kind's own writers mean. See
+       * {@link GrantedAttackRider.alsoSpells}, which is where the difference
+       * is read and where the two roads a blow can take are told apart.
+       */
+      readonly alsoSpells?: true;
+    }
   | {
       readonly kind: 'bonus';
       readonly bonus: Bonus;

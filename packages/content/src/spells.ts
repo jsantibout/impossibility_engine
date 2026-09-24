@@ -13387,8 +13387,19 @@ export const BESTOW_CURSE: SpellDefinition = {
     },
     'extra-damage': {
       label: 'An extra 1d8 Necrotic when you damage it',
-      unmodelled: [
-        'the extra 1d8 Necrotic is not dealt: the die rides every later blow the caster lands on the cursed creature, which is the rider a casting grants — and a grant is an effect, where what this branch’s failed save can hang is a rider, so there is nothing for the failure to hand out',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          modifiers: [
+            // "If you deal damage to the target with an attack roll **or a
+            // spell**, the target takes an extra 1d8 Necrotic damage." The
+            // rider hangs the grant on the caster and names this creature,
+            // which is SRD Hunter's Mark's shape with the trigger widened past
+            // the roll.
+            { kind: 'later-blow', dice: '1d8', damageType: 'necrotic', alsoSpells: true },
+          ],
+        },
       ],
     },
   },

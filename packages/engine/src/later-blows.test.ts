@@ -100,7 +100,7 @@ const table = (
     spellcasting: declaredCasting({
       ability: 'wis',
       cantrips: ['fire-bolt'],
-      prepared: ['hex', 'hunters-mark', 'bestow-curse'],
+      prepared: ['hex', 'hunters-mark', 'bestow-curse', 'magic-missile'],
     }),
   },
   {
@@ -553,5 +553,109 @@ describe('Bestow Curse’s slot table', () => {
     );
     expect(deadline(log)).toBe(28800);
     expect(concentrating(log)).toBe(false);
+  });
+});
+
+describe('Bestow Curse’s fourth face rides a spell as well as an attack', () => {
+  const cursed = () =>
+    cast(
+      table(),
+      { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 3, option: 'extra-damage' },
+      DOOMED,
+    );
+
+  /** "with an attack roll" — the Cleric's mace, which is the road the gatherer already walked. */
+  it('adds its die to a weapon attack on the cursed creature', () => {
+    expect(swing(cursed(), QUARRY).damage!).toBeGreaterThan(swing(table(), QUARRY).damage!);
+  });
+
+  /** "or a spell" — a Magic Missile, which no attack roll bought. */
+  const missiles = (log: readonly GameEvent[], target: CharacterId) =>
+    must(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId: 'magic-missile', targets: [target] },
+        supply('missile'),
+      ),
+    );
+
+  it('adds its die to the damage of a spell that rolls no attack', () => {
+    const open = missiles(table(), QUARRY);
+    const under = missiles(cursed(), QUARRY);
+    const sum = (out: ReturnType<typeof missiles>) =>
+      out.outcomes.reduce((total, one) => total + (one.damage ?? 0), 0);
+    expect(sum(under)).toBeGreaterThan(sum(open));
+  });
+
+  /** "**the target**" — and the second goblin is not it. */
+  it('leaves a spell aimed at anybody else alone', () => {
+    const sum = (out: ReturnType<typeof missiles>) =>
+      out.outcomes.reduce((total, one) => total + (one.damage ?? 0), 0);
+    expect(sum(missiles(cursed(), SECOND))).toBe(sum(missiles(table(), SECOND)));
+  });
+
+  /**
+   * **The discriminating fixture**: a creature that resists Necrotic and not
+   * Force takes less, which can only happen if the 1d8 met its defences as a
+   * component of its own rather than being folded into the darts.
+   */
+  it('is Necrotic damage, resisted as Necrotic', () => {
+    const open = missiles(cursed(), QUARRY);
+    const proof = missiles(
+      cast(
+        table({ necrotic: { resistant: true } }),
+        { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 3, option: 'extra-damage' },
+        DOOMED,
+      ),
+      QUARRY,
+    );
+    const sum = (out: ReturnType<typeof missiles>) =>
+      out.outcomes.reduce((total, one) => total + (one.damage ?? 0), 0);
+    expect(sum(proof)).toBeLessThan(sum(open));
+  });
+
+  /** A made save hands out nothing at all. */
+  it('hangs nothing on a made save', () => {
+    const made = cast(
+      table(),
+      { spellId: 'bestow-curse', targets: [QUARRY], slotLevel: 3, option: 'extra-damage' },
+      CERTAIN,
+    );
+    expect(swing(made, QUARRY).damage!).toBe(swing(table(), QUARRY).damage!);
+  });
+});
+
+/**
+ * The negative of the sentence above, and the reason `alsoSpells` is a field
+ * rather than the behaviour of every rider.
+ *
+ * SRD Hex and SRD Hunter's Mark both print "whenever you hit it **with an
+ * attack roll**", and a Magic Missile is not one: the darts strike
+ * automatically. A rider that reached this road whatever its sentence said
+ * would have handed both spells a die the book does not give them, on the
+ * road nothing measures.
+ */
+describe('a rider printed about an attack roll stays off a spell that rolls none', () => {
+  const sum = (out: { readonly outcomes: readonly { readonly damage?: number }[] }) =>
+    out.outcomes.reduce((total, one) => total + (one.damage ?? 0), 0);
+  const missiles = (log: readonly GameEvent[]) =>
+    must(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId: 'magic-missile', targets: [QUARRY] },
+        supply('missile'),
+      ),
+    );
+
+  it('adds nothing to Magic Missile against a hexed creature', () => {
+    const hexed = cast(table(), { spellId: 'hex', targets: [QUARRY], choice: 'str' });
+    expect(sum(missiles(hexed))).toBe(sum(missiles(table())));
+  });
+
+  it("adds nothing to Magic Missile against Hunter's Mark's quarry", () => {
+    const marked = cast(table(), { spellId: 'hunters-mark', targets: [QUARRY] });
+    expect(sum(missiles(marked))).toBe(sum(missiles(table())));
   });
 });
