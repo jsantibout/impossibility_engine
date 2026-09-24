@@ -384,7 +384,7 @@ every casting; only one of them is waiting for anything.
 - **Wall of Ice** (level 6) — 5 noted
 - **Wall of Stone** (level 5) — 4 noted
 - **Wall of Thorns** (level 6) — 4 noted
-- **Warding Bond** (level 2) — 4 noted
+- **Warding Bond** (level 2) — 3 noted
 - **Water Breathing** (level 3) — 1 noted, 1 read
 - **Water Walk** (level 3) — 2 noted, 1 read
 - **Word of Recall** (level 6) — 2 noted
@@ -445,12 +445,10 @@ of *Tracked* and is never added to it.
 | `difficult-terrain-an-area-creates` | 7 | 0 | 0 | 4 | 3 | 2 | 0 |
 | `a-barrier-that-blocks-passage` | 6 | 0 | 0 | 1 | 5 | 1 | 0 |
 | `a-creature-somebody-else-is-playing` | 6 | 0 | 0 | 5 | 1 | 0 | 0 |
-| `a-fact-only-the-table-can-declare` | 6 | 0 | 0 | 3 | 3 | 0 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 6 | 0 | 0 | 1 | 5 | 0 | 0 |
+| `a-fact-only-the-table-can-declare` | 5 | 0 | 0 | 2 | 3 | 0 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 5 | 0 | 0 | 2 | 3 | 0 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 5 | 0 | 0 | 0 | 5 | 0 | 0 |
-| `an-activation-that-forces-a-saving-throw` | 5 | 0 | 0 | 1 | 4 | 0 | 0 |
-| `an-activation-that-resolves-an-area` | 5 | 0 | 0 | 2 | 3 | 0 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 4 | 0 | 1 |
 | `movement-modes` | 5 | 0 | 0 | 3 | 2 | 0 | 0 |
 | `a-casting-dismissed-early` | 4 | 0 | 0 | 2 | 2 | 1 | 0 |
@@ -460,6 +458,8 @@ of *Tracked* and is never added to it.
 | `a-hit-point-maximum-a-spell-moves` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 4 | 0 | 0 | 2 | 2 | 0 | 0 |
+| `an-activation-that-forces-a-saving-throw` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
+| `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 | 0 | 1 | 2 | 2 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |

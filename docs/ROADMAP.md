@@ -2151,3 +2151,24 @@ Appended after wave seven's first spells track (2026-09-24):
   `docs/design/casting.md` owes a line about branches, which the coordinator
   adds. "Spells in reach, not executed" did not move: executed-partial still
   counts, which is the honest reading.
+- **`willing`, the ninth stated fact.** A list of target ids on the cast
+  request, elided when empty, pinned and read back at settlement, read by two
+  clauses: `save.unlessWilling` (Levitate) **withholds** the die from a
+  consenting target — no roll, no record, the caster consenting by casting —
+  and `TargetRule.willing` (Mage Armor and eighteen more at levels 0–3, the
+  population read off the book's own word rather than typed) **asks** for a
+  named target nobody has spoken for, `needsContext` tagged on the route the
+  way Alert's willing ally already is; the engine holds no rule that an ally
+  consents. Levitate's later action is a `change-altitude` effect legal only in
+  an activation, refused past its cap, past range, or on a creature the
+  casting is not holding aloft, and lowering to the ground leaves the lift
+  standing; Gust of Wind's Bonus Action re-aims the Line (`redirects`,
+  `spell-aim-changed`), and **a defect nobody had seen fell out**: an ongoing
+  record stored its bearing only where the casting named a point, so a Line
+  that "blasts from you" folded to a record with no shape and Gust's
+  end-of-turn save had never fired — `carriedAim` carries it now, inert on
+  Fear and Sunbeam, fixtures unchanged. Handed over: Levitate's "if you are
+  the target, you can move up or down as part of your move", which needs the
+  feet risen counted per turn on `GrantedLift` — a record the brief said not
+  to invent; it sits under `movement-modes`. Longstrider and Death Ward print
+  no consent clause and were dropped from the brief's list.
