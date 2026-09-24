@@ -1926,3 +1926,16 @@ Appended after wave six's first two tracks (2026-09-24):
   no second door, so refusing it would mean the moment never arrives. A burst
   by a creature the scene never placed catches nobody, silently — the fold
   has nobody to ask.
+- **Sacred Weapon, two clauses of three.** A running feature may shed light —
+  derived on every read beside the six Illumination traits rather than laid as
+  a patch, because `in-sunlight` requirements ask `lightAt` and a patch
+  gathered through the requirement machinery would ask a question of its own
+  answer; every door that ends the activation puts the light out for free. A
+  feature may offer a weapon's damage type restated on each hit. **Ruled,
+  from the track's stop:** the fold cannot tell a Longsword from a torch in
+  `equipped` (no weapon record is pinned there, and the fold opens no
+  catalogue), so "ends if you aren't carrying the weapon" is built the way a
+  casting already keys a benefit to one object — the activation **names the
+  weapon** and hangs a feature-sourced weapon rider on its id, and **any weapon
+  rider ends when its id leaves `equipped`**, which pays Shillelagh's let-go
+  clause with the same rule. In flight as W6-G2.
