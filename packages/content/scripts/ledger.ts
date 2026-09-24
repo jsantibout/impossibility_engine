@@ -73,6 +73,7 @@ import {
   RIDER_SHAPE,
   SAVE_HANDOVER_SHAPE,
   TRACKED_IDS,
+  TRAIT_HANDOVER_SHAPE,
   UNEXECUTED_TRAIT_SHAPE,
   hasHandedOverRider,
   hasHandedOverSave,
@@ -514,6 +515,11 @@ const OVER_READ_LINES: ReadonlySet<string> = new Set([
   // sheet — and not paid, because the engine offers the Reaction and hands the
   // response over rather than performing it.
   REACTION_USE_SHAPE,
+  // A **trait** the engine reads a mechanic out of and hands the rest of the
+  // heading back, on the same argument as the two above it: SRD Swarm's
+  // healing sentence is spent and the two space clauses beside it are not, so
+  // the gate below would hide a heading that is read and unpaid.
+  TRAIT_HANDOVER_SHAPE,
 ]);
 
 /** Whether a shape accounts for a line. */
