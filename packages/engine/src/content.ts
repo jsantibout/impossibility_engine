@@ -1904,6 +1904,64 @@ const endsItself = (condition: unknown): boolean =>
       : String((condition as { readonly name?: unknown })?.name),
   );
 
+/**
+ * Dice a rider adds to the blow, judged where the blow can carry them.
+ *
+ * SRD Fire's Burn: "you can also deal 1d10 Fire damage to that target"; SRD
+ * Frost's Chill: "1d6 Cold damage". Two fields, both required, because the SRD
+ * prints both on every sentence of this shape and a component with no type
+ * would meet no defence at all.
+ *
+ * **Refused on a pool option, for the reason a shove is**: this is a component
+ * of an attack's damage roll, gathered by the attack path before the dice are
+ * thrown, and a pool use throws no attack. A pool option that wanted dice has
+ * them already — a `save-damage` effect in its own list, which is what SRD
+ * Divine Spark writes and what the hit's list may not.
+ */
+function riderExtraDamageProblems(
+  featureId: string,
+  declared: unknown,
+  at: string,
+  host: 'pool' | 'hit',
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  if (host === 'pool') {
+    say(
+      'extra_damage_without_a_blow',
+      `dice added to a blow are a component of the attack's own damage roll, and ${featureId} is spent on an action rather than delivered by a blow; a pool option that deals damage writes a "save-damage" effect in its own list`,
+      at,
+    );
+    return found;
+  }
+
+  const adds = declared as Record<string, unknown>;
+  if (adds === null || typeof adds !== 'object') {
+    say('bad_rider_extra_damage', 'dice a rider adds to the blow name a notation and a damage type', at);
+    return found;
+  }
+  if (!isString(adds['dice']) || !parseNotation(adds['dice']).ok) {
+    say(
+      'bad_rider_extra_damage',
+      `"${String(adds['dice'])}" is not dice notation`,
+      `${at}.dice`,
+    );
+  }
+  // The blow's other components all carry a type and meet the target's
+  // defences by it, so an untyped one would be damage nothing could resist.
+  if (!isString(adds['damageType']) || !DAMAGE_TYPE_NAMES.has(adds['damageType'])) {
+    say(
+      'bad_rider_extra_damage',
+      `"${String(adds['damageType'])}" is not a damage type this engine measures defences in`,
+      `${at}.damageType`,
+    );
+  }
+  return found;
+}
+
 function hitForcedMoveProblems(
   featureId: string,
   declared: unknown,
@@ -2182,11 +2240,25 @@ function featureOptionProblems(
   // effect list for the reason `HitOption.forcedMove` is: forced movement is
   // arithmetic between two creatures, and an effect is hung on one of them.
   const shoves = (option as unknown as { readonly forcedMove?: unknown }).forcedMove;
-  if (option.effects.length === 0 && divides === undefined && shoves === undefined) {
+  // **And dice the rider adds to the blow are the fourth**, which is the whole
+  // of SRD Fire's Burn: "you can also deal 1d10 Fire damage to that target",
+  // with no condition, no save and nothing hung on anybody. An option
+  // declaring one confers something even with an empty list, so it is counted
+  // here beside the other two.
+  const adds = (option as unknown as { readonly extraDamage?: unknown }).extraDamage;
+  if (
+    option.effects.length === 0 &&
+    divides === undefined &&
+    shoves === undefined &&
+    adds === undefined
+  ) {
     say('empty_feature_option', 'an option that confers an empty list buys nothing', `${at}.effects`);
   }
   if (shoves !== undefined) {
     found.push(...hitForcedMoveProblems(featureId, shoves, `${at}.forcedMove`, host));
+  }
+  if (adds !== undefined) {
+    found.push(...riderExtraDamageProblems(featureId, adds, `${at}.extraDamage`, host));
   }
 
   let hangs = false;
@@ -2218,22 +2290,25 @@ function featureOptionProblems(
     if (kind === 'temp-hp') outlasts = true;
     if (record['damageType'] !== undefined || record['damageTypes'] !== undefined) types = true;
 
-    // **A rider deals no damage, and the attack it rides on is why.** The
-    // engine holds one damage roll at a time — `damage-rolled` is refused by
-    // the fold while another is waiting — and a blow whose target has a
-    // Reaction to it is already holding one when a rider fires. A second would
-    // be a log that cannot be folded rather than a refusal, which is the one
-    // outcome worth refusing at authoring for. Every SRD sentence of this
-    // shape in the *class* tables imposes a condition or forces a save. Two in
-    // the species tables do not — SRD Fire's Burn adds 1d10 Fire to a hit and
-    // Frost's Chill 1d6 Cold — and they are the price this refusal charges:
-    // both are transcribed, both are unexecuted, and the Goliath's line in the
-    // blocked-on map says so. It lifts the day the attack path folds a rider's
-    // damage into the blow's own, which is the same day those two are written.
+    // **A rider's effect list deals no damage, and the attack it rides on is
+    // why.** The engine holds one damage roll at a time — `damage-rolled` is
+    // refused by the fold while another is waiting — and by the time this list
+    // runs the blow has been rolled, possibly held open for the defender's
+    // Reaction, and landed. A second roll there would be a log that cannot be
+    // folded rather than a refusal, which is the one outcome worth refusing at
+    // authoring for.
+    //
+    // **What lifts for the two SRD sentences that do add damage is the field
+    // beside the list**, not this rule. SRD Fire's Burn adds 1d10 Fire to a
+    // hit and Frost's Chill 1d6 Cold, and `HitOptionGrant.extraDamage` says so
+    // — gathered by the attack path *before* the blow's own damage roll, so
+    // the dice are a component of the blow, doubled by a critical and met by
+    // the target's defences with the rest, under one `damage-rolled`. A die in
+    // the list is still a second roll and is still refused.
     if (host === 'hit' && (kind === 'save-damage' || record['damage'] !== undefined)) {
       say(
         'rider_deals_damage',
-        `${featureId} is bought by a hit and deals damage of its own, and an attack holds one damage roll at a time; a rider imposes conditions and forces saves`,
+        `${featureId} is bought by a hit and its effect list deals damage of its own, and by the time that list runs the blow has already rolled — an attack holds one damage roll at a time; dice a rider adds to the blow are "extraDamage" beside the list, and the list imposes conditions and forces saves`,
         `${on}.kind`,
       );
     }
@@ -2913,6 +2988,21 @@ function hitRiderProblems(
       'bad_rider_save_ability',
       `a save DC is derived from one of the six abilities, not "${String(grant.saveAbility)}"`,
       `${at}.saveAbility`,
+    );
+  }
+
+  // SRD Hill's Tumble: "when you hit a **Large or smaller** creature". The
+  // same vocabulary a printed line's `ifNoLargerThan` is held to, because it
+  // is the same clause and `effectiveSizeOf` is the one reader of both; a size
+  // nobody prints would refuse every swing silently.
+  if (
+    grant.targetNoLargerThan !== undefined &&
+    !CREATURE_SIZE_NAMES.has(String(grant.targetNoLargerThan))
+  ) {
+    say(
+      'bad_rider_size_limit',
+      `a rider that reaches only smaller creatures names one of the printed sizes, not "${String(grant.targetNoLargerThan)}"`,
+      `${at}.targetNoLargerThan`,
     );
   }
 

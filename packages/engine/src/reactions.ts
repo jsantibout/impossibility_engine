@@ -247,7 +247,29 @@ export type ReactionEffect =
    * about the damage that provoked it, which is the whole reason its window
    * needs no pending state.
    */
-  | { readonly kind: 'melee-attack'; readonly withinFeet: number };
+  | { readonly kind: 'melee-attack'; readonly withinFeet: number }
+  /**
+   * Throw dice back.
+   *
+   * SRD Storm's Thunder: "When you take damage from a creature within 60 feet
+   * of you, you can take a Reaction to deal 1d8 Thunder damage to that
+   * creature." Like {@link melee-attack} it changes nothing about the damage
+   * that provoked it, which is why its window needs no pending state; unlike
+   * it there is no attack roll, no weapon and no reach — the dice simply land,
+   * through the funnel every other spell's damage goes through.
+   *
+   * SRD Hellish Rebuke is the same sentence as a spell on the same window,
+   * which is the second writer this member's own rule asks for: a spell states
+   * it through `trigger` and `save-damage`, and until now a feature could say
+   * nothing of the kind.
+   */
+  | {
+      readonly kind: 'damage-back';
+      readonly dice: string;
+      readonly damageType: string;
+      /** SRD's "within 60 feet of you", measured to whoever dealt the damage. */
+      readonly within: number;
+    };
 
 /**
  * Who gave a Reaction away, and under what source it will end.

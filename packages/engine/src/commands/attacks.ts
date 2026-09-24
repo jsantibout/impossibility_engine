@@ -139,7 +139,12 @@ import {
 } from './mastery.js';
 import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
-import { applyHitRider, hitRiderAsked, type HitRiderRequest } from './hit-riders.js';
+import {
+  applyHitRider,
+  hitRiderAsked,
+  riderDamageOnTheBlow,
+  type HitRiderRequest,
+} from './hit-riders.js';
 import { grapplesOn } from './unarmed.js';
 import { effectiveSizeOf } from '../size.js';
 import { allyWithinFiveFeetOf, defendingModes, enemyWithinFiveFeet } from './rolls.js';
@@ -1722,7 +1727,7 @@ export function resolveAttack(
     // the same breath: a Stunning Strike asked for with an empty pool, with a
     // Greatsword in hand or twice in one turn is refused here, with the action
     // unspent and no die thrown. What it costs is spent on the hit, below.
-    const rider = hitRiderAsked(state, id, sheet, weapon, command.onHit, unarmedStrike);
+    const rider = hitRiderAsked(state, id, sheet, weapon, command.target, command.onHit, unarmedStrike);
     if (!rider.ok) return rider;
 
     // And the cantrip this swing is cast with, for the third time the same
@@ -2585,6 +2590,11 @@ export function resolveAttack(
       cleaving !== undefined ||
       (lightExtra !== undefined && !addsAbilityToLightExtraAttack(state, id));
 
+    // The dice the asked-for rider adds to this blow, if it adds any. Read
+    // before the roll because that is the whole point of the field: SRD Fire's
+    // Burn is a component of the hit rather than a second roll after it.
+    const riderDice = riderDamageOnTheBlow(state, id, riding);
+
     const rolled = rollAttackDamage(
       supply.issuer,
       supply.rng,
@@ -2638,6 +2648,13 @@ export function resolveAttack(
           // doubles it — "the attack deals extra Radiant damage", which is
           // extra damage on this attack and not a bigger weapon die.
           ...(castWithIt?.extra === undefined ? [] : [castWithIt.extra]),
+          // And the rider's own, for the same three reasons — SRD Fire's
+          // Burn's "you can **also** deal 1d10 Fire damage to that target".
+          // A rider's effect list runs after the damage and may not deal any,
+          // because an attack holds one damage roll at a time; this is what
+          // the sentence actually says instead, which is a component of the
+          // blow. See `riderDamageOnTheBlow`.
+          ...(riderDice === null ? [] : [riderDice]),
           ...(command.extraDamage ?? []),
         ],
         // SRD Great Weapon Fighting: "you can treat any 1 or 2 on a damage die
@@ -3007,6 +3024,17 @@ export function resolveAttackDamage(
     });
     const events: GameEvent[] = [];
     const extra: ExtraDamage[] = [...(command.extraDamage ?? [])];
+
+    // SRD Fire's Burn: "you can **also** deal 1d10 Fire damage to that
+    // target." The rider was pinned on the hold before the defender was
+    // offered their Reaction, and its dice ride here rather than in the effect
+    // list `applyHitRider` runs afterwards — that list runs once the damage
+    // has landed, and an attack holds one damage roll at a time. Gathered
+    // beside the smite's below because it is the same kind of thing: a
+    // component of this blow, doubled by a critical, met by the target's
+    // defences with the rest.
+    const riderDice = riderDamageOnTheBlow(state, id, pending.rider ?? null);
+    if (riderDice !== null) extra.push(riderDice);
 
     // — the spell cast on the blow ——————————————————————————————————————————
     if (command.smite !== undefined) {

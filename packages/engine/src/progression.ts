@@ -25,6 +25,7 @@ import type {
   CastingCostAlteration,
   HitForcedMove,
   HitRiderAnchor,
+  HitRiderDamage,
   HungGrant,
   StandingGrant,
   StandingRequirement,
@@ -821,6 +822,19 @@ export interface HitOptionGrant {
   readonly durationSeconds?: number;
   /** What ends a conferred condition before its span is up. */
   readonly endsEarly?: readonly EffectEndCause[];
+  /**
+   * Dice this rider adds to the blow — SRD Fire's Burn's "1d10 Fire damage",
+   * SRD Frost's Chill's "1d6 Cold damage".
+   *
+   * **Not an effect in {@link effects}**, and the difference is the whole of
+   * why this field exists: the list runs after the damage has been rolled and
+   * landed, and `rider_deals_damage` refuses damage there because an attack
+   * holds one damage roll at a time. `HitOption.extraDamage` is the compiled
+   * field and the attack path gathers it where a smite's dice are gathered, so
+   * the blow carries it — doubled by a critical, met by the target's defences
+   * with everything else, under one `damage-rolled`.
+   */
+  readonly extraDamage?: HitRiderDamage;
 }
 
 /**
@@ -1860,6 +1874,22 @@ export type FeatureGrant =
        * class's Spellcasting feature") and what a pool option already reads.
        */
       readonly saveAbility?: Ability;
+      /**
+       * SRD Hill's Tumble: "When you hit a **Large or smaller** creature with
+       * an attack roll and deal damage to it."
+       *
+       * On the grant rather than on each option, because the SRD writes the
+       * clause in the trigger sentence — the same place {@link weapons} and
+       * {@link oncePerTurn} are written — and every option a feature that
+       * prints one offers is bought by that same hit. Absent asks nothing,
+       * which is every other rider in the book.
+       *
+       * Read through `effectiveSizeOf` at the swing, so the refusal arrives
+       * before the action and before the die; a printed line's identical
+       * `ifNoLargerThan` is answered after the blow instead, because nobody
+       * asked for that one.
+       */
+      readonly targetNoLargerThan?: CreatureSize;
       /** What a rider buys, by name. One of them is named at the hit. */
       readonly options: readonly HitOptionGrant[];
     }
@@ -2833,7 +2863,37 @@ export type ReactionGrantEffect =
        */
       readonly tests?: readonly D20TestKind[];
     }
-  | { readonly kind: 'melee-attack'; readonly withinFeet: number };
+  | { readonly kind: 'melee-attack'; readonly withinFeet: number }
+  /**
+   * Damage dealt **back** to whoever struck — SRD Storm's Thunder: "When you
+   * take damage from a creature within 60 feet of you, you can take a Reaction
+   * to deal 1d8 Thunder damage to that creature."
+   *
+   * The fifth member, and the second window-answering shape the SRD writes
+   * that `melee-attack` cannot say: Retaliation swings a weapon and this
+   * throws dice at a creature sixty feet away with no attack roll, no save and
+   * no weapon in it. It is the class of sentence SRD Hellish Rebuke writes as
+   * a *spell* on the same window, which is what tells you it is a shape rather
+   * than one trait's quirk.
+   *
+   * It lands through `dealSpellDamage`, so the target's Resistance, its
+   * Temporary Hit Points, the Concentration the damage puts at risk and the
+   * watcher that pays a Warlock for dropping it are the engine's usual
+   * answers rather than a second set.
+   */
+  | {
+      readonly kind: 'damage-back';
+      /** SRD's "1d8". Rolled by the engine at the moment the Reaction is taken. */
+      readonly dice: string;
+      /** SRD's "Thunder". */
+      readonly damageType: string;
+      /**
+       * SRD's "within 60 feet of you", measured to the creature that dealt the
+       * triggering damage — the same question `melee-attack`'s `withinFeet`
+       * asks of the same window, five feet further out than a sword reaches.
+       */
+      readonly within: number;
+    };
 
 /**
  * A Reaction a use of a pool puts in somebody **else's** hands.
