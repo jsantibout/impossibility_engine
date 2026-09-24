@@ -38,12 +38,20 @@ import {
 } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { conferredSource, featureSource, hungSource } from '../progression.js';
+import { type Point } from '../positioning.js';
+import { spendAttack } from '../combat.js';
 import { remaining } from '../resources.js';
 import { type RollIssuer, rollRecorded } from '../rolls.js';
 import { healingRuleOf, maximisedHealing } from '../vitals.js';
-import { isCreatureType, statedDamageType, type SpellEffect } from '../spell-definitions.js';
+import {
+  isCreatureType,
+  statedDamageType,
+  type SpellArea,
+  type SpellEffect,
+} from '../spell-definitions.js';
 import {
   type ActivatedFeature,
+  actionRulesOn,
   canSee,
   type HungSpan,
   type HealAmount,
@@ -996,6 +1004,27 @@ export interface UsePoolOptionCommand extends CommandIdentity {
    * an option with no reach at all can have.
    */
   readonly target?: CharacterId;
+  /**
+   * Which of the shapes the option offers this use takes — SRD Breath
+   * Weapon's "a 15-foot Cone or a 30-foot Line ... (choose the shape each
+   * time)".
+   *
+   * Named by the area's own kind, which is what distinguishes the two the SRD
+   * prints. Required for an option that offers a choice and refused for one
+   * that prints a single area, exactly as {@link damageType} is: the engine
+   * will not pick between two things the book gives its holder.
+   */
+  readonly shape?: string;
+  /**
+   * Which way a Cone, Cube or Line points.
+   *
+   * The field a casting's own area takes, on the one host that can now fill a
+   * directional template without a spell behind it. Every area an option
+   * prints starts at its holder — SRD writes no option centred anywhere else —
+   * so there is no `at` beside this: what a template needs is the direction
+   * and nothing more.
+   */
+  readonly towards?: Point;
   /** Which of the damage types the option prints, where it prints a choice. */
   readonly damageType?: string;
   /**
@@ -1116,7 +1145,13 @@ export function usePoolOption(
     const typed = statedTypeFor(option, command.damageType);
     if (!typed.ok) return typed;
 
-    const found = targetsOf(state, id, option, command.target);
+    // **The shape, settled before the targets, because it is what finds
+    // them.** SRD Breath Weapon prints two templates and gives the choice to
+    // the breather; an option that prints one takes no answer at all.
+    const shaped = shapeFor(option, command.shape);
+    if (!shaped.ok) return shaped;
+
+    const found = targetsOf(state, id, option, shaped.value, command);
     if (!found.ok) return found;
     const targets = found.value;
 
@@ -1129,11 +1164,17 @@ export function usePoolOption(
 
     // The action economy only exists in combat; outside it there is nothing to
     // spend, exactly as every other feature here finds.
-    if (state.combat !== null) {
-      const spent = spendFor(state, id, option.action);
-      if (!spent.ok) return spent;
-      events.push(spent.value);
-    }
+    //
+    // **Except a swing of an Attack action, which exists nowhere else.** SRD
+    // Breath Weapon replaces one of the attacks of an Attack action already
+    // taken, and outside combat there is no Attack action to have taken — so
+    // that price is refused rather than waived, which is the one place this
+    // command's "outside combat, nothing" reading does not hold. A price that
+    // vanished would let a Dragonborn breathe once a round for ever between
+    // fights.
+    const priced = spendOptionCost(state, id, option);
+    if (!priced.ok) return priced;
+    if (priced.value !== null) events.push(priced.value);
 
     events.push({
       type: 'resource-spent',
@@ -1472,11 +1513,9 @@ function divideHitPoints(
   const events: GameEvent[] = [];
 
   // The action economy only exists in combat, as everywhere else here.
-  if (state.combat !== null) {
-    const spent = spendFor(state, id, option.action);
-    if (!spent.ok) return spent;
-    events.push(spent.value);
-  }
+  const priced = spendOptionCost(state, id, option);
+  if (!priced.ok) return priced;
+  if (priced.value !== null) events.push(priced.value);
 
   events.push({
     type: 'resource-spent',
@@ -1533,6 +1572,121 @@ function statedTypeFor(
 }
 
 /**
+ * What one use of an option costs in the economy, whichever of the three
+ * prices it prints.
+ *
+ * **The action economy only exists in combat** — outside one there is nothing
+ * to spend, which every feature and every potion finds alike — and
+ * {@link spendOneAttack} is the exception the third price brings with it: an
+ * Attack action nobody could have taken is a refusal rather than a waiver, so
+ * a Dragonborn cannot breathe once a round for ever between fights.
+ *
+ * `null` where nothing was spent, which is every use outside a fight.
+ */
+function spendOptionCost(
+  state: GameState,
+  id: CharacterId,
+  option: PoolOption,
+): Result<GameEvent | null> {
+  if (option.action === 'one-attack') return spendOneAttack(state, id, option);
+  if (state.combat === null) return ok(null);
+  return spendFor(state, id, option.action);
+}
+
+/**
+ * One swing of an Attack action already taken, spent on something that is not
+ * a swing.
+ *
+ * SRD Breath Weapon: "When you take the Attack action on your turn, you can
+ * **replace one of your attacks** with an exhalation of magical energy." Two
+ * facts the sentence turns on and each is a refusal here: the Attack action
+ * must have been taken — `attacksRemaining` is null until it is, which is what
+ * that null *means* — and one of its attacks must be left.
+ *
+ * **The event is the swing's own**, and that is the whole of why no new one
+ * was minted: `attack-made` is what the budget arithmetic hangs on, the fold
+ * spends it through the same `spendAttack` this does, and a second event with
+ * the same body would be a second place for the two to disagree. What a
+ * Dragonborn exhales is not an Unarmed Strike, so the flag is absent — which
+ * is also what keeps a Monk's Flurry out of it: attacks bought `unarmedOnly`
+ * are skipped by a swing that is not one, in the command and in the fold
+ * alike.
+ */
+function spendOneAttack(
+  state: GameState,
+  id: CharacterId,
+  option: PoolOption,
+): Result<GameEvent> {
+  const combat = state.combat;
+  if (combat === null) {
+    return err(
+      'not_in_combat',
+      `${option.name} replaces one of the attacks of an Attack action, and there is no action economy outside combat to have taken one in`,
+    );
+  }
+  const budget = combat.budgets[id];
+  if (budget === undefined || budget.attacksRemaining === null) {
+    return err(
+      'no_attack_action',
+      `${option.name} replaces one of the attacks of the Attack action, and ${id} has not taken that action this turn`,
+    );
+  }
+  if (budget.attacksRemaining < 1) {
+    return err(
+      'no_attacks_left',
+      `${id} has used every attack of their Attack action, and ${option.name} replaces one of them`,
+    );
+  }
+
+  const spent = spendAttack(
+    combat,
+    id,
+    0,
+    creatureOf(state, id)?.conditions,
+    { rules: actionRulesOn(state, id) },
+  );
+  if (!spent.ok) return spent;
+  return ok({ type: 'attack-made', id });
+}
+
+/**
+ * The template this use fills, out of the one the option prints or the several
+ * it offers.
+ *
+ * `statedTypeFor` one field along and written to the same three rules: an
+ * option that prints a single shape takes no answer, an option that prints a
+ * choice takes one and will not be chosen for, and a shape it does not print
+ * is a refusal rather than a substitution. SRD Breath Weapon is the only
+ * sentence in the book that offers two — "a 15-foot Cone or a 30-foot Line
+ * that is 5 feet wide (choose the shape each time)" — and it names them by
+ * the shapes they are, which is what the caller names here.
+ */
+function shapeFor(option: PoolOption, named: string | undefined): Result<SpellArea | undefined> {
+  const offered = option.areas;
+  if (offered === undefined) {
+    if (named !== undefined) {
+      return err(
+        'shape_fixed',
+        `${option.name} prints no choice of shape; naming one is not something it offers`,
+      );
+    }
+    return ok(option.area);
+  }
+  const shapes = offered.map((one) => one.kind);
+  if (named === undefined) {
+    return err(
+      'shape_required',
+      `${option.name} is a ${shapes.join(' or a ')} and the engine will not choose between them; name which`,
+    );
+  }
+  const found = offered.find((one) => one.kind === named);
+  if (found === undefined) {
+    return err('no_such_shape', `${option.name} forms a ${shapes.join(' or a ')}, not a ${named}`);
+  }
+  return ok(found);
+}
+
+/**
  * Whom this option reaches: whoever is standing in its area, or the one
  * creature the caller named.
  *
@@ -1542,14 +1696,19 @@ function statedTypeFor(
  * `areaTargets` does the first through the geometry a spell's area goes
  * through, which is why it takes the area and the name rather than a
  * definition there is none of.
+ *
+ * The area arrives resolved rather than read off the option, because an option
+ * may offer two of them and only {@link shapeFor} knows which this use took.
  */
 function targetsOf(
   state: GameState,
   id: CharacterId,
   option: PoolOption,
-  named: CharacterId | undefined,
+  area: SpellArea | undefined,
+  command: UsePoolOptionCommand,
 ): Result<readonly CharacterId[]> {
-  if (option.area !== undefined) {
+  const named = command.target;
+  if (area !== undefined) {
     if (named !== undefined) {
       return err(
         'area_picks_its_own_targets',
@@ -1563,10 +1722,22 @@ function targetsOf(
         name: option.name,
         ...(option.mustBeType === undefined ? {} : { mustBeType: option.mustBeType }),
       },
-      option.area,
-      { targets: [] },
+      area,
+      {
+        targets: [],
+        // A Cone or a Line has to be pointed somewhere, and every area an
+        // option prints starts at its holder — so the direction is the whole
+        // of the placement a caller supplies.
+        ...(command.towards === undefined ? {} : { towards: command.towards }),
+      },
       null,
     );
+  }
+
+  // An option aimed at a creature has nothing to point: the refusal a
+  // non-directional *area* already gets, for a use that fills none at all.
+  if (command.towards !== undefined) {
+    return err('not_directional', `${option.name} fills no area and has no direction to point`);
   }
 
   const target = named ?? id;

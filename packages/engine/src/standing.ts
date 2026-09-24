@@ -1744,7 +1744,14 @@ export interface PoolOption {
   readonly option: string;
   /** What this option is called: SRD's "Turn Undead". */
   readonly name: string;
-  readonly action: 'action' | 'bonus-action';
+  /**
+   * What spending it costs in the economy.
+   *
+   * `one-attack` is SRD Breath Weapon's, and is one swing of an Attack action
+   * already taken rather than an action of its own — see
+   * `PoolOptionGrant.action`.
+   */
+  readonly action: 'action' | 'bonus-action' | 'one-attack';
   readonly pool: string;
   /** The effects, with any class-table dice already resolved. */
   readonly effects: readonly SpellEffect[];
@@ -1766,6 +1773,15 @@ export interface PoolOption {
    */
   readonly ability: Ability | null;
   readonly area?: SpellArea;
+  /**
+   * The shapes the option offers, where the holder chooses one at the use —
+   * SRD Breath Weapon's "15-foot Cone or a 30-foot Line ... (choose the shape
+   * each time)".
+   *
+   * Beside {@link area} and never with it, and each entry a different `kind`,
+   * because the kind is what the caller names the shape by.
+   */
+  readonly areas?: readonly SpellArea[];
   readonly reach?: number;
   readonly mustBeType?: string;
   readonly durationSeconds?: number;
@@ -1996,6 +2012,17 @@ export interface HitOption {
   readonly oncePerTurn?: boolean;
   readonly weapons?: readonly WeaponSelector[];
   readonly unarmedStrike?: boolean;
+  /**
+   * The purchase the swing has to have been bought by — SRD Open Hand
+   * Technique's "an attack granted by your Flurry of Blows".
+   *
+   * The `on-hit` grant's `fromGrant`, compiled: `budgetPurchaseSlot`'s
+   * `<feature>/<purchase>` key, matched against what `GrantedAttacks.from`
+   * recorded when the purchase was made. Asked at the **swing**, where every
+   * other qualification is, so a rider bought by nothing is refused before the
+   * die.
+   */
+  readonly fromGrant?: string;
   readonly effects: readonly SpellEffect[];
   /**
    * The ability the DC is read from — {@link PoolOption.ability} exactly, with
@@ -2150,6 +2177,22 @@ export type HitRiderAnchor = 'attacker' | 'target';
 /** Which way a hit shoves, and how far. */
 export interface HitForcedMove {
   readonly direction: 'push' | 'pull';
+  /**
+   * The saving throw the shove itself forces, where the sentence prints one.
+   *
+   * SRD Open Hand Technique's Push: "The target must succeed on a **Strength
+   * saving throw** or be pushed up to 15 feet away from you." A printed stat
+   * line has no such branch — a satyr simply pushes — so this is absent for
+   * every one of them, and a shove with no save is the shove those already
+   * deliver.
+   *
+   * **The save is the shove's own rather than an effect beside it**, and that
+   * is the same argument the shove itself makes: forced movement is arithmetic
+   * between two creatures, and a `save` effect resolved against one of them
+   * would have nothing to impose on the failure — which the authoring door
+   * refuses outright (`save_imposes_nothing`, "a die thrown for nothing").
+   */
+  readonly save?: Ability;
   /**
    * SRD's "up to 10 feet", read as the whole distance.
    *

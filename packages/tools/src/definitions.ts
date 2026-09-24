@@ -3071,6 +3071,24 @@ const USE_POOL_OPTION = tool({
       .string()
       .min(1)
       .describe('Which of the things a use buys, from that feature’s `options`, e.g. turn-undead.'),
+    shape: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which of the shapes an option offers this use takes — SRD Breath Weapon’s "a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose the shape each time)". Named by the shape itself: `cone` or `line`. Leaving it out for an option that offers a choice is refused, and naming one for an option that prints a single area is refused too.',
+      ),
+    towards: pointSchema
+      .optional()
+      .describe('Point a Cone or a Line at this exact spot. Every area an option prints starts at its holder, so this is the whole of where it goes.'),
+    towardsCreature: creatureId
+      .optional()
+      .describe('Point a Cone or a Line at this creature instead.'),
+    towardsLandmark: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Point it at this landmark instead.'),
     target: creatureId
       .optional()
       .describe(
@@ -3095,15 +3113,24 @@ const USE_POOL_OPTION = tool({
         'How to divide the hit points a distributing option mints — SRD Preserve Life’s "divide those Hit Points among them". How many there are to divide is the engine’s and is in the refusal that asks for this; which creature gets how much is yours, and the book gives that choice to nobody else. Every share is checked before a single hit point is paid: against the total minted, against the reach the option prints, against half each creature’s maximum, and against the kinds of creature the option will not touch. Left out for an option that is aimed at a creature rather than divided.',
       ),
   }),
-  run: (context, args) =>
-    settle(
+  run: (context, args) => {
+    const state = context.campaign.state();
+    // A Cone or a Line has to be pointed somewhere, and the three ways of
+    // saying where are the casting door's own — a point, a creature, a
+    // landmark — resolved by the one function that knows what to ask for when
+    // nobody has been placed.
+    const towards = towardsOf(state, args);
+    if (!towards.ok) return fromErr(towards, context.doorsFor);
+    return settle(
       context,
       usePoolOption(
-        context.campaign.state(),
+        state,
         who(args.who),
         {
           feature: args.feature,
           option: args.option,
+          ...(args.shape === undefined ? {} : { shape: args.shape }),
+          ...(towards.value === undefined ? {} : { towards: towards.value }),
           ...(args.target === undefined ? {} : { target: who(args.target) }),
           ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
           ...(args.among === undefined
@@ -3121,7 +3148,8 @@ const USE_POOL_OPTION = tool({
       (value) => value.events,
       (value) => ({ feature: args.feature, used: args.option, outcomes: value.outcomes }),
       (value) => value.unverified,
-    ),
+    );
+  },
 });
 
 /**

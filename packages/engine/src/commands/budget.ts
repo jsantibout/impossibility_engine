@@ -117,6 +117,9 @@ export function useBudgetPurchase(
             attacks: {
               remaining: purchase.extraAttacks.count,
               unarmedOnly: purchase.extraAttacks.unarmedOnly,
+              // What sold them, so a rider written about "an attack granted by
+              // your Flurry of Blows" can ask.
+              from: budgetPurchaseSlot(purchase),
             },
           }),
     };
@@ -149,6 +152,7 @@ export function useBudgetPurchase(
       type: 'turn-budget-granted',
       id,
       source: purchase.name,
+      purchase: slot,
       ...(purchase.extraAction === undefined ? {} : { action: purchase.extraAction }),
       ...(grant.attacks === undefined ? {} : { attacks: grant.attacks }),
       ...(stamp === null ? {} : { command: stamp }),

@@ -183,7 +183,14 @@ export interface HeldPoolOption {
   readonly option: string;
   /** What the log calls it: SRD's "Turn Undead". */
   readonly name: string;
-  readonly action: 'action' | 'bonus-action';
+  /**
+   * What spending it costs.
+   *
+   * `one-attack` is SRD Breath Weapon's — one of the attacks of an Attack
+   * action already taken, replaced by the exhalation rather than paid for with
+   * an action of its own.
+   */
+  readonly action: 'action' | 'bonus-action' | 'one-attack';
   /**
    * Damage a later feature adds to whoever fails this form's save — SRD Sear
    * Undead on Turn Undead.
@@ -367,8 +374,13 @@ export interface HeldFeature {
    * grants on one feature at all. See `two-menus.test.ts`.
    */
   readonly alsoSpentBy?: readonly string[];
-  /** What using it costs in the action economy, where it costs anything. */
-  readonly action: 'action' | 'bonus-action' | 'none' | null;
+  /**
+   * What using it costs in the action economy, where it costs anything.
+   *
+   * `one-attack` is SRD Breath Weapon's price: one of the attacks of an Attack
+   * action already taken, which is neither an action of its own nor free.
+   */
+  readonly action: 'action' | 'bonus-action' | 'none' | 'one-attack' | null;
   /** The pool it draws on, and what is left of that pool. */
   readonly pool: string | null;
   readonly left: number | null;

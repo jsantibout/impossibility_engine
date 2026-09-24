@@ -407,7 +407,18 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
                     ...(event.action.only === undefined ? {} : { only: event.action.only }),
                   },
                 }),
-            ...(event.attacks === undefined ? {} : { attacks: event.attacks }),
+            ...(event.attacks === undefined
+              ? {}
+              : {
+                  attacks: {
+                    ...event.attacks,
+                    // What sold them, read off the event beside the name the
+                    // log calls it: a rider written about "an attack granted
+                    // by your Flurry of Blows" asks the budget and not the
+                    // catalogue.
+                    ...(event.purchase === undefined ? {} : { from: event.purchase }),
+                  },
+                }),
           }),
         ),
       );

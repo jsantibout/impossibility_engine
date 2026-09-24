@@ -442,3 +442,159 @@ describe('an item may not carry a feature’s options', () => {
     ).toContain('feature_options_on_an_item @ items[rod-of-menus].grants[0].options');
   });
 });
+
+/**
+ * The three fields SRD Breath Weapon and SRD Open Hand Technique brought with
+ * them, judged the way every field beside them is.
+ *
+ * Each is a *choice* a caller makes at the moment of use — which shape, which
+ * ability derives the DC, which purchase bought the swing — and each is
+ * therefore a thing a homebrew can write so that no caller could ever answer
+ * it. A menu that offered two Cones would be a choice nobody could state; a
+ * shove on an option nobody swings for is measured from nobody.
+ */
+describe('the fields a chosen shape, a derived DC and a bought swing add', () => {
+  const shaped = (over: Record<string, unknown>): readonly string[] =>
+    codesFor([{ ...OPTION, reach: undefined, ...over }]);
+
+  it('refuses a choice of shape with fewer than two in it', () => {
+    expect(shaped({ areas: [{ kind: 'cone', length: 15, origin: 'self' }] })).toContain(
+      'bad_option_shapes @ classes[warden].features[0].grants.options[0].areas',
+    );
+  });
+
+  it('refuses two shapes of one kind, which a use could not tell apart', () => {
+    expect(
+      shaped({
+        areas: [
+          { kind: 'cone', length: 15, origin: 'self' },
+          { kind: 'cone', length: 30, origin: 'self' },
+        ],
+      }),
+    ).toContain('bad_option_shapes @ classes[warden].features[0].grants.options[0].areas');
+  });
+
+  it('refuses a choice of shape beside a single printed area', () => {
+    expect(
+      shaped({
+        area: { kind: 'emanation', distance: 30, origin: 'self' },
+        areas: [
+          { kind: 'cone', length: 15, origin: 'self' },
+          { kind: 'line', length: 30, width: 5, origin: 'self' },
+        ],
+      }),
+    ).toContain('feature_option_reaches_twice @ classes[warden].features[0].grants.options[0].areas');
+  });
+
+  it('refuses a DC derived from something that is not an ability', () => {
+    expect(shaped({ reach: 30, saveAbility: 'luck' })).toContain(
+      'bad_option_save_ability @ classes[warden].features[0].grants.options[0].saveAbility',
+    );
+  });
+
+  it('admits the three of them written the way SRD Breath Weapon writes them', () => {
+    expect(
+      shaped({
+        action: 'one-attack',
+        saveAbility: 'con',
+        areas: [
+          { kind: 'cone', length: 15, origin: 'self' },
+          { kind: 'line', length: 30, width: 5, origin: 'self' },
+        ],
+        durationSeconds: undefined,
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'dex',
+            damage: { dice: '1d10' },
+            damageType: 'fire',
+            onSuccess: 'half',
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it('refuses a shove on an option somebody spends an action on', () => {
+    expect(shaped({ reach: 30, forcedMove: { direction: 'push', feet: 15 } })).toContain(
+      'shove_without_a_blow @ classes[warden].features[0].grants.options[0].forcedMove',
+    );
+  });
+
+  /** The rider host, where a shove is legal and the rest of the fields are not. */
+  const rider = (grant: Record<string, unknown>): readonly string[] =>
+    checkContent({
+      classes: [
+        {
+          ...(clazz([]) as Record<string, unknown>),
+          features: [
+            {
+              id: 'warden:riposte',
+              name: 'Warden’s Riposte',
+              level: 3,
+              automation: 'engine',
+              note: 'An effect list a landed blow buys.',
+              grants: { kind: 'on-hit', options: [], ...grant },
+            },
+          ],
+        } as unknown as ClassDefinition,
+      ],
+    }).map((problem) => `${problem.code} @ ${problem.field}`);
+
+  const RIDE: Record<string, unknown> = {
+    options: [
+      { id: 'trip', name: 'Trip', effects: [{ kind: 'condition', condition: { name: 'prone' } }] },
+    ],
+  };
+
+  it('admits a rider that knocks its target down and prints no lifetime', () => {
+    expect(rider(RIDE)).toEqual([]);
+  });
+
+  it('refuses a purchase named by nothing', () => {
+    expect(rider({ ...RIDE, fromGrant: '  ' })).toContain(
+      'bad_rider_grant @ classes[warden].features[0].grants.fromGrant',
+    );
+  });
+
+  it('refuses a shove that pushes nowhere, or in no direction, or on no ability', () => {
+    const at = 'classes[warden].features[0].grants.options[0].forcedMove';
+    expect(
+      rider({
+        options: [{ id: 'shove', name: 'Shove', effects: [], forcedMove: { direction: 'sideways', feet: 15 } }],
+      }),
+    ).toContain(`bad_forced_move @ ${at}.direction`);
+    expect(
+      rider({
+        options: [{ id: 'shove', name: 'Shove', effects: [], forcedMove: { direction: 'push', feet: 0 } }],
+      }),
+    ).toContain(`bad_forced_move @ ${at}.feet`);
+    expect(
+      rider({
+        options: [
+          {
+            id: 'shove',
+            name: 'Shove',
+            effects: [],
+            forcedMove: { direction: 'push', feet: 15, save: 'grit' },
+          },
+        ],
+      }),
+    ).toContain(`bad_forced_move @ ${at}.save`);
+  });
+
+  it('admits a shove that is the whole of what the option buys', () => {
+    expect(
+      rider({
+        options: [
+          {
+            id: 'shove',
+            name: 'Shove',
+            effects: [],
+            forcedMove: { direction: 'push', feet: 15, save: 'str' },
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+});

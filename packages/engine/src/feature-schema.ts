@@ -1809,6 +1809,11 @@ function grantProblems(
     grant.choiceFrom !== undefined &&
     grant.onlyIfChoice === undefined &&
     !(grant.kind === 'standing' && grant.damageTypesFromChoice === true) &&
+    // And the second host of that same field: SRD Breath Weapon's damage is
+    // "of the type determined by your Draconic Ancestry trait", read off the
+    // menu's options exactly as the Resistance beneath it is read off a
+    // standing effect.
+    !(grant.kind === 'pool' && grant.damageTypesFromChoice === true) &&
     // A `spells` grant reads a third thing off the feature that asked: the
     // spellcasting ability. SRD Otherworldly Presence is "the spell uses the
     // same spellcasting ability you use for your Fiendish Legacy trait", which

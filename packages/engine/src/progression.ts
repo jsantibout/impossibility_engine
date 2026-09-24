@@ -23,6 +23,8 @@ import { CASTING_MARK } from './spells.js';
 import type {
   ActivationEnd,
   CastingCostAlteration,
+  HitForcedMove,
+  HitRiderAnchor,
   HungGrant,
   StandingGrant,
   StandingRequirement,
@@ -504,8 +506,35 @@ export interface PoolOptionGrant {
   readonly id: string;
   /** What the log calls it — SRD's "Turn Undead". */
   readonly name: string;
-  /** What using it costs in the action economy; outside combat, nothing. */
-  readonly action: 'action' | 'bonus-action';
+  /**
+   * What using it costs in the action economy; outside combat, nothing.
+   *
+   * `one-attack` is SRD Breath Weapon's price and is a third member rather
+   * than an Action, because the sentence is neither: "When you take the Attack
+   * action on your turn, you can **replace one of your attacks** with an
+   * exhalation of magical energy." The Attack action has already been paid for
+   * by the swing that opened it; what this spends is one of the swings inside
+   * it, which is what `TurnBudget.attacksRemaining` counts. An option that
+   * cost an Action would let a Dragonborn breathe *and* take the Attack
+   * action, and one that cost nothing would let them breathe on somebody
+   * else's turn.
+   */
+  readonly action: 'action' | 'bonus-action' | 'one-attack';
+  /**
+   * The ability the save DC is derived from, where the option prints one.
+   *
+   * SRD Breath Weapon: "DC 8 plus your **Constitution** modifier and
+   * Proficiency Bonus". `HitOptionGrant`'s host writes the same field one
+   * trigger along (`on-hit`'s `saveAbility`, for SRD Monk's Focus) and for the
+   * same absence: a species casts nothing, so the spell save DC a pool option
+   * otherwise falls back to is a number its holder has not got, and what it
+   * would fall back to *instead* is an item's `8 + Proficiency Bonus` — the
+   * Dragonborn's own DC short by a Constitution modifier.
+   *
+   * Absent means the granting class's spellcasting ability, which is what SRD
+   * Channel Divinity says and what every option written before this read.
+   */
+  readonly saveAbility?: Ability;
   readonly effects: readonly SpellEffect[];
   /**
    * The area it fills, for an option that catches whoever is standing in one.
@@ -517,6 +546,21 @@ export interface PoolOptionGrant {
    * ignored.
    */
   readonly area?: SpellArea;
+  /**
+   * The areas it offers, for an option whose **shape is chosen at the use**.
+   *
+   * SRD Breath Weapon: "an exhalation of magical energy in a 15-foot Cone or a
+   * 30-foot Line that is 5 feet wide (**choose the shape each time**)."
+   *
+   * Beside {@link area} and never with it, which is `damageTypeStated`'s
+   * relation to a fixed damage type exactly: one field says what the option
+   * *is* and the other says what it offers, and a caller who names a shape for
+   * an option that prints one is refused rather than ignored. Each entry is a
+   * different `kind` — the caller names the shape by it — so a menu that
+   * printed two Cones would be a choice nobody could state, and `checkContent`
+   * refuses that rather than picking the first.
+   */
+  readonly areas?: readonly SpellArea[];
   /**
    * How far it reaches, for an option aimed at one creature.
    *
@@ -741,6 +785,31 @@ export interface HitOptionGrant {
    * condition the engine cannot time and one that would never lift.
    */
   readonly lasts?: TurnAnchor;
+  /**
+   * Whose next turn {@link lasts} is anchored on.
+   *
+   * Omitted, the **holder's**, which is what SRD Stunning Strike writes:
+   * "until the start of **your** next turn". SRD Open Hand Technique's Addle
+   * writes the other one in the same breath — "until the start of **its** next
+   * turn" — and the two are a round apart in the order, so filing one on the
+   * other is a wrong rule rather than a refusal. `HitOption.lastsOn` is the
+   * compiled field and a printed stat line already writes it; this is the door
+   * a **feature** says it through.
+   */
+  readonly lastsOn?: HitRiderAnchor;
+  /**
+   * A shove the rider itself delivers — SRD Open Hand Technique's Push: "The
+   * target must succeed on a Strength saving throw or be **pushed up to 15
+   * feet away from you**."
+   *
+   * `HitOption.forcedMove` is the compiled field and a printed stat line
+   * already writes it, unconditionally: a satyr simply pushes. What a feature
+   * adds is the branch — {@link HitForcedMove.save} — and the reason it is
+   * here rather than in the effect list is `HitOption.forcedMove`'s own: a
+   * shove is arithmetic **between two creatures**, and an effect is a thing
+   * hung on one of them.
+   */
+  readonly forcedMove?: HitForcedMove;
   /**
    * How long what it hangs lasts, in seconds — SRD Cunning Strike's Poison,
    * "the target has the Poisoned condition for 1 minute".
@@ -1579,6 +1648,25 @@ export type FeatureGrant =
        */
       readonly options?: readonly PoolOptionGrant[];
       /**
+       * The damage the options above deal is of the type the choice this
+       * feature reads names — or the one {@link GrantGate.choiceFrom} names.
+       *
+       * SRD Breath Weapon: "a creature takes 1d10 damage of the type
+       * **determined by your Draconic Ancestry trait**." The same field a
+       * `standing` grant carries for SRD Damage Resistance, which is the trait
+       * printed directly beneath it and reads the same answer off the same
+       * table — so this is one sentence arriving at a second host rather than
+       * a second mechanism.
+       *
+       * **The option still declares a type, and the choice replaces it.** That
+       * is `statedDamageType`'s own rule, written where a casting's stated
+       * choice is: "the definition carries a value so the shape is
+       * well-formed, the casting carries the answer, and the answer is what
+       * lands". Here the answer is the player's, given once at creation, so
+       * the substitution happens there and the command sees a type.
+       */
+      readonly damageTypesFromChoice?: boolean;
+      /**
        * What one use buys, where what it buys is a **Reaction somebody else
        * holds** — SRD Bardic Inspiration.
        *
@@ -1741,6 +1829,21 @@ export type FeatureGrant =
       readonly weapons?: readonly WeaponSelector[];
       /** SRD Stunning Strike: "or an Unarmed Strike", the second clause. */
       readonly unarmedStrike?: boolean;
+      /**
+       * The purchase the swing has to have been **bought by** — SRD Open Hand
+       * Technique's "an attack granted by your Flurry of Blows".
+       *
+       * A third clause beside {@link weapons} and {@link unarmedStrike}, and a
+       * different question from both: those ask what is in the holder's hand
+       * and this asks where the swing came from. `budgetPurchaseSlot`'s key,
+       * `<feature>/<purchase>`, which is the one string a purchase already
+       * mints and the one the budget already pins.
+       *
+       * Absent asks nothing, which is every other rider in the book: SRD
+       * Stunning Strike rides on any qualifying swing and a Goliath's boon on
+       * "an attack roll".
+       */
+      readonly fromGrant?: string;
       /**
        * The ability the save DC is derived from, where the feature prints one.
        *

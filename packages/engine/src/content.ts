@@ -1627,6 +1627,16 @@ const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-rider',
   'condition-immunity',
   'turn-payout',
+  // SRD Open Hand Technique's Addle: "The target can't make Opportunity
+  // Attacks until the start of its next turn." A rule about the *target's*
+  // turn, which a casting already hangs — `actionRulesOn` merges what a
+  // feature says with what a casting hung at every site a spend is checked —
+  // and which no feature could say until a hit could buy an effect list.
+  //
+  // It is in {@link CONFERRED_GRANT_KINDS} too, so the lifetime rule bites: a
+  // rule hung with no deadline would be a creature that never makes an
+  // Opportunity Attack again.
+  'action-rule',
 ]);
 
 /**
@@ -1647,6 +1657,7 @@ const CONFERRED_GRANT_KINDS: ReadonlySet<string> = new Set([
   'attack-rider',
   'condition-immunity',
   'turn-payout',
+  'action-rule',
 ]);
 
 /**
@@ -1856,6 +1867,102 @@ function rolledSpanProblems(span: unknown, field: string): readonly ContentProbl
 }
 
 /**
+ * The conditions a creature takes off **itself**, which is why a *feature's*
+ * option may impose one and print no lifetime.
+ *
+ * **A feature's option and not an item's conferral**, which still demands a
+ * span for every condition it hangs: a bottle's effects arrive with the
+ * potion's own printed duration on them and the door that reads them has no
+ * other deadline to fall back on, so relaxing it there would be a different
+ * argument on a different host.
+ *
+ * The lifetime rule exists for one reason and says it in as many words: there
+ * is no casting for `releaseCasting` to end, so a grant with no deadline would
+ * run for ever. Prone is the one condition the SRD hands out with no span and
+ * no casting, because the creature stands up — and the engine already imposes
+ * it that way from the Topple weapon mastery and from a shove, through
+ * `applyConditionTo` with no timer at all. Demanding a deadline here would
+ * have made SRD Open Hand Technique's Topple and SRD Cunning Strike's Trip
+ * unwritable, or written them with an invented minute.
+ *
+ * One member, and it stays one until the book prints a second: a condition
+ * added here is a condition nothing would ever lift.
+ */
+const ENDS_ITSELF: ReadonlySet<string> = new Set(['prone']);
+
+/**
+ * Whether a condition an option imposes is one its holder ends.
+ *
+ * Both spellings, because the vocabulary writes two: a `save` names its
+ * condition flat and a `condition` effect carries the whole
+ * {@link ConditionRider}, which is the same name one field down.
+ */
+const endsItself = (condition: unknown): boolean =>
+  ENDS_ITSELF.has(
+    isString(condition)
+      ? condition
+      : String((condition as { readonly name?: unknown })?.name),
+  );
+
+function hitForcedMoveProblems(
+  featureId: string,
+  declared: unknown,
+  at: string,
+  host: 'pool' | 'hit',
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  // SRD Open Hand Technique's Push — "The target must succeed on a Strength
+  // saving throw or be pushed up to 15 feet away from you" — is the one
+  // feature in the book that writes one, and `applyHitRider` is the only host
+  // that reads it: a pool option is spent on whoever the caller named at
+  // whatever reach the option prints, and a shove is measured **from the
+  // shover**, which only a blow supplies.
+  if (host === 'pool') {
+    say(
+      'shove_without_a_blow',
+      `a shove is measured from the creature doing the shoving, and ${featureId} is spent on an action rather than delivered by a blow`,
+      at,
+    );
+    return found;
+  }
+
+  const move = declared as Record<string, unknown>;
+  if (move === null || typeof move !== 'object') {
+    say('bad_forced_move', 'a shove names a direction and a distance', at);
+    return found;
+  }
+  if (move['direction'] !== 'push' && move['direction'] !== 'pull') {
+    say(
+      'bad_forced_move',
+      `a shove pushes or pulls, not "${String(move['direction'])}"`,
+      `${at}.direction`,
+    );
+  }
+  if (!Number.isInteger(move['feet']) || (move['feet'] as number) <= 0) {
+    say(
+      'bad_forced_move',
+      `a shove moves a whole number of feet, got ${String(move['feet'])}`,
+      `${at}.feet`,
+    );
+  }
+  if (
+    move['save'] !== undefined &&
+    !(ABILITIES as readonly string[]).includes(move['save'] as string)
+  ) {
+    say(
+      'bad_forced_move',
+      `a save is rolled on one of the six abilities, not "${String(move['save'])}"`,
+      `${at}.save`,
+    );
+  }
+  return found;
+}
+
+/**
  * What one of a feature's pool options has to say, and what it may not.
  *
  * The conferral's rules asked of the other host, and every difference between
@@ -1914,11 +2021,68 @@ function featureOptionProblems(
       `${at}.name`,
     );
   }
-  if (host === 'pool' && option.action !== 'action' && option.action !== 'bonus-action') {
+  if (
+    host === 'pool' &&
+    option.action !== 'action' &&
+    option.action !== 'bonus-action' &&
+    option.action !== 'one-attack'
+  ) {
     say(
       'bad_option_action',
-      `SRD prints what a use costs — "As a Magic action" — and "${String(option.action)}" is neither an Action nor a Bonus Action`,
+      `SRD prints what a use costs — "As a Magic action", "you can replace one of your attacks" — and "${String(option.action)}" is none of an Action, a Bonus Action and one attack of the Attack action`,
       `${at}.action`,
+    );
+  }
+
+  // **The shapes an option offers, and the one it prints, are alternatives.**
+  // SRD Breath Weapon is the only sentence in the book that gives its holder a
+  // choice of template — "a 15-foot Cone or a 30-foot Line ... (choose the
+  // shape each time)" — and an option that wrote both would print a shape the
+  // caller could never elect. Each entry is named by its own `kind`, which is
+  // how the use states which it took, so two of a kind is a choice nobody
+  // could make.
+  if (host === 'pool' && option.areas !== undefined) {
+    if (!Array.isArray(option.areas) || option.areas.length < 2) {
+      say(
+        'bad_option_shapes',
+        `an option offering a choice of shape prints at least two; one shape is ${featureId}'s "area"`,
+        `${at}.areas`,
+      );
+    } else {
+      const kinds = option.areas.map((one) => (one as { readonly kind?: unknown }).kind);
+      if (new Set(kinds).size !== kinds.length) {
+        say(
+          'bad_option_shapes',
+          `${featureId} offers two areas of one kind, and a use names the shape it takes by that kind`,
+          `${at}.areas`,
+        );
+      }
+    }
+    if (option.area !== undefined) {
+      say(
+        'feature_option_reaches_twice',
+        `${featureId} prints one area and offers a choice of several; an option does one or the other`,
+        `${at}.areas`,
+      );
+    }
+    if (option.reach !== undefined) {
+      say(
+        'feature_option_reaches_twice',
+        `${featureId} offers a choice of area and reaches a target it names; an option does one or the other`,
+        `${at}.areas`,
+      );
+    }
+  }
+
+  // The ability a feature derives its own DC from — SRD Breath Weapon's
+  // Constitution. A save nobody rolls is a formula nothing reads, which is the
+  // same emptiness `mustBeType` without an area is.
+  if (host === 'pool' && option.saveAbility !== undefined &&
+    !(ABILITIES as readonly string[]).includes(option.saveAbility)) {
+    say(
+      'bad_option_save_ability',
+      `a saving throw DC is derived from one of the six abilities, not "${String(option.saveAbility)}"`,
+      `${at}.saveAbility`,
     );
   }
 
@@ -2012,8 +2176,17 @@ function featureOptionProblems(
     say('bad_option_effects', 'an option confers a list of effects', `${at}.effects`);
     return found;
   }
-  if (option.effects.length === 0 && divides === undefined) {
+  // **A shove is the third thing an option may be**, beside the effect list
+  // and the hit points a division mints — SRD Open Hand Technique's Push is
+  // "pushed up to 15 feet away from you" and nothing else. It is outside the
+  // effect list for the reason `HitOption.forcedMove` is: forced movement is
+  // arithmetic between two creatures, and an effect is hung on one of them.
+  const shoves = (option as unknown as { readonly forcedMove?: unknown }).forcedMove;
+  if (option.effects.length === 0 && divides === undefined && shoves === undefined) {
     say('empty_feature_option', 'an option that confers an empty list buys nothing', `${at}.effects`);
+  }
+  if (shoves !== undefined) {
+    found.push(...hitForcedMoveProblems(featureId, shoves, `${at}.forcedMove`, host));
   }
 
   let hangs = false;
@@ -2051,10 +2224,12 @@ function featureOptionProblems(
     // Reaction to it is already holding one when a rider fires. A second would
     // be a log that cannot be folded rather than a refusal, which is the one
     // outcome worth refusing at authoring for. Every SRD sentence of this
-    // shape imposes a condition or forces a save and not one of them deals
-    // damage, so what this refuses is a homebrew the engine would break on and
-    // never a rule the book prints; it lifts the day the attack path folds a
-    // rider's damage into the blow's own.
+    // shape in the *class* tables imposes a condition or forces a save. Two in
+    // the species tables do not — SRD Fire's Burn adds 1d10 Fire to a hit and
+    // Frost's Chill 1d6 Cold — and they are the price this refusal charges:
+    // both are transcribed, both are unexecuted, and the Goliath's line in the
+    // blocked-on map says so. It lifts the day the attack path folds a rider's
+    // damage into the blow's own, which is the same day those two are written.
     if (host === 'hit' && (kind === 'save-damage' || record['damage'] !== undefined)) {
       say(
         'rider_deals_damage',
@@ -2064,7 +2239,7 @@ function featureOptionProblems(
     }
 
     if (kind === 'condition') {
-      hangs = true;
+      hangs = hangs || !endsItself(record['condition']);
       outlasts = true;
       conditions += 1;
       found.push(...castingOwnedFields(featureId, record['condition'], `${on}.condition`));
@@ -2084,7 +2259,7 @@ function featureOptionProblems(
     // authoring door every effect here has already been through.
     if (kind === 'save') {
       if (record['condition'] !== undefined) {
-        hangs = true;
+        hangs = hangs || !endsItself(record['condition']);
         outlasts = true;
         conditions += 1;
       }
@@ -2720,6 +2895,17 @@ function hitRiderProblems(
         found.push(...weaponSelectorProblems(selector, `${at}.weapons[${index}]`));
       });
     }
+  }
+
+  // SRD Open Hand Technique: "an attack granted by your Flurry of Blows" —
+  // `budgetPurchaseSlot`'s `<feature>/<purchase>` key, which is what the
+  // budget pinned. A blank one names no purchase and would refuse every swing.
+  if (grant.fromGrant !== undefined && (!isString(grant.fromGrant) || grant.fromGrant.trim() === '')) {
+    say(
+      'bad_rider_grant',
+      'the purchase a rider rides on is named by the key it was sold under, and a blank name names nothing',
+      `${at}.fromGrant`,
+    );
   }
 
   if (grant.saveAbility !== undefined && !(ABILITIES as readonly string[]).includes(grant.saveAbility)) {

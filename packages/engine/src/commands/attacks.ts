@@ -1722,7 +1722,7 @@ export function resolveAttack(
     // the same breath: a Stunning Strike asked for with an empty pool, with a
     // Greatsword in hand or twice in one turn is refused here, with the action
     // unspent and no die thrown. What it costs is spent on the hit, below.
-    const rider = hitRiderAsked(state, id, sheet, weapon, command.onHit);
+    const rider = hitRiderAsked(state, id, sheet, weapon, command.onHit, unarmedStrike);
     if (!rider.ok) return rider;
 
     // And the cantrip this swing is cast with, for the third time the same
