@@ -683,7 +683,7 @@ function coveredByTheRoll(option: HitOption, mode: RollMode): HitOption {
   const attach = option.attaches;
   if (attach?.coverNeedsAdvantage !== true || mode === 'advantage') return option;
   // The cover and the question about it both go; everything else the attach
-  // carries � the DC, the Speed, the payment � is not gated on the roll.
+  // carries — the DC, the Speed, the payment — is not gated on the roll.
   const bare = Object.fromEntries(
     Object.entries(attach).filter(([field]) => field !== 'whileHeld' && field !== 'coverNeedsAdvantage'),
   ) as HitAttach;
@@ -735,7 +735,7 @@ function printedRiderOnASwing(
   target: CharacterId,
   printed: StatedAttack | null,
   /**
-   * SRD Animated Rug of Smothering's offer, taken � see
+   * SRD Animated Rug of Smothering's offer, taken — see
    * {@link HitGrapple.insteadOfDamage}. A line printing no offer never reads
    * it, and a swing that names one on such a line was refused at the door.
    */
@@ -1760,7 +1760,7 @@ export function resolveAttack(
     // be settled before the blow, because the hold pins it — and it refuses
     // nothing, because a swing the book permits must not be turned away for
     // carrying a sentence the engine could not read.
-    // **The offer this line makes, taken or not** � and refused here, before
+    // **The offer this line makes, taken or not** — and refused here, before
     // the action is spent and before a die is thrown, where the line makes
     // none. SRD writes "can" on exactly one bestiary hit and the caller is who
     // answers it.
@@ -2741,7 +2741,7 @@ export function resolveAttack(
         //
         // And whether this blow was the one that emptied them, which is the
         // other fact only a caller holding the world on both sides of the
-        // damage can answer � see {@link HitOption.onDroppingToZero}.
+        // damage can answer — see {@link HitOption.onDroppingToZero}.
         {
           attacker: id,
           target: command.target,

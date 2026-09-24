@@ -674,7 +674,7 @@ const HELD: readonly GameEvent[] = [
  * A stirge fixed to B, so the two detach doors have something to let go of.
  *
  * The relation is on the creature that attached, which is the one thing an
- * attach does not share with the grapple above it — see `creature-attached`.
+ * attach does not share with the grapple above it â€” see `creature-attached`.
  */
 const ATTACHED: readonly GameEvent[] = [
   ...SETUP,
@@ -3312,7 +3312,7 @@ const SPENDERS: readonly Spender[] = [
   { name: 'escapeGrapple', run: (s) => escapeGrapple(s, B, { ability: 'str' }, supply()) },
   /**
    * Pulling a creature off somebody. SRD Stirge: "The target or a creature
-   * within 5 feet of it can detach the stirge **as an action**" — so a
+   * within 5 feet of it can detach the stirge **as an action**" â€” so a
    * creature owing a mandatory area effect may not. Nothing need be attached:
    * `mayAct` is asked immediately after the duplicate check and before any
    * attach is looked for.
@@ -3320,7 +3320,7 @@ const SPENDERS: readonly Spender[] = [
   { name: 'detachFrom', run: (s) => detachFrom(s, B, { holder: A, from: B }, supply()) },
   /**
    * Letting go. SRD spends five feet of the attacher's own movement on it, and
-   * a creature owing a mandatory area effect may spend none — the rule
+   * a creature owing a mandatory area effect may spend none â€” the rule
    * `mountCreature` already states of the same spend. Nothing need be
    * attached: `mayAct` is asked immediately after the duplicate check.
    */

@@ -2396,9 +2396,20 @@ const ATTACH_COVERS = new RegExp(
 /** SRD Darkmantle: "Its Speed becomes 0, it can't benefit from any bonus to its Speed, …" */
 const ATTACHED_SPEED_ZERO = /^Its Speed becomes 0(?:, (.+?))?\.$/;
 
-/** SRD Darkmantle: "…doing so with a successful DC 13 Strength (Athletics) check." */
+/**
+ * SRD Darkmantle: "…doing so with a successful DC 13 **Strength (Athletics)**
+ * check."
+ *
+ * **The pair is matched literally and only the DC is captured**, which is the
+ * rule this reader keeps everywhere: what is read is what the engine holds the
+ * fact for. Nothing on an attach records which ability a detach is rolled
+ * with, so a line printing any other pair would be read, accepted and then
+ * rolled as Strength — a rule nobody printed. Anchored on the printed words,
+ * it is handed back instead, and the day the record carries the pair is the
+ * day this widens.
+ */
 const ATTACH_DETACH_CHECK =
-  /^A creature can take an action to try to detach the .+? from itself, doing so with a successful DC (\d+) [A-Za-z]+ \([A-Za-z]+\) check\.$/;
+  /^A creature can take an action to try to detach the .+? from itself, doing so with a successful DC (\d+) Strength \(Athletics\) check\.$/;
 
 /** SRD Stirge: "The target or a creature within 5 feet of it can detach the stirge as an action." */
 const ATTACH_DETACH_ACTION =

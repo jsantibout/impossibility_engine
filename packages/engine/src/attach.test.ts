@@ -19,6 +19,7 @@ import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { createRollIssuer } from './rolls.js';
+import { speedOf } from './standing.js';
 import { attachmentsOf, attachmentsOn, grapplesOn } from './commands/unarmed.js';
 
 /**
@@ -276,6 +277,25 @@ describe('a creature that attaches to the one it hit', () => {
     expect(off.combat?.budgets[BEAST]?.movementSpent).toBe(before + 5);
   });
 
+  /**
+   * **The ending takes what the hold hung, at both ends.** SRD Stirge files
+   * its payment on the stirge and SRD Animated Rug files its on whoever it is
+   * holding, so `creature-detached`'s fold releases grants on both creatures
+   * â€” and the boundary's own lapsed-hold filter is not what is being tested
+   * here: the grant list itself must be empty.
+   */
+  it('takes the arrangement off the creature that was collecting it', () => {
+    const table = field('stirge', 5, true);
+    swing(table, 'Proboscis');
+    expect(table.state.creatures[BEAST]?.payouts).toHaveLength(1);
+
+    const off = table.do('the stirge lets go', (s) =>
+      letGoOfAttachment(s, BEAST, { from: BREN, commandId: 'let go' }),
+    );
+    expect(off.creatures[BEAST]?.payouts).toEqual([]);
+    expect(off.creatures[BEAST]?.attachments).toEqual([]);
+  });
+
   /** A creature nothing is attached to has nothing to pull off. */
   it('refuses a detach where nothing is attached', () => {
     const table = field('stirge');
@@ -296,8 +316,8 @@ describe('a creature that attaches to the one it hit', () => {
     // creature is standing is the only fact this refusal is about.
     const table = field('stirge', 5, true, 30);
     swing(table, 'Proboscis');
-    table.did('the stirge’s turn ends', (s) => resolveTurn(s, supply('a')));
-    table.did('Bren’s turn ends', (s) => resolveTurn(s, supply('b')));
+    table.did('the stirgeâ€™s turn ends', (s) => resolveTurn(s, supply('a')));
+    table.did('Brenâ€™s turn ends', (s) => resolveTurn(s, supply('b')));
     const out = detachFrom(table.state, MATE, { holder: BEAST, from: BREN, commandId: 'pull' }, supply());
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.code).toBe('out_of_reach');
@@ -347,13 +367,35 @@ describe('an attach that covers what it lands on', () => {
     const table = field('darkmantle');
     swing(table, 'Crush');
     // Detaching costs an Action, so it happens on the detacher's own turn.
-    table.did('the darkmantle’s turn ends', (s) => resolveTurn(s, supply('d')));
+    table.did('the darkmantleâ€™s turn ends', (s) => resolveTurn(s, supply('d')));
     const out = unwrap(
       detachFrom(table.state, BREN, { holder: BEAST, from: BREN, commandId: 'pull' }, supply()),
       'the detach',
     );
     expect(out.check).not.toBeNull();
     expect(out.check?.dc).toBe(13);
+  });
+
+  /**
+   * **SRD prints the rule and its exception in one paragraph**: "Its Speed
+   * becomes 0 â€¦ On its turn, the darkmantle can detach itself by using 5 feet
+   * of movement." Measured against the Speed the attach itself pinned, the
+   * second sentence could never be taken.
+   */
+  it('lets the darkmantle go for five feet despite the Speed it pinned at 0', () => {
+    const table = field('darkmantle');
+    swing(table, 'Crush', { modes: ['advantage'] });
+    expect(speedOf(table.state, BEAST)).toBe(0);
+
+    const off = table.do('the darkmantle lets go', (s) =>
+      letGoOfAttachment(s, BEAST, { from: BREN, commandId: 'let go' }),
+    );
+    expect(attachmentsOf(off, BEAST)).toEqual([]);
+    // Both ends of the hold released by the one ending: the Speed it pinned
+    // on itself, and the Blinded it left on whoever it covered.
+    expect(off.creatures[BEAST]?.speedModifiers).toEqual([]);
+    expect(speedOf(off, BEAST)).toBeGreaterThan(0);
+    expect(conditionsOn(off, BREN)).not.toContain('blinded');
   });
 });
 

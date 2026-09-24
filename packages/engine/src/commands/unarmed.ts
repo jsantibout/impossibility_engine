@@ -850,7 +850,15 @@ export interface HeldAttachment {
   /** The creature that attached, and holds the relation. */
   readonly holder: CharacterId;
   readonly to: CharacterId;
-  /** What everything the attach hung — at either end — is filed under. */
+  /**
+   * What the attach hung **on the creature that attached** is filed under —
+   * its Speed of 0, its payment.
+   *
+   * `attach:<to>`, because an attach names the far end at each end: what it
+   * hung on the creature it landed on is filed under `attach:<holder>`
+   * instead. See {@link attachSource}, and `releaseAttachment` for the one
+   * place that needs both.
+   */
   readonly source: string;
   /** The stat-block line that made it, for the log. */
   readonly name: string;
@@ -1079,8 +1087,32 @@ export function letGoOfAttachment(
       const spent = spendMovement(state.combat, who, SELF_DETACH_FEET, speedOf(state, who), {
         rules: actionRulesOn(state, who),
       });
-      if (!spent.ok) return spent;
-      events.push({ type: 'movement-spent', id: who, feet: SELF_DETACH_FEET });
+      if (spent.ok) {
+        events.push({ type: 'movement-spent', id: who, feet: SELF_DETACH_FEET });
+      } else if (
+        spent.code === 'not_enough_movement' &&
+        creature.speedModifiers.some((held) => held.source === attached.source)
+      ) {
+        // **SRD Darkmantle prints the rule and its exception in one
+        // paragraph**: "Its Speed becomes 0, it can't benefit from any bonus
+        // to its Speed … On its turn, the darkmantle can detach itself by
+        // using 5 feet of movement." Measured against the Speed this very
+        // attach pinned, that second sentence could never be taken — so the
+        // line hands the feet over, which is the shape `movement-granted`
+        // already has for SRD Tactical Shift's: feet spent out of no Speed at
+        // all.
+        //
+        // **Only where the attach itself is what stopped it.** A darkmantle
+        // that has already spent its turn walking, or one held by something
+        // the line says nothing about, is refused exactly as a stirge is: the
+        // book gives it five feet of its own movement and no more.
+        events.push(
+          { type: 'movement-granted', id: who, source: attached.source, feet: SELF_DETACH_FEET },
+          { type: 'movement-spent', id: who, feet: SELF_DETACH_FEET, grant: attached.source },
+        );
+      } else {
+        return spent;
+      }
     }
 
     return ok([...events, ...releaseAttachment(state, attached, stamp)]);
@@ -1100,6 +1132,12 @@ function releaseAttachment(
   attached: HeldAttachment,
   stamp: CommandStamp | null,
 ): readonly GameEvent[] {
+  // **The far end's key, which is not this end's.** An attach files what it
+  // hung under the id of *the other creature*, at both ends — see
+  // {@link attachSource} — so the Blinded a darkmantle left on whoever it
+  // covered is filed under the darkmantle, and `attached.source` names the
+  // creature it is attached to.
+  const onTheTarget = attachSource(attached.holder);
   return [
     {
       type: 'creature-detached',
@@ -1112,9 +1150,9 @@ function releaseAttachment(
       (state.creatures[attached.to]?.conditions.instances ?? [])
         // Only what this cause is itself the reason for: an implied instance
         // goes with the one that carried it, through `removeCondition`.
-        .filter((one) => one.source === attached.source && one.impliedBy === undefined)
+        .filter((one) => one.source === onTheTarget && (one.impliedBy ?? null) === null)
         .map((one) => one.condition),
-      attached.source,
+      onTheTarget,
     ),
   ];
 }

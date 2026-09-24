@@ -522,7 +522,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'casting-save-recorded',
   'combatant-joined',
   'condition-immunity-granted',
-  // A creature fixed to another and the ending that lets go — SRD Stirge, SRD
+  // A creature fixed to another and the ending that lets go â€” SRD Stirge, SRD
   // Darkmantle. Neither log was written when an attach existed at all: the
   // sentence was carried verbatim and handed to the DM, `CreatureState` had no
   // field for the relation, and both fixtures fold to exactly the states they
