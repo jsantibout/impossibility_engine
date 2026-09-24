@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 99 spells | 66 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 14 features | 8 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 13 features | 7 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 199 items | on 121 of 244 blocks | 0 | 123 blocks already clean |
@@ -504,7 +504,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 14, 11 are class or subclass features printed at level 5 or below, 3 are species or background traits and 0 are feats.
+Of the 13, 10 are class or subclass features printed at level 5 or below, 3 are species or background traits and 0 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -521,8 +521,6 @@ comes from.
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-feature-that-changes-who-a-casting-catches` | 1 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
-| `a-move-a-feature-hands-its-holder` | 1 | 0 |
-| `a-resource-traded-for-another` | 1 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 |
 | `an-attack-the-class-redefines` | 1 | 0 |
 
@@ -567,14 +565,6 @@ sums to the population.
 #### `a-mode-on-the-save-a-spell-forces` — blocks 1, finishes 0
 
 - `sorcerer:metamagic` — Metamagic (level 2, class, manual) — also waits on 3
-
-#### `a-move-a-feature-hands-its-holder` — blocks 1, finishes 0
-
-- `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
-
-#### `a-resource-traded-for-another` — blocks 1, finishes 0
-
-- `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 1, finishes 0
 
