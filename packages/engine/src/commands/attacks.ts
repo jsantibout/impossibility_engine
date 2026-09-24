@@ -71,6 +71,7 @@ import {
   statedBonusActionsUsed,
   unreadActionsOf,
 } from '../monster.js';
+import { wrongFormFor } from '../forms.js';
 import type { HazardName } from '../hazards.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -1833,6 +1834,17 @@ export function resolveAttack(
     if (printedProblem !== null) return printedProblem;
     const printed =
       command.action === undefined ? null : printedAttackOf(sheet, command.action);
+
+    // **A heading the block prints for one of its forms only.** SRD Werewolf:
+    // "Bite (Wolf or Hybrid Form Only)", and thirteen more headings like it.
+    // Asked the moment the line is found and before anything is spent, which
+    // is where `takeStatedAction` and `takeStatedBonusAction` already ask it —
+    // a werewolf in its own skin has no jaws, and a refusal arriving after the
+    // Action is gone is a refusal with a footprint.
+    if (printed !== null) {
+      const wrongForm = wrongFormFor(attacker, printed);
+      if (wrongForm !== null) return err('wrong_form', wrongForm);
+    }
 
     // — the weapon —————————————————————————————————————————————————————————
     let weapon: Weapon | null = null;

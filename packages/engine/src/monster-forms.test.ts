@@ -16,6 +16,7 @@ import {
   beginCombat,
   declareCreatureSide,
   placeCreatureInScene,
+  resolveAttack,
   resolveTurn,
   setScene,
   takePrintedForm,
@@ -191,18 +192,15 @@ describe('the adapter carries the forms a block prints', () => {
    * noticed.**
    *
    * `onlyInForms` reaches the sheet from fourteen attack headings and one
-   * Bonus Action, and today only the two hand-over doors read it: a werewolf
-   * in wolf form can still draw its longbow, because `commands/attacks.ts`
-   * belonged to another track the batch this field landed in. That is a debt
-   * and this is where it is recorded — a field carried and unread is the
-   * failure this repository finds most often, and a note in a docstring is
-   * not a thing that fails.
+   * Bonus Action, and the swing is now among the doors that read it: a
+   * werewolf in humanoid skin may not bite, which is the half the field was
+   * carried for and the half that went unread the batch it landed in.
    *
    * The sweep is over the sources rather than over a list of names, in the
-   * shape `coverage.test.ts` uses: the day the swing asks, this fails and
-   * whoever wired it takes the entry out in the same commit.
+   * shape `coverage.test.ts` uses: a door that stops asking fails here, and a
+   * new door that starts is named in the same commit.
    */
-  it('names every command that asks the form gate, and the swing is not one', () => {
+  it('names every command that asks the form gate, and the swing is one', () => {
     const here = fileURLToPath(new URL('.', import.meta.url));
     const asking: string[] = [];
     const walk = (dir: string): void => {
@@ -216,8 +214,75 @@ describe('the adapter carries the forms a block prints', () => {
       }
     };
     walk(here);
-    // `forms.ts` declares it; `commands/actions.ts` is the one caller.
-    expect([...asking].sort()).toEqual(['actions.ts', 'forms.ts']);
+    // `forms.ts` declares it; the two hand-over doors and the swing ask it.
+    expect([...asking].sort()).toEqual(['actions.ts', 'attacks.ts', 'forms.ts']);
+  });
+
+  /**
+   * **The swing refuses a heading its creature's form does not reach.** SRD
+   * Werewolf prints "Bite (Wolf or Hybrid Form Only)", and a werewolf that
+   * has not shifted is in its printed default — humanoid — so the jaws are
+   * not there to bite with.
+   *
+   * Refused rather than reported, and before anything is spent: the gate is
+   * read off the line the moment it is found, which is where every other
+   * argument on a swing is checked.
+   */
+  it('refuses a printed swing the attacker’s form does not reach, and takes it once shifted', () => {
+    const table = new Table();
+    table.did('the werewolf arrives', (s) => addCreature(s, SRD_CONTENT, WOLF, 'werewolf'));
+    table.did('the commoner arrives', (s) => addCreature(s, SRD_CONTENT, PREY, 'commoner'));
+    table.do('the clearing', (s) => setScene(s, { width: 200, depth: 200, height: 40 }));
+    table.do('the stump', (s) => addSceneLandmark(s, 'the stump', { x: 20, y: 20, z: 0 }));
+    table.do('the wolf stands', (s) =>
+      placeCreatureInScene(s, WOLF, { from: { landmark: 'the stump' }, feet: 5, bearing: 90 }),
+    );
+    table.do('the prey stands', (s) =>
+      placeCreatureInScene(s, PREY, { from: { landmark: 'the stump' }, feet: 10, bearing: 90 }),
+    );
+    table.do('the wolf’s side', (s) => declareCreatureSide(s, WOLF, 'wild'));
+    table.do('the prey’s side', (s) => declareCreatureSide(s, PREY, 'party'));
+    table.do('the order', (s) =>
+      beginCombat(s, [
+        { id: WOLF, initiative: 20, speed: 40 },
+        { id: PREY, initiative: 1, speed: 30 },
+      ]),
+    );
+
+    const refused = resolveAttack(
+      table.state,
+      WOLF,
+      { target: PREY, weapon: null, action: BITE },
+      supply(),
+    );
+    expect(isErr(refused) && refused.code).toBe('wrong_form');
+    expect(isErr(refused) && refused.reason).toContain('humanoid');
+
+    // And the longbow its humanoid form *does* print is not refused.
+    const drawn = resolveAttack(
+      table.state,
+      WOLF,
+      { target: PREY, weapon: null, action: LONGBOW },
+      supply(),
+    );
+    expect(isErr(drawn)).toBe(false);
+
+    // Shifted into the wolf, the bite lands and the bow is the one refused.
+    table.did('shift', (s) => takePrintedForm(s, WOLF, { line: WEREWOLF_SHIFT, form: 'wolf' }));
+    const bitten = resolveAttack(
+      table.state,
+      WOLF,
+      { target: PREY, weapon: null, action: BITE },
+      supply(),
+    );
+    expect(isErr(bitten)).toBe(false);
+    const stowed = resolveAttack(
+      table.state,
+      WOLF,
+      { target: PREY, weapon: null, action: LONGBOW },
+      supply(),
+    );
+    expect(isErr(stowed) && stowed.code).toBe('wrong_form');
   });
 
   it('reads the printed default for a creature that has not shifted', () => {
