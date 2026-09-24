@@ -51,6 +51,7 @@ import {
   rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
+  breaksAttunement,
   ranged,
   type SpellArea,
   type SpellDefinition,
@@ -448,6 +449,34 @@ export interface CastSpellRequest extends CommandIdentity {
    * same boundary `eligibleTargets` draws for targeting.
    */
   readonly teleportTo?: Placement;
+  /**
+   * The object a spell aimed at a thing rather than at its holder was pointed
+   * at, by catalogue id.
+   *
+   * SRD Remove Curse: "the spell breaks its **owner's** Attunement to the
+   * object"; SRD Heat Metal: "Choose a manufactured metal object ... that you
+   * can see within range." Both name one thing out of what a creature is
+   * carrying, and both leave the creature as the target the range is measured
+   * to — which is why this is a fact beside the target list rather than a
+   * second kind of target.
+   *
+   * The eighth fact a casting states rather than derives, and it takes the
+   * shape of the seven before it: **required** by a spell that names an object
+   * and **refused** for one that does not, both before a slot is spent. What
+   * is checked beside that is the object's — it reaches an item, and the
+   * relation the spell needs really holds — and every one of those is a
+   * refusal rather than a substitution.
+   *
+   * **Distinct from {@link CastSpellRequest.weapon}**, which is the same shape
+   * narrowed to a weapon and read by an entirely different clause: a
+   * `weapon-rider` imbues something a later swing reads, where this names a
+   * thing the spell acts on now. A definition writing both would be two
+   * sentences about two objects, and no SRD spell prints one.
+   *
+   * **And distinct from {@link CastSpellRequest.item}**, which is the wand
+   * doing the casting rather than the thing being cast at.
+   */
+  readonly object?: string;
   /**
    * The weapon a spell that imbues one was aimed at, by catalogue id.
    *
@@ -978,6 +1007,31 @@ export function declaredFacts(
     return err(
       'no_weapon_clause',
       `${definition.name} does nothing to a weapon; which one is not a fact it asks for`,
+    );
+  }
+
+  // — which object it was aimed at ————————————————————————————————————————
+  //
+  // The eighth stated fact, and the same two refusals a sixth time. SRD Remove
+  // Curse breaks "its owner's Attunement to the object" and a creature attuned
+  // to three has three answers, so the caster says which and the engine says
+  // none.
+  //
+  // **Only the symmetry lives here**, for the weapon's reason above it: that
+  // the object reaches an item and that the target is really attuned to it
+  // both need the catalogue, which this function has none of, and both are
+  // asked in `resolveSpell`'s pre-flight before anything is spent.
+  if (breaksAttunement(definition)) {
+    if (request.object === undefined) {
+      return err(
+        'object_required',
+        `${definition.name} breaks an Attunement to one object and the engine will not choose which; name it`,
+      );
+    }
+  } else if (request.object !== undefined) {
+    return err(
+      'no_object_clause',
+      `${definition.name} does nothing to an object; which one is not a fact it asks for`,
     );
   }
 

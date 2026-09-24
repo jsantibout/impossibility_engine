@@ -12,6 +12,7 @@
  */
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type Content } from '../content.js';
 import { applyEvent, type GameState } from '../events.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
@@ -110,4 +111,75 @@ export function resolveReviveEffect(
     affected: true,
   });
   return ok(current);
+}
+
+/**
+ * Why this Attunement may not be broken, or null where it may.
+ *
+ * Written once and asked twice, for {@link reviveProblem}'s reason: the
+ * pre-flight in `resolveSpell` calls it before a slot is spent and
+ * {@link resolveEndAttunementEffect} calls it where the event is written, and
+ * two readings of one rule is two answers.
+ *
+ * The object is read as the **kind** it is a copy of, which is what
+ * `attuneItem` and `endAttunement` both do: attunement is a yes or no per kind
+ * of item, so a caller naming a copy's own id finds the same relation.
+ */
+export function attunementProblem(
+  state: GameState,
+  content: Content,
+  target: CharacterId,
+  object: string,
+  name: string,
+): Result<true> {
+  const item = content.item(object);
+  if (item === null) return err('unknown_item', `${object} is not in the catalogue`);
+
+  const victim = state.creatures[target];
+  // A creature the casting cannot find is targeting's refusal, not this one.
+  if (victim === undefined) return ok(true);
+
+  if (!victim.attuned.some((held) => held.id === item.id)) {
+    return err('not_attuned', `${target} is not attuned to ${item.name}, so ${name} breaks nothing`);
+  }
+  return ok(true);
+}
+
+/**
+ * The target stops being attuned to the object the caster named.
+ *
+ * SRD Remove Curse: "the spell breaks its owner's Attunement to the object so
+ * it can be removed or discarded." The removing and the discarding are two
+ * commands somebody may take afterwards and are deliberately not taken here:
+ * the sentence says the object *can* be removed, which is a permission rather
+ * than an instruction, and a spell that took the cloak off its owner would be
+ * playing the creature.
+ *
+ * The event is the one `endAttunement` already emits, so every reader of a
+ * broken attunement — the grants that come off the sheet, the benefit that
+ * stops — is reached by exactly the route it always was.
+ */
+export function resolveEndAttunementEffect(
+  ctx: EffectContext,
+  _effect: EffectOfKind<'end-attunement'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { name, supply, events, outcomes } = ctx;
+  const object = ctx.object;
+  if (object === undefined) {
+    throw new Error(
+      `${name} breaks an Attunement and no object was named; ` +
+        'the caller should have been refused `object_required` before reaching here',
+    );
+  }
+
+  const allowed = attunementProblem(world, supply.content, target, object, name);
+  if (!allowed.ok) return allowed;
+
+  const kind = supply.content.item(object)!.id;
+  const ended = { type: 'attunement-ended' as const, id: target, item: kind };
+  events.push(ended);
+  outcomes.push({ target, affected: true });
+  return ok(applyEvent(world, ended));
 }

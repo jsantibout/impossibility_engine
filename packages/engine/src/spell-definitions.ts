@@ -2163,6 +2163,34 @@ export type SpellEffect =
    */
   | { readonly kind: 'dispel' }
   /**
+   * The target's Attunement to one object, broken.
+   *
+   * SRD Remove Curse: "If the object is a cursed magic item, its curse
+   * remains, but **the spell breaks its owner's Attunement to the object** so
+   * it can be removed or discarded."
+   *
+   * **A curse is fiction and the attunement is not.** `CreatureState.attuned`
+   * is a relation the engine holds authoritatively — `attuneItem` writes it,
+   * `attunement-ended` takes it away, and the fold ends one when the holder
+   * dies or the item leaves — so this is the half of the sentence that is the
+   * engine's, and which curses end stays the table's. That split is what
+   * `what-ends-attunement-besides-a-command` names.
+   *
+   * **The effect carries no object**, for the reason `dispel` beside it
+   * carries no numbers: which item is a decision the *caster* makes at the
+   * casting, not a fact the definition can print. It arrives as
+   * `CastSpellRequest.object`, required by a spell that carries this kind and
+   * refused for one that does not, and the catalogue half — the item exists,
+   * the target is attuned to it — is checked in `resolveSpell`'s pre-flight
+   * before a slot is spent, exactly as the weapon a rider imbues is.
+   *
+   * **Nothing else moves.** SRD says the object may then "be removed or
+   * discarded", which is somebody's later decision and two commands that
+   * already exist; a spell that took the cloak off its owner would be
+   * performing the sentence rather than adjudicating it.
+   */
+  | { readonly kind: 'end-attunement' }
+  /**
    * A **base** Armour Class the spell supplies, in place of the one the target
    * would otherwise calculate.
    *
@@ -5112,6 +5140,23 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
  * refuses a teleport in an area trigger's list or an activation's, because
  * neither carries the destination the caster stated.
  */
+/**
+ * Whether this spell breaks an Attunement, and so must be told which object.
+ *
+ * The reader `declaredFacts` and the pre-flight both ask, for
+ * {@link teleportOf}'s reason: the symmetry — required where the spell prints
+ * the clause, refused where it does not — is checked in two places and must
+ * have one answer.
+ *
+ * Only the casting's own list, because that is the only place the kind may be
+ * written: the object is stated at the casting, and an area trigger or an
+ * activation firing a minute later has no request to read it off. The
+ * validator refuses it anywhere else.
+ */
+export function breaksAttunement(definition: SpellDefinition): boolean {
+  return definition.effects.some((effect) => effect.kind === 'end-attunement');
+}
+
 export function teleportOf(
   definition: SpellDefinition,
 ): Extract<SpellEffect, { kind: 'teleport' }> | null {
@@ -5430,6 +5475,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'healing-rule':
       case 'hit-point-maximum':
       case 'dispel':
+      // An attunement broken reads nothing of the caster either: which object
+      // is the caster's own choice, stated at the casting, and no number about
+      // them decides anything.
+      case 'end-attunement':
       case 'teleport':
       case 'summon':
         break;

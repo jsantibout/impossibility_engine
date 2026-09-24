@@ -672,11 +672,14 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'fog-cloud',
     'light',
     'magic-weapon',
-    // And the cap the casting track carried out: every one of
+    // And the two the casting track carried out. Every one of
     // Prestidigitation's six wonders is fiction, and the sentence over them —
     // three of its non-instantaneous effects at a time — is a rule the engine
-    // applies at the cast. No marker knows those words either.
+    // applies at the cast. Remove Curse reads clean for the neighbouring
+    // reason: a curse is fiction, an Attunement is not, and no marker knows
+    // the word Attunement. No marker knows those words either.
     'prestidigitation',
+    'remove-curse',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {

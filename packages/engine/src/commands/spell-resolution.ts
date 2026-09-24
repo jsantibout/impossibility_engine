@@ -77,6 +77,7 @@ import {
 } from '../positioning.js';
 import { remaining, tallied } from '../resources.js';
 import {
+  breaksAttunement,
   creatureTypesRead,
   delayedDuration,
   delaysDamage,
@@ -142,7 +143,12 @@ import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
 import { replacedCastings } from './ongoing.js';
-import { resolveReviveEffect, reviveProblem } from './spell-effect-creatures.js';
+import {
+  attunementProblem,
+  resolveEndAttunementEffect,
+  resolveReviveEffect,
+  reviveProblem,
+} from './spell-effect-creatures.js';
 import {
   type CastingAlterations,
   castingAlterations,
@@ -428,6 +434,9 @@ export function resolveDeclaredCast(
       // The fifth, read back the same way. A Shillelagh declared at one staff
       // settles at that staff and at no other.
       ...(pending.weapon === undefined ? {} : { weapon: pending.weapon }),
+      // And the object, read back the same way: a Remove Curse declared at the
+      // cloak settles at the cloak and at no other thing in the pack.
+      ...(pending.object === undefined ? {} : { object: pending.object }),
       // The sixth, read back the same way. A Find Familiar declared as a Cat
       // settles as a Cat an hour later and as nothing else.
       ...(pending.form === undefined ? {} : { form: pending.form }),
@@ -1066,6 +1075,25 @@ export function castOrRelease(
       for (const target of targets) {
         const raisable = reviveProblem(state, target, effect.within, definition.name);
         if (!raisable.ok) return raisable;
+      }
+    }
+
+    // And whether the object this casting was pointed at is one it could have
+    // been pointed at, asked at the same moment and for the same two reasons.
+    // SRD Remove Curse breaks "its owner's Attunement to the object", and a
+    // caster who names the wrong cloak must not have paid for it.
+    // `declaredFacts` has already held the symmetry; what is left is the half
+    // that needs the catalogue.
+    if (request.object !== undefined && breaksAttunement(definition)) {
+      for (const target of targets) {
+        const breakable = attunementProblem(
+          state,
+          supply.content,
+          target,
+          request.object,
+          definition.name,
+        );
+        if (!breakable.ok) return breakable;
       }
     }
 
@@ -1889,6 +1917,7 @@ function resolveOnTargets(
         ...(fought === undefined ? {} : { fought }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+      ...(request.object === undefined ? {} : { object: request.object }),
         ...(request.form === undefined ? {} : { form: request.form }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
@@ -2189,6 +2218,7 @@ function resolveOnTargets(
               // The fifth, and the same: a Shillelagh declared at one staff
               // must not settle at the other one in the pack.
               ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+      ...(request.object === undefined ? {} : { object: request.object }),
               // The sixth: a Find Familiar declared as a Cat settles as a Cat.
               ...(request.form === undefined ? {} : { form: request.form }),
               // **And the numbers, for a casting an item made.** A class
@@ -2271,6 +2301,7 @@ function resolveOnTargets(
       ...(fought === undefined ? {} : { fought }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+      ...(request.object === undefined ? {} : { object: request.object }),
       ...(request.form === undefined ? {} : { form: request.form }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
@@ -2414,6 +2445,8 @@ function resolveOneEffect(
       return resolvePassiveDefenseEffect(ctx, effect, target, world);
     case 'dispel':
       return resolveDispelEffect(ctx, target, world);
+    case 'end-attunement':
+      return resolveEndAttunementEffect(ctx, effect, target, world);
     case 'interrupt-casting':
       return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
     // One of the two kinds whose subject is not the target — `summon` below is
@@ -2551,6 +2584,15 @@ export function resolveEffects(
      */
     readonly weapon?: string;
     /**
+     * The object an `end-attunement` effect was aimed at, by catalogue id.
+     *
+     * The weapon's neighbour and its reading: the caster's decision, stated at
+     * the casting and never derived, pinned on a declaration because a
+     * settlement takes no fresh request and a Remove Curse declared at the
+     * cloak must not settle at the amulet.
+     */
+    readonly object?: string;
+    /**
      * The stat block a summoning spell that leaves the form to its caster was
      * told to raise — see `EffectContext.form`. Pinned on a declaration for
      * the weapon's reason.
@@ -2623,6 +2665,7 @@ export function resolveEffects(
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
+    ...(context.object === undefined ? {} : { object: context.object }),
     ...(context.form === undefined ? {} : { form: context.form }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
@@ -2780,6 +2823,7 @@ export interface EffectRun {
   readonly fought?: readonly CharacterId[];
   readonly teleportTo?: Placement;
   readonly weapon?: string;
+  readonly object?: string;
   readonly form?: string;
   readonly answers?: string;
   /**
@@ -3068,6 +3112,7 @@ export function runEffects(
     ...(run.fought === undefined ? {} : { fought: run.fought }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
+    ...(run.object === undefined ? {} : { object: run.object }),
     ...(run.form === undefined ? {} : { form: run.form }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };

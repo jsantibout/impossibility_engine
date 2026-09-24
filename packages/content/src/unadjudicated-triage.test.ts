@@ -216,6 +216,11 @@ const EXECUTES: readonly string[] = [
   'expeditious-retreat',
   'magic-weapon',
   'prestidigitation',
+  // And the one that came here through {@link NEEDS_A_DECISION} rather than
+  // straight off {@link FILED}: the decision was the shape of the record, the
+  // shape was then built, and the Attunement a Remove Curse breaks is the
+  // engine's now.
+  'remove-curse',
 ];
 
 /**
@@ -247,7 +252,19 @@ const EXECUTES: readonly string[] = [
  * A list of one rather than a comment, because a comment is what the ledger
  * already could not count.
  */
-const NEEDS_A_DECISION: readonly string[] = ['remove-curse'];
+const NEEDS_A_DECISION: readonly string[] = [];
+
+/**
+ * **And the decision was taken, and then the debt was paid.**
+ *
+ * G1 widened `TrackedAdjudication.why` to reach the item vocabulary, which is
+ * what let Remove Curse be filed at all; the `end-attunement` effect is what
+ * settled it. The spell is executed now — the Attunement the caster names is
+ * broken, an object the target is not attuned to is refused before a slot is
+ * spent — so it is in {@link EXECUTES} with the others, and this list is empty
+ * rather than gone: a record of a finding kept where the next reader will meet
+ * it, exactly as {@link LIGHT} is.
+ */
 
 describe('the forty-five unadjudicated spells are read', () => {
   it('accounts for every one of them exactly once', () => {
@@ -362,15 +379,15 @@ describe('the forty-five unadjudicated spells are read', () => {
    * it from here. All four stay true together, which is what keeps the
    * widening from quietly becoming a second copy of the id.
    */
-  it('files Remove Curse against the item vocabulary’s own shape', () => {
-    for (const spellId of NEEDS_A_DECISION) {
-      const entries = TRACKED_ADJUDICATED[spellId] ?? [];
-      expect(
-        entries.map((entry) => entry.why),
-        spellId,
-      ).toContain('what-ends-attunement-besides-a-command');
-      expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
-    }
+  it('files Remove Curse nowhere any more, because the shape was built', () => {
+    // Nothing is waiting on the decision: the list is empty, and the spell it
+    // held is executed rather than tracked.
+    expect(NEEDS_A_DECISION).toEqual([]);
+    expect(TRACKED_ADJUDICATED['remove-curse']).toBeUndefined();
+    expect(EXECUTES).toContain('remove-curse');
+    // And the widening that made the filing possible is not undone by the
+    // spell leaving: the id is still the item vocabulary's, still not this
+    // one's, and four cursed items still sit on it.
     expect(Object.keys(ITEM_SHAPES)).toContain('what-ends-attunement-besides-a-command');
     expect(Object.keys(MISSING_SHAPES)).not.toContain('what-ends-attunement-besides-a-command');
   });

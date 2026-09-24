@@ -4172,12 +4172,19 @@ describe('every branch judges untyped input rather than throwing on it', () => {
   );
 
   /**
-   * `dispel` and `interrupt-casting` contribute no rows, and that is the
-   * honest entry rather than an omission: their branches read no field at all,
-   * so the `kind` `checkShape` has already established is the whole effect and
-   * there is nothing below it to be malformed.
+   * `dispel`, `interrupt-casting` and `end-attunement` contribute no rows, and
+   * that is the honest entry rather than an omission: their branches read no
+   * field at all, so the `kind` `checkShape` has already established is the
+   * whole effect and there is nothing below it to be malformed. The third
+   * joined for the first's exact reason — which object a Remove Curse unbinds
+   * is stated at the casting, not printed on the definition — and what stops
+   * *that* field being junk is `declaredFacts` and the pre-flight, not this.
    */
-  const READ_NO_FIELD: ReadonlySet<string> = new Set(['dispel', 'interrupt-casting']);
+  const READ_NO_FIELD: ReadonlySet<string> = new Set([
+    'dispel',
+    'interrupt-casting',
+    'end-attunement',
+  ]);
 
   /**
    * **The table is held against the union, in both directions.**

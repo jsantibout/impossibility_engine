@@ -1291,6 +1291,16 @@ export interface PendingCasting {
    */
   readonly weapon?: string;
   /**
+   * The object a spell aimed at a thing was pointed at, by catalogue id.
+   *
+   * The weapon's neighbour above and its reason: a Remove Curse declared at
+   * the cloak must not settle at the amulet in the same pack, and settlement
+   * takes no fresh request to ask again. Absent for every spell that touches
+   * no object, which is all but one of them, so a declaration written before
+   * this folds to exactly the state it always did.
+   */
+  readonly object?: string;
+  /**
    * The stat block a summoning spell that leaves the form to its caster was
    * told to raise, by its id in content.
    *

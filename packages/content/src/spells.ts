@@ -4525,21 +4525,22 @@ export const PLANE_SHIFT: SpellDefinition = {
  * > object is a cursed magic item, its curse remains, but the spell breaks its
  * > owner's Attunement to the object so it can be removed or discarded."
  *
- * **The second sentence is a debt and was filed as fiction**, on a claim that
- * is false against the engine: `unmodelled` said Attunement is not modelled,
- * and `CreatureState.attuned` holds it, `attuneItem` writes it, `attuned` and
- * `attunement-ended` are events and the fold applies both. So this is a table
- * fact a rule then reads, which `docs/design/content.md` calls a debt.
+ * **The second sentence was filed as fiction on a claim that is false against
+ * the engine**, and it is built now. `unmodelled` said Attunement is not
+ * modelled; `CreatureState.attuned` holds it, `attuneItem` writes it, and
+ * `attuned` and `attunement-ended` are both events the fold applies. That is a
+ * table fact a rule then reads, which `docs/design/content.md` calls a debt —
+ * and `what-ends-attunement-besides-a-command` is the shape it was owed to,
+ * whose own description finishes on armour that cannot be doffed until a
+ * Remove Curse lands.
  *
- * It is **not** filed against a shape here, and that is deliberate rather than
- * an omission. The shape exists and names this spell by name —
- * `what-ends-attunement-besides-a-command`, "armour that cannot be doffed until
- * a Remove Curse lands is an attunement its holder may not release" — but it is
- * an `ItemShapeId`, and `TrackedAdjudication.why` takes `ShapeId`. Filing it
- * means either widening that type or minting a second id for one gap in the
- * spell vocabulary, and both are decisions rather than readings.
- * `unadjudicated-triage.test.ts` records the finding where the next reader will
- * meet it.
+ * So the `end-attunement` effect is the half the engine owns. **Which object**
+ * is the caster's, stated at the casting through `CastSpellRequest.object`,
+ * because a creature attuned to three items has three answers and the engine
+ * picks none of them; an item the target is not attuned to is refused before a
+ * slot is spent. What the spell deliberately does *not* do is take the thing
+ * off its owner: SRD says it "can be removed or discarded", which is a
+ * permission and two commands somebody may take afterwards.
  *
  * The first sentence is fiction and stays so: nothing the engine applies is a
  * curse — Bestow Curse is tracked and applies nothing — so there is no curse
@@ -4554,10 +4555,9 @@ export const REMOVE_CURSE: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  effects: [{ kind: 'end-attunement' }],
   unmodelled: [
-    'a curse is not a thing in state — nothing the engine applies is one — so which curses end is the DM’s',
-    'the Attunement is not broken: "the spell breaks its owner’s Attunement to the object" reads a fact the engine holds authoritatively — `attuned` on the sheet, written by `attuneItem` and ended by `attunement-ended` — and nothing ends one for a reason no command gave',
+    'a curse is not a thing in state — nothing the engine applies is one — so which curses end is the DM’s, and whether the object the Attunement is broken to was a cursed one is the same decision',
   ],
 };
 

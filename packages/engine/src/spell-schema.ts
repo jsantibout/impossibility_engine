@@ -6108,6 +6108,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'condition',
   'end-condition',
   'dispel',
+  'end-attunement',
   'interrupt-casting',
   'armor-class',
   'roll-mode',

@@ -3896,20 +3896,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the food and drink are objects; the Poisoned condition belongs to a creature and is untouched by this spell, and a definition that cured one would be inventing a rule the sentence does not print.',
     },
   ],
-  'remove-curse': [
-    {
-      marker: null,
-      clause: 'all curses affecting one creature or object end',
-      why: 'table',
-      note: 'nothing the engine applies is a curse, so which curses end is the DM’s.',
-    },
-    {
-      marker: null,
-      clause: "the spell breaks its owner's Attunement to the object",
-      why: 'what-ends-attunement-besides-a-command',
-      note: 'the finding the last pass wrote down and could not file. Attunement is a fact the engine holds authoritatively — `attuned` on the sheet, written by `attuneItem` and ended by `attunement-ended` — so this is a table fact a rule then reads, which is a debt. The shape is the item vocabulary’s and its own description finishes on armour that cannot be doffed until a Remove Curse lands; gate G1 widened this field to reach it rather than mint a second id for one gap.',
-    },
-  ],
   'rope-trick': [
     {
       marker: null,

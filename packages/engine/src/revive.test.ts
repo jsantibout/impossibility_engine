@@ -85,7 +85,7 @@ const dead = (after: number): GameState =>
   fold('seed', [
     ...SETUP,
     { type: 'creature-died', id: FALLEN, cause: 'an ogre’s club' },
-    { type: 'time-advanced', seconds: after },
+    { type: 'time-advanced', seconds: after, reason: 'the fixture waits' },
   ]);
 
 const supply = () => ({
@@ -141,9 +141,9 @@ describe('Revivify', () => {
   it('starts the death saves afresh', () => {
     const before = fold('seed', [
       ...SETUP,
-      { type: 'death-save-recorded', id: FALLEN, result: 'failure' },
+      { type: 'death-save-recorded', id: FALLEN, natural: 3 },
       { type: 'creature-died', id: FALLEN, cause: 'an ogre’s club' },
-      { type: 'time-advanced', seconds: 6 },
+      { type: 'time-advanced', seconds: 6, reason: 'the fixture waits' },
     ]);
     const out = unwrap(cast(before, FALLEN), 'the revival');
     const after = out.events.reduce(applyEvent, before);

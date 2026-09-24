@@ -20,6 +20,7 @@ import {
   statedFormOf,
   statesFoughtFact,
   teleportOf,
+  breaksAttunement,
   weaponRiderOf,
 } from '@ie/engine';
 
@@ -134,6 +135,12 @@ const setupWith = (targetType: string, targetSize?: CreatureSize): readonly Game
   },
 ];
 
+/**
+ * The one item this file attunes anybody to — SRD Cloak of Elvenkind, which
+ * requires attunement and is otherwise irrelevant to every spell here.
+ */
+const ATTUNED = 'cloak-of-elvenkind';
+
 const SETUP: readonly GameEvent[] = setupWith('Humanoid');
 
 const base = (): GameState => fold('seed', SETUP);
@@ -172,6 +179,23 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   const withTheDead: readonly GameEvent[] = raises
     ? [...typed, { type: 'creature-died', id: TARGET, cause: 'the fixture' } as GameEvent]
     : typed;
+
+  // **And an Attunement, where the spell breaks one.** SRD Remove Curse
+  // refuses an object its target is not attuned to, and that refusal is the
+  // behaviour: the fixture supplies the relation rather than the spell being
+  // excused the rule. Written straight into the log rather than driven through
+  // `attuneItem`, because what is under test is the casting and not the Short
+  // Rest — `attunement.test.ts` is where the command's own rules are.
+  const unbinds = (definition?.effects ?? []).some(
+    (effect) => effect.kind === 'end-attunement',
+  );
+  const withTheAttunement: readonly GameEvent[] = unbinds
+    ? [
+        ...withTheDead,
+        { type: 'items-gained', id: TARGET, items: [{ id: ATTUNED, quantity: 1 }], source: 'the fixture' } as GameEvent,
+        { type: 'attuned', id: TARGET, item: ATTUNED } as GameEvent,
+      ]
+    : withTheDead;
 
   // A rider that ends at a moment in the turn order needs there to *be* turns.
   // SRD gives "until the end of your next turn" no meaning outside combat and
@@ -271,10 +295,10 @@ const logFor = (spellId: string): readonly GameEvent[] => {
               ([{ type: 'fall-declared', id: TARGET }] as readonly GameEvent[])
             : [];
 
-  if (!anchored && triggered.length === 0) return withTheDead;
+  if (!anchored && triggered.length === 0) return withTheAttunement;
 
   return [
-    ...withTheDead,
+    ...withTheAttunement,
     ...(anchored
       ? ([
           {
@@ -361,6 +385,12 @@ const castAt = (
     // which animal this casting called. `statedFormOf` is the runtime's own
     // reader, for the reason the three above are.
     ...(statedFormOf(definition) === null ? {} : { form: statedFormOf(definition)!.among[0]! }),
+    // The eighth, and the same shape a seventh time: a spell that breaks an
+    // Attunement is refused until the caster names the object, and one that
+    // touches no object is refused for naming one. The sweep answers with the
+    // cloak the fixture attuned the target to. `breaksAttunement` is the
+    // runtime's own reader, for the reason the four above are.
+    ...(breaksAttunement(definition) ? { object: ATTUNED } : {}),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —
