@@ -4374,6 +4374,8 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
   }
 
   const classOf = byId(classes);
+  /** The bestiary, for the one grant that names a stat block: `widensForm`. */
+  const monsterOf = byId(monsters);
   const featureSources: {
     readonly where: string;
     readonly levels: number;
@@ -5216,6 +5218,23 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
               reason: `${feature.id} casts at will and names no spell, so the licence would hand over nothing`,
             });
           }
+        }
+        // **The forms a route adds to a summons' list**, checked against the
+        // bestiary exactly as a spell's `conjures.item` is checked against the
+        // items one loop down: SRD Pact of the Chain offers seven stat blocks
+        // by name, and an id naming nothing would refuse every familiar the
+        // sentence offered — at the table rather than here. A catalogue
+        // holding no monsters at all judges nothing, on `conjures`' own rule:
+        // a fixture of classes is not a book whose familiars are broken.
+        if (grant.kind === 'spells' && grant.widensForm !== undefined && monsters.length > 0) {
+          grant.widensForm.forEach((named, at) => {
+            if (monsterOf.has(named)) return;
+            problems.push({
+              field: `${grantsAt}.widensForm[${at}]`,
+              code: 'unknown_monster',
+              reason: `${feature.id} offers ${named} as a familiar's form, and this content holds no stat block under that id`,
+            });
+          });
         }
         // And the die rule such a casting may carry — SRD Fiendish Vigor's
         // "you don't roll the die for the Temporary Hit Points". It is a rule

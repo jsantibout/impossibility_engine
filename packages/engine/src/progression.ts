@@ -19,7 +19,7 @@ import type { Recovery } from './resources.js';
 // owns the two kinds of rest and `creation.ts` reads them off a grant.
 import type { RestKind } from './rest.js';
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
-import { CASTING_MARK } from './spells.js';
+import { CASTING_MARK, type CastingTime } from './spells.js';
 import type {
   ActivationEnd,
   CastingCostAlteration,
@@ -1323,6 +1323,29 @@ export type FeatureGrant =
        * meant.
        */
       readonly requires?: readonly StandingRequirement[];
+      /**
+       * The casting time this route states, over the spell's own.
+       *
+       * SRD Pact of the Chain: "You learn the _Find Familiar_ spell and can
+       * cast it **as a Magic action** without expending a spell slot." The
+       * spell takes an hour; this Warlock's route to it does not. A clause
+       * about the route rather than about the spell, so it compiles onto
+       * {@link GrantedSpell.castingTime} and a Wizard who prepared the same
+       * spell still takes the hour.
+       */
+      readonly castingTime?: CastingTime;
+      /**
+       * Stat blocks this route adds to the forms a summoning spell offers.
+       *
+       * SRD Pact of the Chain: "you choose one of the normal forms for your
+       * familiar **or one of the following special forms**: Imp,
+       * Pseudodragon, Quasit, Skeleton, Sphinx of Wonder, Sprite, or Venomous
+       * Snake." `freeCasting.fixesChoice` narrows a stated value to one; this
+       * lengthens a list the spell prints, which is the other half and a
+       * different question. Compiles onto {@link GrantedSpell.widensForm};
+       * `checkContent` refuses an id the bestiary does not hold.
+       */
+      readonly widensForm?: readonly string[];
       /**
        * SRD Fiendish Vigor: "When you cast the spell with this feature, you
        * don't roll the die for the Temporary Hit Points; you automatically get

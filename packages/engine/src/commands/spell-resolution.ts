@@ -818,7 +818,7 @@ export function castOrRelease(
     // How long this casting takes, and whether it is a Ritual. Refused here,
     // before a slot, an action or a die — and computed once, because the
     // arithmetic and the refusals are three consequences of one SRD sentence.
-    const casting = castingOf(definition, request);
+    const casting = castingOf(definition, request, route);
     if (!casting.ok) return casting;
 
     const slotLevel = request.slotLevel ?? definition.level;
@@ -1330,7 +1330,14 @@ export function castOrRelease(
       if (block === null) {
         return err('unknown_monster', `${request.form} is not a stat block this world holds`);
       }
-      const listed = stated.among.includes(request.form);
+      // **And whatever the route adds to the spell's own list.** SRD Pact of
+      // the Chain: "you choose one of the normal forms for your familiar **or
+      // one of the following special forms**" — the feature lengthens the
+      // list rather than replacing it, so the spell's own clause still admits
+      // whatever it always admitted. See `GrantedSpell.widensForm`.
+      const widened = route.kind === 'granted' ? (route.grant.widensForm ?? []) : [];
+      const among = [...stated.among, ...widened];
+      const listed = among.includes(request.form);
       const admitted =
         stated.orAny !== undefined &&
         isCreatureType(block.type, stated.orAny.type) &&
@@ -1342,7 +1349,7 @@ export function castOrRelease(
             : ` or any ${stated.orAny.type} of Challenge Rating ${stated.orAny.cr}`;
         return err(
           'form_not_offered',
-          `${definition.name} prints ${stated.among.join(', ')}${clause}, not ${block.name}`,
+          `${definition.name} prints ${among.join(', ')}${clause}, not ${block.name}`,
         );
       }
     }
@@ -1497,6 +1504,14 @@ export interface CastingTiming {
  * `restoreOn`'s dawn-recovering pool already makes for a branch no class can
  * reach.
  *
+ * **The route may state a time of its own**, and it wins over the definition's
+ * where the casting is not a Ritual: SRD Pact of the Chain casts Find Familiar
+ * "as a Magic action" where the spell prints an hour, and the seconds go with
+ * the hour they measured. Not over a Ritual, because "the Ritual version takes
+ * 10 minutes longer" is the book's own arithmetic over a printed time and
+ * reading one sentence through the other would give the Ritual a time neither
+ * of them prints. See {@link GrantedSpell.castingTime}.
+ *
  * SRD Alarm prints "1 minute or Ritual" and comes to **660**; IE-036 wrote it
  * and five more that print the same line, so the sum has catalogue writers and
  * that mutation now reddens three tests in two files. The export stays,
@@ -1506,8 +1521,16 @@ export interface CastingTiming {
 export function castingOf(
   definition: SpellDefinition,
   request: CastSpellRequest,
+  route?: CastingRoute,
 ): Result<CastingTiming> {
   if (request.ritual !== true) {
+    // **The route's own time, where the feature that opened it states one.**
+    // SRD Pact of the Chain: "You learn the _Find Familiar_ spell and can cast
+    // it as a Magic action" — a clause about this Warlock's route and not
+    // about the spell, so the hour and the seconds it is measured in both go
+    // with the definition they belong to. See `GrantedSpell.castingTime`.
+    const stated = route?.kind === 'granted' ? route.grant.castingTime : undefined;
+    if (stated !== undefined) return ok({ castingTime: stated, ritual: false });
     return ok({
       castingTime: definition.castingTime,
       ...(definition.castingSeconds === undefined

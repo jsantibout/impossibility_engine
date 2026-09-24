@@ -1958,6 +1958,7 @@ function classFeatureAtWillCastings(
         atWill: true,
         ...(grant.maximisedDice === undefined ? {} : { maximisedDice: true }),
         ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+        ...routeTerms(grant),
       });
     }
   }
@@ -2026,10 +2027,29 @@ function classFeatureFreeCastings(
       slotCasting: grant.freeCasting.withSlots === true,
       ...castsAs(grant.freeCasting),
       ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+      ...routeTerms(grant),
     });
   }
   return granted;
 }
+
+/**
+ * The two terms a `spells` grant states about the **route** rather than about
+ * the spell, compiled onto every route it makes.
+ *
+ * SRD Pact of the Chain prints both in two sentences — "can cast it as a Magic
+ * action" and "one of the following special forms" — and neither is a fact
+ * about Find Familiar: a Wizard who prepared the same spell takes the hour and
+ * is offered the Beasts. One reader rather than two spellings, because the
+ * at-will route and the pool route both carry them and a grant that wrote only
+ * one would lose the other silently.
+ */
+const routeTerms = (
+  grant: Extract<FeatureGrant, { kind: 'spells' }>,
+): Pick<GrantedSpell, 'castingTime' | 'widensForm'> => ({
+  ...(grant.castingTime === undefined ? {} : { castingTime: grant.castingTime }),
+  ...(grant.widensForm === undefined ? {} : { widensForm: grant.widensForm }),
+});
 
 /**
  * Every spell choice, checked against the class that made it.
@@ -2860,6 +2880,7 @@ function originGrantedSpells(
         ability,
         freeCastPool: null,
         slotCasting: false,
+        ...routeTerms(grant),
       });
     }
 
@@ -2875,6 +2896,7 @@ function originGrantedSpells(
         freeCastPool: free.pool,
         slotCasting: free.withSlots === true,
         ...castsAs(free),
+        ...routeTerms(grant),
       });
     }
   }

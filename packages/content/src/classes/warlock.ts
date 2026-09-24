@@ -150,6 +150,7 @@ export const WARLOCK: ClassDefinition = {
             'Misty Visions',
             'One with Shadows',
             'Otherworldly Leap',
+            'Pact of the Chain',
             'Pact of the Tome',
             'Repelling Blast',
           ],
@@ -332,6 +333,34 @@ export const WARLOCK: ClassDefinition = {
           fixed: ['invisibility'],
           atWill: true,
           requires: [{ kind: 'in-dim-light-or-darkness' }],
+        },
+        // Pact of the Chain: "You learn the Find Familiar spell and can cast it
+        // as a Magic action without expending a spell slot. When you cast the
+        // spell, you choose one of the normal forms for your familiar or one
+        // of the following special forms: Imp, Pseudodragon, Quasit, Skeleton,
+        // Sphinx of Wonder, Sprite, or Venomous Snake."
+        //
+        // Two sentences and two terms of the **route**: the spell prints an
+        // hour and a Ritual tag, and this Warlock's licence prints an Action;
+        // the spell prints eleven Beasts and any other of Challenge Rating 0,
+        // and this licence prints seven more. Neither is a fact about Find
+        // Familiar — a Wizard who prepared it takes the hour and is offered
+        // the Beasts — which is why both ride the grant.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Pact of the Chain',
+          fixed: ['find-familiar'],
+          atWill: true,
+          castingTime: 'action',
+          widensForm: [
+            'imp',
+            'pseudodragon',
+            'quasit',
+            'skeleton',
+            'sphinx-of-wonder',
+            'sprite',
+            'venomous-snake',
+          ],
         },
         // "You can cast Mage Armor on yourself without expending a spell slot."
         // No count, no pool, nothing that runs out.

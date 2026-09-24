@@ -1,6 +1,6 @@
 import type { Ability } from '@ie/shared';
 import type { SlotKind } from './resources.js';
-import type { CastingNumbers } from './spells.js';
+import type { CastingNumbers, CastingTime } from './spells.js';
 import type { StandingRequirement } from './standing.js';
 
 /**
@@ -101,6 +101,46 @@ export interface GrantedSpell {
    * `choice_fixed`; none is supplied.
    */
   readonly fixesChoice?: string;
+  /**
+   * How long a casting **through this route** takes, where the feature states
+   * a time of its own.
+   *
+   * SRD Pact of the Chain: "You learn the _Find Familiar_ spell and can cast
+   * it **as a Magic action** without expending a spell slot." The spell's own
+   * casting time is an hour; the feature's sentence is not a clause about
+   * Find Familiar, it is a clause about this Warlock's route to it, so it
+   * rides here beside `atWill` rather than on the definition — a Wizard who
+   * prepared the same spell still takes the hour.
+   *
+   * Read by `castingOf`, which prefers this over the definition's. **Not over
+   * a Ritual**: the Ritual sentence is the book's own arithmetic over the
+   * printed time and a route that shortened it would be reading one sentence
+   * through another, so a caller who asks for the Ritual version gets the
+   * Ritual version.
+   *
+   * A bestiary line stating a cast time — "Spellcasting (Action)" over a spell
+   * the book prints at a minute — is the same field and the second writer
+   * this was built for.
+   */
+  readonly castingTime?: CastingTime;
+  /**
+   * Stat blocks this route adds to the forms a summoning spell offers.
+   *
+   * SRD Pact of the Chain: "you choose one of the normal forms for your
+   * familiar **or one of the following special forms**: Imp, Pseudodragon,
+   * Quasit, Skeleton, Sphinx of Wonder, Sprite, or Venomous Snake."
+   *
+   * {@link fixesChoice} narrows a stated choice to one value; this widens a
+   * *list* the spell prints, and the two are different questions on different
+   * fields — Find Familiar asks its caster both, and Wild Companion answers
+   * only the first. The ids are joined to `SummonedForm.among` where the form
+   * is checked, so the spell's own "or another Beast of Challenge Rating 0"
+   * clause still admits whatever it always admitted.
+   *
+   * Absent offers exactly what the spell prints, which is every granted route
+   * in the book but one.
+   */
+  readonly widensForm?: readonly string[];
   /**
    * SRD Wild Companion: "and disappears when you finish a Long Rest" — a
    * lifetime the grant puts on a kept summons over what the spell prints,

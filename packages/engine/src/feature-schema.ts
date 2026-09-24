@@ -28,6 +28,7 @@ import {
 } from './roll-modifiers.js';
 import { LIGHT_LEVELS } from './positioning.js';
 import { checkActionRule } from './spell-schema.js';
+import type { CastingTime } from './spells.js';
 import { hours, TURN_ANCHORS } from './time.js';
 
 /**
@@ -585,6 +586,21 @@ export interface FeatureContext {
 }
 
 const ABILITY_NAMES: ReadonlySet<string> = new Set<Ability>(ABILITIES);
+
+/**
+ * `CastingTime` written out as data, for the one grant that states one.
+ *
+ * Transcribed for `ABILITY_NAMES`' reason turned around: the union is declared
+ * as a type and a validator needs it as data. `spell-schema.ts` keeps its own
+ * copy for the definition's field; four words in two validators is cheaper
+ * than an export that couples the two files' change histories together.
+ */
+const CASTING_TIME_NAMES: ReadonlySet<string> = new Set<CastingTime>([
+  'action',
+  'bonus-action',
+  'reaction',
+  'long',
+]);
 
 /**
  * A note that says nothing.
@@ -1891,6 +1907,41 @@ function grantProblems(
           });
         }
       }
+    }
+    // The casting time this grant states over the spell's own — SRD Pact of
+    // the Chain's "as a Magic action" over Find Familiar's hour. Held to the
+    // four the vocabulary has, because `castingOf` prefers it to the
+    // definition's and a fifth word would price the casting against a slot of
+    // the action economy that does not exist.
+    const time = grant.castingTime;
+    if (time !== undefined && !CASTING_TIME_NAMES.has(time)) {
+      found.push({
+        field: 'grants.castingTime',
+        code: 'bad_casting_time',
+        reason: `a route casts its spell as an Action, a Bonus Action, a Reaction or over a span, and "${String(time)}" is none of them`,
+      });
+    }
+    // And the forms it adds to a summons' list. Whether the ids name stat
+    // blocks is `checkContent`'s, which holds the bestiary; what is asked here
+    // is whether the sentence says anything at all — a list of none widens
+    // nothing, and a blank id names nothing.
+    const widened = grant.widensForm;
+    if (widened !== undefined) {
+      if (widened.length === 0) {
+        found.push({
+          field: 'grants.widensForm',
+          code: 'widens_no_form',
+          reason: 'a grant that widens a summons’ forms by nothing offers what the spell already offered',
+        });
+      }
+      widened.forEach((id, index) => {
+        if (typeof id === 'string' && id.trim() !== '') return;
+        found.push({
+          field: `grants.widensForm[${index}]`,
+          code: 'widens_no_form',
+          reason: 'a form is named by its stat block id, and a blank one names nothing',
+        });
+      });
     }
     const from = grant.fromLevel;
     if (from !== undefined && (!Number.isInteger(from) || from < 1 || from > context.levels)) {
