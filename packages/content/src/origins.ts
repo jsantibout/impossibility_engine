@@ -607,8 +607,9 @@ export const GNOME: SpeciesDefinition = {
           // fire starter, or music box."
           onlyIfChoice: 'Rock Gnome',
           kind: 'creates-object',
-          // The trait prints ten minutes and no action at all.
-          action: 'none',
+          // The trait prints ten minutes and no action at all, and ten minutes
+          // is the whole price: a making happens outside a fight, where there
+          // is no economy to spend an action from.
           castingSeconds: 10 * 60,
           spell: 'prestidigitation',
           object: { size: 'tiny', armorClass: 5, hitPoints: 1 },

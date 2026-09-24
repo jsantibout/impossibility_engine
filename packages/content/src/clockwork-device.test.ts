@@ -7,6 +7,7 @@ import {
   createDevice,
   damageCreature,
   dismantleDevice,
+  checkContent,
   dismissStrandedSummons,
   fold,
   strandedSummons,
@@ -327,5 +328,71 @@ describe('SRD Rock Gnome: a clockwork device with statistics of its own', () => 
     });
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.code).toBe('no_such_feature');
+  });
+});
+
+/**
+ * The validator's half, which is what stops a homebrew trait compiling a
+ * making that cannot be made.
+ *
+ * Every branch here is a `checkContent` problem rather than an `err`, so
+ * `refusal-sweep.test.ts` cannot see it: a rule nothing asserts is a rule that
+ * passes while the branch goes unread. Each one is a way the grant could
+ * validate and then refuse every making anybody attempted, or stand something
+ * that could not be broken.
+ */
+describe('a making is held to the numbers it prints', () => {
+  /**
+   * The trait with one field of its making rewritten, checked against the
+   * whole catalogue.
+   *
+   * The spells come too, because `checkContent` builds `spellExists` out of
+   * what it was handed: a species checked on its own holds its lineages'
+   * cantrips and the making's own Prestidigitation, and every one of them
+   * would read as unknown against an empty book.
+   */
+  const rewritten = (over: Record<string, unknown>): readonly string[] => {
+    const species = JSON.parse(
+      JSON.stringify(SRD_CONTENT.species.find((one) => one.id === 'gnome')),
+    ) as { features: { id: string; grants: Record<string, unknown>[] }[] };
+    const feature = species.features.find((one) => one.id === LINEAGE)!;
+    const at = feature.grants.findIndex((one) => one['kind'] === 'creates-object');
+    feature.grants[at] = { ...feature.grants[at], ...over };
+    return checkContent({
+      species: [species as never],
+      spells: SRD_CONTENT.spells as never,
+    }).map((problem) => problem.code);
+  };
+
+  it('finds nothing wrong with the trait as the book prints it', () => {
+    expect(rewritten({})).toEqual([]);
+  });
+
+  it('refuses a thing with no size, no Armour Class or no hit points', () => {
+    expect(rewritten({ object: { size: 'enormous', armorClass: 5, hitPoints: 1 } })).toContain(
+      'bad_made_object',
+    );
+    expect(rewritten({ object: { size: 'tiny', armorClass: 0, hitPoints: 1 } })).toContain(
+      'bad_made_object',
+    );
+    expect(rewritten({ object: { size: 'tiny', armorClass: 5, hitPoints: 0 } })).toContain(
+      'bad_made_object',
+    );
+  });
+
+  it('refuses a making that takes no time, stands for none, or allows none', () => {
+    for (const over of [{ castingSeconds: 0 }, { lastsSeconds: 0 }, { atOnce: 0 }]) {
+      expect(rewritten(over), JSON.stringify(over)).toContain('bad_made_object');
+    }
+  });
+
+  it('refuses a menu naming nothing, and a touch costing something else', () => {
+    expect(rewritten({ functions: [] })).toContain('bad_made_object');
+    expect(rewritten({ activation: 'reaction' })).toContain('bad_made_object');
+  });
+
+  it('refuses a making whose casting names no spell this world holds', () => {
+    expect(rewritten({ spell: '' })).toContain('bad_made_object');
+    expect(rewritten({ spell: 'no-such-spell' })).toContain('unknown_granted_spell');
   });
 });

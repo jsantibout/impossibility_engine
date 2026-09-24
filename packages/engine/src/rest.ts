@@ -324,11 +324,33 @@ function rechoiceEvents(
     );
     if (!offer.ok) return offer;
     const rechooses = offer.value.rechooses;
-    featureChoices[
-      rechooses.kind === 'granted-spell'
-        ? rechosenSpellKey(feature, rechooses.granted)
-        : feature
-    ] = answer;
+    if (rechooses.kind !== 'granted-spell') {
+      featureChoices[feature] = answer;
+      continue;
+    }
+
+    // SRD Elven Lineage: "you can replace that cantrip with a **different**
+    // cantrip". **"That cantrip" is the one they are holding**, which is the
+    // answer they gave last time and the printed spell until they have given
+    // one — and this is the only place both are visible, because a
+    // `CharacterChoices` holds what the character will be afterwards and the
+    // record holds what they are now. Whether the replacement is legal at all
+    // is `planCharacter`'s, asked through `rechooseCharacter` below.
+    //
+    // A refusal rather than a quiet no-op, and the difference matters in one
+    // direction only: naming the spell a swap already stands on emits nothing
+    // (`sameAnswer`), while naming the *printed* spell for the first time
+    // would file an answer nobody asked for and write a `character-advanced`
+    // that records a night's sleep and no decision.
+    const key = rechosenSpellKey(feature, rechooses.granted);
+    const standing = record.choices.featureChoices[key]?.[0] ?? rechooses.granted;
+    if (answer.length === 1 && answer[0] === standing) {
+      return err(
+        'spell_not_replaced',
+        `${offer.value.featureName} replaces ${standing} with a different spell, and ${standing} is the one it hands over now`,
+      );
+    }
+    featureChoices[key] = answer;
   }
 
   let preparedSpells: readonly string[] | undefined;

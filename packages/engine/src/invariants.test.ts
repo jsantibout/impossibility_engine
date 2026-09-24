@@ -224,7 +224,6 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
     {
       feature: 'test:tinker',
       name: 'A Tinkering',
-      action: 'none',
       castingSeconds: 600,
       spell: 'prestidigitation',
       size: 'tiny',
@@ -3266,16 +3265,9 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => activateSpell(s, B, { castingId: 'cast:1', targets: [A] }, supply()),
   },
   { name: 'activateFeature', run: (s) => activateFeature(s, B, { feature: 'test:stance' }) },
-  {
-    name: 'createDevice',
-    run: (s) =>
-      createDevice(s, B, {
-        feature: 'test:tinker',
-        device: id('a-tinkered-thing'),
-        name: 'a tinkered thing',
-        function: 'it whistles',
-      }),
-  },
+  // `createDevice` is deliberately absent: it charges no action at all — the
+  // clock is its whole price and it is refused inside a fight — so the derived
+  // sweep does not find it and an entry here would be inventing a spender.
   { name: 'activateDevice', run: (s) => activateDevice(s, B, { device: A }) },
   {
     name: 'useHealingTouch',

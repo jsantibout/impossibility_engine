@@ -1636,8 +1636,11 @@ export interface ActivatedFeature {
 export interface ObjectMaker {
   readonly feature: string;
   readonly name: string;
-  readonly action: 'action' | 'bonus-action' | 'none';
-  /** SRD's "10 minutes", in the seconds the clock counts. */
+  /**
+   * SRD's "10 minutes", in the seconds the clock counts — and the whole of
+   * what a making costs. See the `creates-object` grant on why there is no
+   * action beside it.
+   */
   readonly castingSeconds: number;
   /** The spell the making is a casting of, recorded on the thing's bond. */
   readonly spell: string;

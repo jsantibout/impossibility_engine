@@ -1187,10 +1187,20 @@ function unaskedAnswers(
 /**
  * The spell a rest put in a fixed grant's place, held to the grant's own terms.
  *
- * SRD Elven Lineage, High Elf: "you can replace that cantrip with a
- * **different** cantrip from the **Wizard** spell list." Three rules and the
- * grant states all three — which list, how high, and that it is a different
- * spell — so nothing here knows that an Elf exists.
+ * SRD Elven Lineage, High Elf: "you can replace that cantrip with a different
+ * cantrip from the **Wizard** spell list." Two of the three rules are the
+ * grant's and are checked here — which list, and how high — so nothing here
+ * knows that an Elf exists.
+ *
+ * **The third is not checkable from a set of choices**, and that is why it is
+ * not here. "A *different* cantrip" is a rule about the swap rather than about
+ * the answer: what the answer must differ from is what the character is
+ * holding *now*, and a `CharacterChoices` holds only what they will be holding
+ * afterwards. `rechoiceEvents` in `rest.ts` can see both, and does. Asking the
+ * question here compared the answer to the spell the grant **prints**, which
+ * is a different question and gives the wrong answer twice over: it refuses a
+ * High Elf taking Prestidigitation back, and it permits replacing Fire Bolt
+ * with Fire Bolt.
  *
  * Silence is the book's own answer and not a gap: an unanswered mark leaves
  * Prestidigitation where it was, which is what the first sentence of the trait
@@ -1218,12 +1228,6 @@ function checkRechosenSpells(
       continue;
     }
     const replacement = answer[0] as string;
-    if (replacement === granted) {
-      problems.push(
-        problem('spell_not_replaced', 'featureChoices', `${feature.name} replaces ${granted} with a different spell, and ${replacement} is the one it already grants`),
-      );
-      continue;
-    }
     problems.push(
       // A cantrip is level 0, and the floor follows the ceiling exactly as it
       // does for a feature's own spell choice.
@@ -3185,7 +3189,6 @@ export function planCharacter(
     objectMakers.push({
       feature: feature.id,
       name: feature.name,
-      action: grant.action,
       castingSeconds: grant.castingSeconds,
       spell: grant.spell,
       size: grant.object.size,

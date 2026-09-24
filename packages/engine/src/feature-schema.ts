@@ -1906,6 +1906,16 @@ function grantProblems(
         reason: 'a thing a feature makes does one of the effects the feature prints, and a menu naming none would refuse every making',
       });
     }
+    // What touching it costs, which is a price the command really charges —
+    // unlike the making's own, which is the clock's. A third word here is a
+    // Bonus Action nobody could spend.
+    if (grant.activation !== 'action' && grant.activation !== 'bonus-action') {
+      found.push({
+        field: 'grants.activation',
+        code: 'bad_made_object',
+        reason: `touching the thing costs an action or a Bonus Action, and "${String(grant.activation)}" is neither`,
+      });
+    }
   }
 
   // A gate on an option nobody can pick — the half a definition can answer

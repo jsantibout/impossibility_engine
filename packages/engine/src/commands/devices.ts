@@ -31,7 +31,7 @@
  * engine inventing mechanics for six sentences that print none.
  */
 
-import { err, needsContext, ok, type CharacterId, type Result } from '@ie/shared';
+import { err, ok, type CharacterId, type Result } from '@ie/shared';
 import type { GameEvent, GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -184,12 +184,12 @@ export function createDevice(
     }
 
     // — from here it costs something ——————————————————————————————————————
+    //
+    // **And the whole of what it costs is the clock.** There is no action to
+    // charge: every making happens outside a fight, by the refusal above, and
+    // outside one there is no economy to spend an action from. The grant
+    // carries no field for one either, so nothing here is being skipped.
     const events: GameEvent[] = [];
-    if (maker.action !== 'none' && state.combat !== null) {
-      const priced = spendFor(state, id, maker.action);
-      if (!priced.ok) return priced;
-      events.push(priced.value);
-    }
 
     events.push({
       type: 'time-advanced',
@@ -329,11 +329,14 @@ export function activateDevice(
     // SRD: "Each device also stops working if you die." The thing is still
     // there — a Tiny object with an Armour Class and a hit point — and the
     // button is what has stopped, so this is a refusal rather than a removal.
-    const maker = thing.summonedBy === null ? null : state.creatures[thing.summonedBy.by];
-    if (maker === undefined) {
-      return needsContext(
-        'unknown_creature',
-        `${thing.summonedBy?.by ?? 'whoever made it'} is not in this game, so nothing can say whether ${command.device} still works`,
+    const madeBy = thing.summonedBy?.by ?? null;
+    const maker = madeBy === null ? null : (state.creatures[madeBy] ?? null);
+    if (madeBy !== null && maker === null) {
+      // Through the one door, so the request names the command that would
+      // settle it: a reason with nothing a caller can send is half an answer.
+      return unknownCreature(
+        madeBy,
+        `made ${command.device} and is not in this game, so nothing can say whether it still works`,
       );
     }
     if (maker !== null && maker.vitals.dead) {

@@ -1354,14 +1354,16 @@ export type FeatureGrant =
   | {
       readonly kind: 'creates-object';
       /**
-       * What the making costs in the action economy, beside the time it takes.
+       * SRD: "spend **10 minutes** casting Prestidigitation".
        *
-       * `none` is SRD's answer: the trait prints ten minutes and no action,
-       * and ten minutes is not something a round holds — the command refuses
-       * inside a fight for the reason `advanceTime` does.
+       * **The whole of what a making costs, and there is no action beside
+       * it.** The field for one was here and is gone: a making moves the clock,
+       * and inside a fight the clock is the turn order's — `advanceTime` states
+       * that rule and this command keeps it — so every making happens outside
+       * combat, where there is no economy to spend an action from. A price
+       * nothing could ever charge is a number on a sheet that lies to whoever
+       * reads it, which is the failure this vocabulary is built to avoid.
        */
-      readonly action: 'action' | 'bonus-action' | 'none';
-      /** SRD: "spend **10 minutes** casting Prestidigitation". */
       readonly castingSeconds: number;
       /**
        * The spell the making is a casting of.

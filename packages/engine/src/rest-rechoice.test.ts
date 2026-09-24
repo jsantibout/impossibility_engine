@@ -14,7 +14,7 @@ import {
 } from './creation.js';
 import { LONG_REST, SHORT_REST, beginRest, endRest } from './rest.js';
 import { dropItem, resolveSpell, unequipItem } from './commands.js';
-import { READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
+import { checkContent, READABLE_FEATURE_FIELDS, READABLE_GRANT_KINDS } from './content.js';
 import { checkFeatureDefinition } from './feature-schema.js';
 import type { FeatureDefinition } from './progression.js';
 
@@ -776,14 +776,15 @@ describe('Elven Lineage: the High Elf cantrip re-chosen on a Long Rest', () => {
 });
 
 /**
- * The rules creation holds a replacement to that are about the **answer**
- * rather than about the grant: one spell, a different one, and only for
- * somebody the grant reached.
+ * The rules a replacement is held to that are about the **answer** rather than
+ * about the grant.
  *
- * All three are `checkCharacter` problems, which `planCharacter` turns into
- * the refusal a rest returns.
+ * Two of them are `checkCharacter` problems, which `planCharacter` turns into
+ * the refusal a rest returns. The third — "a **different** cantrip" — is not a
+ * question a set of choices can answer, and the block after this one is where
+ * it is asked instead.
  */
-describe('a replacement for a granted spell is one spell, and a different one', () => {
+describe('a replacement for a granted spell is one spell, from the right list', () => {
   const KEY = 'elf:elven-lineage:prestidigitation';
 
   it('refuses two spells where the grant prints one', () => {
@@ -801,18 +802,6 @@ describe('a replacement for a granted spell is one spell, and a different one', 
     if (isErr(refused)) expect(refused.code).toBe('wrong_rechosen_count');
   });
 
-  it('refuses replacing the cantrip with itself', () => {
-    const refused = createCharacter(
-      SRD_CONTENT,
-      elf('High Elf', {
-        featureChoices: { ...elf('High Elf').featureChoices, [KEY]: ['prestidigitation'] },
-      }),
-      WREN,
-    );
-    expect(isErr(refused)).toBe(true);
-    if (isErr(refused)) expect(refused.code).toBe('spell_not_replaced');
-  });
-
   it('refuses a High Elf’s answer on a Wood Elf, who was never offered it', () => {
     const refused = createCharacter(
       SRD_CONTENT,
@@ -823,5 +812,99 @@ describe('a replacement for a granted spell is one spell, and a different one', 
     );
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.code).toBe('choice_not_asked');
+  });
+});
+
+/**
+ * "A **different** cantrip", asked where both spells are visible.
+ *
+ * What the answer must differ from is the cantrip the character is holding
+ * **now**, and only the rest can see it: a `CharacterChoices` holds what they
+ * will be holding afterwards. Asking creation instead compared the answer to
+ * the spell the grant *prints*, which refuses a High Elf taking
+ * Prestidigitation back and permits replacing Fire Bolt with Fire Bolt.
+ */
+describe('the list a replacement comes from is held to a class this world has', () => {
+  /**
+   * The cross-check `checkContent` makes and a definition cannot: a class is
+   * another population, so a mark naming one nobody prints validates, compiles
+   * and refuses every replacement anybody offers — at the rest rather than
+   * here, and reading as the trait simply not working.
+   *
+   * A `ContentProblem` rather than an `err`, so `refusal-sweep.test.ts` cannot
+   * see it and this is the only thing that does.
+   */
+  const rewritten = (fromClass: string): readonly string[] => {
+    const species = JSON.parse(
+      JSON.stringify(SRD_CONTENT.species.find((one) => one.id === 'elf')),
+    ) as { features: { id: string; grants: Record<string, unknown>[] }[] };
+    const feature = species.features.find((one) => one.id === 'elf:elven-lineage')!;
+    const at = feature.grants.findIndex((one) => one['rechosenOn'] !== undefined);
+    feature.grants[at] = {
+      ...feature.grants[at],
+      rechosenOn: { ...(feature.grants[at]!['rechosenOn'] as object), fromClass },
+    };
+    return checkContent({
+      species: [species as never],
+      classes: SRD_CONTENT.classes as never,
+      spells: SRD_CONTENT.spells as never,
+    }).map((problem) => problem.code);
+  };
+
+  it('accepts the Wizard list the trait names', () => {
+    expect(rewritten('wizard')).toEqual([]);
+  });
+
+  it('refuses a list no class in this world prints', () => {
+    expect(rewritten('illusionist')).toContain('unknown_rechoice_list');
+  });
+});
+
+describe('a swap is to a different cantrip than the one standing', () => {
+  const KEY = 'elf:elven-lineage:prestidigitation';
+
+  it('refuses naming the printed cantrip when nothing has replaced it', () => {
+    const log = born(elf('High Elf'), WREN);
+    const refused = rested(log, WREN, 'long', {
+      choosesAgain: { 'elf:elven-lineage': ['prestidigitation'] },
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('spell_not_replaced');
+  });
+
+  it('refuses naming the cantrip a previous swap already stands on', () => {
+    const log = born(
+      elf('High Elf', {
+        featureChoices: { ...elf('High Elf').featureChoices, [KEY]: ['fire-bolt'] },
+      }),
+      WREN,
+    );
+    const refused = rested(log, WREN, 'long', {
+      choosesAgain: { 'elf:elven-lineage': ['fire-bolt'] },
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.code).toBe('spell_not_replaced');
+  });
+
+  /** And the other direction, which the printed-spell reading refused: back again. */
+  it('lets an Elf who swapped take Prestidigitation back', () => {
+    const log = born(
+      elf('High Elf', {
+        featureChoices: { ...elf('High Elf').featureChoices, [KEY]: ['fire-bolt'] },
+      }),
+      WREN,
+    );
+    const settled = unwrap(
+      rested(log, WREN, 'long', { choosesAgain: { 'elf:elven-lineage': ['prestidigitation'] } }),
+      'back again',
+    );
+    const state = fold('seed', [
+      ...log,
+      ...unwrap(beginRest(fold('seed', log), WREN, 'long'), 'begin'),
+      clock(LONG_REST),
+      ...settled.events,
+    ]);
+    expect(grantedSpellsOf(state, WREN)).toContain('prestidigitation');
+    expect(grantedSpellsOf(state, WREN)).not.toContain('fire-bolt');
   });
 });

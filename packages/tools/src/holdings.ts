@@ -438,6 +438,15 @@ export interface HeldFeature {
    */
   readonly functions?: readonly string[];
   readonly atOnce?: number;
+  /**
+   * How long the making itself takes, in seconds — SRD's "spend 10 minutes
+   * casting Prestidigitation".
+   *
+   * It is the whole of what a making costs and the reason {@link action} is
+   * null on such a line: the engine spends it on the clock, and a making is
+   * refused inside a fight because a fight's seconds belong to the turn order.
+   */
+  readonly castingSeconds?: number;
   /** The ceiling a form may print and whether a flier may be taken, at this level. */
   readonly maxChallengeRating?: number;
   readonly flying?: boolean;
@@ -881,11 +890,16 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       name: one.name,
       kind: 'makes-object',
       spentBy: SPENT_BY['makes-object'],
-      action: one.action,
+      // **No action and no pool**, which is not an omission on either count:
+      // the making's price is the casting time, spent on the clock outside a
+      // fight, and what bounds it is how many are already standing. Both are
+      // reported below in the fields that can carry them.
+      action: null,
       pool: null,
       left: null,
       active: false,
       lasts: describeElapsed(one.lastsSeconds),
+      castingSeconds: one.castingSeconds,
       functions: one.functions,
       atOnce: one.atOnce,
     });

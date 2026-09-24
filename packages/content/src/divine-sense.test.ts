@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
   activateFeature,
+  checkContent,
   createCharacter,
   detectedBy,
   fold,
@@ -224,5 +225,43 @@ describe('SRD Divine Sense: what a Channel Divinity use buys the Paladin', () =>
   it('refuses a second opening while the first is running', () => {
     const refused = activateFeature(opened(), ARDAN, { feature: DIVINE_SENSE });
     expect(isErr(refused)).toBe(true);
+  });
+});
+
+/**
+ * The validator's half, which is what stops a homebrew feature compiling an
+ * awareness nobody could read anything off.
+ *
+ * Both branches are `checkContent` problems rather than `err`s, so
+ * `refusal-sweep.test.ts` cannot see them: a rule nothing asserts is a rule
+ * that passes while the branch goes unread. Each is a way the grant validates
+ * and then reports an empty room for ever — a use of Channel Divinity spent on
+ * silence, which is the state this whole feature was built out of.
+ */
+describe('an awareness is held to a radius and a list', () => {
+  const rewritten = (over: Record<string, unknown>): readonly string[] => {
+    const paladinClass = JSON.parse(
+      JSON.stringify(SRD_CONTENT.classes.find((one) => one.id === 'paladin')),
+    ) as { features: { id: string; grants: Record<string, unknown>[] }[] };
+    const feature = paladinClass.features.find((one) => one.id === DIVINE_SENSE)!;
+    const at = feature.grants.findIndex((one) => one['kind'] === 'activated');
+    feature.grants[at] = { ...feature.grants[at], ...over };
+    return checkContent({
+      classes: [paladinClass as never],
+      spells: SRD_CONTENT.spells as never,
+    }).map((problem) => problem.code);
+  };
+
+  it('finds nothing wrong with the feature as the book prints it', () => {
+    expect(rewritten({})).toEqual([]);
+  });
+
+  it('refuses a radius of nothing', () => {
+    expect(rewritten({ detects: { feet: 0, creatureTypes: ['Fiend'] } })).toContain('bad_awareness');
+  });
+
+  it('refuses an awareness that reports no kind of creature at all', () => {
+    expect(rewritten({ detects: { feet: 60, creatureTypes: [] } })).toContain('bad_awareness');
+    expect(rewritten({ detects: { feet: 60, creatureTypes: [''] } })).toContain('bad_awareness');
   });
 });
