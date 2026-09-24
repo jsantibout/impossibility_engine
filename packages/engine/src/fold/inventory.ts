@@ -74,6 +74,17 @@ export const isInventoryEvent = seamOf(INVENTORY_EVENTS);
  * No log written before a feature could conjure anything carries the field, so
  * every existing line keeps the key it has always had and both frozen fixtures
  * fold unchanged.
+ *
+ * **What a second line costs, said out loud.** Two unlabelled lines of one kind
+ * are a *question* to `copyNamed`, which refuses `ambiguous_copy` rather than
+ * guessing — so a Warlock who bonds a Longsword while carrying one of their own
+ * cannot drop, give away or use the pack's copy by name until the bond ends.
+ * That is the right answer rather than a cost worth avoiding: the alternative is
+ * the engine choosing which Longsword a caller meant, and the one it chose
+ * wrongly would be the one that vanishes. Swinging is unaffected, because an
+ * attack names a weapon by its catalogue id and never by its copy. Making the
+ * pack's copy nameable again wants an id on the conjured line, which is the
+ * item-instance door and a decision of its own.
  */
 const mergeKey = (line: InventoryLine): string =>
   line.instance !== undefined

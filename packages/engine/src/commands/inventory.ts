@@ -402,9 +402,18 @@ export function handsInUse(state: GameState, content: Content, id: CharacterId):
   // A conjured line, whichever kind of magic put it there: a casting's
   // handful, or the weapon a feature's activation made. Both pinned their own
   // hand count at the moment they appeared — see `conjuredLine` and
-  // `featureConjuredLine` — and neither can be in `equipped`, because
-  // `equipItem` refuses `already_in_hand` for exactly this arithmetic. That is
-  // what makes adding them to the worn total right rather than double-counting.
+  // `featureConjuredLine` — and in a log **this engine writes** neither is in
+  // `equipped`, because `equipItem` refuses `already_in_hand` for exactly this
+  // arithmetic. That is what makes adding them to the worn total right rather
+  // than double-counting.
+  //
+  // A log assembled by hand can put one in both, and then this charges the
+  // hands twice. Said rather than guarded, because the alternative is worse:
+  // counting the larger of the two would make a Warlock holding a Greatsword
+  // and a conjured Glaive out of six hands' worth of gear look as though they
+  // had four free, and there is no reading of `equipped` that can tell a
+  // wielding written beside a conjured line from one written instead of it.
+  // The door is the rule; this is arithmetic over what the door let through.
   const conjured = carrying(state, id).reduce(
     (total, line) =>
       total + (line.casting === undefined && line.feature === undefined ? 0 : (line.hands ?? 0)),

@@ -487,6 +487,45 @@ describe('Pact of the Blade', () => {
   });
 
   /**
+   * And what the second line costs, pinned rather than discovered.
+   *
+   * Two unlabelled lines of one kind are a question, and `copyNamed` refuses
+   * rather than guessing — so the pack's Longsword cannot be dropped, given
+   * away or used **by name** while a pact Longsword stands beside it. That is
+   * the right answer: the alternative is the engine choosing which Longsword
+   * the caller meant, and the one it chose wrongly would be the one that
+   * vanishes. Swinging is untouched, because an attack names a weapon by its
+   * catalogue id and never by its copy.
+   */
+  it('makes the kind ambiguous while the bond stands, and leaves the swing alone', () => {
+    const log = [
+      ...table(),
+      {
+        type: 'items-gained',
+        id: WHO,
+        items: [{ id: 'longsword', quantity: 1 }],
+        source: 'bought in town',
+      },
+    ] as GameEvent[];
+    const bonded = [...log, ...conjure(fold('seed', log), 'longsword', 'one')];
+    const state = fold('seed', bonded);
+
+    const refused = equipItem(state, SRD_CONTENT, WHO, 'longsword');
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? '' : refused.code).toBe('ambiguous_copy');
+
+    // And the swing goes through, which is the half that matters at the table.
+    expect(
+      resolveAttack(
+        state,
+        WHO,
+        { target: TARGET, weapon: 'longsword', commandId: 'swing' },
+        supply('ambiguous'),
+      ).ok,
+    ).toBe(true);
+  });
+
+  /**
    * A conjured weapon is already in a hand, so there is nothing to take up.
    *
    * That is what makes `handsInUse` right: the line's own pinned hands are
