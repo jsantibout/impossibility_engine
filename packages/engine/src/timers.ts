@@ -20,7 +20,7 @@
  * boundary reads, so `fold/timers.ts` and `commands/turns.ts` are its readers
  * and neither of them has to know how a duration was pinned.
  */
-import type { Ability, CharacterId, Skill } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName, Skill } from '@ie/shared';
 import type { Deadline, TurnMoment } from './time.js';
 
 /**
@@ -173,6 +173,31 @@ export interface RepeatSave {
    * caller writes no content to validate.
    */
   readonly onSuccess: 'end-on-target' | 'end-casting';
+  /**
+   * What a **failure** does, where the SRD writes a failure that acts.
+   *
+   * SRD Sleep: "at which point it must repeat the save. If the target fails
+   * the second save, the target has the Unconscious condition for the
+   * duration." The Cockatrice's bite is the same shape outside the spell book
+   * — "_First Failure:_ Restrained and repeats the save at the end of its next
+   * turn. _Second Failure:_ Petrified" — which is why nothing here names a
+   * spell and the payload is a {@link ConditionName} like any other.
+   *
+   * **One failure, two consequences, and they are one sentence.** The deeper
+   * condition is applied under the same source the first one carries, the
+   * first condition goes, and the timer that raised the save goes with it —
+   * so the boundary owes nothing further and the save is not repeated again.
+   * `resolvePendingSaves` is where that is written, out of `condition-removed`
+   * and `condition-applied`: the removal already drops the deadline hung on
+   * the instance it lifts, so the deepening needs no event of its own.
+   *
+   * **The condition that carries one takes no `lasts`.** It runs for the
+   * casting's own duration, and the repeat is what changes it: a deadline
+   * landing on the same moment as {@link at} would let `expireEffects` delete
+   * this timer and `dropOrphanedSaves` drop the pending save before anybody
+   * rolled it.
+   */
+  readonly onFailure?: { readonly condition: ConditionName };
   /** How the roll reads in the log. */
   readonly label: string;
 }

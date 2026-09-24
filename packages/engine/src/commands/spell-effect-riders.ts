@@ -163,6 +163,10 @@ export function repeatSaveFrom(
     ability,
     dc: context.dc,
     onSuccess: repeats.onSuccess,
+    // SRD Sleep's deepening, carried across unchanged: the condition the
+    // failure imposes is the definition's and the source it lands under is the
+    // one the first condition already carries, so nothing is decided here.
+    ...(repeats.onFailure === undefined ? {} : { onFailure: repeats.onFailure }),
     label: `${ABILITY_NAMES[ability]} save vs ${context.name}`,
   };
 }

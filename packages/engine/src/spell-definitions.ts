@@ -425,6 +425,60 @@ export interface SpellCheck {
 }
 
 /**
+ * A saving throw an effect retakes at a turn boundary, as a definition asks
+ * for one.
+ *
+ * `RepeatSave` in `timers.ts` is the *record* — the ability, the DC, the label
+ * and whose turns it is anchored to, all of them the host's and all of them
+ * pinned when the effect landed. This is the half a **definition** writes, and
+ * it was spelled out twice: once inline on {@link ConditionRider.repeats} and
+ * once inline on the flat `save.repeats`, two identical object literals that
+ * had to be widened in step and had no name for a reader to look up. One
+ * exported type, two slots.
+ *
+ * **The ability and the DC are deliberately not here.** SRD writes "the target
+ * repeats **the** save" — the one the host already rolled — so a definition
+ * naming its own would be a second place for one sentence to be got wrong.
+ */
+export interface SpellRepeatSave {
+  /** Which boundary it fires on, on the turns of whoever it landed on. */
+  readonly at: TurnMoment;
+  /**
+   * What a success does — see `RepeatSave.onSuccess`, which is where the
+   * difference between ending the casting and ending it on one target is
+   * argued and where the three doors that refuse the first are named.
+   */
+  readonly onSuccess: 'end-on-target' | 'end-casting';
+  /**
+   * What a **failure** does, where the SRD writes a failure that acts.
+   *
+   * SRD Sleep: "at which point it must repeat the save. If the target fails
+   * the second save, the target has the Unconscious condition for the
+   * duration." The Cockatrice's bite writes it too — "_First Failure:_
+   * Restrained and repeats the save at the end of its next turn. _Second
+   * Failure:_ Petrified" — and neither of them repeats a third time.
+   *
+   * So one failure does two things and they are one sentence: **the deeper
+   * condition is applied under the same source, and the timer that raised the
+   * save ends with it.** The first condition goes when the deeper one lands,
+   * which is what "deepens" means rather than two conditions held at once; and
+   * with the timer gone the boundary owes nothing further, which is what
+   * "repeats the save" once rather than for ever means.
+   *
+   * **The condition that carries this takes no `lasts` of its own.** It runs
+   * for the casting's duration and the repeat is what changes it. A `lasts`
+   * landing on the same moment as {@link at} would let `expireEffects` delete
+   * the timer and `dropOrphanedSaves` drop the pending save before anybody
+   * rolled it, so the sentence would quietly do nothing.
+   *
+   * Pure data, with no field naming a spell: the deeper condition is a
+   * {@link ConditionName} like any other, sourced to whatever imposed the
+   * first one and released with it.
+   */
+  readonly onFailure?: { readonly condition: ConditionName };
+}
+
+/**
  * The moment a Reaction spell is cast in answer to.
  *
  * SRD writes a Reaction's casting time as a clause — "Reaction, which you take
@@ -580,10 +634,7 @@ export interface ConditionRider {
    * the Constitution is the one the spell already asked for. A rider naming
    * its own would be a second place for one sentence to be got wrong.
    */
-  readonly repeats?: {
-    readonly at: TurnMoment;
-    readonly onSuccess: 'end-on-target' | 'end-casting';
-  };
+  readonly repeats?: SpellRepeatSave;
 }
 
 /**
@@ -1661,10 +1712,7 @@ export type SpellEffect =
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
        */
-      readonly repeats?: {
-        readonly at: TurnMoment;
-        readonly onSuccess: 'end-on-target' | 'end-casting';
-      };
+      readonly repeats?: SpellRepeatSave;
       /**
        * When this condition ends, if it ends before the casting does.
        *

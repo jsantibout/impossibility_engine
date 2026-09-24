@@ -1017,6 +1017,20 @@ function checkConditionRider(
     });
   }
 
+  // **A deepening names a condition, out of the same fifteen.** SRD Sleep's
+  // "the target has the Unconscious condition for the duration" is the failure
+  // branch of the repeat above, and the only thing there is to be wrong about
+  // is the name: the source, the lifetime and the end of the timer are all the
+  // first condition's, which is what makes this one field rather than a second
+  // rider.
+  if (rider?.repeats?.onFailure !== undefined) {
+    checkCondition(
+      String(rider.repeats.onFailure.condition),
+      `${riderPath}.repeats.onFailure.condition`,
+      found,
+    );
+  }
+
   checkRiderDuration(rider?.lasts, riderPath, found);
 
   // **A rider with no lifetime is checked once, and not here.** The rule that

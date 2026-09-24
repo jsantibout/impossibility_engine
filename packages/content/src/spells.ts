@@ -8572,11 +8572,21 @@ export const SEARING_SMITE: SpellDefinition = {
  * > or that have Immunity to the Exhaustion condition automatically succeed
  * > on saves against this spell."
  *
- * **2024 rewrote this spell too**, and the hit-point total everybody
- * remembers is gone: it is a save now, and the save repeats once and
- * *deepens* on the second failure. A repeat save in this engine releases an
- * effect on a success and does nothing on a failure, which is the wrong way
- * round for every sentence here.
+ * **2024 rewrote this spell too**, and the hit-point total everybody remembers
+ * is gone: it is a save now, and the save repeats once and *deepens* on the
+ * second failure. That deepening is what `SpellRepeatSave.onFailure` was built
+ * for — a repeat save released an effect on a success and did nothing at all
+ * on a failure, which is the wrong way round for the middle sentence of this
+ * paragraph; the Cockatrice's "_First Failure:_ Restrained … _Second Failure:_
+ * Petrified" writes the same shape outside the spell book.
+ *
+ * **The Incapacitated carries no `lasts` of its own, and that is the spell
+ * rather than a shortcut.** "Until the end of its next turn" and "at which
+ * point it must repeat the save" are one moment named twice: a deadline there
+ * would expire the timer and drop the pending save before anybody rolled it,
+ * so what the moment does is *change* the condition — deepened on a failure,
+ * released on a success — and the minute the casting runs for is what ends it
+ * either way.
  */
 export const SLEEP: SpellDefinition = {
   id: 'sleep',
@@ -8587,13 +8597,41 @@ export const SLEEP: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
-  effects: [],
+  // "in a 5-foot-radius Sphere centered on a point within range" — a template
+  // the engine already has, on a point the caster names. What it cannot say is
+  // "Each creature of your choice" inside it: an area catches everybody
+  // standing in it, and that filter stays in `unmodelled`.
+  area: { kind: 'sphere', radius: 5, origin: 'point' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'incapacitated',
+      repeats: {
+        // "until the end of its next turn, at which point it must repeat the
+        // save" — the sleeper's own turn, and the condition's lifetime is the
+        // casting's, so this moment is the only thing that changes it.
+        at: 'end-of-turn',
+        // A creature that shakes it off is awake; the rest go on sleeping,
+        // which is what "on a target" means for a spell cast at a Sphere.
+        onSuccess: 'end-on-target',
+        // "If the target fails the second save, the target has the Unconscious
+        // condition for the duration." Under the casting's own source, so the
+        // minute, the Concentration and a dispel all reach it; and the repeat
+        // stops there, because the SRD asks for a second save and not a third.
+        onFailure: { condition: 'unconscious' },
+      },
+    },
+  ],
   durationSeconds: 60,
+  // "The spell ends on a target if it takes damage" — **any** damage, from
+  // anybody or from nobody at all, and on that sleeper rather than on the
+  // Sphere: the rest of the room stays asleep. Hypnotic Pattern writes the
+  // same sentence and reaches the same cause.
+  endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
   unmodelled: [
-    'the save is not rolled and the Incapacitated is not applied: the condition lasts "until the end of its next turn, at which point it must repeat the save", and the repeat is a save whose **failure** deepens the effect rather than a save whose success releases it',
-    'so the second failure is not applied either: "If the target fails the second save, the target has the Unconscious condition for the duration"',
-    'the 5-foot-radius Sphere is not a template, and "Each creature of your choice" inside it is a filter on what an area catches; nothing is resolved over either',
-    'the two ways out are not offered: "The spell ends on a target if it takes damage" is any damage from anybody, which no casting-end cause expresses, and somebody within 5 feet taking an action to shake the sleeper awake is a check nobody else may attempt',
+    '"Each creature of your choice" inside the Sphere is a filter on what an area catches, and an area catches everybody standing in it — so a casting aimed at a mixed crowd puts the caster’s own allies to sleep',
+    'somebody within 5 feet taking an action to shake the sleeper awake is not offered: an escape check is the sleeper’s own to attempt, and one creature spending an action to free another is an action nothing spends',
     'the automatic successes are not granted: creatures that do not sleep, and creatures with Immunity to the Exhaustion condition, are an outcome read off the target’s own defences, and `checks.ts` carries an automatic failure and no automatic success',
   ],
 };
