@@ -4,7 +4,9 @@ import { asCharacterId, type CharacterId, expect as unwrap, type Result } from '
 import {
   addCreature,
   addSceneLandmark,
+  advanceTime,
   beginCombat,
+  damageCreature,
   declareCreatureSide,
   escapeGrapple,
   joinCombat,
@@ -224,16 +226,16 @@ describe('reading a printed rider as a sequence', () => {
     });
   });
 
-  /** SRD Gibbering Mouther: one sentence read, two handed back. */
+  /** SRD Gibbering Mouther: two sentences read, one handed back. */
   it('applies what it read and hands back the rest of a composite', () => {
     const read = readPrintedRiders(
       'If the target is a Medium or smaller creature, it has the Prone condition. The target dies if it is reduced to 0 Hit Points by this attack. Its body is then absorbed into the mouther, leaving only equipment behind.',
     );
     expect(read.riders).toEqual([
       { kind: 'condition', conditions: ['prone'], ifNoLargerThan: 'medium' },
+      { kind: 'on-dropping-to-zero', dies: true },
     ]);
     expect(read.handedOver).toEqual([
-      'The target dies if it is reduced to 0 Hit Points by this attack.',
       'Its body is then absorbed into the mouther, leaving only equipment behind.',
     ]);
   });
@@ -399,6 +401,190 @@ describe('reading a printed rider as a sequence', () => {
     );
     expect(read.riders).toEqual([]);
     expect(read.handedOver).toHaveLength(1);
+  });
+
+  /**
+   * SRD Phase Spider, Bite: "If this damage reduces the target to 0 Hit
+   * Points, the target becomes Stable, and it has the Poisoned condition for 1
+   * hour. While Poisoned, the target also has the Paralyzed condition."
+   */
+  it('reads what a blow that drops the target to 0 leaves behind', () => {
+    expect(
+      readPrintedRiders(
+        'If this damage reduces the target to 0 Hit Points, the target becomes Stable, and it has the Poisoned condition for 1 hour. While Poisoned, the target also has the Paralyzed condition.',
+      ),
+    ).toEqual({
+      riders: [
+        {
+          kind: 'on-dropping-to-zero',
+          stable: true,
+          conditions: [{ condition: 'poisoned', implies: ['paralyzed'], lastsSeconds: 3600 }],
+        },
+      ],
+      handedOver: [],
+    });
+  });
+
+  /**
+   * SRD Vampire Familiar, Umbral Dagger: the same rule, and the book writes
+   * every clause of it differently — "by this attack" for "this damage", "but"
+   * for "and", and "While it has the Poisoned condition" for "While Poisoned".
+   */
+  it('reads the same rule in the other words the book writes it in', () => {
+    expect(
+      readPrintedRiders(
+        'If the target is reduced to 0 Hit Points by this attack, the target becomes Stable but has the Poisoned condition for 1 hour. While it has the Poisoned condition, the target has the Paralyzed condition.',
+      ),
+    ).toEqual({
+      riders: [
+        {
+          kind: 'on-dropping-to-zero',
+          stable: true,
+          conditions: [{ condition: 'poisoned', implies: ['paralyzed'], lastsSeconds: 3600 }],
+        },
+      ],
+      handedOver: [],
+    });
+  });
+
+  /**
+   * SRD Gibbering Mouther, Bite: a Prone, a death at 0, and the sentence about
+   * the body being absorbed — which is a rule about equipment on the floor
+   * that nothing here keeps, so it is still handed back.
+   */
+  it('reads a death at 0 beside the Prone the same line buys', () => {
+    const read = readPrintedRiders(
+      'If the target is a Medium or smaller creature, it has the Prone condition. The target dies if it is reduced to 0 Hit Points by this attack. Its body is then absorbed into the mouther, leaving only equipment behind.',
+    );
+    expect(read.riders).toEqual([
+      { kind: 'condition', conditions: ['prone'], ifNoLargerThan: 'medium' },
+      { kind: 'on-dropping-to-zero', dies: true },
+    ]);
+    expect(read.handedOver).toEqual([
+      'Its body is then absorbed into the mouther, leaving only equipment behind.',
+    ]);
+  });
+
+  /**
+   * A "While X" sentence with nothing in front of it names a lifetime that is
+   * not there — the rule the grapple's own implication already keeps.
+   */
+  it('hands back a while-condition sentence that follows nothing', () => {
+    const read = readPrintedRiders('While Poisoned, the target also has the Paralyzed condition.');
+    expect(read.riders).toEqual([]);
+    expect(read.handedOver).toEqual([
+      'While Poisoned, the target also has the Paralyzed condition.',
+    ]);
+  });
+
+  /** And one that names a condition the clause before it never imposed. */
+  it('hands back a while-condition sentence about some other condition', () => {
+    const read = readPrintedRiders(
+      'If this damage reduces the target to 0 Hit Points, the target becomes Stable, and it has the Poisoned condition for 1 hour. While Frightened, the target also has the Paralyzed condition.',
+    );
+    expect(read.riders).toEqual([
+      {
+        kind: 'on-dropping-to-zero',
+        stable: true,
+        conditions: [{ condition: 'poisoned', lastsSeconds: 3600 }],
+      },
+    ]);
+    expect(read.handedOver).toEqual([
+      'While Frightened, the target also has the Paralyzed condition.',
+    ]);
+  });
+
+  /**
+   * SRD Stirge, Proboscis. An attach is a hold in which the **attacker** is
+   * fixed to the target: the target is not Grappled by it and may walk off
+   * with the stirge on them.
+   */
+  it('reads the stirge attaching, and what the attach owes each turn', () => {
+    const read = readPrintedRiders(
+      "and the stirge attaches to the target. While attached, the stirge can't make Proboscis attacks, and the target takes 5 (2d4) Necrotic damage at the start of each of the stirge's turns. The stirge can detach itself by spending 5 feet of its movement. The target or a creature within 5 feet of it can detach the stirge as an action.",
+    );
+    expect(read.riders).toEqual([
+      {
+        kind: 'attach',
+        payout: {
+          dice: '2d4',
+          flat: 0,
+          type: 'necrotic',
+          at: 'start-of-turn',
+          onTurnOf: 'attacker',
+        },
+      },
+    ]);
+    // The one half of the line nothing here executes: which of its own printed
+    // actions a creature may take while attached.
+    expect(read.handedOver).toEqual(["the stirge can't make Proboscis attacks"]);
+  });
+
+  /**
+   * SRD Darkmantle, Crush. The cover is gated twice — on the target's size and
+   * on the attack roll having had Advantage — and the second is a fact about a
+   * roll, which is why it is carried rather than evaluated here.
+   */
+  it('reads the darkmantle attaching, covering and pinning its own Speed', () => {
+    const read = readPrintedRiders(
+      "and the darkmantle attaches to the target. If the target is a Medium or smaller creature and the darkmantle had Advantage on the attack roll, it covers the target, which has the Blinded condition and is suffocating while the darkmantle is attached in this way. While attached to a target, the darkmantle can attack only the target but has Advantage on its attack rolls. Its Speed becomes 0, it can't benefit from any bonus to its Speed, and it moves with the target. A creature can take an action to try to detach the darkmantle from itself, doing so with a successful DC 13 Strength (Athletics) check. On its turn, the darkmantle can detach itself by using 5 feet of movement.",
+    );
+    expect(read.riders).toEqual([
+      {
+        kind: 'attach',
+        detachDc: 13,
+        holderSpeedBecomesZero: true,
+        covers: {
+          conditions: ['blinded'],
+          ifNoLargerThan: 'medium',
+          ifAttackHadAdvantage: true,
+        },
+      },
+    ]);
+    expect(read.handedOver).toEqual([
+      'is suffocating',
+      'While attached to a target, the darkmantle can attack only the target but has Advantage on its attack rolls.',
+      "it can't benefit from any bonus to its Speed, and it moves with the target",
+    ]);
+  });
+
+  /** An attach clause with nothing in front of it names a hold that is not there. */
+  it('hands back an attach detail that follows no attach', () => {
+    const read = readPrintedRiders(
+      'A creature can take an action to try to detach the darkmantle from itself, doing so with a successful DC 13 Strength (Athletics) check.',
+    );
+    expect(read.riders).toEqual([]);
+    expect(read.handedOver).toHaveLength(1);
+  });
+
+  /**
+   * SRD Animated Rug of Smothering, Smother: a hold the line offers **instead
+   * of dealing damage**, carrying two conditions and a payment each turn.
+   */
+  it('reads a grapple taken instead of damage, and what it costs each turn', () => {
+    const read = readPrintedRiders(
+      'If the target is a Medium or smaller creature, the rug can give it the Grappled condition (escape DC 13) instead of dealing damage. Until the grapple ends, the target has the Blinded and Restrained conditions, is suffocating, and takes 10 (2d6 + 3) Bludgeoning damage at the start of each of its turns. The rug can smother only one creature at a time.',
+    );
+    expect(read.riders).toEqual([
+      {
+        kind: 'grapple',
+        escapeDc: 13,
+        ifNoLargerThan: 'medium',
+        insteadOfDamage: true,
+        whileHeld: ['blinded', 'restrained'],
+        payout: {
+          dice: '2d6',
+          flat: 3,
+          type: 'bludgeoning',
+          at: 'start-of-turn',
+          onTurnOf: 'target',
+        },
+      },
+    ]);
+    expect(read.handedOver).toEqual([
+      'is suffocating',
+      'The rug can smother only one creature at a time.',
+    ]);
   });
 
   /** The reader's own refusals, unchanged: a sentence it cannot read is the DM's. */
@@ -901,25 +1087,147 @@ describe('a grapple that carries a condition for as long as it lasts', () => {
 describe('a composite line applies what it read and reports the rest', () => {
   /**
    * SRD Gibbering Mouther, Bite: the Prone the engine has executed for a year
-   * on every line that prints it alone, followed by two sentences about a
-   * victim being absorbed that nothing in the engine does.
+   * on every line that prints it alone, the death at 0 it executes now, and a
+   * sentence about the body being absorbed that nothing in the engine does.
    *
-   * Before this the whole line was the DM's, including the Prone. Now the
-   * Prone lands and the residue is reported — and the ledger counts the line
-   * as **unpaid** on the strength of that residue, which is what keeps
+   * Before this the whole line was the DM's, including the Prone. Now two of
+   * the three land and the residue is reported — and the ledger counts the
+   * line as **unpaid** on the strength of that residue, which is what keeps
    * learning to recognise three quarters of a sentence from retiring a debt.
    */
-  it('knocks the target Prone and hands back the sentences it read nothing of', () => {
+  it('knocks the target Prone and hands back the sentence it read nothing of', () => {
     const table = field('gibbering-mouther', 5);
     const out = swing(table, 'Bite');
 
     expect(out.attack?.hit).toBe(true);
     expect(conditionsOn(out.state, BREN)).toContain('prone');
     const said = out.unverified.join(' ');
-    expect(said).toContain('The target dies if it is reduced to 0 Hit Points by this attack.');
     expect(said).toContain('absorbed into the mouther');
-    // And not the half it executed.
+    // And not the halves it executed.
     expect(said).not.toContain('it has the Prone condition.');
+    expect(said).not.toContain('The target dies if it is reduced to 0 Hit Points');
+  });
+});
+
+// — what a blow that empties the target leaves behind ——————————————————————————
+
+/**
+ * SRD Phase Spider, Bite: "If this damage reduces the target to 0 Hit Points,
+ * the target becomes Stable, and it has the Poisoned condition for 1 hour.
+ * While Poisoned, the target also has the Paralyzed condition."
+ *
+ * The one gate on a printed rider that is a fact about the **outcome** rather
+ * than about the swing, which is why the swing hands the answer in: "reduces
+ * to 0" and "is at 0" are two different sentences, and by the time the rider
+ * runs the state says only the second.
+ */
+describe('a hit that drops the target to 0', () => {
+  /** Bren, one hit point from the floor, so any bite at all empties him. */
+  const bleeding = (block: string, away = 5, inCombat = true): Table => {
+    const table = field(block, away, inCombat);
+    const left = table.state.creatures[BREN]?.vitals.hp ?? 0;
+    table.do('a long day', (s) =>
+      damageCreature(s, BREN, { amount: left - 1, source: 'a long day', commandId: 'wear' }),
+    );
+    return table;
+  };
+
+  it('leaves the target Stable, Poisoned and Paralyzed for the hour', () => {
+    // Outside a fight, because the hour has to be able to pass: inside one the
+    // clock is the turn order's, and `advanceTime` says so in as many words.
+    const table = bleeding('phase-spider', 10, false);
+    const out = swing(table, 'Bite');
+
+    expect(out.attack?.hit).toBe(true);
+    const vitals = out.state.creatures[BREN]?.vitals;
+    expect(vitals?.hp).toBe(0);
+    expect(vitals?.stable).toBe(true);
+    expect(conditionsOn(out.state, BREN)).toContain('poisoned');
+    // The Paralyzed is implied by the Poisoned, so it lifts with it rather
+    // than needing a deadline of its own.
+    expect(conditionsOn(out.state, BREN)).toContain('paralyzed');
+    expect(out.unverified.join(' ')).not.toContain('the engine does not apply that');
+
+    // An hour of clock, and both are gone — the implication with the host.
+    table.log.push(...out.events);
+    const hour = table.do('an hour', (s) => advanceTime(s, 3600, 'an hour in the dark'));
+    expect(conditionsOn(hour, BREN)).not.toContain('poisoned');
+    expect(conditionsOn(hour, BREN)).not.toContain('paralyzed');
+  });
+
+  /**
+   * A blow that leaves the target standing leaves none of it. An Ogre takes
+   * this one, because a Phase Spider's bite is bigger than a first-level
+   * Fighter and the rule under test is about the creature that survives.
+   */
+  it('does nothing at all to a target the bite did not empty', () => {
+    const table = field('phase-spider', 10);
+    table.did('an ogre wanders in', (s) => addCreature(s, SRD_CONTENT, OTHER, 'ogre'));
+    table.do('the ogre beside the spider', (s) =>
+      placeCreatureInScene(s, OTHER, { from: { creature: BEAST }, feet: 10, bearing: 90 }),
+    );
+    const out = swing(table, 'Bite', { target: OTHER });
+
+    expect(out.attack?.hit).toBe(true);
+    const vitals = out.state.creatures[OTHER]?.vitals;
+    expect(vitals?.hp).toBeGreaterThan(0);
+    expect(vitals?.stable).toBe(false);
+    expect(conditionsOn(out.state, OTHER)).not.toContain('poisoned');
+    expect(conditionsOn(out.state, OTHER)).not.toContain('paralyzed');
+  });
+
+  /**
+   * **A target already on the floor is not emptied a second time.** The line
+   * says "reduces the target to 0", and they were there already; what a second
+   * blow on a creature at 0 buys is the damage path's business — a Death
+   * Saving Throw failure, or a death where the remainder is large enough — and
+   * it is not another landing of this rider.
+   */
+  it('is not applied a second time to a creature already at 0', () => {
+    const table = bleeding('phase-spider', 10);
+    const first = swing(table, 'Bite');
+    expect(first.state.creatures[BREN]?.vitals.hp).toBe(0);
+    table.log.push(...first.events);
+
+    const again = swing(table, 'Bite', { commandId: 'second bite', seed: 'again' });
+    expect(again.attack?.hit).toBe(true);
+    expect(again.events.some((e) => e.type === 'stabilised')).toBe(false);
+    expect(
+      again.events.some((e) => e.type === 'condition-applied' && e.condition === 'poisoned'),
+    ).toBe(false);
+  });
+
+  /** SRD Vampire Familiar, Umbral Dagger: the same rule in the book's other words. */
+  it('reads the same rule off the other block that prints it', () => {
+    const table = bleeding('vampire-familiar');
+    const out = swing(table, 'Umbral Dagger');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(out.state.creatures[BREN]?.vitals.stable).toBe(true);
+    expect(conditionsOn(out.state, BREN)).toContain('poisoned');
+    expect(conditionsOn(out.state, BREN)).toContain('paralyzed');
+  });
+
+  /**
+   * SRD Gibbering Mouther, Bite: "The target dies if it is reduced to 0 Hit
+   * Points by this attack." `creature-died` and not damage, which is the
+   * engine's own distinction — a creature at exactly 0 is not dead.
+   */
+  it('kills a creature the mouther emptied', () => {
+    const table = bleeding('gibbering-mouther');
+    const out = swing(table, 'Bite');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(out.state.creatures[BREN]?.vitals.dead).toBe(true);
+  });
+
+  /** And a mouther that did not empty them kills nobody. */
+  it('leaves a creature the mouther did not empty alive', () => {
+    const table = field('gibbering-mouther', 5);
+    const out = swing(table, 'Bite');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(out.state.creatures[BREN]?.vitals.dead).toBe(false);
   });
 });
 

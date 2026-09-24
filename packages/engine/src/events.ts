@@ -79,6 +79,7 @@ import {
 // `{@link}`, and the barrel below re-exports it, so the link resolves in this
 // module without an import that ESLint reads as unused and `tsc` does not.
 import type {
+  Attachment,
   CommandStamp,
   InventoryLine,
   PendingAttack,
@@ -132,6 +133,7 @@ import type {
  */
 export type {
   AppliedCommand,
+  Attachment,
   CommandStamp,
   CreatureState,
   GameState,
@@ -571,6 +573,52 @@ export type GameEvent =
       readonly type: 'turn-payout-granted';
       readonly id: CharacterId;
       readonly payout: GrantedPayout;
+    }
+
+  /**
+   * A creature has fixed itself to another — SRD Stirge: "the stirge attaches
+   * to the target."
+   *
+   * **A relation rather than a grant, and it is written down rather than
+   * derived**, which is the one thing it does not share with a grapple. A
+   * grapple is read back off the Grappled instance its `grapple:<who>` source
+   * names, so there is no second record to keep in step; an attach leaves the
+   * *target* holding nothing at all — SRD Stirge's victim walks away with the
+   * stirge on them — so there is nothing to derive it from. A homebrew attach
+   * that hung no condition and paid nothing would otherwise be an attach the
+   * engine could not see.
+   *
+   * What the attach hung is filed under `attach:<the other creature>` at both
+   * ends, so {@link 'creature-detached'} ends every part of it at once.
+   */
+  | {
+      readonly type: 'creature-attached';
+      /** The creature that attached — the one the relation is on. */
+      readonly id: CharacterId;
+      readonly attachment: Attachment;
+    }
+
+  /**
+   * An attach let go of, however it was let go of.
+   *
+   * SRD prints two doors and this is the event both go through: five feet of
+   * the attacher's own movement, and an Action the target or a neighbour
+   * spends — with a check where the block prints a DC. One event, because
+   * they are one ending.
+   *
+   * **The body is `releaseGrants` at both ends**, which is the `grants`
+   * deadline's body and `roll-modifier-consumed`'s: a stirge's payment is
+   * filed on the stirge and a rug's on whoever it is holding, and one ending
+   * must take both. The conditions the attach hung come off through
+   * `condition-removed`, which is the door every other condition leaves by.
+   */
+  | {
+      readonly type: 'creature-detached';
+      /** The creature that was attached. */
+      readonly id: CharacterId;
+      /** The creature it was attached to. */
+      readonly to: CharacterId;
+      readonly command?: CommandStamp;
     }
 
   /**

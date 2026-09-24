@@ -123,11 +123,13 @@ describe('toolSchemas', () => {
     // field at all: `cast_spell`'s own description and its `targets` now say
     // that an area printing "each creature of your choice" takes the subset in
     // the list a casting already has. A sentence rather than a door, and the
-    // pin moves for a sentence exactly as it does for a door.
+    // pin moves for a sentence exactly as it does for a door. The attach track
+    // then added `attack.holdInsteadOfDamage` — the hold a printed line offers
+    // in place of its damage — on the same night, and the two pins sum.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(105644);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(126566);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(106138);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(127060);
   });
 });
 

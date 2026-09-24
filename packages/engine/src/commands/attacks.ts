@@ -59,6 +59,7 @@ import {
   readPrintedRiders,
   type PrintedChargeGate,
   type PrintedHitGate,
+  type PrintedHoldPayout,
   statedBonusActionsUsed,
   unreadActionsOf,
 } from '../monster.js';
@@ -105,7 +106,10 @@ import {
   standingWeaponRollRule,
   strikeStyleFor,
   weaponRiderDamageType,
+  type HitAttach,
+  type HitDropToZero,
   type HitForcedMove,
+  type HitHoldPayout,
   type HitGrapple,
   type HitOption,
   type HitRiderAnchor,
@@ -603,6 +607,89 @@ function chargeRun(
   };
 }
 
+/**
+ * Whether **this blow** took the target's last hit point.
+ *
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points"; SRD
+ * Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by this
+ * attack." The clause is about the *transition* and not about the number, and
+ * the two are indistinguishable from the world afterwards — a creature already
+ * on the floor that is hit again is a Death Saving Throw failure, which is the
+ * rule the damage path writes, and not a second landing of this rider.
+ *
+ * So it is asked of both sides of the damage, here, where the swing holds
+ * them; `applyHitRider` takes the answer rather than guessing at it.
+ */
+function emptiedBy(before: GameState, after: GameState, target: CharacterId): boolean {
+  const was = before.creatures[target]?.vitals;
+  const now = after.creatures[target]?.vitals;
+  return was !== undefined && now !== undefined && was.hp > 0 && now.hp === 0;
+}
+
+/**
+ * The damage a stat block's line rolls, after both things that can replace it.
+ *
+ * Two sentences and they compose in one direction only. SRD Swarm of Rats
+ * writes "**or** 2 (1d4) Piercing damage if the swarm is Bloodied" — less
+ * damage, and still damage. SRD Animated Rug of Smothering writes "instead of
+ * dealing damage" — no damage at all, because the swing bought the hold with
+ * it, and there is nothing left for a Bloodied clause to reduce.
+ *
+ * **Read off the rider the swing is carrying rather than off the request**,
+ * which is what lets a held swing settle the same way: `printedRiderOnASwing`
+ * makes the grapple only where the choice was taken, so the hold *being there*
+ * is the record of the election, and the pinned option carries it across the
+ * window the defender answers in.
+ */
+function statedDamageAfterTheChoice(
+  stated: StatedAttackInPlay,
+  instead: readonly StatedDamage[] | null,
+  riding: HitOption | null,
+): StatedAttackInPlay {
+  if (riding?.grapples?.insteadOfDamage === true) return { ...stated, damage: [] };
+  return instead === null ? stated : { ...stated, damage: instead };
+}
+
+/** What a printed hold takes out of somebody each turn, as a swing carries it. */
+function paymentOf(printed: PrintedHoldPayout): HitHoldPayout {
+  return {
+    dice: printed.dice,
+    flat: printed.flat,
+    damageType: printed.type,
+    at: printed.at,
+    onTurnOf: printed.onTurnOf,
+  };
+}
+
+/**
+ * The one clause a printed rider cannot settle before the d20, narrowed once
+ * the die has fallen.
+ *
+ * SRD Darkmantle: "If the target is a Medium or smaller creature **and the
+ * darkmantle had Advantage on the attack roll**, it covers the target." What a
+ * hit buys is built before the roll so a hold can pin it, and the size half is
+ * answered there; this is the other half, and there is nowhere else it could
+ * be asked.
+ *
+ * **The mode is the roll's as the pipeline settled it**, deliberately not
+ * "somebody offered Advantage" — a mode cancelled to `normal` by a
+ * Disadvantage is a roll that did not have Advantage. The same reading
+ * `gateHolds` takes of the same words.
+ *
+ * The attach still happens; it is the *cover* that does not, which is what the
+ * sentence says.
+ */
+function coveredByTheRoll(option: HitOption, mode: RollMode): HitOption {
+  const attach = option.attaches;
+  if (attach?.coverNeedsAdvantage !== true || mode === 'advantage') return option;
+  // The cover and the question about it both go; everything else the attach
+  // carries — the DC, the Speed, the payment — is not gated on the roll.
+  const bare = Object.fromEntries(
+    Object.entries(attach).filter(([field]) => field !== 'whileHeld' && field !== 'coverNeedsAdvantage'),
+  ) as HitAttach;
+  return { ...option, attaches: bare };
+}
+
 /** What a stat block's own line buys on a hit, and what it could not. */
 interface PrintedRiderOnASwing {
   /** The effect list the hit buys, or null where the line is still prose. */
@@ -647,6 +734,12 @@ function printedRiderOnASwing(
   attacker: CharacterId,
   target: CharacterId,
   printed: StatedAttack | null,
+  /**
+   * SRD Animated Rug of Smothering's offer, taken — see
+   * {@link HitGrapple.insteadOfDamage}. A line printing no offer never reads
+   * it, and a swing that names one on such a line was refused at the door.
+   */
+  takingTheHold = false,
 ): PrintedRiderOnASwing {
   if (printed?.rider == null) return NO_PRINTED_RIDER;
 
@@ -665,8 +758,10 @@ function printedRiderOnASwing(
 
   const effects: SpellEffect[] = [];
   let grapples: HitGrapple | undefined;
+  let attaches: HitAttach | undefined;
   let forcedMove: HitForcedMove | undefined;
   let lowersHitPointMaximum: 'damage-taken' | undefined;
+  let onDroppingToZero: HitDropToZero | undefined;
   let saveDc: number | undefined;
   let span: { readonly lasts: TurnAnchor; readonly lastsOn: HitRiderAnchor } | undefined;
 
@@ -744,6 +839,12 @@ function printedRiderOnASwing(
         break;
 
       case 'grapple': {
+        // SRD Animated Rug of Smothering: "the rug **can** give it the
+        // Grappled condition … instead of dealing damage." An offer, and a
+        // swing that did not take it takes the damage — so the hold is not
+        // made at all. The refusal for a swing that asks on a line printing no
+        // offer is at the door, with nothing spent; see `resolveAttack`.
+        if (rider.insteadOfDamage === true && !takingTheHold) break;
         if (!passesSize(rider.ifNoLargerThan, 'grapple')) break;
         // SRD Giant Scorpion's "from one of two claws": how many creatures the
         // block can hold at once. The engine holds no record of limbs, so the
@@ -758,6 +859,34 @@ function printedRiderOnASwing(
           escapeDc: rider.escapeDc,
           ...(rider.withLimbs === undefined ? {} : { withLimbs: rider.withLimbs }),
           ...(rider.whileHeld === undefined ? {} : { whileHeld: rider.whileHeld }),
+          ...(rider.insteadOfDamage === undefined ? {} : { insteadOfDamage: rider.insteadOfDamage }),
+          ...(rider.payout === undefined ? {} : { payout: paymentOf(rider.payout) }),
+        };
+        break;
+      }
+
+      // SRD Stirge, SRD Darkmantle. The size gate on the cover is answered
+      // here, as every size gate is; the Advantage gate is carried, because
+      // what a hit buys is settled before the d20 that would answer it.
+      case 'attach': {
+        const covers =
+          rider.covers === undefined || !passesSize(rider.covers.ifNoLargerThan, 'cover')
+            ? undefined
+            : rider.covers;
+        attaches = {
+          ...(rider.detachDc === undefined ? {} : { detachDc: rider.detachDc }),
+          ...(rider.holderSpeedBecomesZero === undefined
+            ? {}
+            : { holderSpeedBecomesZero: rider.holderSpeedBecomesZero }),
+          ...(covers === undefined
+            ? {}
+            : {
+                whileHeld: covers.conditions,
+                ...(covers.ifAttackHadAdvantage === undefined
+                  ? {}
+                  : { coverNeedsAdvantage: covers.ifAttackHadAdvantage }),
+              }),
+          ...(rider.payout === undefined ? {} : { payout: paymentOf(rider.payout) }),
         };
         break;
       }
@@ -770,6 +899,28 @@ function printedRiderOnASwing(
 
       case 'hit-point-maximum':
         lowersHitPointMaximum = 'damage-taken';
+        break;
+
+      // SRD Phase Spider, SRD Vampire Familiar, SRD Gibbering Mouther. **No
+      // span is claimed for it**, deliberately: the hour it prints is a number
+      // of seconds carried on the clause itself, and `claimSpan` is about the
+      // one turn-order deadline a hit may carry. A line that also printed one
+      // would be two different endings on one blow, which is the case that
+      // reader already refuses.
+      case 'on-dropping-to-zero':
+        onDroppingToZero = {
+          ...(rider.stable === undefined ? {} : { stable: rider.stable }),
+          ...(rider.dies === undefined ? {} : { dies: rider.dies }),
+          ...(rider.conditions === undefined
+            ? {}
+            : {
+                conditions: rider.conditions.map((one) => ({
+                  condition: one.condition,
+                  ...(one.implies === undefined ? {} : { implies: one.implies }),
+                  durationSeconds: one.lastsSeconds,
+                })),
+              }),
+        };
         break;
 
       case 'speed-cut': {
@@ -894,7 +1045,9 @@ function printedRiderOnASwing(
     effects.length === 0 &&
     grapples === undefined &&
     forcedMove === undefined &&
-    lowersHitPointMaximum === undefined
+    lowersHitPointMaximum === undefined &&
+    onDroppingToZero === undefined &&
+    attaches === undefined
   ) {
     return { option: null, unverified };
   }
@@ -916,8 +1069,10 @@ function printedRiderOnASwing(
       ...(saveDc === undefined ? {} : { saveDc }),
       ...(span === undefined ? {} : { lasts: span.lasts, lastsOn: span.lastsOn }),
       ...(grapples === undefined ? {} : { grapples }),
+      ...(attaches === undefined ? {} : { attaches }),
       ...(forcedMove === undefined ? {} : { forcedMove }),
       ...(lowersHitPointMaximum === undefined ? {} : { lowersHitPointMaximum }),
+      ...(onDroppingToZero === undefined ? {} : { onDroppingToZero }),
     },
     unverified,
   };
@@ -1096,6 +1251,22 @@ export interface AttackCommand extends CommandIdentity {
    * naming one it does not offer is refused before anything is rolled.
    */
   readonly featureDamageTypes?: Readonly<Record<string, string>>;
+  /**
+   * Take the **hold this line offers in place of its damage**.
+   *
+   * SRD Animated Rug of Smothering, Smother: "the rug **can** give it the
+   * Grappled condition (escape DC 13) instead of dealing damage." The book
+   * writes "can", so somebody chooses, and the engine has nobody to ask — the
+   * same reason {@link featureDamageTypes} is a field rather than a
+   * derivation. Saying nothing takes the damage, which is what the line rolls
+   * when nobody elects the offer.
+   *
+   * **A choice the line does not offer is refused before anything is spent**,
+   * beside every other refusal a swing makes: a caller who meant to grapple
+   * and swung instead has been told, rather than having dealt damage they did
+   * not intend.
+   */
+  readonly holdInsteadOfDamage?: true;
   /**
    * Use the mastery property of the weapon in hand.
    *
@@ -1589,7 +1760,22 @@ export function resolveAttack(
     // be settled before the blow, because the hold pins it — and it refuses
     // nothing, because a swing the book permits must not be turned away for
     // carrying a sentence the engine could not read.
-    const fromTheBlock = printedRiderOnASwing(state, id, command.target, printed);
+    // **The offer this line makes, taken or not** — and refused here, before
+    // the action is spent and before a die is thrown, where the line makes
+    // none. SRD writes "can" on exactly one bestiary hit and the caller is who
+    // answers it.
+    const offersAHold = readPrintedRiders(printed?.rider ?? '').riders.some(
+      (read) => read.kind === 'grapple' && read.insteadOfDamage === true,
+    );
+    if (command.holdInsteadOfDamage === true && !offersAHold) {
+      return err(
+        'no_hold_offered',
+        `${attackName} does not offer a hold in place of its damage`,
+      );
+    }
+    const takingTheHold = command.holdInsteadOfDamage === true;
+
+    const fromTheBlock = printedRiderOnASwing(state, id, command.target, printed, takingTheHold);
     // **One rider, and the one somebody paid for wins.** The field a hold pins
     // holds a single option, no SRD creature both prints a rider and holds a
     // feature that buys one, and a printed clause is free — so where both turn
@@ -2334,7 +2520,7 @@ export function resolveAttack(
           // settles it, which is also where the SRD's own order puts it — the
           // save is rolled after the blow rather than before damage nobody has
           // rolled. See {@link PendingAttack.rider}.
-          ...(riding === null ? {} : { rider: riding }),
+          ...(riding === null ? {} : { rider: coveredByTheRoll(riding, attack.value.roll.mode) }),
         },
       });
 
@@ -2411,10 +2597,7 @@ export function resolveAttack(
         ...(stated === undefined
           ? {}
           : {
-              statedAttack:
-                printedDamage.instead === null
-                  ? stated
-                  : { ...stated, damage: printedDamage.instead },
+              statedAttack: statedDamageAfterTheChoice(stated, printedDamage.instead, riding),
             }),
         ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
         ...(style === null ? {} : { strikeStyle: inPlay(style) }),
@@ -2511,7 +2694,9 @@ export function resolveAttack(
         // rides on the hold and resolves with the damage; where it opens none,
         // the field is ignored and the rider fires below exactly as it always
         // has. See {@link PendingDamage.rider}.
-        ...(riding === null ? {} : { rider: { attacker: id, option: riding } }),
+        ...(riding === null
+          ? {}
+          : { rider: { attacker: id, option: coveredByTheRoll(riding, attack.value.roll.mode) } }),
       },
     );
     if (!hurt.ok) return hurt;
@@ -2553,8 +2738,17 @@ export function resolveAttack(
         // The blow's own total after this creature's defences, for the one
         // clause that reads it: SRD Specter's "an amount equal to the damage
         // taken". Zero where the hit dealt none, which lowers nothing.
-        { attacker: id, target: command.target, dealt: hurt.value.amount ?? 0 },
-        riding,
+        //
+        // And whether this blow was the one that emptied them, which is the
+        // other fact only a caller holding the world on both sides of the
+        // damage can answer — see {@link HitOption.onDroppingToZero}.
+        {
+          attacker: id,
+          target: command.target,
+          dealt: hurt.value.amount ?? 0,
+          droppedToZero: emptiedBy(state, landed.reduce(applyEvent, state), command.target),
+        },
+        coveredByTheRoll(riding, attack.value.roll.mode),
       );
       if (!bought.ok) return bought;
       riderEvents.push(...bought.value.events);
@@ -2878,10 +3072,11 @@ export function resolveAttackDamage(
         ...(stated === undefined
           ? {}
           : {
-              statedAttack:
-                printedDamage.instead === null
-                  ? stated
-                  : { ...stated, damage: printedDamage.instead },
+              statedAttack: statedDamageAfterTheChoice(
+                stated,
+                printedDamage.instead,
+                pending.rider ?? null,
+              ),
             }),
         // Re-derived rather than pinned on the held attack, for the reason the
         // sheet above is re-read: the style's own gate is "while you aren't
@@ -3006,7 +3201,12 @@ export function resolveAttackDamage(
       const paid = applyHitRider(
         [...landed, ...rider.value.events].reduce(applyEvent, state),
         supply,
-        { attacker: pending.attacker, target: pending.target, dealt: hurt.value.amount ?? 0 },
+        {
+          attacker: pending.attacker,
+          target: pending.target,
+          dealt: hurt.value.amount ?? 0,
+          droppedToZero: emptiedBy(state, landed.reduce(applyEvent, state), pending.target),
+        },
         pending.rider,
       );
       if (!paid.ok) return paid;

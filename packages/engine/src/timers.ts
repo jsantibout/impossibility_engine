@@ -508,8 +508,28 @@ export type PayoutKind = 'temporary-hit-points' | 'healing' | 'damage';
 export interface GrantedPayout {
   /** The casting (`Heroism#cast:3`) that promised it. */
   readonly source: string;
-  /** The recipient's own boundary — never the caster's. */
+  /** The holder's own boundary, which is the only one anything reads. */
   readonly at: TurnMoment;
+  /**
+   * Who the payment lands on, where that is **not** the creature holding the
+   * arrangement.
+   *
+   * SRD Stirge: "the target takes 5 (2d4) Necrotic damage at the start of each
+   * of **the stirge's** turns." Two creatures and two roles — whose boundary
+   * collects it, and who pays — and every spell that writes this sentence puts
+   * them on one creature, which is why the field was not there.
+   *
+   * **The arrangement is held by whoever's turn it is**, and this names the
+   * other end, rather than the reverse. A boundary reads the creature that is
+   * starting or finishing a turn and nobody else; a payout held by its
+   * *recipient* and anchored on a third party's turn would make every boundary
+   * walk the whole roster to find out what it owed.
+   *
+   * Absent is the ordinary case: SRD Heroism's Temporary Hit Points, SRD
+   * Regenerate's healing and SRD Animated Rug's bludgeoning all land on the
+   * creature whose boundary collects them.
+   */
+  readonly to?: CharacterId;
   readonly payout: PayoutKind;
   /** Rolled when the boundary arrives, never before. Absent when none is printed. */
   readonly dice?: string;

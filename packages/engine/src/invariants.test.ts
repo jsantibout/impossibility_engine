@@ -72,7 +72,9 @@ import {
   dropItem,
   endConcentration,
   endOngoingSpell,
+  detachFrom,
   escapeGrapple,
+  letGoOfAttachment,
   evokeConjured,
   grappleSource,
   grappleTarget,
@@ -667,6 +669,20 @@ const HELD: readonly GameEvent[] = [
   },
   { type: 'turn-advanced' },
 ];
+
+/**
+ * A stirge fixed to B, so the two detach doors have something to let go of.
+ *
+ * The relation is on the creature that attached, which is the one thing an
+ * attach does not share with the grapple above it — see `creature-attached`.
+ */
+const ATTACHED: readonly GameEvent[] = [
+  ...SETUP,
+  { type: 'creature-attached', id: A, attachment: { to: B, name: 'Proboscis' } },
+];
+
+/** The same hold, with the turn passed to the creature being held. */
+const ATTACHED_THEIR_TURN: readonly GameEvent[] = [...ATTACHED, { type: 'turn-advanced' }];
 
 /**
  * A behind total cover, with B declared unable to see them: the two facts SRD
@@ -1718,6 +1734,16 @@ const GUARDED: readonly Guarded[] = [
     name: 'escapeGrapple',
     log: HELD,
     run: (s, commandId) => escapeGrapple(s, B, { ability: 'str', commandId }, supply()),
+  },
+  {
+    name: 'detachFrom',
+    log: ATTACHED_THEIR_TURN,
+    run: (s, commandId) => detachFrom(s, B, { holder: A, from: B, commandId }, supply()),
+  },
+  {
+    name: 'letGoOfAttachment',
+    log: ATTACHED,
+    run: (s, commandId) => letGoOfAttachment(s, A, { from: B, commandId }),
   },
   {
     name: 'damageCreature',
@@ -3284,6 +3310,21 @@ const SPENDERS: readonly Spender[] = [
    * any grapple is looked for.
    */
   { name: 'escapeGrapple', run: (s) => escapeGrapple(s, B, { ability: 'str' }, supply()) },
+  /**
+   * Pulling a creature off somebody. SRD Stirge: "The target or a creature
+   * within 5 feet of it can detach the stirge **as an action**" — so a
+   * creature owing a mandatory area effect may not. Nothing need be attached:
+   * `mayAct` is asked immediately after the duplicate check and before any
+   * attach is looked for.
+   */
+  { name: 'detachFrom', run: (s) => detachFrom(s, B, { holder: A, from: B }, supply()) },
+  /**
+   * Letting go. SRD spends five feet of the attacher's own movement on it, and
+   * a creature owing a mandatory area effect may spend none — the rule
+   * `mountCreature` already states of the same spend. Nothing need be
+   * attached: `mayAct` is asked immediately after the duplicate check.
+   */
+  { name: 'letGoOfAttachment', run: (s) => letGoOfAttachment(s, B, { from: A }) },
   /**
    * A feature's pool use that buys room in the turn budget. It takes a pool
    * use — the sweep's own definition of spending — and may take a Bonus Action

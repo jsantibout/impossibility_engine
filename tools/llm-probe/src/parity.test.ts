@@ -218,6 +218,9 @@ const AUDIT: readonly {
       mastery: because(
         'whether to use the weapon’s mastery property, which of them where a feature offers a swap, how far a Push moves and whom a Cleave follows. A decision rather than a number — SRD writes five of the eight as "you can" — and a real one, so it wants publishing on its own evidence rather than as a parity tidy-up. No character in either benchmark has the Weapon Mastery feature, so a published field would be refused every value it could be sent today',
       ),
+      holdInsteadOfDamage: because(
+        'SRD Animated Rug of Smothering: "the rug **can** give it the Grappled condition (escape DC 13) instead of dealing damage." A decision rather than a number, and a real one — a hold with everything the line carries in place of the blow — and `packages/tools` publishes it as `hold_instead_of_damage`. It is not on **this** surface because this one is a benchmark held fixed: only a monster whose line prints the offer can send it, both benchmarks are characters swinging weapons, and a published field would be refused every value it could be sent today. Publish it the day a benchmark has a creature whose stat block makes the offer',
+      ),
       cantrip: because(
         'which cantrip is cast **with** this swing, and which damage type its offer takes — SRD True Strike, whose whole text is one attack made through a casting. A decision and not a number twice over: whether to spend the Action on the spell rather than on the Attack action, and whether the blow is Radiant or the weapon’s own type. It is refused outright to anybody who cannot cast such a spell, and neither benchmark character has one on their list — the Cleric’s list does not carry it and the Mage does not carry a weapon — so a published field would be refused every value it could be sent today. `packages/tools` publishes it, because a campaign can',
       ),

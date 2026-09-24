@@ -27,7 +27,7 @@ import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import { saveModifier, skillModifier } from './character.js';
 import type { ShapeShiftRow } from './progression.js';
 import { isCreatureType } from './spell-definitions.js';
-import type { TurnAnchor } from './time.js';
+import type { TurnAnchor, TurnMoment } from './time.js';
 import type { HitRiderAnchor, StandingEffect, StandingRequirement } from './standing.js';
 import type { RollFamily } from './roll-modifiers.js';
 import type { DamageDefenses } from './attack.js';
@@ -1693,7 +1693,9 @@ export type PrintedRider =
   | PrintedForcedMoveRider
   | PrintedSpeedCutRider
   | PrintedMaximumRider
-  | PrintedModeRider;
+  | PrintedModeRider
+  | PrintedDroppedToZeroRider
+  | PrintedAttachRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -1908,6 +1910,66 @@ export interface PrintedMaximumRider {
 }
 
 /**
+ * What the blow leaves behind **only if it was the blow that emptied them** —
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points, the
+ * target becomes Stable, and it has the Poisoned condition for 1 hour"; SRD
+ * Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by this
+ * attack."
+ *
+ * **A gate on the outcome rather than a gate on the swing**, which is what
+ * makes it its own member and not a {@link PrintedHitGate}. Every gate in that
+ * union is answerable before the damage is dealt — a size, a creature type, a
+ * roll's mode, half a creature's Hit Points — and this one is answerable only
+ * after: the fact it reads is *this* blow having taken the last hit point, and
+ * nothing before the blow can know it.
+ *
+ * **"Reduces to 0" is not "is at 0".** A creature already on the floor that is
+ * hit again takes a Death Saving Throw failure, which is the rule the damage
+ * path already writes; it does not land this rider a second time. So the swing
+ * hands in whether the drop happened rather than reading a nought off the
+ * state, because the two are indistinguishable afterwards.
+ *
+ * The three clauses are the three the book writes, and they are independent:
+ * SRD prints the Stable with a condition, and the Mouther prints the death
+ * alone. A line that printed both would be a sentence nobody wrote, and
+ * nothing here needs to rule on it — {@link applyHitRider}'s order does.
+ */
+export interface PrintedDroppedToZeroRider {
+  readonly kind: 'on-dropping-to-zero';
+  /** SRD's "the target becomes Stable". */
+  readonly stable?: true;
+  /** SRD Gibbering Mouther's "The target dies". */
+  readonly dies?: true;
+  /** SRD's "it has the Poisoned condition for 1 hour", in printed order. */
+  readonly conditions?: readonly PrintedDroppedCondition[];
+}
+
+/** One condition a drop to 0 leaves, for the span the line prints on it. */
+export interface PrintedDroppedCondition {
+  readonly condition: ConditionName;
+  /**
+   * SRD Phase Spider: "While Poisoned, the target **also** has the Paralyzed
+   * condition."
+   *
+   * {@link PrintedGrappleRider.whileHeld} one clause along and for its exact
+   * reason: a condition that lasts as long as another is
+   * `ConditionInstance.impliedBy`, so it lifts with the one that carried it
+   * through the doors that already exist. Here the carrier is the hour rather
+   * than a hold.
+   */
+  readonly implies?: readonly ConditionName[];
+  /**
+   * SRD's "for 1 hour", as the clock's own unit.
+   *
+   * Required rather than optional, and that is the sentence: every printed
+   * drop-to-0 condition names a span, and one that did not would be a
+   * Paralyzed nothing could ever lift — the rule
+   * {@link PrintedSpeedCutRider.lasts} already states about a Speed.
+   */
+  readonly lastsSeconds: number;
+}
+
+/**
  * A mode on **one** later roll — SRD Ettin: "the target has Disadvantage on the
  * next attack roll it makes before the end of its next turn"; SRD Worg: "the
  * next attack roll made against the target before the start of the worg's next
@@ -1965,6 +2027,105 @@ export interface PrintedGrappleRider {
    * could end. One filed under the grapple ends with the grapple.
    */
   readonly whileHeld?: readonly ConditionName[];
+  /**
+   * SRD Animated Rug of Smothering: "the rug can give it the Grappled
+   * condition (escape DC 13) **instead of dealing damage**."
+   *
+   * An offer the line makes to whoever is swinging, which is why it is a flag
+   * rather than a behaviour: the book writes "can", and the engine has nobody
+   * to ask. So the swing names the choice, a swing that names none deals the
+   * damage the line prints, and a swing that names one on a line that does not
+   * offer it is refused.
+   */
+  readonly insteadOfDamage?: true;
+  /**
+   * What the hold costs the creature it is on at each of somebody's turn
+   * boundaries — SRD's "takes 10 (2d6 + 3) Bludgeoning damage at the start of
+   * each of its turns".
+   *
+   * {@link PrintedAttachRider.payout}'s twin on the other kind of hold, and
+   * the same record: the book writes the same sentence under both, and the
+   * only thing that differs is whose turn the boundary belongs to.
+   */
+  readonly payout?: PrintedHoldPayout;
+}
+
+/**
+ * A creature that **fixes itself to the target** — SRD Stirge: "the stirge
+ * attaches to the target"; SRD Darkmantle: "the darkmantle attaches to the
+ * target."
+ *
+ * **Not a grapple, and the difference is which end is held.** A grapple gives
+ * the *target* the Grappled condition and ends on facts about the grappler; an
+ * attach leaves the target free to walk off with the attacker on them, and
+ * comes off either by the attacker spending five feet of its movement or by
+ * somebody spending an Action on it. So it is filed on the creature that
+ * attached, and `grapplesOn` correctly finds nothing.
+ *
+ * **Everything below is optional because the two blocks that print one share
+ * only the first sentence.** A stirge attaches and drinks; a darkmantle
+ * attaches, blinds and pins its own Speed. Each clause after the first is read
+ * as a detail of the attach it follows, for the reason "While Grappled" is
+ * read as a detail of the grapple before it: standing alone it names a hold
+ * that is not there.
+ */
+export interface PrintedAttachRider {
+  readonly kind: 'attach';
+  /**
+   * SRD Darkmantle: "a successful DC 13 Strength (Athletics) check".
+   *
+   * Absent where the line asks for none, which is SRD Stirge — and that
+   * absence is the rule rather than a default: "The target or a creature
+   * within 5 feet of it can detach the stirge as an action" is an action and
+   * no roll, and inventing a DC for it would be a check nobody printed.
+   */
+  readonly detachDc?: number;
+  /** SRD Darkmantle: "Its Speed becomes 0" — the *attacher's* own. */
+  readonly holderSpeedBecomesZero?: true;
+  /** SRD Darkmantle's cover, where the line prints one. */
+  readonly covers?: PrintedAttachCover;
+  /** SRD Stirge's 2 (2d4) Necrotic at the start of each of its own turns. */
+  readonly payout?: PrintedHoldPayout;
+}
+
+/**
+ * SRD Darkmantle: "If the target is a Medium or smaller creature **and the
+ * darkmantle had Advantage on the attack roll**, it covers the target, which
+ * has the Blinded condition."
+ *
+ * Two gates, and the second is a fact about the roll — which is why it is
+ * *carried* rather than answered here and rather than being a
+ * {@link PrintedHitGate}: what a hit buys is settled before the d20 so a hold
+ * can pin it, and this clause alone has to be narrowed afterwards. See
+ * `PrintedChargeGate`, which makes the same argument the other way round.
+ */
+export interface PrintedAttachCover {
+  /** In printed order — SRD's "the Blinded condition". */
+  readonly conditions: readonly ConditionName[];
+  readonly ifNoLargerThan?: CreatureSize;
+  readonly ifAttackHadAdvantage?: true;
+}
+
+/**
+ * What a hold hands over at every one of somebody's turn boundaries — SRD
+ * Stirge: "the target takes 5 (2d4) Necrotic damage at the start of each of
+ * the stirge's turns."
+ *
+ * `GrantedPayout` as a printed line states it, and every field is one the book
+ * writes. **`onTurnOf` is the load-bearing one**: the Stirge names its own
+ * turns and the Rug writes "its", which by this reader's own convention is the
+ * creature that was struck — and they are a round apart, exactly as a deadline
+ * anchored on the wrong creature is.
+ *
+ * The dice are a notation rather than a total, as everywhere else here: a
+ * payment that repeats throws a new die at each boundary.
+ */
+export interface PrintedHoldPayout {
+  readonly dice: string;
+  readonly flat: number;
+  readonly type: DamageType;
+  readonly at: TurnMoment;
+  readonly onTurnOf: HitRiderAnchor;
 }
 
 /** The six size words the book writes the gate with, as the book capitalises them. */
@@ -2030,6 +2191,20 @@ const ANCHORED_CONDITION = new RegExp(
  */
 const PRINTED_GRAPPLE = new RegExp(
   `^If the target is a ${SIZE_WORDS} or smaller creature, it has the Grappled condition \\(escape DC (\\d+)\\)(?: from ([^.,]+))?\\.$`,
+);
+
+/**
+ * SRD Animated Rug of Smothering: "If the target is a Medium or smaller
+ * creature, the rug can give it the Grappled condition (escape DC 13)
+ * **instead of dealing damage**."
+ *
+ * Its own pattern rather than an optional tail on the one above, because the
+ * whole sentence is written differently: "the rug can give it" is an offer and
+ * "it has" is a consequence, and a reader that read the offer as the
+ * consequence would grapple on every hit the line ever landed.
+ */
+const PRINTED_GRAPPLE_OFFERED = new RegExp(
+  `^If the target is a ${SIZE_WORDS} or smaller creature, the .+? can give it the Grappled condition \\(escape DC (\\d+)\\) instead of dealing damage\\.$`,
 );
 
 /**
@@ -2160,6 +2335,143 @@ const PRINTED_MODE_AGAINST_TARGET = new RegExp(
  */
 const WHILE_GRAPPLED = /^While Grappled, the target has the ([A-Za-z]+) condition(?: and (.+?))?\.$/;
 
+/**
+ * SRD Stirge and SRD Darkmantle: "and the stirge attaches to the target."
+ *
+ * The whole of the first sentence, and every clause after it is read as a
+ * detail of this one — see {@link PrintedAttachRider}.
+ */
+const PRINTED_ATTACH = /^and the .+? attaches to the target\.$/;
+
+/**
+ * The boundary half of a hold's payment: "at the start of each of its turns",
+ * "at the start of each of the stirge's turns".
+ *
+ * Both possessives, routed through {@link anchorOf} exactly as a deadline's
+ * is: the Stirge writes its own noun and the Rug writes "its", and they are a
+ * round apart.
+ */
+const EACH_TURN = `at the (start|end) of each of (?:(its)|the (.+?)${APOSTROPHE}s) turns`;
+
+/** The amount half, as the book prints it: an average, a notation, a type. */
+const PAID_AMOUNT = `\\d+ \\((\\d+d\\d+)(?: \\+ (\\d+))?\\) ([A-Za-z]+) damage`;
+
+/**
+ * SRD Stirge: "While attached, the stirge can't make Proboscis attacks, and
+ * the target takes 5 (2d4) Necrotic damage at the start of each of the
+ * stirge's turns."
+ *
+ * The clause between the comma and the payment is a rule about which of its
+ * own printed lines a creature may take, which nothing here keeps — so it is
+ * captured and handed back rather than swallowed, the reading the limb phrase
+ * on a grapple already gets.
+ */
+const WHILE_ATTACHED_PAYS = new RegExp(
+  `^While attached, (?:(.+?), and )?the target takes ${PAID_AMOUNT} ${EACH_TURN}\\.$`,
+);
+
+/**
+ * SRD Animated Rug of Smothering: "Until the grapple ends, the target has the
+ * Blinded and Restrained conditions, is suffocating, and takes 10 (2d6 + 3)
+ * Bludgeoning damage at the start of each of its turns."
+ *
+ * {@link WHILE_GRAPPLED}'s longer form: the same borrowed lifetime, plus what
+ * the hold costs each turn, plus whatever the sentence says in between — which
+ * here is a suffocation nothing in the engine drowns, handed back.
+ */
+const UNTIL_THE_GRAPPLE_ENDS = new RegExp(
+  `^Until the grapple ends, the target has the ([A-Za-z]+)(?: and (?:the )?([A-Za-z]+))? conditions?(?:, (.+?))?, and takes ${PAID_AMOUNT} ${EACH_TURN}\\.$`,
+);
+
+/**
+ * SRD Darkmantle: "If the target is a Medium or smaller creature and the
+ * darkmantle had Advantage on the attack roll, it covers the target, which has
+ * the Blinded condition and is suffocating while the darkmantle is attached in
+ * this way."
+ */
+const ATTACH_COVERS = new RegExp(
+  `^If the target is a ${SIZE_WORDS} or smaller creature and the .+? had Advantage on the attack roll, it covers the target, which has the ([A-Za-z]+) condition(?: and (.+?))? while the .+? is attached in this way\\.$`,
+);
+
+/** SRD Darkmantle: "Its Speed becomes 0, it can't benefit from any bonus to its Speed, …" */
+const ATTACHED_SPEED_ZERO = /^Its Speed becomes 0(?:, (.+?))?\.$/;
+
+/**
+ * SRD Darkmantle: "…doing so with a successful DC 13 **Strength (Athletics)**
+ * check."
+ *
+ * **The pair is matched literally and only the DC is captured**, which is the
+ * rule this reader keeps everywhere: what is read is what the engine holds the
+ * fact for. Nothing on an attach records which ability a detach is rolled
+ * with, so a line printing any other pair would be read, accepted and then
+ * rolled as Strength — a rule nobody printed. Anchored on the printed words,
+ * it is handed back instead, and the day the record carries the pair is the
+ * day this widens.
+ */
+const ATTACH_DETACH_CHECK =
+  /^A creature can take an action to try to detach the .+? from itself, doing so with a successful DC (\d+) Strength \(Athletics\) check\.$/;
+
+/** SRD Stirge: "The target or a creature within 5 feet of it can detach the stirge as an action." */
+const ATTACH_DETACH_ACTION =
+  /^The target or a creature within 5 feet of it can detach the .+? as an action\.$/;
+
+/**
+ * SRD Stirge: "The stirge can detach itself by spending 5 feet of its
+ * movement." SRD Darkmantle writes "On its turn, … by using 5 feet of
+ * movement."
+ *
+ * Read and consumed rather than stored, because it states the rule the engine
+ * already applies to every attach: the creature that attached lets go for five
+ * feet of its own movement. A line printing a different number would not match
+ * and would be handed back, which is the right answer — nothing here could
+ * charge it.
+ */
+const ATTACH_SELF_DETACH =
+  /^(?:On its turn, )?[Tt]he .+? can detach itself by (?:spending|using) 5 feet of (?:its )?movement\.$/;
+
+/**
+ * The two ways the book writes "this blow took their last hit point".
+ *
+ * SRD Phase Spider writes it about the damage and SRD Vampire Familiar about
+ * the attack; they are one rule, and a reader that took only one of them would
+ * hand a whole line to the DM over a preposition.
+ */
+const REDUCED_TO_ZERO =
+  '(?:this damage reduces the target to 0 Hit Points|the target is reduced to 0 Hit Points by this attack)';
+
+/**
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points, the
+ * target becomes Stable, and it has the Poisoned condition for 1 hour." SRD
+ * Vampire Familiar writes "but has" for "and it has" and means the same thing.
+ *
+ * The condition half is optional because nothing says it has to be there, and
+ * the span inside it is not: a condition with no ending is the one shape this
+ * reader refuses everywhere else.
+ */
+const DROPPED_TO_ZERO_STABLE = new RegExp(
+  `^If ${REDUCED_TO_ZERO}, the target becomes Stable(?:,? (?:and|but) (?:it )?has the ([A-Za-z]+) condition for (\\d+) (hours?|minutes?))?\\.$`,
+);
+
+/** SRD Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by this attack." */
+const DIES_AT_ZERO = /^The target dies if it is reduced to 0 Hit Points by this attack\.$/;
+
+/**
+ * SRD Phase Spider: "While Poisoned, the target also has the Paralyzed
+ * condition." SRD Vampire Familiar: "While it has the Poisoned condition, the
+ * target has the Paralyzed condition."
+ *
+ * {@link WHILE_GRAPPLED}'s twin, and it is read **after** it rather than in
+ * place of it: a grapple is a relation and its implication is filed under the
+ * hold, and this one is filed under the condition the clause before it named.
+ * The two spellings are the book's; the "also" is not, and it is optional for
+ * that reason.
+ */
+const WHILE_CONDITION =
+  /^While (?:it has the )?([A-Za-z]+)(?: condition)?, the target (?:also )?has the ([A-Za-z]+) condition\.$/;
+
+/** The book's two units for a span a hit leaves behind, as the clock counts. */
+const SECONDS_IN: Readonly<Record<string, number>> = { hour: 3600, minute: 60 };
+
 /** SRD Bearded Devil's Beard: "Until this poison ends, the target can't regain Hit Points." */
 const NO_HEALING_WHILE_IT_LASTS = new RegExp(
   `^Until this [a-z]+ ends, the target can${APOSTROPHE}t regain Hit Points\\.$`,
@@ -2289,6 +2601,33 @@ function spanRead(
 }
 
 /**
+ * What a hold pays out each turn, read off the six captures the two sentences
+ * that print one share: the dice, the flat addend, the type, the moment, and
+ * the two spellings of whose turn it is.
+ *
+ * Null where any of them is not something the engine holds — an unknown damage
+ * type, or a possessive naming somebody this reader cannot identify. The
+ * anchor goes through {@link anchorOf}, which is the same routing a deadline's
+ * takes and for the same reason: the Stirge writes its own noun and the Rug
+ * writes "its", and a payment collected on the wrong creature's turn is a rule
+ * nobody printed.
+ */
+function payoutOf(parts: readonly (string | undefined)[]): PrintedHoldPayout | null {
+  const [dice, flat, word, moment, its, possessive] = parts;
+  if (dice === undefined || word === undefined || moment === undefined) return null;
+  const type = damageTypeWord(word);
+  const onTurnOf = anchorOf(its, possessive);
+  if (type === null || onTurnOf === null) return null;
+  return {
+    dice,
+    flat: flat === undefined ? 0 : Number(flat),
+    type,
+    at: moment === 'start' ? 'start-of-turn' : 'end-of-turn',
+    onTurnOf,
+  };
+}
+
+/**
  * The gate a printed damage clause states, or null where it is not one the
  * engine can answer.
  *
@@ -2381,6 +2720,31 @@ type ClauseRead =
   | {
       readonly kind: 'while-held';
       readonly conditions: readonly ConditionName[];
+      /** SRD's "and takes 10 (2d6 + 3) Bludgeoning damage at the start of each of its turns". */
+      readonly payout?: PrintedHoldPayout;
+      readonly handedOver?: string;
+    }
+  /**
+   * "While Poisoned, the target also has the Paralyzed condition" — the same
+   * borrowed lifetime one clause along, and it borrows it from a *condition*
+   * rather than from a hold. It names which condition, because the clause
+   * before it may have imposed more than one and a reader that guessed would
+   * file the Paralyzed under whichever happened to be first.
+   */
+  | {
+      readonly kind: 'while-condition';
+      readonly condition: ConditionName;
+      readonly implies: ConditionName;
+    }
+  /**
+   * One more sentence about the attach before it — the cover, the Speed, the
+   * check, the action, the payment. Every block that prints an attach prints
+   * four or five of these, and none of them means anything without the first:
+   * an attach detail standing alone names a hold that is not there.
+   */
+  | {
+      readonly kind: 'attach-detail';
+      readonly detail: Partial<Omit<PrintedAttachRider, 'kind'>>;
       readonly handedOver?: string;
     }
   | { readonly kind: 'no-healing' };
@@ -2519,6 +2883,81 @@ function readClause(text: string): ClauseRead | null {
     });
   }
 
+  // The attach and its details, before the condition shapes: the first
+  // sentence opens with the book's "and the", which nothing else here claims,
+  // and each detail is anchored on wording no other pattern matches.
+  if (PRINTED_ATTACH.test(text)) return one({ kind: 'attach' });
+
+  const drinks = WHILE_ATTACHED_PAYS.exec(text);
+  if (drinks !== null) {
+    const payout = payoutOf(drinks.slice(2));
+    if (payout === null) return null;
+    return {
+      kind: 'attach-detail',
+      detail: { payout },
+      ...(drinks[1] === undefined ? {} : { handedOver: drinks[1] }),
+    };
+  }
+
+  const covers = ATTACH_COVERS.exec(text);
+  if (covers !== null) {
+    const size = sizeWord(covers[1]!);
+    const conditions = conditionsOf(covers[2]!, undefined);
+    if (size === null || conditions === null) return null;
+    return {
+      kind: 'attach-detail',
+      detail: {
+        covers: { conditions, ifNoLargerThan: size, ifAttackHadAdvantage: true },
+      },
+      // SRD's "and is suffocating": a rule about breath, and nothing here
+      // drowns. Handed back rather than dropped with the Blinded it rides on.
+      ...(covers[3] === undefined ? {} : { handedOver: covers[3] }),
+    };
+  }
+
+  const pinned = ATTACHED_SPEED_ZERO.exec(text);
+  if (pinned !== null) {
+    return {
+      kind: 'attach-detail',
+      detail: { holderSpeedBecomesZero: true },
+      // "it can't benefit from any bonus to its Speed, and it moves with the
+      // target": a floor under a Speed the engine has no way to state, and a
+      // position that follows another creature's. Both the table's.
+      ...(pinned[1] === undefined ? {} : { handedOver: pinned[1] }),
+    };
+  }
+
+  const checked = ATTACH_DETACH_CHECK.exec(text);
+  if (checked !== null) {
+    return { kind: 'attach-detail', detail: { detachDc: Number(checked[1]) } };
+  }
+
+  // The two sentences that state what this engine already does with an attach:
+  // somebody spends an Action to pull it off, and the creature that attached
+  // lets go for five feet. Read and consumed, so they are not reported as
+  // sentences nobody applied.
+  if (ATTACH_DETACH_ACTION.test(text) || ATTACH_SELF_DETACH.test(text)) {
+    return { kind: 'attach-detail', detail: {} };
+  }
+
+  const smothered = UNTIL_THE_GRAPPLE_ENDS.exec(text);
+  if (smothered !== null) {
+    // Read through a door of its own rather than through `conditionWord`,
+    // exactly as `WHILE_GRAPPLED` is and for the same reason: what that guard
+    // refuses is a Restrained filed under a rider's own source.
+    const named = [smothered[1], smothered[2]]
+      .filter((word): word is string => word !== undefined)
+      .map((word) => CONDITIONS.find((name) => name === word.toLowerCase()));
+    const payout = payoutOf(smothered.slice(4));
+    if (payout === null || named.some((name) => name === undefined)) return null;
+    return {
+      kind: 'while-held',
+      conditions: named as readonly ConditionName[],
+      payout,
+      ...(smothered[3] === undefined ? {} : { handedOver: smothered[3] }),
+    };
+  }
+
   const held = WHILE_GRAPPLED.exec(text);
   if (held !== null) {
     // Read through a door of its own rather than through `conditionWord`,
@@ -2535,7 +2974,44 @@ function readClause(text: string): ClauseRead | null {
     };
   }
 
+  // After the grapple's own implication, which is a relation's, and before the
+  // plain condition shapes, whose openings this cannot be mistaken for.
+  const alongside = WHILE_CONDITION.exec(text);
+  if (alongside !== null) {
+    const host = conditionWord(alongside[1]!);
+    const carried = conditionWord(alongside[2]!);
+    if (host === null || carried === null) return null;
+    return { kind: 'while-condition', condition: host, implies: carried };
+  }
+
+  const emptied = DROPPED_TO_ZERO_STABLE.exec(text);
+  if (emptied !== null) {
+    if (emptied[1] === undefined) return one({ kind: 'on-dropping-to-zero', stable: true });
+    const condition = conditionWord(emptied[1]);
+    const unit = SECONDS_IN[emptied[3]!.replace(/s$/, '')];
+    if (condition === null || unit === undefined) return null;
+    return one({
+      kind: 'on-dropping-to-zero',
+      stable: true,
+      conditions: [{ condition, lastsSeconds: Number(emptied[2]) * unit }],
+    });
+  }
+
+  if (DIES_AT_ZERO.test(text)) return one({ kind: 'on-dropping-to-zero', dies: true });
+
   if (NO_HEALING_WHILE_IT_LASTS.test(text)) return { kind: 'no-healing' };
+
+  const offered = PRINTED_GRAPPLE_OFFERED.exec(text);
+  if (offered !== null) {
+    const size = sizeWord(offered[1]!);
+    if (size === null) return null;
+    return one({
+      kind: 'grapple',
+      escapeDc: Number(offered[2]),
+      ifNoLargerThan: size,
+      insteadOfDamage: true,
+    });
+  }
 
   const grapple = PRINTED_GRAPPLE.exec(text);
   if (grapple !== null) {
@@ -2604,6 +3080,14 @@ function clausesOf(text: string): readonly string[] {
   return text
     .split(/(?<=\.)\s+/)
     .flatMap((sentence) => sentence.split('—'))
+    // **The em space the book's own paragraphs are separated by**, taken off
+    // the front of a clause rather than left on it. It is typography and not a
+    // word: the transcription writes `&emsp;` where the page breaks a stat
+    // block's line into paragraphs, and a clause carrying one matched no
+    // pattern and was handed to the DM over a space — which is how SRD
+    // Darkmantle's escape DC and SRD Stirge's five-foot detach were both
+    // reported as prose while the sentences either side of them were read.
+    .map((clause) => clause.replace(/^(?:&emsp;|\s)+/, ''))
     .map((clause) => clause.trim())
     .filter((clause) => clause.length > 0)
     .map((clause) => (clause.endsWith('.') ? clause : `${clause}.`));
@@ -2660,8 +3144,48 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
         handedOver.push(clause);
         continue;
       }
-      riders[riders.length - 1] = { ...host, whileHeld: read.conditions };
+      riders[riders.length - 1] = {
+        ...host,
+        whileHeld: read.conditions,
+        ...(read.payout === undefined ? {} : { payout: read.payout }),
+      };
       if (read.handedOver !== undefined) handedOver.push(read.handedOver);
+      continue;
+    }
+
+    if (read.kind === 'attach-detail') {
+      const host = riders.at(-1);
+      // An attach detail with no attach in front of it names a hold that is
+      // not there — the rule "While Grappled" keeps one case above.
+      if (host === undefined || host.kind !== 'attach') {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = { ...host, ...read.detail };
+      if (read.handedOver !== undefined) handedOver.push(read.handedOver);
+      continue;
+    }
+
+    if (read.kind === 'while-condition') {
+      const host = riders.at(-1);
+      // The condition it names has to be one the clause before it actually
+      // imposed. A sentence about some other condition names a lifetime that
+      // is not there, which is the same refusal a while-held clause with
+      // nothing in front of it gets.
+      const carrier =
+        host?.kind === 'on-dropping-to-zero'
+          ? (host.conditions ?? []).find((one) => one.condition === read.condition)
+          : undefined;
+      if (host === undefined || host.kind !== 'on-dropping-to-zero' || carrier === undefined) {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = {
+        ...host,
+        conditions: (host.conditions ?? []).map((held) =>
+          held === carrier ? { ...held, implies: [...(held.implies ?? []), read.implies] } : held,
+        ),
+      };
       continue;
     }
 

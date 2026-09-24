@@ -39,8 +39,9 @@ import { canUseFeatureThisTurn } from '../combat.js';
 import { conditionInstanceId } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../events.js';
 import { featureSource } from '../progression.js';
+import { attachSource } from '../state.js';
 import { remaining } from '../resources.js';
-import { sheetAsItStands, type HitOption } from '../standing.js';
+import { sheetAsItStands, type HitHoldPayout, type HitOption } from '../standing.js';
 import { type EffectTarget, timerKey } from '../timers.js';
 import { turnAnchored, type Duration } from '../time.js';
 import { type Supply } from './casting.js';
@@ -207,6 +208,20 @@ export function applyHitRider(
      * that does not read it.
      */
     readonly dealt?: number;
+    /**
+     * Whether **this blow** took the target's last hit point.
+     *
+     * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points."
+     * Handed in rather than read off the state, and the difference is a rule:
+     * by the time this runs the world says only that the target is *at* 0, and
+     * a creature already on the floor that is hit again takes a Death Saving
+     * Throw failure. Only the caller, which held the world on both sides of
+     * the damage, can tell the two apart.
+     *
+     * Absent where the caller is not settling damage, exactly as
+     * {@link dealt} is.
+     */
+    readonly droppedToZero?: boolean;
   },
   option: HitOption,
 ): Result<HitRiderOutcome> {
@@ -289,7 +304,20 @@ export function applyHitRider(
   if (!grabbed.ok) return grabbed;
   events.push(...grabbed.value);
 
-  const held = grabbed.value.reduce(applyEvent, resolved.value.state);
+  // **The attach, beside the grapple and for the grapple's reason**: it is a
+  // relation between two creatures rather than anything hung on one of them,
+  // and it must see the world the effects left. The two never both happen on
+  // one printed line — a block either holds you or holds on to you.
+  const fixed = makeTheAttach(
+    grabbed.value.reduce(applyEvent, resolved.value.state),
+    hit,
+    option,
+    unverified,
+  );
+  if (!fixed.ok) return fixed;
+  events.push(...fixed.value);
+
+  const held = [...grabbed.value, ...fixed.value].reduce(applyEvent, resolved.value.state);
 
   // **The shove, after the grapple**, because the order is the engine's to fix
   // and no printed line does both: a hold and a push are two answers to "where
@@ -319,8 +347,23 @@ export function applyHitRider(
   }
   events.push(...lowering);
 
+  // **What a blow that emptied the target leaves**, on the world the lowered
+  // maximum has already been written onto — SRD Specter's sentence and SRD
+  // Phase Spider's can both ride on one homebrew line, and a maximum lowered
+  // after the Stable would be a creature stabilised at a number that then
+  // moved. Last of the three because it is the one clause that can end the
+  // creature.
+  const emptied = onDroppingToZero(
+    lowering.reduce(applyEvent, held),
+    hit,
+    option,
+    supply,
+  );
+  if (!emptied.ok) return emptied;
+  events.push(...emptied.value);
+
   const timed = fileDeadlines(
-    [...shoved.events, ...lowering].reduce(applyEvent, held),
+    [...shoved.events, ...lowering, ...emptied.value].reduce(applyEvent, held),
     resolved.value.outcomes,
     resolved.value.held,
     { attacker: hit.attacker, option },
@@ -379,7 +422,197 @@ function makeTheGrapple(
     );
     return ok([]);
   }
-  return ok(landed.value.events);
+  return ok([
+    ...landed.value.events,
+    // SRD Animated Rug of Smothering: "takes 10 (2d6 + 3) Bludgeoning damage
+    // at the start of each of its turns" — an arrangement the hold makes,
+    // filed under the hold's own source so the boundary can read it and
+    // `holdStillStands` can stop reading it the moment the escape succeeds.
+    ...payoutEvents(grapple.payout, grappleSource(hit.attacker), hit),
+  ]);
+}
+
+/**
+ * SRD Stirge: "the stirge attaches to the target." SRD Darkmantle: the same,
+ * plus a cover and a Speed of 0.
+ *
+ * **Made the way the grapple above it is made**, and filed the other way
+ * round: the relation is written on the creature that attached, and everything
+ * it hung at either end is filed under {@link attachSource} so one
+ * `creature-detached` takes all of it.
+ *
+ * **Nothing here refuses.** The blow has landed; a creature immune to the
+ * condition the cover imposes is attached without being covered and is said so
+ * out loud, which is the reading `conditionLanding` holds at every door a
+ * condition arrives through.
+ */
+function makeTheAttach(
+  world: GameState,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+  unverified: string[],
+): Result<readonly GameEvent[]> {
+  const attach = option.attaches;
+  if (attach === undefined) return ok([]);
+
+  const source = attachSource(hit.target);
+  const events: GameEvent[] = [
+    {
+      type: 'creature-attached',
+      id: hit.attacker,
+      attachment: {
+        to: hit.target,
+        name: option.name,
+        ...(attach.detachDc === undefined ? {} : { detachDc: attach.detachDc }),
+      },
+    },
+  ];
+
+  // SRD Darkmantle: "Its Speed becomes 0." The grant the engine already writes
+  // for Hypnotic Pattern's own sentence, filed under the attach so it comes
+  // back the moment the darkmantle lets go.
+  if (attach.holderSpeedBecomesZero === true) {
+    events.push({
+      type: 'speed-modifier-granted',
+      id: hit.attacker,
+      modifier: { source, change: 'zero' },
+    });
+  }
+
+  // SRD Darkmantle: "it covers the target, which has the Blinded condition."
+  // No deadline of its own — the attach is the lifetime — so the condition is
+  // applied with no duration and lifted by the cause when the hold ends.
+  let current = events.reduce(applyEvent, world);
+  for (const condition of attach.whileHeld ?? []) {
+    const landed = conditionLanding(
+      applyConditionTo(current, hit.target, condition, attachSource(hit.attacker)),
+    );
+    if (!landed.ok) return landed;
+    if (!landed.value.landed) {
+      unverified.push(
+        `${option.featureName} leaves ${hit.target} ${condition} while it is attached, and ${hit.target} cannot be given that condition at all`,
+      );
+      continue;
+    }
+    events.push(...landed.value.events);
+    current = landed.value.events.reduce(applyEvent, current);
+  }
+
+  // SRD Stirge: "the target takes 5 (2d4) Necrotic damage at the start of each
+  // of the stirge's turns."
+  events.push(...payoutEvents(attach.payout, source, hit));
+  return ok(events);
+}
+
+/**
+ * The arrangement a hold makes, as the grant a turn boundary already reads.
+ *
+ * **Filed on whoever's turn collects it**, which is the shape `payoutsAt`
+ * wants: SRD Stirge collects at its own boundary and the damage lands on the
+ * creature it is drinking from, so the grant sits on the stirge and names the
+ * other end. SRD Animated Rug writes "each of its turns" — the creature that
+ * was struck — so its grant sits on them and names nobody.
+ *
+ * The dice are a notation, thrown at the boundary and never here: a payment
+ * that repeats throws a new die each turn, and rolling one at the hit would
+ * put the number in the log before the moment that produced it.
+ */
+function payoutEvents(
+  payout: HitHoldPayout | undefined,
+  source: string,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+): readonly GameEvent[] {
+  if (payout === undefined) return [];
+  const collector = payout.onTurnOf === 'attacker' ? hit.attacker : hit.target;
+  return [
+    {
+      type: 'turn-payout-granted',
+      id: collector,
+      payout: {
+        source,
+        at: payout.at,
+        payout: 'damage',
+        dice: payout.dice,
+        flat: payout.flat,
+        damageType: payout.damageType,
+        ...(collector === hit.target ? {} : { to: hit.target }),
+      },
+    },
+  ];
+}
+
+/**
+ * SRD Phase Spider: "If this damage reduces the target to 0 Hit Points, the
+ * target becomes Stable, and it has the Poisoned condition for 1 hour." SRD
+ * Gibbering Mouther: "The target dies."
+ *
+ * **Nothing here refuses**, which is the rule the shove above it keeps and for
+ * the same reason: the blow has landed. A creature immune to the condition is
+ * reported by {@link conditionLanding} and the Stable still stands; a creature
+ * already dead is not made deader, which is the reading `applyPrintedClauses`
+ * takes of the same event.
+ *
+ * The order is the book's own: Stable, then what the hour hangs, then the
+ * death — so a log read forwards never shows a condition hung on a corpse.
+ * Only one line in the SRD prints the death and it prints nothing else, so the
+ * order is the engine's to fix rather than a rule anybody wrote down.
+ */
+function onDroppingToZero(
+  world: GameState,
+  hit: {
+    readonly attacker: CharacterId;
+    readonly target: CharacterId;
+    readonly droppedToZero?: boolean;
+  },
+  option: HitOption,
+  supply: Supply,
+): Result<readonly GameEvent[]> {
+  const leaves = option.onDroppingToZero;
+  if (leaves === undefined || hit.droppedToZero !== true) return ok([]);
+
+  const events: GameEvent[] = [];
+  let current = world;
+  const land = (made: readonly GameEvent[]): void => {
+    events.push(...made);
+    current = made.reduce(applyEvent, current);
+  };
+
+  if (leaves.stable === true && current.creatures[hit.target]?.vitals.stable !== true) {
+    land([{ type: 'stabilised', id: hit.target }]);
+  }
+
+  // **Sourced per use**, the reading the lowered maximum one function up
+  // already takes of a Multiattack: two bites from one spider are two hours,
+  // and under a shared source the second would merely move the first's
+  // deadline.
+  const source = `${featureSource(option.feature)}:${supply.issuer.count}`;
+  for (const one of leaves.conditions ?? []) {
+    const applied = applyConditionTo(
+      current,
+      hit.target,
+      one.condition,
+      source,
+      [],
+      { kind: 'seconds', seconds: one.durationSeconds },
+      undefined,
+      {},
+      undefined,
+      one.implies,
+    );
+    const landed = conditionLanding(applied);
+    if (!landed.ok) return landed;
+    if (landed.value.landed) land(landed.value.events);
+  }
+
+  // SRD Gibbering Mouther: "The target dies if it is reduced to 0 Hit Points by
+  // this attack." `creature-died` and not damage — a healthy creature taking
+  // exactly its maximum drops to 0 and does not die, which is the distinction
+  // this event exists for.
+  if (leaves.dies === true && current.creatures[hit.target]?.vitals.dead !== true) {
+    land([{ type: 'creature-died', id: hit.target, cause: option.name }]);
+  }
+
+  return ok(events);
 }
 
 /**

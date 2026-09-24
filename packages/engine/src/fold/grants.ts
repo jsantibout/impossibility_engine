@@ -19,7 +19,7 @@ import { actionRuleKey } from '../combat.js';
 import { rollModifierKey } from '../roll-modifiers.js';
 import type { DeniedBenefit } from '../conditions.js';
 import type { GameEvent } from '../events.js';
-import type { GameState } from '../state.js';
+import { attachSource, type GameState } from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -45,6 +45,8 @@ export const GRANTS_EVENTS = [
   'weapon-rider-granted',
   'condition-immunity-granted',
   'turn-payout-granted',
+  'creature-attached',
+  'creature-detached',
   'action-rule-granted',
   'reaction-granted',
   'healing-rule-granted',
@@ -283,6 +285,41 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.payout,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { payouts }, creature);
+    }
+
+    case 'creature-attached': {
+      const creature = creatureOf(state, event, event.id);
+      // Attaching again to the same creature replaces rather than stacks, the
+      // rule every grant in this seam follows — and **the creature attached to
+      // is the identity**, because a stirge can only be on one thing at a
+      // time per set of jaws and a second Proboscis at the same victim is the
+      // same hold. Sorted so a fold compares byte for byte.
+      const attachments = [
+        ...creature.attachments.filter((held) => held.to !== event.attachment.to),
+        event.attachment,
+      ].sort((a, b) => (a.to < b.to ? -1 : a.to > b.to ? 1 : 0));
+      return withCreature(next, event.id, { attachments }, creature);
+    }
+
+    case 'creature-detached': {
+      const creature = creatureOf(state, event, event.id);
+      const attachments = creature.attachments.filter((held) => held.to !== event.to);
+      // **One ending, both ends.** SRD Stirge files its payment on the stirge
+      // and SRD Animated Rug files its on whoever it is holding, so a release
+      // that touched only the creature that let go would leave one of the two
+      // lines still being paid. `releaseGrants` is the `grants` deadline's own
+      // body, reached here by a hold ending instead of by a clock.
+      const released = withCreature(
+        next,
+        event.id,
+        { ...releaseGrants(creature, attachSource(event.to)), attachments },
+        creature,
+      );
+      const other = released.creatures[event.to];
+      // A creature that has left is the deletion and nothing else, which is
+      // the reading `endTimedCondition` takes of the same absence.
+      if (other === undefined) return released;
+      return withCreature(released, event.to, releaseGrants(other, attachSource(event.id)), other);
     }
 
     case 'action-rule-granted': {

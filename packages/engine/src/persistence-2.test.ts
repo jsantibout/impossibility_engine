@@ -522,6 +522,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'casting-save-recorded',
   'combatant-joined',
   'condition-immunity-granted',
+  // A creature fixed to another and the ending that lets go — SRD Stirge, SRD
+  // Darkmantle. Neither log was written when an attach existed at all: the
+  // sentence was carried verbatim and handed to the DM, `CreatureState` had no
+  // field for the relation, and both fixtures fold to exactly the states they
+  // always folded to with the list empty on every creature. `attach.test.ts`
+  // folds both and drives them end to end: the hold made without a grapple,
+  // the target walking off with it on them, the payment at the attacher's own
+  // boundary, the cover gated on the roll's mode, the Action a neighbour
+  // spends, the check the Darkmantle's line prints, and the five feet the
+  // attacher lets go for.
+  'creature-attached',
+  'creature-detached',
   // How many heads a creature has. Neither log was written when anybody could
   // say — an Attack action held whatever the sheet said and nothing else —
   // and both fixtures fold to exactly the states they always folded to with

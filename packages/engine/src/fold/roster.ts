@@ -120,6 +120,7 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             weaponRiders: [],
             grantedConditionImmunities: [],
             payouts: [],
+            attachments: [],
             actionRules: [],
             grantedReactions: [],
             healingRules: [],
