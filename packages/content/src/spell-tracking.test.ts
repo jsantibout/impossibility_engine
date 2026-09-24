@@ -1109,7 +1109,6 @@ const ADDED_FIRST: readonly string[] = [
   'goodberry',
   'greater-restoration',
   'guardian-of-faith',
-  'gust-of-wind',
   'heat-metal',
   'holy-aura',
   'ice-knife',

@@ -2213,6 +2213,14 @@ describe('the fought fact is a second build that corrected the query', () => {
    * Elf states it as a species trait no grant kind carries. So the spell moved
    * off the shape the build retired and onto this one, which is where a fact
    * rather than a mechanism belongs.
+   *
+   * **And a third executed claimant arrived the same way.** SRD Levitate asks
+   * its Constitution saving throw of "an **unwilling** creature" and a willing
+   * one is simply lifted; the lift is built, the save is rolled, and whether
+   * the creature consents is a fact the engine holds about nobody — `side` is
+   * a different question and the casting has no word for consent. So the spell
+   * moved off the movement shape the build retired and onto this one, which is
+   * the same journey Sleep made one field along.
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
@@ -2223,7 +2231,7 @@ describe('the fought fact is a second build that corrected the query', () => {
     // the half of it no mechanical marker sees: the undefined population is
     // empty of this shape and all three claims are live somewhere else.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
+    expect(fact.executed).toEqual(['hunters-mark', 'levitate', 'sleep']);
     expect(fact.tracked).toEqual(['call-lightning', 'enthrall', 'scrying']);
   });
 });
@@ -2527,7 +2535,18 @@ describe('a consumer count is a query', () => {
     // own branch produced, and neither survived the merge of both** — which is
     // why the leader is asserted by measurement here and not by name from a
     // digest.
-    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
+    //
+    // **And the tie is back, for the third time and by the same mechanism.**
+    // Gust of Wind was executed, which took its "50 percent chance to
+    // extinguish them" out of the tracked map — and the executed map has no
+    // entry to put it in, because `CLAUSE_MARKERS` sees no coin flip. So the
+    // leader lost a consumer without anything being built for it, and
+    // `a-casting-ended-by-a-trigger` drew level: a ranking is a measurement of
+    // the populations rather than a statement about what is hard.
+    expect(leaders).toEqual([
+      'a-casting-ended-by-a-trigger',
+      'a-random-outcome-that-is-not-a-d20',
+    ]);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2540,12 +2559,23 @@ describe('a consumer count is a query', () => {
     // shapes of equal size have no defined order between them. The tie this
     // used to record was broken on 2026-09-22, when Find Familiar was written
     // and `a-stat-block-created-mid-fight` lost its last undefined consumer.
+    //
+    // **And the band below the leaders is the next distinct size**, not
+    // `ranked[1]`: while the top is a tie, the second entry of the ranking is
+    // still in the leading band, and reading it as the runner-up would have
+    // asserted the leaders twice under another name.
+    const below = ranked.find((one) => one.blocks.length < ranked[0]!.blocks.length);
     expect(
       ranked
-        .filter((one) => one.blocks.length === ranked[1]!.blocks.length)
+        .filter((one) => one.blocks.length === below!.blocks.length)
         .map((one) => one.shape)
         .sort(),
-    ).toEqual(['a-casting-ended-by-a-trigger']);
+    ).toEqual([
+      'a-choice-made-at-the-casting',
+      'a-second-place-to-put-a-creature',
+      'a-stat-block-created-mid-fight',
+      'an-effect-that-suppresses-other-magic',
+    ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
     // this shape; ten of them were written, and only two carry the claim into

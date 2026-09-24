@@ -923,6 +923,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." Forbidding a named action is `ActionRule`’s `forbids` and four definitions write it; what this sentence forbids is **talking** and **handling an object**, and no command takes either — the second is the Utilize action, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one. Gate G1 read it as mis-filed for that reason, and the gap it names is the feature book’s.',
     },
   ],
+  'gust-of-wind': [
+    {
+      clause: 'the Bonus Action that changes the direction the Line blasts in on a later turn',
+      why: 'an-activation-that-resolves-an-area',
+      note: 'SRD: "As a Bonus Action on your later turns, you can change the direction in which the Line blasts from you." The push and both saving throws are executed and this is the clause left. An area is fixed where the casting put it, and `activateSpell` resolves an attack at a named target or walks an area along a stated route — a Line re-aimed from the caster is a **fresh** area in a direction chosen now, which is the sentence SRD Sunbeam and Call Lightning wait on too.',
+    },
+    {
+      clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'a doubled cost is Difficult Terrain by another name and an area may write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you", which is a fact about the mover. That is the directional arm of this shape and `areaTerrain` does not reach it.',
+    },
+  ],
   harm: [
     {
       clause: 'Hit Point maximum reduction',
@@ -1019,6 +1031,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // did, arriving in the executed population with **one** clause left — and it
   // is the table's rather than a shape's, which is the honest end of a
   // prediction that was wrong for two tranches.
+  levitate: [
+    {
+      clause: 'the save is asked of every target',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'SRD asks the Constitution saving throw of an **unwilling** creature only — "An unwilling creature that succeeds on a Constitution saving throw is unaffected" — so a willing ally is lifted with no roll at all. Whether a creature consents is fiction the engine does not hold and must not derive: `side` is a different question, a Charmed ally is on the party’s side and an unfought enemy is not, and no other spell’s consent clause has a die behind it for this one to borrow from. What is missing is the word on the request that names who consents.',
+    },
+    {
+      clause: 'moving the target afterwards is the DM’s',
+      why: 'an-activation-that-forces-a-saving-throw',
+      note: 'SRD: "You can change the target’s altitude by up to 20 feet in either direction on your turn." An activation resolves effects at a named target or walks the casting’s own **area** along a route; moving the creature the casting is *holding* is neither, and no activation shape reaches a target’s position — which is the same later-action gap this shape names, read from the movement side rather than from a saving throw.',
+    },
+  ],
   light: [
     {
       clause: 'the spell targets an object, and objects are not modelled',
@@ -1592,14 +1616,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the 5 feet a creature spends stepping through is charged by the DM, because the far plant is at any distance — off the scene entirely — and there is no destination to move anybody to.',
     },
   ],
-  levitate: [
-    {
-      marker: 'saving-throw',
-      clause: 'An unwilling creature that succeeds on a Constitution saving throw is unaffected',
-      why: 'forced-movement-a-spell-causes',
-      note: 'the save is written as the gate on an outcome, and the whole outcome here is the lift: rising 20 feet and hanging there is forced movement, and no SpellEffect reaches the one function that performs it. A save gating nothing would be a die thrown for no reason.',
-    },
-  ],
   scrying: [
     {
       marker: 'saving-throw',
@@ -1710,26 +1726,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The target has the Prone condition and then ends its turn',
       why: 'a-creature-somebody-else-is-playing',
       note: 'the Prone half is an ordinary `condition` effect, and the clause beside it is the nearest of the five to sayable: a turn ended is every slot of it gone, which a spell may now spend. What still refuses it is that this is one option of five a creature **chose to obey**, so writing Grovel alone would be a Command that only ever meant one word — which is the whole reason all five options are the table’s together.',
-    },
-  ],
-  'gust-of-wind': [
-    {
-      marker: 'saving-throw',
-      clause: 'be pushed 15 feet away from you in a direction following the Line',
-      why: 'forced-movement-a-spell-causes',
-      note: 'the Strength save is ordinary and the shove is not: `moveCreature` already takes `forced: true` and reports whose space is being shared, and no spell effect reaches it — so the save would gate a push nothing can perform.',
-    },
-    {
-      marker: 'movement-cost',
-      clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'a doubled cost is Difficult Terrain by another name and an area may now write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you". That is the directional arm of this shape and the writer does not reach it.',
-    },
-    {
-      marker: 'chance',
-      clause: 'has a 50 percent chance to extinguish them',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'the generator throws any notation `parseNotation` reads and no spell effect asks it for one that is not a D20 Test, so a coin flip over a lantern has nothing to ask and nowhere for the answer to be read.',
     },
   ],
   'freedom-of-movement': [

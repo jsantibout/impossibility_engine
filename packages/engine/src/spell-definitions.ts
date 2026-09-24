@@ -633,7 +633,8 @@ export interface DelayedDamage {
  * names nobody of its own, and spends nothing, which is exactly what a rider
  * slot may contain.
  *
- * **There is no direction, and that is the finding rather than an omission.**
+ * **There is no horizontal direction, and that is the finding rather than an
+ * omission.**
  * Every sentence in the book that claims this shape and is in reach says the
  * same three words: Thunderwave's "pushed 10 feet **away from you**", Gust of
  * Wind's "pushed 15 feet away from you", the Forceful Hand's shove, Open Hand
@@ -644,10 +645,42 @@ export interface DelayedDamage {
  * bearing from them to the creature they are shoving, which is what "straight
  * away from yourself" means on this lattice; `bearingBetween` is the one
  * reader of it, shared with the Shove and the Push mastery.
+ *
+ * **Up is the one direction a bearing could never have named**, which is what
+ * {@link ForcedMovement.kind} is for and why it is a member rather than an
+ * angle: elevation is its own axis on this lattice, and SRD Levitate's "rises
+ * **vertically** up to 20 feet" is a sentence no compass reading expresses.
  */
 export interface ForcedMovement {
   /** SRD Thunderwave's "10 feet", straight away from the caster. */
   readonly feet: number;
+  /**
+   * Which way the outcome moves the creature. Absent is `push`.
+   *
+   * **Two members, because the book writes two sentences this rider can
+   * perform** — and it is optional so that every definition written before it
+   * means exactly what it always meant:
+   *
+   * | | |
+   * |---|---|
+   * | `push` | SRD Thunderwave, Gust of Wind: "pushed 10 feet **away from you**", along the bearing from the caster |
+   * | `lift` | SRD Levitate: "**rises vertically** up to 20 feet and remains suspended there for the duration" |
+   *
+   * **A pull is still not here**, for the reason the paragraph above gives:
+   * `pullToward` exists and a monster's attack rider reaches it, no spell in
+   * reach writes one, and a member no definition asks for is mechanism built
+   * ahead of its consumer.
+   *
+   * **A lift is the one movement the casting keeps.** A push is over the
+   * instant it lands and the creature stands where the wave left it; a lift is
+   * *held* — "remains suspended there for the duration" — so it hangs a
+   * `GrantedLift` under the casting's own source, and SRD's "When the spell
+   * ends, the target floats gently to the ground if it is still aloft" is the
+   * fold handing the elevation back at release. That makes it the only rider
+   * whose undoing is part of the sentence that imposed it, and the reason it
+   * is refused on a host with no casting to keep it.
+   */
+  readonly kind?: 'push' | 'lift';
 }
 
 /**
@@ -2050,6 +2083,26 @@ export type SpellEffect =
        * carry the slot rather than a fourth spelling of it.
        */
       readonly light?: LightRider;
+      /**
+       * The movement the same failed save delivers: see
+       * {@link OutcomeRiders.movement}.
+       *
+       * Spelled flat for the reason `condition`, `modifiers` and `light` are —
+       * this host keeps its own layout — and read through
+       * {@link outcomeRidersOf}, so `applyRiders` never learns which host it
+       * is serving.
+       *
+       * **The third host, and the two spells that needed it deal no damage at
+       * all.** SRD Gust of Wind: "Each creature in the Line must succeed on a
+       * Strength saving throw **or be pushed 15 feet away from you**"; SRD
+       * Levitate's lift is gated by a Constitution save with nothing else on
+       * the other side of it. Both were unwritable while the slot hung only on
+       * `attack` and `save-damage`, because a `save-damage` of no damage is
+       * not a thing the format has and a second effect beside the save would
+       * have rolled a second saving throw — which is the argument every rider
+       * on this host already makes.
+       */
+      readonly movement?: ForcedMovement;
       /**
        * The same failed save takes the target's Concentration: see
        * {@link OutcomeRiders.breaksConcentration}.
@@ -5543,11 +5596,15 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
   const modifiers = modifierRidersOf(effect);
   const delayed =
     effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.delayed : undefined;
-  // The two hosts that carry `& OutcomeRiders` whole, which are the two the
-  // SRD writes a shove on: "On a hit" and "On a failed save". `save` keeps its
-  // flat spelling and has never carried the last two slots.
+  // **All three hosts**, and the third is the one SRD Gust of Wind and SRD
+  // Levitate write: a saving throw whose failure moves the creature and does
+  // nothing else. `save` keeps its flat spelling, so the slot is declared
+  // there as well and read here in one place — the reading `light` already
+  // takes, for its reason.
   const movement =
-    effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.movement : undefined;
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.movement
+      : undefined;
   // The same two hosts, and for the same reason: the SRD writes a spend "on a
   // hit" and "on a failed save" and nowhere else that a rider hangs.
   const spends =

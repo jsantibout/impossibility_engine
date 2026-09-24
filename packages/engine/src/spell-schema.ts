@@ -1251,6 +1251,11 @@ function checkSaveWithoutCondition(
     further.length > 0 ||
     (effect.modifiers ?? []).length > 0 ||
     effect.light !== undefined ||
+    // SRD Gust of Wind: "must succeed on a Strength saving throw **or be
+    // pushed 15 feet away from you**", and SRD Levitate's lift. A failure
+    // whose whole content is a movement decided plenty, and reading the slots
+    // above without this one would call the wind a die thrown for nothing.
+    effect.movement !== undefined ||
     effect.breaksConcentration === true;
 
   if (!hangs && effect.recordsOutcome !== true) {
@@ -1839,12 +1844,24 @@ function checkShedLight(
   }
 }
 
+/**
+ * The ways a settled outcome moves a creature, as data.
+ *
+ * {@link ForcedMovement.kind}'s members, restated here for the reason every
+ * other vocabulary in this file is: content arrives as JSON through
+ * `loadContent` and the compiler was never asked. A member added to the type
+ * and not here is refused rather than silently accepted, which is the safe
+ * direction — `applyRiders` dispatches on this value, and a kind it does not
+ * know would land as a push.
+ */
+const MOVEMENT_KINDS: ReadonlySet<string> = new Set(['push', 'lift']);
+
 function checkRiders(
   riders: {
     readonly conditions?: readonly ConditionRider[];
     readonly modifiers?: readonly ModifierRider[];
     readonly delayed?: { readonly damage: DiceScaling; readonly damageType: string };
-    readonly movement?: { readonly feet: number };
+    readonly movement?: { readonly feet: number; readonly kind?: string };
     readonly spends?: SpentBudget;
     readonly light?: LightRider;
     readonly breaksConcentration?: true;
@@ -1910,26 +1927,39 @@ function checkRiders(
       }
     }
   }
-  // A shove says one thing and there is one way to get it wrong: SRD writes
-  // "pushed 10 feet away from you", and the lattice everything else is
-  // measured on has no spaces smaller than five feet. A push of nought feet is
-  // a sentence the book never prints and an event that would move nobody while
-  // reading as though it had.
+  // A movement says two things and there are two ways to get it wrong. SRD
+  // writes "pushed 10 feet away from you" and "rises vertically up to 20
+  // feet", and the lattice everything else is measured on has no spaces
+  // smaller than five feet: a movement of nought feet is a sentence the book
+  // never prints and an event that would move nobody while reading as though
+  // it had.
+  //
+  // **And the way it goes is a closed vocabulary**, because `applyRiders`
+  // dispatches on it: a kind nothing performs is a rider that would land
+  // silently as a push, which is the confident wrong answer rather than the
+  // missing one.
   if (riders.movement !== undefined) {
     if (
       readsAsObject(
         riders.movement,
         `${path}.movement`,
-        'a shove is an object naming how far the creature is pushed',
+        'a movement is an object naming how far the creature goes',
         found,
       )
     ) {
-      const { feet } = riders.movement;
+      const { feet, kind } = riders.movement;
       if (!Number.isInteger(feet) || feet < 5 || feet % 5 !== 0) {
         found.push({
           field: `${path}.movement.feet`,
           code: 'bad_push_distance',
-          reason: `a shove moves a whole number of spaces of the 5-foot lattice everything else is measured on, and "${String(feet)}" is not one`,
+          reason: `a movement covers a whole number of spaces of the 5-foot lattice everything else is measured on, and "${String(feet)}" is not one`,
+        });
+      }
+      if (kind !== undefined && !MOVEMENT_KINDS.has(kind)) {
+        found.push({
+          field: `${path}.movement.kind`,
+          code: 'bad_push_kind',
+          reason: `"${String(kind)}" is not a way a settled outcome moves a creature; the engine performs ${[...MOVEMENT_KINDS].join(' and ')}`,
         });
       }
     }
@@ -3860,6 +3890,20 @@ function grantCarried(effect: SpellEffect): string | null {
     case 'hit-point-maximum':
       return 'a hit point maximum held up';
     default: {
+      // **The rider whose undoing is part of the sentence that imposed it.**
+      // SRD Levitate: "remains suspended there for the duration ... When the
+      // spell ends, the target floats gently to the ground." The landing is
+      // `releaseCasting`'s, so a casting that is over the moment it resolves
+      // would leave a creature in the air with nothing that could ever bring
+      // it down — the same defect a Feather Fall with no duration is, arriving
+      // through a rider rather than through an effect kind.
+      //
+      // A push carries no such debt and is deliberately not here: a shove is
+      // finished the instant it lands, and Thunderwave is Instantaneous.
+      const moved = (effect as { readonly movement?: { readonly kind?: unknown } }).movement;
+      if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
+        return 'a creature this casting is holding in the air';
+      }
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
         // not an object at all has no lifetime to be wrong about, and is

@@ -229,6 +229,37 @@ export function altitudeOf(state: PositionState, who: CharacterId): number | nul
   return positionOf(state, who)?.z ?? null;
 }
 
+/**
+ * Set a creature down on the floor, wherever over it they were.
+ *
+ * SRD *Levitate*: "When the spell ends, the target **floats gently to the
+ * ground** if it is still aloft." The x and y are untouched — nothing blew
+ * them sideways — and z goes to the floor, which is the only floor the engine
+ * has: {@link altitudeOf}'s reading of the lattice, from the other end.
+ *
+ * **A total rather than a subtraction**, and the sentence is why: the caster
+ * may have changed the altitude, something may have shoved the creature, and
+ * "the ground" is where it ends up regardless of how far that turns out to be.
+ * Undoing the twenty feet the spell originally lifted would leave a creature
+ * that had since been raised another twenty still hanging in the air.
+ *
+ * **It refuses nothing and answers no question**, which is what lets the fold
+ * call it: a creature nobody has placed is left exactly as it is, a creature
+ * already on the floor comes back unchanged *by reference* — the identity the
+ * derived pass compares to decide whether anything happened — and the space it
+ * lands in is not checked for occupancy, because this is forced movement and
+ * SRD forbids only ending a move in an occupied space *willingly*. The same
+ * licence `shoveAwayFrom` takes, for the same reason.
+ *
+ * There is no fall here and there must not be: a creature let down gently has
+ * not fallen, and `resolveFall` is what a creature that *drops* goes through.
+ */
+export function settleToGround(state: PositionState, who: CharacterId): PositionState {
+  const at = state.positions[who];
+  if (at === undefined || at.z === 0) return state;
+  return { ...state, positions: { ...state.positions, [who]: { ...at, z: 0 } } };
+}
+
 const within = (extent: SceneExtent, p: Point): boolean =>
   p.x >= 0 && p.x <= extent.width && p.y >= 0 && p.y <= extent.depth && p.z >= 0 && p.z <= extent.height;
 

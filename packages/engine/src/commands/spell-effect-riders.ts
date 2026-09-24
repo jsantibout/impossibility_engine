@@ -40,7 +40,7 @@ import { actionRulesOn } from '../standing.js';
 import { castingSource } from '../spells.js';
 import { applySpellEffect, type SpellEffectOptions } from './casting.js';
 import { schedule } from './conditions.js';
-import { shoveAwayFrom } from './spell-effect-movement.js';
+import { lift, shoveAwayFrom } from './spell-effect-movement.js';
 import { effectCheckFrom } from './rolls.js';
 import { lightShedOn } from './spell-effect-grants.js';
 
@@ -527,15 +527,30 @@ export function applyRiders(
     }
   }
 
-  // The shove, last, and **asked before it is written**: a push into a wall or
-  // out of the scene is a log the fold could not apply, so what cannot happen
-  // simply does not, and says so on the casting's own `unverified` rather than
-  // refusing a casting whose slot and damage are already spent.
+  // The movement, last of the four, and **asked before it is written**: a push
+  // into a wall, a lift into a ceiling or either out of the scene is a log the
+  // fold could not apply, so what cannot happen simply does not, and says so on
+  // the casting's own `unverified` rather than refusing a casting whose slot
+  // and damage are already spent.
+  //
+  // **Two performers, one slot** — see {@link ForcedMovement.kind}. A push is
+  // measured from the caster along the bearing to the creature; a lift is
+  // measured from nobody, because up is not a direction anybody stands in, and
+  // it hangs the grant that records whose magic is holding the creature there.
+  // Absent is a push, which is what every definition written before the field
+  // existed meant and still means.
   if (riders.movement !== undefined) {
-    const shoved = shoveAwayFrom(current, target, casterId, riders.movement, definition.name);
-    events.push(...shoved.events);
-    current = shoved.events.reduce(applyEvent, current);
-    context.unverified.push(...shoved.unverified);
+    const moved =
+      riders.movement.kind === 'lift'
+        ? lift(current, target, riders.movement, source, definition.name)
+        : shoveAwayFrom(current, target, casterId, riders.movement, definition.name);
+    // **The casting is holding them**, which a push never is: `spellOn` is what
+    // Dispel Magic reads, and a levitated creature the record did not know
+    // about is one a dispel aimed at them would leave in the air.
+    if (riders.movement.kind === 'lift' && moved.events.length > 0) held.add(target);
+    events.push(...moved.events);
+    current = moved.events.reduce(applyEvent, current);
+    context.unverified.push(...moved.unverified);
   }
 
   // **A slot of the target's own turn, used up.** SRD Dissonant Whispers, and

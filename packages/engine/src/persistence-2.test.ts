@@ -542,6 +542,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // swings a declared count holds, the re-declaration that replaces it, and
   // the count the fold gives back with no content open.
   'creature-heads-declared',
+  // A casting holding a creature off the ground — SRD Levitate. Neither log
+  // was written when anything could: no spell effect reached the forced
+  // movement the lattice already performed, a rider could only push, and the
+  // creature record had no `lifts` list at all — so both fixtures fold to
+  // exactly the states they always folded to with that list empty on every
+  // creature. `movement-rider.test.ts` casts the spell through the public API
+  // and drives it end to end: the save that gates the lift, the twenty feet of
+  // air, the hold under the casting's own source, and the gentle landing the
+  // fold performs when the casting ends.
+  'creature-lifted',
   // A summons: the fixtures predate it, and appending a type here is the
   // acknowledgement this list exists to collect.
   'creature-summoned',

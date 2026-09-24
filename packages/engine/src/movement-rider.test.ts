@@ -223,7 +223,7 @@ describe('Levitate: a Constitution save, and twenty feet of air', () => {
     expect(height(fold('seed', log), TARGET)).toBe(20);
 
     const ended = unwrap(
-      endConcentration(fold('seed', log), CASTER, 'dismissed'),
+      endConcentration(fold('seed', log), CASTER, 'voluntary'),
       'let go of Levitate',
     );
     const after = fold('seed', [...log, ...ended]);
@@ -244,8 +244,14 @@ describe('Gust of Wind: a Strength save, and fifteen feet along the Line', () =>
   it('pushes a creature that fails its save fifteen feet away from the caster', () => {
     const out = gust(-40);
 
+    // Both creatures stand in the Line and both are thrown. The order is the
+    // sorted one an area resolution always uses — nobody named anybody, so a
+    // casting that folded differently for two spellings of one set would not
+    // be replayable.
     const moved = out.events.filter((e) => e.type === 'creature-moved');
-    expect(moved.map((e) => (e as { readonly id: CharacterId }).id)).toEqual([TARGET, BYSTANDER]);
+    expect(moved.map((e) => (e as { readonly id: CharacterId }).id)).toEqual(
+      [BYSTANDER, TARGET],
+    );
 
     const after = fold('seed', [...SETUP, ...out.events]);
     expect(apart(state(), CASTER, TARGET)).toBe(10);
@@ -262,7 +268,8 @@ describe('Gust of Wind: a Strength save, and fifteen feet along the Line', () =>
   it('deals no damage to anybody, saved or not', () => {
     for (const flat of [-40, 40]) {
       const out = gust(flat);
-      expect(out.events.some((e) => e.type === 'damage-dealt')).toBe(false);
+      expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
+      expect(out.events.some((e) => e.type === 'damage-rolled')).toBe(false);
     }
   });
 });

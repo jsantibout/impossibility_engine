@@ -203,7 +203,10 @@ const WRITTEN: Readonly<Record<string, 'tracked' | 'executed'>> = {
   gate: 'tracked',
   haste: 'executed',
   heal: 'executed',
-  levitate: 'tracked',
+  // Tracked when this batch wrote it and executed since: the lift a
+  // Constitution save gates is a rider on the outcome now, which is what the
+  // Boots of Levitation were waiting for all along.
+  levitate: 'executed',
   'private-sanctum': 'tracked',
   'resilient-sphere': 'tracked',
   resurrection: 'tracked',
