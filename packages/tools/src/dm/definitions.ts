@@ -1279,6 +1279,13 @@ const FORCE_PRINTED_SAVE = tool({
       .describe(
         'The creatures the line caught, which is the one fact you supply. An area is measured from an origin and a facing the engine has not been told, so the head count is yours; every number that follows from it is the engine’s. Leave it out and you will be asked for it, with the line’s own targeting clause quoted back.',
       ),
+    willing: z
+      .array(creatureId)
+      .min(1)
+      .optional()
+      .describe(
+        'Which of the named creatures consent to the line, where its targeting clause offers that as an alternative — SRD Vampire Spawn’s Bite reaches "one creature within 5 feet that is willing or that has the Grappled, Incapacitated, or Restrained condition". The conditions are the engine’s to check; whether a creature is holding still is fiction and therefore yours. A named target holding none of them and not listed here is asked about rather than bitten.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -1289,6 +1296,7 @@ const FORCE_PRINTED_SAVE = tool({
         {
           line: args.line,
           ...(args.targets === undefined ? {} : { targets: args.targets.map(who) }),
+          ...(args.willing === undefined ? {} : { willing: args.willing.map(who) }),
           ...identity(context),
         },
         context.campaign.supply(),

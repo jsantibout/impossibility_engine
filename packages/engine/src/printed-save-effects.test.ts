@@ -44,6 +44,7 @@ import type { Bonus } from './bonuses.js';
 import {
   addCreature,
   advanceTime,
+  applyConditionTo,
   endCombat,
   addSceneLandmark,
   beginCombat,
@@ -56,6 +57,8 @@ import {
   resolveTurn,
   setScene,
   takeDodge,
+  wakeableOn,
+  wakeCreature,
 } from './commands.js';
 import { canSpendSlot } from './combat.js';
 import { createRng, type Rng } from './dice.js';
@@ -404,9 +407,14 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
     throw new Error('no seed failed the save');
   });
 
-  it("carries the Mummy's success clause to the table and applies the failure", () => {
+  it("buys a day's grace from the Mummy's glare on a success, and carries nothing but the Cone", () => {
     const { out } = forced('mummy', 'Dreadful Glare', 'a');
-    expect(out.unverified.some((line) => line.includes("immune to this mummy's Dreadful Glare for 24 hours"))).toBe(true);
+    // The one sentence the corpus prints under `_Success:_` that is not "Half
+    // damage" is executed now rather than handed over; the targeting clause
+    // still is, because who the line caught is the table's answer.
+    expect(
+      out.unverified.some((line) => line.includes("immune to this mummy's Dreadful Glare")),
+    ).toBe(false);
     expect(out.unverified.some((line) => line.includes('one creature the mummy can see within 60 feet'))).toBe(true);
   });
 });
@@ -1017,13 +1025,46 @@ describe('a deepening with a lifetime of its own', () => {
     expect(has(after60, BREN, 'unconscious')).toBe(false);
     expect(timersOn(after60, BREN)).toEqual([]);
 
-    // And the two endings the engine does not execute are said out loud at the
-    // moment of use, under the rung they were printed under.
-    expect(
-      unverified.some((one) =>
-        one.includes('_Second Failure:_ This effect ends for the target if it takes damage'),
+    // And the two endings the rung prints are the engine's now rather than a
+    // sentence handed over: nothing of this line is carried but the Cone.
+    expect(unverified.some((one) => one.includes('This effect ends for the target'))).toBe(false);
+    expect(unverified).toHaveLength(1);
+  });
+
+  /**
+   * "This effect ends for the target if it takes damage or a creature within 5
+   * feet of it takes an action to wake it."
+   *
+   * Two endings on the **deepened** Unconscious, and on that condition alone;
+   * the minute above is what the sleeper gets when nobody does either.
+   */
+  it("wakes the Brass Dragon's sleeper on a blow and on a neighbour's action", () => {
+    const asleep = () => {
+      const { state } = caught('brass-dragon-wyrmling', 'Sleep Breath');
+      const { state: slept } = toBrensBoundary(state, 'brass', STILL_HELD);
+      expect(has(slept, BREN, 'unconscious')).toBe(true);
+      return slept;
+    };
+
+    const slept = asleep();
+    const struck = after(
+      slept,
+      unwrap(
+        damageCreature(slept, BREN, { amount: 3, source: 'a falling rock', commandId: 'rock' }),
+        'a rock',
       ),
-    ).toBe(true);
+    );
+    expect(has(struck, BREN, 'unconscious')).toBe(false);
+    expect(timersOn(struck, BREN)).toEqual([]);
+
+    const dozing = asleep();
+    expect(wakeableOn(dozing, BREN)).toHaveLength(1);
+    const shaken = after(
+      dozing,
+      unwrap(wakeCreature(dozing, FOE, { target: BREN }, { commandId: 'shake' }), 'shaking'),
+    );
+    expect(has(shaken, BREN, 'unconscious')).toBe(false);
+    expect(timersOn(shaken, BREN)).toEqual([]);
   });
 
   it("paralyses the Silver Dragon's target until it shakes it off or the minute is up", () => {
@@ -1090,15 +1131,285 @@ describe('a failure graded by how far the save missed', () => {
         expect(has(state, GRISH, 'unconscious')).toBe(false);
         shallow = true;
       }
-      // Either way the rule the engine does not execute is said out loud.
-      expect(
-        out.unverified.some((line) =>
-          line.includes('The Unconscious condition, which ends early if'),
-        ),
-      ).toBe(true);
+      // Either way nothing of this line is carried but the targeting clause:
+      // the early endings the book prints are the engine's now.
+      expect(out.unverified.some((line) => line.includes('which ends early if'))).toBe(false);
+      expect(out.unverified).toHaveLength(1);
+      if (12 - one!.save.total >= 5) {
+        expect(wakeableOn(state, GRISH)).toHaveLength(1);
+        // The goblin is fifteen feet from the pseudodragon, so the shake is
+        // written as the fact the fold reads rather than spent from here —
+        // `waking-a-sleeper.test.ts` drives the Action and the five feet.
+        const woken = applyEvent(state, { type: 'creature-woken', id: GRISH, by: BREN });
+        expect(has(woken, GRISH, 'unconscious')).toBe(false);
+        // **The hour of Poison is not what a shake ends.** The book's "which"
+        // names the Unconscious, and the Poisoned carrying it runs on — which
+        // is the whole reason the two marks are names rather than a flag.
+        expect(has(woken, GRISH, 'poisoned')).toBe(true);
+      }
     }
     expect(deep, 'no seed missed by five').toBe(true);
     expect(shallow, 'no seed missed by less than five').toBe(true);
+  });
+});
+
+/**
+ * SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific Visage
+ * for 24 hours." SRD Mummy's Dreadful Glare prints it word for word.
+ *
+ * **An immunity to one printed line**, which is the whole of the reading: a
+ * creature that shrugged off the visage is still Frightenable by everything
+ * else in the room, and what it has bought is a day's grace from *this*
+ * creature's *this* line.
+ */
+describe("a success that buys a day's grace from the line itself", () => {
+  /** A seed whose save Bren makes, and one Bren misses. */
+  const madeIt = (monster: string, line: string, want: boolean): string => {
+    for (const seed of SEEDS) {
+      const { out } = forced(monster, line, seed);
+      if (out.outcomes[0]!.save.success === want) return seed;
+    }
+    throw new Error(`no seed ${want ? 'made' : 'missed'} the save`);
+  };
+
+  it('grants it on a success, hangs a day on it, and skips the next glare', () => {
+    const seed = madeIt('ghost', 'Horrific Visage', true);
+    const { out, state } = forced('ghost', 'Horrific Visage', seed);
+    expect(out.outcomes[0]!.save.success).toBe(true);
+    expect(has(state, BREN, 'frightened')).toBe(false);
+
+    const [held] = state.creatures[BREN]!.lineImmunities;
+    expect(held).toMatchObject({ by: FOE, line: 'Horrific Visage' });
+    // A `grants` deadline of a printed day, which is what ends it.
+    const grant = Object.values(state.timers).find(
+      (timer) => timer.target.kind === 'grants' && timer.target.on === BREN,
+    );
+    expect(grant?.deadline).toEqual({ kind: 'elapsed', at: state.elapsed + 86400 });
+
+    // The same ghost's next visage does not reach them at all: no save is
+    // rolled, no outcome is reported, and the caller is told why. A round
+    // later, so the ghost has an Action to spend on it.
+    const round = (from: GameState, tag: string): GameState => {
+      let current = from;
+      for (let step = 0; step < 2; step += 1) {
+        current = after(current, unwrap(resolveTurn(current, supply(`${tag}-${step}`)), 'a turn').events);
+      }
+      return current;
+    };
+    const later = round(state, `${seed}-round`);
+    const again = unwrap(
+      forcePrintedSave(
+        later,
+        FOE,
+        { line: 'Horrific Visage', targets: [BREN], commandId: 'again' },
+        supply(`${seed}-again`),
+      ),
+      'a second visage',
+    );
+    expect(again.outcomes).toEqual([]);
+    expect(again.events.some((event) => event.type === 'roll-recorded')).toBe(false);
+    expect(again.unverified.some((one) => one.includes('is immune to foe'))).toBe(true);
+
+    // And the day running out gives them back: the deadline is the whole of
+    // the lifetime, exactly as it is for the seventeen grants beside it.
+    const done = after(state, unwrap(endCombat(state, { kind: 'surrender', side: 'wild' }), 'end'));
+    const tomorrow = after(done, unwrap(advanceTime(done, 86400, 'a day and a night'), 'a day'));
+    expect(tomorrow.creatures[BREN]!.lineImmunities).toEqual([]);
+  });
+
+  it('buys nothing on a failure, and nothing against a different creature', () => {
+    const seed = madeIt('ghost', 'Horrific Visage', false);
+    const { state } = forced('ghost', 'Horrific Visage', seed);
+    expect(has(state, BREN, 'frightened')).toBe(true);
+    expect(state.creatures[BREN]!.lineImmunities).toEqual([]);
+
+    // A second ghost's visage still catches a creature the first one spared:
+    // the grace is one creature's one heading and not the Frightened
+    // condition. The two are told apart by the source the grant carries.
+    const made = madeIt('ghost', 'Horrific Visage', true);
+    const spared = forced('ghost', 'Horrific Visage', made).state;
+    const other = id('wraith');
+    const withOther = after(
+      spared,
+      unwrap(addCreature(spared, SRD_CONTENT, other, 'ghost'), 'a second ghost').events,
+    );
+    const shielded = withOther.creatures[BREN]!.lineImmunities;
+    expect(shielded.map((one) => one.by)).toEqual([FOE]);
+    expect(
+      shielded.some((one) => one.source === `printed:${other}:Horrific Visage`),
+    ).toBe(false);
+  });
+
+  it("grants it on the Mummy's glare too, under that mummy's own heading", () => {
+    const seed = madeIt('mummy', 'Dreadful Glare', true);
+    const { state } = forced('mummy', 'Dreadful Glare', seed);
+    expect(state.creatures[BREN]!.lineImmunities.map((one) => one.line)).toEqual([
+      'Dreadful Glare',
+    ]);
+  });
+});
+
+/**
+ * SRD Water Elemental's Whelm: "Until the grapple ends, the target has the
+ * Restrained condition, is suffocating unless it can breathe water, and takes
+ * 9 (2d8) Bludgeoning damage **at the start of each of the elemental's
+ * turns**."
+ *
+ * A hold that owes a payout, on the save side — the arrangement the attach
+ * track built on the hit side, reached through a saving throw instead of an
+ * attack roll. The suffocation, the limb count and the neighbour's pull are
+ * carried with the line's own words.
+ */
+describe('a hold that owes a payout at its holder boundary', () => {
+  it('grapples, restrains, and pays 2d8 at the start of each of the elemental turns', () => {
+    for (const seed of SEEDS) {
+      const { out, state } = forced('water-elemental', 'Whelm (Recharge 4–6)', seed);
+      if (out.outcomes[0]!.save.success) continue;
+      expect(has(state, BREN, 'grappled')).toBe(true);
+      // "Until the grapple ends, the target has the Restrained condition":
+      // carried by the hold, so the escape lifts both.
+      expect(has(state, BREN, 'restrained')).toBe(true);
+
+      // **The arrangement sits on the elemental and names the other end**, so
+      // its own boundary collects it and the damage lands on what it holds.
+      const [owed] = state.creatures[FOE]!.payouts;
+      expect(owed).toEqual({
+        source: `grapple:${FOE}`,
+        at: 'start-of-turn',
+        payout: 'damage',
+        dice: '2d8',
+        flat: 0,
+        damageType: 'bludgeoning',
+        to: BREN,
+      });
+
+      // It falls due at the elemental's next turn and lands on the creature
+      // it is holding, a round away from the target's own boundary. The blow
+      // is what the assertion reads rather than the hit points: the whelm's
+      // own 4d8 + 4 may already have put Bren on the floor.
+      const paidBy = (from: GameState, tag: string): readonly GameEvent[] => {
+        const round = unwrap(resolveTurn(from, supply(`${tag}-1`)), 'bren finishes');
+        const mid = after(from, round.events);
+        const back = unwrap(resolveTurn(mid, supply(`${tag}-2`)), 'round to the elemental');
+        return back.events.filter(
+          (event) => event.type === 'damage-taken' && event.id === BREN && event.by === FOE,
+        );
+      };
+      expect(paidBy(state, seed)).toHaveLength(1);
+
+      // And the escape stops it: `holdStillStands` reads the source.
+      const freed = after(
+        state,
+        unwrap(
+          liftConditionFrom(state, BREN, 'grappled', `grapple:${FOE}`, { commandId: 'wriggle' }),
+          'the escape',
+        ),
+      );
+      expect(has(freed, BREN, 'restrained')).toBe(false);
+      expect(paidBy(freed, `${seed}-free`)).toEqual([]);
+
+      // The three sentences the reader carried reach the table at the moment
+      // of use, in the book's own words.
+      expect(out.unverified.some((one) => one.includes('suffocating unless it can breathe water'))).toBe(true);
+      expect(out.unverified.some((one) => one.includes('one Large creature or up to two Medium'))).toBe(true);
+      expect(out.unverified.some((one) => one.includes('pull a creature out of it'))).toBe(true);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+});
+
+/**
+ * SRD Vampire Spawn's Bite: "_Failure:_ 5 (1d4 + 3) Piercing damage plus 10
+ * (3d6) Necrotic damage. The target's Hit Point maximum decreases by an amount
+ * equal to the **Necrotic** damage taken, and the vampire regains Hit Points
+ * equal to that amount."
+ *
+ * Three readings in one sentence: the component the maximum follows, the
+ * regain that is not a roll, and the targeting clause that says who may be
+ * bitten at all.
+ */
+describe('a bite that feeds', () => {
+  /** The vampire's line reaches a creature that is held, or one that agrees. */
+  const bite = (
+    state: GameState,
+    targets: readonly CharacterId[],
+    seed: string,
+    willing?: readonly CharacterId[],
+  ) =>
+    forcePrintedSave(
+      state,
+      FOE,
+      {
+        line: 'Bite',
+        targets,
+        commandId: `bite-${seed}`,
+        ...(willing === undefined ? {} : { willing }),
+      },
+      supply(seed),
+    );
+
+  it('asks about a target that is neither held nor declared willing', () => {
+    const table = inTheWoods('vampire-spawn');
+    const asked = bite(table.state, [BREN], 'a');
+    expect(asked.ok).toBe(false);
+    if (!asked.ok) {
+      expect(asked.code).toBe('undeclared_consent');
+      expect(asked.kind).toBe('needs-context');
+    }
+  });
+
+  it("lowers the maximum by the Necrotic alone and feeds the vampire the same", () => {
+    for (const seed of SEEDS) {
+      const table = inTheWoods('vampire-spawn');
+      // Grappled, which is one of the three the targeting clause names.
+      const held = after(
+        table.state,
+        unwrap(
+          applyConditionTo(table.state, BREN, 'grappled', `grapple:${FOE}`, [], undefined, undefined, {
+            commandId: 'seized',
+          }),
+          'the grapple',
+        ),
+      );
+      // The vampire starts hurt, so a regain has somewhere to go.
+      const hurt = after(
+        held,
+        unwrap(
+          damageCreature(held, FOE, { amount: 20, source: 'a torch', commandId: 'burn' }),
+          'burning the vampire',
+        ),
+      );
+      const fangs = hurt.creatures[FOE]!.vitals.hp;
+
+      const out = unwrap(bite(hurt, [BREN], seed), 'the bite');
+      if (out.outcomes[0]!.save.success) continue;
+      const bitten = after(hurt, out.events);
+
+      // The **Necrotic** component alone, out of a blow that was Piercing
+      // and Necrotic at once: the lowered maximum is less than the damage.
+      const [lowered] = bitten.creatures[BREN]!.hitPointMaxima;
+      const necrotic = -lowered!.amount;
+      expect(necrotic).toBeGreaterThan(0);
+      expect(necrotic).toBeLessThan(out.outcomes[0]!.damage);
+      expect(bitten.creatures[BREN]!.vitals.hpMax).toBe(
+        held.creatures[BREN]!.vitals.hpMax - necrotic,
+      );
+
+      // "and the vampire regains Hit Points equal to that amount" — the same
+      // number, with no dice anywhere in it.
+      expect(bitten.creatures[FOE]!.vitals.hp).toBe(fangs + necrotic);
+      // And nothing of the line is carried but the clause about who it caught.
+      expect(out.unverified).toHaveLength(1);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it('lands on a creature the DM says is willing', () => {
+    const table = inTheWoods('vampire-spawn');
+    const out = unwrap(bite(table.state, [BREN], 'b', [BREN]), 'a willing throat');
+    expect(out.outcomes).toHaveLength(1);
   });
 });
 

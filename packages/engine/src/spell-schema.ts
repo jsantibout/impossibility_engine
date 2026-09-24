@@ -3368,6 +3368,7 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   'target-takes-damage',
   'target-drops-to-0',
   'summon-takes-damage',
+  'shaken-awake',
 ]);
 
 /** What a trigger may end: the casting, or the casting on one creature. */

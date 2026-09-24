@@ -361,6 +361,25 @@ describe('a printed save, forced', () => {
     const before = table.state.combat?.budgets[gorgon]?.action;
     expect(before).toBe(true);
 
+    // "one creature within 5 feet **that has the Prone condition**": the other
+    // fact this reader takes off a targeting clause, and a trample forced on a
+    // creature still on its feet is refused rather than rolled.
+    const upright = forcePrintedSave(
+      table.state,
+      gorgon,
+      { line: 'Trample', targets: [BREN] },
+      supply('upright'),
+    );
+    expect(upright.ok).toBe(false);
+    if (!upright.ok) expect(upright.code).toBe('target_not_eligible');
+    table.did('bren goes down', () =>
+      ok({
+        events: [
+          { type: 'condition-applied' as const, id: BREN, condition: 'prone' as const, source: 'a shove' },
+        ],
+      }),
+    );
+
     const out = unwrap(
       forcePrintedSave(
         table.state,

@@ -114,6 +114,7 @@
     "nextEnding",
     "endingKey",
     "endTriggeredCastings",
+    "endEarlyEndedConditions",
     "endTriggeredEffects"
   ],
   "fold/inventory.ts": [

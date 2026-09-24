@@ -985,10 +985,10 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // one passed over, a fog bank over the pattern hiding it, and a silence
   // caught and reported rather than read as a no. The other half of its last
   // sentence — "someone else uses an action to shake the creature out of its
-  // stupor" — is one creature spending an action to free another, which
-  // nothing spends; it trips no `CLAUSE_MARKERS` entry, so it belongs where
-  // every marker-invisible residue belongs: `unmodelled`, handed to the table
-  // on every casting.
+  // stupor" — is `wakeCreature` now: an onlooker's Action, five feet measured
+  // from them, and the `shaken-awake` cause the casting's record names. So the
+  // spell leaves nothing unmodelled at all, which is the whole of why it is
+  // not on this map.
   'ice-storm': [
     {
       clause: 'becomes Difficult Terrain',
@@ -1170,12 +1170,16 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "it can\'t benefit from the Invisible condition". The condition stays on the creature and one of the things it confers stops working, which the condition layer derives from the condition\'s presence alone and no spell effect reaches.',
     },
   ],
+  // **The shaking has left this map**, and it left by being built: "someone
+  // within 5 feet of it takes an action to shake it out of the spell's effect"
+  // is `wakeCreature`, a command that spends the onlooker's Action, measures
+  // the five feet and writes `creature-woken` — and the casting ends on that
+  // sleeper through `shaken-awake`, the cause a definition names beside
+  // `target-takes-damage`. Hypnotic Pattern prints the same clause and reaches
+  // the same door; SRD Incubus, SRD Brass Dragon Wyrmling and SRD Pseudodragon
+  // print it on conditions no spell ever cast, and those carry the mark
+  // instead.
   sleep: [
-    {
-      clause: 'taking an action to shake them out of the spell',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'SRD: "The spell ends on a target if it takes damage or someone within 5 feet of it takes an action to shake it out of the spell’s effect." The damage half is executed — `target-takes-damage`, on that sleeper alone. The shaking is one creature spending an action to free another, and no command takes such an action, so nothing could be told apart as having taken one. Hypnotic Pattern prints the same clause and hands the table the same sentence.',
-    },
     {
       clause: 'the automatic successes are not granted',
       why: 'an-outcome-that-reads-the-targets-defences',

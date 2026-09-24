@@ -545,6 +545,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // A summons: the fixtures predate it, and appending a type here is the
   // acknowledgement this list exists to collect.
   'creature-summoned',
+  // One creature spending an action to shake another out of a sleep — SRD
+  // Sleep, SRD Hypnotic Pattern, a dragon's sleep breath, a pseudodragon's
+  // sting. Neither log was written when anybody could: `wakeCreature` did not
+  // exist, no casting's `endsEarly` could name `shaken-awake` and no condition
+  // instance carried a mark, so both fixtures fold to exactly the states they
+  // always folded to — the event writes no state of its own and the derived
+  // pass that reads it finds nothing on any creature in either log.
+  // `waking-a-sleeper.test.ts` folds it and drives it end to end: the ally
+  // beside the sleeper, the ally ten feet away, the action nobody has to
+  // spend, the blow that does the same thing, and the refusal on a creature
+  // holding nothing wakeable.
+  'creature-woken',
   'damage-defense-granted',
   // The faces a damage roll showed. Neither log was written when the ordinary
   // damage path recorded them at all — a blow nobody could react to kept its
@@ -689,6 +701,15 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // thresholds, the rest that returns it, and the Clay Golem's gate reading a
   // line that is now spendable and rechargeable at once.
   'printed-line-expended',
+  // A day's grace from one creature's one printed line — SRD Ghost's Horrific
+  // Visage, SRD Mummy's Dreadful Glare. Neither log was written when a success
+  // could buy anything at all: `MonsterSave` had no `onSuccessEffects`, no
+  // creature had a `lineImmunities` list, and both fixtures fold to exactly
+  // the states they always folded to with that list empty on every creature.
+  // `printed-save-effects.test.ts` folds it and drives it end to end: the save
+  // that buys the day, the second glare that finds nobody, the day running out
+  // on the clock, and a different ghost's visage still catching them.
+  'printed-line-immunity-granted',
   'printed-line-recharged',
   // A Reaction one creature put in another's hands, and the use that spends
   // it. Neither log was written when a creature could hold anything of

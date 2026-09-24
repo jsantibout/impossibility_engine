@@ -35,7 +35,11 @@ import { releaseCasting } from './release.js';
 import { dropOrphanedAreaEffects } from './areas.js';
 import { openTurnStart, reachStartOfTurn } from './turns.js';
 import { dropOrphanedSaves, dropStrandedDamage, expireEffects } from './expiry.js';
-import { endTriggeredCastings, endTriggeredEffects } from './endings.js';
+import {
+  endEarlyEndedConditions,
+  endTriggeredCastings,
+  endTriggeredEffects,
+} from './endings.js';
 
 import { applyRoster, isRosterEvent } from './roster.js';
 import { applyVitals, isVitalsEvent } from './vitals.js';
@@ -298,10 +302,19 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
                   // a casting released above has already taken its own
                   // conditions with it, leaving this walk only what a casting
                   // never owned.
-                  endTriggeredEffects(
-                    endTriggeredCastings(
-                      breakLostConcentration(
-                        recordCommand(interruptedRests(applied, event), event),
+                  // Outermost of the three that read one event for an early
+                  // ending, because it is the one that lifts a *condition* and
+                  // the two inside it may have lifted the casting that hung
+                  // one: a Sleep released above has already taken its
+                  // Unconscious away, leaving this walk only the instances a
+                  // printed line put there. See {@link endEarlyEndedConditions}.
+                  endEarlyEndedConditions(
+                    endTriggeredEffects(
+                      endTriggeredCastings(
+                        breakLostConcentration(
+                          recordCommand(interruptedRests(applied, event), event),
+                        ),
+                        event,
                       ),
                       event,
                     ),

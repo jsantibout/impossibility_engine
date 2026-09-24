@@ -44,6 +44,7 @@ export const GRANTS_EVENTS = [
   'attack-rider-granted',
   'weapon-rider-granted',
   'condition-immunity-granted',
+  'printed-line-immunity-granted',
   'turn-payout-granted',
   'creature-attached',
   'creature-detached',
@@ -270,6 +271,23 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         },
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { grantedConditionImmunities }, creature);
+    }
+
+    case 'printed-line-immunity-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, the
+      // rule every grant in the family follows — and here it is the SRD's own:
+      // a second success against the same ghost's visage on the same day buys
+      // a fresh 24 hours rather than a second immunity, which is the deadline
+      // `effect-scheduled` replaces under one key one line later.
+      //
+      // **The source alone is the identity**, and it already names both halves
+      // of the sentence: `printedLineSource` is the creature and the heading.
+      const lineImmunities = [
+        ...creature.lineImmunities.filter((held) => held.source !== event.immunity.source),
+        event.immunity,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { lineImmunities }, creature);
     }
 
     case 'turn-payout-granted': {

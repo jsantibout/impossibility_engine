@@ -22,7 +22,8 @@
  * anything — `allyOfCaster` withholds rather than inventing.
  */
 import type { CharacterId } from '@ie/shared';
-import type { EffectEndCause } from '../timers.js';
+import { instancesEndingEarly } from '../conditions.js';
+import { type EffectEndCause, timerKey } from '../timers.js';
 import { castingNumber, type OngoingSpell } from '../spells.js';
 
 import type { GameEvent } from '../events.js';
@@ -104,6 +105,18 @@ type EndingFact =
   | {
       readonly cause: 'summon-takes-damage';
       readonly summon: CharacterId;
+    }
+  /**
+   * The sleeper a neighbour has just spent an action shaking.
+   *
+   * `woken` rather than `who` for the reason `to` is not `who`: the `who`
+   * field is the discriminant {@link endTriggeredEffects} narrows on to prove
+   * that only {@link EffectEndCause} can reach a timer, and a second field of
+   * that name would quietly widen what a potion's conferral could be ended by.
+   */
+  | {
+      readonly cause: 'shaken-awake';
+      readonly woken: CharacterId;
     };
 
 /**
@@ -133,6 +146,11 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
       return [{ cause: 'target-casts', who: event.id }];
     case 'item-equipped':
       return isBodyArmor(state, event) ? [{ cause: 'target-dons-armor', who: event.id }] : [];
+    // SRD Sleep: "…or someone within 5 feet of it takes an action to shake it
+    // out of the spell's effect." The five feet and the action were spent by
+    // `wakeCreature`; what is left is the fact, and it names one creature.
+    case 'creature-woken':
+      return [{ cause: 'shaken-awake', woken: event.id }];
     case 'damage-taken':
       return [
         // **The three that read the creature the blow landed on**, so a trap
@@ -226,6 +244,9 @@ function subjectOf(
     case 'target-takes-damage':
     case 'target-drops-to-0':
       return isOn(state, record, fact.to) ? fact.to : null;
+
+    case 'shaken-awake':
+      return isOn(state, record, fact.woken) ? fact.woken : null;
 
     default:
       return isOn(state, record, fact.who) ? fact.who : null;
@@ -369,6 +390,75 @@ export function endTriggeredCastings(state: GameState, event: GameEvent): GameSt
  * **Cheap first.** Four event types can say anything at all, and every other
  * one returns before `timers` is touched.
  */
+/**
+ * A printed condition ended by a blow or by a neighbour shaking the creature.
+ *
+ * SRD Incubus' Nightmare: "the Unconscious condition **for 1 hour, until it
+ * takes damage, or until a creature within 5 feet of it takes an action to
+ * wake it**." SRD Brass Dragon Wyrmling's Sleep Breath and SRD Pseudodragon's
+ * Sting print the same pair over a condition no spell ever cast.
+ *
+ * **The third population reading the same facts**, beside the castings above
+ * and the timed conferrals beside them, and it is a third rather than a case
+ * in either because what holds these is neither an `ongoing` record nor a
+ * timer: the Pseudodragon's Unconscious is a condition its Poisoned *carries*,
+ * with no deadline of its own for an `endsEarly` to sit on. What holds them
+ * all is the **instance**, which is why the marks are there — see
+ * `ConditionInstance.endsOnDamage`.
+ *
+ * **Derived and writing nothing**, for the reason every pass in this chain is:
+ * nobody decides that a blow woke somebody. And it reads the same
+ * {@link EndingFact}s the two passes above read, so a sleeper whose casting
+ * says `shaken-awake` and a sleeper whose stat block printed the clause are
+ * ended by one reading of one log.
+ *
+ * **It terminates structurally.** The instance ids are read off the state this
+ * pass was handed, each is visited once, and each visit either removes that
+ * instance or finds it already gone — so nothing a removal does can hand the
+ * loop back an instance it has settled.
+ *
+ * **Cheap first**: two event types can say anything at all here, and every
+ * other one returns before a creature is touched.
+ */
+export function endEarlyEndedConditions(state: GameState, event: GameEvent): GameState {
+  // Only the two facts this rule is about. `endingFactsOf` answers more
+  // questions than this one asks, and reading its whole answer would be this
+  // pass discovering a cause it has no sentence for.
+  const woken = event.type === 'creature-woken' ? event.id : null;
+  const hurt =
+    event.type === 'damage-taken' && event.amount > 0 ? event.id : null;
+  const subject = woken ?? hurt;
+  if (subject === null) return state;
+
+  const creature = state.creatures[subject];
+  if (creature === undefined) return state;
+  const doomed = instancesEndingEarly(
+    creature.conditions,
+    woken === null ? 'damage' : 'waking',
+  ).map((instance) => instance.id);
+  if (doomed.length === 0) return state;
+
+  let current = state;
+  for (const instance of doomed) {
+    const held = current.creatures[subject];
+    if (held === undefined) continue;
+    // Gone already, because an instance this loop lifted carried it: the
+    // Pseudodragon's Unconscious would go with its Poisoned if a line ever
+    // marked both, and lifting what is not there is not an operation.
+    if (!held.conditions.instances.some((one) => one.id === instance)) continue;
+    // The same door a deadline arriving goes through, so the instance's own
+    // timer and anything sourced to the instance go with it. `timerKey` is the
+    // derivation `applyConditionTo` filed it under; a key naming no timer is
+    // deleted harmlessly, which is every carried instance's case.
+    current = endTimedCondition(
+      current,
+      timerKey({ kind: 'condition', on: subject, instance }),
+      { kind: 'condition', on: subject, instance },
+    );
+  }
+  return current;
+}
+
 export function endTriggeredEffects(state: GameState, event: GameEvent): GameState {
   const facts = endingFactsOf(state, event);
   if (facts.length === 0) return state;

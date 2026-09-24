@@ -25,7 +25,7 @@
  */
 import type { CharacterId, ConditionName, RollId } from '@ie/shared';
 import type { Armor, CreatureSize } from '@ie/srd';
-import type { CharacterSheet, GrantedArmorClass } from './character.js';
+import type { CharacterSheet, GrantedArmorClass, GrantedLineImmunity } from './character.js';
 import { type ActiveRollModifier } from './roll-modifiers.js';
 import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { DieRoll, RngState } from './dice.js';
@@ -552,6 +552,32 @@ export type GameEvent =
     }
 
   /**
+   * A creature has bought a day's grace from **one printed line**.
+   *
+   * SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
+   * Visage for 24 hours." SRD Mummy's Dreadful Glare and SRD Nalfeshnee's
+   * Horror Nimbus print the same sentence.
+   *
+   * **Not {@link 'condition-immunity-granted'}, and the difference is what the
+   * sentence refuses.** A creature that shrugged off the visage is still
+   * Frightenable by everything else in the room — by a second ghost's visage,
+   * by a Lion's Roar, by Fear — so an immunity to the Frightened condition
+   * would be the engine granting something the book did not. What it holds off
+   * is one creature's one heading, which is exactly what
+   * `printedLineSource(who, line)` names, and `forcePrintedSave` reads it
+   * where it gathers who the line caught.
+   *
+   * The eighteenth sourced grant, and it needs no removal event for the reason
+   * the other seventeen do not: the `grants` deadline over it is what ends it,
+   * through the door that already existed.
+   */
+  | {
+      readonly type: 'printed-line-immunity-granted';
+      readonly id: CharacterId;
+      readonly immunity: GrantedLineImmunity;
+    }
+
+  /**
    * A payout this creature now receives at each of its turn boundaries.
    *
    * SRD Heroism: "gains Temporary Hit Points equal to your spellcasting ability
@@ -1068,6 +1094,55 @@ export type GameEvent =
        * log written before this existed, which folds exactly as it always did.
        */
       readonly implies?: readonly ConditionName[];
+      /**
+       * Which of this application's conditions a blow ends, and which a
+       * neighbour's action ends.
+       *
+       * SRD Incubus' Nightmare: "the Unconscious condition for 1 hour, **until
+       * it takes damage, or until a creature within 5 feet of it takes an
+       * action to wake it**." Two endings the fold finds rather than anybody
+       * commanding them, so they are pinned here for the reason `implies` is:
+       * the fold opens no catalogue, and a replay must not have to look a
+       * stat block up to know what wakes a sleeper.
+       *
+       * **Names rather than flags**, because the Pseudodragon ends the
+       * Unconscious its Poisoned carries and not the Poisoned: one application
+       * imposing two conditions may end only one of them early. See
+       * `ConditionInstance.endsOnDamage`.
+       *
+       * Absent on every log written before this existed, which folds exactly
+       * as it always did.
+       */
+      readonly endsOnDamage?: readonly ConditionName[];
+      readonly endsWhenWoken?: readonly ConditionName[];
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Somebody has spent an action shaking a creature awake.
+   *
+   * SRD Sleep: "The spell ends on a target if it takes damage or **someone
+   * within 5 feet of it takes an action to shake it out of the spell's
+   * effect**." SRD Hypnotic Pattern, SRD Brass Dragon Wyrmling's Sleep Breath,
+   * SRD Incubus' Nightmare and SRD Pseudodragon's Sting each print the same
+   * clause, and it is the one verb in the book that lets **one creature spend
+   * its own action to end an effect on another**.
+   *
+   * **A fact and not a mutation**, which is why the vitals seam writes nothing
+   * for it. What it ends is found the way a lost Concentration and a broken
+   * Invisibility are found — derived after the event, off the marks the
+   * sleeping conditions carry and the `shaken-awake` cause a casting's record
+   * names. Two doors onto one sentence would be two rules; the blow already
+   * goes through the derived pass, so this does too.
+   *
+   * The action it cost is an `action-spent` beside it, exactly as every other
+   * line that spends one writes.
+   */
+  | {
+      readonly type: 'creature-woken';
+      /** The sleeper — the creature the effects are ending on. */
+      readonly id: CharacterId;
+      /** Who shook them, for the audit trail: the neighbour that spent the action. */
+      readonly by: CharacterId;
       readonly command?: CommandStamp;
     }
   /**

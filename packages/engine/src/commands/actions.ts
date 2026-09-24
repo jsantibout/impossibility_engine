@@ -68,7 +68,14 @@ import {
   withFlatAddend,
 } from './rolls.js';
 import { dealSpellDamage } from './damage.js';
-import { applyPrintedClauses, takeBranches } from './printed-save-clauses.js';
+import {
+  applyPrintedClauses,
+  NOTHING_DEALT,
+  printedLineSource,
+  type PrintedDamageDealt,
+  takeBranches,
+} from './printed-save-clauses.js';
+import { hasCondition } from '../conditions.js';
 import {
   applyEvent,
   type GameEvent,
@@ -797,6 +804,22 @@ export interface PrintedSaveCommand extends CommandIdentity {
    * refused, because a missing fact is not a wrong one.
    */
   readonly targets?: readonly CharacterId[];
+  /**
+   * The creatures named here **consent** to the line.
+   *
+   * SRD Vampire Spawn's Bite: "one creature within 5 feet **that is willing**
+   * or that has the Grappled, Incapacitated, or Restrained condition." The
+   * three conditions are the engine's own to check and willingness is nobody's
+   * but the table's — a creature holding still for a bite is fiction, and no
+   * state this engine keeps could answer it.
+   *
+   * **A decision the rules leave open, which is what a DM's door is for**, and
+   * it is said about the creatures rather than about the call: a line may
+   * catch several, and "everybody here agreed" is not what the sentence means.
+   * Absent is the ordinary case, and a line whose targeting clause names no
+   * such restriction never reads it.
+   */
+  readonly willing?: readonly CharacterId[];
 }
 
 /** What the line did to one creature standing in it. */
@@ -955,6 +978,65 @@ export function forcePrintedSave(
         if (state.creatures[target] === undefined) return unknownCreature(target);
       }
 
+      // **Who the line may be forced on at all**, where the targeting clause
+      // says — SRD Vampire Spawn's Bite: "one creature within 5 feet that is
+      // willing or that has the Grappled, Incapacitated, or Restrained
+      // condition." The conditions are the engine's own; the willingness is
+      // the table's, and a fact nobody has stated is *asked for* rather than
+      // decided, which is the reading `undeclared_targets` above already takes.
+      const restriction = printed.onlyIfTargetHas;
+      if (restriction !== undefined) {
+        const consenting = command.willing ?? [];
+        const ineligible = targets.filter(
+          (target) =>
+            !consenting.includes(target) &&
+            !restriction.conditions.some((condition) =>
+              hasCondition(state.creatures[target]!.conditions, condition),
+            ),
+        );
+        if (ineligible.length > 0) {
+          const held = restriction.conditions.join(', ');
+          return restriction.orWilling === true
+            ? needsContext(
+                'undeclared_consent',
+                `${line.name} reaches "${printed.targets}", and ${ineligible.join(', ')} holds none of ${held} — nobody has said whether they are willing`,
+                ineligible.map((target) => ({
+                  kind: 'creature' as const,
+                  subject: target,
+                  need: `whether ${target} is willing to let ${id} do this`,
+                  because: `${line.name} reaches a creature that is willing or that has one of ${held}, and ${target} has none of them`,
+                  satisfyWith: `forcePrintedSave again naming ${target} in its willing list`,
+                })),
+              )
+            : err(
+                'target_not_eligible',
+                `${line.name} reaches "${printed.targets}", and ${ineligible.join(', ')} holds none of ${held}`,
+              );
+        }
+      }
+
+      // **A creature that bought a day's grace from this very line.** SRD
+      // Ghost: "_Success:_ The target is immune to this ghost's Horrific
+      // Visage for 24 hours." Skipped rather than saved against — the line
+      // does not reach them at all — and *named*, the honesty an immune
+      // target already gets.
+      //
+      // **The line is still taken even where it reaches nobody**, which is
+      // the reading rather than a gap: the creature swept the Cone, and what
+      // that costs is the Action the heading names. A recharge or a day's use
+      // would go with it — no SRD line that grants this immunity prints
+      // either, and a homebrew one that did would be spending on a room that
+      // had already learned to look away, which is what the book describes.
+      const shielded = printedLineSource(id, line.name);
+      const caught = targets.filter(
+        (target) =>
+          !(state.creatures[target]?.lineImmunities ?? []).some(
+            (held) => held.source === shielded,
+          ),
+      );
+      /** Those the line did not reach at all, said out loud below. */
+      const immuneToTheLine = targets.filter((target) => !caught.includes(target));
+
       // **A line already used and not yet back**, and **a line whose day's
       // worth is gone** — both before the economy, because a refusal after
       // the Action is gone is a refusal with a footprint.
@@ -1041,7 +1123,7 @@ export function forcePrintedSave(
       // one-roll one.
       const issuedBefore = supply.issuer.count;
 
-      for (const target of targets) {
+      for (const target of caught) {
         const victim = current.creatures[target];
         if (victim === undefined) return unknownCreature(target);
 
@@ -1093,11 +1175,16 @@ export function forcePrintedSave(
         // the arm the book did not take, so the branch is settled here rather
         // than in the clause executor, which runs after the damage.
         const taken = takeBranches(victim.vitals.hp, [
-          ...(save.value.success ? [] : failure),
+          // **A success may buy something too**, and exactly one sentence in
+          // the corpus does: SRD Ghost's "_Success:_ The target is immune to
+          // this ghost's Horrific Visage for 24 hours." It goes through the
+          // same executor the failure's clauses do and in the same list,
+          // because it is the same kind of thing — a clause about one creature.
+          ...(save.value.success ? (printed.onSuccessEffects ?? []) : failure),
           ...(printed.either ?? []),
         ]);
 
-        let dealt = 0;
+        let dealt: PrintedDamageDealt = NOTHING_DEALT;
         let concentration: ConcentrationConsequence = { kind: 'none' };
         // Nothing at all on a success means no damage roll either: the line
         // did nothing there, and rolling would move the generator for no
@@ -1152,7 +1239,11 @@ export function forcePrintedSave(
           if (!hurt.ok) return hurt;
           events.push(...hurt.value.events);
           current = hurt.value.events.reduce(applyEvent, current);
-          dealt = hurt.value.amount;
+          // The total and the split, because the book asks both questions:
+          // a Wight lowers a maximum by "the damage taken" and a Vampire
+          // Spawn by "the **Necrotic** damage taken" out of a blow that was
+          // two components at once.
+          dealt = { total: hurt.value.amount, byType: hurt.value.byType };
           concentration = hurt.value.concentration;
           // What a feature watching the blow could not settle — a side nobody
           // has declared, a holder nobody has placed. The `drops-to-zero`
@@ -1186,7 +1277,7 @@ export function forcePrintedSave(
         outcomes.push({
           target,
           save: save.value,
-          damage: dealt,
+          damage: dealt.total,
           concentration,
           ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
           ...(landed.value.immuneTo.length === 0 ? {} : { immuneTo: landed.value.immuneTo }),
@@ -1222,6 +1313,12 @@ export function forcePrintedSave(
         // caught; nothing here checked that answer against a map.
         unverified: [
           `${line.name} reads "${printed.targets}" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
+          // A creature the line could not reach at all, named rather than
+          // silently dropped: the honesty an immune target already gets.
+          ...immuneToTheLine.map(
+            (target) =>
+              `${target} is immune to ${id}'s ${line.name} for the rest of the day and was not asked to save`,
+          ),
           // The sentences the reader carried and did not read, handed over at
           // the moment of use exactly as a spell's unmodelled lines are: the
           // engine applied the rest of the line and says what it did not.

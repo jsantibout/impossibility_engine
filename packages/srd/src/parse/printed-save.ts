@@ -394,8 +394,95 @@ const PUSHED = new RegExp(
   `^${SUBJECT}is pushed up to (\\d+) feet straight away from the [a-z' -]+?(?: and (.+))?$`,
 );
 const SPEED_CUT = /^[Tt]he target's Speed decreases by (\d+) feet (until .+)$/;
+/**
+ * SRD Wight: "The target's Hit Point maximum decreases by an amount equal to
+ * the damage taken." SRD Vampire Spawn: "…equal to the **Necrotic** damage
+ * taken, **and the vampire regains Hit Points equal to that amount**."
+ *
+ * One sentence in two dressings, and both halves of the second are fields the
+ * clause now carries: the component the sentence names, and the fact that what
+ * the target lost the biter gains. Neither is a number — the amount is the one
+ * this clause has already computed — which is why the regain is read here
+ * rather than as a clause of its own.
+ */
 const HP_MAX_CUT =
-  /^[Tt]he target's Hit Point maximum decreases by an amount equal to the damage taken$/;
+  /^[Tt]he target's Hit Point maximum decreases by an amount equal to the ([A-Z][a-z]+ )?damage taken(, and the [a-z' -]+ regains Hit Points equal to that amount)?$/;
+/**
+ * SRD Water Elemental's Whelm: "Until the grapple ends, the target has the
+ * Restrained condition, is suffocating unless it can breathe water, and takes
+ * 9 (2d8) Bludgeoning damage at the start of each of the elemental's turns."
+ *
+ * {@link UNTIL_GRAPPLE_ENDS}'s sentence with two more things in it, and the
+ * one place in this reader where a clause is read **around** words of its own
+ * rather than beside them: the Restrained and the payout are primitives the
+ * engine has, the suffocation is not, and the residue goes into
+ * `Scratch.carried` under the book's own opening so a table reads a whole
+ * sentence rather than a fragment. The ledger goes on counting the line.
+ *
+ * The middle is optional because a homebrew hold might print only the two
+ * halves this reads, and the whole is anchored, so anything else between them
+ * refuses the sentence and it is carried entire.
+ */
+const HELD_AND_PAID = new RegExp(
+  `^Until the grapple ends, the target has the ([A-Z][a-z]+) condition(?:, (.+?))?,? and takes (\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) ([A-Za-z]+) damage at the (start|end) of each of (its|the [a-z'-]+(?: [a-z'-]+)*'s) turns$`,
+);
+/**
+ * SRD Brass Dragon Wyrmling's second rung: "This effect ends for the target if
+ * it takes damage or a creature within 5 feet of it takes an action to wake
+ * it."
+ *
+ * One of the three spellings the book gives the sleeper's pair of endings, and
+ * the only one that is a sentence of its own: it is read onto the condition
+ * above it, exactly as "After 1 minute, it succeeds automatically" is.
+ */
+const EFFECT_ENDS_ON_WAKING =
+  /^This effect ends for the target if it takes damage or a creature within 5 feet of it takes an action to wake it$/;
+/**
+ * SRD Incubus' Nightmare: "for 1 hour, **until it takes damage, or until a
+ * creature within 5 feet of it takes an action to wake it**."
+ *
+ * The tail {@link CONDITION_WITH_EARLY_ENDINGS} used to carry whole. Read only
+ * when it is exactly this pair: SRD Nalfeshnee's Horror Nimbus prints "until
+ * it takes damage, or until it ends its turn with the nalfeshnee out of line
+ * of sight" in the same position, and the second of those is an ending nothing
+ * here can spend — so that line goes on carrying both.
+ */
+const EARLY_ENDINGS_ON_WAKING =
+  /^until it takes damage, or until a creature within 5 feet of it takes an action to wake it$/;
+/**
+ * SRD Pseudodragon's Sting: "the target also has the Unconscious condition,
+ * **which ends early if the target takes damage or a creature within 5 feet of
+ * it takes an action to wake it**."
+ *
+ * The same pair again, riding on a condition another one carries — so the
+ * marks go on the *carried* condition and not on the Poisoned hour that holds
+ * it, which is what the book's "which" names.
+ */
+const ENDS_EARLY_ON_WAKING =
+  /^which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it$/;
+/**
+ * SRD Ghost: "The target is immune to this ghost's Horrific Visage for 24
+ * hours." SRD Mummy's Dreadful Glare prints it word for word.
+ *
+ * The one sentence the corpus prints under `_Success:_` that is not "Half
+ * damage", and it names the heading it is about — which is carried, because
+ * this reader is handed a line's text without its heading and the executor is
+ * where the two meet.
+ */
+const IMMUNE_TO_THIS_LINE =
+  /^The target is immune to this [a-z' -]+'s (.+) (for \d+ (?:hour|minute)s?)$/;
+/**
+ * SRD Vampire Spawn's Bite: "one creature within 5 feet **that is willing or
+ * that has the Grappled, Incapacitated, or Restrained condition**."
+ *
+ * The second part of a targeting clause this reader takes, after
+ * {@link TARGET_HIT_POINTS}, and for the same reason: it is a fact about one
+ * creature somebody has already named rather than an area nobody has measured.
+ * The willingness half is the table's and is carried as the flag the command
+ * asks for.
+ */
+const TARGET_CONDITIONS =
+  /\bthat (is willing or that )?has the ((?:[A-Z][a-z]+, )*[A-Z][a-z]+(?:,? or [A-Z][a-z]+)?) conditions?\b/;
 /**
  * "repeats the save at the end of each of its turns, ending the effect on
  * itself on a success" — a standing obligation, wherever the condition it is
@@ -623,6 +710,31 @@ const alsoImplies = (
     : { ...last, implies: [...(last.implies ?? []), condition] };
 
 /**
+ * Mark one of a clause's conditions with the sleeper's pair of endings.
+ *
+ * The book prints them together in all five places it prints them at all —
+ * "if it takes damage **or** a creature within 5 feet of it takes an action to
+ * wake it" — so they are set together and the two fields are what lets a
+ * homebrew line say one without the other.
+ *
+ * **The name matters**, which is why this takes one: the Pseudodragon ends the
+ * Unconscious its Poisoned carries and not the Poisoned, and a flag on the
+ * clause could not tell the two apart.
+ */
+const alsoEndsOnWaking = (
+  last: ConditionEffect,
+  condition: ConditionEffect['condition'],
+): ConditionEffect => ({
+  ...last,
+  endsOnDamage: last.endsOnDamage?.includes(condition) === true
+    ? last.endsOnDamage
+    : [...(last.endsOnDamage ?? []), condition],
+  endsWhenWoken: last.endsWhenWoken?.includes(condition) === true
+    ? last.endsWhenWoken
+    : [...(last.endsWhenWoken ?? []), condition],
+});
+
+/**
  * Where a clause is being read, which is the only thing that changes what it
  * may say.
  *
@@ -747,12 +859,21 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     const host = CONDITIONS[whileSo[1]!];
     const name = CONDITIONS[whileSo[2]!];
     if (host === undefined || name === undefined) return false;
+    // **The sleeper's pair, where the tail is that and nothing else.** SRD
+    // Pseudodragon: "…, which ends early if the target takes damage or a
+    // creature within 5 feet of it takes an action to wake it." Both endings
+    // are verbs the engine spends now, so the clause carries them instead of
+    // handing the relative clause to a table — and it carries them under the
+    // condition the book's "which" names, which is the one this sentence
+    // added rather than the one carrying it.
+    const woken = whileSo[3] !== undefined && ENDS_EARLY_ON_WAKING.test(whileSo[3]);
     const amended = amendCondition(
       into.effects,
       (effect) => effect.condition === host,
-      (last) => alsoImplies(last, name),
+      (last) => (woken ? alsoEndsOnWaking(alsoImplies(last, name), name) : alsoImplies(last, name)),
     );
     if (!amended) return false;
+    if (woken) return true;
     // **Carried with the noun it is about.** The book's words are "which ends
     // early if…", and which condition that "which" names is the whole of the
     // ruling: SRD Pseudodragon ends the *Unconscious* early and not the
@@ -819,11 +940,57 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     if (name === undefined) return false;
     const span = spanOf(ending[2]!);
     if (span === null) return false;
-    into.effects.push({ kind: 'condition', condition: name, lasts: span });
+    // **The sleeper's pair, where the tail is exactly that.** SRD Incubus'
+    // Nightmare ends its hour on damage and on a neighbour's action, and both
+    // are verbs the engine spends. SRD Nalfeshnee's second ending is a line of
+    // sight nothing here holds, so that tail is carried whole as it always was.
+    const woken = EARLY_ENDINGS_ON_WAKING.test(ending[3]!);
+    into.effects.push({
+      kind: 'condition',
+      condition: name,
+      lasts: span,
+      ...(woken ? { endsOnDamage: [name], endsWhenWoken: [name] } : {}),
+    });
     // Carried with the noun the book's own clause hangs on, which is the rule
     // `WHILE_CONDITION` follows above: a table handed "until it takes damage"
     // bare could not tell which condition it ends.
-    into.carried.push(`The ${ending[1]} condition ends early: ${ending[3]}.`);
+    if (!woken) into.carried.push(`The ${ending[1]} condition ends early: ${ending[3]}.`);
+    return true;
+  }
+
+  // Before `UNTIL_GRAPPLE_ENDS`, whose sentence this is with two more things
+  // in it — see {@link HELD_AND_PAID}.
+  const heldAndPaid = HELD_AND_PAID.exec(words);
+  if (heldAndPaid !== null) {
+    const name = CONDITIONS[heldAndPaid[1]!];
+    const type = heldAndPaid[8]!.toLowerCase();
+    if (name === undefined || !DAMAGE_TYPES.has(type)) return false;
+    const sign = heldAndPaid[6] === undefined ? 1 : heldAndPaid[6] === '+' ? 1 : -1;
+    const hung = amendCondition(
+      into.effects,
+      (effect) => effect.escapeDc !== undefined,
+      (last) => ({
+        ...alsoImplies(last, name),
+        payout: {
+          damage: {
+            dice: `${heldAndPaid[4]}d${heldAndPaid[5]}`,
+            flat: heldAndPaid[7] === undefined ? 0 : sign * Number(heldAndPaid[7]),
+            type,
+            average: Number(heldAndPaid[3]),
+          },
+          at: heldAndPaid[9] as 'start' | 'end',
+          onTurnOf: heldAndPaid[10] === 'its' ? ('target' as const) : ('source' as const),
+        },
+      }),
+    );
+    if (!hung) return false;
+    // What the sentence said between its two halves and this reader cannot
+    // spend — SRD's "is suffocating unless it can breathe water", which is a
+    // rule about breathing nothing in the engine holds. Carried under the
+    // book's own opening, so a table reads a sentence rather than a fragment.
+    if (heldAndPaid[2] !== undefined) {
+      into.carried.push(`Until the grapple ends, the target ${heldAndPaid[2]}.`);
+    }
     return true;
   }
 
@@ -886,8 +1053,30 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return coupled[1] === undefined ? true : readClause(coupled[1], into, where);
   }
 
-  if (HP_MAX_CUT.test(words)) {
-    into.effects.push({ kind: 'hit-point-maximum-decrease', by: 'damage-taken' });
+  const maximum = HP_MAX_CUT.exec(words);
+  if (maximum !== null) {
+    const ofType = maximum[1] === undefined ? undefined : maximum[1].trim().toLowerCase();
+    if (ofType !== undefined && !DAMAGE_TYPES.has(ofType)) return false;
+    into.effects.push({
+      kind: 'hit-point-maximum-decrease',
+      by: 'damage-taken',
+      ...(ofType === undefined ? {} : { ofType }),
+      ...(maximum[2] === undefined ? {} : { sourceRegains: 'the-amount' as const }),
+    });
+    return true;
+  }
+
+  // A sentence about the condition above it, exactly as "After 1 minute, it
+  // succeeds automatically" is — see {@link EFFECT_ENDS_ON_WAKING}.
+  if (EFFECT_ENDS_ON_WAKING.test(words)) {
+    return amendLastCondition(into.effects, (last) => alsoEndsOnWaking(last, last.condition));
+  }
+
+  const immune = IMMUNE_TO_THIS_LINE.exec(words);
+  if (immune !== null) {
+    const span = spanOf(immune[2]!);
+    if (span === null || span.kind !== 'seconds') return false;
+    into.effects.push({ kind: 'line-immunity', line: immune[1]!, seconds: span.seconds });
     return true;
   }
 
@@ -1220,15 +1409,27 @@ function readRung(second: string): Rung | null {
   // Every field a `condition` clause can carry that a deepening has no room
   // for — a grapple's escape DC, a size gate, a condition it carries — is a
   // rule that would be dropped in silence, so its presence refuses the rung.
-  if (only.escapeDc !== undefined || only.ifNoLargerThan !== undefined || only.implies !== undefined) {
+  if (
+    only.escapeDc !== undefined ||
+    only.ifNoLargerThan !== undefined ||
+    only.implies !== undefined ||
+    only.payout !== undefined
+  ) {
     return null;
   }
   if (only.lasts !== undefined && only.lasts.kind !== 'seconds') return null;
+  // **The pair of endings, narrowed to a flag.** A deepening is exactly one
+  // condition, so a list naming any other is a sentence this has misread —
+  // which no route here can produce, and refusing it costs nothing.
+  const names = [...(only.endsOnDamage ?? []), ...(only.endsWhenWoken ?? [])];
+  if (names.some((name) => name !== only.condition)) return null;
   return {
     deepening: {
       condition: only.condition,
       ...(only.lasts === undefined ? {} : { lasts: only.lasts }),
       ...(only.repeats === undefined ? {} : { repeats: only.repeats }),
+      ...(only.endsOnDamage === undefined ? {} : { endsOnDamage: true as const }),
+      ...(only.endsWhenWoken === undefined ? {} : { endsWhenWoken: true as const }),
     },
     carried: read.handedOver,
   };
@@ -1322,6 +1523,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   const head = headOf(opening[3]!);
   const handedOver = [...head.carried, ...read.handedOver];
   const either: PrintedSaveEffect[] = [];
+  let onSuccessEffects: readonly PrintedSaveEffect[] = [];
   let onSuccess: 'half' | 'none' = 'none';
   let onFailure: readonly PrintedSaveEffect[] = read.effects;
   let onFailureBy: { readonly by: number; readonly effects: readonly PrintedSaveEffect[] } | null =
@@ -1330,7 +1532,23 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   for (const section of sections) {
     if (section.kind === 'success') {
       if (/^Half damage(?: only)?\.?$/.test(section.text)) onSuccess = 'half';
-      else handedOver.push(`_Success:_ ${section.text}`);
+      else {
+        // **A success may buy something, and exactly one sentence in the
+        // corpus does.** SRD Ghost and SRD Mummy each print "The target is
+        // immune to this <creature>'s <line> for 24 hours"; everything else
+        // under this heading is "Half damage" or a rule this cannot hold, and
+        // a section read in part is carried whole, which is the rule every
+        // section in this file is read under.
+        const bought = readSection(section.text);
+        if (
+          bought.readSomething &&
+          bought.damage === null &&
+          bought.handedOver.length === 0 &&
+          bought.effects.length > 0
+        ) {
+          onSuccessEffects = bought.effects;
+        } else handedOver.push(`_Success:_ ${section.text}`);
+      }
     } else if (section.kind === 'either') {
       const more = readSection(section.text);
       // Damage in a "Failure or Success" section is a sentence nobody prints.
@@ -1408,6 +1626,26 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   // never dealt buys nothing, and saying `half` would be a rule nobody printed.
   if (read.damage === null) onSuccess = 'none';
 
+  // **The second fact a targeting clause gives up**, after the Hit Point
+  // ceiling above: SRD Vampire Spawn's "one creature within 5 feet that is
+  // willing or that has the Grappled, Incapacitated, or Restrained condition".
+  // Read here rather than in a clause because it is about who the line may be
+  // forced on rather than about what the failure does. A word in the list this
+  // reader does not know leaves the whole restriction unread and the clause
+  // verbatim in `targets`, where it already was.
+  const restriction = TARGET_CONDITIONS.exec(head.targets);
+  const restrictedTo: ConditionEffect['condition'][] = [];
+  if (restriction !== null) {
+    for (const word of restriction[2]!.split(/,? (?:or|and) |, /)) {
+      const name = CONDITIONS[word.trim()];
+      if (name === undefined) {
+        restrictedTo.length = 0;
+        break;
+      }
+      if (!restrictedTo.includes(name)) restrictedTo.push(name);
+    }
+  }
+
   return {
     ability,
     dc: Number(opening[2]),
@@ -1415,6 +1653,15 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(read.damage === null ? {} : { damage: read.damage }),
     ...(read.plus === null ? {} : { plus: read.plus }),
     onSuccess,
+    ...(onSuccessEffects.length === 0 ? {} : { onSuccessEffects: [...onSuccessEffects] }),
+    ...(restrictedTo.length === 0
+      ? {}
+      : {
+          onlyIfTargetHas: {
+            conditions: restrictedTo,
+            ...(restriction![1] === undefined ? {} : { orWilling: true as const }),
+          },
+        }),
     ...(onFailure.length === 0 ? {} : { onFailure: [...onFailure] }),
     ...(onFailureBy === null ? {} : { onFailureBy: { by: onFailureBy.by, effects: [...onFailureBy.effects] } }),
     ...(gatedEither.length === 0 ? {} : { either: [...gatedEither] }),

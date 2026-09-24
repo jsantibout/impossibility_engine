@@ -120,6 +120,7 @@ import {
   takeSearch,
   takeStudy,
   takeUtilize,
+  wakeCreature,
   declineDamageReaction,
   declineTestReaction,
   resolveTest,
@@ -1806,6 +1807,23 @@ const GUARDED: readonly Guarded[] = [
   { name: 'takeDisengage', log: SETUP, run: (s, commandId) => takeDisengage(s, A, { commandId }) },
   { name: 'takeDodge', log: SETUP, run: (s, commandId) => takeDodge(s, A, { commandId }) },
   {
+    // SRD Sleep: "someone within 5 feet of it takes an action to shake it out
+    // of the spell's effect." B is five feet from A and holds a condition a
+    // printed line marked, which is what the verb refuses without.
+    name: 'wakeCreature',
+    log: [
+      ...SETUP,
+      {
+        type: 'condition-applied',
+        id: B,
+        condition: 'unconscious',
+        source: 'a pseudodragon sting',
+        endsWhenWoken: ['unconscious'],
+      },
+    ],
+    run: (s, commandId) => wakeCreature(s, A, { target: B }, { commandId }),
+  },
+  {
     name: 'takeHide',
     log: lurking(),
     run: (s, commandId) => takeHide(s, A, { commandId }, supply()),
@@ -3162,6 +3180,10 @@ const SPENDERS: readonly Spender[] = [
   { name: 'takeDash', run: (s) => takeDash(s, B, {}) },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
+  // The debt is checked before the target is looked at, so a shake aimed at a
+  // creature holding nothing wakeable is still refused for the debt — which
+  // is the whole point of the guard sitting where it does.
+  { name: 'wakeCreature', run: (s) => wakeCreature(s, B, { target: A }, {}) },
   { name: 'takeHide', run: (s) => takeHide(s, B, {}, supply()) },
   { name: 'takeUtilize', run: (s) => takeUtilize(s, B, {}) },
   { name: 'takeSearch', run: (s) => takeSearch(s, B, { skill: 'perception', dc: 10 }, supply()) },

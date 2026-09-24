@@ -79,6 +79,10 @@ describe('a line whose sentence is the save template', () => {
       targets: 'one creature within 5 feet that has the Prone condition',
       damage: { dice: '2d10', flat: 5, type: 'bludgeoning', average: 16 },
       onSuccess: 'half',
+      // The other fact a targeting clause gives up, beside the Hit Point
+      // ceiling a `dies` is gated by: a trample is forced on a creature that
+      // is already down, and whether it is down is the engine's own to check.
+      onlyIfTargetHas: { conditions: ['prone'] },
     });
   });
 
@@ -226,13 +230,17 @@ describe('the clauses a failure prints besides the damage', () => {
     });
   });
 
-  it('carries a sentence it did not read, and a success that is not half damage', () => {
-    // SRD Mummy's Dreadful Glare: the Frightened is read; the immunity is the table's.
+  it('reads a success that buys a day of immunity to the line itself', () => {
+    // SRD Mummy's Dreadful Glare: the Frightened is read, and so is the one
+    // sentence the corpus prints under `_Success:_` that is not "Half damage".
+    // It is an immunity to **this line**, not to the Frightened condition —
+    // another mummy's glare still catches them.
     expect(lineOf('mummy', 'Dreadful Glare').save).toEqual({
       ability: 'wis',
       dc: 11,
       targets: 'one creature the mummy can see within 60 feet',
       onSuccess: 'none',
+      onSuccessEffects: [{ kind: 'line-immunity', line: 'Dreadful Glare', seconds: 86400 }],
       onFailure: [
         {
           kind: 'condition',
@@ -240,26 +248,71 @@ describe('the clauses a failure prints besides the damage', () => {
           lasts: { kind: 'turn', moment: 'end', of: 'source' },
         },
       ],
-      handedOver: ["_Success:_ The target is immune to this mummy's Dreadful Glare for 24 hours."],
     });
-    // SRD Water Elemental's Whelm: the Grappled is read, and the sentence
-    // after it says three things at once — a Restrained, a suffocation and
-    // damage at a turn boundary — so it is carried whole rather than read
-    // down to the third of it this vocabulary could hold.
-    const whelm = lineOf('water-elemental', 'Whelm').save;
-    expect(whelm?.onFailure).toEqual([
-      { kind: 'condition', condition: 'grappled', escapeDc: 14, ifNoLargerThan: 'large' },
+    // The heading the sentence names is carried, because this reader is handed
+    // a line's text without its heading and the executor is where the two meet.
+    expect(lineOf('ghost', 'Horrific Visage').save?.onSuccessEffects).toEqual([
+      { kind: 'line-immunity', line: 'Horrific Visage', seconds: 86400 },
     ]);
-    expect(whelm?.handedOver?.[0]).toMatch(/^Until the grapple ends, the target has the Restrained/);
   });
 
-  it('reads a second damage component after "plus"', () => {
-    // SRD Vampire Spawn's Bite; the maximum lowered by the *Necrotic* damage
-    // and the vampire's regained Hit Points are carried.
+  it("reads the Water Elemental's whelm: a hold that carries a condition and owes a payout", () => {
+    // "Until the grapple ends, the target has the Restrained condition, is
+    // suffocating unless it can breathe water, and takes 9 (2d8) Bludgeoning
+    // damage at the start of each of the elemental's turns." Two of the three
+    // are primitives the engine has; the suffocation is not, and goes into
+    // `handedOver` under the book's own opening.
+    const whelm = lineOf('water-elemental', 'Whelm').save;
+    expect(whelm?.onFailure).toEqual([
+      {
+        kind: 'condition',
+        condition: 'grappled',
+        escapeDc: 14,
+        ifNoLargerThan: 'large',
+        implies: ['restrained'],
+        payout: {
+          damage: { dice: '2d8', flat: 0, type: 'bludgeoning', average: 9 },
+          at: 'start',
+          // "each of **the elemental's** turns" — the holder's boundary, a
+          // round away from the creature that pays.
+          onTurnOf: 'source',
+        },
+      },
+    ]);
+    expect(whelm?.handedOver).toEqual([
+      'Until the grapple ends, the target is suffocating unless it can breathe water.',
+      'The elemental can grapple one Large creature or up to two Medium or smaller creatures at a time with Whelm.',
+      'As an action, a creature within 5 feet of the elemental can pull a creature out of it by succeeding on a DC 14 Strength (Athletics) check.',
+    ]);
+  });
+
+  it('reads a second damage component after "plus", and the bite that feeds on it', () => {
+    // SRD Vampire Spawn's Bite: the maximum lowered by the **Necrotic**
+    // component alone, and what the target lost the vampire gains.
     const bite = lineOf('vampire-spawn', 'Bite').save;
     expect(bite?.damage).toEqual({ dice: '1d4', flat: 3, type: 'piercing', average: 5 });
     expect(bite?.plus).toEqual({ dice: '3d6', flat: 0, type: 'necrotic', average: 10 });
-    expect(bite?.handedOver).toHaveLength(1);
+    expect(bite?.onFailure).toEqual([
+      {
+        kind: 'hit-point-maximum-decrease',
+        by: 'damage-taken',
+        ofType: 'necrotic',
+        sourceRegains: 'the-amount',
+      },
+    ]);
+    // "one creature within 5 feet that is willing or that has the Grappled,
+    // Incapacitated, or Restrained condition": the conditions are the
+    // engine's, the willingness is the table's.
+    expect(bite?.onlyIfTargetHas).toEqual({
+      conditions: ['grappled', 'incapacitated', 'restrained'],
+      orWilling: true,
+    });
+    expect(bite?.handedOver).toBeUndefined();
+    // The Wight's is the same clause with neither half: the whole of what the
+    // line dealt, and nothing given back.
+    expect(lineOf('wight', 'Life Drain').save?.onFailure).toEqual([
+      { kind: 'hit-point-maximum-decrease', by: 'damage-taken' },
+    ]);
   });
 
   it('reads a grapple that carries a condition for as long as it holds', () => {
@@ -461,16 +514,14 @@ describe('a failure the line grades', () => {
    * condition for 1 minute. This effect ends for the target if it takes damage
    * or a creature within 5 feet of it takes an action to wake it."
    *
-   * Two things this family prints and the Gorgon's does not. The first rung
+   * Three things this family prints and the Gorgon's does not. The first rung
    * names the repeat's **moment** rather than a span of its own — "until the
    * end of its next turn, at which point it repeats the save" is one moment
-   * said twice, and what the moment does is change the condition — and the
-   * second rung carries a lifetime of its own. The two early endings are a
-   * rule nothing here executes, so they are handed over under their own
-   * heading rather than dropped: the deeper condition ends *later* than the
-   * book says and the difference is the table's to apply.
+   * said twice, and what the moment does is change the condition — the second
+   * rung carries a lifetime of its own, and that lifetime has two early
+   * endings the engine now spends: a blow, and a neighbour's action.
    */
-  it('reads a second rung that deepens into a span of its own', () => {
+  it('reads a second rung that deepens into a span of its own, and its two early endings', () => {
     expect(lineOf('brass-dragon-wyrmling', 'Sleep Breath').save).toEqual({
       ability: 'con',
       dc: 11,
@@ -486,12 +537,11 @@ describe('a failure the line grades', () => {
             onFailure: {
               condition: 'unconscious',
               lasts: { kind: 'seconds', seconds: 60 },
+              endsOnDamage: true,
+              endsWhenWoken: true,
             },
           },
         },
-      ],
-      handedOver: [
-        '_Second Failure:_ This effect ends for the target if it takes damage or a creature within 5 feet of it takes an action to wake it.',
       ],
     });
   });
@@ -574,13 +624,20 @@ describe('a failure the line grades', () => {
       damage: { dice: '2d4', flat: 0, type: 'poison', average: 5 },
       onSuccess: 'none',
       onFailure: [poisoned],
-      onFailureBy: { by: 5, effects: [{ ...poisoned, implies: ['unconscious'] }] },
-      // Under its rung's heading and with the noun the book's "which" names:
-      // it is the Unconscious that ends early, not the Poisoned carrying it,
-      // and a table handed the relative clause alone could lift either.
-      handedOver: [
-        '_Failure by 5 or More:_ The Unconscious condition, which ends early if the target takes damage or a creature within 5 feet of it takes an action to wake it.',
-      ],
+      // With the noun the book's "which" names: it is the **Unconscious**
+      // that ends early and not the Poisoned hour carrying it, which is the
+      // whole reason the two marks are a list of names rather than a flag.
+      onFailureBy: {
+        by: 5,
+        effects: [
+          {
+            ...poisoned,
+            implies: ['unconscious'],
+            endsOnDamage: ['unconscious'],
+            endsWhenWoken: ['unconscious'],
+          },
+        ],
+      },
     });
   });
 });
@@ -612,7 +669,7 @@ describe('a failure that branches on the target’s Hit Points', () => {
     });
   });
 
-  it('reads the Incubus’ nightmare, and hands its early endings over', () => {
+  it('reads the Incubus’ nightmare whole, early endings and all', () => {
     expect(lineOf('incubus', 'Nightmare').save).toEqual({
       ability: 'wis',
       dc: 15,
@@ -627,16 +684,12 @@ describe('a failure that branches on the target’s Hit Points', () => {
               kind: 'condition',
               condition: 'unconscious',
               lasts: { kind: 'seconds', seconds: 3600 },
+              endsOnDamage: ['unconscious'],
+              endsWhenWoken: ['unconscious'],
             },
           ],
           otherwise: { damage: { dice: '4d8', flat: 0, type: 'psychic', average: 18 } },
         },
-      ],
-      // The printed hour is applied; the two early endings are not, and reach
-      // the table with the noun the book's own clause hangs on — the same
-      // rule the Pseudodragon's carried sentence follows.
-      handedOver: [
-        'The Unconscious condition ends early: until it takes damage, or until a creature within 5 feet of it takes an action to wake it.',
       ],
     });
   });
@@ -656,6 +709,13 @@ describe('a failure that branches on the target’s Hit Points', () => {
     expect(nimbus.handedOver).toContain(
       'The Frightened condition ends early: until it takes damage, or until it ends its turn with the nalfeshnee out of line of sight.',
     );
+    // **And the pair is read only when it is the pair.** The Incubus' tail is
+    // a blow and a neighbour's action, both verbs the engine spends; this one
+    // ends on a line of sight nothing here holds, so the whole tail is carried
+    // exactly as it always was and neither mark is set.
+    expect(nimbus.onFailure).toEqual([
+      { kind: 'condition', condition: 'frightened', lasts: { kind: 'seconds', seconds: 60 } },
+    ]);
   });
 
   it('refuses the pair where the "Otherwise" sentence is not damage', () => {
