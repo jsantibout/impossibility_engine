@@ -75,22 +75,28 @@ describe('a spell may name a shape in any book', () => {
   });
 
   /**
-   * The three spells gate G1 read as mis-filed, now filed where it said.
+   * The spells gate G1 read as mis-filed, now filed where it said.
    *
-   * SRD Speak with Animals widens what may be attempted against a Beast,
-   * which is the Influence action; Gaseous Form forbids talking and handling
-   * objects, which is Utilize; and Haste's extra action may be spent on a
-   * Utilize among four others. `NAMED_ACTIONS` leaves all of them out because
-   * no spender could be told apart as having taken one, which is exactly what
-   * the feature vocabulary's `an-action-the-engine-has-no-spender-for` says.
+   * Gaseous Form forbids talking and handling objects, which is Utilize, and
+   * Haste's extra action may be spent on a Utilize among four others.
+   * `NAMED_ACTIONS` leaves both out because no spender could be told apart as
+   * having taken one, which is exactly what the feature vocabulary's
+   * `an-action-the-engine-has-no-spender-for` says.
+   *
+   * **Speak with Animals was the third and has left**, which is the assertion
+   * below it. G1 filed it here on the reading that the Influence action had no
+   * spender; `takeInfluence` is one, has never narrowed by the target's
+   * creature type, and so an Influence attempt on a Beast was always legal and
+   * always rolled. There was never anything for the spell to widen, and what
+   * it buys — that the Beast understands — is speech. Handed over on
+   * 2026-09-24, with the departure asserted rather than the row quietly
+   * deleted.
    */
-  it('files the three actions nobody can spend against the feature shape', () => {
+  it('files the actions nobody can spend against the feature shape', () => {
     const filed = (map: Record<string, readonly { why: string; clause: string }[]>, id: string) =>
       (map[id] ?? []).map((entry) => entry.why);
 
-    expect(filed(TRACKED_ADJUDICATED, 'speak-with-animals')).toContain(
-      'an-action-the-engine-has-no-spender-for',
-    );
+    expect(filed(TRACKED_ADJUDICATED, 'speak-with-animals')).toEqual(['table']);
     expect(filed(ADJUDICATED, 'gaseous-form')).toContain(
       'an-action-the-engine-has-no-spender-for',
     );

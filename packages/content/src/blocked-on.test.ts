@@ -1965,6 +1965,32 @@ const BUILT_CLAUSES: readonly (readonly [string, string])[] = [
   ['dominate-person', 'the save has Advantage'],
 ];
 
+/**
+ * Clauses a **re-reading** moved off a shape and onto the table.
+ *
+ * The fourth honest reason a recorded destination may no longer be where a
+ * clause sits, and the first that is neither a shape being built nor a
+ * population moving: somebody read the sentence again and found that what it
+ * waits on is nothing. The split that recorded it was not wrong about the
+ * arithmetic; it was wrong about the sentence.
+ *
+ * SRD Speak with Animals is the first. Gate G1 filed "skill options with them"
+ * against `an-action-the-engine-has-no-spender-for` on the reading that the
+ * Influence action had no spender — `NAMED_ACTIONS` holds `influence` now,
+ * `takeInfluence` takes it, and that command has never narrowed by the
+ * target's creature type, so an Influence attempt on a Beast was always legal
+ * and always rolled. There was nothing for the spell to widen. What it buys is
+ * that the Beast understands, which is speech, and no rule reads speech
+ * afterwards.
+ *
+ * A reviewed list for {@link BUILT_CLAUSES}' reason and held to the same rule
+ * in both directions: an entry here must really be filed as `'table'` now, so
+ * a licence cannot go stale in silence.
+ */
+const HANDED_OVER: readonly (readonly [string, string])[] = [
+  ['speak-with-animals', 'skill options with them'],
+];
+
 describe('the split bundles add back up', () => {
   /**
    * The evidence that splitting three bundle ids preserved the facts.
@@ -2031,6 +2057,7 @@ describe('the split bundles add back up', () => {
     const split = SPLIT_BUNDLES[bundle]!;
     const live = new Set<string>(Object.keys(MISSING_SHAPES));
     const built = new Set(BUILT_CLAUSES.map(([id, clause]) => `${id}/${clause}`));
+    const handed = new Set(HANDED_OVER.map(([id, clause]) => `${id}/${clause}`));
     const landed = new Map<string, number>();
 
     for (const [spellId, clause, wentTo] of split.held) {
@@ -2042,6 +2069,11 @@ describe('the split bundles add back up', () => {
             !DEFINED_SPELL_IDS.has(spellId),
           `${spellId}: "${clause}" left the map while ${wentTo} is still missing`,
         ).toBe(false);
+      } else if (handed.has(`${spellId}/${clause}`)) {
+        // Re-read and handed over: the destination is history and `'table'`
+        // is where the sentence sits now — see {@link HANDED_OVER}, whose
+        // entries are held to exactly this and would otherwise rot unnoticed.
+        expect(why, `${spellId}/${clause}`).toBe('table');
       } else {
         expect(why, `${spellId}/${clause}`).toBe(wentTo);
       }

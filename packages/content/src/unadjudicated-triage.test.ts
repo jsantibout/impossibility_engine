@@ -84,13 +84,6 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
     'a-bonus-narrowed-to-a-skill',
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
-  // **The one entry whose shape is not in the spell book**, and it is the
-  // gate-G1 re-filing the `why` widening released: what blocks this spell is
-  // the Influence action, which `NAMED_ACTIONS` leaves out because no spender
-  // could be told apart as having taken one. That gap is the feature
-  // vocabulary's `an-action-the-engine-has-no-spender-for`, and a second id
-  // over here for it is the duplication the three books were split to avoid.
-  'speak-with-animals': ['an-action-the-engine-has-no-spender-for'],
   'speak-with-plants': ['difficult-terrain-an-area-creates'],
   'tiny-hut': [
     'a-barrier-that-blocks-passage',
@@ -139,6 +132,13 @@ const HANDOVERS: readonly string[] = [
   'message',
   'purify-food-and-drink',
   'rope-trick',
+  // Re-read on 2026-09-24 and moved off {@link FILED}: the entry that filed
+  // it said the Influence action had no spender, and `takeInfluence` has been
+  // one since. That command never narrowed by the target's creature type, so
+  // an Influence attempt on a Beast was always legal and always rolled and
+  // there was never anything for the spell to widen. What it buys is
+  // comprehension, which is speech, which the engine holds none of.
+  'speak-with-animals',
   'speak-with-dead',
   'tongues',
   'water-breathing',

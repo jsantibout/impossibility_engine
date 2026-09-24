@@ -1821,20 +1821,20 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'movement-cost',
       clause: 'You can use 5 feet of movement to leave the stone where you entered it',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'the five feet are spendable and what they buy is stepping out of a stone, which is a state the world model has no room for — the same place Tree Stride’s five feet hang from, so the step they pay for has no representation to cost anything.',
+      why: 'table',
+      note: 'the five feet are spendable and what they buy is stepping out of a stone. **The ruling of 2026-09-24: this is a handover and not a debt**, because the fact underneath every clause of this spell — a creature inside a rock — is a place, and the engine holds one scene of spaces creatures stand in. A second kind of place is not a mechanism somebody forgot to build; it is a world model nobody has asked for, and inventing one for a single level 3 spell is the direction `docs/design/content.md` names as the way a catalogue starts writing the engine. Nothing reads the fact afterwards, which is the test that makes this the table’s. The owner may reopen it — ROADMAP §10 says so — and the day a second place exists this row and Rope Trick’s come back together.',
     },
     {
       marker: 'dice',
       clause: 'expels you and deals 6d6 Force damage to you',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'the dice are ordinary and being expelled is not: the damage is a consequence of having been inside the stone, and the sentence after it deals a flat 50 for the same reason.',
+      why: 'table',
+      note: 'the dice are ordinary and being expelled is not: the damage is a consequence of having been inside the stone, and the sentence after it deals a flat 50 for the same reason. The DM says the stone was broken and the DM says the damage lands; there is no state the engine could have held that would have made either of those its own.',
     },
     {
       marker: 'condition',
       clause: 'you move into an unoccupied space closest to where you first entered and have the Prone condition',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary; what is missing is the expulsion they follow from, which is the state this whole paragraph hangs on.',
+      why: 'table',
+      note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary, and both are reachable through commands a DM already has. What is missing is the expulsion they follow from, which is the place this whole paragraph hangs on — so the engine stands ready to execute the consequence and owns none of the cause.',
     },
   ],
   seeming: [
@@ -3614,8 +3614,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: null,
       clause: 'skill options with them',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity and is sayable — what is not is the **action** it widens. That is the Influence action, and `NAMED_ACTIONS` leaves it out because no spender could be told apart as having taken one: a rule naming it would read as enforced and would not be. Gate G1 read this as mis-filed under `an-action-a-spell-compels-or-forbids`, whose vocabulary is built; the gap is the feature book’s and is the same one Utilize sits in.',
+      why: 'table',
+      note: 'the reading that filed this was written before the Influence action had a spender, and it is stale twice over. `NAMED_ACTIONS` holds `influence` now and `takeInfluence` takes it — the Charisma check against a DC the DM set, over `INFLUENCE_SKILLS` — and that command **never narrowed by the target’s creature type**, so an Influence attempt on a Beast was already legal and already rolled. There is nothing here for an `allows` to widen. What the spell actually buys is comprehension: that the Beast understands what was said and that the caster understands the answer, which is speech, and the engine holds no speech. The attitude a check argues against is the DM’s by the Influence entry’s own handover, and what a Beast has to say is the paragraph after it. A handover, and no rule reads it afterwards.',
     },
   ],
   knock: [

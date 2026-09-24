@@ -3928,8 +3928,8 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'what a Beast says is the DM’s',
-    'the Influence action and its skill options are not modelled',
+    'what a Beast says is the DM’s: comprehending and verbally communicating with one is speech, and the engine holds no speech',
+    'the skill options widen nothing the engine narrows — `takeInfluence` rolls whichever of the Influence skills the caller names and has never asked what kind of creature it is aimed at — so what the spell buys is that the Beast understands, and the attitude the check argues against is the DM’s by the Influence entry’s own handover',
   ],
 };
 
