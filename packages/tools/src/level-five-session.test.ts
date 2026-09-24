@@ -392,9 +392,10 @@ interface Clause {
  * The **second** mark a handover carries, and the reason it is a literal here.
  *
  * A spell's handover goes out under {@link DM_DECIDES}, which the engine
- * exports and `dmDecisionsIn` reads back. A stat block's does not: the four
+ * exports and `dmDecisionsIn` reads back. A stat block's does not: the five
  * sites that write one — a printed Actions line, a printed Bonus Actions line,
- * a Multiattack's spare sentence and an attack's rider — each end the line
+ * a Multiattack's spare sentence, and an attack rider's two, one per sentence
+ * the reader got nothing out of and one per deadline it cannot file — each end
  * with this clause and there is no constant for it. So the count either copies
  * the sentence or misses every handover a monster makes — which in this
  * session is all three of them — and copying it with the reason written down
@@ -417,8 +418,13 @@ const BLOCK_HANDOVER = 'the engine does not apply that; a DM does';
 const WRITES_THE_HANDOVER: readonly (readonly [string, number])[] = [
   // A printed Actions line and a printed Bonus Actions line.
   ['../../engine/src/commands/actions.ts', 2],
-  // A Multiattack's spare sentence and an attack's rider.
-  ['../../engine/src/commands/attacks.ts', 2],
+  // A Multiattack's spare sentence, and two of an attack's rider: the clauses
+  // of a printed line the reader got nothing out of, and a clause it read and
+  // could not file because the deadline it names has no turn to end at. The
+  // rider used to be one site because the reader was one shape or nothing;
+  // `readPrintedRiders` reads a line clause by clause, so the residue is per
+  // sentence and the span refusal is its own sentence.
+  ['../../engine/src/commands/attacks.ts', 3],
 ];
 
 const clausesIn = (sent: readonly Sent[]): readonly Clause[] =>

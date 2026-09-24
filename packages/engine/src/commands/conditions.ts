@@ -69,6 +69,15 @@ export function applyConditionTo(
    * sites should not have to move for a field none of them passes.
    */
   check?: EffectCheck,
+  /**
+   * Conditions this cause carries for as long as it lasts — SRD Crocodile's
+   * "While Grappled, the target has the Restrained condition."
+   *
+   * Tenth, appended for the ninth's reason: no existing call site passes one,
+   * and the option object the whole signature wants is a change to a DM-facing
+   * command that would move every one of them.
+   */
+  implies?: readonly ConditionName[],
 ): Result<GameEvent[]> {
   // "You are Frightened" is the state change a narrating layer reaches for
   // most, and a retried one was a second Frightened from the same source —
@@ -81,6 +90,7 @@ export function applyConditionTo(
     ...(duration === undefined ? {} : { duration }),
     ...(repeatSave === undefined ? {} : { repeatSave }),
     ...(check === undefined ? {} : { check }),
+    ...(implies === undefined || implies.length === 0 ? {} : { implies }),
   }, () => [], (stamp) => {
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
@@ -105,7 +115,14 @@ export function applyConditionTo(
     }
 
     const events: GameEvent[] = [
-      { type: 'condition-applied', id, condition, source, ...(stamp === null ? {} : { command: stamp }) },
+      {
+        type: 'condition-applied',
+        id,
+        condition,
+        source,
+        ...(implies === undefined || implies.length === 0 ? {} : { implies }),
+        ...(stamp === null ? {} : { command: stamp }),
+      },
     ];
 
     // A hook needs a timer to hang on, even when the effect has no deadline of

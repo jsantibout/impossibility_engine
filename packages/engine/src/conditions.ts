@@ -198,13 +198,32 @@ export function applyCondition(
   state: ConditionState,
   condition: ConditionName,
   source: string,
+  /**
+   * Conditions **this** cause carries, beyond the ones the condition always
+   * does.
+   *
+   * SRD Crocodile: "While Grappled, the target has the Restrained condition."
+   * {@link IMPLIES} cannot say it — that table is what a condition *means*,
+   * and a Wolf's grapple carries nothing while a Crocodile's carries
+   * Restrained — but the *lifetime* the sentence names is exactly the one
+   * implication already has: `removeConditionInstance` takes an implied
+   * instance off with the instance that carried it, so the Restrained lifts at
+   * the escape, at either automatic lapse and at a release, through doors that
+   * already existed.
+   *
+   * Expanded like any other, so a source that carried Unconscious would carry
+   * the Incapacitated and Prone underneath it too; and unioned rather than
+   * replacing, because a caller may add to what a condition means and none may
+   * take any of it away.
+   */
+  implies: readonly ConditionName[] = [],
 ): ConditionState {
   const id = conditionInstanceId(condition, source);
   if (state.instances.some((i) => i.id === id)) return state;
 
   const added: ConditionInstance[] = [{ id, condition, source, impliedBy: null }];
 
-  for (const implied of expandConditions([condition]).filter((c) => c !== condition)) {
+  for (const implied of expandConditions([condition, ...implies]).filter((c) => c !== condition)) {
     const impliedId = conditionInstanceId(implied, source);
     if (state.instances.some((i) => i.id === impliedId)) continue;
     if (added.some((i) => i.id === impliedId)) continue;

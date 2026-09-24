@@ -1686,7 +1686,14 @@ export function monsterCanReceive(
  * read off "its next turn" and filed on the attacker is a wrong rule rather
  * than a refusal, which is what naming the anchor makes impossible.
  */
-export type PrintedRider = PrintedConditionRider | PrintedGrappleRider | PrintedDamageRider;
+export type PrintedRider =
+  | PrintedConditionRider
+  | PrintedGrappleRider
+  | PrintedDamageRider
+  | PrintedForcedMoveRider
+  | PrintedSpeedCutRider
+  | PrintedMaximumRider
+  | PrintedModeRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -1713,8 +1720,9 @@ export type PrintedRider = PrintedConditionRider | PrintedGrappleRider | Printed
  * rule {@link readPrintedRider} keeps throughout: whether the attack roll had
  * Advantage is a property of the roll it just made, and whether a creature is
  * Bloodied is half its Hit Points. The charge gate — "moved 20+ feet straight
- * toward it immediately before the hit" — is still refused, because nothing
- * records the shape of the move that preceded a swing.
+ * toward it immediately before the hit" — used to be refused here because
+ * nothing recorded the shape of the move that preceded a swing;
+ * `TurnBudget.movementSegments` is that record, so it is a gate like the rest.
  */
 export interface PrintedDamageRider {
   readonly kind: 'damage';
@@ -1728,22 +1736,72 @@ export interface PrintedDamageRider {
   /** SRD's "(1d4 **+ 1**)", and 0 where the line prints none. */
   readonly flat: number;
   readonly type: DamageType;
-  readonly when: PrintedDamageGate;
+  /** SRD's "If the target is a Medium or smaller creature". */
+  readonly ifNoLargerThan?: CreatureSize;
+  /**
+   * What the clause is conditioned on, where it is conditioned on anything.
+   *
+   * **Optional, and one sentence is why.** SRD Swarm of Venomous Snakes writes
+   * "or 6 (1d4 + 4) Piercing damage if the swarm is Bloodied**—plus 10 (3d6)
+   * Poison damage**": the gate belongs to the first half and the second half
+   * is simply more damage. A gate invented for it would be a rule nobody
+   * printed; requiring one would hand a whole line to the DM over a dash.
+   *
+   * An `instead` clause with no gate is refused rather than read, because
+   * "the damage it rolls in place of its own, always" is not a sentence.
+   */
+  readonly when?: PrintedHitGate;
 }
 
 /**
- * What a printed damage clause is conditioned on.
+ * What a printed clause is conditioned on.
  *
  * A closed list of what the engine can answer, because a gate it cannot
  * evaluate is a rider read half-way — which is the failure the verbatim string
  * is carried to avoid. A sentence naming any other gate comes back null and is
  * handed to the DM whole.
+ *
+ * **Shared by the damage clause and the condition clause**, because the book
+ * shares it: SRD Boar writes one sentence that is an extra die *and* a Prone,
+ * both behind the same charge, and reading the gate onto only one of them
+ * would be half a rule.
  */
-export type PrintedDamageGate =
+export type PrintedHitGate =
   /** SRD's "if the swarm is Bloodied", "if the target is Bloodied". */
   | { readonly kind: 'bloodied'; readonly who: HitRiderAnchor }
   /** SRD Goblin Warrior's "if the attack roll had Advantage". */
-  | { readonly kind: 'attack-had-advantage' };
+  | { readonly kind: 'attack-had-advantage' }
+  | PrintedChargeGate
+  /**
+   * SRD Mimic's Bite: "if the target is Grappled by the mimic".
+   *
+   * A fact the engine holds outright — `grapplesOn` finds every grapple by the
+   * `grapple:<who>` source its instance is filed under — so it is a gate and
+   * not a handover.
+   */
+  | { readonly kind: 'grappled-by-attacker' };
+
+/**
+ * SRD Boar: "the boar moved 20+ feet straight toward it immediately before the
+ * hit".
+ *
+ * The feet the line prints, which is 10 for the Minotaur of Baphomet, 20 for
+ * most of the bestiary and 30 for the Allosaurus — so it is a number rather
+ * than a flag. What answers it is the mover's own turn budget: see
+ * `TurnBudget.movementSegments`.
+ *
+ * **Its own type because it is the only gate a condition clause can carry.**
+ * The other three are facts about the blow — the roll's mode, half a
+ * creature's Hit Points, a hold — and the book prints them on the damage; the
+ * charge is a fact about the turn, knowable before the die. What a hit *buys*
+ * is settled before the d20 so a hold can pin it, so a condition clause gated
+ * on the roll could not be answered at the moment it is built, and a type that
+ * could say it would be a clause that quietly never fired.
+ */
+export interface PrintedChargeGate {
+  readonly kind: 'charged';
+  readonly feet: number;
+}
 
 /** A condition the hit imposes, with or without a saving throw against it. */
 export interface PrintedConditionRider {
@@ -1782,6 +1840,91 @@ export interface PrintedConditionRider {
    * "its next turn" is the creature that was hit, and they are a round apart.
    */
   readonly lastsOn?: HitRiderAnchor;
+  /**
+   * What the clause is conditioned on — SRD Gorgon's charge, and nothing else.
+   *
+   * One printed sentence can be an extra die and a condition behind one "if",
+   * which is why the gate is on both riders; it is narrowed to the charge here
+   * for the reason {@link PrintedChargeGate} gives.
+   */
+  readonly when?: PrintedChargeGate;
+  /**
+   * SRD Bearded Devil's Beard: "Until this poison ends, the target can't
+   * regain Hit Points."
+   *
+   * A second sentence about the **same** condition and the same span, so it is
+   * a field on the condition rather than a rider of its own: what it would
+   * otherwise need is a deadline of its own that always equalled this one.
+   */
+  readonly preventsHealing?: true;
+}
+
+/**
+ * A shove the hit itself delivers — SRD Satyr: "the satyr pushes the target up
+ * to 10 feet straight away from itself"; SRD Merrow: "the merrow pulls the
+ * target up to 15 feet straight toward itself".
+ *
+ * Its own member rather than an effect, for {@link PrintedGrappleRider}'s
+ * reason: forced movement is lattice arithmetic between two creatures and not
+ * something hung on one of them. `shoveAwayFrom` and `pullToward` perform it.
+ *
+ * "Up to" is read as the whole distance. The book leaves the amount to the
+ * creature doing the shoving, and the engine has no creature to ask; the
+ * printed number is the only one on the page, and a shorter one would be
+ * invented.
+ */
+export interface PrintedForcedMoveRider {
+  readonly kind: 'forced-move';
+  readonly direction: 'push' | 'pull';
+  readonly feet: number;
+  /** SRD's "If the target is a Large or smaller creature". */
+  readonly ifNoLargerThan?: CreatureSize;
+}
+
+/**
+ * SRD Merfolk Skirmisher: "its Speed decreases by 10 feet until the end of its
+ * next turn."
+ *
+ * The span is required rather than optional, and that is the sentence rather
+ * than a convenience: every printed Speed cut on a hit names a moment, and one
+ * that did not would be a Speed nothing could ever give back.
+ */
+export interface PrintedSpeedCutRider {
+  readonly kind: 'speed-cut';
+  readonly feet: number;
+  readonly lasts: TurnAnchor;
+  readonly lastsOn: HitRiderAnchor;
+}
+
+/**
+ * SRD Specter and SRD Wraith: "its Hit Point maximum decreases by an amount
+ * equal to the damage taken."
+ *
+ * It carries no number, because the number is the blow's: the amount is read
+ * off the damage after the target's own defences, at the moment it settles.
+ */
+export interface PrintedMaximumRider {
+  readonly kind: 'hit-point-maximum';
+}
+
+/**
+ * A mode on **one** later roll — SRD Ettin: "the target has Disadvantage on the
+ * next attack roll it makes before the end of its next turn"; SRD Worg: "the
+ * next attack roll made against the target before the start of the worg's next
+ * turn has Advantage."
+ *
+ * `RollModifier.oneShot` is the half that says "the next", and the span is the
+ * half that says "before"; both endings stand and the first to arrive wins.
+ * The relation is which end of the roll the target stands at, which is the
+ * difference between the two sentences and not a wording.
+ */
+export interface PrintedModeRider {
+  readonly kind: 'roll-mode';
+  readonly mode: 'advantage' | 'disadvantage';
+  /** `roller` is a roll the target makes; `against-holder` is one made at it. */
+  readonly relation: 'roller' | 'against-holder';
+  readonly lasts: TurnAnchor;
+  readonly lastsOn: HitRiderAnchor;
 }
 
 /** SRD's "_Constitution Saving Throw:_ DC 10", as the two things it states. */
@@ -1806,6 +1949,22 @@ export interface PrintedGrappleRider {
   readonly ifNoLargerThan?: CreatureSize;
   /** SRD Giant Scorpion's "from one of two claws" — reported, never enforced. */
   readonly withLimbs?: string;
+  /**
+   * SRD Crocodile: "While Grappled, the target has the Restrained condition."
+   *
+   * A condition that lasts exactly as long as the hold — which is a lifetime
+   * the engine does have, and had all along: `ConditionInstance.impliedBy` is
+   * how Unconscious carries Prone, and `removeConditionInstance` takes an
+   * implied instance off with the one that carried it. So the escape, the two
+   * automatic lapses and a grappler's release each lift both, through the door
+   * they already went through.
+   *
+   * **Read here and refused at the plain-condition door**, which is not a
+   * contradiction: {@link NOT_A_PLAIN_CONDITION} refuses a Restrained filed
+   * under a *rider's own* source, because that would be a Restrained nothing
+   * could end. One filed under the grapple ends with the grapple.
+   */
+  readonly whileHeld?: readonly ConditionName[];
 }
 
 /** The six size words the book writes the gate with, as the book capitalises them. */
@@ -1831,7 +1990,9 @@ const GATED_CONDITION = new RegExp(
  * block belongs to. Which one a match found is {@link anchorOf}'s answer, and
  * it is the difference between two rules rather than two wordings.
  */
-const UNTIL_NEXT_TURN = `until the (end|start) of (?:(its)|the (.+?)${APOSTROPHE}s) next turn`;
+const NEXT_TURN_MOMENT = `the (end|start) of (?:(its)|the (.+?)${APOSTROPHE}s) next turn`;
+
+const UNTIL_NEXT_TURN = `until ${NEXT_TURN_MOMENT}`;
 
 /**
  * SRD Ettercap: "and the target has the Poisoned condition until the start of
@@ -1897,18 +2058,112 @@ const PRINTED_SAVE = new RegExp(
  * numbers for one amount is a place for them to disagree, and the dice are the
  * half the engine can actually throw.
  *
- * The `$` does the work the other patterns' does — the Swarm of Venomous
- * Snakes appends "—plus 10 (3d6) Poison damage" and the Swarm of Crawling
- * Claws a second sentence about Prone, and both are refused whole rather than
- * read down to the part that fits.
+ * **The `$` no longer refuses a second clause, because a second clause is now
+ * a second reading rather than a failure.** The Swarm of Venomous Snakes
+ * appends "—plus 10 (3d6) Poison damage" and the Swarm of Crawling Claws a
+ * second sentence about Prone; {@link readPrintedRiders} splits both and hands
+ * each half here on its own, so the anchor still says "this clause and nothing
+ * after it" and the line is no longer refused whole.
+ *
+ * The gate is optional for the sentence the dash produces — "plus 10 (3d6)
+ * Poison damage" is conditioned on nothing — and {@link readClause} refuses an
+ * ungated `or`, which would be a sentence nobody printed.
  */
-const PRINTED_DAMAGE = /^(plus|or) \d+ \((\d+d\d+)(?: \+ (\d+))?\) ([A-Za-z]+) damage if (.+)\.$/;
+const PRINTED_DAMAGE =
+  /^(plus|or) \d+ \((\d+d\d+)(?: \+ (\d+))?\) ([A-Za-z]+) damage(?: if (.+))?\.$/;
 
 /** SRD's "the swarm is Bloodied", "the target is Bloodied". */
 const BLOODIED_GATE = /^the (.+?) is Bloodied$/;
 
 /** SRD Goblin Warrior's gate, which is a fact about the roll just made. */
 const ADVANTAGE_GATE = 'the attack roll had Advantage';
+
+/**
+ * SRD Goat: "the goat moved 20+ feet straight toward the target immediately
+ * before the hit" — the charge, where the book writes it as a gate on the
+ * damage rather than as the whole sentence.
+ */
+const CHARGE_GATE = /^the .+ moved (\d+)\+ feet straight toward the target immediately before the hit$/;
+
+/**
+ * SRD Mimic's Bite: "the target is Grappled by the mimic".
+ *
+ * The em dash is excluded because the very line that prints this gate appends
+ * one — "…Grappled by the mimic**—plus 4 (1d8) Acid damage**" — and a capture
+ * that ran past it would swallow the second clause into the creature's name
+ * and drop a damage component without even handing it back. The other two
+ * gates are anchored on their own last words and cannot.
+ */
+const GRAPPLED_BY_GATE = /^the target is Grappled by the [^—]+$/;
+
+/**
+ * SRD Boar: "If the target is a Medium or smaller creature and the boar moved
+ * 20+ feet straight toward it immediately before the hit, the target takes an
+ * extra 3 (1d6) Piercing damage and has the Prone condition."
+ *
+ * **One sentence and up to three readings**, which is why it is its own
+ * pattern rather than a gate bolted onto {@link GATED_CONDITION}: a size, a
+ * charge, an optional extra die, a condition, and — the Allosaurus alone — a
+ * free attack after a comma that nothing in the engine grants and that is
+ * handed straight back.
+ *
+ * The articles are loose because the book's are: SRD Rhinoceros writes "If
+ * target is a Large or smaller creature" with no article and SRD Triceratops
+ * writes "If the target is Huge or smaller" with no noun. Both are the same
+ * rule, and a reader that refused either would hand a charge to the DM over a
+ * transcription.
+ */
+const CHARGED_HIT = new RegExp(
+  `^If (?:the )?target is (?:an? )?${SIZE_WORDS} or smaller(?: creature)? and the .+? moved (\\d+)\\+ feet straight toward it immediately before the hit, the target (?:takes an extra \\d+ \\((\\d+d\\d+)(?: \\+ (\\d+))?\\) ([A-Za-z]+) damage and )?has the ([A-Za-z]+) condition(?:, and (.+?))?\\.$`,
+);
+
+/**
+ * SRD Satyr: "If the target is a Medium or smaller creature, the satyr pushes
+ * the target up to 10 feet straight away from itself." SRD Merrow pulls
+ * instead, and SRD Shambling Mound pulls a flat five feet with no "up to".
+ *
+ * The direction is read off the **preposition** rather than off the verb,
+ * because the preposition is what the arithmetic needs and the two always
+ * agree; a line whose verb and preposition disagreed would be a sentence
+ * nobody printed, and it would come back as a push toward nothing.
+ */
+const PRINTED_SHOVE = new RegExp(
+  `^If the target is a ${SIZE_WORDS} or smaller creature, the .+? (?:pushes|pulls) the target (?:up to )?(\\d+) feet straight (away from|toward) itself\\.$`,
+);
+
+/** SRD Merfolk Skirmisher: "its Speed decreases by 10 feet until the end of its next turn." */
+const PRINTED_SPEED_CUT = new RegExp(
+  `^If the target is a creature, its Speed decreases by (\\d+) feet ${UNTIL_NEXT_TURN}\\.$`,
+);
+
+/** SRD Specter and SRD Wraith, word for word. */
+const PRINTED_MAXIMUM =
+  /^If the target is a creature, its Hit Point maximum decreases by an amount equal to the damage taken\.$/;
+
+/** SRD Ettin: a mode on the roll the creature that was hit makes next. */
+const PRINTED_MODE_ON_TARGET = new RegExp(
+  `^and the target has (Advantage|Disadvantage) on the next attack roll it makes before ${NEXT_TURN_MOMENT}\\.$`,
+);
+
+/** SRD Worg: the same mechanic from the other end of the relation. */
+const PRINTED_MODE_AGAINST_TARGET = new RegExp(
+  `^and the next attack roll made against the target before ${NEXT_TURN_MOMENT} has (Advantage|Disadvantage)\\.$`,
+);
+
+/**
+ * SRD Crocodile: "While Grappled, the target has the Restrained condition."
+ *
+ * A sentence **about the sentence before it**, which is why what it reads to
+ * is folded into the grapple rather than standing on its own: there is nothing
+ * for it to mean without one. SRD Giant Crocodile appends "and can't be
+ * targeted by the crocodile's Tail", which is handed back.
+ */
+const WHILE_GRAPPLED = /^While Grappled, the target has the ([A-Za-z]+) condition(?: and (.+?))?\.$/;
+
+/** SRD Bearded Devil's Beard: "Until this poison ends, the target can't regain Hit Points." */
+const NO_HEALING_WHILE_IT_LASTS = new RegExp(
+  `^Until this [a-z]+ ends, the target can${APOSTROPHE}t regain Hit Points\\.$`,
+);
 
 /** SRD Ghast's "a non-Undead creature". */
 const NEGATED_TYPE = /^a non-([A-Za-z]+) creature$/;
@@ -2044,8 +2299,11 @@ function spanRead(
  * somebody this reader cannot identify comes back null, exactly as it does for
  * a span.
  */
-function damageGateOf(phrase: string): PrintedDamageGate | null {
+function damageGateOf(phrase: string): PrintedHitGate | null {
   if (phrase === ADVANTAGE_GATE) return { kind: 'attack-had-advantage' };
+  const charged = CHARGE_GATE.exec(phrase);
+  if (charged !== null) return { kind: 'charged', feet: Number(charged[1]) };
+  if (GRAPPLED_BY_GATE.test(phrase)) return { kind: 'grappled-by-attacker' };
   const bloodied = BLOODIED_GATE.exec(phrase);
   if (bloodied === null) return null;
   // `undefined` for the `its` capture the possessive router takes first: this
@@ -2094,33 +2352,201 @@ function abilityWord(word: string): Ability | null {
  * Every one of those is still carried verbatim and still reported at the hit.
  */
 export function readPrintedRider(text: string): PrintedRider | null {
+  const read = readClause(text);
+  if (read === null || read.kind !== 'riders') return null;
+  // Exactly one shape and nothing left over, which is what this reader has
+  // always promised. A clause that reads to two riders or leaves a residue is
+  // {@link readPrintedRiders}' answer and not this one's.
+  return read.handedOver === undefined && read.riders.length === 1 ? read.riders[0]! : null;
+}
+
+/**
+ * What one clause reads to: riders, or one of the two sentences that are about
+ * the sentence before them.
+ *
+ * The last two are not {@link PrintedRider}s and must not become ones. "While
+ * Grappled, the target has the Restrained condition" and "Until this poison
+ * ends, the target can't regain Hit Points" each name a lifetime borrowed from
+ * a clause that has already been read; standing alone they say nothing, and a
+ * rider that had to be looked up to be understood is a rider the swing could
+ * apply to nobody.
+ */
+type ClauseRead =
+  | {
+      readonly kind: 'riders';
+      readonly riders: readonly PrintedRider[];
+      /** The part of this clause the engine read nothing out of. */
+      readonly handedOver?: string;
+    }
+  | {
+      readonly kind: 'while-held';
+      readonly conditions: readonly ConditionName[];
+      readonly handedOver?: string;
+    }
+  | { readonly kind: 'no-healing' };
+
+/** One rider and no residue, which is what most clauses read to. */
+const one = (rider: PrintedRider): ClauseRead => ({ kind: 'riders', riders: [rider] });
+
+/**
+ * The structure **one clause** states, or null for everything else.
+ *
+ * Null is the guard rather than a gap, and what is left on the list of
+ * refusals is worth naming because each is a mechanism rather than a wording:
+ *
+ * - **A failure that is not a condition** — the werecreatures' curse, the
+ *   Mummy's, the Bearded Devil's infernal wound — has a readable DC and
+ *   nothing to impose with it.
+ * - **A graded save on a hit** — the Cockatrice's second rung of failure, the
+ *   Death Dog's repeat every 24 hours — is a vocabulary the spell side is
+ *   building first.
+ * - **A possessive that names neither creature in the hit** — see
+ *   {@link NAMES_NOBODY_IN_THE_HIT}.
+ * - **A fact only the GM holds** — SRD Half-Dragon's "damage of the type
+ *   chosen for the Draconic Origin trait", where the trait the type is on says
+ *   "(GM's choice)" and the parser kept nothing structured of it. There is no
+ *   record to read, so the whole clause is the table's.
+ *
+ * Every one of those is still carried verbatim and still reported at the hit —
+ * now clause by clause rather than a line at a time.
+ */
+function readClause(text: string): ClauseRead | null {
   // First, because it is the one shape that opens with the book's connective
   // rather than with a gate, so no other pattern can claim it.
   const amount = PRINTED_DAMAGE.exec(text);
   if (amount !== null) {
     const type = damageTypeWord(amount[4]!);
-    const when = damageGateOf(amount[5]!);
-    if (type === null || when === null) return null;
-    return {
+    if (type === null) return null;
+    const how = amount[1] === 'plus' ? 'extra' : 'instead';
+    // "or N damage" with nothing to condition it on would be a line that
+    // always rolled its alternative, which is not a sentence the book writes.
+    if (amount[5] === undefined && how === 'instead') return null;
+    const when = amount[5] === undefined ? undefined : damageGateOf(amount[5]);
+    if (when === null) return null;
+    return one({
       kind: 'damage',
-      how: amount[1] === 'plus' ? 'extra' : 'instead',
+      how,
       dice: amount[2]!,
       flat: amount[3] === undefined ? 0 : Number(amount[3]),
       type,
-      when,
+      ...(when === undefined ? {} : { when }),
+    });
+  }
+
+  // The charge, which is the one printed sentence that reads to two riders:
+  // an extra die and a condition behind one gate. Before the plain gated
+  // condition, because its opening words are that pattern's.
+  const charged = CHARGED_HIT.exec(text);
+  if (charged !== null) {
+    const size = sizeWord(charged[1]!);
+    const conditions = conditionsOf(charged[6]!, undefined);
+    if (size === null || conditions === null) return null;
+    const when = { kind: 'charged', feet: Number(charged[2]) } as const;
+    const riders: PrintedRider[] = [];
+    if (charged[3] !== undefined) {
+      const type = damageTypeWord(charged[5]!);
+      if (type === null) return null;
+      riders.push({
+        kind: 'damage',
+        how: 'extra',
+        dice: charged[3],
+        flat: charged[4] === undefined ? 0 : Number(charged[4]),
+        type,
+        ifNoLargerThan: size,
+        when,
+      });
+    }
+    riders.push({ kind: 'condition', conditions, ifNoLargerThan: size, when });
+    return {
+      kind: 'riders',
+      riders,
+      // SRD Allosaurus: "and the allosaurus can make one Bite attack against
+      // it." An attack the engine does not grant, handed back rather than
+      // dropped along with the charge it rides on.
+      ...(charged[7] === undefined ? {} : { handedOver: charged[7] }),
     };
   }
+
+  const shove = PRINTED_SHOVE.exec(text);
+  if (shove !== null) {
+    const size = sizeWord(shove[1]!);
+    if (size === null) return null;
+    return one({
+      kind: 'forced-move',
+      direction: shove[3] === 'toward' ? 'pull' : 'push',
+      feet: Number(shove[2]),
+      ifNoLargerThan: size,
+    });
+  }
+
+  const slowed = PRINTED_SPEED_CUT.exec(text);
+  if (slowed !== null) {
+    const span = spanRead(slowed[2], slowed[3], slowed[4]);
+    if (span?.lasts === undefined || span.lastsOn === undefined) return null;
+    return one({
+      kind: 'speed-cut',
+      feet: Number(slowed[1]),
+      lasts: span.lasts,
+      lastsOn: span.lastsOn,
+    });
+  }
+
+  if (PRINTED_MAXIMUM.test(text)) return one({ kind: 'hit-point-maximum' });
+
+  const ownRoll = PRINTED_MODE_ON_TARGET.exec(text);
+  if (ownRoll !== null) {
+    const span = spanRead(ownRoll[2], ownRoll[3], ownRoll[4]);
+    if (span?.lasts === undefined || span.lastsOn === undefined) return null;
+    return one({
+      kind: 'roll-mode',
+      mode: ownRoll[1] === 'Advantage' ? 'advantage' : 'disadvantage',
+      relation: 'roller',
+      lasts: span.lasts,
+      lastsOn: span.lastsOn,
+    });
+  }
+
+  const atThem = PRINTED_MODE_AGAINST_TARGET.exec(text);
+  if (atThem !== null) {
+    const span = spanRead(atThem[1], atThem[2], atThem[3]);
+    if (span?.lasts === undefined || span.lastsOn === undefined) return null;
+    return one({
+      kind: 'roll-mode',
+      mode: atThem[4] === 'Advantage' ? 'advantage' : 'disadvantage',
+      relation: 'against-holder',
+      lasts: span.lasts,
+      lastsOn: span.lastsOn,
+    });
+  }
+
+  const held = WHILE_GRAPPLED.exec(text);
+  if (held !== null) {
+    // Read through a door of its own rather than through `conditionWord`,
+    // which refuses Restrained by name: what that guard refuses is a
+    // Restrained filed under a rider's own source, and this one is filed under
+    // the grapple and ends with it. See `NOT_A_PLAIN_CONDITION`.
+    const lowered = held[1]!.toLowerCase();
+    const condition = CONDITIONS.find((name) => name === lowered);
+    if (condition === undefined) return null;
+    return {
+      kind: 'while-held',
+      conditions: [condition],
+      ...(held[2] === undefined ? {} : { handedOver: held[2] }),
+    };
+  }
+
+  if (NO_HEALING_WHILE_IT_LASTS.test(text)) return { kind: 'no-healing' };
 
   const grapple = PRINTED_GRAPPLE.exec(text);
   if (grapple !== null) {
     const size = sizeWord(grapple[1]!);
     if (size === null) return null;
-    return {
+    return one({
       kind: 'grapple',
       escapeDc: Number(grapple[2]),
       ifNoLargerThan: size,
       ...(grapple[3] === undefined ? {} : { withLimbs: grapple[3] }),
-    };
+    });
   }
 
   const gated = GATED_CONDITION.exec(text);
@@ -2128,7 +2554,7 @@ export function readPrintedRider(text: string): PrintedRider | null {
     const size = sizeWord(gated[1]!);
     const conditions = conditionsOf(gated[2]!, gated[3]);
     if (size === null || conditions === null) return null;
-    return { kind: 'condition', conditions, ifNoLargerThan: size };
+    return one({ kind: 'condition', conditions, ifNoLargerThan: size });
   }
 
   const anchored = ANCHORED_CONDITION.exec(text);
@@ -2136,7 +2562,7 @@ export function readPrintedRider(text: string): PrintedRider | null {
     const conditions = conditionsOf(anchored[1]!, anchored[2]);
     const span = spanRead(anchored[3], anchored[4], anchored[5]);
     if (conditions === null || span === null) return null;
-    return { kind: 'condition', conditions, ...span };
+    return one({ kind: 'condition', conditions, ...span });
   }
 
   const saved = PRINTED_SAVE.exec(text);
@@ -2146,14 +2572,112 @@ export function readPrintedRider(text: string): PrintedRider | null {
     const conditions = conditionsOf(saved[4]!, saved[5]);
     const span = spanRead(saved[6], saved[7], saved[8]);
     if (gate === null || ability === null || conditions === null || span === null) return null;
-    return {
+    return one({
       kind: 'condition',
       conditions,
       ...gate,
       save: { ability, dc: Number(saved[3]) },
       ...span,
-    };
+    });
   }
 
   return null;
+}
+
+/** What {@link readPrintedRiders} came to: what it applies, and what it owes. */
+export interface PrintedRidersRead {
+  readonly riders: readonly PrintedRider[];
+  /** The clauses the engine read nothing out of, in the book's own words. */
+  readonly handedOver: readonly string[];
+}
+
+/**
+ * The sentences a printed rider is joined out of, in printed order.
+ *
+ * A full stop followed by a space, and an **em dash**, which is the book's
+ * other joiner: SRD Swarm of Venomous Snakes writes "or 6 (1d4 + 4) Piercing
+ * damage if the swarm is Bloodied—plus 10 (3d6) Poison damage." Each fragment
+ * is given back the full stop the split took off it — or the one the dash
+ * never gave it — so every pattern here can go on anchoring at one.
+ */
+function clausesOf(text: string): readonly string[] {
+  return text
+    .split(/(?<=\.)\s+/)
+    .flatMap((sentence) => sentence.split('—'))
+    .map((clause) => clause.trim())
+    .filter((clause) => clause.length > 0)
+    .map((clause) => (clause.endsWith('.') ? clause : `${clause}.`));
+}
+
+/**
+ * **Everything a printed rider says**, as what the engine applies and what it
+ * hands back.
+ *
+ * {@link readPrintedRider} reads one shape or nothing, and "or nothing" was
+ * doing more work than it should: SRD Swarm of Crawling Claws prints a smaller
+ * bite *and* a Prone, SRD Crocodile a grapple *and* the Restrained that goes
+ * with it, and each was handed to the DM entire — including the half the
+ * engine had been executing for a year on the lines that printed it alone.
+ *
+ * So the line is read clause by clause, each against the shapes it knows, and
+ * the rest is carried back verbatim. That is exactly `parsePrintedSave`'s
+ * `handedOver` on the other half of the sheet, and it is read the same way:
+ * **a residue means the line is still unpaid.** The ledger counts it under
+ * `RIDER_HANDOVER_SHAPE`, beside the lines nothing at all was read from,
+ * because learning to recognise three quarters of a sentence must never be
+ * able to retire a debt.
+ *
+ * The whole line is tried as one clause first, because one shape spans three
+ * sentences — {@link PRINTED_SAVE}, whose gate, saving throw and failure are a
+ * single rule — and splitting it would read its DC as prose.
+ *
+ * **Two clauses are about the clause before them** and are folded into it
+ * rather than standing alone: "While Grappled, the target has the Restrained
+ * condition" borrows the grapple's lifetime, and "Until this poison ends, the
+ * target can't regain Hit Points" borrows the condition's. Either one arriving
+ * with nothing in front of it is handed back, because it then names a lifetime
+ * that is not there.
+ */
+export function readPrintedRiders(text: string): PrintedRidersRead {
+  const whole = readClause(text);
+  if (whole !== null && whole.kind === 'riders' && whole.handedOver === undefined) {
+    return { riders: whole.riders, handedOver: [] };
+  }
+
+  const riders: PrintedRider[] = [];
+  const handedOver: string[] = [];
+
+  for (const clause of clausesOf(text)) {
+    const read = readClause(clause);
+    if (read === null) {
+      handedOver.push(clause);
+      continue;
+    }
+
+    if (read.kind === 'while-held') {
+      const host = riders.at(-1);
+      if (host === undefined || host.kind !== 'grapple') {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = { ...host, whileHeld: read.conditions };
+      if (read.handedOver !== undefined) handedOver.push(read.handedOver);
+      continue;
+    }
+
+    if (read.kind === 'no-healing') {
+      const host = riders.at(-1);
+      if (host === undefined || host.kind !== 'condition') {
+        handedOver.push(clause);
+        continue;
+      }
+      riders[riders.length - 1] = { ...host, preventsHealing: true };
+      continue;
+    }
+
+    riders.push(...read.riders);
+    if (read.handedOver !== undefined) handedOver.push(read.handedOver);
+  }
+
+  return { riders, handedOver };
 }

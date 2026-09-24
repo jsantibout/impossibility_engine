@@ -1988,6 +1988,32 @@ export interface HitOption {
    * and the grapple is made exactly as the Attack action's own is.
    */
   readonly grapples?: HitGrapple;
+  /**
+   * A shove the blow itself delivers — SRD Satyr: "the satyr pushes the target
+   * up to 10 feet straight away from itself"; SRD Merrow pulls fifteen.
+   *
+   * Beside {@link effects} for {@link grapples}' reason and a stronger form of
+   * it: forced movement is arithmetic **between two creatures** on a lattice,
+   * and an effect list is a thing hung on one of them. `shoveAwayFrom` and
+   * `pullToward` are the two performers, and both need the attacker as an
+   * origin — which an effect, resolved against a target, has no way to name.
+   *
+   * **A shove that cannot happen is reported, not refused.** The blow has
+   * already landed by the time this runs, so a target nobody has placed, a
+   * scene nobody has described and a wall are one answer: the hit stands, and
+   * what could not happen is said out loud on `unverified`.
+   */
+  readonly forcedMove?: HitForcedMove;
+  /**
+   * SRD Specter: "its Hit Point maximum decreases by an amount equal to the
+   * damage taken."
+   *
+   * A flag rather than a number, because the number is the blow's: read off
+   * the damage **after the target's own defences**, at the moment it settles,
+   * which is what "the damage taken" says. A Resistance that halved the blow
+   * halves this too, and a blow that dealt nothing lowers nothing.
+   */
+  readonly lowersHitPointMaximum?: 'damage-taken';
 }
 
 /**
@@ -2000,6 +2026,20 @@ export interface HitOption {
  * for the same reason on the spell side.
  */
 export type HitRiderAnchor = 'attacker' | 'target';
+
+/** Which way a hit shoves, and how far. */
+export interface HitForcedMove {
+  readonly direction: 'push' | 'pull';
+  /**
+   * SRD's "up to 10 feet", read as the whole distance.
+   *
+   * The book leaves the amount to the creature doing the shoving and there is
+   * no creature to ask; the printed number is the only one on the page, and a
+   * shorter one would be invented. A pull stops at the puller's face whatever
+   * this says, which is the one place the "up to" does any work.
+   */
+  readonly feet: number;
+}
 
 /** The grapple a hit makes, as the line that prints one states it. */
 export interface HitGrapple {
@@ -2021,6 +2061,23 @@ export interface HitGrapple {
    * takes of the free hand SRD asks it for.
    */
   readonly withLimbs?: string;
+  /**
+   * Conditions the hold carries for exactly as long as it lasts — SRD
+   * Crocodile: "While Grappled, the target has the Restrained condition."
+   *
+   * **A lifetime the engine already had, under another name.**
+   * `ConditionInstance.impliedBy` is how Unconscious carries Prone, and
+   * `removeConditionInstance` takes an implied instance off with the one that
+   * carried it — so a Restrained filed as implied by the Grappled lifts at the
+   * escape, at either automatic lapse and at a grappler's release, through the
+   * doors those already go through and with nothing new to remember.
+   *
+   * **Per source rather than in the static table**, because the sentence is
+   * per creature: a Wolf's grapple carries nothing and a Crocodile's carries
+   * Restrained, and `IMPLIES` says what a *condition* means rather than what
+   * one particular set of jaws does.
+   */
+  readonly whileHeld?: readonly ConditionName[];
 }
 
 /**

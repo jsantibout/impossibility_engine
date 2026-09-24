@@ -67,10 +67,12 @@ import {
   LEGENDARY_ECONOMY,
   MONSTER_LINE_SHAPES,
   PARTIAL_SPELLS,
+  RIDER_HANDOVER_SHAPE,
   RIDER_SHAPE,
   SAVE_HANDOVER_SHAPE,
   TRACKED_IDS,
   UNEXECUTED_TRAIT_SHAPE,
+  hasHandedOverRider,
   hasHandedOverSave,
   hasUnappliedRider,
   hasUnexecutedTrait,
@@ -467,6 +469,12 @@ const OVER_READ_LINES: ReadonlySet<string> = new Set([
   RIDER_SHAPE,
   UNEXECUTED_TRAIT_SHAPE,
   SAVE_HANDOVER_SHAPE,
+  // A hit the engine reads three quarters of. It is on this list for the
+  // reason the save's handover is: the line *is* read, so the gate below would
+  // hide it, and it is not *paid*, because SRD Gibbering Mouther's Prone lands
+  // and the sentence about its victim being absorbed does not. A residue
+  // leaves the line unpaid, and `unpaid` below says so too.
+  RIDER_HANDOVER_SHAPE,
 ]);
 
 /** Whether a shape accounts for a line. */
@@ -493,6 +501,7 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
   const unpaid = (line: StatBlockLine): boolean =>
     !isReadLine(line) ||
     hasUnappliedRider(line) ||
+    hasHandedOverRider(line) ||
     hasUnexecutedTrait(line) ||
     hasHandedOverSave(line);
   for (const monster of low) {

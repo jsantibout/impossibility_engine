@@ -48,6 +48,7 @@ import { creatureOf } from './command.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { conditionLanding } from './spell-effect-riders.js';
 import { runEffects } from './spell-resolution.js';
+import { pullToward, shoveAwayFrom } from './spell-effect-movement.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
@@ -190,7 +191,23 @@ function describeWeapons(option: HitOption): string {
 export function applyHitRider(
   state: GameState,
   supply: Supply,
-  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  hit: {
+    readonly attacker: CharacterId;
+    readonly target: CharacterId;
+    /**
+     * What the blow came to on this creature **after its own defences**.
+     *
+     * SRD Specter: "its Hit Point maximum decreases by an amount equal to the
+     * damage taken." The one number a rider reads off the blow rather than off
+     * a sheet, and it has to be handed in: by the time this runs the damage is
+     * folded, and the world after it holds a lowered pool of Hit Points rather
+     * than the amount that lowered them.
+     *
+     * Absent where the caller is not settling damage, which is every rider
+     * that does not read it.
+     */
+    readonly dealt?: number;
+  },
   option: HitOption,
 ): Result<HitRiderOutcome> {
   const attacker = creatureOf(state, hit.attacker);
@@ -272,8 +289,38 @@ export function applyHitRider(
   if (!grabbed.ok) return grabbed;
   events.push(...grabbed.value);
 
+  const held = grabbed.value.reduce(applyEvent, resolved.value.state);
+
+  // **The shove, after the grapple**, because the order is the engine's to fix
+  // and no printed line does both: a hold and a push are two answers to "where
+  // is the target now", and a homebrew line that wrote both would otherwise be
+  // ambiguous.
+  const shoved = shoveOnTheHit(held, hit, option);
+  events.push(...shoved.events);
+  unverified.push(...shoved.unverified);
+
+  // **The maximum, off the damage rather than off the roll.** SRD Specter:
+  // "an amount equal to the damage taken" — what the target actually took,
+  // after Resistance, after Immunity, after a reduction. Tagged with the roll
+  // issuer's position, so a Multiattack's second Life Drain lowers the maximum
+  // again instead of replacing the first under one source key: the reading
+  // `applyPrintedClauses` already takes of the Wight's identical sentence.
+  const lowering: GameEvent[] = [];
+  const dealt = hit.dealt ?? 0;
+  if (option.lowersHitPointMaximum === 'damage-taken' && dealt > 0) {
+    lowering.push({
+      type: 'hit-point-maximum-adjusted',
+      id: hit.target,
+      adjustment: {
+        source: `${featureSource(option.feature)}:${supply.issuer.count}`,
+        amount: -dealt,
+      },
+    });
+  }
+  events.push(...lowering);
+
   const timed = fileDeadlines(
-    grabbed.value.reduce(applyEvent, resolved.value.state),
+    [...shoved.events, ...lowering].reduce(applyEvent, held),
     resolved.value.outcomes,
     resolved.value.held,
     { attacker: hit.attacker, option },
@@ -318,6 +365,11 @@ function makeTheGrapple(
       undefined,
       {},
       escapeCheck(hit.attacker, grapple.escapeDc),
+      // SRD Crocodile: "While Grappled, the target has the Restrained
+      // condition." Implied by the Grappled instance, so it lifts with it —
+      // at the escape, at either automatic lapse and at a release — through
+      // the doors those already go through.
+      grapple.whileHeld,
     ),
   );
   if (!landed.ok) return landed;
@@ -328,6 +380,32 @@ function makeTheGrapple(
     return ok([]);
   }
   return ok(landed.value.events);
+}
+
+/**
+ * SRD Satyr: "the satyr pushes the target up to 10 feet straight away from
+ * itself." SRD Merrow pulls fifteen the other way.
+ *
+ * **The blow has landed, so nothing here may refuse.** A target nobody has
+ * placed, a room nobody has described, a wall, two creatures in one space —
+ * every one of them is a shove that did not happen rather than a hit that did
+ * not, which is the reading `shoveAwayFrom` was written with and the reading
+ * the Push mastery already takes of the same absence. The two performers are
+ * that function and its twin, so a printed line and a spell push along the
+ * same bearing with the same arithmetic.
+ */
+function shoveOnTheHit(
+  world: GameState,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+): HitRiderOutcome {
+  const move = option.forcedMove;
+  if (move === undefined) return NOTHING;
+  const performed =
+    move.direction === 'push'
+      ? shoveAwayFrom(world, hit.target, hit.attacker, { feet: move.feet }, option.name)
+      : pullToward(world, hit.target, hit.attacker, { feet: move.feet }, option.name);
+  return { events: performed.events, unverified: performed.unverified };
 }
 
 /**

@@ -904,17 +904,16 @@ describe('the reader claims only the sentences it can execute', () => {
   it('refuses the sentences whose mechanism it does not have', () => {
     for (const text of [
       'and the target has the Poisoned condition until the start of the Grappled creature’s next turn.',
-      'If the target is a Large or smaller creature and the elk moved 20+ feet straight toward it immediately before the hit, the target has the Prone condition.',
       // SRD Swarm of Venomous Snakes: the same "or" clause with a second
-      // component appended after it, refused whole rather than read down to
-      // the part that fits.
+      // component appended after it. **One shape is still all this reader
+      // claims**: the dash joins two clauses and `readPrintedRiders` is what
+      // splits them, so what arrives here is a gate phrase with a whole damage
+      // component trailing off the end of it, and it is refused.
       'or 6 (1d4 + 4) Piercing damage if the swarm is Bloodied—plus 10 (3d6) Poison damage.',
-      // SRD Giant Seahorse: the charge gate wearing the damage clause's words.
-      'or 11 (2d8 + 2) Bludgeoning damage if the seahorse moved 20+ feet straight toward the target immediately before the hit.',
       'Being underwater doesn’t grant Resistance to this Fire damage.',
       // SRD Crocodile: the Restrained travels with the grapple and ends with
-      // it, and one condition ending another is a lifetime the engine has not
-      // got.
+      // it. The lifetime exists now — `ConditionInstance.impliedBy` — but it
+      // takes two sentences to say, and this reader reads one.
       'If the target is a Medium or smaller creature, it has the Grappled condition (escape DC 12). While Grappled, the target has the Restrained condition.',
       // SRD Mimic: a Disadvantage narrowed to the escape check, which is a
       // second mechanism on top of the grapple.
@@ -960,9 +959,13 @@ describe('the reader claims only the sentences it can execute', () => {
     }
 
     expect(carried).toBeGreaterThan(100);
-    // Ten more than it was, which is the printed damage clauses whose gate the
-    // engine holds the fact for: six Bloodied lines and four of the Goblins'
-    // Advantage. Every other line the reader used to refuse it still refuses.
-    expect(read).toBe(59);
+    // Fourteen more than it was, and every one of them a **single sentence**
+    // this reader now has a shape for: the charge in both the forms the book
+    // writes it (a sentence of its own, and a gate on a damage clause), the
+    // push and the pull a hit delivers, a Speed cut, a Hit Point maximum
+    // lowered by the blow, and a mode on one later roll. A line that takes two
+    // sentences to say its rule is still null here and is
+    // `readPrintedRiders`' answer instead.
+    expect(read).toBe(73);
   });
 });
