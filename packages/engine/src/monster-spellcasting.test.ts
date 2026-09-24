@@ -345,11 +345,14 @@ describe('what each price buys', () => {
    * same, and casting it refuses for the honest reason.
    */
   it('declares a spell nothing defines, and refuses to cast it', () => {
-    const druidLog = table('druid', CULTIST);
-    expect(at(druidLog).creatures[CULTIST]!.spellcasting.granted.map((g) => g.spellId)).toContain(
-      'entangle',
+    // The Druid was this fixture until Entangle was written; the dragon's
+    // Sending is what is left of the same shape, which is the point of
+    // reaching for another block rather than deleting the guard.
+    const dragonLog = table('adult-blue-dragon', CULTIST);
+    expect(at(dragonLog).creatures[CULTIST]!.spellcasting.granted.map((g) => g.spellId)).toContain(
+      'sending',
     );
-    const out = cast(at(druidLog), CULTIST, { spellId: 'entangle', targets: [] });
+    const out = cast(at(dragonLog), CULTIST, { spellId: 'sending', targets: [] });
     expect(isErr(out) && out.code).toBe('no_definition');
   });
 });

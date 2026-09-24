@@ -828,6 +828,17 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // refuses to pick one. A readied casting does not carry it — nothing in the
   // book readies a summons — so the field is `cast_spell`'s alone.
   form_required: { fields: ['cast_spell.form'] },
+  // The eighth stated fact, and the only one whose answer is a list of
+  // creatures: SRD Sleep's "each creature **of your choice** in a
+  // 5-foot-radius Sphere". The area says who could be caught and the caster
+  // says which of them are, and the field is the one target list a casting
+  // already has rather than a second place to name the same creatures.
+  //
+  // `cast_spell`'s alone: `ReadyResponse` carries the four facts a readied
+  // casting states and no target list, because a Ready names *what* it
+  // answers rather than whom — which the probe says out loud rather than by
+  // omission, the way `payment_required` does one row down.
+  area_choice_required: { fields: ['cast_spell.targets'] },
 
   // — and three questions about what pays for it ———————————————————————————
   slot_kind_required: { fields: ['cast_spell.slotKind', 'take_ready.response.slotKind'] },

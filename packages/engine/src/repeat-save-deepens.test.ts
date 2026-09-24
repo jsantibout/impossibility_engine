@@ -133,13 +133,21 @@ class Game {
     return this;
   }
 
-  /** Sleep, dropped on the mound. */
-  sleep(): string {
+  /**
+   * Sleep, dropped on the mound, on the two the caster chooses.
+   *
+   * SRD: "Each creature **of your choice** in a 5-foot-radius Sphere." The
+   * Sphere says who could be caught and the caster says which of them are, so
+   * a casting that names nobody is refused rather than sleeping the Sphere —
+   * see `filtered-catch.test.ts`. Both of the two inside it are named here,
+   * because what this file is about is what happens *after* the save.
+   */
+  sleep(targets: readonly CharacterId[] = [FOE, MOB]): string {
     const out = unwrap(
       resolveSpell(
         this.state,
         WIZ,
-        { spellId: 'sleep', targets: [], slotLevel: 1, at: ON_THE_MOUND },
+        { spellId: 'sleep', targets, slotLevel: 1, at: ON_THE_MOUND },
         supply(this.state),
       ),
       'casting Sleep',
@@ -186,7 +194,7 @@ class Game {
 }
 
 describe('SRD Sleep: the save, the condition, and the repeat that deepens', () => {
-  it('catches everyone in the Sphere and leaves them Incapacitated', () => {
+  it('catches the ones the caster chose and leaves them Incapacitated', () => {
     const game = new Game(field());
     const casting = game.sleep();
 

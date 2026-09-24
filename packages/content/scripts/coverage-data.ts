@@ -204,6 +204,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'divine-smite',
   'eldritch-blast',
   'enhance-ability',
+  // `filtered-catch.test.ts`: the 20-foot square, the caster left standing in
+  // their own plants, the Strength save, the Athletics escape freeing one
+  // creature and not the rest, the Concentration ending releasing everybody,
+  // and the ground charging double until it does.
+  'entangle',
   'faerie-fire',
   'false-life',
   'fear',
