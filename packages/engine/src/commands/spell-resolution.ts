@@ -648,7 +648,7 @@ export function castOrRelease(
     // different moment per target and is asked below, where the targets are
     // settled — the division {@link anchoredOnTarget} owns, and the one
     // `delayedDuration` has always made for the same reason.
-    for (const lasts of riderDurations(definition)) {
+    for (const lasts of riderDurations(definition, request.option)) {
       if (anchoredOnTarget(lasts)) continue;
       const wants = riderDuration(lasts, casterId) as Duration;
       const pinned = resolveDuration({ elapsed: state.elapsed, combat: state.combat }, wants);
@@ -1082,7 +1082,7 @@ export function castOrRelease(
     //
     // One request per target that cannot be pinned, because the fact is about
     // that creature.
-    for (const lasts of riderDurations(definition)) {
+    for (const lasts of riderDurations(definition, request.option)) {
       if (!anchoredOnTarget(lasts)) continue;
       for (const target of targets) {
         const owed = riderDuration(lasts, casterId, target) as Duration;

@@ -5557,9 +5557,23 @@ export function delaysDamage(definition: SpellDefinition): boolean {
  * rolled. Honest, and one roll too late — which is the argument for asking
  * where the *running* list is known, and not here.
  */
-export function riderDurations(definition: SpellDefinition): readonly RiderDuration[] {
+export function riderDurations(
+  definition: SpellDefinition,
+  /**
+   * The branch this casting named, where the spell prints branches.
+   *
+   * **The list that is running, not every list that could.** SRD Command's
+   * Halt hangs a rule that ends at the end of the target's next turn and its
+   * four other words hang nothing, so asking about all five would demand a
+   * turn order of a caster who spoke Grovel — and asking about none would let
+   * Halt reach `schedule` after the Wisdom save had been rolled, which is the
+   * failure the paragraph above records in the past tense. `optionEffects` is
+   * the identity function for every spell that prints no branches.
+   */
+  option?: string,
+): readonly RiderDuration[] {
   const found: RiderDuration[] = [];
-  for (const effect of definition.effects) {
+  for (const effect of optionEffects(definition, option)) {
     // Every rider on every host, because a plural `conditions` means the one
     // that cannot be pinned is not always the first.
     for (const rider of conditionRiderOf(effect)) {
@@ -5881,10 +5895,17 @@ export function creatureTypesRead(effect: SpellEffect): readonly string[] {
  * answer yes; which roll eventually reads it is the difference between them.
  */
 export function castersAbilityRead(definition: SpellDefinition): boolean {
-  return definition.effects.some(
-    (effect) =>
-      effect.kind === 'dispel' ||
-      (effect.kind === 'weapon-rider' && effect.castingAbility === true),
+  // **Every list a casting could resolve**, which for a spell that prints
+  // branches includes each of them: the question is whether this spell ever
+  // reads the ability, asked before the wand's charge goes, and a wielder
+  // must hear about a word they have not yet spoken. `dropsAnObject` reads
+  // the branches for the same reason.
+  return [definition.effects, ...optionEffectLists(definition)].some((effects) =>
+    effects.some(
+      (effect) =>
+        effect.kind === 'dispel' ||
+        (effect.kind === 'weapon-rider' && effect.castingAbility === true),
+    ),
   );
 }
 
@@ -5932,6 +5953,13 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
     ...definition.effects,
     ...(definition.areaTrigger?.effects ?? []),
     ...(definition.activation?.effects ?? []),
+    // And every branch, for the reason the three above are here: the question
+    // is which numbers *resolving this spell* reads, and SRD Command rolls a
+    // Wisdom save in three of its five words and in none of its own list. The
+    // branch the casting will speak is not known when a wand is asked which
+    // ability to bring, and erring towards `true` is the safe direction this
+    // function's own note names.
+    ...optionEffectLists(definition).flat(),
   ];
 
   // SRD Minor Illusion offers a check "against your spell save DC" to anybody

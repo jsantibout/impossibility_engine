@@ -5588,7 +5588,16 @@ function checkFoughtClause(
   const stated = (effect as { advantageIfFought?: unknown }).advantageIfFought;
   if (stated === undefined) return;
 
-  if (where !== 'effects' && !isBranchList(where)) {
+  // **A branch is refused here too**, and it is the one placement rule that
+  // does not follow `checkObjectPlacement`'s reading. The stated object is
+  // *required* by a definition that drops one, and `dropsAnObject` reads the
+  // branches — so a branch's drop has its fact. `statesFoughtFact` reads
+  // `effects` alone, so a clause written in a branch would never raise
+  // `fought_fact_required`, the caster would never be asked, and a caster who
+  // volunteered the answer would be refused `no_fought_clause`: the Advantage
+  // would be silently unread, which is exactly what this refusal exists to
+  // stop. No SRD branch writes one; the day one does, the reader moves first.
+  if (where !== 'effects') {
     found.push({
       field: `${path}.advantageIfFought`,
       code: 'fought_outside_the_casting',

@@ -9,7 +9,7 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { actionRulesOn } from './standing.js';
-import { equipItem, resolveSpell } from './commands.js';
+import { equipItem, resolveSpell, takeReady } from './commands.js';
 
 /**
  * A choice of **which effects run**, which is the second arm of
@@ -183,6 +183,61 @@ describe('Command runs the branch its caster spoke and no other', () => {
       kind: 'forbids',
       slots: ['action', 'bonus-action', 'movement'],
     });
+  });
+
+  /**
+   * "**On its turn**, the target doesn't move and takes no action or Bonus
+   * Action" — one turn, and the rule is lifted at the end of it. Without the
+   * deadline the goblin would be Halted for ever, which is the failure
+   * `checkGrantLifetimes` refuses on an Instantaneous casting and which
+   * nothing else here would notice.
+   */
+  it('Halt forbids nothing on the turn after that', () => {
+    const { events } = spoken(FIGHTING, { option: 'halt' });
+    let log: readonly GameEvent[] = [...FIGHTING, ...events];
+    // The cleric's turn ends, the thug takes the turn the word governs, and
+    // the order wraps back round to the turn after it.
+    log = [...log, ...[0, 1, 2].map((): GameEvent => ({ type: 'turn-advanced' }))];
+    expect(actionRulesOn(fold('seed', log), THUG)).toEqual([]);
+  });
+
+  /**
+   * A Ready states its facts at the Ready, because that is where SRD spends
+   * the slot — and `ReadyResponse` carries no branch, so a readied Command is
+   * refused with the word the caster never got to speak. The refusal is early
+   * and free: nothing is spent. Pinned here so that a `ReadyResponse` that
+   * later grows the field does so knowingly.
+   */
+  it('refuses a Ready of a spell that prints branches, before the slot', () => {
+    const out = takeReady(
+      fold('seed', FIGHTING),
+      CLERIC,
+      {
+        trigger: 'when the thug moves',
+        response: { kind: 'spell', spellId: 'command', slotLevel: 1 },
+      },
+      SRD_CONTENT,
+    );
+    expect(isErr(out) && out.code).toBe('option_required');
+  });
+
+  /**
+   * And the deadline is asked for **before the die**, which is the whole of
+   * why the pre-flight reads the branch rather than the definition's own list.
+   * SRD Command is Instantaneous and Halt's rule ends at the end of the
+   * target's next turn, so a casting outside combat has no turn order to pin
+   * it to — and asking after the Wisdom save had been rolled would be a
+   * casting that resolved in part and forgave the rest.
+   */
+  it('asks for the turn order before rolling, where the branch needs one', () => {
+    const out = speak(ARMED, { option: 'halt' });
+    expect(isErr(out) && out.code).toBe('needs_context');
+    expect(isErr(out) && out.reason).toContain('an Initiative order');
+  });
+
+  /** And the four words that hang no deadline are not asked the question. */
+  it('does not ask it of a word whose branch hangs nothing', () => {
+    expect(speak(ARMED, { option: 'grovel' }).ok).toBe(true);
   });
 
   it('Halt hangs nothing on a creature that made the save', () => {

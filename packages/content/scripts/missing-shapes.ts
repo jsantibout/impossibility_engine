@@ -1707,8 +1707,15 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'roll-mode',
       clause: 'The target also has Advantage on Strength checks and Strength saving throws',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the mode itself is ordinary and the branch is not: the reduce half prints Disadvantage on the same two rolls, so writing either would be a spell that always enlarges. Which of the two the caster chose has nowhere to be recorded.',
+      why: 'a-selector-for-every-d20-test',
+      // **Re-filed once the branch existed.** This entry used to blame
+      // `a-choice-made-at-the-casting`, on the reading that the reduce half
+      // prints Disadvantage on the same two rolls and nothing recorded which
+      // half the caster chose. `SpellDefinition.options` records it —
+      // `OngoingSpell.option` pins the word and the definition now has two
+      // branches to hang these on — so what is actually missing is the
+      // narrowing, and that is a different shape.
+      note: 'the branch is recorded now and the mode is still unwritable: SRD names an ability check **and** a saving throw in one breath, and a RollSelector says one family. Two modifiers would be one sentence written twice, which is the argument that shape’s own description makes about the phrase "D20 Tests".',
     },
     {
       marker: 'extra-damage',
