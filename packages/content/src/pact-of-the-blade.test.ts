@@ -10,6 +10,8 @@ import {
   createRollIssuer,
   equipItem,
   fold,
+  itemInstanceFor,
+  loseItems,
   resolveAttack,
   type CharacterChoices,
   type GameEvent,
@@ -523,6 +525,58 @@ describe('Pact of the Blade', () => {
         supply('ambiguous'),
       ).ok,
     ).toBe(true);
+  });
+
+  /**
+   * And the conjured weapon carries a record of its own, which is what makes
+   * it nameable while its twin from the pack stands beside it.
+   *
+   * The item-instance door, asked by a feature: the id is computed from what
+   * the log has issued, pinned on the event, and checked by the fold as the
+   * next one — the same three steps a wand with charges goes through. So a
+   * caller with two Longswords in front of them has a name for one of them,
+   * and naming it takes that one and leaves the other.
+   */
+  it('gives what it conjures a record of its own, and the pack’s copy stays', () => {
+    const log = [
+      ...table(),
+      {
+        type: 'items-gained',
+        id: WHO,
+        items: [{ id: 'longsword', quantity: 1 }],
+        source: 'bought in town',
+      },
+    ] as GameEvent[];
+    const before = fold('seed', log);
+
+    const events = conjure(before, 'longsword', 'one');
+    const gained = events.find((event) => event.type === 'items-gained');
+    const issued = itemInstanceFor(before.itemsIssued + 1);
+    expect(gained?.type === 'items-gained' && gained.items[0]?.instance).toBe(issued);
+
+    const bonded = [...log, ...events];
+    const state = fold('seed', bonded);
+    expect(state.itemsIssued).toBe(before.itemsIssued + 1);
+    expect(held(state, 'longsword')).toBe(2);
+
+    // The copy the caller means, where the kind of thing is a question:
+    // `copyNamed` answers the record and the answer is the conjured one,
+    // which is already in a hand.
+    const named = equipItem(state, SRD_CONTENT, WHO, issued);
+    expect(named.ok).toBe(false);
+    expect(named.ok ? '' : named.code).toBe('already_in_hand');
+
+    // And the name is enough to take it: the pact weapon goes and the one
+    // bought in town is still in the pack.
+    const taken = unwrap(
+      loseItems(state, WHO, [{ id: 'longsword', quantity: 1, instance: issued }], 'a thief'),
+      'lose',
+    );
+    const after = fold('seed', [...bonded, ...taken]);
+    expect(held(after, 'longsword')).toBe(1);
+    expect(after.creatures[WHO]?.inventory.find((line) => line.id === 'longsword')?.feature).toBe(
+      undefined,
+    );
   });
 
   /**

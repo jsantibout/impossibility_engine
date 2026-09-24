@@ -71,20 +71,31 @@ export const isInventoryEvent = seamOf(INVENTORY_EVENTS);
  * would be one line of two carrying the bond's name, and `settleConjuredLines`
  * would take the pack's copy with the pact weapon.
  *
+ * Both of those branches are now reached only by a line **without** a record,
+ * which is a conjured handful and a log written by hand: a conjuring of one
+ * thing labels it, and the copy it is keyed under already merges with nothing.
+ * They stay because the answer they give is the same one and because the
+ * handful is still a line neither the casting nor the kind alone identifies.
+ *
  * No log written before a feature could conjure anything carries the field, so
  * every existing line keeps the key it has always had and both frozen fixtures
  * fold unchanged.
  *
- * **What a second line costs, said out loud.** Two unlabelled lines of one kind
- * are a *question* to `copyNamed`, which refuses `ambiguous_copy` rather than
- * guessing — so a Warlock who bonds a Longsword while carrying one of their own
- * cannot drop, give away or use the pack's copy by name until the bond ends.
- * That is the right answer rather than a cost worth avoiding: the alternative is
- * the engine choosing which Longsword a caller meant, and the one it chose
- * wrongly would be the one that vanishes. Swinging is unaffected, because an
- * attack names a weapon by its catalogue id and never by its copy. Making the
- * pack's copy nameable again wants an id on the conjured line, which is the
- * item-instance door and a decision of its own.
+ * **What a second line costs, said out loud.** Two lines of one kind are a
+ * *question* to `copyNamed`, which refuses `ambiguous_copy` rather than
+ * guessing. That is the right answer rather than a cost worth avoiding: the
+ * alternative is the engine choosing which Longsword a caller meant, and the
+ * one it chose wrongly would be the one that vanishes. Swinging is unaffected,
+ * because an attack names a weapon by its catalogue id and never by its copy.
+ *
+ * **What has changed is that the question can now be answered.** A conjured
+ * line of a single thing carries a record of its own, issued at the conjuring
+ * through the item-instance door — see `conjuredLine` — so the Warlock's pact
+ * Longsword has a name and can be dropped, given away or used by it, and the
+ * refusal about the kind names that copy instead of saying "an unlabelled
+ * copy" twice. The pack's own Longsword still has no record and so no name of
+ * its own; whether the bare kind should fall to the one line that has none is
+ * a question about `copyNamed` rather than about this key.
  */
 const mergeKey = (line: InventoryLine): string =>
   line.instance !== undefined

@@ -715,9 +715,17 @@ function settleConjuredLines(state: GameState): GameState {
     // `imbuedWeapon` refuses anything the catalogue does not print a weapon
     // record for, so only a weapon can ever be dropped here and no armour or
     // shield can.
+    //
+    // **A wielding that names no copy is about the kind**, which is
+    // `dropItem`'s reading of the same pair of facts and written in the same
+    // words: a hand-written `item-equipped` says "a Glaive", and the conjured
+    // Glaive carries a record of its own, so an equality between the two
+    // records would have left the wielding standing over a weapon that had
+    // ceased to exist. A wielding that *does* name a copy is about that copy
+    // and nothing else.
     const gone = creature.inventory.filter((line) => !kept.includes(line));
     const backs = (line: InventoryLine, worn: EquippedItem): boolean =>
-      line.id === worn.id && (line.instance ?? undefined) === (worn.instance ?? undefined);
+      line.id === worn.id && (worn.instance === undefined || worn.instance === line.instance);
     const equipped = creature.equipped.filter(
       (worn) => kept.some((line) => backs(line, worn)) || !gone.some((line) => backs(line, worn)),
     );

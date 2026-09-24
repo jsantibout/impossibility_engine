@@ -26,6 +26,10 @@ import {
   unequipItem,
   useItem,
 } from './commands.js';
+// The two compilers a conjuring writes its line with. Not on the barrel,
+// because nothing outside the engine conjures anything — the rule they share
+// is the one this file is about, so they are reached where they live.
+import { conjuredLine, featureConjuredLine } from './commands/inventory.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 
 /**
@@ -482,33 +486,32 @@ describe('the doors a copy is gained through are the doors that label it', () =>
     .sort();
 
   /**
-   * **A conjuring hands over nothing that could carry a record**, which is why
-   * it is excused rather than labelling.
+   * **A conjuring labels what it hands over too, through compilers of its
+   * own**, which is why it is counted here rather than excused.
    *
-   * A casting that conjures something puts a *handful* in a hand — SRD
-   * Goodberry's ten berries are ten of one line — so there is no copy for an
-   * id to belong to, and labelling them would be ten records and ten pools for
-   * one sentence. What keeps that from being a hole is `checkContent`, which
-   * refuses a spell that conjures an item with charges of its own: a thing
-   * that lasts exactly as long as a casting has nothing to remember. So the
-   * claim is unchanged — **every copy with a record is labelled where it is
-   * gained** — and the population that can produce one is still three.
+   * It used to be excused, on the reading that a conjuring puts a *handful* in
+   * a hand and a handful has no copy for an id to belong to. That is true of
+   * SRD Goodberry's ten berries and false of the two things the book conjures
+   * one of — SRD Flame Blade's blade and SRD Pact of the Blade's Longsword —
+   * and the second of those arrives beside a Longsword somebody bought, which
+   * `copyNamed` then refuses to tell apart. So `conjuredLine` and
+   * `featureConjuredLine` name a single conjured thing out of `itemsIssued`,
+   * exactly as a purchase does, and a handful stays the counted stack it has
+   * always been, told apart by the casting it already names.
    *
-   * **A feature's conjuring is the same excuse and the same rule.** SRD Pact of
-   * the Blade puts one weapon in a hand for as long as the bond lasts, and
-   * `activateFeature` refuses one that keeps charges of its own in the very
-   * words `checkContent` refuses a spell's — so there is still no copy with a
-   * record arriving unlabelled, which is the whole of what this sweep claims.
+   * The claim is therefore unchanged and slightly wider: **every copy with a
+   * record is labelled where it is gained**, and the record now exists in one
+   * more place than it did.
    *
    * **There are three conjuring emissions and they are in three files**, one of
-   * which also labels: the casting's, in `spell-resolution.ts`, the
-   * re-evocation's, in `inventory.ts` beside `equipItem`'s, and the
-   * activation's, in `features.ts`. So the emissions are counted per *call*
-   * rather than per file — a file-granular excuse would have let
-   * `inventory.ts` sit in the labelling list on the strength of a compiler it
-   * calls somewhere else, which is exactly the hole this sweep exists to keep
-   * shut. The two compilers are the marker, because between them they are the
-   * only spellings a conjuring writes.
+   * which also labels through the other compiler: the casting's, in
+   * `spell-resolution.ts`, the re-evocation's, in `inventory.ts` beside
+   * `equipItem`'s, and the activation's, in `features.ts`. So the emissions are
+   * counted per *call* rather than per file — a file-granular excuse would have
+   * let `inventory.ts` sit in the labelling list on the strength of a compiler
+   * it calls somewhere else, which is exactly the hole this sweep exists to
+   * keep shut. The two compilers are the marker, because between them they are
+   * the only spellings a conjuring writes.
    */
   const conjurings = (source: string): number =>
     (source.match(/items: \[(?:feature)?[cC]onjuredLine\(/g) ?? []).length;
@@ -517,7 +520,7 @@ describe('the doors a copy is gained through are the doors that label it', () =>
   const emissions = (source: string): number =>
     (source.match(/type: 'items-gained'/g) ?? []).length;
 
-  it('is three of them, and every one labels what it hands over', () => {
+  it('is three of them, and every one labels what it buys, grants or packs', () => {
     const labelling = emitters.filter(
       (file) => emissions(readFileSync(`${SRC}${file}`, 'utf8')) > conjurings(readFileSync(`${SRC}${file}`, 'utf8')),
     );
@@ -537,10 +540,12 @@ describe('the doors a copy is gained through are the doors that label it', () =>
   });
 
   /**
-   * And the emissions that do **not** label are pinned by count, so a fourth
-   * cannot arrive quietly by sitting next to a conjuring.
+   * And the emissions that label through the *other* compiler are pinned by
+   * count, so a fourth cannot arrive quietly by sitting next to a conjuring —
+   * and each of the three is made to hand the compiler the count the log has
+   * issued, which is what makes the id the next one and the fold's check pass.
    */
-  it('has three emissions that hand over a thing with no record, and all conjure it', () => {
+  it('has three emissions that conjure, and each names what it makes from itemsIssued', () => {
     const conjured = emitters
       .map((file) => [file, conjurings(readFileSync(`${SRC}${file}`, 'utf8'))] as const)
       .filter(([, count]) => count > 0);
@@ -549,6 +554,56 @@ describe('the doors a copy is gained through are the doors that label it', () =>
       ['commands/inventory.ts', 1],
       ['commands/spell-resolution.ts', 1],
     ]);
+
+    for (const [file] of conjured) {
+      expect(readFileSync(`${SRC}${file}`, 'utf8')).toMatch(
+        /items: \[(?:feature)?[cC]onjuredLine\(\s*state\.itemsIssued/,
+      );
+    }
+  });
+});
+
+/**
+ * And the rule the two conjuring compilers are written to, asked of them
+ * directly: **a record is one copy**.
+ *
+ * The line a conjuring hands over is the one place in the engine where the
+ * same call produces both answers, so the boundary is worth a test of its own
+ * rather than only the two spells that happen to sit on either side of it.
+ * `items-gained` throws on a labelled line of more than one, which is the
+ * fold's half of the same sentence.
+ */
+describe('a conjuring names one thing and never a handful', () => {
+  it('gives a single conjured thing the next record and a handful none', () => {
+    const blade = conjuredLine(
+      4,
+      'flame-blade',
+      { item: 'flame-blade', count: 1, hands: 1, retake: 'bonus-action' },
+      'cast:2',
+    );
+    expect(blade.instance).toBe('item:5');
+    expect(blade.casting).toBe('cast:2');
+
+    // SRD Goodberry: ten berries in a hand are one line of ten, and one
+    // record could not stand for them.
+    const berries = conjuredLine(4, 'goodberry', { item: 'goodberry', count: 10, hands: 1 }, 'cast:2');
+    expect(berries.instance).toBe(undefined);
+    expect(berries.quantity).toBe(10);
+  });
+
+  /** And a weapon a feature conjures is always the one thing, so always named. */
+  it('names what a feature conjures out of the same count', () => {
+    const pact = featureConjuredLine(
+      0,
+      SRD_CONTENT.item('longsword')!,
+      'warlock:eldritch-invocations',
+    );
+    expect(pact).toMatchObject({
+      id: 'longsword',
+      quantity: 1,
+      feature: 'warlock:eldritch-invocations',
+      instance: 'item:1',
+    });
   });
 });
 

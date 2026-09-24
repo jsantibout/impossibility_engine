@@ -271,7 +271,7 @@ export function activateFeature(
       events.push({
         type: 'items-gained',
         id,
-        items: [featureConjuredLine(conjuring, definition.feature)],
+        items: [featureConjuredLine(state.itemsIssued, conjuring, definition.feature)],
         source: `${definition.name}, conjured`,
       });
     }
