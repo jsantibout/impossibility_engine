@@ -522,7 +522,28 @@ export interface SpellRepeatSave {
    * {@link ConditionName} like any other, sourced to whatever imposed the
    * first one and released with it.
    */
-  readonly onFailure?: { readonly condition: ConditionName };
+  readonly onFailure?: {
+    readonly condition: ConditionName;
+    /**
+     * How long the deeper condition lasts, where the sentence says.
+     *
+     * The paragraph above is about the condition that carries the *repeat*,
+     * and this is the other one: the deeper condition is applied fresh and
+     * scheduled fresh, at a moment that has already arrived, so a deadline on
+     * it can race nothing. SRD's own spells say nothing here — Sleep's
+     * Unconscious runs "for the duration" — and the sentence a stat block
+     * prints is SRD Brass Dragon Wyrmling's "the Unconscious condition **for 1
+     * minute**", which reaches the same `RepeatSave.onFailure` by the printed
+     * road.
+     *
+     * **A span on the clock**, spelled as {@link RiderDuration}'s own object
+     * member and narrowed to it: the five named moments are all anchored to a
+     * turn, and the turn a deepening could name is the one whose boundary
+     * raised the failed save — the same moment written as an ending, which is
+     * what the paragraph above refuses.
+     */
+    readonly lasts?: { readonly seconds: number };
+  };
 }
 
 /**

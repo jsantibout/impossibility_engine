@@ -40,8 +40,11 @@
 import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, type CharacterId, type Result } from '@ie/shared';
+import type { Bonus } from './bonuses.js';
 import {
   addCreature,
+  advanceTime,
+  endCombat,
   addSceneLandmark,
   beginCombat,
   declareCreatureSide,
@@ -71,11 +74,23 @@ const ZOMBIE = id('zombie');
 const GRISH = id('grish');
 const CUBE = id('cube');
 
-const supply = (seed: string) => ({
+const supply = (seed: string, bonuses: readonly Bonus[] = []) => ({
   issuer: createRollIssuer('r'),
   rng: createRng(seed) as Rng,
   content: SRD_CONTENT,
+  ...(bonuses.length === 0 ? {} : { bonuses }),
 });
+
+/**
+ * A repeat the boundary cannot miss and one it cannot make.
+ *
+ * The line's own save is rolled by `forcePrintedSave`, which takes no bonuses
+ * — so which creatures a breath catches is still the die's. What a *repeat*
+ * does is the rule under test, and a test that discovered it by scanning seeds
+ * would assert the rule on whichever branch that seed happened to take.
+ */
+const SHAKEN_OFF: readonly Bonus[] = [{ source: 'the test insists', flat: 40 }];
+const STILL_HELD: readonly Bonus[] = [{ source: 'the test insists', flat: -40 }];
 
 const unwrap = <T>(result: Result<T>, label = 'ok'): T => {
   if (!result.ok) throw new Error(`${label}: ${result.code} — ${result.reason}`);
@@ -918,6 +933,132 @@ describe('a failure the line grades', () => {
     }
     expect(petrified, 'no seed ever failed the repeat').toBe(true);
     expect(freed, 'no seed ever made the repeat').toBe(true);
+  });
+});
+
+/**
+ * The second rung with a lifetime of its own.
+ *
+ * SRD Brass Dragon Wyrmling's Sleep Breath deepens into "the Unconscious
+ * condition **for 1 minute**" and SRD Silver Dragon Wyrmling's Paralyzing
+ * Breath into a Paralyzed that "repeats the save at the end of each of its
+ * turns, ending the effect on itself on a success. After 1 minute, it succeeds
+ * automatically." Both rungs are the Gorgon's deepening with something more on
+ * it, and the something is what the deeper condition is **ended by**: a span
+ * on the clock for one and a standing save for the other.
+ *
+ * The first rung of both is the sentence that names one moment twice — "until
+ * the end of its next turn, at which point it repeats the save" — so the
+ * shallow condition carries no deadline and the save is what changes it.
+ */
+describe('a deepening with a lifetime of its own', () => {
+  /** End the current turn, rolling whatever the boundary owes. */
+  const turn = (state: GameState, seed: string, bonuses: readonly Bonus[] = []) => {
+    const out = unwrap(
+      resolveTurn(state, supply(seed, bonuses), { commandId: `turn-${seed}` }),
+      'turn',
+    );
+    return { state: after(state, out.events), saves: out.saves };
+  };
+
+  /** Force the line until a seed fails the save, and take the world it left. */
+  const caught = (monster: string, line: string): { state: GameState; unverified: readonly string[] } => {
+    for (const seed of SEEDS) {
+      const { out, state } = forced(monster, line, seed);
+      if (!out.outcomes[0]!.save.success) return { state, unverified: out.unverified };
+    }
+    throw new Error(`no seed failed ${monster}'s ${line}`);
+  };
+
+  /** Round the order to the end of Bren's own turn, which is when the save falls. */
+  const toBrensBoundary = (state: GameState, seed: string, bonuses: readonly Bonus[]) => {
+    let world = state;
+    for (let guard = 0; guard < 3; guard += 1) {
+      const stepped = turn(world, `${seed}-${guard}`, bonuses);
+      world = stepped.state;
+      if (stepped.saves.length > 0) return { state: world, saves: stepped.saves };
+    }
+    throw new Error('the boundary never raised the save it owed');
+  };
+
+  it("sleeps the Brass Dragon's target for the minute the block prints", () => {
+    const { state, unverified } = caught('brass-dragon-wyrmling', 'Sleep Breath');
+    expect(has(state, BREN, 'incapacitated')).toBe(true);
+    expect(has(state, BREN, 'unconscious')).toBe(false);
+
+    // The first rung's repeat, with the second rung pinned onto it: the span
+    // is the *deepening's* and the shallow condition has no deadline at all.
+    const [first] = timersOn(state, BREN);
+    expect(first?.deadline).toEqual({ kind: 'indefinite' });
+    expect(first?.repeatSave).toMatchObject({
+      at: 'end-of-turn',
+      of: BREN,
+      ability: 'con',
+      dc: 11,
+      onSuccess: 'end-on-target',
+      onFailure: { condition: 'unconscious', lasts: { seconds: 60 } },
+    });
+
+    // The end of Bren's own next turn: the save is raised, missed, and what it
+    // leaves behind is the deeper condition under a minute of its own.
+    const { state: slept } = toBrensBoundary(state, 'brass', STILL_HELD);
+    expect(has(slept, BREN, 'unconscious')).toBe(true);
+    expect(has(slept, BREN, 'incapacitated')).toBe(true); // carried by the Unconscious
+    const [deep] = timersOn(slept, BREN);
+    expect(deep?.deadline).toEqual({ kind: 'elapsed', at: slept.elapsed + 60 });
+    // And it asks nothing further: the book's "second" failure is the last.
+    expect(deep?.repeatSave).toBeUndefined();
+
+    // The minute passes and the sleeper wakes, with no save anywhere in it.
+    const out = after(slept, unwrap(endCombat(slept, { kind: 'surrender', side: 'wild' }), 'end'));
+    const nearly = after(out, unwrap(advanceTime(out, 59, 'the fight breaks up'), 'a minute less one'));
+    expect(has(nearly, BREN, 'unconscious')).toBe(true);
+    const after60 = after(nearly, unwrap(advanceTime(nearly, 1, 'the last second'), 'the minute'));
+    expect(has(after60, BREN, 'unconscious')).toBe(false);
+    expect(timersOn(after60, BREN)).toEqual([]);
+
+    // And the two endings the engine does not execute are said out loud at the
+    // moment of use, under the rung they were printed under.
+    expect(
+      unverified.some((one) =>
+        one.includes('_Second Failure:_ This effect ends for the target if it takes damage'),
+      ),
+    ).toBe(true);
+  });
+
+  it("paralyses the Silver Dragon's target until it shakes it off or the minute is up", () => {
+    const { state } = caught('silver-dragon-wyrmling', 'Paralyzing Breath');
+    expect(has(state, BREN, 'incapacitated')).toBe(true);
+
+    const { state: held } = toBrensBoundary(state, 'silver', STILL_HELD);
+    expect(has(held, BREN, 'paralyzed')).toBe(true);
+    expect(has(held, BREN, 'incapacitated')).toBe(true); // carried by the Paralyzed
+
+    // A repeat of its own on the deeper condition, under the minute after
+    // which the block says the save succeeds automatically.
+    const [deep] = timersOn(held, BREN);
+    expect(deep?.deadline).toEqual({ kind: 'elapsed', at: held.elapsed + 60 });
+    expect(deep?.repeatSave).toMatchObject({
+      at: 'end-of-turn',
+      of: BREN,
+      ability: 'con',
+      dc: 13,
+      onSuccess: 'end-on-target',
+    });
+    expect(deep?.repeatSave?.onFailure).toBeUndefined();
+
+    // A failed repeat keeps it and asks again at the next boundary, which is
+    // the difference between this rung and the Brass Dragon's.
+    const { state: stillHeld, saves } = toBrensBoundary(held, 'silver-again', STILL_HELD);
+    expect(saves.map((one) => one.dc)).toEqual([13]);
+    expect(has(stillHeld, BREN, 'paralyzed')).toBe(true);
+
+    // And a made one ends it on this target, which is the whole of what the
+    // sentence says a success buys.
+    const { state: freed, saves: made } = toBrensBoundary(stillHeld, 'shaken', SHAKEN_OFF);
+    expect(made.map((one) => one.success)).toEqual([true]);
+    expect(has(freed, BREN, 'paralyzed')).toBe(false);
+    expect(timersOn(freed, BREN)).toEqual([]);
   });
 });
 

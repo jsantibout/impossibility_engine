@@ -2297,6 +2297,18 @@ describe('every member of the definition format has a user or a written exemptio
       // Different sentences that share two words, and both are written.
       "SpellCheck.onSuccess='end-on-target' + SpellRepeatSave.onSuccess='end-on-target'",
       'SpellDefinition.check? + ConditionRider.check?',
+      // **The second row that masks, and it is named because it does.** The
+      // span a *deepening* may carry — `SpellRepeatSave.onFailure.lasts`,
+      // nested and therefore probed under the bare word — collides with the
+      // rider's own `lasts`, which Color Spray writes. So this member is
+      // reported written by somebody else's sentence, and no SRD spell writes
+      // it: the book's deepening (Sleep's Unconscious) runs for the casting's
+      // own duration, and the sentence that does print a span for one is a
+      // stat block's — SRD Brass Dragon Wyrmling's minute — which reaches the
+      // same `RepeatSave.onFailure` by the printed road rather than through a
+      // definition. What holds the member honest instead is the validator and
+      // its own test, "takes a span on the condition a failure deepens to".
+      'SpellRepeatSave.lasts? + ConditionRider.lasts?',
     ]);
   });
 });
@@ -3161,6 +3173,36 @@ describe('a rider is held to what its host can support', () => {
     expect(
       problems(host({ at: 'end-of-turn', onSuccess: 'end-on-target' }, { lasts: { seconds: 30 } })),
     ).toEqual([]);
+  });
+
+  /**
+   * **And the condition it deepens *into* may carry one**, which is the other
+   * side of the same argument rather than an exception to it.
+   *
+   * The rule above is about the condition the repeat sits on: its deadline and
+   * the save's moment are one moment, so whichever pass runs first eats the
+   * other. A deepening lands at a moment that has already arrived and is
+   * scheduled there, so a span of its own races nothing — SRD Brass Dragon
+   * Wyrmling's "the Unconscious condition **for 1 minute**" is that sentence
+   * from the printed side, and `deepenedBy` schedules either the same way.
+   */
+  it('takes a span on the condition a failure deepens to, and refuses a span of none', () => {
+    const host = (lasts: unknown) => ({
+      kind: 'save',
+      ability: 'wis',
+      condition: 'incapacitated',
+      repeats: {
+        at: 'end-of-turn',
+        onSuccess: 'end-on-target',
+        onFailure: { condition: 'unconscious', lasts },
+      },
+    });
+
+    expect(problems(host({ seconds: 60 }))).toEqual([]);
+    expect(problems(host({ seconds: 0 }))).toContain('bad_rider_duration');
+    // A turn-anchored moment is not a span, and the moment it would name is
+    // the boundary that raised the failed save — this moment, said again.
+    expect(problems(host('end-of-targets-next-turn'))).toContain('bad_rider_duration');
   });
 
   /** And the condition a failure deepens to is one of the SRD's fifteen. */

@@ -1,21 +1,19 @@
 /**
- * The eighteen stat-block lines the engine can roll, and the door that rolls
- * them.
+ * The stat-block lines the engine can roll, and the door that rolls them.
  *
  * `forcePrintedSave` shipped finished: it reads the DC and the dice off the
  * block, throws a save per creature the table named, halves or zeroes the
  * damage the way the line's own `_Success:_` clause says, applies Evasion off
  * each target and spends whichever slot the heading names. It was on the
- * engine's barrel and in **no tool on either surface**, so every one of the
- * eighteen CR ≤ 5 lines whose sentence the parser structured was a heading a
- * caller could read and could not have rolled.
+ * engine's barrel and in **no tool on either surface**, so every CR ≤ 5 line
+ * whose sentence the parser structured was a heading a caller could read and
+ * could not have rolled.
  *
- * And `look` could not tell those eighteen from the two hundred-odd lines
- * beside them. A caller reading `printed.actions` saw a name, a sentence and a
- * recharge — nothing saying which of them the engine would roll — so choosing
- * between the door that rolls and the door that hands the sentence over was
- * guesswork over English. {@link ObservedPrintedLine.engineRollsTheSave} is
- * that flag.
+ * And `look` could not tell those from the two hundred-odd lines beside them.
+ * A caller reading `printed.actions` saw a name, a sentence and a recharge —
+ * nothing saying which of them the engine would roll — so choosing between the
+ * door that rolls and the door that hands the sentence over was guesswork over
+ * English. {@link ObservedPrintedLine.engineRollsTheSave} is that flag.
  *
  * The door is the **DM's**, for the reason `take_printed_action` is: who is
  * standing in a 15-foot Cone is measured from an origin and a facing nobody
@@ -172,18 +170,19 @@ describe('the door that rolls a printed line’s saving throw', () => {
   });
 
   it('refuses a line whose sentence it could not structure, naming the other door', () => {
-    // SRD Brass Dragon Wyrmling's Sleep Breath prints a second rung of failure
-    // that deepens into a condition **for 1 minute** with endings of its own,
-    // and `repeats.onFailure` is a bare condition name — so the line stays
-    // prose and is handed over whole, as the whole family was. (The Gorgon's
-    // Petrifying Breath, which used to stand here, is read now: its second
-    // rung says only which condition replaces which.)
-    const t = fight('sleeping', 'brass-dragon-wyrmling');
+    // SRD Gold Dragon Wyrmling's Weakening Breath: "_Failure:_ The target has
+    // Disadvantage on Strength-based D20 Tests and subtracts 2 (1d4) from its
+    // damage rolls." A failure clause the reader cannot start on refuses the
+    // line whole, because a save the engine rolls and then does nothing with
+    // is a die thrown for no reason. (The Brass Dragon Wyrmling's Sleep
+    // Breath, which used to stand here, is read now: a deepening may carry a
+    // lifetime of its own.)
+    const t = fight('weakening', 'gold-dragon-wyrmling');
     turnOf(t, 'fang');
 
     const out = t.call('force_printed_save', {
       who: 'fang',
-      line: 'Sleep Breath',
+      line: 'Weakening Breath',
       targets: ['grish'],
     });
     expect(out.status).toBe('refused');
@@ -192,6 +191,31 @@ describe('the door that rolls a printed line’s saving throw', () => {
 
     // And nothing was spent for the refusal.
     expect(t.campaign.log().some((event) => event.type === 'action-spent')).toBe(false);
+  });
+
+  it('rolls the breath whose second rung deepens into a span of its own', () => {
+    // SRD Brass Dragon Wyrmling's Sleep Breath: "_Failure:_ Incapacitated
+    // until the end of its next turn, at which point it repeats the save.
+    // _Second Failure:_ The Unconscious condition for 1 minute." Both rungs
+    // are the engine's now, and the two endings the book prints for the
+    // deeper one are handed to the table at the moment of use.
+    const t = fight('sleeping', 'brass-dragon-wyrmling');
+    turnOf(t, 'fang');
+
+    const out = expectOk(
+      t.call('force_printed_save', {
+        who: 'fang',
+        line: 'Sleep Breath',
+        targets: ['grish'],
+      }),
+    );
+    const outcomes = out.resolution['outcomes'] as readonly Record<string, unknown>[];
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]!['dc']).toBe(11);
+    expect(out.events.filter((event) => event.type === 'roll-recorded')).toHaveLength(1);
+    expect(out.unverified.join(' ')).toContain(
+      '_Second Failure:_ This effect ends for the target if it takes damage',
+    );
   });
 
   it('is the DM’s door and not the model’s', () => {
@@ -237,19 +261,35 @@ describe('`look` says which printed lines the engine will roll', () => {
   });
 
   it('says false for a line that forces a save its reader could not structure', () => {
-    // SRD Brass Dragon Wyrmling: Sleep Breath prints `_Constitution Saving
-    // Throw:_` and the engine still will not roll it, so the flag is about
-    // what the engine will do rather than about what the English says.
-    const t = fight('the-wyrmling-is-read', 'brass-dragon-wyrmling');
+    // SRD Gold Dragon Wyrmling: Weakening Breath prints `_Strength Saving
+    // Throw:_` and the engine still will not roll it, because its failure is a
+    // clause the reader cannot start on — so the flag is about what the engine
+    // will do rather than about what the English says.
+    const t = fight('the-wyrmling-is-read', 'gold-dragon-wyrmling');
     const block = blockOf(t, 'fang');
 
-    const sleep = block.actions.find((one) => one.name === 'Sleep Breath')!;
-    expect(sleep.text).toContain('Saving Throw');
-    expect(sleep.engineRollsTheSave).toBe(false);
+    const weakening = block.actions.find((one) => one.name === 'Weakening Breath')!;
+    expect(weakening.text).toContain('Saving Throw');
+    expect(weakening.engineRollsTheSave).toBe(false);
 
     // And the line beside it the engine *will* roll, under the same heading.
     const fire = block.actions.find((one) => one.name.startsWith('Fire Breath'))!;
     expect(fire.engineRollsTheSave).toBe(true);
+  });
+
+  it('says true for the breath whose second rung deepens into a lifetime', () => {
+    // SRD Brass Dragon Wyrmling's Sleep Breath and SRD Silver Dragon
+    // Wyrmling's Paralyzing Breath stood on the false side of this flag until
+    // a deepening could carry a span or a repeat of its own.
+    const brass = fight('the-brass-is-read', 'brass-dragon-wyrmling');
+    const sleep = blockOf(brass, 'fang').actions.find((one) => one.name === 'Sleep Breath')!;
+    expect(sleep.engineRollsTheSave).toBe(true);
+
+    const silver = fight('the-silver-is-read', 'silver-dragon-wyrmling');
+    const paralyzing = blockOf(silver, 'fang').actions.find(
+      (one) => one.name === 'Paralyzing Breath',
+    )!;
+    expect(paralyzing.engineRollsTheSave).toBe(true);
   });
 
   it('says true for the graded failure it now reads', () => {

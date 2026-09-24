@@ -187,17 +187,52 @@ export interface RepeatSave {
    * condition is applied under the same source the first one carries, the
    * first condition goes, and the timer that raised the save goes with it —
    * so the boundary owes nothing further and the save is not repeated again.
-   * `resolvePendingSaves` is where that is written, out of `condition-removed`
-   * and `condition-applied`: the removal already drops the deadline hung on
-   * the instance it lifts, so the deepening needs no event of its own.
+   * `deepenedBy` in `commands/turns.ts` is where that is written, out of
+   * `condition-removed` and `condition-applied`: the removal already drops the
+   * deadline hung on the instance it lifts.
    *
    * **The condition that carries one takes no `lasts`.** It runs for the
    * casting's own duration, and the repeat is what changes it: a deadline
    * landing on the same moment as {@link at} would let `expireEffects` delete
    * this timer and `dropOrphanedSaves` drop the pending save before anybody
    * rolled it.
+   *
+   * **The condition it deepens *into* may carry either**, and the asymmetry is
+   * the reason the two fields below exist. The deeper condition is applied
+   * fresh and scheduled fresh, at a moment that has already arrived, so
+   * nothing it is given can race a save nobody has rolled. SRD Brass Dragon
+   * Wyrmling's Sleep Breath deepens into "the Unconscious condition **for 1
+   * minute**" and SRD Silver Dragon Wyrmling's Paralyzing Breath into a
+   * Paralyzed that "repeats the save at the end of each of its turns, ending
+   * the effect on itself on a success" — one ended by the clock, one by a save
+   * of its own, and a line may print both (the Silver Dragon's minute is the
+   * cap after which its save succeeds automatically).
    */
-  readonly onFailure?: { readonly condition: ConditionName };
+  readonly onFailure?: {
+    readonly condition: ConditionName;
+    /**
+     * How long the deeper condition lasts, where the sentence says.
+     *
+     * **A span on the clock and not a `Duration`**, which is the whole
+     * vocabulary the book prints here: minutes and hours. A turn-anchored
+     * deadline would be the moment the deepening *happened* — the boundary
+     * that raised the failed save — said again as an ending, which is the race
+     * the first rung is held away from wearing different words. Absent is the
+     * ordinary answer: the deeper condition runs for whatever put it there,
+     * exactly as the shallow one did.
+     */
+    readonly lasts?: { readonly seconds: number };
+    /**
+     * A save the deeper condition retakes, where the sentence gives it one.
+     *
+     * The same shape as the hook carrying it, because it is the same sentence
+     * about a different condition — `deepenedBy` hangs it on the instance it
+     * creates, so the boundary raises it from there and a success releases
+     * that instance. No third rung: the SRD prints none at any tier, and one
+     * would be a deepening of a deepening rather than a field.
+     */
+    readonly repeats?: RepeatSave;
+  };
   /**
    * Damage the creature takes **before** the die is thrown.
    *
