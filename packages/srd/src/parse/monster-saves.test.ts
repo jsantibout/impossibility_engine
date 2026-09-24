@@ -12,10 +12,13 @@ import { parseMonsters, parseSaveLine } from './monsters.js';
  * template exactly as regular as `_Melee Attack Roll:_` is, carrying the two
  * numbers the engine must supply itself: the DC and the dice.
  *
- * **What is read is the template and the regular clauses after it.** The
- * opening is anchored, so a trigger or a movement printed before the save
- * refuses the line whole, as does a graded failure and a damage type the block
- * leaves to another trait. After the opening, `parsePrintedSave` reads the six
+ * **What is read is the template, the sentence before it and the regular
+ * clauses after it.** A movement printed before the save still refuses the
+ * line whole; a **trigger** printed there is read into `MonsterSave.trigger`,
+ * which is what lets a Death Burst and a start-of-turn aura be read at all —
+ * the fold raises the save the moment settles and no caller can spend it. A
+ * damage type the block leaves to another trait comes back as `declared`,
+ * which is a word and not a type. After the opening, `parsePrintedSave` reads the six
  * regular clauses a failure prints — a condition to a turn anchor, a grapple
  * with its escape DC, a push and Prone, a Speed cut, a Hit Point maximum
  * lowered by the damage — one sentence at a time and **transactionally**: a
@@ -456,12 +459,148 @@ describe('the clauses a failure prints besides the damage', () => {
     });
   });
 
-  it('reads no save off a trait, whose moment is not a use', () => {
+  it('reads a trait’s save, whose moment is not a use', () => {
     // SRD Ghast's Stench is the template word for word, forced on "any
-    // creature that starts its turn" in the aura — nothing a creature spends.
-    const stench = lineOf('ghast', 'Stench');
-    expect(stench.text).toContain('Saving Throw:_');
-    expect(stench.save).toBeUndefined();
+    // creature that starts its turn" in the aura — nothing a creature spends,
+    // and therefore a save nobody would ever roll if the moment were not read.
+    expect(lineOf('ghast', 'Stench').save).toEqual({
+      ability: 'con',
+      dc: 10,
+      targets: 'any creature that starts its turn in a 5-foot Emanation originating from the ghast',
+      trigger: { kind: 'starts-turn-within', feet: 5, emanation: true },
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'poisoned',
+          lasts: { kind: 'turn', moment: 'start', of: 'target' },
+        },
+      ],
+      onSuccessEffects: [{ kind: 'line-immunity', line: 'Stench', seconds: 86400 }],
+    });
+  });
+});
+
+describe('a save a moment forces', () => {
+  it('reads a Death Burst as the sentence before the opening', () => {
+    // SRD Magmin: "The magmin explodes when it dies." The trigger is what
+    // keeps this off `forcePrintedSave` — a line a caller could spend would be
+    // a Death Burst a creature detonates on purpose.
+    expect(lineOf('magmin', 'Death Burst').save).toEqual({
+      ability: 'dex',
+      dc: 11,
+      targets: 'each creature in a 10-foot Emanation originating from the magmin',
+      trigger: { kind: 'dies' },
+      damage: { dice: '2d6', flat: 0, type: 'fire', average: 7 },
+      onSuccess: 'half',
+    });
+  });
+
+  it('reads all five Death Bursts, each with its own emanation and type', () => {
+    const bursts = ['magmin', 'dust-mephit', 'ice-mephit', 'magma-mephit', 'steam-mephit'].map(
+      (id) => lineOf(id, 'Death Burst').save,
+    );
+    expect(bursts.every((save) => save?.trigger?.kind === 'dies')).toBe(true);
+    expect(bursts.map((save) => save?.damage?.type)).toEqual([
+      'fire',
+      'bludgeoning',
+      'cold',
+      'fire',
+      'fire',
+    ]);
+    expect(bursts.map((save) => save?.onSuccess)).toEqual(['half', 'half', 'half', 'half', 'half']);
+  });
+
+  it('reads an aura gated on the holder not being Incapacitated, and carries its table', () => {
+    // SRD Gibbering Mouther: "The mouther babbles incoherently while it
+    // doesn't have the Incapacitated condition. ... any creature that starts
+    // its turn within 20 feet of the mouther **while it is babbling**." Two
+    // sentences and one gate, read together.
+    const save = lineOf('gibbering-mouther', 'Gibbering').save;
+    expect(save?.trigger).toEqual({
+      kind: 'starts-turn-within',
+      feet: 20,
+      onlyIf: 'holder-not-incapacitated',
+    });
+    expect(save?.ability).toBe('wis');
+    expect(save?.dc).toBe(10);
+    // The d8 table is the table's, and is handed back whole at the moment the
+    // save fails rather than keeping the moment from ever arriving.
+    expect(save?.onFailure).toBeUndefined();
+    expect(save?.handedOver?.[0]).toContain('rolls 1d8');
+    expect(save?.handedOver?.join(' ')).toContain('random direction');
+  });
+
+  it('reads an aura narrowed to creature types and to what the target can see', () => {
+    expect(lineOf('sea-hag', 'Vile Appearance').save).toEqual({
+      ability: 'wis',
+      dc: 11,
+      targets:
+        "any Beast or Humanoid that starts its turn within 30 feet of the hag and can see the hag's true form",
+      trigger: { kind: 'starts-turn-within', feet: 30, onlyIf: 'can-see-holder' },
+      onlyIfTargetType: ['Beast', 'Humanoid'],
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'frightened',
+          lasts: { kind: 'turn', moment: 'start', of: 'target' },
+        },
+      ],
+      onSuccessEffects: [{ kind: 'line-immunity', line: 'Vile Appearance', seconds: 86400 }],
+    });
+  });
+
+  it('refuses a prelude it cannot read, and a babbling nothing declared', () => {
+    // A sentence before the opening that is not one of the two the book writes
+    // there is still a rule, and half a rule is nobody's.
+    expect(
+      parseSaveLine(
+        'The bulette spends 5 feet of movement to jump. _Dexterity Saving Throw:_ DC 11, ' +
+          'each creature in a 15-foot Cone. _Failure:_ 7 (2d6) Fire damage.',
+      ),
+    ).toBeNull();
+    // And "while it is babbling" with nothing that says what babbling is names
+    // a gate that is not there.
+    expect(
+      parseSaveLine(
+        '_Wisdom Saving Throw:_ DC 10, any creature that starts its turn within 20 feet of ' +
+          'the mouther while it is babbling. _Failure:_ 7 (2d6) Psychic damage.',
+      ),
+    ).toBeNull();
+  });
+
+  it('refuses a start-of-turn clause whose shape it cannot read', () => {
+    // SRD Pit Fiend's Fear Aura names the aura in a sentence of its own — "any
+    // enemy that starts its turn in the aura" — and a radius that is not in
+    // the clause is a radius this cannot measure.
+    expect(
+      parseSaveLine(
+        '_Wisdom Saving Throw:_ DC 21, any enemy that starts its turn in the aura. ' +
+          '_Failure:_ The target has the Frightened condition until the start of its next turn.',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('a damage type the block leaves to the table', () => {
+  it('reads the Half-Dragon’s breath with the type still unanswered', () => {
+    expect(lineOf('half-dragon', "Dragon's Breath").save).toEqual({
+      ability: 'dex',
+      dc: 14,
+      targets: 'each creature in a 30-foot Cone',
+      damage: { dice: '8d6', flat: 0, type: 'declared', average: 28 },
+      onSuccess: 'half',
+    });
+  });
+
+  it('still refuses a word in the type slot that is not a damage type', () => {
+    expect(
+      parseSaveLine(
+        '_Dexterity Saving Throw:_ DC 12, each creature in a 15-foot Cone. ' +
+          '_Failure:_ 17 (5d6) Sonorous damage. _Success:_ Half damage.',
+      ),
+    ).toBeNull();
   });
 });
 
@@ -952,18 +1091,6 @@ describe('the lines the reader does not reach', () => {
     ).toBeNull();
   });
 
-  it('refuses a trigger printed before the save', () => {
-    // "The mephit explodes when it dies." A line read without it is a Death
-    // Burst a creature could set off on purpose.
-    expect(lineOf('magma-mephit', 'Death Burst').save).toBeUndefined();
-  });
-
-  it('refuses a line whose damage type the block leaves to a trait', () => {
-    // SRD Half-Dragon: "damage of the type chosen for the Draconic Origin
-    // trait" — a type nobody has declared is not a type.
-    expect(lineOf('half-dragon', "Dragon's Breath").save).toBeUndefined();
-  });
-
   it('reads a save whose failure imposes a condition rather than damage', () => {
     // SRD Dust Mephit's Blinding Breath — refused by the first reader, and the
     // reason this one exists.
@@ -1014,11 +1141,20 @@ describe('the corpus, so a format change is a failing test rather than a smaller
     expect(saves.length).toBeGreaterThan(40);
   });
 
-  it('reads a save only off a line a creature spends', () => {
+  it('reads a save off a line a creature spends, or off one a moment forces', () => {
+    // The two kinds and no third: a line under Actions or Bonus Actions is
+    // one `forcePrintedSave` takes, and a line anywhere else has to carry the
+    // moment that forces it or it is a save nothing could ever roll.
     const spendable = new Set(
       bestiary.flatMap((monster) => [...monster.actions, ...monster.bonusActions]),
     );
-    expect(saves.filter((line) => !spendable.has(line))).toEqual([]);
+    expect(
+      saves
+        .filter((line) => !spendable.has(line) && line.save?.trigger === undefined)
+        .map((line) => line.name),
+    ).toEqual([]);
+    // Non-vacuous: the moments are real and every one of them is a trait.
+    expect(saves.filter((line) => line.save?.trigger !== undefined).length).toBeGreaterThan(5);
   });
 
   it('never reads one off a line that also prints an attack roll', () => {
@@ -1052,10 +1188,20 @@ describe('the corpus, so a format change is a failing test rather than a smaller
       if (save.damage !== undefined) {
         expect(save.damage.dice).toMatch(/^\d+d\d+$/);
         expect(save.damage.type).toMatch(/^[a-z]+$/);
-      } else {
-        expect(save.onFailure?.length ?? 0, line.name).toBeGreaterThan(0);
-        expect(save.onSuccess).toBe('none');
+        continue;
       }
+      // **The one line whose failure the engine spends nothing of**, and it is
+      // read because nothing else could ever reach it: SRD Gibbering Mouther's
+      // d8 table is forced by a moment, so refusing it would mean the moment
+      // never arrives rather than a DM adjudicating it off the page. The save
+      // is rolled where the book says and the table is handed over.
+      if (save.onFailure === undefined) {
+        expect(save.trigger, line.name).toBeDefined();
+        expect(save.handedOver?.length ?? 0, line.name).toBeGreaterThan(0);
+        continue;
+      }
+      expect(save.onFailure.length, line.name).toBeGreaterThan(0);
+      expect(save.onSuccess).toBe('none');
     }
   });
 

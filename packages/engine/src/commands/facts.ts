@@ -12,7 +12,7 @@
  * turn or the clock, with nothing to take back.
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, DAMAGE_TYPES, err, ok, type Result } from '@ie/shared';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -70,6 +70,61 @@ export function declareCreatureType(
 
     return ok([
       { type: 'creature-type-declared', id, creatureType, ...(stamp === null ? {} : { command: stamp }) },
+    ]);
+  });
+}
+
+/**
+ * Say which damage type a stat block left to the table.
+ *
+ * SRD Half-Dragon's Draconic Origin: "The half-dragon is related to a type of
+ * dragon associated with one of the following damage types **(GM's choice)**:
+ * Acid, Cold, Fire, Lightning, or Poison. This choice affects other aspects of
+ * the stat block." Two of those aspects are lines with dice on them — the
+ * Claw's second component and the Dragon's Breath — and the parser reads both
+ * with `declared` where a type would be, because a type nobody has stated is
+ * not a type.
+ *
+ * **A ruling the engine records, not a number it takes.** This is the same
+ * shape `declareCreatureType` is and the opposite of a caller supplying a die
+ * face: the amount is the book's, the dice are `rolls.ts`'s, and what is left
+ * is a word the block declined to print. `declare_heads` is the precedent the
+ * DM's door already carries, and the owner's line about it holds here word for
+ * word — a fact the *table* states is a fact.
+ *
+ * **Bounds-checked exactly once**, on the word being a damage type at all. The
+ * five the Half-Dragon offers are its own prose and nothing parsed them, so a
+ * list here would be this command holding a catalogue; what it may not do is
+ * let "sunshine" through into a damage component nothing downstream knows.
+ *
+ * **Re-declarable**, which is `declareDifficultTerrain`'s rule rather than
+ * `declareCreatureType`'s. A creature's type is what it *is* and refusing a
+ * contradiction protects a spell already cast on the strength of it; this is a
+ * choice about a block that printed five types and chose none, and a DM who
+ * reuses an id for the next half-dragon is describing a different dragon
+ * rather than rewriting a fact.
+ */
+export function declareDamageType(
+  state: GameState,
+  id: CharacterId,
+  damageType: string,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `declare-damage-type:${id}`, { ...command, damageType }, () => [], (stamp) => {
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id);
+
+    const word = damageType.toLowerCase();
+    if (!DAMAGE_TYPES.some((known) => known === word)) {
+      return err(
+        'not_a_damage_type',
+        `${damageType} is not one of the game's damage types, so no line could ever deal it`,
+      );
+    }
+
+    if (creature.declaredDamageType === word) return ok([]);
+    return ok([
+      { type: 'damage-type-declared', id, damageType: word, ...(stamp === null ? {} : { command: stamp }) },
     ]);
   });
 }

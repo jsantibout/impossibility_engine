@@ -78,6 +78,7 @@ export type {
 } from './commands/devices.js';
 export {
   declareCreatureType,
+  declareDamageType,
   declareDifficultTerrain,
   declareFalling,
   declareLight,

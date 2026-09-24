@@ -31,7 +31,18 @@
  * so in `unverified`, exactly as the attack path's rider does.
  */
 
-import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
+import {
+  ABILITY_NAMES,
+  type CharacterId,
+  type ConditionName,
+  needsContext,
+  ok,
+  type Result,
+} from '@ie/shared';
+// From the subpath that is schemas and no data: a value imported from the
+// barrel loads the whole parsed SRD into every process that imports the
+// engine, which `srd-barrel.test.ts` is the guard for.
+import { DECLARED_DAMAGE_TYPE } from '@ie/srd/schemas';
 import type { MonsterDamage, MonsterSave, PrintedSaveEffect, PrintedSpan } from '@ie/srd';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { sizeAtMost, sizeOf } from '../positioning.js';
@@ -39,13 +50,17 @@ import type { RollFamily } from '../roll-modifiers.js';
 import type { Duration } from '../time.js';
 import type { RepeatSave } from '../timers.js';
 import { conditionInstanceId, hasCondition } from '../conditions.js';
+import { rollSavingThrow, type D20TestResult } from '../checks.js';
+import { printedLineSource } from '../monster.js';
+import { evadesHalfDamage, sheetAsItStands } from '../standing.js';
 import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
-import { ZERO_HIT_POINTS } from './command.js';
+import { ZERO_HIT_POINTS, unknownCreature } from './command.js';
 import { healCreature } from './creatures.js';
+import { dealSpellDamage } from './damage.js';
 import { rewardsForDropping } from './drop-rewards.js';
-import type { Supply } from './casting.js';
-import { rollSpellDice } from './rolls.js';
+import type { ConcentrationConsequence, Supply } from './casting.js';
+import { recordD20Test, rollSpellDice, savingSupport, withFlatAddend } from './rolls.js';
 import { shoveAwayFrom } from './spell-effect-movement.js';
 import { conditionLanding } from './spell-effect-riders.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
@@ -64,8 +79,6 @@ export interface PrintedClausesLanded {
   readonly died: boolean;
 }
 
-/** The source a printed line's clauses are hung on: the creature and the heading. */
-export const printedLineSource = (who: CharacterId, line: string): string => `printed:${who}:${line}`;
 
 /**
  * The book's three roll nouns in the engine's five families.
@@ -770,4 +783,270 @@ export function applyPrintedClauses(
   }
 
   return ok({ events, unverified, conditions, immuneTo, pushedFeet, died: died.length > 0 });
+}
+
+/** What the line did to one creature standing in it. */
+export interface PrintedSaveOnACreature {
+  readonly target: CharacterId;
+  readonly save: D20TestResult;
+  /** What landed, after the target's own Resistance and the rest. */
+  readonly damage: number;
+  readonly concentration: ConcentrationConsequence;
+  /** The conditions the line's clauses imposed, in the order it prints them. */
+  readonly conditions?: readonly ConditionName[];
+  /** Conditions the target is immune to, which the line therefore did not impose. */
+  readonly immuneTo?: readonly ConditionName[];
+  /** The feet the line pushed the target, where it pushed. */
+  readonly pushedFeet?: number;
+  /**
+   * Whether the line killed the target outright.
+   *
+   * SRD Will-o'-Wisp's Consume Life is the one that does, and it is not
+   * damage: the target dies rather than dropping to 0, so a caller reading
+   * `damage` alone would see a nought and narrate a miss.
+   */
+  readonly died?: true;
+}
+
+/** One creature's whole answer to a printed line: the events, the outcome, the debts. */
+export interface PrintedSaveLanding {
+  readonly events: readonly GameEvent[];
+  readonly outcome: PrintedSaveOnACreature;
+  /** What the engine applied without being able to check it. */
+  readonly unverified: readonly string[];
+}
+
+/**
+ * Roll one creature's saving throw against a printed line, and land what the
+ * line does to them.
+ *
+ * **One body and two moments.** `forcePrintedSave` is a creature *spending* a
+ * line — a breath weapon, a gaze — and `resolvePendingSaves` is the engine
+ * settling one a **moment** forced: a Death Burst the fold raised when the
+ * creature died, an aura raised because somebody's turn began inside it. What
+ * happens to the creature that saves is identical in both, down to the order
+ * the dice come out of the generator, and a second copy of it would have been
+ * a second answer to "does Evasion halve this" — so the whole of it is here
+ * and the two callers differ only in what precedes the roll.
+ *
+ * @param by whose line it is: the sheet the damage is rolled off and the
+ * creature the clauses are sourced to. **May be dead**, which is the whole
+ * point of a Death Burst — the record stays in `creatures` with `dead` set,
+ * and the block it arrived with is still pinned on it.
+ * @param printed the line's save exactly as it was pinned, with any declared
+ * damage type already answered — see {@link withDeclaredDamage}, which is what
+ * answers it, because a type nobody has stated is not a type and the refusal
+ * belongs at the door rather than at the dice.
+ */
+export function forcePrintedSaveOn(
+  state: GameState,
+  by: CharacterId,
+  target: CharacterId,
+  line: string,
+  printed: MonsterSave,
+  supply: Supply,
+): Result<PrintedSaveLanding> {
+  const source = state.creatures[by];
+  if (source === undefined) return unknownCreature(by, 'has no record here yet; add it first');
+  const victim = state.creatures[target];
+  if (victim === undefined) return unknownCreature(target);
+
+  let current = state;
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  const ability = printed.ability;
+
+  const support = savingSupport(current, target, victim, ability, {});
+  // The sheet as it stands, so an item that sets the ability this save is made
+  // with reaches the save rather than stopping at the page — the reading a
+  // spell's save already takes.
+  const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, ability, {
+    dc: printed.dc,
+    conditions: support.conditions,
+    modes: support.modes,
+    bonuses: support.bonuses,
+  });
+  if (!save.ok) return save;
+
+  events.push(
+    recordD20Test(
+      target,
+      `${ABILITY_NAMES[ability]} save vs ${line}`,
+      save.value,
+      save.value.success ? 'resisted' : 'affected',
+    ),
+  );
+
+  // SRD Evasion, read off the creature standing in it and off the *line's* own
+  // sentence: it triggers on an effect that offers half on a made Dexterity
+  // save, which is a fact about what was printed.
+  const evading = evadesHalfDamage(current, target, ability, printed.onSuccess === 'half');
+
+  // **How far the save missed**, where the line grades its failure by that and
+  // not by a second roll. SRD Pseudodragon: "_Failure by 5 or More:_ While
+  // Poisoned, the target also has the Unconscious condition." The margin is the
+  // engine's own — it threw the save and the block printed the DC — so the
+  // deeper list is chosen here and nothing is asked of a caller. It *replaces*
+  // the failure's list rather than adding to it, which is what the reader
+  // wrote: a rung is the whole failure said again with one more thing in it.
+  const missedBy = printed.dc - save.value.total;
+  const failure =
+    printed.onFailureBy !== undefined && missedBy >= printed.onFailureBy.by
+      ? printed.onFailureBy.effects
+      : (printed.onFailure ?? []);
+
+  // **And which arm of a Hit Point ceiling the target stands on, before
+  // anything is rolled.** SRD Sea Hag: "If the target has 20 Hit Points or
+  // fewer, it drops to 0 Hit Points. Otherwise, the target takes 13 (3d8)
+  // Psychic damage." The `otherwise` dice must not be thrown on the arm the
+  // book did not take, so the branch is settled here rather than in the clause
+  // executor, which runs after the damage.
+  const taken = takeBranches(victim.vitals.hp, [
+    // **A success may buy something too**, and exactly one sentence in the
+    // corpus does: SRD Ghost's "_Success:_ The target is immune to this ghost's
+    // Horrific Visage for 24 hours." It goes through the same executor the
+    // failure's clauses do and in the same list, because it is the same kind of
+    // thing — a clause about one creature.
+    ...(save.value.success ? (printed.onSuccessEffects ?? []) : failure),
+    ...(printed.either ?? []),
+  ]);
+
+  let dealt: PrintedDamageDealt = NOTHING_DEALT;
+  let concentration: ConcentrationConsequence = { kind: 'none' };
+  // Nothing at all on a success means no damage roll either: the line did
+  // nothing there, and rolling would move the generator for no reason. A line
+  // that prints no damage — a Lion's Roar — rolls none. A branch's `otherwise`
+  // arm is this line's damage for this target, and it exists only on a failure,
+  // so the clause below is unchanged.
+  const damage = taken.damage ?? printed.damage;
+  const plus = taken.damage === null ? printed.plus : (taken.plus ?? undefined);
+  if (damage !== undefined && !(save.value.success && (printed.onSuccess === 'none' || evading))) {
+    const rolled = rollSpellDice(supply, source.sheet, line, damage.type, damage.dice ?? undefined);
+    if (!rolled.ok) return rolled;
+    // The addend the book prints inside the parenthesis — "16 (2d10 + 5)" —
+    // which is part of the damage and not a separate effect.
+    let parts = withFlatAddend(rolled.value, damage.flat);
+    // "5 (1d4 + 3) Piercing damage plus 10 (3d6) Necrotic damage": a second
+    // component of the same blow, meeting the defences with it.
+    if (plus !== undefined) {
+      const more = rollSpellDice(supply, source.sheet, line, plus.type, plus.dice ?? undefined);
+      if (!more.ok) return more;
+      parts = [...parts, ...withFlatAddend(more.value, plus.flat)];
+    }
+
+    // SRD: "The halved damage is equal to half the damage that would be dealt
+    // on a failed save" — half of what the line deals, and therefore *before*
+    // the target's own Resistance, which then halves again. With Evasion it is
+    // the failure that is halved; the success took nothing above.
+    const halve = evading ? !save.value.success : save.value.success;
+    const components = halve
+      ? parts.map((component) => ({ ...component, total: Math.floor(component.total / 2) }))
+      : parts;
+
+    const hurt = dealSpellDamage(current, target, components, line, supply, { by });
+    if (!hurt.ok) return hurt;
+    events.push(...hurt.value.events);
+    current = hurt.value.events.reduce(applyEvent, current);
+    // The total and the split, because the book asks both questions: a Wight
+    // lowers a maximum by "the damage taken" and a Vampire Spawn by "the
+    // **Necrotic** damage taken" out of a blow that was two components at once.
+    dealt = { total: hurt.value.amount, byType: hurt.value.byType };
+    concentration = hurt.value.concentration;
+    // What a feature watching the blow could not settle — a side nobody has
+    // declared, a holder nobody has placed. The `drops-to-zero` clause reports
+    // the same thing through `applyPrintedClauses`, so a line's two arms would
+    // otherwise say different amounts about the same missing fact.
+    unverified.push(...hurt.value.unverified);
+  }
+
+  // What the line does besides the damage: its failure clauses on a failure,
+  // and its `_Failure or Success:_` coda either way — each through the
+  // primitive the casting path uses for the same sentence, and with every Hit
+  // Point ceiling already resolved to the arm the target stood on.
+  const landed = applyPrintedClauses(
+    current,
+    by,
+    target,
+    line,
+    printed,
+    taken.clauses,
+    dealt,
+    supply.issuer.count,
+    supply,
+  );
+  if (!landed.ok) return landed;
+  events.push(...landed.value.events);
+  unverified.push(...landed.value.unverified);
+
+  return ok({
+    events,
+    unverified,
+    outcome: {
+      target,
+      save: save.value,
+      damage: dealt.total,
+      concentration,
+      ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
+      ...(landed.value.immuneTo.length === 0 ? {} : { immuneTo: landed.value.immuneTo }),
+      ...(landed.value.pushedFeet === null ? {} : { pushedFeet: landed.value.pushedFeet }),
+      ...(landed.value.died ? { died: true as const } : {}),
+    },
+  });
+}
+
+/**
+ * The line's save with every declared damage type answered, or the refusal
+ * that says nobody has answered it.
+ *
+ * SRD Half-Dragon's Dragon's Breath deals "28 (8d6) damage of the type chosen
+ * for the Draconic Origin trait", and that trait ends "(GM's choice)". The
+ * reader carries the amount and puts {@link DECLARED_DAMAGE_TYPE} where a type
+ * would be; this is where the table's answer meets it.
+ *
+ * **`needsContext` and not `err`**, because the fact is *missing* rather than
+ * wrong: a DM who has not said which dragon the half-dragon is related to has
+ * not broken a rule, and `declareDamageType` is the command the request names.
+ *
+ * Null damage type means nothing to answer, which is every printed line in the
+ * book but one — so the ordinary case allocates nothing and reads nothing.
+ */
+export function withDeclaredDamage(
+  state: GameState,
+  by: CharacterId,
+  line: string,
+  printed: MonsterSave,
+): Result<MonsterSave> {
+  const wants =
+    printed.damage?.type === DECLARED_DAMAGE_TYPE || printed.plus?.type === DECLARED_DAMAGE_TYPE;
+  if (!wants) return ok(printed);
+
+  const declared = state.creatures[by]?.declaredDamageType ?? null;
+  if (declared === null) {
+    return needsContext(
+      'undeclared_damage_type',
+      `${line} deals damage "of the type chosen" by a trait the block leaves to the table, and nobody has said which type ${by}'s is`,
+      [
+        {
+          kind: 'creature',
+          subject: by,
+          need: `the damage type ${by}'s stat block leaves to the GM`,
+          because: `${line} reads its type off that trait, and a type nobody has stated is not a type the engine may invent`,
+          satisfyWith: `declareDamageType for ${by}, then send this again`,
+        },
+      ],
+    );
+  }
+
+  const answer = (amount: MonsterDamage | undefined): MonsterDamage | undefined =>
+    amount === undefined || amount.type !== DECLARED_DAMAGE_TYPE
+      ? amount
+      : { ...amount, type: declared };
+  const damage = answer(printed.damage);
+  const plus = answer(printed.plus);
+  return ok({
+    ...printed,
+    ...(damage === undefined ? {} : { damage }),
+    ...(plus === undefined ? {} : { plus }),
+  });
 }

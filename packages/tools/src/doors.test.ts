@@ -519,6 +519,17 @@ const DECLARATIONS: Readonly<
   // door safe to open.
   declareCreatureHeads: { tool: 'declare_heads', dmOnly: true },
   /**
+   * **The third on the DM's surface alone, and the one the book hands over by
+   * name.** SRD Half-Dragon's Draconic Origin ends "(GM's choice)", and what
+   * is chosen is a *word* rather than a number — which is why it looks like it
+   * belongs on the wider surface and does not. The choice decides which damage
+   * the party is about to take, and a model making it would be picking the
+   * type after reading the party's Resistances. A table describing the dragon
+   * in front of it is stating a fact; a model choosing what its own monster
+   * deals is writing the encounter.
+   */
+  declareDamageType: { tool: 'declare_damage_type', dmOnly: true },
+  /**
    * **The second door on the DM's surface alone, and the widest fact either
    * of them states: that a thing is in the room.** "There is a barred oak
    * door here" is precisely what this table is for — something the engine
@@ -1045,6 +1056,14 @@ const KIND_SETTLED_BY: Readonly<Record<string, ContextRequestKind | null>> = {
   // kind here would be adding one nothing raises.
   declareCreatureHeads: null,
   declareCreatureType: 'creature-type',
+  // **`creature` and not a kind of its own**, which is the doctrine's rule
+  // read the way `declareCreatureHeads` above reads it: a kind is added the
+  // first time a command must stop on a fact, and what is missing here is a
+  // fact *about one creature* that somebody has to supply — the same shape
+  // `forcePrintedSave` already asks for when nobody has said who a Cone
+  // caught. A `damage-type` kind would be a kind with one asker and one door,
+  // which is a structure named after its only instance.
+  declareDamageType: 'creature',
   declareSightBetween: 'visibility',
   declareCoverBetween: null,
   declareDifficultTerrain: null,

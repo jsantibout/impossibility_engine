@@ -419,18 +419,39 @@ export const mayAttempt = (timer: TimedEffect, who: CharacterId): boolean =>
   timer.target.kind !== 'condition' || timer.target.on === who;
 
 /**
- * A save a turn boundary raised and nobody has rolled yet.
+ * A save a **moment** raised and nobody has rolled yet.
  *
  * Persisted in state rather than handed back in a return value, which is the
  * whole difference between this and the pending Concentration save that had to
  * be torn out: that one lived only in the caller's hands and vanished on a
- * reload. This is derived from `turn-advanced` by the fold, so it survives
- * anything the log survives — and the engine refuses to advance another turn
- * while one is outstanding, so forgetting it stops the game rather than
- * quietly losing a rule.
+ * reload. This is derived by the fold, so it survives anything the log
+ * survives — and the engine refuses to advance another turn while one is
+ * outstanding, so forgetting it stops the game rather than quietly losing a
+ * rule.
+ *
+ * **Two kinds, and they differ in what a success ends rather than in how they
+ * are owed.** A {@link RepeatPendingSave} is the SRD's "repeats the save at
+ * the end of each of its turns": the turn boundary raises it, an effect the
+ * engine is holding is what it is against, and a success ends that effect. A
+ * {@link PrintedPendingSave} is a line on a stat block whose save a moment
+ * forces — a Death Burst when the creature dies, an aura when somebody's turn
+ * begins inside it — and nothing is being *held*, so there is nothing for a
+ * success to end: what a failure costs is the line's own printed clauses,
+ * landed through the same executor `forcePrintedSave` lands them through.
+ *
+ * Both are rolled by `resolvePendingSaves`, which is the point of the split
+ * being here rather than in a second debt: **raising is derived and rolling is
+ * commanded**, and a second machine for the second kind would have been a
+ * second answer to what a boundary owes.
  */
-export interface PendingSave {
-  /** The timer this belongs to, which is also how it is keyed. */
+interface PendingSaveCommon {
+  /**
+   * What this debt is filed under, which is also how it is keyed.
+   *
+   * A repeat save's is the timer it belongs to. A printed line's is
+   * {@link printedSaveKey}, because there is no timer: what is owed is a
+   * moment that has already happened.
+   */
   readonly effectKey: string;
   readonly target: CharacterId;
   /**
@@ -455,11 +476,50 @@ export interface PendingSave {
   readonly source: string;
   readonly ability: Ability;
   readonly dc: number;
-  readonly onSuccess: 'end-on-target' | 'end-casting';
   readonly label: string;
   /** The turn it was raised on. Part of the key, so one turn raises it once. */
   readonly turn: number;
 }
+
+/** A save owed against an effect the engine is holding — SRD's "repeats the save". */
+export interface RepeatPendingSave extends PendingSaveCommon {
+  readonly onSuccess: 'end-on-target' | 'end-casting';
+  /**
+   * Absent, and declared so the union can be told apart by it.
+   *
+   * A `printed` debt is the other kind and carries a record here; this one
+   * carries nothing, which is the whole difference a reader needs.
+   */
+  readonly printed?: undefined;
+}
+
+/**
+ * Which line, on which creature, a printed debt is against.
+ *
+ * **Two strings and no numbers**, which is the rule `conditionEndedBy` already
+ * keeps about a repeat save: a debt says what is *owed*, and what it is about
+ * holds the answer. The DC and the dice were pinned onto the creature's sheet
+ * when the block arrived, so `printedSaveOf` reads them back — and a reload a
+ * week later reads exactly the same numbers, because it is the same pinned
+ * sheet. A copy on the debt would be a second copy of the block.
+ *
+ * {@link by} may be **dead** by the time the save is rolled, which is not an
+ * edge case but the ordinary one: a Death Burst is raised *because* the
+ * creature died. The record stays in `creatures`, so the sheet is still there.
+ */
+export interface PrintedSaveDebt {
+  /** Whose line it is: the creature the block belongs to. */
+  readonly by: CharacterId;
+  /** The printed heading — `Death Burst`, `Stench`. */
+  readonly line: string;
+}
+
+/** A save a printed line's own moment forced — a death, a turn beginning in an aura. */
+export interface PrintedPendingSave extends PendingSaveCommon {
+  readonly printed: PrintedSaveDebt;
+}
+
+export type PendingSave = RepeatPendingSave | PrintedPendingSave;
 
 /**
  * Damage a spell promised and a later moment collects.
@@ -599,6 +659,19 @@ export interface GrantedPayout {
 /** One pending save can exist per effect per turn, and no more. */
 export const pendingSaveKey = (effectKey: string, turn: number): string =>
   `${effectKey}@${turn}`;
+
+/**
+ * What a printed line's debt stands in place of a timer key.
+ *
+ * All three parts are needed and none is spare: the **creature** because two
+ * Magmins exploding in one round owe two different bursts, the **line**
+ * because a block may print more than one, and the **target** because a burst
+ * catches everybody in its Emanation and each of them owes a save of their
+ * own. `pendingSaveKey` then stamps the turn on it, so folding the same log
+ * twice raises one debt apiece — the rule a repeat save already keeps.
+ */
+export const printedSaveKey = (by: CharacterId, line: string, target: CharacterId): string =>
+  `printed|${by}|${line}|${target}`;
 
 /**
  * The key a timer is filed under.

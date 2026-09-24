@@ -202,6 +202,7 @@ import {
   resolveEffectCheck,
   resolveMove,
   resolveSpell,
+  resolvePendingSaves,
   resolveTurn,
   rollInitiativeAndBeginCombat,
   setScene,
@@ -4389,6 +4390,48 @@ const DECLINE_TEST_REACTION = tool({
     ),
 });
 
+/**
+ * Roll the saves the world already owes, whenever they were raised.
+ *
+ * **`end_turn` used to be the only door to them, and that stopped being
+ * enough the moment a save could be raised by something other than a
+ * boundary.** SRD Magmin: "The magmin explodes when it dies" — a fighter drops
+ * it on their own turn, the fold raises a Dexterity save on everybody in the
+ * ten-foot Emanation, and `end_turn` then *refuses* with `saves_pending`
+ * because a debt is outstanding. Without this there was nothing that could
+ * clear it, and the fight would stop on a rule the engine had correctly
+ * noticed.
+ *
+ * `settle_area_effects`' twin, and it takes no arguments for the same reason:
+ * the debt is in state, the engine knows what is owed and at what DC, and the
+ * caller is instructing it to settle what it is owed rather than naming one.
+ * **No number crosses this door in either direction** — the DC was pinned when
+ * the moment was raised, and the dice are the engine's.
+ *
+ * **An empty sweep is an answer and not a refusal**, which is the rule every
+ * settlement door on this surface keeps: a caller sweeping after every blow
+ * must not have to tell "nothing to do" from a rule it broke.
+ */
+const SETTLE_SAVES = tool({
+  name: 'settle_saves',
+  description:
+    'Roll every saving throw the world owes and nobody has rolled — the repeats a turn boundary raised, and the ones a moment forced: a Death Burst going off when a creature dies, an aura catching somebody whose turn has just begun. The engine reads the DC off whatever raised the save and applies what a failure costs; you supply nothing but the instruction to do it now. `look` reports them as outstanding, and ending the turn refuses while any stand, so call it as soon as the state shows one. Sweeping when nothing is owed is an empty answer rather than a refusal.',
+  mutates: true,
+  input: z.object({}),
+  run: (context) =>
+    settle(
+      context,
+      resolvePendingSaves(context.campaign.state(), context.campaign.supply(), identity(context)),
+      (value) => value.events,
+      (value) => ({
+        savesRolled: value.saves.map((save) => ({ label: save.label, success: save.success })),
+        savesOutstanding: value.pending.length,
+        duplicate: value.duplicate ?? false,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 const SETTLE_AREA_EFFECTS = tool({
   name: 'settle_area_effects',
   description:
@@ -5202,6 +5245,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   SET_SCENE,
   SETTLE_AREA_EFFECTS,
   SETTLE_ATTACK,
+  SETTLE_SAVES,
   SETTLE_DAMAGE,
   SHEET,
   STABILISE_CREATURE,

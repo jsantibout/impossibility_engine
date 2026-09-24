@@ -62,6 +62,7 @@ import {
   liftConditionFrom,
   damageCreature,
   declareCreatureType,
+  declareDamageType,
   declareFalling,
   declareObject,
   activateDevice,
@@ -2151,6 +2152,17 @@ const GUARDED: readonly Guarded[] = [
     name: 'declareCreatureType',
     log: untyped(),
     run: (s, commandId) => declareCreatureType(s, C, 'Fey', { commandId }),
+  },
+  {
+    /**
+     * The word a stat block declined to print, ruled on by the table — and
+     * **re-declarable**, which is the sharper retry question of the two above
+     * it: the same id twice is one ruling, and a second under a new id is a
+     * table changing its mind about which dragon this is.
+     */
+    name: 'declareDamageType',
+    log: SETUP,
+    run: (s, commandId) => declareDamageType(s, B, 'fire', { commandId }),
   },
   {
     /**
@@ -4726,7 +4738,9 @@ describe('every command that can reach a die can reach the event that records it
    *
    * `commands/actions.ts` is handed to the analysis with its `'rolls-issued'`
    * taken back out, which is the file as it shipped. The command still counts
-   * as recording, because it calls `dealSpellDamage` in `commands/damage.ts`,
+   * as recording, because it calls `forcePrintedSaveOn` in
+   * `commands/printed-save-clauses.ts` — the body it shares with the save a
+   * moment forces — which calls `dealSpellDamage` in `commands/damage.ts`,
    * which calls `resolveDamage` in `commands/casting.ts`, which emits one —
    * for its own dice, on a branch this command does not take. Reachability is
    * an over-approximation on the recording side and there is no honest way to
@@ -4757,7 +4771,8 @@ describe('every command that can reach a die can reach the event that records it
     expect(shipped.records.has('commands/actions.ts#forcePrintedSave')).toBe(true);
 
     // And the path is the one named above, rather than some other one.
-    expect(ENGINE_SOURCE['commands/actions.ts']!).toMatch(/\bdealSpellDamage\(/);
+    expect(ENGINE_SOURCE['commands/actions.ts']!).toMatch(/\bforcePrintedSaveOn\(/);
+    expect(ENGINE_SOURCE['commands/printed-save-clauses.ts']!).toMatch(/\bdealSpellDamage\(/);
     expect(ENGINE_SOURCE['commands/damage.ts']!).toMatch(/\bresolveDamage\(/);
     expect(ENGINE_SOURCE['commands/casting.ts']!).toContain("type: 'rolls-issued'");
 

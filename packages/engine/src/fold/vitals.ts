@@ -15,7 +15,16 @@ import {
   setExhaustion,
   type ConditionState,
 } from '../conditions.js';
-import { timerKey, type TimedEffect } from '../timers.js';
+import { ABILITY_NAMES } from '@ie/shared';
+import { printedLineSource, triggeredSavesOf } from '../monster.js';
+import { creaturesInArea } from '../positioning.js';
+import {
+  pendingSaveKey,
+  printedSaveKey,
+  timerKey,
+  type PendingSave,
+  type TimedEffect,
+} from '../timers.js';
 import {
   applyDamageToVitals,
   dropToZero,
@@ -27,6 +36,7 @@ import {
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
 import { tally } from '../resources.js';
+import { sortedRecord } from './common.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -426,3 +436,97 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
 
   return unhandledEvent(event);
 }
+
+/**
+ * The bursts the creatures that just died owe the room.
+ *
+ * SRD Magmin: "The magmin explodes when it dies. _Dexterity Saving Throw:_ DC
+ * 11, each creature in a 10-foot Emanation originating from the magmin."
+ *
+ * **Derived, and comparing two states rather than reading one event**, which
+ * is not a shortcut but the only honest reading: a monster dies inside
+ * `applyDamageToVitals` off a `damage-taken`, a character dies off
+ * `exhaustion-set` at level 6, and `creature-died` is only the deaths nobody
+ * else settled. The fact is "was alive, now is not", and the population of
+ * events that can produce it is not a list anybody could keep correct. So the
+ * question is asked of the world before and the world after, the way every
+ * derived pass in `apply.ts` asks its own.
+ *
+ * **Raised rather than rolled**, which is the split this whole family is built
+ * on: the reducer throws no dice, so it records what is owed and
+ * `resolvePendingSaves` settles it — and until somebody does, `resolveTurn`
+ * refuses to advance. A burst forgotten stops the game rather than quietly
+ * going off in nobody's face.
+ *
+ * **A creature nobody placed bursts over nobody.** The Emanation is measured
+ * from the dead creature's space, and `creaturesInArea` answers "not in it"
+ * for anyone the scene has no position for — the engine does not guess where
+ * anybody might be standing, which is the reading every area in it already
+ * takes. Out of combat the debt is stamped turn 0, which is the same number
+ * every other debt outside a fight carries.
+ */
+export function raiseDeathBursts(before: GameState, after: GameState): GameState {
+  const raised: Record<string, PendingSave> = {};
+  const turn = after.combat?.turnsTaken ?? 0;
+
+  for (const key of Object.keys(after.creatures).sort()) {
+    const now = after.creatures[key];
+    if (now === undefined || !now.vitals.dead) continue;
+    if (before.creatures[key]?.vitals.dead !== false) continue;
+
+    const dead = key as CharacterId;
+    for (const { line, save } of triggeredSavesOf(now.sheet)) {
+      if (save.trigger?.kind !== 'dies') continue;
+      for (const caught of caughtByTheBurst(after, dead, save)) {
+        const effectKey = printedSaveKey(dead, line, caught);
+        raised[pendingSaveKey(effectKey, turn)] = {
+          effectKey,
+          target: caught,
+          source: printedLineSource(dead, line),
+          ability: save.ability,
+          dc: save.dc,
+          label: `${ABILITY_NAMES[save.ability]} save vs ${line}`,
+          turn,
+          printed: { by: dead, line },
+        };
+      }
+    }
+  }
+
+  if (Object.keys(raised).length === 0) return after;
+  return { ...after, pendingSaves: sortedRecord({ ...after.pendingSaves, ...raised }) };
+}
+
+/**
+ * Who a burst reaches, off the targeting clause the block printed.
+ *
+ * "each creature in a 10-foot Emanation originating from the magmin" is the
+ * shape all five print, so the radius is read out of it here rather than
+ * carried on the trigger: a Death Burst's reach is a fact about *who it
+ * catches*, which is the targeting clause's business, and the trigger says
+ * only *when*. A clause this cannot measure catches nobody and the line's
+ * sentence is still on the sheet for a DM to read.
+ *
+ * The dead creature itself is out of it, which is `creaturesInArea`'s default
+ * for an Emanation and is also the rule: the magmin is already gone.
+ */
+function caughtByTheBurst(
+  state: GameState,
+  dead: CharacterId,
+  save: { readonly targets: string },
+): readonly CharacterId[] {
+  if (state.scene === null) return [];
+  const clause = BURST_EMANATION.exec(save.targets);
+  if (clause === null) return [];
+  const inside = creaturesInArea(state.scene, { creature: dead }, {
+    kind: 'emanation',
+    distance: Number(clause[1]),
+  });
+  if (!inside.ok) return [];
+  // Sorted, because a fold is a pure function of the log and the order the
+  // debts are filed in is the order `resolvePendingSaves` throws dice in.
+  return [...inside.value].sort();
+}
+
+/** SRD's "each creature in a 10-foot Emanation originating from the magmin". */
+const BURST_EMANATION = /^each creature in a (\d+)-foot Emanation originating from the [a-z' -]+$/;

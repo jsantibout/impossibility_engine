@@ -48,6 +48,11 @@ const NO_ARGUMENTS = [
   'look',
   'settle_area_effects',
   'settle_damage',
+  // The seventh, and `settle_area_effects`' twin in every way that matters:
+  // the debt is in state, the DC was pinned when the moment raised it, and the
+  // caller is instructing the engine to settle what it is owed rather than
+  // naming one. A field here would be a caller producing a number.
+  'settle_saves',
 ];
 
 describe('every schema rejects a malformed call', () => {

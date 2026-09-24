@@ -242,6 +242,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'damage-scheduled',
   'damage-settled',
   'damage-taken',
+  'damage-type-declared',
   'dash-taken',
   'death-save-recorded',
   'decoy-destroyed',

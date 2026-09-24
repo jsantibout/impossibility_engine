@@ -1115,7 +1115,14 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And thirty-four more with Magic Resistance, which is one sentence over
       // devils, golems, genies, hags and the rest — the Rakshasa's Greater
       // Magic Resistance is refused whole, which is the count saying so.
-      traits: { printed: 337, read: 137 },
+      // And ten more when a save a **moment** forces was read: six Death
+      // Bursts (the Magmin, the four Mephits and the Balor's Death Throes)
+      // and four auras that ask at the start of a turn (the Ghast's and the
+      // Hezrou's Stench, the Gibbering Mouther's Gibbering and the Sea Hag's
+      // Vile Appearance). This section read no save at all before that: a
+      // trait is not a line a creature spends, so a save on one was a die
+      // nothing could ever throw until the fold learned to raise it.
+      traits: { printed: 337, read: 147 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read
@@ -1146,7 +1153,11 @@ describe('what a stat block’s sections print, and what is read', () => {
       // rung as a plain failure of its own — "the target has the Paralyzed
       // condition, **and it** repeats the save at the end of each of its
       // turns" — and was unread only for the pronoun.
-      actions: { printed: 811, read: 760 },
+      // And one more with the damage type a block leaves to the table: the
+      // Half-Dragon's Dragon's Breath, whose "damage of the type chosen for
+      // the Draconic Origin trait" is read as a type still unanswered and
+      // refuses to roll until a DM has declared it.
+      actions: { printed: 811, read: 761 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

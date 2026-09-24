@@ -40,6 +40,7 @@ export const ROSTER_EVENTS = [
   'creature-heads-declared',
   'spellcasting-declared',
   'creature-type-declared',
+  'damage-type-declared',
 ] as const;
 
 /** The narrowed union this seam reduces, `Extract`ed from the list above. */
@@ -78,6 +79,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             lastShortRestAt: null,
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
+            // Nobody has said, which is what every log written before this
+            // field existed says — so both frozen fixtures fold unchanged, and
+            // the one line in the book that wants it asks rather than guesses.
+            declaredDamageType: null,
             defenses: event.defenses ?? {},
             // Absent means none, which is what every log written before this
             // field existed says — so both frozen fixtures fold unchanged.
@@ -292,6 +297,17 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
         );
       }
       return withCreature(next, event.id, { creatureType: event.creatureType }, creature);
+    }
+
+    case 'damage-type-declared': {
+      const creature = creatureOf(state, event, event.id);
+      // **Replaced rather than held against a contradiction**, which is the
+      // opposite of the neighbour above and for the reason the neighbour gives:
+      // a creature's type is what it *is*, and this is a choice a table made
+      // about a block that printed five and chose none. A DM who says "Fire"
+      // and then "Cold" has changed their mind about a half-dragon, not
+      // rewritten a fact a spell was cast on the strength of.
+      return withCreature(next, event.id, { declaredDamageType: event.damageType }, creature);
     }
   }
 

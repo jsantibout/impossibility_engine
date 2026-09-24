@@ -392,15 +392,29 @@ describe('reading a printed rider as a sequence', () => {
 
   /**
    * SRD Half-Dragon's Claw. The damage type is on the block's Draconic Origin
-   * trait, which the parser kept nothing structured of — "(GM's choice)" — so
-   * there is no fact to read and the whole clause is the table's.
+   * trait, which ends "(GM's choice)" — so the amount is read and the type
+   * comes back as the word that is not a damage type. The swing asks a DM for
+   * the real one and reports the clause unapplied until somebody answers; the
+   * *sentence* is no longer a debt, and the ledger says so.
    */
-  it('hands back a damage type only the GM has chosen', () => {
+  it('reads the amount of a damage type only the GM has chosen', () => {
     const read = readPrintedRiders(
       '7 (2d6) damage of the type chosen for the Draconic Origin trait.',
     );
-    expect(read.riders).toEqual([]);
-    expect(read.handedOver).toHaveLength(1);
+    expect(read.riders).toEqual([
+      { kind: 'damage', how: 'extra', dice: '2d6', flat: 0, type: 'declared' },
+    ]);
+    expect(read.handedOver).toEqual([]);
+  });
+
+  /**
+   * And the connective the attack parser ate is the **only** thing that may be
+   * missing, because a clause whose polarity nobody printed is one this reader
+   * has no business guessing at.
+   */
+  it('still refuses a bare amount whose type the book did print', () => {
+    expect(readPrintedRiders('7 (2d6) Fire damage.').riders).toEqual([]);
+    expect(readPrintedRiders('7 (2d6) Fire damage.').handedOver).toHaveLength(1);
   });
 
   /**

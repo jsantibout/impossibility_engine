@@ -23,6 +23,7 @@ import {
   type RollMode,
   type Skill,
 } from '@ie/shared';
+import type { MonsterSave } from '@ie/srd';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
 import { currentCombatant, extraActionsOwedAtTurnStart, spendAction } from '../combat.js';
@@ -33,11 +34,12 @@ import {
   pendingSaveKey,
   type GrantedPayout,
   type PendingSave,
+  type PrintedSaveDebt,
   type ScheduledDamage,
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
+import { printedSaveOf, RECHARGE_DIE, rechargeMade, rechargeOfLine } from '../monster.js';
 import { rollRecorded } from '../rolls.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
@@ -47,7 +49,13 @@ import {
   type OwedAreaEffect,
   spellOfSource,
 } from '../spells.js';
-import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
+import {
+  actionRulesOn,
+  canSee,
+  effectiveConditions,
+  rollModesFor,
+  sheetAsItStands,
+} from '../standing.js';
 import { healingRuleOf, isDown, maximisedHealing, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
 import { schedule } from './conditions.js';
@@ -55,6 +63,7 @@ import { type DamageComponent } from '../attack.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { grantTemporaryHpTo, healCreature, strandedSummons } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
+import { forcePrintedSaveOn, withDeclaredDamage } from './printed-save-clauses.js';
 import { mayAct, pendingCastingsOf, pendingSavesOf } from './holds.js';
 import {
   checkBonuses,
@@ -1272,6 +1281,179 @@ function burnBeforeTheSave(
 }
 
 /**
+ * Settle one save a printed line's own moment forced.
+ *
+ * A Death Burst the fold raised when the magmin died, an aura raised because
+ * somebody's turn began inside it. **The debt carries two strings and the
+ * numbers stay where they were pinned** — `printedSaveOf` reads the line back
+ * off the holder's own sheet, which is the rule `conditionEndedBy` keeps about
+ * a repeat save and for the same reason: one fact, one place, nothing to
+ * disagree.
+ *
+ * Three things can leave the debt unrollable, and none of them is a rule
+ * broken, so each discharges it and says so rather than wedging the turn
+ * order:
+ *
+ * - the holder has left the game, taking its pinned block with it;
+ * - the line is no longer on that sheet — a shape assumed or reverted since;
+ * - the target has left, or is already dead, and a burst that catches a corpse
+ *   is a save nobody is there to make.
+ *
+ * The one thing that *is* a refusal is the damage type nobody has declared,
+ * and it comes back as `needsContext` so a caller can answer it and send the
+ * same command again: the debt stands until they do, which is what a debt is
+ * for.
+ */
+function settlePrintedSave(
+  state: GameState,
+  pending: PendingSave,
+  debt: PrintedSaveDebt,
+  supply: Supply,
+): Result<{
+  readonly events: readonly GameEvent[];
+  readonly unverified: readonly string[];
+  readonly save: ResolvedRepeatSave | null;
+}> {
+  const discharge = (why: string) =>
+    ok({
+      events: [
+        {
+          type: 'effect-save-resolved' as const,
+          effectKey: pending.effectKey,
+          turn: pending.turn,
+          // No save was thrown, so nothing was made — and `false` is what the
+          // fold reads as "clear the debt and do nothing", which is the whole
+          // of what is wanted here.
+          success: false,
+        },
+      ],
+      unverified: [why],
+      save: null,
+    });
+
+  const holder = state.creatures[debt.by];
+  if (holder === undefined) {
+    return discharge(
+      `${debt.by} is no longer in this game, so its ${debt.line} could not be rolled against ${pending.target}`,
+    );
+  }
+  const printed = printedSaveOf(holder.sheet, debt.line);
+  if (printed === null) {
+    return discharge(
+      `${debt.by}'s sheet no longer prints ${debt.line}, so the save it owed ${pending.target} could not be rolled`,
+    );
+  }
+  const victim = state.creatures[pending.target];
+  if (victim === undefined || victim.vitals.dead) {
+    return discharge(
+      `${pending.target} is beyond ${debt.by}'s ${debt.line} by the time it was rolled`,
+    );
+  }
+
+  const answered = withDeclaredDamage(state, debt.by, debt.line, printed);
+  if (!answered.ok) return answered;
+
+  const landed = forcePrintedSaveOn(
+    state,
+    debt.by,
+    pending.target,
+    debt.line,
+    answered.value,
+    supply,
+  );
+  if (!landed.ok) return landed;
+
+  return ok({
+    events: [
+      ...landed.value.events,
+      {
+        type: 'effect-save-resolved' as const,
+        effectKey: pending.effectKey,
+        turn: pending.turn,
+        success: landed.value.outcome.save.success,
+      },
+    ],
+    unverified: [
+      ...landed.value.unverified,
+      // **What the raiser could not check, said out loud here.** The fold
+      // raised this debt and had nobody to ask, so a clause it could not
+      // evaluate was applied rather than dropped — the direction this
+      // repository takes everywhere, and the direction that is only honest if
+      // somebody is told. The moment to tell them is the moment the save was
+      // rolled, which is here.
+      ...unstatedFacts(state, debt, pending.target, printed),
+      // The sentences the reader carried and did not read, handed to the table
+      // at the moment of use exactly as a spell's unmodelled lines are — and
+      // the moment is *here*, because nobody chose it. SRD Gibbering Mouther's
+      // d8 table is the one this was built for.
+      ...(printed.handedOver ?? []).map(
+        (sentence) =>
+          `${debt.line}: "${sentence}" — the engine applied the rest of the line; this sentence is the table's`,
+      ),
+    ],
+    save: {
+      effectKey: pending.effectKey,
+      target: pending.target,
+      ability: pending.ability,
+      dc: pending.dc,
+      label: pending.label,
+      save: landed.value.outcome.save,
+      success: landed.value.outcome.save.success,
+    },
+  });
+}
+
+/**
+ * The facts an aura's own clause asks about and nobody has stated.
+ *
+ * SRD Sea Hag's Vile Appearance catches "any **Beast or Humanoid** that starts
+ * its turn within 30 feet of the hag **and can see the hag's true form**", and
+ * the engine may know neither: `canSee` is three-valued and null is "nobody
+ * has said", and a creature's type is null until a stat block, a species or a
+ * declaration settles it.
+ *
+ * **Both fail open**, which is the raiser's decision and is the right one: the
+ * engine cannot show the creature is exempt, and an aura going quiet on a fact
+ * nobody stated would be the rule missing in silence. What makes that honest
+ * rather than merely convenient is *saying so* — the reading
+ * `applyPrintedClauses` already takes of a size gate it could not evaluate,
+ * through the channel a boundary already carries for four other rules.
+ *
+ * **Read here rather than carried on the debt**, which is the rule this file
+ * keeps about everything a `PendingSave` does not say: the line is on the
+ * holder's pinned sheet and the facts are in state, and the honest moment to
+ * ask is the moment the die is thrown rather than the moment the debt was
+ * filed.
+ *
+ * Empty for every line that asks neither, which is every printed save in the
+ * book but the hag's.
+ */
+function unstatedFacts(
+  state: GameState,
+  debt: PrintedSaveDebt,
+  target: CharacterId,
+  printed: MonsterSave,
+): readonly string[] {
+  const said: string[] = [];
+  const trigger = printed.trigger;
+  if (
+    trigger?.kind === 'starts-turn-within' &&
+    trigger.onlyIf === 'can-see-holder' &&
+    canSee(state, target, debt.by) === null
+  ) {
+    said.push(
+      `${debt.line} reaches a creature that can see ${debt.by}, and nobody has said whether ${target} can — the save was asked for anyway, because the engine cannot show they could not, and declareSightBetween settles it`,
+    );
+  }
+  if (printed.onlyIfTargetType !== undefined && state.creatures[target]?.creatureType == null) {
+    said.push(
+      `${debt.line} reaches only ${printed.onlyIfTargetType.join(' or ')}, and nobody has said what ${target} is — the save was asked for anyway, and declareCreatureType settles it`,
+    );
+  }
+  return said;
+}
+
+/**
  * Roll the turn-boundary saves a state already owes.
  *
  * The deferred half of {@link resolveTurn}: a caller who advanced without a
@@ -1318,6 +1500,29 @@ export function resolvePendingSaves(
     let burnt = state;
 
     for (const pending of owed) {
+      // **A save a printed line's own moment forced**, which is the other kind
+      // of debt and is settled whole by the executor that settles one a
+      // creature spends: the same halving, the same Evasion, the same clauses,
+      // the same funnel. Nothing below it applies — a printed line holds no
+      // effect for a success to end, deals its damage *after* the save rather
+      // than before it, and has no timer to deepen.
+      //
+      // **Before the creature is looked up**, because a target who has left
+      // the game is a debt to discharge with a word and not a command to
+      // refuse: nothing drops one of these — `dropOrphanedSaves` has no timer
+      // to find gone — so a refusal here would wedge every later turn on a
+      // creature nobody can bring back. A repeat save keeps the refusal below,
+      // where its timer went with the creature.
+      if (pending.printed !== undefined) {
+        const settled = settlePrintedSave(burnt, pending, pending.printed, supply);
+        if (!settled.ok) return settled;
+        events.push(...settled.value.events);
+        unverified.push(...settled.value.unverified);
+        burnt = settled.value.events.reduce(applyEvent, burnt);
+        if (settled.value.save !== null) saves.push(settled.value.save);
+        continue;
+      }
+
       const creature = state.creatures[pending.target];
       if (creature === undefined) {
         return unknownCreature(pending.target, 'owes a save but is not in this game');

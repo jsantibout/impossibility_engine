@@ -220,6 +220,33 @@ export interface StatedAction {
 }
 
 /**
+ * One line a stat block prints under **Traits** whose save a *moment* forces.
+ *
+ * SRD Magmin's Death Burst and SRD Ghast's Stench: the template word for word,
+ * under a heading nobody spends. That is exactly why they are here and why
+ * they were nowhere for two batches — a trait is not a line a creature takes,
+ * so `forcePrintedSave` cannot reach one, and a save nothing could reach was a
+ * die nothing could ever throw.
+ *
+ * What changed is that `MonsterSave.trigger` says *when*: the fold raises the
+ * save the moment settles — a death, a turn beginning inside the aura — and
+ * `resolvePendingSaves` rolls it. So the raiser needs the line on the pinned
+ * sheet, where every other stat-block fact is pinned.
+ *
+ * **Only the lines that carry a save**, which is ten across the whole
+ * bestiary. A trait's *mechanic* is {@link StatedValues.traits}, a different
+ * vocabulary with a different reader, and a trait that is neither is prose in
+ * the catalogue where a DM reads it.
+ */
+export interface StatedTrait {
+  readonly name: string;
+  /** The book's sentence, verbatim, because what the engine hands back quotes it. */
+  readonly text: string;
+  /** The saving throw the line forces — always one a trigger says the moment of. */
+  readonly save: MonsterSave;
+}
+
+/**
  * A day's grace from **one creature's one printed line**.
  *
  * > SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
@@ -343,6 +370,18 @@ export interface StatedValues {
    * stay prose in the catalogue, where a DM reads them.
    */
   readonly traits?: readonly MonsterTrait[];
+  /**
+   * The block's trait lines that force a save, in printed order.
+   *
+   * Beside {@link traits} rather than inside it, because the two are different
+   * questions with different readers: a `MonsterTrait` is a mechanic a
+   * standing rule consults, and this is a line with a DC and a moment on it
+   * that the fold raises and a command rolls. See {@link StatedTrait}.
+   *
+   * Absent for every character and for every block whose traits print no save,
+   * which is all but ten in the SRD.
+   */
+  readonly traitSaves?: readonly StatedTrait[];
   /**
    * The **named sequence** the block's Multiattack prints, where it prints one
    * this engine can execute.

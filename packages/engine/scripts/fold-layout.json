@@ -95,7 +95,10 @@
     "forgetSustainedTurns",
     "raiseTurnEnd",
     "openTurnStart",
-    "reachStartOfTurn"
+    "reachStartOfTurn",
+    "raiseStartOfTurnAuras",
+    "aurasCaughtAtStart",
+    "standsInside"
   ],
   "fold/expiry.ts": [
     "viewOf",
@@ -145,7 +148,10 @@
     "withoutTimersFor",
     "clearTemporaryHp",
     "withoutTemporaryHpDeadline",
-    "applyVitals"
+    "applyVitals",
+    "raiseDeathBursts",
+    "caughtByTheBurst",
+    "BURST_EMANATION"
   ],
   "fold/upkeep.ts": [
     "UPKEEP_EVENTS",

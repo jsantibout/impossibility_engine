@@ -1419,6 +1419,34 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A damage type a stat block prints no word for, ruled on by the table.
+   *
+   * SRD Half-Dragon's Draconic Origin: "The half-dragon is related to a type
+   * of dragon associated with one of the following damage types **(GM's
+   * choice)**: Acid, Cold, Fire, Lightning, or Poison." Two of its lines read
+   * their type off that trait — the Claw's second component and the Dragon's
+   * Breath — and until somebody answers, neither can roll.
+   *
+   * **A ruling recorded rather than a number produced**, which is the whole of
+   * why it is on the DM's door and nowhere else: the amount is the book's, the
+   * dice are the engine's, and the one thing left is a word the block declined
+   * to print. Bounds-checked only to the extent that the word has to *be* a
+   * damage type; which of the five it is, is not the engine's business, and
+   * the book's list is the block's own prose rather than anything parsed.
+   *
+   * Re-declarable, on `declareDifficultTerrain`'s rule rather than
+   * `creature-type-declared`'s: a creature's type is what it *is* and cannot
+   * be contradicted, and this is a choice a table made and may make again for
+   * the next half-dragon it puts the same id on.
+   */
+  | {
+      readonly type: 'damage-type-declared';
+      readonly id: CharacterId;
+      /** One of the engine's damage types, lower-cased. */
+      readonly damageType: string;
+      readonly command?: CommandStamp;
+    }
+  /**
    * Death that does not come from running out of hit points — Exhaustion
    * reaching 6, a spell that simply kills. Damage is the wrong instrument for
    * these: a healthy creature taking exactly its maximum in damage drops to 0,

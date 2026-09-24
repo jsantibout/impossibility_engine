@@ -125,6 +125,16 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
       const cleared: GameState = { ...next, pendingSaves };
       if (!event.success) return cleared;
 
+      // **A printed line's debt has nothing for a success to end.** A repeat
+      // save is a save *against something the engine is holding* — a condition,
+      // a casting — and making it is how a creature puts that thing down. A
+      // Death Burst and a Stench hold nothing: the save decides what the line
+      // does, and what it does lands through `applyPrintedClauses` in the same
+      // batch, including SRD's "_Success:_ The target is immune to this
+      // ghast's Stench for 24 hours". So the debt is discharged and the fold
+      // is finished with it.
+      if (pending.printed !== undefined) return cleared;
+
       // **A source that is not a casting ends on its own timer.** A potion's
       // Poisoned is filed under `item:<id>` and there is no casting to release
       // on a target, no Concentration to drop and nothing in `ongoing`; what

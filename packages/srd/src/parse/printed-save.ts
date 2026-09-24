@@ -24,12 +24,31 @@
  * what it did not, and the ledger keeps the block in its population until the
  * last sentence is spent.
  *
- * Two families are refused whole rather than read down to the part that fits,
- * because half of each is a rule nobody printed: a trigger or a movement
- * printed before the save ("The mephit explodes when it dies", "The bulette
- * spends 5 feet of movement"), and a damage type the block leaves to another
- * trait. Each sentence is read **transactionally**: one whose second half the
- * grammar does not know is carried whole, never half-applied.
+ * A sentence is read **transactionally**: one whose second half the grammar
+ * does not know is carried whole, never half-applied. A movement printed
+ * before the save ("The bulette spends 5 feet of movement") still refuses the
+ * line for that reason, because half of it is a rule nobody printed.
+ *
+ * **Two families that were refused whole are now read, and each was refused
+ * for want of somewhere to put an answer rather than for want of a grammar.**
+ *
+ * A **trigger** printed before the save — "The magmin explodes when it dies" —
+ * was refused because a line read without it is a Death Burst a creature sets
+ * off on purpose. The answer was never to drop the sentence; it was to have a
+ * field for the moment. So `MonsterSave.trigger` says *when*, the fold raises
+ * the save the moment settles, and the command that already rolls the saves a
+ * boundary owes rolls this one. The same field holds the aura the book writes
+ * into a targeting clause — "any creature that starts its turn in a 5-foot
+ * Emanation originating from the ghast" — and a clause that says a turn is
+ * beginning in words this cannot measure refuses the line, because an aura
+ * without its moment would be an aura a caller *spends*.
+ *
+ * A **damage type the block leaves to another trait** — SRD Half-Dragon's
+ * "damage of the type chosen for the Draconic Origin trait" — was refused
+ * because a type nobody has stated is not a type. It still is not: the amount
+ * is read and the type comes back as `declared`, which is a word and not a
+ * damage type, and every engine reader that meets it asks the table before it
+ * rolls anything.
  *
  * **Transactionally, with one seam, and it is declared rather than discovered.**
  * A clause may be read *and* carry words it did not model — `Scratch.carried`
@@ -99,11 +118,14 @@
  * thing to read on a widened word.
  */
 
+import { DECLARED_DAMAGE_TYPE } from '../schemas.js';
 import type {
   MonsterDamage,
   MonsterSave,
+  PrintedAuraCondition,
   PrintedSaveClause,
   PrintedSaveEffect,
+  PrintedSaveTrigger,
   PrintedSpan,
 } from '../schemas.js';
 
@@ -210,8 +232,62 @@ const SIZES: Readonly<Record<string, NonNullable<ConditionEffect['ifNoLargerThan
  * splits the two apart rather than filing a rule about the source under who
  * the line catches. No SRD targeting clause contains a full stop, which is
  * what makes that split safe and is asserted over the corpus.
+ *
+ * **And what sits before the opening is the first capture**, which is the
+ * change that let eight lines be read at all. It was anchored at `^_`, so any
+ * sentence in front of the template refused the line whole — which was right
+ * while the reader had nowhere to put a trigger, and is now {@link readPrelude}'s
+ * question rather than the anchor's. The capture is lazy, so it takes the
+ * shortest run up to the first `_<Ability> Saving Throw:_` in the line, and it
+ * is empty for every line the reader took before this.
  */
-const OPENING = /^_([A-Za-z]+) Saving Throw:_ DC (\d+), (.+?)\. (_(?:First )?Failure:_ .*)$/;
+const OPENING =
+  /^(.*?)_([A-Za-z]+) Saving Throw:_ DC (\d+), (.+?)\. (_(?:First )?Failure:_ .*)$/;
+
+/**
+ * SRD Magmin: "The magmin explodes when it dies."
+ *
+ * The five Death Bursts at CR ≤ 5 print this sentence with their own noun in
+ * it, and it is the whole of the sentence: a trigger the reader could only
+ * half-read would be a Death Burst a creature sets off on purpose.
+ */
+const EXPLODES_ON_DEATH = /^The [a-z' -]+ explodes when it dies\.$/;
+
+/**
+ * SRD Gibbering Mouther: "The mouther babbles incoherently while it doesn't
+ * have the Incapacitated condition."
+ *
+ * Not a trigger of its own — it is the **definition** the targeting clause
+ * below leans on when it says "while it is babbling", which is why the two are
+ * read together or neither is. Nothing else in the corpus prints it.
+ */
+const BABBLES_WHILE_NOT_INCAPACITATED =
+  /^The [a-z' -]+ babbles incoherently while it doesn't have the Incapacitated condition\.$/;
+
+/** SRD Sea Hag: "… and can see the hag's true form", the tail of a targeting clause. */
+const AURA_SIGHT = /^(.*) and can see the [a-z' -]+'s true form$/;
+
+/** SRD Gibbering Mouther: "… while it is babbling", the same slot. */
+const AURA_BABBLING = /^(.*) while it is babbling$/;
+
+/** SRD Ghast: "any creature that starts its turn in a 5-foot Emanation originating from the ghast". */
+const AURA_EMANATION =
+  /^any (.+?) that starts its turn in a (\d+)-foot Emanation originating from the [a-z' -]+$/;
+
+/** SRD Gibbering Mouther and SRD Sea Hag: the same moment measured with a ruler. */
+const AURA_RADIUS = /^any (.+?) that starts its turn within (\d+) feet of the [a-z' -]+$/;
+
+/**
+ * The words that say a clause is about a turn **beginning**, whatever else it
+ * says.
+ *
+ * The guard rather than the reader: a targeting clause with these words in it
+ * that {@link readAuraTrigger} could not read is a moment this cannot raise,
+ * and a line kept without its moment would be an aura a caller *spends* — SRD
+ * Pit Fiend's Fear Aura, whose radius is in a sentence of its own, read as a
+ * Wisdom save the pit fiend takes an Action to force.
+ */
+const STARTS_ITS_TURN = /starts its turn/;
 
 /**
  * The section markers the book prints after the opening.
@@ -246,9 +322,23 @@ const BY_MARGIN = /^Failure by (\d+) or More$/;
 const SECOND_FAILURE =
   /^The target has the ([A-Z][a-z]+) condition instead of the ([A-Z][a-z]+) condition$/;
 
+/**
+ * The type slot of a printed amount, which the book writes two ways.
+ *
+ * `Fire damage` is the ordinary one and is captured. `damage of the type
+ * chosen for the Draconic Origin trait` is SRD Half-Dragon's, and it captures
+ * **nothing** — there is no word there to capture, which is the whole of what
+ * the sentence says. {@link damageOf} reads an absent capture as
+ * {@link DECLARED_DAMAGE_TYPE}, so the alternation still contributes exactly
+ * one group and the offsets either side of it are the ones they always were.
+ */
+const TYPE_SLOT = `(?:([A-Za-z]+) damage|damage of the type chosen for the [A-Za-z][A-Za-z' -]* trait)`;
+
 /** `17 (5d6) Fire damage`, `16 (2d10 + 5) Bludgeoning damage`, with an optional second component after `plus`. */
-const DAMAGE =
-  /^(\d+) \((\d+)d(\d+)(?:\s*([+−–-])\s*(\d+))?\) ([A-Za-z]+) damage(?: plus (\d+) \((\d+)d(\d+)(?:\s*([+−–-])\s*(\d+))?\) ([A-Za-z]+) damage)?/;
+const DAMAGE = new RegExp(
+  `^(\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) ${TYPE_SLOT}` +
+    `(?: plus (\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) ${TYPE_SLOT})?`,
+);
 
 /** "until the start of its next turn", "until the end of the mephit's next turn". */
 const UNTIL_TURN = /^until the (start|end) of (its|the [a-z'-]+(?: [a-z'-]+)*'s) next turn$/;
@@ -634,8 +724,12 @@ function spanOf(words: string): PrintedSpan | null {
 }
 
 function damageOf(match: RegExpExecArray, offset: number): MonsterDamage | null {
-  const type = match[offset + 5]!.toLowerCase();
-  if (!DAMAGE_TYPES.has(type)) return null;
+  // **An absent capture is the book declining to name a type**, not a misread
+  // line: {@link TYPE_SLOT}'s second alternative matches the whole phrase and
+  // captures nothing, so the amount is read and the type is the table's.
+  const word = match[offset + 5];
+  const type = word === undefined ? DECLARED_DAMAGE_TYPE : word.toLowerCase();
+  if (type !== DECLARED_DAMAGE_TYPE && !DAMAGE_TYPES.has(type)) return null;
   const sign = match[offset + 3] === undefined ? 1 : match[offset + 3] === '+' ? 1 : -1;
   return {
     dice: `${match[offset + 1]}d${match[offset + 2]}`,
@@ -1360,6 +1454,98 @@ function headOf(head: string): { readonly targets: string; readonly carried: rea
   return { targets: split[1]!, carried: [carried.endsWith('.') ? carried : `${carried}.`] };
 }
 
+/**
+ * What the sentence before the opening said.
+ *
+ * Three answers and no fourth. A prelude the reader cannot place refuses the
+ * line, exactly as it did when the opening's anchor refused it: half a rule is
+ * nobody's, and "The bulette spends 5 feet of movement" is a cost the engine
+ * would otherwise skip straight past.
+ */
+type Prelude =
+  /** Nothing before the opening, which is every line the reader took before this. */
+  | { readonly kind: 'none' }
+  /** SRD's "The X explodes when it dies". */
+  | { readonly kind: 'dies' }
+  /** SRD Gibbering Mouther's definition of what it is to be babbling. */
+  | { readonly kind: 'babbling' };
+
+function readPrelude(before: string): Prelude | null {
+  const text = before.trim();
+  if (text === '') return { kind: 'none' };
+  if (EXPLODES_ON_DEATH.test(text)) return { kind: 'dies' };
+  if (BABBLES_WHILE_NOT_INCAPACITATED.test(text)) return { kind: 'babbling' };
+  return null;
+}
+
+/**
+ * The **types** a targeting clause narrows itself to, where it narrows itself
+ * to any.
+ *
+ * SRD Sea Hag: "any **Beast or Humanoid** that starts its turn…". The book's
+ * own capitalised words, because `creature-type-declared` writes exactly that
+ * vocabulary. "creature" is the ungated case and comes back empty; a word that
+ * is neither is a gate this cannot evaluate, and a gate dropped in silence
+ * would make the hag's aura catch a Construct.
+ */
+function typesOf(who: string): readonly string[] | null {
+  if (who === 'creature') return [];
+  const words = who.split(/ or |, /).map((word) => word.trim());
+  if (words.some((word) => !/^[A-Z][a-z]+$/.test(word))) return null;
+  return words;
+}
+
+/**
+ * The aura a targeting clause describes, or null where it describes one this
+ * cannot measure.
+ *
+ * The two riders the book prints are peeled off the end first, because each
+ * ends in the creature's own noun and a single pattern would have had to guess
+ * where the noun stopped. What is left is the clause proper, in the book's two
+ * measurements: an Emanation from the creature's space, or a ruler between two
+ * creatures.
+ */
+function readAuraTrigger(
+  targets: string,
+  prelude: Prelude,
+): { readonly trigger: PrintedSaveTrigger; readonly types: readonly string[] } | null {
+  let rest = targets;
+  let onlyIf: PrintedAuraCondition | undefined;
+
+  const sight = AURA_SIGHT.exec(rest);
+  if (sight !== null) {
+    onlyIf = 'can-see-holder';
+    rest = sight[1]!;
+  } else {
+    const babbling = AURA_BABBLING.exec(rest);
+    if (babbling !== null) {
+      // "While it is babbling" is a reference, and a reference with no
+      // antecedent names a gate that is not there.
+      if (prelude.kind !== 'babbling') return null;
+      onlyIf = 'holder-not-incapacitated';
+      rest = babbling[1]!;
+    }
+  }
+
+  const emanation = AURA_EMANATION.exec(rest);
+  const radius = emanation === null ? AURA_RADIUS.exec(rest) : null;
+  const match = emanation ?? radius;
+  if (match === null) return null;
+
+  const types = typesOf(match[1]!.trim());
+  if (types === null) return null;
+
+  return {
+    trigger: {
+      kind: 'starts-turn-within',
+      feet: Number(match[2]),
+      ...(emanation === null ? {} : { emanation: true as const }),
+      ...(onlyIf === undefined ? {} : { onlyIf }),
+    },
+    types,
+  };
+}
+
 /** What a `_Second Failure:_` turned out to say, before it is hung. */
 interface Rung {
   /** The deepening itself, in the words `RepeatSave.onFailure` is written in. */
@@ -1485,9 +1671,11 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     .trim();
   const opening = OPENING.exec(flat);
   if (opening === null) return null;
-  const ability = ABILITY_KEYS[opening[1]!];
+  const prelude = readPrelude(opening[1]!);
+  if (prelude === null) return null;
+  const ability = ABILITY_KEYS[opening[2]!];
   if (ability === undefined) return null;
-  const tail = opening[4]!;
+  const tail = opening[5]!;
 
   const starts: { kind: SectionKind; margin: number; at: number; end: number }[] = [];
   SECTION.lastIndex = 0;
@@ -1518,9 +1706,46 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     failure.kind === 'first-failure' ||
     sections.some((section) => section.kind === 'second-failure');
   const read = readSection(failure.text, { graded });
-  if (!read.readSomething) return null;
 
-  const head = headOf(opening[3]!);
+  const head = headOf(opening[4]!);
+
+  // **The moment, where a moment forces the save rather than a use.** The
+  // trigger is a fact about *when* — the sentence before the opening, or the
+  // targeting clause — so it is settled here, before the failure is judged:
+  // whether a failure this reader can read nothing out of refuses the line
+  // depends on the answer.
+  const aura = STARTS_ITS_TURN.test(head.targets) ? readAuraTrigger(head.targets, prelude) : null;
+  // A clause that says a turn is beginning and says it in words this cannot
+  // measure is a moment the engine could never raise, and the line kept
+  // without it would be an aura a caller *spends*.
+  if (STARTS_ITS_TURN.test(head.targets) && aura === null) return null;
+  // The two are never both printed, and one line saying both would be a
+  // creature that explodes and haunts at once — refused rather than told
+  // apart by which pattern ran first.
+  if (aura !== null && prelude.kind === 'dies') return null;
+  const trigger: PrintedSaveTrigger | null =
+    aura !== null ? aura.trigger : prelude.kind === 'dies' ? { kind: 'dies' } : null;
+  // A prelude that defined what babbling is, on a line whose targeting clause
+  // never said "while it is babbling", is a sentence read and then dropped.
+  if (
+    prelude.kind === 'babbling' &&
+    !(aura !== null && aura.trigger.kind === 'starts-turn-within' && aura.trigger.onlyIf === 'holder-not-incapacitated')
+  ) {
+    return null;
+  }
+
+  // **A failure the grammar reads nothing out of, kept only where a moment
+  // forces the line.** The rule everywhere else in this file is that such a
+  // line stays prose, because "a save the engine rolls and then does nothing
+  // with is a die thrown for no reason" — and that rule holds exactly because
+  // a *spendable* line has another door: `takeStatedAction` hands the sentence
+  // to the table and a DM adjudicates it. A trait nobody spends has no such
+  // door, so refusing it is not "the table does it by hand" but "the moment
+  // never arrives at all". SRD Gibbering Mouther's d8 table is the one line
+  // this admits: the save is rolled at the moment the book says it is, and the
+  // table it cannot hold is handed over at the instant the save fails.
+  if (!read.readSomething && trigger === null) return null;
+
   const handedOver = [...head.carried, ...read.handedOver];
   const either: PrintedSaveEffect[] = [];
   let onSuccessEffects: readonly PrintedSaveEffect[] = [];
@@ -1648,8 +1873,10 @@ export function parsePrintedSave(text: string): MonsterSave | null {
 
   return {
     ability,
-    dc: Number(opening[2]),
+    dc: Number(opening[3]),
     targets: head.targets,
+    ...(trigger === null ? {} : { trigger }),
+    ...(aura === null || aura.types.length === 0 ? {} : { onlyIfTargetType: [...aura.types] }),
     ...(read.damage === null ? {} : { damage: read.damage }),
     ...(read.plus === null ? {} : { plus: read.plus }),
     onSuccess,

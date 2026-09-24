@@ -17,12 +17,18 @@ import type {
   MonsterMultiattackEntry,
   MonsterMultiattackGate,
   MonsterRecharge,
+  MonsterSave,
   MonsterTrait,
 } from '@ie/srd';
 // The two readers of the branch shape, from the subpath that is schemas and no
 // data: a value imported from the barrel loads the whole parsed SRD into every
 // process that imports the engine, which `srd-barrel.test.ts` is the guard for.
-import { CREATURE_SIZES, entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
+import {
+  CREATURE_SIZES,
+  DECLARED_DAMAGE_TYPE,
+  entriesOfBranch,
+  gateOfBranch,
+} from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import { saveModifier, skillModifier } from './character.js';
 import type { ShapeShiftRow } from './progression.js';
@@ -37,6 +43,7 @@ import type {
   StatedAction,
   StatedAttack,
   StatedBonusAction,
+  StatedTrait,
   StatedValues,
 } from './character.js';
 import { vitals, type Vitals } from './vitals.js';
@@ -281,6 +288,19 @@ function printedAttacks(monster: Monster): readonly StatedAttack[] {
 /** The trait shapes the parser read, in printed order. */
 const printedTraits = (monster: Monster): readonly MonsterTrait[] =>
   monster.traits.flatMap((line) => (line.trait === undefined ? [] : [line.trait]));
+
+/**
+ * The trait lines that force a save, in printed order.
+ *
+ * A Magmin's Death Burst, a Ghast's Stench. The heading and the sentence come
+ * with the save for the reason every carried line's do: the engine hands the
+ * words back at the moment of use, and a hand-over with no sentence in it is a
+ * creature doing something nobody can act on.
+ */
+const printedTraitSaves = (monster: Monster): readonly StatedTrait[] =>
+  monster.traits.flatMap((line) =>
+    line.save === undefined ? [] : [{ name: line.name, text: line.text, save: line.save }],
+  );
 
 /**
  * The sequence the block's Multiattack states, **bound to the lines it names**.
@@ -657,6 +677,82 @@ export function statedBonusActionOf(
 export function statedActionOf(sheet: CharacterSheet, name: string): StatedAction | null {
   const wanted = name.trim().toLowerCase();
   return sheet.stated?.unreadActions?.find((line) => line.name.toLowerCase() === wanted) ?? null;
+}
+
+/**
+ * The source a printed line's clauses are hung on: the creature and the
+ * heading.
+ *
+ * **Here rather than beside the executor that writes it**, and the import
+ * direction is what decides it: `fold/turns.ts` has to read the same string
+ * when it asks whether a creature already holds a day's grace from an aura,
+ * and a fold module reaching into `commands/` would be a cycle through
+ * `events.ts`. It is a fact about a stat block's line, which is this module's
+ * vocabulary, and it names nothing — the heading comes out of the block.
+ */
+export const printedLineSource = (who: CharacterId, line: string): string =>
+  `printed:${who}:${line}`;
+
+/** One printed line that forces a save, under the heading the block prints. */
+export interface PrintedSaveLine {
+  readonly line: string;
+  readonly save: MonsterSave;
+}
+
+/**
+ * Every line on this sheet whose save a **moment** forces, in printed order.
+ *
+ * The raisers' whole view of a stat block: a death asks for the `dies` ones
+ * and a turn beginning asks for the `starts-turn-within` ones, and neither
+ * knows what a Death Burst or a Stench is. Three shelves are searched because
+ * a heading says what a line *costs* and a triggered line costs nothing — the
+ * SRD prints all ten under Traits, and a homebrew block that printed one
+ * elsewhere would be saying the same thing.
+ *
+ * Empty for every character and for every block with no such line, which is
+ * the overwhelming majority — and the walk is over three short arrays that are
+ * usually absent, which is what makes it cheap enough for the fold to ask of
+ * every creature at every boundary.
+ */
+export function triggeredSavesOf(sheet: CharacterSheet): readonly PrintedSaveLine[] {
+  const stated = sheet.stated;
+  if (stated === undefined) return [];
+  const lines: PrintedSaveLine[] = [];
+  for (const line of [
+    ...(stated.traitSaves ?? []),
+    ...(stated.unreadActions ?? []),
+    ...(stated.bonusActions ?? []),
+  ]) {
+    if (line.save?.trigger !== undefined) lines.push({ line: line.name, save: line.save });
+  }
+  return lines;
+}
+
+/**
+ * The save one named printed line forces, off whichever shelf it was pinned
+ * to.
+ *
+ * What a raised debt reads back: a {@link PendingSave} carries the creature and
+ * the heading, and the numbers stay where they were pinned — the rule
+ * `conditionEndedBy` follows about a repeat save, which is that a debt says
+ * what is *owed* and the thing it is about holds the answer. Copying the whole
+ * record onto the debt would be a second copy of the block, free to disagree
+ * with the sheet a reload restores.
+ *
+ * Case-insensitive on the heading, like every other lookup here.
+ */
+export function printedSaveOf(sheet: CharacterSheet, name: string): MonsterSave | null {
+  const wanted = name.trim().toLowerCase();
+  const stated = sheet.stated;
+  if (stated === undefined) return null;
+  for (const line of [
+    ...(stated.traitSaves ?? []),
+    ...(stated.unreadActions ?? []),
+    ...(stated.bonusActions ?? []),
+  ]) {
+    if (line.name.toLowerCase() === wanted && line.save !== undefined) return line.save;
+  }
+  return null;
 }
 
 /**
@@ -1363,6 +1459,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
 
   const attacks = printedAttacks(monster);
   const traits = printedTraits(monster);
+  const traitSaves = printedTraitSaves(monster);
   const multiattack = printedMultiattack(monster, attacks);
   // **What the parser did not read, carried rather than interpreted.** A line
   // with no attack, no trait and no sequence on it is one the parser got
@@ -1432,6 +1529,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // field saying so — the reading every optional field on the sheet takes.
     ...(attacks.length === 0 ? {} : { attacks }),
     ...(traits.length === 0 ? {} : { traits }),
+    ...(traitSaves.length === 0 ? {} : { traitSaves }),
     ...(bonusActions.length === 0 ? {} : { bonusActions }),
     ...(multiattack === undefined ? {} : { multiattack }),
     ...(unreadActions.length === 0 ? {} : { unreadActions }),
@@ -1737,7 +1835,15 @@ export interface PrintedDamageRider {
   readonly dice: string;
   /** SRD's "(1d4 **+ 1**)", and 0 where the line prints none. */
   readonly flat: number;
-  readonly type: DamageType;
+  /**
+   * The type, or {@link DECLARED_DAMAGE_TYPE} where the block prints none.
+   *
+   * SRD Half-Dragon's Claw: "7 (2d6) damage of the type chosen for the
+   * Draconic Origin trait", and that trait ends "(GM's choice)". The word is
+   * not a damage type and the swing does not deal it — it asks for the real
+   * one and reports the clause unapplied until a DM has ruled.
+   */
+  readonly type: DamageType | typeof DECLARED_DAMAGE_TYPE;
   /** SRD's "If the target is a Medium or smaller creature". */
   readonly ifNoLargerThan?: CreatureSize;
   /**
@@ -2244,8 +2350,20 @@ const PRINTED_SAVE = new RegExp(
  * Poison damage" is conditioned on nothing — and {@link readClause} refuses an
  * ungated `or`, which would be a sentence nobody printed.
  */
-const PRINTED_DAMAGE =
-  /^(plus|or) \d+ \((\d+d\d+)(?: \+ (\d+))?\) ([A-Za-z]+) damage(?: if (.+))?\.$/;
+/**
+ * The type slot of a printed rider's amount, which the book writes two ways.
+ *
+ * `Poison damage` is the ordinary one and is captured. `damage of the type
+ * chosen for the Draconic Origin trait` is SRD Half-Dragon's Claw, and it
+ * captures **nothing** — there is no word there to capture, and the table is
+ * what supplies it. The same slot `printed-save.ts` reads on the other half of
+ * the sheet, and for the same reason.
+ */
+const RIDER_TYPE_SLOT = `(?:([A-Za-z]+) damage|damage of the type chosen for the [A-Za-z][A-Za-z' -]* trait)`;
+
+const PRINTED_DAMAGE = new RegExp(
+  `^(?:(plus|or) )?\\d+ \\((\\d+d\\d+)(?: \\+ (\\d+))?\\) ${RIDER_TYPE_SLOT}(?: if (.+))?\\.$`,
+);
 
 /** SRD's "the swarm is Bloodied", "the target is Bloodied". */
 const BLOODIED_GATE = /^the (.+?) is Bloodied$/;
@@ -2779,9 +2897,23 @@ function readClause(text: string): ClauseRead | null {
   // rather than with a gate, so no other pattern can claim it.
   const amount = PRINTED_DAMAGE.exec(text);
   if (amount !== null) {
-    const type = damageTypeWord(amount[4]!);
+    // **An absent type word is the book declining to name one**: SRD
+    // Half-Dragon's Claw deals "7 (2d6) damage of the type chosen for the
+    // Draconic Origin trait", and that trait ends "(GM's choice)". The amount
+    // is read and the type stays the table's, which is what
+    // {@link DECLARED_DAMAGE_TYPE} is a word for — the swing asks for it and
+    // will not roll until somebody has answered.
+    const declared = amount[4] === undefined;
+    const type = declared ? DECLARED_DAMAGE_TYPE : damageTypeWord(amount[4]!);
     if (type === null) return null;
-    const how = amount[1] === 'plus' ? 'extra' : 'instead';
+    // **And an absent connective belongs to that same line and no other.** The
+    // attack parser's damage chain eats the "plus" that introduced a component
+    // and then stops on the type it cannot read, so the clause arrives here
+    // without the book's own word in front of it. Every other rider the book
+    // prints keeps its connective, and a sentence that lost one would be a
+    // clause this reader had no business guessing the polarity of.
+    if (amount[1] === undefined && !declared) return null;
+    const how = amount[1] === 'or' ? 'instead' : 'extra';
     // "or N damage" with nothing to condition it on would be a line that
     // always rolled its alternative, which is not a sentence the book writes.
     if (amount[5] === undefined && how === 'instead') return null;

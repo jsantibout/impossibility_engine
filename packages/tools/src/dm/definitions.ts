@@ -93,6 +93,7 @@ import {
   COPPER_PER,
   damageTakenIn,
   declareCreatureHeads,
+  declareDamageType,
   declareObject,
   forcePrintedSave,
   liftConditionFrom,
@@ -1347,6 +1348,59 @@ const FORCE_PRINTED_SAVE = tool({
  * the engine reports the assumption, so this door exists to make a fight
  * right rather than to make one possible.
  */
+/**
+ * Say which damage type a stat block left to the GM.
+ *
+ * SRD Half-Dragon's Draconic Origin: "The half-dragon is related to a type of
+ * dragon associated with one of the following damage types **(GM's choice)**:
+ * Acid, Cold, Fire, Lightning, or Poison. This choice affects other aspects of
+ * the stat block." Two of those aspects have dice on them — the Claw's second
+ * component and the Dragon's Breath — and until this is answered neither can
+ * be rolled: the engine asks rather than picking one, which is what
+ * `needsContext` is for.
+ *
+ * **Here and not on the model's surface**, for `declare_heads`' reason rather
+ * than in spite of the resemblance. The word is not a number, and that is
+ * exactly why the resemblance matters: it is a *choice the book explicitly
+ * hands to the GM*, and a model that could make it would be choosing which
+ * damage the party is about to take — with a look at the party's Resistances
+ * first. The table describing the dragon in front of it is stating a fact; a
+ * model choosing the type its own monster deals is writing the encounter.
+ *
+ * The engine checks one thing, which is that the word is a damage type at all;
+ * which of the five the block offers it is, is the block's prose and the DM's
+ * reading of it.
+ *
+ * Say it again to change it: a DM reusing an id for the next half-dragon is
+ * describing a different dragon, not taking back a fact.
+ */
+const DECLARE_DAMAGE_TYPE = tool({
+  name: 'declare_damage_type',
+  description:
+    'Say which damage type a stat block leaves to you — the Half-Dragon’s Draconic Origin names Acid, Cold, Fire, Lightning or Poison and chooses none. Every line on that block whose damage reads "of the type chosen for" that trait then rolls; until you say, each of them refuses and names this. Say it again whenever it should be a different dragon; the newest answer is the one that counts.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Which creature.'),
+    damageType: z
+      .string()
+      .min(1)
+      .describe(
+        'The damage type, in the game’s own vocabulary: acid, cold, fire, lightning, poison. A word that is not a damage type is refused.',
+      ),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      declareDamageType(
+        context.campaign.state(),
+        who(args.who),
+        args.damageType,
+        identity(context),
+      ),
+      { damageType: args.damageType.toLowerCase(), of: args.who },
+    ),
+});
+
 const DECLARE_HEADS = tool({
   name: 'declare_heads',
   description:
@@ -1511,6 +1565,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   AWARD_COIN,
   AWARD_ITEMS,
+  DECLARE_DAMAGE_TYPE,
   DECLARE_HEADS,
   DECLARE_OBJECT,
   END_CONDITION,
