@@ -60,12 +60,14 @@ import {
  * book reads it afterwards.
  *
  * **Not one shape id below is new.** Each is already in {@link MISSING_SHAPES}
- * with a citation, and two of them name the very spell filed against them —
- * `a-creature-fact-an-effect-overrides` names Arcanist's Magic Aura and
- * `a-cap-on-how-many-castings-run-at-once` names the sentence Prestidigitation
- * prints with a number in it. A third did: `a-rider-on-a-later-weapon-attack`
- * named Magic Weapon, that shape's flat-bonus half is built, and the spell has
- * moved to {@link EXECUTES}.
+ * with a citation, and three of them named the very spell filed against them —
+ * `a-creature-fact-an-effect-overrides` named Arcanist's Magic Aura,
+ * `a-cap-on-how-many-castings-run-at-once` named the sentence Prestidigitation
+ * prints with a number in it, and `a-rider-on-a-later-weapon-attack` named
+ * Magic Weapon. All three shapes have since been built and all three spells
+ * have moved to {@link EXECUTES}, which is the list working rather than the
+ * claim weakening: a shape whose own description names one spell is a shape a
+ * batch can finish.
  */
 
 /**
@@ -77,21 +79,12 @@ import {
  */
 const FILED: Readonly<Record<string, readonly string[]>> = {
   'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
-  'arcanists-magic-aura': ['a-creature-fact-an-effect-overrides'],
   knock: ['an-effect-that-suppresses-other-magic'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
   'pass-without-trace': [
     'a-bonus-narrowed-to-a-skill',
     'a-standing-effect-derived-from-where-a-creature-stands',
   ],
-  prestidigitation: ['a-cap-on-how-many-castings-run-at-once'],
-  // **The one entry whose shape is not in the spell book**, and it is the
-  // gate-G1 re-filing the `why` widening released: what blocks this spell is
-  // the Influence action, which `NAMED_ACTIONS` leaves out because no spender
-  // could be told apart as having taken one. That gap is the feature
-  // vocabulary's `an-action-the-engine-has-no-spender-for`, and a second id
-  // over here for it is the duplication the three books were split to avoid.
-  'speak-with-animals': ['an-action-the-engine-has-no-spender-for'],
   'speak-with-plants': ['difficult-terrain-an-area-creates'],
   'tiny-hut': [
     'a-barrier-that-blocks-passage',
@@ -140,6 +133,13 @@ const HANDOVERS: readonly string[] = [
   'message',
   'purify-food-and-drink',
   'rope-trick',
+  // Re-read on 2026-09-24 and moved off {@link FILED}: the entry that filed
+  // it said the Influence action had no spender, and `takeInfluence` has been
+  // one since. That command never narrowed by the target's creature type, so
+  // an Influence attempt on a Beast was always legal and always rolled and
+  // there was never anything for the spell to widen. What it buys is
+  // comprehension, which is speech, which the engine holds none of.
+  'speak-with-animals',
   'speak-with-dead',
   'tongues',
   'water-breathing',
@@ -208,8 +208,24 @@ const LIGHT_EXECUTED: readonly string[] = [
  * buys. What is left of its paragraph is that a weapon's magicality is not a
  * fact the engine holds, which trips no marker and is nobody's debt.
  */
-// Darkvision joined the two the day a casting could confer a sense.
-const EXECUTES: readonly string[] = ['darkvision', 'expeditious-retreat', 'magic-weapon'];
+// Darkvision joined the two the day a casting could confer a sense, and
+// Prestidigitation the day `maxRunning` gave a cap of three somewhere to be
+// counted — its debt was owed and is now paid, which is the outcome this list
+// was always going to have to hold more of.
+const EXECUTES: readonly string[] = [
+  // The day a sourced grant could put a creature type over another creature's
+  // own, and `typeMagicSees` could say which readers believe it.
+  'arcanists-magic-aura',
+  'darkvision',
+  'expeditious-retreat',
+  'magic-weapon',
+  'prestidigitation',
+  // And the one that came here through {@link NEEDS_A_DECISION} rather than
+  // straight off {@link FILED}: the decision was the shape of the record, the
+  // shape was then built, and the Attunement a Remove Curse breaks is the
+  // engine's now.
+  'remove-curse',
+];
 
 /**
  * And the one the reading found a debt in that this vocabulary cannot name.
@@ -240,7 +256,19 @@ const EXECUTES: readonly string[] = ['darkvision', 'expeditious-retreat', 'magic
  * A list of one rather than a comment, because a comment is what the ledger
  * already could not count.
  */
-const NEEDS_A_DECISION: readonly string[] = ['remove-curse'];
+const NEEDS_A_DECISION: readonly string[] = [];
+
+/**
+ * **And the decision was taken, and then the debt was paid.**
+ *
+ * G1 widened `TrackedAdjudication.why` to reach the item vocabulary, which is
+ * what let Remove Curse be filed at all; the `end-attunement` effect is what
+ * settled it. The spell is executed now — the Attunement the caster names is
+ * broken, an object the target is not attuned to is refused before a slot is
+ * spent — so it is in {@link EXECUTES} with the others, and this list is empty
+ * rather than gone: a record of a finding kept where the next reader will meet
+ * it, exactly as {@link LIGHT} is.
+ */
 
 describe('the forty-five unadjudicated spells are read', () => {
   it('accounts for every one of them exactly once', () => {
@@ -355,15 +383,15 @@ describe('the forty-five unadjudicated spells are read', () => {
    * it from here. All four stay true together, which is what keeps the
    * widening from quietly becoming a second copy of the id.
    */
-  it('files Remove Curse against the item vocabulary’s own shape', () => {
-    for (const spellId of NEEDS_A_DECISION) {
-      const entries = TRACKED_ADJUDICATED[spellId] ?? [];
-      expect(
-        entries.map((entry) => entry.why),
-        spellId,
-      ).toContain('what-ends-attunement-besides-a-command');
-      expect(misanchoredAdjudications(spellId), spellId).toEqual([]);
-    }
+  it('files Remove Curse nowhere any more, because the shape was built', () => {
+    // Nothing is waiting on the decision: the list is empty, and the spell it
+    // held is executed rather than tracked.
+    expect(NEEDS_A_DECISION).toEqual([]);
+    expect(TRACKED_ADJUDICATED['remove-curse']).toBeUndefined();
+    expect(EXECUTES).toContain('remove-curse');
+    // And the widening that made the filing possible is not undone by the
+    // spell leaving: the id is still the item vocabulary's, still not this
+    // one's, and four cursed items still sit on it.
     expect(Object.keys(ITEM_SHAPES)).toContain('what-ends-attunement-besides-a-command');
     expect(Object.keys(MISSING_SHAPES)).not.toContain('what-ends-attunement-besides-a-command');
   });

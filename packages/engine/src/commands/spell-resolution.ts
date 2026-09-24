@@ -77,6 +77,9 @@ import {
 } from '../positioning.js';
 import { remaining, tallied } from '../resources.js';
 import {
+  breaksAttunement,
+  dropsAnObject,
+  outcomeRidersOf,
   creatureTypesRead,
   delayedDuration,
   delaysDamage,
@@ -142,6 +145,15 @@ import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
 import { replacedCastings } from './ongoing.js';
+import {
+  attunementProblem,
+  maskProblem,
+  objectHeldProblem,
+  resolveCreatureTypeOverrideEffect,
+  resolveEndAttunementEffect,
+  resolveReviveEffect,
+  reviveProblem,
+} from './spell-effect-creatures.js';
 import {
   type CastingAlterations,
   castingAlterations,
@@ -428,6 +440,9 @@ export function resolveDeclaredCast(
       // The fifth, read back the same way. A Shillelagh declared at one staff
       // settles at that staff and at no other.
       ...(pending.weapon === undefined ? {} : { weapon: pending.weapon }),
+      // And the object, read back the same way: a Remove Curse declared at the
+      // cloak settles at the cloak and at no other thing in the pack.
+      ...(pending.object === undefined ? {} : { object: pending.object }),
       // The sixth, read back the same way. A Find Familiar declared as a Cat
       // settles as a Cat an hour later and as nothing else.
       ...(pending.form === undefined ? {} : { form: pending.form }),
@@ -1052,6 +1067,76 @@ export function castOrRelease(
         const requests = contextRequestsOf(asked);
         if (requests.length === 0) return asked;
         needs.push(...requests);
+      }
+    }
+
+    // And whether there is a creature here this spell could raise at all,
+    // asked at the same moment and for the same two reasons the teleport
+    // below is. SRD Revivify reaches "a creature that has died within the last
+    // minute", and both ways of missing that — a living target, a corpse gone
+    // cold — must cost the Cleric nothing. `reviveProblem` is the pre-flight
+    // rather than a second reading of it: the resolver asks the same function.
+    for (const effect of definition.effects) {
+      if (effect.kind !== 'revive') continue;
+      for (const target of targets) {
+        const raisable = reviveProblem(state, target, effect.within, definition.name);
+        if (!raisable.ok) return raisable;
+      }
+    }
+
+    // And whether the mask this casting lays is a mask at all. SRD Arcanist's
+    // Magic Aura: "Choose a creature type **other than the target's actual
+    // type**" — a casting that chose the type the creature already is would
+    // hang a grant that changes nothing, and the slot would be gone. The
+    // stated choice has already been substituted into `running`, so this reads
+    // the type the casting will actually lay.
+    const masking = statedChoice(
+      definition.effects,
+      definition.choiceStated?.of,
+      request.choice ?? fixedChoiceOf(route),
+    );
+    for (const effect of masking) {
+      if (effect.kind !== 'creature-type-override') continue;
+      for (const target of targets) {
+        const maskable = maskProblem(state, target, effect.creatureType, definition.name);
+        if (!maskable.ok) return maskable;
+      }
+    }
+
+    // And whether the object this casting was pointed at is one it could have
+    // been pointed at, asked at the same moment and for the same two reasons.
+    // SRD Remove Curse breaks "its owner's Attunement to the object", and a
+    // caster who names the wrong cloak must not have paid for it.
+    // `declaredFacts` has already held the symmetry; what is left is the half
+    // that needs the catalogue.
+    if (request.object !== undefined && breaksAttunement(definition)) {
+      for (const target of targets) {
+        const breakable = attunementProblem(
+          state,
+          supply.content,
+          target,
+          request.object,
+          definition.name,
+        );
+        if (!breakable.ok) return breakable;
+      }
+    }
+
+    // And the other clause that names an object, asked the same way: SRD Heat
+    // Metal heats a thing its target is wearing or wielding, and `equipped` is
+    // the holding fact the engine keeps. A caster who named a mace in the
+    // knight's pack rather than the breastplate on his back has aimed at
+    // nothing, and must hear so before the slot is gone.
+    if (request.object !== undefined && dropsAnObject(definition)) {
+      for (const target of targets) {
+        const touching = objectHeldProblem(
+          state,
+          supply.content,
+          target,
+          request.object,
+          definition.name,
+        );
+        if (!touching.ok) return touching;
       }
     }
 
@@ -1875,6 +1960,7 @@ function resolveOnTargets(
         ...(fought === undefined ? {} : { fought }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+        ...(request.object === undefined ? {} : { object: request.object }),
         ...(request.form === undefined ? {} : { form: request.form }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
@@ -2175,6 +2261,7 @@ function resolveOnTargets(
               // The fifth, and the same: a Shillelagh declared at one staff
               // must not settle at the other one in the pack.
               ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+              ...(request.object === undefined ? {} : { object: request.object }),
               // The sixth: a Find Familiar declared as a Cat settles as a Cat.
               ...(request.form === undefined ? {} : { form: request.form }),
               // **And the numbers, for a casting an item made.** A class
@@ -2257,6 +2344,7 @@ function resolveOnTargets(
       ...(fought === undefined ? {} : { fought }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
+      ...(request.object === undefined ? {} : { object: request.object }),
       ...(request.form === undefined ? {} : { form: request.form }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
@@ -2382,6 +2470,8 @@ function resolveOneEffect(
       return resolveWeaponRiderEffect(ctx, effect, target, world);
     case 'heal':
       return resolveHealEffect(ctx, effect, target, victim, world);
+    case 'revive':
+      return resolveReviveEffect(ctx, effect, target, world);
     case 'turn-payout':
       return resolveTurnPayoutEffect(ctx, effect, target, world);
     case 'healing-rule':
@@ -2402,6 +2492,10 @@ function resolveOneEffect(
       return resolvePassiveDefenseEffect(ctx, effect, target, world);
     case 'dispel':
       return resolveDispelEffect(ctx, target, world);
+    case 'end-attunement':
+      return resolveEndAttunementEffect(ctx, effect, target, world);
+    case 'creature-type-override':
+      return resolveCreatureTypeOverrideEffect(ctx, effect, target, world);
     case 'interrupt-casting':
       return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
     // One of the two kinds whose subject is not the target — `summon` below is
@@ -2539,6 +2633,15 @@ export function resolveEffects(
      */
     readonly weapon?: string;
     /**
+     * The object an `end-attunement` effect was aimed at, by catalogue id.
+     *
+     * The weapon's neighbour and its reading: the caster's decision, stated at
+     * the casting and never derived, pinned on a declaration because a
+     * settlement takes no fresh request and a Remove Curse declared at the
+     * cloak must not settle at the amulet.
+     */
+    readonly object?: string;
+    /**
      * The stat block a summoning spell that leaves the form to its caster was
      * told to raise — see `EffectContext.form`. Pinned on a declaration for
      * the weapon's reason.
@@ -2582,6 +2685,27 @@ export function resolveEffects(
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, castingId, events } = context;
 
+  // **Whoever is being burned has to still be touching the thing**, and this
+  // is the seam both ways in share. SRD Heat Metal: "If a creature is holding
+  // or wearing the object and takes the damage from it…" — the cast asks it in
+  // the pre-flight so a refusal costs no slot, and the Bonus Action on a later
+  // turn passes nowhere near that pre-flight. Without this, a thug who dropped
+  // the mace last round would take the dice again and the Disadvantage for
+  // holding on to a thing lying at his feet.
+  //
+  // Before the first die and before the action is charged, which is what makes
+  // it a refusal rather than a wasted turn.
+  const heated = context.object;
+  if (heated !== undefined) {
+    const run = context.effects ?? definition.effects;
+    if (run.some((effect) => outcomeRidersOf(effect).drops !== undefined)) {
+      for (const target of targets) {
+        const touching = objectHeldProblem(state, supply.content, target, heated, definition.name);
+        if (!touching.ok) return touching;
+      }
+    }
+  }
+
   const resolved = runEffects(state, casterId, caster, {
     origin: { kind: 'casting', castingId, definition },
     effects: context.effects ?? definition.effects,
@@ -2611,6 +2735,7 @@ export function resolveEffects(
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
+    ...(context.object === undefined ? {} : { object: context.object }),
     ...(context.form === undefined ? {} : { form: context.form }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
@@ -2678,6 +2803,9 @@ export function resolveEffects(
         ...(becomes.anchoring === undefined ? {} : { anchoring: becomes.anchoring }),
         ...(becomes.unaffected === undefined ? {} : { unaffected: becomes.unaffected }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
+        // The object the casting was pointed at, so a later Bonus Action deals
+        // the damage again to the same thing — see `OngoingSpell.object`.
+        ...(context.object === undefined ? {} : { object: context.object }),
         ...(becomes.choice === undefined ? {} : { choice: becomes.choice }),
       },
     });
@@ -2768,6 +2896,7 @@ export interface EffectRun {
   readonly fought?: readonly CharacterId[];
   readonly teleportTo?: Placement;
   readonly weapon?: string;
+  readonly object?: string;
   readonly form?: string;
   readonly answers?: string;
   /**
@@ -3056,6 +3185,7 @@ export function runEffects(
     ...(run.fought === undefined ? {} : { fought: run.fought }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
+    ...(run.object === undefined ? {} : { object: run.object }),
     ...(run.form === undefined ? {} : { form: run.form }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };

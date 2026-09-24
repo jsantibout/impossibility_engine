@@ -28,6 +28,7 @@ import { type ResourceState } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageComponent, DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
 import type { D20TestResult } from './checks.js';
+import type { GrantedCreatureType } from './creature-type.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
@@ -788,6 +789,23 @@ export interface CreatureState {
    */
   readonly lineImmunities: readonly GrantedLineImmunity[];
   /**
+   * A creature type one running effect has put over this creature's own.
+   *
+   * SRD Arcanist's Magic Aura, _Mask (Creature)_: "Spells and other magical
+   * effects treat the target as if it were a creature of the chosen type."
+   *
+   * The nineteenth member of the family the eighteen above form, and the first
+   * whose subject is a *fact about what a creature is*. Beside
+   * {@link creatureType} and deliberately not merged into it: that field is
+   * what the creature **is**, carries no source, and is the one fact in the
+   * engine whose re-declaration is refused outright — so a mask written there
+   * could never be given back, and would make Arcanist's Magic Aura a thing
+   * that permanently rewrites a goblin. `typeMagicSees` in `creature-type.ts`
+   * is the reader, and its docstring is where the line between a magical asker
+   * and a mundane one is drawn.
+   */
+  readonly creatureTypeMasks: readonly GrantedCreatureType[];
+  /**
    * What a running casting hands this creature at each of its turn boundaries.
    *
    * The eighth member of the family the seven above form, and the first of them
@@ -1446,6 +1464,16 @@ export interface PendingCasting {
    * did.
    */
   readonly weapon?: string;
+  /**
+   * The object a spell aimed at a thing was pointed at, by catalogue id.
+   *
+   * The weapon's neighbour above and its reason: a Remove Curse declared at
+   * the cloak must not settle at the amulet in the same pack, and settlement
+   * takes no fresh request to ask again. Absent for every spell that touches
+   * no object, which is all but one of them, so a declaration written before
+   * this folds to exactly the state it always did.
+   */
+  readonly object?: string;
   /**
    * The stat block a summoning spell that leaves the form to its caster was
    * told to raise, by its id in content.

@@ -47,6 +47,28 @@ export interface Vitals {
   readonly stable: boolean;
   readonly dead: boolean;
   /**
+   * The clock instant this creature died at, or null while it is alive.
+   *
+   * SRD Revivify: "a creature that has died **within the last minute**" — a
+   * span measured backwards from now, which is subtraction, which is what the
+   * one clock is for. Nothing else in the rules has asked how long a corpse
+   * has been one, and the field arrives with the spell that asks.
+   *
+   * **Nothing writes it directly and no event carries it**, which is the same
+   * arrangement `hpMaxAdjustment` above has and for a stronger reason: a
+   * creature dies four ways and only one of them is `creature-died`. A monster
+   * dies inside `applyDamageToVitals` off a `damage-taken`, a character off a
+   * third failed `death-save-recorded`, and another at Exhaustion 6 off an
+   * `exhaustion-set`. So the stamp is derived from the fact itself — *was
+   * alive, now is not* — by the seam that owns all four, exactly as
+   * `raiseDeathBursts` derives the burst a death owes the room. A list of the
+   * events that can kill somebody is not a list anybody could keep correct.
+   *
+   * Cleared on the way back, so a creature revived and killed again is timed
+   * from the second death rather than the first.
+   */
+  readonly diedAt: number | null;
+  /**
    * SRD: "A monster dies the instant it drops to 0 Hit Points, although a Game
    * Master can ignore this rule for an individual monster and treat it like a
    * character." So this is per-creature rather than a type check.
@@ -67,6 +89,7 @@ export function vitals(hpMax: number, over: Partial<Vitals> = {}): Vitals {
     deathSaveFailures: 0,
     stable: false,
     dead: false,
+    diedAt: null,
     diesAtZero: false,
     ...over,
   };
@@ -488,6 +511,40 @@ export function grantTemporaryHp(v: Vitals, amount: number): Vitals {
 /** SRD: "A Stable creature doesn't make Death Saving Throws." */
 export function stabilize(v: Vitals): Vitals {
   return { ...v, stable: true, deathSaveSuccesses: 0, deathSaveFailures: 0 };
+}
+
+/**
+ * SRD Revivify: "That creature revives with 1 Hit Point."
+ *
+ * **Not {@link heal} with a small number in it**, which is the whole of why
+ * this exists: that function refuses a corpse in its first line, and the
+ * refusal is right — hit points do not lift death, and a spell that says they
+ * do would make a Cure Wounds a resurrection. What comes back is a creature
+ * that is alive, at the total the spell prints, with the death saves it was
+ * making thrown away: SRD resets those "when you regain any Hit Points", and
+ * a creature that has been dead has certainly stopped making them.
+ *
+ * The hit point total is the *spell's*, capped at the maximum for the reason
+ * `heal` caps: a printed number larger than the corpse's maximum would leave a
+ * creature above its own ceiling, and no SRD sentence of this shape prints
+ * one larger than one.
+ *
+ * `diedAt` goes with it, so a creature raised and killed again is timed from
+ * the second death — see {@link Vitals.diedAt}.
+ */
+export function revive(v: Vitals, hitPoints: number): Vitals {
+  if (!Number.isInteger(hitPoints) || hitPoints < 1) {
+    throw new Error(`a revival restores a whole number of hit points, at least one, got ${hitPoints}`);
+  }
+  return {
+    ...v,
+    hp: Math.min(v.hpMax, hitPoints),
+    dead: false,
+    diedAt: null,
+    deathSaveSuccesses: 0,
+    deathSaveFailures: 0,
+    stable: false,
+  };
 }
 
 export interface DeathSaveOutcome {

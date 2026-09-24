@@ -16,6 +16,7 @@ import type { PassiveDefense } from './passive-defenses.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
+import type { CreatureSize } from '@ie/srd/schemas';
 import type { LightLevel, ObscurementDegree, PointAnchoring, SenseName } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
@@ -1038,6 +1039,66 @@ export type ModifierRider =
  * branch. A spell whose success clause does something — Flesh to Stone's
  * "its Speed is 0" — is one consumer and a different shape.
  */
+/**
+ * A thing taken out of a creature's hands against its will, and what happens
+ * where it cannot be.
+ *
+ * > SRD Heat Metal: "the creature must succeed on a Constitution saving throw
+ * > or **drop the object if it can**. **If it doesn't drop the object**, it
+ * > has Disadvantage on attack rolls and ability checks until the start of
+ * > your next turn."
+ *
+ * The half of `what-a-creature-is-holding` that was still missing.
+ * `dropConjured` ends a conjured thing, which ceases to exist and refuses
+ * everything else by name; this is the ordinary object, which has to land
+ * somewhere, and the floor is a thing the engine keeps.
+ *
+ * **It names no object**, for the reason `dispel` names no numbers: which
+ * thing is a decision the caster made at the casting, and it arrives as
+ * `CastSpellRequest.object` — required by a definition that carries this rider
+ * and refused by one that does not.
+ *
+ * **"If it can" is a count of hands.** A thing wielded in a hand can be let go
+ * of; body armour is worn, takes none, and comes off with a doffing the spell
+ * does not grant. `handsFor` is the one reader of that, so a homebrew item
+ * that prints its own `hands` answers here without anything being added.
+ *
+ * ### `orElse`, and why the second sentence is inside the rider
+ *
+ * The SRD prints two sentences about one branch, and the second is conditional
+ * on what the first did. Writing them as two riders side by side would make
+ * the Disadvantage unconditional — the creature that *did* drop the mace would
+ * take it too — and having the resolver quietly skip one rider when another
+ * fired would be a rule hidden in the engine rather than written in the
+ * definition. One rider with two clauses is the sentence as the book prints
+ * it, and the branch is visible to a reader of the definition.
+ *
+ * **A creature that succeeded on the save keeps the object and takes
+ * nothing**, which is this reading of the second sentence: the drop it refers
+ * back to is the one the *failure* demanded, and a creature that was never
+ * asked to drop anything has not failed to. The other reading — that anyone
+ * still holding the thing is hindered — makes the saving throw buy nothing at
+ * all, which is not a sentence the SRD writes anywhere else.
+ */
+export interface DropRider {
+  /**
+   * What the outcome does where the object cannot be let go of.
+   *
+   * {@link ModifierRider}s and not effects, because they are the same kind of
+   * leaf every other rider is: they roll nothing, target nobody of their own
+   * and spend nothing. The lifetime rules are the rider's own — SRD Heat
+   * Metal's "until the start of your next turn" is a `lasts` — so an
+   * Instantaneous host is caught by `checkGrantLifetimes` exactly as it is
+   * anywhere else.
+   *
+   * **A list, because the SRD clause names two rolls**: "Disadvantage on
+   * attack rolls **and** ability checks" is one sentence over two
+   * {@link RollSelector}s, and a selector says one family. The same plurality
+   * {@link OutcomeRiders.modifiers} has, for the same reason.
+   */
+  readonly orElse?: readonly ModifierRider[];
+}
+
 export interface OutcomeRiders {
   /**
    * Conditions the outcome imposes, alongside whatever else it does.
@@ -1051,6 +1112,14 @@ export interface OutcomeRiders {
   readonly conditions?: readonly ConditionRider[];
   /** Grants the outcome imposes: see {@link ModifierRider}. */
   readonly modifiers?: readonly ModifierRider[];
+  /**
+   * A thing the outcome takes out of the target's hands: see {@link DropRider}.
+   *
+   * Singular, because the SRD sentence is: Heat Metal heats **the** object and
+   * the failure lets go of that one. A spell that emptied both hands would be
+   * a different clause and prints no rider here.
+   */
+  readonly drops?: DropRider;
   /** A second, smaller hit at a later moment: see {@link DelayedDamage}. */
   readonly delayed?: DelayedDamage;
   /**
@@ -1654,6 +1723,51 @@ export type SpellEffect =
       readonly addSpellcastingModifier: boolean;
     }
   /**
+   * A creature brought back from being dead.
+   *
+   * SRD Revivify: "You touch a creature that has died within the last minute.
+   * That creature revives with 1 Hit Point."
+   *
+   * **Not `heal` with a small number in it**, which is the shape
+   * `healing-that-raises-the-dead` was named for and the reason this is its
+   * own kind. `healCreature` refuses a corpse in its first line and the
+   * refusal costs no slot — `docs/design/spell-definitions.md` states it as
+   * the rule this shape has to get past — because hit points do not lift
+   * death. A kind that reached the same event would have made every Cure
+   * Wounds a resurrection.
+   *
+   * **The window is the spell's and the clock is the engine's.** How long a
+   * creature has been dead is subtraction over `Vitals.diedAt` and
+   * `state.elapsed`, and the fact is derived by the fold from the only thing
+   * that is reliably true — a creature that was alive and now is not — rather
+   * than from any one of the four events that can kill somebody.
+   *
+   * What the spell leaves to the table is what it says it leaves: dying of old
+   * age, and the body parts it does not restore. Neither is a fact the engine
+   * holds, and neither would be settled by holding one.
+   */
+  | {
+      readonly kind: 'revive';
+      /**
+       * How long after death the spell still reaches, in whole seconds.
+       *
+       * SRD Revivify's minute. A window rather than a boolean because the
+       * higher-level resurrections print longer ones and this is the number
+       * that differs between them; a spell with no window at all would be a
+       * different sentence and prints none here.
+       */
+      readonly within: number;
+      /**
+       * What the creature comes back at — SRD Revivify's one Hit Point.
+       *
+       * A flat whole number rather than a {@link DiceScaling}, because every
+       * SRD sentence of this shape prints a flat number and none of them
+       * scales: what a bigger slot buys in this family is a longer window and
+       * a wider spell, never more hit points.
+       */
+      readonly hitPoints: number;
+    }
+  /**
    * Something handed over at every one of the target's turn boundaries, for as
    * long as the casting runs.
    *
@@ -2112,6 +2226,15 @@ export type SpellEffect =
        */
       readonly breaksConcentration?: true;
       /**
+       * The same failed save takes the object out of the target's hands: see
+       * {@link OutcomeRiders.drops}.
+       *
+       * Flat for the reason the two slots above it are, and SRD Heat Metal is
+       * the writer: "must succeed on a Constitution saving throw **or drop the
+       * object if it can**".
+       */
+      readonly drops?: DropRider;
+      /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
        */
@@ -2204,6 +2327,67 @@ export type SpellEffect =
    * them would be a second place to get Dispel Magic wrong.
    */
   | { readonly kind: 'dispel' }
+  /**
+   * The target's Attunement to one object, broken.
+   *
+   * SRD Remove Curse: "If the object is a cursed magic item, its curse
+   * remains, but **the spell breaks its owner's Attunement to the object** so
+   * it can be removed or discarded."
+   *
+   * **A curse is fiction and the attunement is not.** `CreatureState.attuned`
+   * is a relation the engine holds authoritatively — `attuneItem` writes it,
+   * `attunement-ended` takes it away, and the fold ends one when the holder
+   * dies or the item leaves — so this is the half of the sentence that is the
+   * engine's, and which curses end stays the table's. That split is what
+   * `what-ends-attunement-besides-a-command` names.
+   *
+   * **The effect carries no object**, for the reason `dispel` beside it
+   * carries no numbers: which item is a decision the *caster* makes at the
+   * casting, not a fact the definition can print. It arrives as
+   * `CastSpellRequest.object`, required by a spell that carries this kind and
+   * refused for one that does not, and the catalogue half — the item exists,
+   * the target is attuned to it — is checked in `resolveSpell`'s pre-flight
+   * before a slot is spent, exactly as the weapon a rider imbues is.
+   *
+   * **Nothing else moves.** SRD says the object may then "be removed or
+   * discarded", which is somebody's later decision and two commands that
+   * already exist; a spell that took the cloak off its owner would be
+   * performing the sentence rather than adjudicating it.
+   */
+  | { readonly kind: 'end-attunement' }
+  /**
+   * A creature type put over the target's own, for what magic believes.
+   *
+   * SRD Arcanist's Magic Aura, _Mask (Creature)_: "Choose a creature type
+   * other than the target's actual type. **Spells and other magical effects
+   * treat the target as if it were a creature of the chosen type.**"
+   *
+   * **It does not write the fact and that is the whole design.**
+   * `CreatureState.creatureType` is what the creature *is*, is the one fact in
+   * the engine whose re-declaration is refused outright, and nothing gives it
+   * back. This is the nineteenth sourced grant instead — hung on the creature,
+   * released by `releaseCasting`, by a dispel, by a broken Concentration and
+   * by a `grants` deadline — so the goblin is a goblin again when the day is
+   * up, without anybody having had to remember to undo anything.
+   *
+   * **The readers are the sentence's own**, and `typeMagicSees` in
+   * `creature-type.ts` is where the line is drawn and argued: a spell's target
+   * rule, an area's filter and an outcome that varies by type all read the
+   * mask; a creature reading a creature — SRD Ghoul's claw excepting "a
+   * non-Undead creature" — reads the fact.
+   *
+   * **The type printed here is a default the casting replaces.**
+   * `SpellDefinition.choiceStated` with `of: 'creature-type'` is how the
+   * caster answers "choose a creature type", and `statedChoice` substitutes it
+   * here exactly as it does into a `summon`. The definition still carries a
+   * value so the shape is well formed and a reader of it alone sees a whole
+   * spell.
+   */
+  | {
+      readonly kind: 'creature-type-override';
+      /** One of the SRD's fourteen; what the casting states replaces it. */
+      readonly creatureType: string;
+    }
   /**
    * A **base** Armour Class the spell supplies, in place of the one the target
    * would otherwise calculate.
@@ -3641,6 +3825,32 @@ export interface TargetRule {
    */
   readonly mustBeUnarmored?: true;
   /**
+   * SRD *Animal Messenger*: "A **Tiny** Beast of your choice that you can see
+   * within range."
+   *
+   * The first of the three facts `a-target-rule-the-format-cannot-state`
+   * names — a size, a Challenge Rating and an ability score — and the only one
+   * of them the engine holds. It is read through `effectiveSizeOf`, so the
+   * answer is the one every other size rule gets: the size an active feature
+   * prints, then the size somebody stated, then the map's.
+   *
+   * **It reads like {@link mustBeUnarmored} rather than like
+   * {@link mustBeType}**, and the difference is what kind of silence each
+   * fact can keep. A creature type is a thin record — nobody may ever have
+   * said — so the cast comes back asking; a size is put on a creature by its
+   * stat block, by its species and by the mere act of placing it on the map,
+   * and the only creature with none is one standing nowhere that nothing has
+   * described. That is a plain no with a reason naming what would settle it,
+   * not a question, because inviting a caller to declare a size in order to
+   * widen a spell is the door `mustBeFalling` already keeps shut.
+   *
+   * Checked where a caller **names** targets and where an area filters its
+   * catch, which are the two places {@link mustBeType} is checked and for the
+   * same reasons: a named target the spell cannot reach is a refusal, and a
+   * creature an area simply does not catch is filtered.
+   */
+  readonly mustBeSize?: CreatureSize;
+  /**
    * SRD *Feather Fall*: "Choose up to five **falling** creatures within range."
    *
    * The third clause of this kind, and it reads a fact of a third sort: a
@@ -4260,6 +4470,29 @@ export interface SpellDefinition {
    */
   readonly replacesPriorCasting?: true;
   /**
+   * SRD Prestidigitation: "If you cast this spell multiple times, you can have
+   * up to **three** of its non-instantaneous effects active at a time."
+   *
+   * {@link replacesPriorCasting} with a number in it, and applied the same
+   * way. That field is a cap of exactly one and ends the prior casting; this
+   * one is a cap of *n* and ends the oldest running castings until the new one
+   * is the last that fits. `state.ongoing` is where they are counted, so
+   * obeying the sentence is a lookup rather than a search through the log, and
+   * the count is per **caster** — one wizard's three tricks say nothing about
+   * another's.
+   *
+   * **Ending the oldest rather than refusing the fourth**, because that is
+   * what the sentence prints: a caster "can have up to three … active" is a
+   * statement about what is running, not a rule that the fourth casting fails.
+   * Refusing one would make the cantrip unusable rather than capped, and would
+   * be a rule the book does not write.
+   *
+   * Refused beside `replacesPriorCasting`, which is the same rule with a
+   * different number, and refused on a definition that leaves nothing running,
+   * which would be a cap on a population that is always empty.
+   */
+  readonly maxRunning?: number;
+  /**
    * What stops this casting before its time is up.
    *
    * A casting has always ended four ways — its deadline, a broken
@@ -4850,6 +5083,13 @@ export function statedChoice(
       if (effect.kind === 'summon' && effect.creatureType !== undefined) {
         return { ...effect, creatureType: chosen };
       }
+      // SRD Arcanist's Magic Aura: "Choose a creature type other than the
+      // target's actual type." The second host of the same choice, and the
+      // reason the member is not a one-writer field: what the caster names
+      // lands on the mask exactly as it lands on a summons.
+      if (effect.kind === 'creature-type-override') {
+        return { ...effect, creatureType: chosen };
+      }
       return effect;
     }
     const key = of === 'ability' ? 'ability' : 'skill';
@@ -5231,6 +5471,62 @@ export function riderDurations(definition: SpellDefinition): readonly RiderDurat
  * refuses a teleport in an area trigger's list or an activation's, because
  * neither carries the destination the caster stated.
  */
+/**
+ * Whether this spell breaks an Attunement, and so must be told which object.
+ *
+ * The reader `declaredFacts` and the pre-flight both ask, for
+ * {@link teleportOf}'s reason: the symmetry — required where the spell prints
+ * the clause, refused where it does not — is checked in two places and must
+ * have one answer.
+ *
+ * Only the casting's own list, because that is the only place the kind may be
+ * written: the object is stated at the casting, Remove Curse is Instantaneous
+ * and breaks the Attunement at the touch, and an area trigger or an activation
+ * firing a minute later has no request to read it off. `checkObjectPlacement`
+ * refuses it anywhere else, which is what makes reading one list here correct
+ * rather than optimistic.
+ */
+export function breaksAttunement(definition: SpellDefinition): boolean {
+  return definition.effects.some((effect) => effect.kind === 'end-attunement');
+}
+
+/**
+ * Whether this spell has to be told which object it is aimed at.
+ *
+ * Two clauses ask, and they are different sentences about the same fact: SRD
+ * Remove Curse breaks an Attunement to an object, and SRD Heat Metal heats one
+ * and makes its holder drop it. Both name a thing out of what the target has,
+ * neither can be picked by the engine, and both are refused before a slot is
+ * spent when the caster names none.
+ *
+ * **The casting's own list and its activation**, because Heat Metal's Bonus
+ * Action deals the damage again to the same object — the record pins it, so
+ * the activation needs no fresh request and the question is still "does this
+ * spell ever name one".
+ */
+export function namesAnObject(definition: SpellDefinition): boolean {
+  return breaksAttunement(definition) || dropsAnObject(definition);
+}
+
+/**
+ * Whether this spell makes its target let go of the object it names.
+ *
+ * {@link namesAnObject}'s other half, asked on its own by the pre-flight that
+ * checks the relation the *drop* needs — the target is wearing or wielding the
+ * thing — which is not the relation an Attunement needs.
+ *
+ * **The casting's own list and its activation.** SRD Heat Metal's Bonus Action
+ * deals the same damage to the same object, so the record pins it and the
+ * activation needs no fresh request; the question is still whether the spell
+ * ever writes the clause.
+ */
+export function dropsAnObject(definition: SpellDefinition): boolean {
+  const lists = [definition.effects, definition.activation?.effects ?? []];
+  return lists.some((effects) =>
+    effects.some((effect) => outcomeRidersOf(effect).drops !== undefined),
+  );
+}
+
 export function teleportOf(
   definition: SpellDefinition,
 ): Extract<SpellEffect, { kind: 'teleport' }> | null {
@@ -5364,6 +5660,13 @@ export function creatureTypesRead(effect: SpellEffect): readonly string[] {
     case 'save-damage':
     case 'attack-damage':
       return effect.againstType?.types ?? [];
+    // SRD Arcanist's Magic Aura: "Choose a creature type **other than the
+    // target's actual type**." The clause is about the type the creature
+    // already is, so resolving the mask has to know it — and a creature nobody
+    // has typed is asked about rather than masked on a guess, which is the
+    // same three-valued discipline the two hosts above keep.
+    case 'creature-type-override':
+      return [effect.creatureType];
     default:
       return [];
   }
@@ -5550,11 +5853,22 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // modifier written down here would be a copy nobody would ever read.
       case 'weapon-attack':
       case 'heal':
+      // A revival reads nothing of the caster either: the window and the hit
+      // points are the spell's own printed numbers, and whose spell it was
+      // changes neither.
+      case 'revive':
       case 'turn-payout':
       case 'action-rule':
       case 'healing-rule':
       case 'hit-point-maximum':
       case 'dispel':
+      // An attunement broken reads nothing of the caster either: which object
+      // is the caster's own choice, stated at the casting, and no number about
+      // them decides anything.
+      case 'end-attunement':
+      // A mask reads nothing of the caster either: which type is the caster's
+      // own choice, stated at the casting, and no number about them decides it.
+      case 'creature-type-override':
       case 'teleport':
       case 'summon':
         break;
@@ -5631,6 +5945,12 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
       ? effect.breaksConcentration
       : undefined;
+  // The same three hosts again, and for the same reason: SRD Heat Metal writes
+  // the clause off a bare `save`, which keeps its flat spelling.
+  const drops =
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.drops
+      : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
@@ -5639,6 +5959,7 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     ...(spends === undefined ? {} : { spends }),
     ...(light === undefined ? {} : { light }),
     ...(breaksConcentration === undefined ? {} : { breaksConcentration }),
+    ...(drops === undefined ? {} : { drops }),
   };
 }
 

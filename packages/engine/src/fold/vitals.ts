@@ -31,6 +31,7 @@ import {
   grantTemporaryHp,
   heal,
   resolveDeathSave,
+  revive,
   stabilize,
 } from '../vitals.js';
 import type { GameEvent } from '../events.js';
@@ -62,6 +63,7 @@ export const VITALS_EVENTS = [
   'condition-removed',
   'exhaustion-set',
   'creature-died',
+  'creature-revived',
   'hit-point-maximum-raised',
   'fall-declared',
 ] as const;
@@ -168,7 +170,52 @@ function withoutTemporaryHpDeadline(state: GameState, on: CharacterId): GameStat
  * `fold/index.ts`, nothing under `commands/` can reach it, and a log becomes a
  * state by exactly one route.
  */
-export function applyVitals({ state, next }: Applying, event: VitalsEvent): GameState {
+export function applyVitals(applying: Applying, event: VitalsEvent): GameState {
+  return stampDeaths(applying.state, reduceVitals(applying, event));
+}
+
+/**
+ * The moment a creature died, stamped on whoever has just stopped being alive.
+ *
+ * **Derived, and comparing two states rather than reading one event**, for
+ * exactly {@link raiseDeathBursts}' reason and against exactly the same fact:
+ * a monster dies inside `applyDamageToVitals` off a `damage-taken`, a
+ * character off a third failed `death-save-recorded`, another at Exhaustion 6
+ * off an `exhaustion-set`, and `creature-died` is only the deaths nobody else
+ * settled. A list of the events that can kill somebody is not a list anybody
+ * could keep correct, so the question is "was alive, now is not".
+ *
+ * **Here rather than in `apply.ts`**, because every one of those four events is
+ * this seam's: a pass further out would be a second place to ask a question
+ * this module already has the answer to, and this way nothing outside the seam
+ * has to know that death has four causes.
+ *
+ * The clock does not move on a vitals event, so `elapsed` is the same number
+ * before and after; it is read off the state the reduction left for the reason
+ * every other derived read is.
+ *
+ * Only the falling edge is stamped. The rising one — a revival — is written by
+ * `revive()` on the event that performs it, because *that* is a thing somebody
+ * decided and there is an event that says so.
+ */
+function stampDeaths(before: GameState, after: GameState): GameState {
+  let out = after;
+  for (const id of Object.keys(after.creatures).sort()) {
+    const now = after.creatures[id];
+    if (now === undefined || !now.vitals.dead || now.vitals.diedAt !== null) continue;
+    if (before.creatures[id]?.vitals.dead === true) continue;
+    out = {
+      ...out,
+      creatures: {
+        ...out.creatures,
+        [id]: { ...now, vitals: { ...now.vitals, diedAt: after.elapsed } },
+      },
+    };
+  }
+  return out;
+}
+
+function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState {
   switch (event.type) {
     case 'damage-taken': {
       const creature = creatureOf(state, event, event.id);
@@ -408,6 +455,29 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
         next,
         event.id,
         { vitals: { ...creature.vitals, hp: 0, dead: true } },
+        creature,
+      );
+    }
+
+    // SRD Revivify: "That creature revives with 1 Hit Point." The one event
+    // that takes a creature the other way, and the only one: healing refuses a
+    // corpse by rule, and `vitals.revive` is the arithmetic — alive, at the
+    // total the spell pinned, death saves thrown away, `diedAt` cleared.
+    case 'creature-revived': {
+      const creature = creatureOf(state, event, event.id);
+      if (!creature.vitals.dead) {
+        throw new CorruptLogError(event, `${event.id} is not dead and has nothing to come back from`);
+      }
+      if (!Number.isInteger(event.hitPoints) || event.hitPoints < 1) {
+        throw new CorruptLogError(
+          event,
+          `a revival restores a whole number of hit points, at least one, got ${event.hitPoints}`,
+        );
+      }
+      return withCreature(
+        next,
+        event.id,
+        { vitals: revive(creature.vitals, event.hitPoints) },
         creature,
       );
     }

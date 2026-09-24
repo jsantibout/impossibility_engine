@@ -244,6 +244,15 @@ export interface EffectContext {
    */
   readonly weapon?: string;
   /**
+   * The object an `end-attunement` effect was aimed at, by catalogue id.
+   *
+   * {@link EffectContext.weapon}'s neighbour and its reading: stated at the
+   * casting, refused there when a spell that touches no object names one, so a
+   * resolver reaching here without it is the definition and the command layer
+   * disagreeing rather than a rules dispute.
+   */
+  readonly object?: string;
+  /**
    * The stat block a summoning spell that leaves the form to its caster was
    * told to raise, by its id in content — SRD Find Familiar's "an animal form
    * you choose". Stated at the casting and refused there when a spell that

@@ -3,6 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { declaredCasting } from '@ie/engine';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
+import type { CreatureSize } from '@ie/srd/schemas';
 import { createRng, type Rng } from '@ie/engine';
 import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent, type GameState } from '@ie/engine';
@@ -19,6 +20,8 @@ import {
   statedFormOf,
   statesFoughtFact,
   teleportOf,
+  breaksAttunement,
+  dropsAnObject,
   weaponRiderOf,
 } from '@ie/engine';
 
@@ -54,7 +57,11 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
+const added = (
+  who: CharacterId,
+  creatureType = 'Humanoid',
+  size?: CreatureSize,
+): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
@@ -62,6 +69,7 @@ const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
   maxHp: 500,
   diesAtZero: false,
   creatureType,
+  ...(size === undefined ? {} : { size }),
 });
 
 /** Every slot level, so any spell in the catalogue can actually be paid for. */
@@ -80,11 +88,16 @@ const slots: GameEvent[] = Array.from({ length: 9 }, (_, i) => ({
  * The table, with the target and bystander being whatever kind of creature
  * a spell demands. A type is durable — the engine refuses a declaration that
  * rewrites one — so a fixture says what a creature is when it adds it.
+ *
+ * **And whatever size it demands**, for the same reason and with the same
+ * force: SRD Animal Messenger takes "a Tiny Beast", the refusal of a Wolf is
+ * the behaviour rather than an obstacle, and a fixture that could not be Tiny
+ * would have excused the spell from a rule it prints.
  */
-const setupWith = (targetType: string): readonly GameEvent[] => [
+const setupWith = (targetType: string, targetSize?: CreatureSize): readonly GameEvent[] => [
   added(CASTER),
-  added(TARGET, targetType),
-  added(BYSTANDER, targetType),
+  added(TARGET, targetType, targetSize),
+  added(BYSTANDER, targetType, targetSize),
   ...slots,
   // A Club and a Quarterstaff apiece, for the spells that imbue **one weapon**
   // and are refused until the caster names one the target has got. Those two
@@ -123,6 +136,18 @@ const setupWith = (targetType: string): readonly GameEvent[] => [
   },
 ];
 
+/**
+ * The one item this file attunes anybody to — SRD Cloak of Elvenkind, which
+ * requires attunement and is otherwise irrelevant to every spell here.
+ */
+const ATTUNED = 'cloak-of-elvenkind';
+
+/**
+ * The one thing this file puts in a hand — the Quarterstaff every creature
+ * here is already carrying, which is wielded and so can be let go of.
+ */
+const HEATED = 'quarterstaff';
+
 const SETUP: readonly GameEvent[] = setupWith('Humanoid');
 
 const base = (): GameState => fold('seed', SETUP);
@@ -145,8 +170,53 @@ const supply = (seed: string, bonus: number) => ({
 const logFor = (spellId: string): readonly GameEvent[] => {
   const definition = SRD_CONTENT.spell(spellId);
   const wanted = definition?.targets.mustBeType;
+  const sized = definition?.targets.mustBeSize;
 
-  const typed: readonly GameEvent[] = wanted === undefined ? SETUP : setupWith(wanted);
+  const typed: readonly GameEvent[] =
+    wanted === undefined && sized === undefined
+      ? SETUP
+      : setupWith(wanted ?? 'Humanoid', sized);
+
+  // **And a target who has died**, where the spell raises one. SRD Revivify
+  // touches "a creature that has died within the last minute" and refuses a
+  // living one; that refusal is the behaviour, so the fixture supplies the
+  // corpse rather than the spell being excused the rule. Nothing in this file
+  // moves the clock, so the death is always this instant.
+  const raises = (definition?.effects ?? []).some((effect) => effect.kind === 'revive');
+  const withTheDead: readonly GameEvent[] = raises
+    ? [...typed, { type: 'creature-died', id: TARGET, cause: 'the fixture' } as GameEvent]
+    : typed;
+
+  // **And an Attunement, where the spell breaks one.** SRD Remove Curse
+  // refuses an object its target is not attuned to, and that refusal is the
+  // behaviour: the fixture supplies the relation rather than the spell being
+  // excused the rule. Written straight into the log rather than driven through
+  // `attuneItem`, because what is under test is the casting and not the Short
+  // Rest — `attunement.test.ts` is where the command's own rules are.
+  const unbinds = (definition?.effects ?? []).some(
+    (effect) => effect.kind === 'end-attunement',
+  );
+  const withTheAttunement: readonly GameEvent[] = unbinds
+    ? [
+        ...withTheDead,
+        { type: 'items-gained', id: TARGET, items: [{ id: ATTUNED, quantity: 1 }], source: 'the fixture' } as GameEvent,
+        { type: 'attuned', id: TARGET, item: ATTUNED } as GameEvent,
+      ]
+    : withTheDead;
+
+  // **And a thing in the target's hand, where the spell heats one.** SRD Heat
+  // Metal refuses an object its target is neither wearing nor wielding, and
+  // that refusal is the behaviour: the fixture puts the Quarterstaff everybody
+  // is already carrying into a hand rather than the spell being excused the
+  // rule. Written straight into the log for the attunement's reason — what is
+  // under test is the casting and not `equipItem`.
+  const heats = dropsAnObject(definition!);
+  const withTheObject: readonly GameEvent[] = heats
+    ? [
+        ...withTheAttunement,
+        { type: 'item-equipped', id: TARGET, item: HEATED, armor: null } as GameEvent,
+      ]
+    : withTheAttunement;
 
   // A rider that ends at a moment in the turn order needs there to *be* turns.
   // SRD gives "until the end of your next turn" no meaning outside combat and
@@ -246,10 +316,10 @@ const logFor = (spellId: string): readonly GameEvent[] => {
               ([{ type: 'fall-declared', id: TARGET }] as readonly GameEvent[])
             : [];
 
-  if (!anchored && triggered.length === 0) return typed;
+  if (!anchored && triggered.length === 0) return withTheObject;
 
   return [
-    ...typed,
+    ...withTheObject,
     ...(anchored
       ? ([
           {
@@ -336,6 +406,16 @@ const castAt = (
     // which animal this casting called. `statedFormOf` is the runtime's own
     // reader, for the reason the three above are.
     ...(statedFormOf(definition) === null ? {} : { form: statedFormOf(definition)!.among[0]! }),
+    // The eighth, and the same shape a seventh time: a spell that breaks an
+    // Attunement is refused until the caster names the object, and one that
+    // touches no object is refused for naming one. The sweep answers with the
+    // cloak the fixture attuned the target to. `breaksAttunement` is the
+    // runtime's own reader, for the reason the four above are.
+    ...(breaksAttunement(definition)
+      ? { object: ATTUNED }
+      : dropsAnObject(definition)
+        ? { object: HEATED }
+        : {}),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

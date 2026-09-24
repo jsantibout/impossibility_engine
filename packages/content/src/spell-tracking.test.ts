@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
+import type { CreatureSize } from '@ie/srd/schemas';
 import { createRng, type Rng } from '@ie/engine';
 import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
+import { dropsAnObject } from '@ie/engine';
 import { dmDecisionsIn } from '@ie/engine';
 import {
   advanceTime,
@@ -68,6 +70,11 @@ const WIZARD = id('wizard');
 const ALLY = id('ally');
 const FOE = id('foe');
 const BEAST = id('beast');
+const RAVEN = id('raven');
+const CORPSE = id('corpse');
+
+/** The one thing this table puts in a hand — see the setup below. */
+const HEATED = 'quarterstaff';
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -82,7 +89,11 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
+const added = (
+  who: CharacterId,
+  creatureType = 'Humanoid',
+  size?: CreatureSize,
+): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
@@ -90,6 +101,7 @@ const added = (who: CharacterId, creatureType = 'Humanoid'): GameEvent => ({
   maxHp: 50,
   diesAtZero: false,
   creatureType,
+  ...(size === undefined ? {} : { size }),
 });
 
 /**
@@ -128,6 +140,16 @@ const TRACKED: readonly string[] = SPELL_DEFINITIONS.filter(
 const TYPED: Readonly<Record<string, CharacterId>> = { Humanoid: ALLY, Beast: BEAST };
 
 /**
+ * And one creature per **type and size** a tracked definition may demand.
+ *
+ * SRD Animal Messenger takes "a Tiny Beast", which the Wolf standing in for
+ * every Beast is not — and the refusal of a Wolf is the spell working rather
+ * than the fixture being in the way. Keyed by both facts, and the lookup
+ * throws for a pair nobody added, exactly as {@link TYPED} does.
+ */
+const SIZED: Readonly<Record<string, CharacterId>> = { 'Beast/tiny': RAVEN };
+
+/**
  * Where an area spell puts its template: a point 50 feet from the door, and a
  * direction for the shapes that need one.
  *
@@ -143,6 +165,15 @@ const SETUP: readonly GameEvent[] = [
   added(ALLY),
   added(FOE),
   added(BEAST, 'Beast'),
+  added(RAVEN, 'Beast', 'tiny'),
+  added(CORPSE),
+  // **And one creature who has just died**, for the spell that raises one.
+  // SRD Revivify reaches "a creature that has died within the last minute",
+  // and a corpse is what it is aimed at — the refusal of a living target is
+  // the spell working rather than the fixture being in the way, which is the
+  // rule the types and the size above are held to. Nothing here moves the
+  // clock, so the death is always this instant.
+  { type: 'creature-died', id: CORPSE, cause: 'the fixture' },
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
@@ -161,9 +192,19 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: ALLY, placement: { from: { creature: WIZARD }, feet: 5, bearing: 0 } },
   { type: 'creature-placed', id: FOE, placement: { from: { creature: WIZARD }, feet: 5, bearing: 90 } },
   { type: 'creature-placed', id: BEAST, placement: { from: { creature: WIZARD }, feet: 5, bearing: 180 } },
+  { type: 'creature-placed', id: RAVEN, placement: { from: { creature: WIZARD }, feet: 5, bearing: 270 } },
+  { type: 'creature-placed', id: CORPSE, placement: { from: { creature: WIZARD }, feet: 5, bearing: 45 } },
   { type: 'sight-declared', from: WIZARD, to: ALLY, seen: true },
   { type: 'sight-declared', from: WIZARD, to: FOE, seen: true },
   { type: 'sight-declared', from: WIZARD, to: BEAST, seen: true },
+  { type: 'sight-declared', from: WIZARD, to: RAVEN, seen: true },
+  { type: 'sight-declared', from: WIZARD, to: CORPSE, seen: true },
+  // **And a thing in the ally's hand**, for the spell that heats one: SRD Heat
+  // Metal refuses an object its target is neither wearing nor wielding, and
+  // the fixture supplies the wielding rather than the spell being excused the
+  // rule. A Quarterstaff, because it is wielded and so can be let go of.
+  { type: 'items-gained', id: ALLY, items: [{ id: HEATED, quantity: 1 }], source: 'the fixture' },
+  { type: 'item-equipped', id: ALLY, item: HEATED, armor: null },
   // The ally is falling, which is the same discipline the types above follow:
   // the fixture supplies the moment a Reaction spell answers rather than the
   // spell being excused its own casting time. A fall is momentary and this
@@ -195,8 +236,22 @@ const cast = (
   const definition = SRD_CONTENT.spell(spellId);
   if (definition === null) throw new Error(`${spellId} has no definition`);
   const wanted = definition.targets.mustBeType;
-  const at = wanted === undefined ? ALLY : TYPED[wanted];
-  if (at === undefined) throw new Error(`${spellId} wants a ${wanted} and this table has none`);
+  const sized = definition.targets.mustBeSize;
+  const raises = definition.effects.some((effect) => effect.kind === 'revive');
+  const heats = dropsAnObject(definition);
+  const at = raises
+    ? CORPSE
+    :
+    sized !== undefined
+      ? SIZED[`${wanted ?? 'Humanoid'}/${sized}`]
+      : wanted === undefined
+        ? ALLY
+        : TYPED[wanted];
+  if (at === undefined) {
+    throw new Error(
+      `${spellId} wants a ${sized === undefined ? '' : `${sized} `}${wanted ?? 'creature'} and this table has none`,
+    );
+  }
   // A spell that aims at nobody gets nobody, and `unlimited` is the third
   // state: the SRD states no count, so the list is not empty — it is
   // bounded by range and sight instead. The same predicate
@@ -210,6 +265,9 @@ const cast = (
   // about.
   const mine = definition.range.kind === 'self' && definition.targets.self === true;
   const targets = aimsAtNobody ? [] : [mine ? WIZARD : at];
+  // The eighth stated fact: a spell aimed at an object is refused until the
+  // caster names which, and one that touches none is refused for naming one.
+  const object = heats ? { object: HEATED } : {};
   // **A spell that fills an area needs somewhere to put it**, and a Cone, a
   // Cube or a Line needs somewhere to point it as well. No tracked definition
   // carries one — a tracked spell resolves nothing, so there is nothing for a
@@ -235,6 +293,7 @@ const cast = (
       spellId,
       targets,
       ...placed,
+      ...object,
       ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
       // A spell that prints a choice is refused until the caster makes it, and
       // the first printed value is the answer here for the reason the executed
@@ -634,6 +693,10 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * exemptions are safe.
    */
   const CLEAN_AND_EXECUTED: readonly string[] = [
+    // The Mask, whose paragraph names no mechanic any marker knows: a creature
+    // type is a fact rather than a die, a condition or a bonus, and the word
+    // the sentence turns on is "treat".
+    'arcanists-magic-aura',
     // The light the sight track carried out of the tracked bucket: Light and
     // Continual Flame shed from what their bearer holds, Dancing Lights from a
     // point its Bonus Action moves, and Darkvision confers the sense.
@@ -651,6 +714,14 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'fog-cloud',
     'light',
     'magic-weapon',
+    // And the three the casting track carried out. Every one of
+    // Prestidigitation's six wonders is fiction, and the sentence over them —
+    // three of its non-instantaneous effects at a time — is a rule the engine
+    // applies at the cast. Remove Curse reads clean for the neighbouring
+    // reason: a curse is fiction, an Attunement is not, and no marker knows
+    // the word Attunement. No marker knows those words either.
+    'prestidigitation',
+    'remove-curse',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {
@@ -1566,6 +1637,16 @@ describe('every spell this batch added is cast for real', () => {
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    // **Arcanist's Magic Aura leaves by the one spell in the book that lies to
+    // another spell.** A creature's type is a fact the engine holds
+    // authoritatively and refuses to contradict, so the Mask does not write
+    // it: `creature-type-override` is the nineteenth sourced grant, hung under
+    // the casting, and `typeMagicSees` is where the sentence's own line —
+    // *spells and other magical effects* — is drawn between the readers that
+    // believe it and the creature reading a creature that does not. The False
+    // Aura and the thirty days are the two sentences left, and both are about
+    // an object.
+    'arcanists-magic-aura',
     'augury',
     // **Barkskin leaves by the second arm of `armor-class`.** The spell is one
     // sentence and the whole of it was the arm that did not exist: a base
@@ -1595,6 +1676,15 @@ describe('every spell this batch added is cast for real', () => {
     'flaming-sphere',
     'fog-cloud',
     'goodberry',
+    // **Heat Metal leaves by the verb that takes a thing out of a hand.**
+    // `what-a-creature-is-holding` was half built — hands counted, a casting
+    // able to put a thing into one — and `OutcomeRiders.drops` is the other
+    // half: the failed Constitution save lets go of the object, "if it can" is
+    // `handsFor`, and the Disadvantage is the `orElse` that runs only where it
+    // could not be. The object is an equipped item, the Bonus Action deals the
+    // same damage again through the record, and what is left is an object
+    // nobody is wearing or wielding.
+    'heat-metal',
     // **Ice Knife leaves by a second parent rather than a sixth rider.** "Hit
     // or miss, the shard then explodes" hangs off neither branch of the
     // attack, so `attack.then` is a second resolution sequenced after the
@@ -1614,6 +1704,16 @@ describe('every spell this batch added is cast for real', () => {
     // ledger, so the only sentence it hands the table is whether the creature
     // touched was willing.
     'resistance',
+    // **Revivify leaves by the one thing healing is not allowed to do.**
+    // `healCreature` refuses a corpse in its first line, and the refusal is
+    // the rule rather than an obstacle: hit points do not lift death. So the
+    // `revive` effect is its own kind and `creature-revived` its own event,
+    // and the minute the spell reaches back is subtraction over
+    // `Vitals.diedAt` — a stamp the fold derives from the fact itself, because
+    // a creature dies four ways and only one of them says so in an event. Old
+    // age and the body parts are the two sentences left, and neither is a fact
+    // the engine holds.
+    'revivify',
     'sanctuary',
     // **Sleep leaves by the repeat save's new failure branch.** The save and
     // the Incapacitated were always ordinary; what had nowhere to go was "at

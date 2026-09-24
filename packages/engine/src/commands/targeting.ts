@@ -43,6 +43,8 @@ import {
   snapToSpace,
 } from '../positioning.js';
 import { fallWindowOpen } from '../reactions.js';
+import { typeMagicSees } from '../creature-type.js';
+import { effectiveSizeOf } from '../size.js';
 import { canSee, canSeePoint } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
@@ -50,6 +52,7 @@ import {
   rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
+  namesAnObject,
   ranged,
   type SpellArea,
   type SpellDefinition,
@@ -467,6 +470,34 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly teleportTo?: Placement;
   /**
+   * The object a spell aimed at a thing rather than at its holder was pointed
+   * at, by catalogue id.
+   *
+   * SRD Remove Curse: "the spell breaks its **owner's** Attunement to the
+   * object"; SRD Heat Metal: "Choose a manufactured metal object ... that you
+   * can see within range." Both name one thing out of what a creature is
+   * carrying, and both leave the creature as the target the range is measured
+   * to — which is why this is a fact beside the target list rather than a
+   * second kind of target.
+   *
+   * The eighth fact a casting states rather than derives, and it takes the
+   * shape of the seven before it: **required** by a spell that names an object
+   * and **refused** for one that does not, both before a slot is spent. What
+   * is checked beside that is the object's — it reaches an item, and the
+   * relation the spell needs really holds — and every one of those is a
+   * refusal rather than a substitution.
+   *
+   * **Distinct from {@link CastSpellRequest.weapon}**, which is the same shape
+   * narrowed to a weapon and read by an entirely different clause: a
+   * `weapon-rider` imbues something a later swing reads, where this names a
+   * thing the spell acts on now. A definition writing both would be two
+   * sentences about two objects, and no SRD spell prints one.
+   *
+   * **And distinct from {@link CastSpellRequest.item}**, which is the wand
+   * doing the casting rather than the thing being cast at.
+   */
+  readonly object?: string;
+  /**
    * The weapon a spell that imbues one was aimed at, by catalogue id.
    *
    * SRD Shillelagh: "A Club or Quarterstaff **you are holding**"; SRD Magic
@@ -723,6 +754,15 @@ export interface HeldCasting {
  * need the answer and they must not disagree: `placeArea` builds the geometry
  * with it, and the ongoing record stores it for every later trigger.
  */
+/**
+ * A size as the book writes it — "Tiny", "Medium" — for a refusal a person reads.
+ *
+ * The vocabulary is lowercase because that is what a stat block parses to; the
+ * SRD prints the category capitalised wherever a rule names one, and
+ * `ACTION_TITLES` in `combat.ts` is the same courtesy for the same reason.
+ */
+const titleSize = (size: string): string => `${size.slice(0, 1).toUpperCase()}${size.slice(1)}`;
+
 export const anchoringFor = (
   source: { readonly anchoring?: PointAnchoring },
   request: { readonly anchoring?: PointAnchoring },
@@ -989,6 +1029,33 @@ export function declaredFacts(
     return err(
       'no_weapon_clause',
       `${definition.name} does nothing to a weapon; which one is not a fact it asks for`,
+    );
+  }
+
+  // — which object it was aimed at ————————————————————————————————————————
+  //
+  // The eighth stated fact, and the same two refusals a sixth time. Two
+  // clauses ask: SRD Remove Curse breaks "its owner's Attunement to the
+  // object", and SRD Heat Metal heats one and makes its holder let go of it.
+  // Either way a creature carrying three things has three answers, so the
+  // caster says which and the engine says none.
+  //
+  // **Only the symmetry lives here**, for the weapon's reason above it: that
+  // the object reaches an item and that the relation the spell needs really
+  // holds — attuned to it, wearing it — both need the catalogue, which this
+  // function has none of, and both are asked in `resolveSpell`'s pre-flight
+  // before anything is spent.
+  if (namesAnObject(definition)) {
+    if (request.object === undefined) {
+      return err(
+        'object_required',
+        `${definition.name} is aimed at one object and the engine will not choose which; name it`,
+      );
+    }
+  } else if (request.object !== undefined) {
+    return err(
+      'no_object_clause',
+      `${definition.name} does nothing to an object; which one is not a fact it asks for`,
     );
   }
 
@@ -1639,10 +1706,16 @@ export function areaCatch(
     // spelled alike: an undeclared type is not a match here, and an area
     // *filters* rather than asking, because "each Humanoid in the area" leaves
     // the ogre standing there unbothered.
-    if (wanted !== undefined && !isCreatureType(creature.creatureType, wanted)) {
+    // **What magic sees**, which is the mask where one is standing and the
+    // creature's own type otherwise — SRD Arcanist's Magic Aura: "Spells and
+    // other magical effects treat the target as if it were a creature of the
+    // chosen type." An area a casting filled and a Channel Divinity option's
+    // emanation are both magical effects, and both come through here.
+    const magicSees = typeMagicSees(creature);
+    if (wanted !== undefined && !isCreatureType(magicSees, wanted)) {
       return out(
         who,
-        `${source.name} touches only a ${wanted}, and ${who} is ${creature.creatureType ?? 'a creature nobody has said the kind of'}`,
+        `${source.name} touches only a ${wanted}, and ${who} is ${magicSees ?? 'a creature nobody has said the kind of'}`,
       );
     }
     // SRD Entangle: "Each creature (other than you) in the area". The caster
@@ -1840,7 +1913,10 @@ export function namedTargets(
     // for rather than waved through.
     const wanted = definition.targets.mustBeType;
     if (wanted !== undefined) {
-      const actual = state.creatures[target]?.creatureType ?? null;
+      // The mask where one is standing — see `typeMagicSees`, and the area
+      // filter above, which asks the same question of the same reader.
+      const creature = state.creatures[target];
+      const actual = creature === undefined ? null : typeMagicSees(creature);
       if (actual === null) {
         needs.push({
           kind: 'creature-type',
@@ -1867,6 +1943,28 @@ export function namedTargets(
         return err(
           'target_wearing_armor',
           `${definition.name} is cast on a creature who is not wearing armor; ${target} is wearing ${worn.name}`,
+        );
+      }
+    }
+
+    // SRD Animal Messenger: "A **Tiny** Beast of your choice". A size the
+    // spell demands, read the way every other size rule reads one — through
+    // `effectiveSizeOf`, so a shape-shifted creature answers as what it now
+    // is. A creature nothing anywhere has sized is a plain no rather than a
+    // question, for `mustBeUnarmored`'s reason and `mustBeFalling`'s: the fact
+    // is the engine's to read, and asking here would tell a caller which
+    // declaration to invent in order to widen the spell.
+    const sized = definition.targets.mustBeSize;
+    if (sized !== undefined) {
+      const actual = effectiveSizeOf(state, target);
+      if (actual !== sized) {
+        return err(
+          'wrong_creature_size',
+          `${definition.name} is cast on a ${titleSize(sized)} creature; ${target} is ${
+            actual === null
+              ? 'a creature nothing has given a size — a stat block, a species or a placement would'
+              : titleSize(actual)
+          }`,
         );
       }
     }
@@ -2191,7 +2289,9 @@ export function eligibleTargets(
 
     const wanted = definition.targets.mustBeType;
     if (wanted !== undefined) {
-      const actual = target.creatureType;
+      // The mask, so the shortlist and the cast agree about who a spell could
+      // be aimed at — see `typeMagicSees`.
+      const actual = typeMagicSees(target);
       if (actual === null) {
         needsContext.push({
           kind: 'creature-type',
@@ -2204,6 +2304,21 @@ export function eligibleTargets(
       }
       if (!isCreatureType(actual, wanted)) {
         excluded.push({ target: target.id, reason: `${target.name} is ${actual}, not ${wanted}` });
+        continue;
+      }
+    }
+
+    // The same size rule the named-target path applies, so the shortlist and
+    // the cast agree about who this spell could ever be aimed at. An excluded
+    // creature rather than a refusal, because that is what this query answers.
+    const sized = definition.targets.mustBeSize;
+    if (sized !== undefined) {
+      const actual = effectiveSizeOf(state, target.id);
+      if (actual !== sized) {
+        excluded.push({
+          target: target.id,
+          reason: `${target.name} is ${actual === null ? 'a creature nothing has given a size' : titleSize(actual)}, not ${titleSize(sized)}`,
+        });
         continue;
       }
     }

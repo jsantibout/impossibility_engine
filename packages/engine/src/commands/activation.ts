@@ -342,6 +342,11 @@ export function activateSpell(
       events,
       effects: activation.effects,
       label: activation.label,
+      // The object the casting was pointed at, off the record rather than out
+      // of a fresh request: SRD Heat Metal deals "**this** damage again" to the
+      // thing it was cast on, and an activation that asked again could heat
+      // one object on this turn and another on the next.
+      ...(record.object === undefined ? {} : { object: record.object }),
       ...(reached === null ? {} : { from: reached }),
     });
     if (!resolved.ok) return resolved;

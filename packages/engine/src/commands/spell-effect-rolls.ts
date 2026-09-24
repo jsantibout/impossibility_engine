@@ -18,6 +18,7 @@
  * throw.
  */
 
+import { typeMagicSees } from '../creature-type.js';
 import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
 import {
   type AttackResult,
@@ -641,6 +642,8 @@ function resolveOneAttackRoll(
     casterLevel: numbers.casterLevel,
     unverified,
     held,
+    content: supply.content,
+    ...(ctx.object === undefined ? {} : { object: ctx.object }),
     saveAbility: null,
   });
   if (!riders.ok) return riders;
@@ -837,7 +840,7 @@ export function resolveSaveDamageEffect(
   const singled =
     effect.againstType !== undefined &&
     effect.againstType.types.some((named) =>
-      isCreatureType(victim.creatureType, named),
+      isCreatureType(typeMagicSees(victim), named),
     )
       ? effect.againstType.outcome
       : null;
@@ -1019,6 +1022,8 @@ export function resolveSaveDamageEffect(
       casterLevel: numbers.casterLevel,
       unverified,
       held,
+      content: supply.content,
+      ...(ctx.object === undefined ? {} : { object: ctx.object }),
       // SRD Sunburst: "another Constitution saving throw" — the one this
       // host just rolled, which is why a repeat save names no ability of
       // its own.
@@ -1283,6 +1288,8 @@ export function resolveSaveEffect(
     casterLevel: numbers.casterLevel,
     unverified,
     held,
+    content: supply.content,
+    ...(ctx.object === undefined ? {} : { object: ctx.object }),
     saveAbility: effect.ability,
   });
   if (!landed.ok) return landed;

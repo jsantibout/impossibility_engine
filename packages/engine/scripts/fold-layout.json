@@ -157,6 +157,8 @@
     "clearTemporaryHp",
     "withoutTemporaryHpDeadline",
     "applyVitals",
+    "stampDeaths",
+    "reduceVitals",
     "raiseDeathBursts",
     "caughtByTheBurst",
     "BURST_EMANATION"

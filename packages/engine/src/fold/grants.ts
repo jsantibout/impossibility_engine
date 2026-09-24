@@ -48,6 +48,7 @@ export const GRANTS_EVENTS = [
   'attack-rider-granted',
   'weapon-rider-granted',
   'condition-immunity-granted',
+  'creature-type-masked',
   'printed-line-immunity-granted',
   'turn-payout-granted',
   'creature-attached',
@@ -334,6 +335,20 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         },
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { grantedConditionImmunities }, creature);
+    }
+
+    case 'creature-type-masked': {
+      const creature = creatureOf(state, event, event.id);
+      // Re-granting from the same source replaces rather than stacking, the
+      // rule every grant in this family follows — and here it is the sentence's
+      // own: a creature is treated as one type, so a second copy from one
+      // casting has nothing to add. **The source alone is the identity**, as
+      // it is for a defence, a Speed, a rider and an Immunity.
+      const creatureTypeMasks = [
+        ...creature.creatureTypeMasks.filter((held) => held.source !== event.mask.source),
+        event.mask,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { creatureTypeMasks }, creature);
     }
 
     case 'printed-line-immunity-granted': {

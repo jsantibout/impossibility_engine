@@ -159,26 +159,44 @@ function byCastingOrder(state: GameState): readonly OngoingSpell[] {
 
 /**
  * SRD Mage Hand: "The hand vanishes ... if you cast this spell again."
+ * SRD Prestidigitation: "you can have up to **three** of its
+ * non-instantaneous effects active at a time."
  *
- * The same caster, the same spell. A lookup over the live records rather than
- * a search through history, which is the difference the ongoing record makes:
- * before it, obeying this sentence meant scanning the log for a `spell-cast`
- * and then proving nothing had ended it since.
+ * The same caster, the same spell, and one arithmetic for both sentences —
+ * see {@link SpellDefinition.maxRunning}, which is the second of them and is
+ * the first with a number other than one. A lookup over the live records
+ * rather than a search through history, which is the difference the ongoing
+ * record makes: before it, obeying either sentence meant scanning the log for
+ * a `spell-cast` and then proving nothing had ended it since.
  */
 export function replacedCastings(
   state: GameState,
   casterId: CharacterId,
   definition: SpellDefinition,
 ): readonly GameEvent[] {
-  if (definition.replacesPriorCasting !== true) return [];
-  return ongoingSpellsBy(state, casterId)
-    .filter((record) => record.spellId === definition.id)
-    .map((record) => ({
-      type: 'spell-ended' as const,
-      castingId: record.castingId,
-      on: null,
-      reason: 'recast' as const,
-    }));
+  // **One rule with two numbers.** `replacesPriorCasting` is a cap of one and
+  // `maxRunning` is a cap of *n*; the validator refuses a definition that
+  // writes both, so at most one of these two lines is ever about anything.
+  const cap = definition.replacesPriorCasting === true ? 1 : definition.maxRunning;
+  if (cap === undefined) return [];
+
+  // Oldest first, which `ongoingSpellsBy` already guarantees numerically —
+  // `cast:2` before `cast:10`, never the string order.
+  const mine = ongoingSpellsBy(state, casterId).filter(
+    (record) => record.spellId === definition.id,
+  );
+  // How many have to go for the casting about to be made to be the last that
+  // fits. A cap of one takes every one of them, which is the sentence
+  // `replacesPriorCasting` has always written.
+  const over = mine.length - (cap - 1);
+  if (over <= 0) return [];
+
+  return mine.slice(0, over).map((record) => ({
+    type: 'spell-ended' as const,
+    castingId: record.castingId,
+    on: null,
+    reason: 'recast' as const,
+  }));
 }
 
 /**

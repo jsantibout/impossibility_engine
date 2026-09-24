@@ -128,9 +128,9 @@ export const MISSING_SHAPES = {
   'an-outcome-that-reads-the-targets-hit-points':
     'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 0 / 4 | vitals". The vitals are there and no effect asks them a question.',
   'a-target-rule-the-format-cannot-state':
-    '`TargetRule` in spell-definitions.ts selects by creature type and by whether armour is worn, and by nothing else. The SRD also selects by **size**, by **Challenge Rating** and by an **ability score**, and shapes outcomes by the same three facts. Size is held and CLAUDE.md records the only rules that read it — sharing a space, passing through, and the volume a template tests; an ability score is held and read by nothing here; a Challenge Rating is not held at all. One missing reader, three facts, and the description says which is which.',
+    '`TargetRule` in spell-definitions.ts selected by creature type and by whether armour is worn, and by nothing else. The SRD also selects by **size**, by **Challenge Rating** and by an **ability score**, and shapes outcomes by the same three facts. **The first of the three is built**: `mustBeSize` reads `effectiveSizeOf` — the size an active feature prints, then the size somebody stated, then the map’s — refuses a named target of the wrong one and filters the shortlist, and SRD Animal Messenger’s "a Tiny Beast" is written off it. What is left is the other two, and they are missing in different ways: an ability score is **held and read by nothing here**, and a Challenge Rating is **not held at all** — `adaptMonster` parses one off every stat block and `creature-added` carries it no further, which is why Animal Messenger’s automatic success for a Beast of Challenge Rating above 0 still has nothing to ask. Two missing readers, three facts, and the description says which is which.',
   'a-creature-fact-an-effect-overrides':
-    'an effect that changes what **other** rules believe about a creature. PROGRESS.md names it: "Arcanist’s Magic Aura changes what other spells believe a creature’s type to be, which `mustBeType` reads on every casting." Type and size are facts the engine holds authoritatively, and nothing may write over them for the duration of a spell. IE-044 read a third fact of the same shape off SRD Gaseous Form — "The target can enter and occupy the space of another creature", where what the other rule believes is that a creature holds its space against a willing mover.',
+    'an effect that changes what **other** rules believe about a creature. **The type is built and the name now means the other two facts.** PROGRESS.md named it — "Arcanist’s Magic Aura changes what other spells believe a creature’s type to be, which `mustBeType` reads on every casting" — and `creature-type-override` is that sentence: a sourced grant beside `CreatureState.creatureType` rather than a write over it, read by `typeMagicSees`, whose docstring draws the line the SRD sentence draws between a spell asking and a creature asking. The fact itself is untouched, and every door that ends a grant gives the goblin its own type back. What is left is **size** — held, read by sharing a space, passing through and the volume a template tests, and written over by nothing — and the third fact IE-044 read off SRD Gaseous Form: "The target can enter and occupy the space of another creature", where what the other rule believes is that a creature holds its space against a willing mover. One reader built, two facts left.',
   'an-ability-score-a-spell-changes':
     'a score an effect **moves**, in any of the five ways the book moves one. `docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." One of the five is built: an item may now *set* a score — an **absolute** held while it is worn, derived on every read by `abilityScoresOf` — and the three entries that printed only that sentence are transcribed. Four have no writer. A score an effect **lowers**. A **bounded delta with a lifetime**, which SRD prints on six Ioun Stones: "Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head" is `ability-score-increase`’s arithmetic on a standing grant’s lifetime, and the member that holds the arithmetic is answered at creation while the one that holds the lifetime writes absolutes — the Belt of Dwarvenkind prints it too, and the Hammer of Thunderbolts adds 4 to whatever score a belt or a pair of gauntlets already bestowed. A set with a **deadline** rather than a garment, which a conferral would carry and `CONFERRED_EFFECT_KINDS` does not admit. And a **permanent** raise: the manuals’ and the tomes’ +2 after forty-eight hours of study, which outlives every rest and is a folded number rather than a derived one.',
   'a-stat-block-created-mid-fight':
@@ -148,7 +148,7 @@ export const MISSING_SHAPES = {
   'an-exhaustion-level-a-spell-changes':
     'Exhaustion is a level rather than a condition that is simply on or off — `docs/rules/srd-policy.md`: "**Exhaustion is a flat -2 per level, not Disadvantage**" — and `end-condition` takes a list of condition names, so it removes the condition and cannot remove *one level* of it. `setExhaustionLevel` is a DM-declared command, among the nine `docs/rules/srd-policy.md` records as reachable from a command and from no spell effect.',
   'healing-that-raises-the-dead':
-    'PROGRESS.md ranks "Healing that lifts a condition, **raises the dead**, or raises the maximum"; `docs/design/spell-definitions.md` states the refusal it has to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot".',
+    '**Built.** PROGRESS.md ranked "Healing that lifts a condition, **raises the dead**, or raises the maximum", and `docs/design/spell-definitions.md` stated the refusal it had to get past — "hit points alone will not raise the dead — `healCreature` refuses a corpse, and the refusal costs no slot". The refusal stands and the shape goes round it: a `revive` effect and a `creature-revived` event of their own, because lifting death is not hit points with a small number in them, and `Vitals.diedAt` — stamped by the vitals seam on the transition rather than by any one of the four events that can kill somebody — is what makes the minute a spell reaches back into subtraction. SRD Revivify is executed off it. **Four undefined claimants are left**, and each prints a longer window, a bigger price or a body the engine has no shape for; the id stays because they are still owed and the mechanism they would reuse is now here.',
   'a-hit-point-maximum-a-spell-moves':
     'PROGRESS.md ranked "Healing that lifts a condition, raises the dead, or raises the maximum" and the audit named Harm’s reduction as debt: the maximum was set when a creature is added and by advancement, and no effect moved it. **The raise is built**: `hit-point-maximum` is a twelfth sourced grant, `settleHitPointMaximum` reconciles `Vitals.hpMax` in the fold’s derived pass so every ending gives it back, and `advanceCharacter` subtracts the *unadjusted* maximum so a level taken mid-spell is worth the whole of its level — which is Aid and its slot scaling whole. Three things are still missing under this name and each is its own sentence. **A reduction**: Harm’s, the Berserker Axe’s, and Greater Restoration ending one — every SRD sentence that lowers a maximum is fastened to damage already taken, so the clause that makes it mean something is the half that is absent. **A maximum that cannot be reduced**, which is Aura of Life and is a refusal rather than an amount. **And a rolled one**: Heroes’ Feast’s 2d10, refused at authoring (`rolled_hit_point_maximum`) because a die thrown once and then carried for hours is a number the log cannot account for. A *feature* that raises a maximum is a different absence again — see the feature ledger.',
   'difficult-terrain-an-area-creates':
@@ -193,7 +193,7 @@ export const MISSING_SHAPES = {
   'a-range-that-scales-with-caster-level':
     '`SpellDefinition.range` in spell-definitions.ts is one fixed `SpellRange`, and `ranged(definition.range)` is checked on every casting — tracked or executed, before a target is looked at. `docs/design/spell-definitions.md` keeps the two scaling axes apart on purpose — "**Cantrips scale by caster level and levelled spells by slot**, and they are separate fields rather than one overloaded number" — and both of them reach *dice*. Exactly one spell in the book prints a range that grows with the caster, and the engine would refuse the casting the SRD allows.',
   'a-cap-on-how-many-castings-run-at-once':
-    '`replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. A spell that lets three of its own castings run at a time and no more is the same field with a number, and `state.ongoing` already holds everything needed to count them.',
+    '**Built, and the id is empty.** `replacesPriorCasting` in spell-definitions.ts is the cap the SRD writes twice — "The hand vanishes ... if you cast this spell again" — and it is a cap of **one**, applied by ending the prior casting. `maxRunning` is the same field with a number in it and `replacedCastings` is one arithmetic for both sentences: the oldest castings by this caster of this spell end until the new one is the last that fits. SRD Prestidigitation’s three is the only spell in the book that writes it and is executed off it. Kept rather than deleted because an id is a key two branches append to, and because the reading it records — ending the oldest rather than refusing the fourth — is the one a later homebrew spell will meet.',
   'a-duration-the-slot-changes':
     'PROGRESS.md, on Major Image: "Concentration and duration that **change with the slot level** ... which `SpellDefinition` cannot express". **IE-035 built the half that is a longer span**: `durationAtSlot` is a per-definition table of slot level to seconds, read where the deadline is scheduled, and the six spells printing the SRD’s "Your Concentration can last longer with a spell slot of…" — Hex, Hunter’s Mark, the three Dominates — and SRD Mass Suggestion’s "The duration is longer with…" all read their own table. What is left is the *other* half of the sentence PROGRESS.md quotes: a slot that changes **what kind** of duration the spell has. SRD Major Image is the one spell in the book that prints it — "The spell lasts until dispelled, **without requiring Concentration**, if cast with a level 4+ spell slot" — so a table of seconds cannot say it, and a member with one writer is what the format’s own unused-member sweep exists to refuse.',
   'a-deadline-anchored-to-a-rest':
@@ -203,7 +203,7 @@ export const MISSING_SHAPES = {
   'senses-beyond-declared-sight':
     '**the attacker-side half is built and this is what is left.** `docs/design/light-and-sight.md` draws the line where it now falls: "the attacker-side sense reading (P2-T16), not this". A creature has held senses since `sensesOf` and `SENSES_THAT_SOMEHOW_SEE` landed; what a `RollSelector` had no room for was the *exception* — `unlessPerceivedWith` is that axis, `sensesPerceiving` is the reader, and Blur’s sentence excusing an attacker who perceives you with Blindsight or Truesight is finished by them. What is left is every sense clause that is not a modifier on a roll: a casting that **confers** a sense on a creature (the Darkvision spell, Gem of Seeing), one creature **borrowing** another’s (Find Familiar), and a sense that excuses its holder from an illusion or an area rather than from a die (Mirage Arcane). None of those is an attacker reading a sense off a roll, and none has state to sit in.',
   'what-a-creature-is-holding':
-    '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. What is still missing is the verb that takes something **out** of a hand against its holder’s will: SRD Fear’s "drop whatever it is holding" and SRD Heat Metal’s save-or-drop are an effect no definition can write, and an ordinary thing let go of would land on a floor this engine does not keep. `dropConjured` is the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
+    '**Half of this is built, and the name now means the other half.** What `docs/design/characters-and-equipment.md` recorded — "Nothing checks that two hands are free, either." — is checked now: hands are a count on the sheet, what an item takes up is read off its printed record, a third thing in two hands is refused, and a casting may put a thing *into* a hand and hold it there for as long as it runs, which is what Goodberry’s ten berries and Flame Blade’s blade were waiting on. **The verb that takes something out of a hand is built too, and what is left is whose hand.** `OutcomeRiders.drops` is a rider on a settled outcome: the object the casting named leaves the creature, the *if it can* the sentence prints is `handsFor` off the item’s printed record, `orElse` is what the outcome does instead where it cannot be, and `forcedDrop` performs it through `unequipItem` and `dropItem` so the thing lands on the floor the engine does keep now. SRD Heat Metal is executed off it. What is left is SRD Fear’s "drop whatever it is holding", which names **no object at all**: this rider drops the one thing the caster stated, and a clause that empties both hands of whatever happens to be in them is a second sentence with a second shape. `dropConjured` is still the door for a conjured thing, which simply ceases to exist, and it refuses everything else by name.',
   'targeting-rules-that-differ-within-one-casting':
     'one range and one sight requirement are checked against every named target. The SRD sometimes measures a later target from an earlier one, requires sight of only the first, or prints a reach for the attack that is not the spell’s Range — a third measurement beside the caster and the area point `docs/design/spell-definitions.md` added for Mass Cure Wounds ("The range then belongs to the point rather than to each target"). **The reach half is built and what is left is the other two.** `attack.reach` is the distance a swing goes where the spell’s own Range does not say it — SRD Vampiric Touch’s "within reach" on a Range of Self — checked with the targets settled and before anything is spent, and that spell has left this id. A later target measured from an earlier one, and sight required of the first target only, are the two SRD Chain Lightning still prints and neither is a distance from the caster.',
   'a-condition-that-ends-when-its-holder-leaves-an-area':
@@ -817,7 +817,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'drops whatever it is holding',
       why: 'what-a-creature-is-holding',
-      note: 'SRD: a creature that fails must "drop whatever it is holding". What a creature owns and what it has equipped are both real state, and nothing takes a weapon out of a hand.',
+      note: 'SRD: a creature that fails must "drop whatever it is holding". A weapon does come out of a hand now — `OutcomeRiders.drops` is the verb and SRD Heat Metal is executed off it — and this clause names **no object**: the rider drops the one thing the caster stated at the casting, where Fear empties whatever the creature happens to be holding. The half that is left is the plural, and it is what the shape’s own description now says is left.',
     },
     // **The Dash itself is written now**, as the legality `ActionRule` was
     // derived from this very sentence to say: the Action slot is narrowed to
@@ -957,6 +957,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the lethargy',
       why: 'an-effect-that-fires-when-the-casting-ends',
       note: 'SRD: "When the spell ends, the target is Incapacitated and has a Speed of 0 until the end of its next turn, as a wave of lethargy washes over it." Expiry is derived here, like Concentration breaking, and the log records an effect being scheduled rather than expiring — so a spell that punishes its target when it lapses has no hook to hang the lethargy on.',
+    },
+  ],
+  'heat-metal': [
+    {
+      clause: 'an object nobody is wearing or wielding',
+      why: 'table',
+      note: 'SRD: "Any creature in physical contact with the object takes 2d8 Fire damage when you cast the spell." **What the engine keeps is what a creature has equipped** — armour on a body, a weapon in a hand — and that is the whole of the contact it can see. A metal gate, a chain across a door and a coin in a pouch are all objects nothing here is holding, so who is touching one is the DM’s and always will be. What follows from the contact is the engine’s and is executed: the wearer takes the dice, fails the save, and lets go of the thing if it can.',
     },
   ],
   'hideous-laughter': [
@@ -1140,6 +1147,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'remain within range for the spell',
       why: 'table',
       note: 'SRD: "Up to five creatures of your choice who remain within range for the spell\'s entire casting gain the benefits of a Short Rest". Range is measured against where the five stand when the rite settles, and nothing records where anybody stood for the ten minutes before it; a position history kept only so that one spell could read it would be a rule nothing else asks for, so whether they stayed is the DM\'s.',
+    },
+  ],
+  revivify: [
+    {
+      clause: 'died of old age',
+      why: 'table',
+      note: 'SRD refuses it by name: "a creature that has died of old age". **The engine holds no cause of death**, and the field that would have to hold one is not missing by oversight: `creature-died.cause` is prose for the audit trail, and three of the four ways a creature dies write no such event at all. So the corpse this spell may not touch is one the table declines to hand it, exactly as the body parts it does not restore are an anatomy nothing here has. What the engine does own — whether the creature is dead, and how long it has been — it checks before a slot is spent.',
     },
   ],
   sanctuary: [
@@ -1730,7 +1744,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'condition',
       clause: 'The target has the Prone condition and then ends its turn',
       why: 'a-creature-somebody-else-is-playing',
-      note: 'the Prone half is an ordinary `condition` effect, and the clause beside it is the nearest of the five to sayable: a turn ended is every slot of it gone, which a spell may now spend. What still refuses it is that this is one option of five a creature **chose to obey**, so writing Grovel alone would be a Command that only ever meant one word — which is the whole reason all five options are the table’s together.',
+      note: 'the Prone half is an ordinary `condition` effect, and the clause beside it is the nearest of the five to sayable: a turn ended is every slot of it gone, which a spell may now spend. What still refuses it is that this is one option of five a creature **chose to obey**, so writing Grovel alone would be a Command that only ever meant one word — which is the whole reason all five options are the table’s together. **Read again on 2026-09-24 and the second blocker has a name**: three of the five are each writable on their own now — `OutcomeRiders.drops` lets go of a named object, Prone is an ordinary condition, and `forbids` takes movement, the action and the Bonus Action together — and what none of them has is a way to say *only if the caster spoke this word*. That is the second arm of `a-choice-made-at-the-casting`, a choice of which effects run rather than which value one of them carries, which `SpellDefinition.choiceStated`’s own docstring records as deliberately absent. So this spell waits on two shapes and the map names the one that would still be owed after the other was built.',
     },
   ],
   'freedom-of-movement': [
@@ -1821,20 +1835,20 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: 'movement-cost',
       clause: 'You can use 5 feet of movement to leave the stone where you entered it',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'the five feet are spendable and what they buy is stepping out of a stone, which is a state the world model has no room for — the same place Tree Stride’s five feet hang from, so the step they pay for has no representation to cost anything.',
+      why: 'table',
+      note: 'the five feet are spendable and what they buy is stepping out of a stone. **The ruling of 2026-09-24: this is a handover and not a debt**, because the fact underneath every clause of this spell — a creature inside a rock — is a place, and the engine holds one scene of spaces creatures stand in. A second kind of place is not a mechanism somebody forgot to build; it is a world model nobody has asked for, and inventing one for a single level 3 spell is the direction `docs/design/content.md` names as the way a catalogue starts writing the engine. Nothing reads the fact afterwards, which is the test that makes this the table’s. The owner may reopen it — ROADMAP §10 says so — and the day a second place exists this row and Rope Trick’s come back together.',
     },
     {
       marker: 'dice',
       clause: 'expels you and deals 6d6 Force damage to you',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'the dice are ordinary and being expelled is not: the damage is a consequence of having been inside the stone, and the sentence after it deals a flat 50 for the same reason.',
+      why: 'table',
+      note: 'the dice are ordinary and being expelled is not: the damage is a consequence of having been inside the stone, and the sentence after it deals a flat 50 for the same reason. The DM says the stone was broken and the DM says the damage lands; there is no state the engine could have held that would have made either of those its own.',
     },
     {
       marker: 'condition',
       clause: 'you move into an unoccupied space closest to where you first entered and have the Prone condition',
-      why: 'a-world-fact-nothing-can-represent',
-      note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary; what is missing is the expulsion they follow from, which is the state this whole paragraph hangs on.',
+      why: 'table',
+      note: 'placing a creature in the nearest unoccupied space and applying Prone are both ordinary, and both are reachable through commands a DM already has. What is missing is the expulsion they follow from, which is the place this whole paragraph hangs on — so the engine stands ready to execute the consequence and owns none of the cause.',
     },
   ],
   seeming: [
@@ -1889,26 +1903,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The spell ends if you drop to 0 Hit Points',
       why: 'a-casting-ended-by-a-trigger',
       note: 'dropping to 0 Hit Points is one of the causes that shape names as still missing, and the clause beside it — the two creatures drifting more than sixty feet apart — is another of them in the same sentence.',
-    },
-  ],
-  'heat-metal': [
-    {
-      marker: 'dice',
-      clause: 'takes 2d8 Fire damage when you cast the spell',
-      why: 'expressible',
-      note: 'the dice land on whoever is in physical contact with a glowing object, with neither an attack roll nor a saving throw between them \u2014 and the `auto-damage` effect says exactly that now, dice, type and all. Nothing blocks this clause; what blocks the spell is the two clauses below it, so the definition is not written and this sentence waits with them.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'the creature must succeed on a Constitution saving throw or drop the object if it can',
-      why: 'what-a-creature-is-holding',
-      note: 'what a creature holds is a fact now \u2014 hands are counted and a casting may fill one \u2014 but nothing takes a thing **out** of a hand against its holder\u2019s will. `dropConjured` ends a conjured thing, which ceases to exist; a hot Longsword let go of would land on a floor this engine does not keep, and no effect kind can make its holder do it.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'it has Disadvantage on attack rolls and ability checks until the start of your next turn',
-      why: 'what-a-creature-is-holding',
-      note: 'the mode and the deadline are both ordinary; what they hang on is a creature **choosing** to keep hold of the object rather than drop it, which is the branch the clause above has no writer for.',
     },
   ],
   'ray-of-enfeeblement': [
@@ -2050,7 +2044,7 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       marker: 'saving-throw',
       clause: 'must succeed on a Charisma saving throw',
       why: 'a-target-rule-the-format-cannot-state',
-      note: 'the save is decided before it is rolled by the parenthesis beside it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — and a Challenge Rating is not a fact any target rule can ask for, any more than the Tiny that picks the Beast is. What a failure buys is an errand across the countryside, which is the DM’s.',
+      note: 'the save is decided before it is rolled by the parenthesis beside it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — and a Challenge Rating is **not a fact the engine holds at all**: `adaptMonster` reads one off every stat block and `creature-added` does not carry it, so there is nothing for a rule to ask. **The Tiny that picks the Beast has left**: `TargetRule.mustBeSize` is built, the definition writes it, and a Wolf is refused where a Raven is taken. So the shape still blocks this spell and it now blocks it on one of its three facts rather than on two. What a failure buys is an errand across the countryside, which is the DM’s.',
     },
   ],
   polymorph: [
@@ -2197,14 +2191,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'which is cast in shades of gray',
       why: 'table',
       note: 'what the caster can perceive of the plane they left is narration end to end, and the clause the markers can see in that sentence is the sixty feet — a distance between two places the engine does not hold, so there is nothing here to measure even in principle. This unit names no mechanic at all and somebody read the paragraph.',
-    },
-  ],
-  revivify: [
-    {
-      marker: 'hit-points',
-      clause: 'That creature revives with 1 Hit Point',
-      why: 'healing-that-raises-the-dead',
-      note: 'not a heal of one: healCreature refuses a corpse and the refusal costs no slot, which is the rule docs/design/spell-definitions.md states this shape has to get past. Lifting death is not hit points with a small number in them.',
     },
   ],
   divination: [
@@ -3558,20 +3544,12 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // Every clause here is marker-less, because every one of them is: the
   // mechanical markers read English and not one of these sentences is phrased
   // in their words, which is the hole the `null` form exists to fill.
-  prestidigitation: [
-    {
-      marker: null,
-      clause: 'up to three of its non-instantaneous effects active at a time',
-      why: 'a-cap-on-how-many-castings-run-at-once',
-      note: 'the cap this shape is named for, with a number in it rather than the implicit one: `replacesPriorCasting` ends the prior casting and is therefore a cap of exactly one, and `state.ongoing` holds everything needed to count three. Nothing counts them, so a fourth casting runs beside the first three.',
-    },
-  ],
   'speak-with-animals': [
     {
       marker: null,
       clause: 'skill options with them',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'the spell widens what may be attempted against a Beast, which is `ActionRule`’s `allows` polarity and is sayable — what is not is the **action** it widens. That is the Influence action, and `NAMED_ACTIONS` leaves it out because no spender could be told apart as having taken one: a rule naming it would read as enforced and would not be. Gate G1 read this as mis-filed under `an-action-a-spell-compels-or-forbids`, whose vocabulary is built; the gap is the feature book’s and is the same one Utilize sits in.',
+      why: 'table',
+      note: 'the reading that filed this was written before the Influence action had a spender, and it is stale twice over. `NAMED_ACTIONS` holds `influence` now and `takeInfluence` takes it — the Charisma check against a DC the DM set, over `INFLUENCE_SKILLS` — and that command **never narrowed by the target’s creature type**, so an Influence attempt on a Beast was already legal and already rolled. There is nothing here for an `allows` to widen. What the spell actually buys is comprehension: that the Beast understands what was said and that the caster understands the answer, which is speech, and the engine holds no speech. The attitude a check argues against is the DM’s by the Influence entry’s own handover, and what a Beast has to say is the paragraph after it. A handover, and no rule reads it afterwards.',
     },
   ],
   knock: [
@@ -3594,14 +3572,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'a +10 bonus to Dexterity (Stealth) checks',
       why: 'a-bonus-narrowed-to-a-skill',
       note: 'and the bonus itself is narrowed to one skill. `ActiveBonus` carries a `BonusApplies` list and nothing else, so a bonus stored against `ability-check` would land on every ability check the beneficiary ever made — which is why this shape exists rather than the spell simply being written.',
-    },
-  ],
-  'arcanists-magic-aura': [
-    {
-      marker: null,
-      clause: 'Spells and other magical effects treat the target as if it were a creature of the chosen type',
-      why: 'a-creature-fact-an-effect-overrides',
-      note: 'the sentence this shape was named for, quoted in its own description. A creature’s type is a fact the engine holds authoritatively and `mustBeType` reads it on every casting; nothing writes over one for a duration, so the Mask changes what no rule believes.',
     },
   ],
   'speak-with-plants': [
@@ -3851,20 +3821,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'You remove poison and rot from nonmagical food and drink',
       why: 'table',
       note: 'the food and drink are objects; the Poisoned condition belongs to a creature and is untouched by this spell, and a definition that cured one would be inventing a rule the sentence does not print.',
-    },
-  ],
-  'remove-curse': [
-    {
-      marker: null,
-      clause: 'all curses affecting one creature or object end',
-      why: 'table',
-      note: 'nothing the engine applies is a curse, so which curses end is the DM’s.',
-    },
-    {
-      marker: null,
-      clause: "the spell breaks its owner's Attunement to the object",
-      why: 'what-ends-attunement-besides-a-command',
-      note: 'the finding the last pass wrote down and could not file. Attunement is a fact the engine holds authoritatively — `attuned` on the sheet, written by `attuneItem` and ended by `attunement-ended` — so this is a table fact a rule then reads, which is a debt. The shape is the item vocabulary’s and its own description finishes on armour that cannot be doffed until a Remove Curse lands; gate G1 widened this field to reach it rather than mint a second id for one gap.',
     },
   ],
   'rope-trick': [
@@ -5077,7 +5033,7 @@ export const ITEM_SHAPES = {
   'an-area-an-item-creates':
     'a Cone, a Sphere or an Emanation an item puts on the battlefield. docs/archive/design/space-and-areas.md ties an area to the casting that made it — "So a casting’s area sits at a point *or* on a creature, and which it is was decided at the casting by the definition" — and an item that confers effects has no casting, no definition and no area field, so a horn that blasts a 30-foot Cone reaches its targets by hand or not at all. **And the clause SRD Mace of Terror writes, "each creature of your choice within 30 feet of you", is one of these** — which the re-derivation had to settle to file the pipes, the mace and the rod. The 2024 rules write that sentence as an Emanation; a conferral lands on one creature however far it reaches; so an item that catches several at once wants this shape and not `a-range-an-item-names` alone.',
   'what-ends-attunement-besides-a-command':
-    'an attunement that ends, or refuses to end, for a reason no command gives. docs/design/characters-and-equipment.md names it as the second thing a brief still owes — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and the book’s cursed items are the other half of that missing rule: armour that cannot be doffed until a Remove Curse lands is an attunement its holder may not release.',
+    'an attunement that ends, or refuses to end, for a reason no command gives. docs/design/characters-and-equipment.md names it as the second thing a brief still owes — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and the book’s cursed items are the other half of that missing rule: armour that cannot be doffed until a Remove Curse lands is an attunement its holder may not release. **The spell half is built**: an `end-attunement` effect breaks the Attunement to the object the caster names, SRD Remove Curse is executed off it, and the death and the item gone were already derived by the fold. What is left is the **refusal** — an attunement a curse will not let go of until that spell lands — which is a state no item record holds, and the four cursed items still sit on it.',
   'a-concentration-with-no-casting-behind-it':
     'Concentration on something that was never cast. docs/archive/design/casting.md makes the casting the unit throughout — "a second Concentration casting breaks the first at its declaration" — and `releaseCasting` is the single door out, so an item whose effect lasts as long as its user maintains Concentration has nothing for that door to close.',
   'a-benefit-an-item-suspends-on-a-trigger':

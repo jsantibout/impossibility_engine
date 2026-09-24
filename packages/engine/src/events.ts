@@ -33,6 +33,7 @@ import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
+import type { GrantedCreatureType } from './creature-type.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionWindow } from './reactions.js';
@@ -650,6 +651,31 @@ export type GameEvent =
       readonly type: 'condition-immunity-granted';
       readonly id: CharacterId;
       readonly immunity: GrantedConditionImmunity;
+    }
+  /**
+   * A creature type one running effect has put over another's own.
+   *
+   * SRD Arcanist's Magic Aura, _Mask (Creature)_: "Choose a creature type
+   * other than the target's actual type. Spells and other magical effects
+   * treat the target as if it were a creature of the chosen type."
+   *
+   * **Not `creature-type-declared`**, which is its neighbour and a different
+   * event with a different lifetime: that one states what a creature **is**,
+   * carries no source, is refused a second time because what a creature is
+   * cannot be argued with, and nothing ever takes it back. This one is a
+   * sourced grant in the family `grantsOf` enumerates — hung, released by
+   * `releaseCasting`, by a dispel, by a broken Concentration and by a `grants`
+   * deadline, through exactly the doors the other eighteen already use.
+   *
+   * The type is pinned from the caster's stated choice at the casting, which
+   * is CLAUDE.md's rule 5: the fold opens no catalogue to find out which
+   * fourteen the book prints.
+   */
+  | {
+      readonly type: 'creature-type-masked';
+      readonly id: CharacterId;
+      readonly mask: GrantedCreatureType;
+      readonly command?: CommandStamp;
     }
 
   /**
@@ -1543,6 +1569,36 @@ export type GameEvent =
       readonly type: 'creature-died';
       readonly id: CharacterId;
       readonly cause: string;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Death lifted — SRD Revivify: "That creature revives with 1 Hit Point."
+   *
+   * **The one event that takes a creature the other way**, and it is its own
+   * rather than a `healed` with a small number in it: `heal` refuses a corpse
+   * in its first line and the refusal is right, because hit points do not lift
+   * death. A Cure Wounds that could raise the dead is a different game.
+   *
+   * `hitPoints` is pinned rather than assumed, for CLAUDE.md's rule 5: the
+   * total is the spell's, read off the definition at the moment of the cast,
+   * so a fold a year later does not open the book to find out whether Revivify
+   * still brings a creature back at one.
+   *
+   * `source` is what did it, for the log — the casting's own name, the same
+   * field and the same use `damage-taken.source` has.
+   *
+   * What it does **not** carry is the window. "Within the last minute" is a
+   * rule the command checks against `Vitals.diedAt` before it emits anything;
+   * a reducer that re-checked would be a second reading of one rule, and the
+   * fold opens no catalogue to find out what the minute was.
+   */
+  | {
+      readonly type: 'creature-revived';
+      readonly id: CharacterId;
+      /** What the creature comes back at: a whole number, at least one. */
+      readonly hitPoints: number;
+      /** What raised them, for the audit trail: the spell, the feature. */
+      readonly source: string;
       readonly command?: CommandStamp;
     }
 

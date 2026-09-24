@@ -11,6 +11,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import { counterpartProblem, oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
+import { CREATURE_SIZES } from '@ie/srd/schemas';
 import { parseNotation } from './dice.js';
 import type { Recovery } from './resources.js';
 import { PASSIVE_DEFENSE_KINDS } from './passive-defenses.js';
@@ -1256,7 +1257,13 @@ function checkSaveWithoutCondition(
     // whose whole content is a movement decided plenty, and reading the slots
     // above without this one would call the wind a die thrown for nothing.
     effect.movement !== undefined ||
-    effect.breaksConcentration === true;
+    effect.breaksConcentration === true ||
+    // A failure that takes the object out of the creature's hands has decided
+    // something, which is the whole of what this guard asks. SRD Heat Metal's
+    // second sentence imposes no condition and hangs nothing unless the thing
+    // cannot be dropped, and a die that empties a hand is not a die thrown for
+    // nothing.
+    effect.drops !== undefined;
 
   if (!hangs && effect.recordsOutcome !== true) {
     found.push({
@@ -1865,6 +1872,7 @@ function checkRiders(
     readonly spends?: SpentBudget;
     readonly light?: LightRider;
     readonly breaksConcentration?: true;
+    readonly drops?: { readonly orElse?: readonly ModifierRider[] };
   },
   level: number,
   path: string,
@@ -1985,6 +1993,29 @@ function checkRiders(
       reason:
         'a spell either prints "and lose Concentration" or does not; the only value is true',
     });
+  }
+  // The eighth: a thing taken out of the target's hands, and the clause that
+  // runs where it cannot be — see {@link DropRider}. The rider itself has
+  // nothing to be wrong about: which object is the casting's stated fact, and
+  // whether it can be dropped is read off the item's own record. What may be
+  // wrong is the second clause, which is an ordinary modifier rider and is
+  // checked by the ordinary rule.
+  if (riders.drops !== undefined) {
+    if (
+      readsAsObject(
+        riders.drops,
+        `${path}.drops`,
+        'a forced drop is an object, which may name what happens instead where the thing cannot be let go of',
+        found,
+      )
+    ) {
+      const instead = riders.drops.orElse;
+      if (instead !== undefined && readsAsList(instead, `${path}.drops.orElse`, RIDER_LIST, found)) {
+        instead.forEach((rider, i) =>
+          checkModifierRider(rider as ModifierRider | undefined, `${path}.drops.orElse[${i}]`, found),
+        );
+      }
+    }
   }
   // The sixth: a glow the outcome hangs on its target, checked by the same
   // rule the `light` effect kind is — see {@link checkShedLight}.
@@ -2588,6 +2619,52 @@ function checkEffect(
     case 'heal':
       checkScaling(effect.healing, level, `${path}.healing`, found);
       return;
+
+    /*
+     * A mask names one of the fourteen, held to the same list `mustBeType` and
+     * `againstType.types` are held to and for the same reason: a value outside
+     * the vocabulary is a type nothing matches. SRD 5.2.1 prints a Goblin
+     * Warrior as "Small Fey (Goblinoid)", so a mask of Goblinoid would make
+     * every reader believe a thing no rule has anything to say about.
+     */
+    case 'creature-type-override': {
+      if (!CREATURE_TYPES.includes(effect.creatureType)) {
+        found.push({
+          field: `${path}.creatureType`,
+          code: 'unknown_creature_type',
+          reason: `"${String(effect.creatureType)}" is not one of the SRD's fourteen creature types; a subtype tag such as Goblinoid is not a type and has no rules of its own`,
+        });
+      }
+      return;
+    }
+
+    /*
+     * A revival: how far back it reaches, and what the creature comes back at.
+     *
+     * Both are whole numbers with a floor of one, and both floors are a
+     * sentence rather than a taste. A window of nothing reaches no corpse at
+     * all — the creature would have to have died at the instant of the cast —
+     * and a revival to no hit points brings back something that is dead again
+     * before anybody looks at it, which is the `ends_nothing` defect one kind
+     * along.
+     */
+    case 'revive': {
+      if (!Number.isInteger(effect.within) || effect.within < 1) {
+        found.push({
+          field: `${path}.within`,
+          code: 'bad_window',
+          reason: `a revival reaches back a whole number of seconds, at least one; got ${String(effect.within)}`,
+        });
+      }
+      if (!Number.isInteger(effect.hitPoints) || effect.hitPoints < 1) {
+        found.push({
+          field: `${path}.hitPoints`,
+          code: 'bad_revival',
+          reason: `a creature comes back at a whole number of hit points, at least one; got ${String(effect.hitPoints)}`,
+        });
+      }
+      return;
+    }
 
     case 'temp-hp':
       checkScaling(effect.amount, level, `${path}.amount`, found);
@@ -3962,6 +4039,14 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'a rule standing in front of healing';
     case 'hit-point-maximum':
       return 'a hit point maximum held up';
+    // The nineteenth sourced grant, and it carries no deadline of its own for
+    // the reason the fifth through eleventh do not: SRD Arcanist's Magic Aura
+    // runs for the twenty-four hours the spell prints, so the casting is the
+    // only thing that could give the creature its own type back — and an
+    // Instantaneous casting would leave a goblin looking like a Humanoid to
+    // every spell ever cast at it.
+    case 'creature-type-override':
+      return 'a creature type put over the target’s own';
     default: {
       // **The rider whose undoing is part of the sentence that imposed it.**
       // SRD Levitate: "remains suspended there for the duration ... When the
@@ -4259,6 +4344,21 @@ export function checkSpellDefinition(
       field: 'targets.mustBeType',
       code: 'unknown_creature_type',
       reason: `"${String(mustBeType)}" is not one of the SRD's fourteen creature types; a subtype tag such as Goblinoid is not a type and has no rules of its own`,
+    });
+  }
+
+  /*
+   * The size a spell demands, held to the six the book prints, for the reason
+   * the creature type above it is held to fourteen: a value outside the
+   * vocabulary matches nobody, and `effectiveSizeOf` compares the category
+   * rather than a word, so "itsy" would silently select nothing at all.
+   */
+  const mustBeSize = definition.targets.mustBeSize;
+  if (mustBeSize !== undefined && !(CREATURE_SIZES as readonly unknown[]).includes(mustBeSize)) {
+    found.push({
+      field: 'targets.mustBeSize',
+      code: 'unknown_size',
+      reason: `"${String(mustBeSize)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
     });
   }
 
@@ -4757,6 +4857,50 @@ export function checkSpellDefinition(
       code: 'bad_duration',
       reason: 'a duration of nothing is Instantaneous, which is the absence of one',
     });
+  }
+
+  /*
+   * The cap on how many of one caster's castings run at once — SRD
+   * Prestidigitation's three — held to the three things it has to be.
+   *
+   * One rule with two spellings is the thing to refuse first:
+   * `replacesPriorCasting` is this field with the number one in it, so a
+   * definition carrying both has said one sentence twice and the two could
+   * disagree. Then the number itself, which is a count of castings; then the
+   * population, which is empty for a spell that leaves nothing running — a cap
+   * on nothing is a field a reader would look for and never find applied,
+   * which is `area_filter_without_area`'s rule one field along.
+   */
+  if (definition.maxRunning !== undefined) {
+    if (definition.replacesPriorCasting === true) {
+      found.push({
+        field: 'maxRunning',
+        code: 'two_caps',
+        reason:
+          '`replacesPriorCasting` is this cap with the number one in it; a spell states how many of its castings may run at once exactly once',
+      });
+    } else if (!Number.isInteger(definition.maxRunning) || definition.maxRunning < 1) {
+      found.push({
+        field: 'maxRunning',
+        code: 'bad_cap',
+        reason: `a cap is a whole number of castings, at least one; got ${String(definition.maxRunning)}`,
+      });
+    } else if (definition.maxRunning === 1) {
+      found.push({
+        field: 'maxRunning',
+        code: 'cap_of_one',
+        reason:
+          'a cap of one is `replacesPriorCasting`, which SRD Mage Hand and Minor Illusion both print; two spellings of one rule is two places for it to be wrong',
+      });
+    }
+    if (!castingPersists(definition)) {
+      found.push({
+        field: 'maxRunning',
+        code: 'cap_without_a_casting',
+        reason:
+          'an Instantaneous casting leaves no record, so a cap on how many run at once would count a population that is always empty',
+      });
+    }
   }
 
   // **A band lengthens a printed duration; it does not supply one.** Every SRD
@@ -5311,6 +5455,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkAreaBoundLifetime(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
+      checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
@@ -5745,6 +5890,66 @@ function checkAreaBoundLifetime(
       });
     }
   }
+}
+
+/**
+ * Where a clause that reads the casting's stated object may be written.
+ *
+ * {@link checkTeleportPlacement}'s rule applied to the eighth stated fact, and
+ * the two halves differ because the two clauses are read at different moments.
+ *
+ * | | |
+ * |---|---|
+ * | `end-attunement` | the casting's own list, and nowhere else |
+ * | a `drops` rider | the casting's own list **or its activation's** |
+ *
+ * **An `end-attunement` is Remove Curse's, and that spell is Instantaneous**:
+ * it breaks the Attunement once, at the touch, so there is no later moment for
+ * one to be written at. An area trigger firing a minute later reads an
+ * `OngoingSpell` and the caster is not there to be asked again.
+ *
+ * **A `drops` rider may be in an activation**, because SRD Heat Metal's Bonus
+ * Action deals the same damage to the same object and the record pins it —
+ * which is exactly what `OngoingSpell.object` is for, and what
+ * {@link dropsAnObject} reads both lists to see. What is refused is an **area
+ * trigger's** list: a trigger catches whoever walks into a patch of ground and
+ * has nothing to do with a thing one creature is carrying, so a rider written
+ * there would reach `applyRiders` with an object the caster stated about
+ * somebody else entirely.
+ *
+ * Refused at authoring rather than met at the table: without this a homebrew
+ * definition validates clean, `namesAnObject` answers no, `declaredFacts`
+ * refuses the caller's `object` as a fact the spell does not ask for, and the
+ * resolver then throws a raw `Error` for want of it — a programmer-error
+ * exception raised by a rules-legal catalogue, which is rule 6 broken from the
+ * wrong end.
+ */
+function checkObjectPlacement(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind === 'end-attunement' && where !== 'effects') {
+    found.push({
+      field: `${path}.kind`,
+      code: 'attunement_outside_the_casting',
+      reason:
+        'the caster states which object at the casting, and Remove Curse breaks the Attunement at the touch; only the casting’s own effect list can read it',
+    });
+    return;
+  }
+
+  const drops = (effect as { readonly drops?: unknown }).drops;
+  if (drops === undefined) return;
+  if (where === 'effects' || where === 'activation.effects') return;
+  found.push({
+    field: `${path}.drops`,
+    code: 'drop_outside_the_casting',
+    reason:
+      'a forced drop names the object the caster stated at the casting; the casting’s own list and its activation are where that is known, and an area trigger catches whoever walks in',
+  });
 }
 
 /**
@@ -6387,11 +6592,14 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'temp-hp',
   'buff',
   'heal',
+  'revive',
   'attack-damage',
   'save',
   'condition',
   'end-condition',
   'dispel',
+  'end-attunement',
+  'creature-type-override',
   'interrupt-casting',
   'armor-class',
   'roll-mode',

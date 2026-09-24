@@ -9,7 +9,8 @@
  * transcribed from is quoted above it, because that text is the provenance
  * the conformance tests check against.
  */
-import type { ModifierRider, SpellDefinition } from '@ie/engine';
+import { CREATURE_TYPES } from '@ie/engine';
+import type { ModifierRider, SpellDefinition, SpellEffect } from '@ie/engine';
 
 /**
  * SRD Fire Bolt:
@@ -3934,8 +3935,8 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'what a Beast says is the DM’s',
-    'the Influence action and its skill options are not modelled',
+    'what a Beast says is the DM’s: comprehending and verbally communicating with one is speech, and the engine holds no speech',
+    'the skill options widen nothing the engine narrows — `takeInfluence` rolls whichever of the Influence skills the caller names and has never asked what kind of creature it is aimed at — so what the spell buys is that the Beast understands, and the attitude the check argues against is the DM’s by the Influence entry’s own handover',
   ],
 };
 
@@ -3991,7 +3992,27 @@ export const JUMP: SpellDefinition = {
  *
  * > _Transmutation Cantrip._ **Casting Time:** Action. **Range:** 10 feet.
  * > **Duration:** Up to 1 hour.
- * > "You create a magical effect within range."
+ * > "You create a magical effect within range. Choose the effect from the
+ * > options below. If you cast this spell multiple times, you can have up to
+ * > three of its non-instantaneous effects active at a time."
+ *
+ * **The six wonders are the table's and the cap is not.** Every option the
+ * spell lists — the sparks, the candle, the smudge, the chill, the mark and
+ * the trinket — is fiction nothing in the engine reads afterwards, which is
+ * why this spell was tracked. The sentence above them is the one mechanical
+ * rule it prints, and `maxRunning` is it: a fourth casting by the same caster
+ * ends the oldest of the three still running, which is
+ * {@link SpellDefinition.replacesPriorCasting} with a different number.
+ *
+ * **Castings, not wonders, and the difference is stated rather than glossed.**
+ * The book caps the *non-instantaneous* effects, and three of the six are
+ * Instantaneous — but the engine models none of the six and gives every
+ * casting the hour the lasting ones print, so counting castings is counting
+ * exactly the population the sentence names under the engine's own reading of
+ * the spell. A caster who lit three candles and then made a mark has ended the
+ * first candle here and would not have at a table; nothing mechanical hangs on
+ * either answer, and the alternative is a choice between six effect lists that
+ * `choiceStated` is documented as not being.
  */
 export const PRESTIDIGITATION: SpellDefinition = {
   id: 'prestidigitation',
@@ -4004,9 +4025,10 @@ export const PRESTIDIGITATION: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 3600,
+  maxRunning: 3,
   unmodelled: [
     'every one of the listed effects — a sensory effect, lighting or snuffing a flame, cleaning or soiling an object, chilling or warming, a mark, a trinket — is the DM’s',
-    'the limit of three effects at once, and dismissing one as an action, are not tracked',
+    'which of the six a casting made is the DM’s, so the cap of three counts castings rather than the non-instantaneous effects the sentence names',
   ],
 };
 
@@ -4525,21 +4547,22 @@ export const PLANE_SHIFT: SpellDefinition = {
  * > object is a cursed magic item, its curse remains, but the spell breaks its
  * > owner's Attunement to the object so it can be removed or discarded."
  *
- * **The second sentence is a debt and was filed as fiction**, on a claim that
- * is false against the engine: `unmodelled` said Attunement is not modelled,
- * and `CreatureState.attuned` holds it, `attuneItem` writes it, `attuned` and
- * `attunement-ended` are events and the fold applies both. So this is a table
- * fact a rule then reads, which `docs/design/content.md` calls a debt.
+ * **The second sentence was filed as fiction on a claim that is false against
+ * the engine**, and it is built now. `unmodelled` said Attunement is not
+ * modelled; `CreatureState.attuned` holds it, `attuneItem` writes it, and
+ * `attuned` and `attunement-ended` are both events the fold applies. That is a
+ * table fact a rule then reads, which `docs/design/content.md` calls a debt —
+ * and `what-ends-attunement-besides-a-command` is the shape it was owed to,
+ * whose own description finishes on armour that cannot be doffed until a
+ * Remove Curse lands.
  *
- * It is **not** filed against a shape here, and that is deliberate rather than
- * an omission. The shape exists and names this spell by name —
- * `what-ends-attunement-besides-a-command`, "armour that cannot be doffed until
- * a Remove Curse lands is an attunement its holder may not release" — but it is
- * an `ItemShapeId`, and `TrackedAdjudication.why` takes `ShapeId`. Filing it
- * means either widening that type or minting a second id for one gap in the
- * spell vocabulary, and both are decisions rather than readings.
- * `unadjudicated-triage.test.ts` records the finding where the next reader will
- * meet it.
+ * So the `end-attunement` effect is the half the engine owns. **Which object**
+ * is the caster's, stated at the casting through `CastSpellRequest.object`,
+ * because a creature attuned to three items has three answers and the engine
+ * picks none of them; an item the target is not attuned to is refused before a
+ * slot is spent. What the spell deliberately does *not* do is take the thing
+ * off its owner: SRD says it "can be removed or discarded", which is a
+ * permission and two commands somebody may take afterwards.
  *
  * The first sentence is fiction and stays so: nothing the engine applies is a
  * curse — Bestow Curse is tracked and applies nothing — so there is no curse
@@ -4554,10 +4577,9 @@ export const REMOVE_CURSE: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  effects: [{ kind: 'end-attunement' }],
   unmodelled: [
-    'a curse is not a thing in state — nothing the engine applies is one — so which curses end is the DM’s',
-    'the Attunement is not broken: "the spell breaks its owner’s Attunement to the object" reads a fact the engine holds authoritatively — `attuned` on the sheet, written by `attuneItem` and ended by `attunement-ended` — and nothing ends one for a reason no command gave',
+    'a curse is not a thing in state — nothing the engine applies is one — so which curses end is the DM’s, and whether the object the Attunement is broken to was a cursed one is the same decision',
   ],
 };
 
@@ -7866,12 +7888,11 @@ export const COMMAND: SpellDefinition = {
   requiresSight: true,
   effects: [],
   unmodelled: [
-    'the Wisdom saving throw is not rolled, because what it gates cannot be imposed: "follow the command on its next turn" spends somebody else’s turn, and nothing lets a spell reach the action economy except by naming a condition',
-    'which of the five commands was spoken is not recorded; a per-casting choice has nowhere to be kept, and a damage type is the one choice that does',
-    'Approach and Flee are not applied: a route nobody chose, a turn that ends early on arrival, and a whole turn spent running are compelled movement, and `moveCreature` has no notion of a move the rules require',
-    'Drop is not applied: what is in a creature’s hands is not a fact the engine holds, so a rule that makes it let go has nothing to call',
-    'Grovel is not applied: the Prone is an ordinary condition and the clause beside it that ends the creature’s turn is not, so the engine writes neither rather than half of one',
-    'Halt is not applied: forbidding the move, the action and the Bonus Action together is the Incapacitated condition’s effect without the condition, and nothing reaches `mayAct` except through a condition the engine knows',
+    'the Wisdom saving throw is not rolled, because nothing it could gate is written: the five words are five different effect lists and a casting runs one list, so a definition that carried any of them would impose that one whatever the caster said',
+    'which of the five commands was spoken is not recorded: `choiceStated` substitutes a value into an effect that is already in the list, and this is a choice of **which effects run** — the second arm of `a-choice-made-at-the-casting`, which that field’s own docstring names as deliberately absent',
+    'Approach and Flee are the DM’s under the ruling Fear’s compelled Dash took: a route nobody chose and a whole turn spent running are a creature being played rather than a spend being charged, and the engine adjudicates legality without walking anybody anywhere',
+    'Drop, Grovel and Halt are each writable on their own — `OutcomeRiders.drops` lets go of a named object, Prone is an ordinary condition, and `forbids` takes movement, the action and the Bonus Action together — and what none of them has is a way to say "only if the caster spoke this word"',
+    'the clause that ends the compelled creature’s turn, which Drop and Grovel both print, is a moment no rider reaches',
   ],
 };
 
@@ -7977,7 +7998,10 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 1, mustBeType: 'Beast' },
+  // "A **Tiny** Beast of your choice that you can see within range": two
+  // facts about the target and both of them the engine's, now that a target
+  // rule can ask for a size. A Wolf is a Beast and is not a messenger.
+  targets: { count: 1, mustBeType: 'Beast', mustBeSize: 'tiny' },
   requiresSight: true,
   effects: [],
   durationSeconds: 86_400,
@@ -7993,7 +8017,7 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
     9: 1_296_000,
   },
   unmodelled: [
-    'the Charisma saving throw is not rolled: the parenthesis that decides it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — reads a Challenge Rating no target rule can ask for, and neither can the Tiny that picks the Beast',
+    'the Charisma saving throw is not rolled: the parenthesis that decides it — "if the target’s Challenge Rating isn’t 0, it automatically succeeds" — reads a Challenge Rating nothing in the engine holds, which is the second of the three facts `a-target-rule-the-format-cannot-state` names and the one still missing',
     'the errand is the DM’s: the location, the recipient "who matches a general description", the message of up to twenty-five words, the 25 or 50 miles a day and the Beast returning if it does not arrive are all narration',
   ],
 };
@@ -8983,6 +9007,19 @@ export const AID: SpellDefinition = {
  * this hangs a second answer over the top of it for a day. Not one sentence
  * of the paragraph trips a marker, which is the floor working as a floor:
  * what makes this a blocker is reading it.
+ *
+ * **The fact is not written over and that is the design.** The Mask is the
+ * nineteenth sourced grant, hung under the casting, so the goblin is a Fey
+ * again when the day is up or the spell is dispelled and nothing had to
+ * remember to undo anything. Which readers believe it is the SRD's own
+ * sentence — *spells and other magical effects* — and `typeMagicSees` in the
+ * engine is where that line is drawn: a spell's target rule, an area's filter
+ * and an outcome that varies by type all read the mask, and a creature reading
+ * a creature does not.
+ *
+ * The chosen type is `choiceStated`, because the book says *choose*, and the
+ * engine refuses the one choice the book forbids: the type the creature
+ * already is.
  */
 export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   id: 'arcanists-magic-aura',
@@ -8993,10 +9030,14 @@ export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  // The Mask, with the fourteen the book gives a caster to choose from. The
+  // printed value is a default the casting replaces, exactly as
+  // Blindness/Deafness prints Blinded: `statedChoice` substitutes what the
+  // caster named, and `same_creature_type` refuses the one the book excludes.
+  effects: [{ kind: 'creature-type-override', creatureType: 'Humanoid' }],
+  choiceStated: { of: 'creature-type', options: [...CREATURE_TYPES] },
   durationSeconds: 86_400,
   unmodelled: [
-    'the Mask is not applied: "Spells and other magical effects treat the target as if it were a creature of the chosen type" overrides a creature fact the engine holds and every target rule reads, and nothing writes over one for a duration',
     'the False Aura is the DM’s: objects are not modelled, and what an aura looks like to a Detect Magic that itself resolves nothing is narration twice over',
     'the thirty consecutive castings that make the illusion permanent are the DM’s; the engine holds no such history',
   ],
@@ -9751,11 +9792,72 @@ export const SHAPECHANGE: SpellDefinition = {
  * > If it doesn't drop the object, it has Disadvantage on attack rolls and
  * > ability checks until the start of your next turn."
  *
- * **The target is an object and every consequence reads who is touching it.**
- * A suit of armour a creature is wearing is a fact the engine keeps — armour
- * is equipped — and a weapon in somebody's hands is not, so "any creature in
- * physical contact with the object" has no answer to be derived from.
+ * **The object is an equipped item and the target is whoever has it.** That is
+ * the holding fact the engine keeps — a weapon in a hand or armour on a body,
+ * both `equipped` — so the caster names the creature and the thing, and the
+ * damage lands on the creature in contact with it. An unattended metal gate is
+ * still the table's: nothing in the engine is touching it.
+ *
+ * **"Or drop the object if it can" is the verb that was missing.**
+ * `what-a-creature-is-holding` was half built — hands are counted and a
+ * casting may put a thing into one — and nothing took a thing out of one
+ * against its holder's will. `OutcomeRiders.drops` is that verb, and "if it
+ * can" is `handsFor`: a thing wielded in a hand is let go of, a suit of armour
+ * is worn and comes off with a doffing no spell grants.
+ *
+ * **The two sentences are one rider**, because the second is conditional on
+ * what the first did: `orElse` is the Disadvantage, hung only where the thing
+ * could not be dropped. A creature that made its save keeps the object and
+ * takes nothing — the drop that second sentence refers back to is the one the
+ * failure demanded, and a creature never asked to drop anything has not failed
+ * to. The other reading makes the saving throw buy nothing at all.
+ *
+ * The Bonus Action is the `activation` the record already supports, with the
+ * range checked afresh and the object read off the record so a later turn
+ * heats the same thing.
  */
+/**
+ * The 2d8 that lands on whoever is in contact with the object.
+ *
+ * Named because the Bonus Action deals **the same** damage again: one value in
+ * two lists is what the sentence says, and two copies would be two places for
+ * the dice to come apart.
+ */
+const HEAT_METAL_BURN: SpellEffect = {
+  kind: 'auto-damage',
+  damage: { dice: '2d8' },
+  damageType: 'fire',
+};
+
+/**
+ * The Constitution save the damage forces, and both clauses that hang on it.
+ *
+ * Named beside the burn above for the same reason: the later Bonus Action
+ * forces the same save with the same consequences.
+ */
+const HEAT_METAL_GRIP: SpellEffect = {
+  kind: 'save',
+  ability: 'con',
+  drops: {
+    // "If it doesn't drop the object, it has Disadvantage on attack rolls and
+    // ability checks until the start of your next turn." Two selectors because
+    // a selector names one family of roll, and the deadline is the caster's
+    // own next turn, which is what the sentence prints.
+    orElse: [
+      {
+        kind: 'mode',
+        modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+        lasts: 'start-of-casters-next-turn',
+      },
+      {
+        kind: 'mode',
+        modifier: { mode: 'disadvantage', selector: { roll: 'ability-check', relation: 'roller' } },
+        lasts: 'start-of-casters-next-turn',
+      },
+    ],
+  },
+};
+
 export const HEAT_METAL: SpellDefinition = {
   id: 'heat-metal',
   name: 'Heat Metal',
@@ -9764,15 +9866,24 @@ export const HEAT_METAL: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 0 },
+  // The creature wearing or wielding the heated thing. Which thing is
+  // `CastSpellRequest.object`, and the casting is refused before a slot is
+  // spent when the target has no such thing in hand or on their back.
+  targets: { count: 1, self: true },
   requiresSight: true,
-  effects: [],
+  effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
+  activation: {
+    action: 'bonus-action',
+    // "if the object is within range" — measured afresh from the caster on
+    // every later turn, which is what an activation's own range is for.
+    range: { kind: 'ranged', feet: 60 },
+    label: 'Heat Metal (again)',
+    effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the object is not chosen and nobody is burned: "Any creature in physical contact with the object takes 2d8 Fire damage" lands with neither an attack roll nor a saving throw, on whoever is touching a thing the engine does not track the touching of',
-    'the Bonus Action that deals the damage again on a later turn is an activation with no consumer, and the range check it carries is measured to the object',
-    'the Constitution save that makes a creature drop what it is holding has nothing to drop: what is in a creature’s hands is not a fact the engine keeps',
-    'the Disadvantage on attack rolls and ability checks for hanging on is ordinary, and it hangs off the failed save above it',
+    'an object nobody is wearing or wielding is the DM’s: "any creature in physical contact with the object" is a touching the engine keeps no record of, and what it does keep is what a creature has equipped',
+    'whether the thing chosen is manufactured, metal, and a weapon or a suit of Heavy or Medium armour is the DM’s; the catalogue records what an item is made of nowhere',
   ],
 };
 
@@ -10804,7 +10915,18 @@ export const PLANT_GROWTH: SpellDefinition = {
  *
  * Three sentences, and the middle one is a rule the engine refuses by design:
  * `healCreature` will not heal a corpse, and the refusal costs no slot. Reviving
- * is not healing with a small number in it.
+ * is not healing with a small number in it — so it is its own effect kind and
+ * its own event, which is the whole of `healing-that-raises-the-dead`.
+ *
+ * **The minute is subtraction.** `Vitals.diedAt` is the clock instant a
+ * creature stopped being alive, derived by the fold from the fact itself
+ * rather than from any one of the four events that can kill somebody, and
+ * `state.elapsed` is now. A corpse older than sixty seconds is refused before
+ * the slot is spent, and so is a creature who is standing up.
+ *
+ * What is left is what the spell says it leaves: a creature that died of old
+ * age, and the body parts it does not restore. Neither is a fact the engine
+ * holds, and holding one would not settle either.
  */
 export const REVIVIFY: SpellDefinition = {
   id: 'revivify',
@@ -10815,10 +10937,10 @@ export const REVIVIFY: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1 },
-  effects: [],
+  effects: [{ kind: 'revive', within: 60, hitPoints: 1 }],
   unmodelled: [
-    'nobody is revived: "That creature revives with 1 Hit Point" is not a heal of one — healing refuses a dead creature outright, and lifting death is the rule that refusal exists to keep out of a hit point total',
-    'the minute since the creature died is not measured, and neither is old age or a missing body part; all three are the DM’s',
+    'whether the creature died of old age is the DM’s, and the engine holds no such cause: a corpse the table says died of age is one the table declines to let this spell touch',
+    'the body parts the spell does not restore are the DM’s; the engine holds no anatomy for one to be missing from',
   ],
 };
 

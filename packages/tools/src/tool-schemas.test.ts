@@ -177,10 +177,13 @@ describe('toolSchemas', () => {
     // other tracks of this batch moved.
     // Eight tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
+    // Re-pinned again for the bookkeeping spells track: `cast_spell.object` (the
+    // eighth stated fact — Remove Curse's attunement, Heat Metal's object) and
+    // the Command word's slot grew both surfaces by the same amount.
     expect(toolSchemas(player())).toHaveLength(83);
     expect(toolSchemas(dm())).toHaveLength(102);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(117379);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(141509);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(118063);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142193);
   });
 });
 

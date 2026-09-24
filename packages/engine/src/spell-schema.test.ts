@@ -3919,6 +3919,16 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { healing: required(OBJECT_JUNK) },
     },
     {
+      kind: 'revive',
+      base: { kind: 'revive', within: 60, hitPoints: 1 },
+      fields: { within: required(NUMBER_JUNK), hitPoints: required(NUMBER_JUNK) },
+    },
+    {
+      kind: 'creature-type-override',
+      base: { kind: 'creature-type-override', creatureType: 'Humanoid' },
+      fields: { creatureType: required(STRING_JUNK) },
+    },
+    {
       kind: 'temp-hp',
       base: { kind: 'temp-hp', amount: { dice: '1d4' } },
       fields: { amount: required(OBJECT_JUNK) },
@@ -4176,10 +4186,13 @@ describe('every branch judges untyped input rather than throwing on it', () => {
   );
 
   /**
-   * `dispel` and `interrupt-casting` contribute no rows, and that is the
-   * honest entry rather than an omission: their branches read no field at all,
-   * so the `kind` `checkShape` has already established is the whole effect and
-   * there is nothing below it to be malformed.
+   * `dispel`, `interrupt-casting` and `end-attunement` contribute no rows, and
+   * that is the honest entry rather than an omission: their branches read no
+   * field at all, so the `kind` `checkShape` has already established is the
+   * whole effect and there is nothing below it to be malformed. The third
+   * joined for the first's exact reason — which object a Remove Curse unbinds
+   * is stated at the casting, not printed on the definition — and what stops
+   * *that* field being junk is `declaredFacts` and the pre-flight, not this.
    */
   const READ_NO_FIELD: ReadonlySet<string> = new Set([
     'dispel',
@@ -4189,6 +4202,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     // the fall" — so `fall-ward` carries no field at all and the `kind`
     // `checkShape` has already established is the whole effect.
     'fall-ward',
+    'end-attunement',
   ]);
 
   /**

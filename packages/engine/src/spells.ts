@@ -473,6 +473,19 @@ export interface OngoingSpell {
    */
   readonly damageType?: string;
   /**
+   * The object this casting was pointed at, by catalogue id.
+   *
+   * SRD Heat Metal: "you can take a Bonus Action on each of your later turns
+   * to deal **this** damage again" — the same object, so the record is where
+   * it lives rather than in a fresh request the activation would have to take.
+   * A settlement that asked again could heat the breastplate on turn one and
+   * the mace on turn two, which is not the spell.
+   *
+   * Pinned for the reason {@link damageType} above it is: a fact the caster
+   * stated at the casting, kept so nothing later has to derive it.
+   */
+  readonly object?: string;
+  /**
    * The choice this casting made, for a spell that prints one.
    *
    * SRD Blindness/Deafness's "(your choice)", Guidance's "choose a skill",

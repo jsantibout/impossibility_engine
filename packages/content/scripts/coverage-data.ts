@@ -163,6 +163,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'acid-splash',
   'animal-friendship',
   'arcane-sword',
+  // `creature-type-override.test.ts`: the Mask laid on a Fey goblin, the
+  // goblin's own type standing untouched underneath it, Hold Person catching
+  // it masked and refusing it unmasked, the type the book forbids choosing,
+  // and the mask gone the moment the casting is dispelled.
+  'arcanists-magic-aura',
   // `spell-chance.test.ts`: the rite is declared, the minute passes and it
   // settles, twice over — the first casting throwing no die and the second
   // one d100 against 25, with a seeded failure withholding the omen.
@@ -237,6 +242,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'gust-of-wind',
   'harm',
   'healing-word',
+  // `heat-metal.test.ts`: the breastplate's wearer burned, a failed save
+  // dropping a held mace, the same failure leaving the armoured knight holding
+  // his breastplate with Disadvantage instead, a made save leaving both alone,
+  // and the Bonus Action dealing the damage again on a later turn.
+  'heat-metal',
   'heroism',
   'hideous-laughter',
   'hold-monster',
@@ -284,6 +294,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // seeds by the gap between two means, and the Short Rest it does not confer
   // named in its own clause.
   'prayer-of-healing',
+  // `castings-running-at-once.test.ts`: three tricks running beside each
+  // other, a fourth ending the oldest, and another caster's three untouched.
+  'prestidigitation',
   'produce-flame',
   'protection-from-energy',
   'protection-from-poison',
@@ -296,12 +309,20 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // dice — a payout the casting rolls nothing of would otherwise pass every
   // assertion in the file while being wrong.
   'regenerate',
+  // `breaking-an-attunement.test.ts`: the Attunement to the named cloak
+  // broken while the cloak stays worn, an item the target is not attuned to
+  // refused, a casting naming no object refused, and no slot spent on either.
+  'remove-curse',
   // Driven end to end by `damage-reduction.test.ts`: the d4 off a blow of the
   // type the caster named, the order that takes it before the halving rather
   // than after, the once-per-turn limit measured across three rays of one
   // Scorching Ray, the held road a Reaction opened, the grant going back when
   // the Concentration does, and the refusal for a casting that names no type.
   'resistance',
+  // `revive.test.ts`: a corpse thirty seconds old back at one hit point with
+  // its death saves afresh, one ninety seconds old refused, a living creature
+  // refused, and the slot neither refusal spends.
+  'revivify',
   'sacred-flame',
   // Driven end to end by `several-attack-rolls.test.ts`, and partial as well,
   // which is the pairing `sorcerous-burst` already stands for: three rays
@@ -432,6 +453,20 @@ export interface SpellCoverage {
  * tracked would say the engine resolves nothing of the spell while it is
  * doing the only thing the spell does.
  *
+ * **The eighth arm is a cap the engine applies at the cast**, and it is the
+ * fifth's argument about a spell with no noun at all. SRD Prestidigitation
+ * rolls nothing, catches nobody and lays nothing on the lattice: every one of
+ * its six wonders is fiction, and the single mechanical sentence it prints —
+ * "you can have up to three of its non-instantaneous effects active at a
+ * time" — is a rule the engine now obeys, ending the oldest casting when a
+ * fourth is made. Counting that as tracked would say the engine resolves
+ * nothing of the spell while it is doing the only thing about the spell that
+ * is not narration. `replacesPriorCasting` is the same sentence with the
+ * number one in it and is deliberately **not** here: every spell that prints
+ * it — Mage Hand, Minor Illusion, Spiritual Weapon — is already executed by
+ * one of the seven arms above, so an arm for it would be a claim about a
+ * population that does not exist.
+ *
  * **Exported because three other places had written it out**, and one of the
  * copies had already lost the `areaTrigger` arm. The honesty guard's whole
  * population is this predicate, so a drifting copy would silently stop
@@ -444,7 +479,8 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.areaTerrain !== undefined ||
   definition.areaLight !== undefined ||
   definition.areaObscurement !== undefined ||
-  definition.conjures !== undefined;
+  definition.conjures !== undefined ||
+  definition.maxRunning !== undefined;
 
 /** Every definition the engine resolves something of, by id. */
 export const EXECUTED_SPELL_IDS: ReadonlySet<string> = new Set(

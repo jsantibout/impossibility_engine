@@ -2346,6 +2346,13 @@ const CAST_SPELL = tool({
       .describe(
         'Which weapon a spell that imbues one was aimed at, by the item id `sheet` lists — Shillelagh’s "A Club or Quarterstaff you are holding", Magic Weapon’s "You touch a nonmagical weapon". One object out of whatever the target is carrying, and the engine will not pick it. Leaving it out for one of those is refused, and so is naming one for a spell that does nothing to a weapon.',
       ),
+    object: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which object a spell aimed at a thing rather than at its holder was pointed at, by the item id `sheet` lists — Remove Curse’s "the spell breaks its owner’s Attunement to the object", Heat Metal’s "Choose a manufactured metal object". One thing out of whatever the target is wearing or wielding, and the engine will not pick it: a creature carrying three things has three answers. Leaving it out for such a spell is refused, and so is naming one for a spell that does nothing to an object, or one the target does not have. Not the wand doing the casting, which is `item`, and not a weapon a spell imbues, which is `weapon`.',
+      ),
     form: z
       .string()
       .min(1)
@@ -2447,6 +2454,7 @@ const CAST_SPELL = tool({
       ...(args.fought === undefined ? {} : { fought: args.fought.map(who) }),
       ...(args.teleportTo === undefined ? {} : { teleportTo: placementOf(args.teleportTo) }),
       ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
+      ...(args.object === undefined ? {} : { object: args.object }),
       ...(args.form === undefined ? {} : { form: args.form }),
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),

@@ -552,9 +552,31 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // air, the hold under the casting's own source, and the gentle landing the
   // fold performs when the casting ends.
   'creature-lifted',
+  // Death lifted. Neither log was written when anything could lift it: `heal`
+  // refused a corpse and nothing else in the engine touched `dead`, so a
+  // revival had no event and no effect kind could ask for one. Both fixtures
+  // fold to exactly the states they always folded to — the creature that dies
+  // in the second one stays dead, and `Vitals.diedAt` arrives on it derived
+  // from the death the log already held rather than from anything new.
+  // `revive.test.ts` folds it and drives it end to end: the corpse thirty
+  // seconds old that comes back at one hit point with its death saves afresh,
+  // the one ninety seconds old that is refused, the living creature that is
+  // refused, and the slot neither refusal spends.
+  'creature-revived',
   // A summons: the fixtures predate it, and appending a type here is the
   // acknowledgement this list exists to collect.
   'creature-summoned',
+  // A creature type one running effect put over another's own. Neither log was
+  // written when anything could: `creatureType` was the only answer to the
+  // question and nothing wrote over it, so there was no grant family to hang
+  // one in. Both fixtures fold to exactly the states they always folded to —
+  // every creature in both carries an empty `creatureTypeMasks`, which is what
+  // `creature-added` starts one with.
+  // `creature-type-override.test.ts` folds it and drives it end to end: the
+  // goblin's own type standing untouched, the Hold Person that catches it
+  // masked and is refused unmasked, the type the book forbids choosing, and
+  // the mask gone the moment the casting is dispelled.
+  'creature-type-masked',
   // One creature spending an action to shake another out of a sleep — SRD
   // Sleep, SRD Hypnotic Pattern, a dragon's sleep breath, a pseudodragon's
   // sting. Neither log was written when anybody could: `wakeCreature` did not
