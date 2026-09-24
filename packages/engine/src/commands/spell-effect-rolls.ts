@@ -1223,8 +1223,14 @@ export function resolveSaveEffect(
       type: 'casting-save-recorded',
       castingId: ctx.casting().castingId,
       target,
-      // A creature that consented was never asked, and SRD's own word for
-      // what the spell then does to it is that it is affected.
+      // **`thrown` is never null here, and the validator is what says so.**
+      // A verdict may be kept only in a list that fires off a record that
+      // already exists, and `unlessWilling` may be read only in the casting's
+      // own list, which is the one list a verdict may not be kept in — so no
+      // definition can withhold a save and ask for its verdict at once. The
+      // reading is written out rather than asserted because a creature that
+      // consented is affected, which is the answer a recorded verdict would
+      // want if the two ever met.
       failed: thrown === null || !thrown.success,
     });
   }

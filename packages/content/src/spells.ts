@@ -6675,9 +6675,9 @@ export const HASTE: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 30 },
-  // "Choose a willing creature that you can see within range", which includes
-  // you: Fly, Jump and Mage Armor are all transcribed that way, and willingness
-  // is fiction.
+  // "Choose a **willing** creature that you can see within range", which
+  // includes you — Fly, Jump and Mage Armor are all transcribed the same way,
+  // and the consent is the field below rather than the table's to remember.
   targets: { count: 1, self: true, willing: true },
   requiresSight: true,
   effects: [

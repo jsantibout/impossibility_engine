@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import {
@@ -373,38 +375,51 @@ describe('a casting held open settles with the consent it was declared with', ()
 
 describe('the catalogue writes the consent clause where the SRD prints it', () => {
   /**
-   * The spells that print "a willing creature" as their target rule, out of
-   * the book's own text rather than out of a list somebody typed here: each is
-   * expected to carry `targets.willing`, and every definition that carries it
-   * is expected to print the word.
+   * The population, read out of the parsed book rather than out of a list
+   * somebody typed here.
+   *
+   * `\bwilling\b` and nothing cleverer, which is exact for this word: the
+   * boundary before it excludes "**un**willing" — SRD Levitate and SRD
+   * Enlarge/Reduce, whose sentence hands the objector a die instead of gating
+   * the casting — and the boundary after it excludes "willing**ly**", which is
+   * SRD Magic Circle's "can't willingly enter the Cylinder", a rule about
+   * movement rather than about consent.
    */
-  it('marks every level 0–3 definition whose target rule says so', () => {
-    const printed = [
-      'arcanists-magic-aura',
-      'barkskin',
-      'darkvision',
-      'dragons-breath',
-      'fly',
-      'gaseous-form',
-      'guidance',
-      'haste',
-      'heroism',
-      'jump',
-      'mage-armor',
-      'nondetection',
-      'protection-from-energy',
-      'protection-from-evil-and-good',
-      'resistance',
-      'spider-climb',
-      'warding-bond',
-      'water-breathing',
-      'water-walk',
-    ];
-    for (const spellId of printed) {
-      const definition = SPELL_DEFINITIONS.find((d) => d.id === spellId);
-      expect(definition, spellId).toBeDefined();
-      expect(definition!.targets.willing, spellId).toBe(true);
-    }
+  const PRINTS_CONSENT = /\bwilling\b/;
+
+  const printed = (): readonly string[] =>
+    (
+      JSON.parse(
+        readFileSync(
+          fileURLToPath(new URL('../../srd/src/generated/spells.json', import.meta.url)),
+          'utf8',
+        ),
+      ) as readonly { id: string; level: number; description: string }[]
+    )
+      .filter(
+        (spell) =>
+          spell.level <= 3 &&
+          PRINTS_CONSENT.test(spell.description) &&
+          SPELL_DEFINITIONS.some((d) => d.id === spell.id),
+      )
+      .map((spell) => spell.id)
+      .sort();
+
+  /**
+   * Both directions, which is what makes this a sweep rather than a list.
+   *
+   * Left to right: every level 0–3 definition whose printed target rule says
+   * "a willing creature" carries the gate. Right to left: every definition
+   * that carries the gate prints the word — so a twentieth spell marked by
+   * mistake fails here rather than quietly asking a table for consent the book
+   * never wanted.
+   */
+  it('marks every level 0–3 definition whose target rule says so, and no other', () => {
+    const gated = SPELL_DEFINITIONS.filter((d) => d.targets.willing === true)
+      .map((d) => d.id)
+      .sort();
+    expect(gated.length).toBeGreaterThan(0);
+    expect(gated).toEqual([...printed()]);
   });
 
   /** And SRD Levitate is the save, not the target rule. */

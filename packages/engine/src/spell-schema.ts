@@ -5733,6 +5733,15 @@ function checkUnwillingSave(
       reason: 'a spell either prints the clause or does not; the only value is true',
     });
   }
+  // **And a verdict about a die nobody threw is already impossible**, which is
+  // why there is no third rule here. SRD Zone of Truth's `recordsOutcome`
+  // keeps "whether a creature **succeeds or fails** on this save", and a
+  // creature that consented was never offered one — but the two clauses
+  // exclude each other from opposite ends: a verdict may be kept only in a
+  // list that fires off a record that already exists, and this may be read
+  // only in the casting's own list, which is the one list a verdict may not be
+  // kept in. A guard for the pair would be unreachable code claiming to be a
+  // rule; `spell-schema.test.ts` asserts the exclusion instead.
 }
 
 /**
@@ -5812,6 +5821,21 @@ function checkRecordedVerdict(
  * written in either list would reach `resolveEffects` with nowhere to go.
  * Refused at authoring rather than left to be met at the table.
  */
+function checkTeleportPlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'teleport' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'teleport_outside_the_casting',
+    reason:
+      'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
+  });
+}
+
 /**
  * Where a `change-altitude` may be written, which is exactly one list.
  *
@@ -5836,21 +5860,6 @@ function checkAltitudePlacement(
     code: 'altitude_outside_an_activation',
     reason:
       'the caster states how far and which way when they take the later action, so only an activation’s own effect list can read it',
-  });
-}
-
-function checkTeleportPlacement(
-  kind: unknown,
-  where: string,
-  path: string,
-  found: SpellDefinitionProblem[],
-): void {
-  if (kind !== 'teleport' || where === 'effects') return;
-  found.push({
-    field: `${path}.kind`,
-    code: 'teleport_outside_the_casting',
-    reason:
-      'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
   });
 }
 

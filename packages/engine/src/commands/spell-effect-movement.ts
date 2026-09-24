@@ -27,6 +27,7 @@ import { err, ok, type CharacterId, type Result } from '@ie/shared';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { bearingBetween, distanceBetween, moveCreature } from '../positioning.js';
 import { ranged, type ForcedMovement } from '../spell-definitions.js';
+import { castingIdOf } from '../spells.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /** What a shove came to: the event it wrote, or the reason it wrote none. */
@@ -210,8 +211,12 @@ export function resolveChangeAltitudeEffect(
   // "the target" is whoever this casting lifted. A creature aloft by somebody
   // else's Levitate is that caster's to move, and one standing on the floor
   // was never lifted at all.
+  // **The id, exactly.** `castingIdOf` is the one reader of this join — a
+  // `substring` would read `Levitate#cast:1` out of `Levitate#cast:12` and let
+  // the eleventh casting move the creature the first one is holding, which is
+  // a guard that stops guarding the moment a campaign passes ten castings.
   const held = world.creatures[target]?.lifts ?? [];
-  if (!held.some((lift) => lift.source.includes(castingId))) {
+  if (!held.some((lift) => castingIdOf(lift.source) === castingId)) {
     return err(
       'not_held_aloft',
       `${name} moves the creature it is holding off the ground, and ${castingId} is not holding ${target}`,

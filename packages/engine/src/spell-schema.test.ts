@@ -714,6 +714,78 @@ describe('each rule refuses something', () => {
     ).toEqual(['activation_does_nothing']);
   });
 
+  /**
+   * SRD Levitate's "change the target's altitude by up to 20 feet in either
+   * direction", held to the one list it may be written in and to the lattice
+   * its cap is measured on.
+   *
+   * The placement rule is `checkTeleportPlacement`'s with the sides swapped:
+   * that kind reads a fact the casting stated and is refused outside the
+   * casting's list; this one reads a fact the **activation** states and is
+   * refused outside the activation's. A casting has no such request and an
+   * area trigger firing at a boundary has none, so either would move a
+   * creature by an amount nobody named.
+   */
+  it('refuses an altitude changed anywhere but an activation’s own list', () => {
+    // Through `checkSpellDefinitionValue`, because a placement rule belongs to
+    // the walk that knows **which list** an effect sits in — the seam
+    // `checkFoughtClause` is tested at, for the same reason.
+    const placed = (over: Record<string, unknown>): readonly string[] =>
+      codes(checkSpellDefinitionValue({ ...FIRE_DART, ...over }));
+
+    expect(placed({ effects: [{ kind: 'change-altitude', upTo: 20 }] })).toEqual([
+      'altitude_outside_an_activation',
+    ]);
+    expect(
+      placed({
+        durationSeconds: 60,
+        area: { kind: 'sphere', radius: 20, origin: 'point' },
+        areaTrigger: { at: 'start-of-turn', effects: [{ kind: 'change-altitude', upTo: 20 }] },
+      }),
+    ).toEqual(['altitude_outside_an_activation']);
+  });
+
+  it('refuses a cap the 5-foot lattice cannot hold, and takes one it can', () => {
+    const climbing = (upTo: unknown) =>
+      only({
+        durationSeconds: 60,
+        activation: {
+          action: 'action',
+          range: { kind: 'ranged', feet: 60 },
+          label: 'Fire Dart (higher)',
+          effects: [{ kind: 'change-altitude', upTo }],
+        },
+      });
+    expect(climbing(7)).toEqual(['bad_altitude_cap']);
+    expect(climbing(0)).toEqual(['bad_altitude_cap']);
+    expect(climbing(20)).toEqual([]);
+  });
+
+  /**
+   * SRD Gust of Wind's "you can change the direction in which the Line blasts
+   * from you", held to what the sentence needs to mean anything: a shape to
+   * turn, and one with a direction to be wrong about. A Sphere has no bearing,
+   * so a re-aim of one would write a fact the geometry never reads.
+   */
+  it('refuses a re-aim with no area, and one with no direction to change', () => {
+    const turning = (area: unknown) =>
+      only({
+        durationSeconds: 60,
+        ...(area === undefined ? {} : { area }),
+        activation: {
+          action: 'bonus-action',
+          redirects: true,
+          label: 'Fire Dart (the other way)',
+          effects: [],
+        },
+      });
+    expect(turning(undefined)).toEqual(['redirects_without_area']);
+    expect(turning({ kind: 'sphere', radius: 20, origin: 'self' })).toEqual([
+      'redirects_without_a_direction',
+    ]);
+    expect(turning({ kind: 'line', length: 60, width: 10, origin: 'self' })).toEqual([]);
+  });
+
   it('refuses an action that moves an area the spell does not have', () => {
     expect(
       only({
@@ -4939,6 +5011,29 @@ describe('the fought clause is refused everywhere it could not be read', () => {
 
   it('refuses any value but true for the unwilling clause', () => {
     expect(inList('effects', { ...SAVE, unlessWilling: false })).toEqual(['malformed_field']);
+  });
+
+  /**
+   * And the pair that would have written something untrue cannot be authored
+   * at all, which is why no third rule guards it.
+   *
+   * SRD Zone of Truth's `recordsOutcome` keeps "whether a creature succeeds
+   * **or fails**", and a creature that consented was never offered a die to do
+   * either with — so a `save` carrying both clauses would record a verdict
+   * about a throw that never happened. The two existing rules already make it
+   * impossible from opposite ends: a verdict may be kept only in a list that
+   * fires off a record that exists, and consent may be read only in the
+   * casting's own list, which is the one list a verdict may not be kept in. A
+   * guard for the pair would be unreachable code claiming to be a rule; this
+   * is the assertion that says so instead.
+   */
+  it('cannot be written beside a verdict, because the two lists exclude it', () => {
+    expect(inList('effects', { ...SAVE, unlessWilling: true, recordsOutcome: true })).toEqual([
+      'verdict_before_the_record',
+    ]);
+    expect(
+      inList('areaTrigger', { ...SAVE, unlessWilling: true, recordsOutcome: true }),
+    ).toEqual(['consent_outside_the_casting']);
   });
 
   /**

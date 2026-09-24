@@ -545,8 +545,8 @@ export interface CastSpellRequest extends CommandIdentity {
    *
    * SRD Mage Armor: "You touch a **willing** creature who isn't wearing
    * armor"; SRD Levitate, from the other end: "An **unwilling** creature that
-   * succeeds on a Constitution saving throw is unaffected." Two dozen spells
-   * at levels 0–3 print one sentence or the other, and the fact behind both is
+   * succeeds on a Constitution saving throw is unaffected." Spell after spell
+   * in reach prints one sentence or the other, and the fact behind both is
    * one the engine holds nothing to derive: allegiance is a different question
    * — a Charmed ally is still on the party's side, an enemy nobody has come to
    * blows with is not — and "the cleric's friend would of course agree" is a

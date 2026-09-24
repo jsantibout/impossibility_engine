@@ -3918,7 +3918,8 @@ export interface TargetRule {
   readonly mustBeFalling?: true;
   /**
    * SRD *Mage Armor*: "You touch a **willing** creature who isn't wearing
-   * armor." Nineteen definitions at levels 0–3 print the word.
+   * armor." A good many definitions in reach print the word; `willing.test.ts`
+   * reads the population out of the book rather than out of a sentence here.
    *
    * **A fact nobody but the table holds, so it is asked for rather than
    * assumed.** A target the casting has not named in `CastSpellRequest.willing`

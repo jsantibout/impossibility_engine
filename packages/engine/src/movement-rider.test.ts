@@ -603,6 +603,37 @@ describe('Levitate: the Magic action that changes the target’s altitude', () =
   });
 
   /**
+   * **And "not holding" is asked of the id exactly**, which is a distinction
+   * that costs nothing until a campaign passes ten castings.
+   *
+   * A `GrantedLift` is filed under `Levitate#cast:N`, so a reader that asked
+   * whether the source *contained* `cast:1` would answer yes for `cast:11`,
+   * `cast:12` and every one after them — and the first casting of the night
+   * would be able to raise and lower a creature somebody else's eleventh is
+   * holding. The bystander's hold is written into the log rather than cast,
+   * because reaching an eleventh casting id is not what is being tested: the
+   * fact under test is that `cast:1` cannot move a creature `cast:11` holds.
+   */
+  it('refuses a creature another casting is holding, whatever its id looks like', () => {
+    const { log, castingId } = aloft();
+    expect(castingId).toBe('cast:1');
+    const elsewhere: readonly GameEvent[] = [
+      ...log,
+      { type: 'creature-lifted', id: BYSTANDER, lift: { source: 'Levitate#cast:11' } },
+    ];
+    expect(
+      refusal(
+        activateSpell(
+          fold('seed', elsewhere),
+          CASTER,
+          { castingId, targets: [BYSTANDER], altitude: 20 },
+          supply('prefix'),
+        ),
+      ),
+    ).toBe('not_held_aloft');
+  });
+
+  /**
    * "in either direction." Lowering the creature to the ground is not the
    * spell ending: it is still running, still holding them, and a later turn
    * may take them back up.
