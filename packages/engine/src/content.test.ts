@@ -533,6 +533,162 @@ const emberkin = (kinship: readonly string[] | null): CharacterChoices => ({
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });
 
+/**
+ * A homebrew class whose level 1 feature asks **two** questions.
+ *
+ * The shape SRD Divine Order and Primal Order print - one heading, two named
+ * options, and a second question asked of only one of them - written by a
+ * catalogue this engine has never seen and arriving as JSON text. What it
+ * proves is inviolable rule 4 on the field that grew: the plural question, the
+ * key an answer is filed under, the gate that decides whether it is asked at
+ * all and the training a grant confers are all vocabulary, so a class using
+ * them needs no engine change.
+ */
+const WAYFINDER = JSON.stringify({
+  id: 'wayfinder',
+  name: 'Wayfinder',
+  primaryAbility: 'dex',
+  hitDie: 10,
+  saveProficiencies: ['dex', 'wis'],
+  skillChoices: { choose: 2, from: ['athletics', 'perception', 'survival', 'insight'] },
+  weaponProficiencies: ['simple'],
+  armorTraining: { light: true, medium: false, heavy: false, shields: false },
+  subclassLevel: 3,
+  table: Array.from({ length: 20 }, (_, i) => ({
+    level: i + 1,
+    proficiencyBonus: 2 + Math.floor(i / 4),
+  })),
+  startingEquipment: [
+    { option: 'A', items: [{ id: 'longsword', quantity: 1 }], goldPieces: 10 },
+  ],
+  multiclass: {
+    weapons: ['simple'],
+    armorTraining: { light: true, medium: false, heavy: false, shields: false },
+    tools: [],
+  },
+  features: [
+    {
+      id: 'wayfinder:calling',
+      name: 'Calling',
+      level: 1,
+      automation: 'engine',
+      note: 'Which calling, and - of the Scout alone - which lore they studied.',
+      choices: [
+        { kind: 'option', choose: 1, from: ['Scout', 'Shieldbearer'] },
+        {
+          key: 'lore',
+          kind: 'skill',
+          choose: 1,
+          from: ['nature', 'arcana'],
+          onlyIfChoice: 'Scout',
+        },
+      ],
+      grants: [
+        {
+          kind: 'weapon-and-armor-training',
+          onlyIfChoice: 'Shieldbearer',
+          weapons: ['martial'],
+          armor: ['heavy', 'shields'],
+        },
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Scout',
+          effects: [{ kind: 'speed', feet: 10 }],
+        },
+      ],
+    },
+  ],
+});
+
+const wayfinder = (calling: string, lore: readonly string[] | null): CharacterChoices => ({
+  name: 'Iris',
+  classId: 'wayfinder',
+  level: 1,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 },
+  },
+  abilityIncreases: { con: 2, wis: 1 },
+  classSkills: ['athletics', 'survival'],
+  languages: ['Draconic', 'Elvish'],
+  alignment: 'Neutral',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: ['longsword'],
+  hitPoints: { method: 'fixed' },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'wayfinder:calling': [calling],
+    ...(lore === null ? {} : { 'wayfinder:calling:lore': lore }),
+  },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'ray-of-frost'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'skilled', proficiencies: ['stealth', 'medicine', 'acrobatics'] },
+  },
+});
+
+describe('a homebrew feature asks two questions, and needs no engine change', () => {
+  // Through the JSON door, exactly as a DM's file would arrive, and then
+  // beside the book so the character has a species and a background too.
+  const loaded = unwrap(loadContent({ classes: [JSON.parse(WAYFINDER)] }), 'load');
+  const content = unwrap(extendContent(SRD_CONTENT, { classes: [...loaded.classes] }), 'extend');
+  const WHO = id('iris');
+
+  const sheetOf = (calling: string, lore: readonly string[] | null): CharacterSheet => {
+    const log = unwrap(createCharacter(content, wayfinder(calling, lore), WHO), 'create');
+    return fold('seed', log).creatures[WHO]!.sheet;
+  };
+
+  it('is parsed from JSON and validated beside the printed classes', () => {
+    const asks = content.classById('wayfinder')?.features[0];
+    expect(asks?.choices).toHaveLength(2);
+    expect(asks?.choices?.[1]?.key).toBe('lore');
+    expect(SRD_CONTENT.classById('wayfinder')).toBeNull();
+  });
+
+  it('files the second answer under its own key, and puts it on the sheet', () => {
+    expect(sheetOf('Scout', ['nature']).skills.nature).toBe('proficient');
+    expect(sheetOf('Scout', ['arcana']).skills.arcana).toBe('proficient');
+    expect(sheetOf('Scout', ['arcana']).skills.nature).toBeUndefined();
+  });
+
+  it('confers the training the other calling grants, and only to it', () => {
+    const shieldbearer = sheetOf('Shieldbearer', null);
+    expect(shieldbearer.weaponProficiencies).toContain('martial');
+    expect(shieldbearer.armorTraining).toMatchObject({ heavy: true, shields: true });
+
+    const scout = sheetOf('Scout', ['nature']);
+    expect(scout.weaponProficiencies ?? []).not.toContain('martial');
+    expect(scout.armorTraining).toMatchObject({ heavy: false, shields: false });
+  });
+
+  /** The second question is a question: asked of the Scout and of nobody else. */
+  it('refuses a Scout who answered nothing and a Shieldbearer who answered anyway', () => {
+    const unanswered = createCharacter(content, wayfinder('Scout', null), WHO);
+    expect(isErr(unanswered)).toBe(true);
+    if (isErr(unanswered)) {
+      expect(unanswered.code).toBe('missing_feature_choice');
+      expect(unanswered.reason).toContain('wayfinder:calling:lore');
+    }
+
+    const unasked = createCharacter(content, wayfinder('Shieldbearer', ['nature']), WHO);
+    expect(isErr(unasked)).toBe(true);
+    if (isErr(unasked)) expect(unasked.code).toBe('choice_not_asked');
+  });
+});
+
 describe('a homebrew species reads a sibling trait’s choice, and needs no engine change', () => {
   // Through the JSON door first, exactly as a DM's file would arrive, and then
   // beside the book so a character can have a class as well as a species.
