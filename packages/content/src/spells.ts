@@ -10695,8 +10695,22 @@ export const REVIVIFY: SpellDefinition = {
  * > damage on a successful one."
  *
  * The save and the halved damage are the most ordinary shape in the book; the
- * *area* is a length, a height and a thickness shaped along a path, and one
- * spell holds one template.
+ * *area* is the seventh template, and it is the only one the caster **draws**.
+ * A Sphere's radius is the whole of its shape and fifty feet of wall bent
+ * around a corner is not — so `area.length` is a bound rather than a size, and
+ * the path is stated at the cast and judged there: the total length, the
+ * continuity, the one ground it runs along, and the Range to the space it
+ * rises from.
+ *
+ * **It asks once, which is what the book asks.** "When the wall appears, each
+ * creature in its area makes a Strength saving throw" is a casting effect, and
+ * nothing in this spell's text asks again — so the path is not pinned on the
+ * record and no later clause may hang on it, which `checkSpellDefinition`
+ * refuses outright rather than leaving to be discovered.
+ *
+ * The thickness is narration: the smallest thing the lattice holds is a
+ * 5-foot space, so a wall occupies the spaces its path names and one foot is
+ * a description of what is in them.
  */
 export const WIND_WALL: SpellDefinition = {
   id: 'wind-wall',
@@ -10707,12 +10721,22 @@ export const WIND_WALL: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
-  effects: [],
+  // "up to 50 feet long, 15 feet high" — both bounds, and the caster's stated
+  // path is held to the first of them.
+  area: { kind: 'wall', length: 50, height: 15, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'str',
+      damage: { dice: '4d8' },
+      damageType: 'bludgeoning',
+      onSuccess: 'half',
+    },
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'the Strength saving throw and the 4d8 Bludgeoning, half on a success, are not resolved: they are resolved over the wall, and a wall with a length, a height and a thickness shaped along a continuous path is not one of the six templates a casting may hold',
-    'nothing is stopped by it either: a barrier that turns back Small flying creatures, ordinary projectiles and creatures in gaseous form is the geometry’s missing half',
-    'fog, smoke and gases kept at bay, and loose material flying upward, are the DM’s',
+    'nothing is stopped by it: a Small or smaller flying creature and a creature in gaseous form cross it as if it were open floor, and an ordinary projectile launched at a target behind it still resolves its attack roll rather than being deflected upward to miss automatically — a barrier that refuses a crossing is the geometry’s other half, and this wall is a template rather than an obstacle',
+    'fog, smoke and gases kept at bay, and loose lightweight material flying upward, are the DM’s',
   ],
 };
 

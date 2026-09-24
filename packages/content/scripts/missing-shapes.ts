@@ -1284,6 +1284,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Reverting takes 1 minute, during which the target has the Stunned condition." The Magic action that begins it is taken by the target rather than by the caster, so the minute of Stunned hangs off an activation belonging to somebody the casting reached rather than to whoever cast it.',
     },
   ],
+  'wind-wall': [
+    {
+      clause: 'deflected upward',
+      why: 'a-barrier-that-blocks-passage',
+      note: 'the geometry is built and the obstacle is not: the wall is a template the casting resolves over, and stopping a Small flying creature, an arrow or a creature in gaseous form is the half `docs/design/space-and-areas.md` keeps out — a shape that refuses a crossing is where a rules engine becomes a VTT.',
+    },
+  ],
   'zone-of-truth': [
     {
       clause: 'the engine holds no speech',
@@ -2252,20 +2259,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'That creature revives with 1 Hit Point',
       why: 'healing-that-raises-the-dead',
       note: 'not a heal of one: healCreature refuses a corpse and the refusal costs no slot, which is the rule docs/design/spell-definitions.md states this shape has to get past. Lifting death is not hit points with a small number in them.',
-    },
-  ],
-  'wind-wall': [
-    {
-      marker: 'saving-throw',
-      clause: 'each creature in its area makes a Strength saving throw',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'the save is ordinary and the area is not: "up to 50 feet long, 15 feet high, and 1 foot thick" shaped along a continuous path is a wall, and a casting holds one of six templates.',
-    },
-    {
-      marker: 'dice',
-      clause: 'taking 4d8 Bludgeoning damage on a failed save',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'half as much on a success is the save-damage kind exactly, and it has nowhere to be resolved until the wall it is resolved over can be described.',
     },
   ],
   divination: [

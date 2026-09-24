@@ -1626,7 +1626,35 @@ export type AreaShape =
       readonly towards: AreaPoint;
     }
   /** SRD: extends from a creature in all directions; that creature is excluded. */
-  | { readonly kind: 'emanation'; readonly distance: number };
+  | { readonly kind: 'emanation'; readonly distance: number }
+  /**
+   * SRD Wind Wall: "You can shape the wall in any way you choose so long as it
+   * makes **one continuous path along the ground**."
+   *
+   * **The one template whose shape the caster draws.** The other six are a
+   * printed dimension and a direction — a reader can reconstruct a 20-foot
+   * Cube from the book and a point — and this one is not: fifty feet of wall
+   * bent around a corner is a decision somebody took, space by space, and no
+   * number reconstructs which corner.
+   *
+   * So the path is the shape: a list of the 5-foot spaces the wall stands in,
+   * in order along the ground, with a height above each of them. `placeArea`
+   * is where a stated path is held to the book — the total length, the
+   * continuity, and the one ground it runs along — and what arrives here has
+   * already been judged.
+   *
+   * **Thickness is not a field**, because the lattice has no room for it: SRD
+   * prints one foot and the smallest thing this engine can hold is a 5-foot
+   * space, so a wall occupies the spaces its path names and the foot is
+   * narration. The height is real, because the lattice stacks.
+   */
+  | {
+      readonly kind: 'wall';
+      /** The spaces it stands in, by their minimum corner, in order. */
+      readonly path: readonly Point[];
+      /** SRD Wind Wall's "15 feet high", measured up from the path. */
+      readonly height: number;
+    };
 
 /** A shape that has to be pointed somewhere. */
 type DirectionalShape = Extract<AreaShape, { readonly towards: AreaPoint }>;
@@ -1791,6 +1819,28 @@ function boxInShape(
       );
     }
 
+    // A wall stands in the spaces its path names and nowhere else, so this is
+    // the one shape that is **exact rather than geometric**: no distance is
+    // measured at all, and the question is whether any cube the creature
+    // occupies is one of the wall's. Centres align to the lattice on both
+    // sides, so the comparison is equality and not a tolerance.
+    //
+    // The origin plays no part. Every other shape is a template laid *from* a
+    // point; this one is a list of absolute spaces, and the point the casting
+    // holds is simply the first of them.
+    case 'wall': {
+      const half = CUBE / 2;
+      return cubeCentres(box).some((p) =>
+        shape.path.some(
+          (space) =>
+            p.x === space.x + half &&
+            p.y === space.y + half &&
+            p.z >= space.z &&
+            p.z < space.z + shape.height,
+        ),
+      );
+    }
+
     // Cone, Line and Cube are directional, and a direction has no Chebyshev
     // shorthand. These resolve geometrically against the centre of each cube
     // the creature occupies — the way a grid adjudicates a template — and are
@@ -1800,8 +1850,18 @@ function boxInShape(
   }
 }
 
-/** Shapes whose point of origin is part of the area by default. */
-const ORIGIN_INCLUDED_BY_DEFAULT = new Set(['sphere', 'cylinder']);
+/**
+ * Shapes whose point of origin is part of the area by default.
+ *
+ * **A wall is here for a different reason from the other two.** SRD excludes a
+ * point of origin from a Cone, Cube, Line or Emanation "unless its creator
+ * decides otherwise", and a Sphere and a Cylinder are centred on theirs. A
+ * wall has no point of origin at all: the point the casting holds is the first
+ * space of the wall, which is *wall*, and a creature standing in it is standing
+ * in the wall. Leaving it out would have let one creature walk the length of
+ * SRD Wind Wall by standing at the end of it.
+ */
+const ORIGIN_INCLUDED_BY_DEFAULT = new Set(['sphere', 'cylinder', 'wall']);
 
 /** Everything a shape has to be resolved against, once the origin is known. */
 interface AreaFrame {

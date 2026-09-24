@@ -261,6 +261,22 @@ const cast = (
         : {
             at: AREA_AT,
             ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
+            // **And a wall needs its path**, which is the third fact an area
+            // can demand and the only one that is a shape rather than a point:
+            // SRD Wind Wall is drawn by whoever casts it, and a casting that
+            // draws nothing is refused. Derived from the definition for the
+            // reason the point above is — fifteen feet eastward out of
+            // `AREA_AT`, which is continuous, on one ground and inside every
+            // wall length the catalogue prints.
+            ...(definition.area.kind === 'wall'
+              ? {
+                  path: [
+                    AREA_AT,
+                    { x: AREA_AT.x + 5, y: AREA_AT.y, z: AREA_AT.z },
+                    { x: AREA_AT.x + 10, y: AREA_AT.y, z: AREA_AT.z },
+                  ],
+                }
+              : {}),
           }),
       ...over,
     },
@@ -1606,6 +1622,16 @@ describe('every spell this batch added is cast for real', () => {
     // the one entry here that the casting sweeps below cannot drive.
     'true-strike',
     'wind-walk',
+    // **Wind Wall leaves on the seventh template**, and it is the only one in
+    // the book the caster draws: a path of 5-foot spaces along the ground,
+    // judged at the cast against the fifty feet, the continuity, the single
+    // ground and the Range to the space it rises from. The Strength save and
+    // the 4d8 are the most ordinary shape there is, once there is somewhere to
+    // resolve them. What the spell still owes is the **barrier** — an arrow
+    // deflected upward, a Small flier turned back — so it leaves the tracked
+    // bucket as executed-partial rather than clean, and
+    // `a-barrier-that-blocks-passage` keeps it.
+    'wind-wall',
     // The last of the tracked spells to be blocked on a *publication* rather
     // than on a mechanic. The Charisma save was always ordinary and both
     // moments it fires at were `AreaTrigger` members; what it had nowhere to

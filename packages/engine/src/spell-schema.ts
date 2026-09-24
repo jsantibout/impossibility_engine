@@ -305,6 +305,12 @@ const AREA_KINDS: ReadonlySet<string> = new Set([
   'cube',
   'line',
   'emanation',
+  // The seventh, and the only one the SRD does not list among its areas of
+  // effect: SRD Wind Wall's "one continuous path along the ground" is a shape
+  // the caster draws rather than a template the book prints, and it is here
+  // because a definition has to be able to say how long and how high the book
+  // lets them draw it.
+  'wall',
 ]);
 
 /** The shapes whose origin is a creature rather than a coordinate. */
@@ -3934,9 +3940,11 @@ export function checkSpellDefinition(
       found.push({
         field: `${key}.kind`,
         code: 'unknown_area',
-        reason: `"${area.kind}" is not one of the SRD's six areas of effect`,
+        reason: `"${area.kind}" is not one of the SRD's six areas of effect, nor the wall the caster draws`,
       });
+      continue;
     }
+    if (area.kind === 'wall') checkWall(area, key, definition, found);
   }
 
   if (definition.areaTrigger !== undefined) {
@@ -5185,6 +5193,69 @@ function checkTeleportPlacement(
     reason:
       'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
   });
+}
+
+/**
+ * What a definition may say about a wall, and what it may not hang on one.
+ *
+ * SRD Wind Wall: "You can make the wall **up to 50 feet long, 15 feet high**,
+ * and 1 foot thick."
+ *
+ * Both numbers are measured on the 5-foot lattice everything else is, and both
+ * are bounds rather than sizes: the caster draws the path and `placeWall` holds
+ * it to the length. The thickness is not a field, because the smallest thing
+ * this engine holds is a space.
+ *
+ * **And a wall answers at the cast and nothing later**, which is the rule this
+ * function exists for. The path is the one thing about a template that cannot
+ * be reconstructed from the book and a point, the ongoing record does not store
+ * it, and `areaShapeOf` therefore answers null for a wall — so a trigger, a
+ * standing effect, terrain, light or obscurement written here would be a clause
+ * that silently did nothing. Refused at authoring, which is where a
+ * definition's defects belong, and the refusal is where the conversation starts
+ * on the day Wall of Fire wants its second sentence.
+ */
+function checkWall(
+  area: { readonly kind: string; readonly origin?: unknown },
+  key: string,
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  for (const field of ['length', 'height'] as const) {
+    const feet = (area as unknown as Record<string, unknown>)[field];
+    if (typeof feet !== 'number' || !Number.isInteger(feet) || feet <= 0 || feet % 5 !== 0) {
+      found.push({
+        field: `${key}.${field}`,
+        code: 'bad_wall_dimension',
+        reason: `a wall is measured in whole 5-foot spaces, and ${field} is ${String(feet)}`,
+      });
+    }
+  }
+
+  if (area.origin !== 'point') {
+    found.push({
+      field: `${key}.origin`,
+      code: 'wall_starts_at_a_point',
+      reason:
+        'a wall rises from a point the caster chooses and is drawn from there; no SRD wall originates at its caster',
+    });
+  }
+
+  if (key !== 'area') return;
+  for (const clause of [
+    'areaTrigger',
+    'areaStanding',
+    'areaTerrain',
+    'areaLight',
+    'areaObscurement',
+  ] as const) {
+    if (definition[clause] === undefined) continue;
+    found.push({
+      field: clause,
+      code: 'wall_answers_once',
+      reason: `a wall's path is drawn at the casting and is not pinned on the record, so nothing can ask about it again; \`${clause}\` would be read against no shape at all`,
+    });
+  }
 }
 
 /**

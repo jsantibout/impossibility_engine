@@ -644,6 +644,16 @@ function areaShapeOf(
       return aim === null
         ? null
         : { kind: 'line', length: area.length, width: area.width, towards: aim };
+    // **A wall cannot be reconstructed, and says so.** Every other template
+    // here is a printed dimension and, for three of them, a direction the
+    // record stored; a wall is a path the caster drew space by space, and the
+    // record keeps only the point it rose from. So a later question about a
+    // wall has no shape to ask of, which is the honest answer rather than a
+    // straight line between the endpoints — and `checkSpellDefinition` refuses
+    // every clause that would ask one, so nothing reaches this on a validated
+    // definition. SRD Wind Wall asks once, when the wall appears.
+    case 'wall':
+      return null;
   }
 }
 

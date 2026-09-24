@@ -2922,7 +2922,37 @@ export type SpellArea =
       readonly width: number;
       readonly origin: 'self';
     }
-  | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' };
+  | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' }
+  /**
+   * SRD Wind Wall: "You can make the wall up to 50 feet long, 15 feet high,
+   * and 1 foot thick. You can shape the wall in any way you choose so long as
+   * it makes one continuous path along the ground."
+   *
+   * **The definition states the bounds and the caster draws the wall**, which
+   * is the split every other member of this union does not need: a Sphere's
+   * radius is the whole of its shape, and fifty feet of wall bent around a
+   * corner is a decision somebody took space by space. So `length` is a
+   * maximum rather than a size, checked against the stated path at the cast.
+   *
+   * **A wall answers at the cast and nothing later.** The path is the one
+   * thing about a template that cannot be reconstructed from the book and a
+   * point, and the ongoing record does not store it — so a definition may not
+   * hang an `areaTrigger`, an `areaStanding`, terrain, light or obscurement on
+   * a wall, and `checkSpellDefinition` refuses all five rather than letting
+   * them read a shape that answers null. SRD Wind Wall asks once, when the
+   * wall appears, which is exactly what this reaches.
+   *
+   * The thickness is not here for the reason it is not on `AreaShape`: the
+   * lattice holds nothing narrower than a space.
+   */
+  | {
+      readonly kind: 'wall';
+      /** SRD's "up to 50 feet long": a maximum the stated path is held to. */
+      readonly length: number;
+      /** SRD's "15 feet high", measured up from the ground the path runs along. */
+      readonly height: number;
+      readonly origin: 'point';
+    };
 
 /**
  * Ground a casting's area is expensive to cross, for as long as the casting

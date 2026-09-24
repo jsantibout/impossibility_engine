@@ -146,8 +146,8 @@ describe('toolSchemas', () => {
     // bytes, because `cast_spell` is published on both doors.
     expect(toolSchemas(player())).toHaveLength(82);
     expect(toolSchemas(dm())).toHaveLength(99);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(115232);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(136735);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(116154);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(137657);
   });
 });
 
