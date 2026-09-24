@@ -52,7 +52,9 @@ import {
   type SpellDefinition,
 } from '../spell-definitions.js';
 import type { CastingNumbers } from '../spells.js';
-import { statedNumbersOf, type CastingRoute } from '../spellcasting.js';
+import { classOfRoute, statedNumbersOf, type CastingRoute } from '../spellcasting.js';
+import { standingSpellSaveDcBonus } from '../standing.js';
+import type { GameState } from '../state.js';
 
 /** The item arm of {@link CastingRoute}, named once. */
 export type ItemRoute = Extract<CastingRoute, { kind: 'item' }>;
@@ -435,13 +437,31 @@ export function selfOnlyRefusal(
  * same rule the item's is: a printed number wins over a derived one, because a
  * stat block's "spell save DC 17" is the block's whatever its Charisma would
  * have made of it. See {@link statedNumbersOf}.
+ *
+ * **A standing grant may raise the save DC, and this is the one place it is
+ * added.** SRD Innate Sorcery's "The spell save DC of Sorcerer spells you cast
+ * increases by 1" is a `spell-save-dc-bonus` read off the caster's own state
+ * here, so every casting on every class route gets it once and the number is
+ * pinned onto the casting like the rest of the pair. It is added to a derived
+ * DC and to a **stated** one alike: a stat block's printed DC is what that
+ * creature's magic is worth before a feature raises it, and no SRD block
+ * carries such a feature anyway. An item's route answered before it ever got
+ * here, which is the right answer for the same reason the caster level is —
+ * nothing later can ask a wand that is not in hand.
  */
-export function numbersFor(sheet: CharacterSheet, route: CastingRoute): CastingNumbers {
+export function numbersFor(
+  state: GameState,
+  who: CharacterId,
+  sheet: CharacterSheet,
+  route: CastingRoute,
+): CastingNumbers {
   if (route.kind === 'item') return route.numbers;
   const stated = statedNumbersOf(route);
   return {
     attackModifier: stated.attackBonus ?? spellAttackModifierWith(sheet, route.ability),
-    saveDc: stated.saveDc ?? spellSaveDcWith(sheet, route.ability),
+    saveDc:
+      (stated.saveDc ?? spellSaveDcWith(sheet, route.ability)) +
+      standingSpellSaveDcBonus(state, who, classOfRoute(route)),
     spellcastingModifier: modifierFor(sheet, route.ability),
     casterLevel: sheet.level,
   };

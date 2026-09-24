@@ -322,6 +322,22 @@ export const castsAtWill = (route: CastingRoute): boolean =>
   route.kind === 'granted' && route.grant.atWill === true;
 
 /**
+ * The class this route casts **through**, or null where it is none.
+ *
+ * SRD Innate Sorcery: "Sorcerer spells you cast". A feature belongs to exactly
+ * one class and the sentences that narrow by one ask this — the save DC a
+ * casting is settled with, and the mode its attack roll is thrown under — so
+ * there is one reader rather than the branch written out at each site.
+ *
+ * **Null is three different things and they answer alike.** A feat's granted
+ * route brings its own ability and no class, a stat block's declaration calls
+ * itself `innate`, and an item belongs to nobody — none of the three is a
+ * Sorcerer spell, which is what a class-narrowed benefit needs to know.
+ */
+export const classOfRoute = (route: CastingRoute): string | null =>
+  route.kind === 'cantrip' || route.kind === 'prepared' ? route.classId : null;
+
+/**
  * The numbers this route **states**, if it states any.
  *
  * One reader for the two hosts that can carry a printed pair — a declared

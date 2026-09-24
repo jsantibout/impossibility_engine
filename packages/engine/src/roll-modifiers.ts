@@ -240,6 +240,44 @@ export interface RollSelector {
    */
   readonly ifRollerSees?: true;
   /**
+   * SRD Innate Sorcery: "You have Advantage on the **attack rolls of
+   * Sorcerer spells** you cast."
+   *
+   * An attack roll a *spell* makes, which every other field on this selector
+   * could not tell from a club: `ability` narrows by the ability the swing was
+   * made with and a Fire Bolt has one, `counterpart` names a creature, and the
+   * family is `attack` for both. A feature that could not say this bought
+   * Advantage on every swing its holder made, which is a benefit misapplied
+   * rather than one never applied.
+   *
+   * Only on the `attack` family and only from the `roller`'s end, both refused
+   * by the validator: a saving throw is not made by a spell, and a rule about
+   * rolls *against* its holder is a rule about who is attacking them rather
+   * than about what they cast.
+   *
+   * The site that throws the die answers it — {@link RollQuery.spellAttack} —
+   * for {@link RollSelector.againstMagic}'s reason: a roll nobody classified
+   * is a miss rather than a guess, so a weapon swing, which says nothing here,
+   * is never one.
+   */
+  readonly onlySpellAttacks?: true;
+  /**
+   * SRD Innate Sorcery's other word: "**Sorcerer** spells you cast."
+   *
+   * The class the casting was made through, matched against
+   * {@link RollQuery.castThrough}. A feature belongs to exactly one class and
+   * the sentence names it, so a Sorcerer 1 / Wizard 4 rolls the half she casts
+   * as a Sorcerer with Advantage and the other half flat.
+   *
+   * Beside {@link onlySpellAttacks} rather than folded into it, because they
+   * are two narrowings of one sentence and a homebrew feature may want either
+   * alone: "Advantage on your spell attacks" is a real sentence, and so is a
+   * class-wide one about something other than an attack. The validator holds
+   * this one to the company it keeps — a casting's class is a fact only a
+   * spell's roll carries — so it is legal only where `onlySpellAttacks` is.
+   */
+  readonly onlyThroughClass?: string;
+  /**
    * The condition this saving throw is **about** — what it would avoid or end.
    *
    * The axis the SRD writes four times over and the vocabulary had no room
@@ -411,6 +449,13 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     [...(selector.unlessPerceivedWith ?? [])].sort().join(','),
     selector.ifRollerSees === true ? 'if-roller-sees' : '',
     selector.condition ?? '',
+    // The two narrowings SRD Innate Sorcery prints, kept in the identity for
+    // Beacon of Hope's reason: one source that said "your spell attacks" and
+    // "your attacks" would be two statements, and a key that could not tell
+    // them apart would evict the first. Appended, so every key already written
+    // gains the same empty tail and the sort order this decides is unmoved.
+    selector.onlySpellAttacks === true ? 'only-spell-attacks' : '',
+    selector.onlyThroughClass ?? '',
   ].join('|');
 }
 
@@ -472,6 +517,27 @@ export interface RollQuery {
    * `ifRollerSees`; absent applies such a grant and is reported.
    */
   readonly rollerSees?: boolean | null;
+  /**
+   * Whether this attack roll is a **spell's** — what
+   * {@link RollSelector.onlySpellAttacks} matches.
+   *
+   * Answered by the site that throws the die, because it is the only thing
+   * that knows: one site says yes, the `attack` effect's resolver, and the
+   * weapon attack says nothing. Absent is "nobody said it was", and a selector
+   * that asks for a spell reads that as a miss rather than a guess — the
+   * reading {@link magical} already takes of a save.
+   */
+  readonly spellAttack?: true;
+  /**
+   * The class the casting making this roll was made **through**, where it was
+   * made through one — what {@link RollSelector.onlyThroughClass} matches.
+   *
+   * Read off the casting's own route, which is where the answer lives: a class
+   * route names its class, and a feat's granted route, a stat block's
+   * declaration and an item's route name none. Absent therefore means "through
+   * no class", which a class-keyed selector reads as a miss.
+   */
+  readonly castThrough?: string;
   /**
    * The conditions this roll would **avoid or end**, where it is about any.
    *
@@ -578,6 +644,18 @@ export function selectorMatches(
   // magical effects." A roll nobody classified is a miss, not a guess — see
   // {@link RollQuery.magical}.
   if (selector.againstMagic === true && query.magical !== true) return false;
+
+  // SRD Innate Sorcery: "the attack rolls of Sorcerer spells you cast." Two
+  // narrowings of one sentence, read the same way `againstMagic` is: a swing
+  // that said nothing about being a spell's is not one, and a casting through
+  // no class is not a casting through this one.
+  if (selector.onlySpellAttacks === true && query.spellAttack !== true) return false;
+  if (
+    selector.onlyThroughClass !== undefined &&
+    selector.onlyThroughClass !== query.castThrough
+  ) {
+    return false;
+  }
 
   return true;
 }
@@ -759,6 +837,45 @@ export function rollSelectorProblems(
     found.push({
       code: 'against_magic_off_a_saving_throw',
       reason: `only a saving throw records what it was forced by, so "against spells and other magical effects" cannot pick out a ${selector.roll}`,
+    });
+  }
+
+  // SRD Innate Sorcery is a sentence about attack rolls its holder makes, and
+  // only an attack roll carries the fact it reads. The relation half is the
+  // reason a *spell* attack can be narrowed at all: the roller is the caster,
+  // so a rule about rolls against the holder is a rule about who is attacking
+  // them rather than about what they cast.
+  if (selector.onlySpellAttacks !== undefined) {
+    if (selector.onlySpellAttacks !== true) {
+      found.push({
+        code: 'bad_spell_attack_gate',
+        reason: '"the attack rolls of spells you cast" is written onlySpellAttacks: true, or left off',
+      });
+    }
+    if (selector.roll !== 'attack') {
+      found.push({
+        code: 'spell_attack_off_an_attack_roll',
+        reason: `only an attack roll says whether a spell made it, so "the attack rolls of spells you cast" cannot pick out a ${selector.roll}`,
+      });
+    }
+    if (selector.relation !== 'roller') {
+      found.push({
+        code: 'spell_attack_off_the_roller',
+        reason:
+          'a spell attack is made **by** the creature the sentence is about, so this narrowing belongs on a "roller" selector; on "against-holder" it would describe whoever is attacking them',
+      });
+    }
+  }
+
+  // And the class the casting was made through, which only a casting has: it
+  // rides with the narrowing above rather than alone, because a weapon swing
+  // was never made through a class and a roll that could not say it is a spell
+  // could not say which class cast it either.
+  if (selector.onlyThroughClass !== undefined && selector.onlySpellAttacks !== true) {
+    found.push({
+      code: 'class_narrowing_without_a_spell',
+      reason:
+        'the class a roll was made through is a fact only a casting carries, so narrowing by one needs onlySpellAttacks beside it',
     });
   }
 

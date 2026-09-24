@@ -823,7 +823,7 @@ export function castOrRelease(
         reach,
         needs,
         origin,
-        numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+        numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
       );
       if (!named.ok) return named;
       targets = named.value;
@@ -847,7 +847,7 @@ export function castOrRelease(
       request,
       targets,
       castLevel,
-      numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+      numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
     );
     if (!aimed.ok) return aimed;
 
@@ -1662,7 +1662,7 @@ function resolveOnTargets(
   // and the spell attack modifier a wizard's casting is made with. Asked once,
   // here, where the state is — and pinned into the events below like every
   // other number, so the substitution happens at the casting and never again.
-  const numbers = numbersFor(sheetAsItStands(state, casterId) ?? caster.sheet, route);
+  const numbers = numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route);
 
   // What the caster's own features do to this casting's damage, asked once,
   // here, where the request and the route are both in hand. `running` is the
@@ -2729,7 +2729,8 @@ export function runEffects(
   // The *chosen source's* ability, not the class's — a feat brings its own —
   // and a later use of the same casting takes the numbers it was made with
   // rather than asking a sheet that may have levelled since.
-  const numbers: CastingNumbers = run.numbers ?? numbersFor(casterSheet().sheet, route!);
+  const numbers: CastingNumbers =
+    run.numbers ?? numbersFor(state, casterId, casterSheet().sheet, route!);
 
   // **Before the first die, and on every path into here.** `castOrRelease`
   // asks the same question earlier so an ordinary casting never reaches this

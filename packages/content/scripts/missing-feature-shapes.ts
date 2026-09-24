@@ -120,8 +120,6 @@ export const FEATURE_SHAPES = {
     'a mode a feature hangs on somebody at a **moment**, spent by the first roll that reaches it. The mechanic itself is built and is a casting’s: packages/engine/src/roll-modifiers.ts carries `RollModifier.oneShot` — "Spent by the first roll it reaches, rather than running to a deadline." — with `RollSelector.counterpart` beside it for the sentences that narrow one to a named creature, and SRD Guiding Bolt and Vicious Mockery write both ends of it through a spell’s rider. What no **feature** has is the door: a `FeatureGrant` of kind `roll-mode` is a standing grant, derived from its holder’s own state on every read, and packages/engine/src/progression.ts says what the list is for — "Deliberately few. A feature whose effect does not fit one of these is" — so a feature’s own `roll-mode` grant reaches none of it. **One of the two moments is built now**, and it is the declared one: `ActivatedFeature.hangs` in packages/engine/src/standing.ts is the stored half of a standing grant, emitted by `activateFeature` where the action is paid for, with `onlyIfUnmoved` beside it for the condition a use is gated on — SRD Steady Aim spends a Bonus Action it may take only before moving, and hangs both of its clauses through it. What is still missing is the moment nobody declares: a grant **fired** by something that happened to an attack, which is Studied Attacks’ miss and Improved Brutal Strike’s landed hit. Sap and Vex reach theirs through the weapon-mastery record and `masteryAfterHit`, which is one hit’s rider rather than a door a feature can write.',
   'an-action-rule-a-feature-holds':
     'a rule about the action economy that a **feature** states about **somebody else**. The holder half is built and the catalogue writes it: `StandingGrant` in packages/engine/src/standing.ts carries an `action-rule` member, and `actionRulesOn` merges what a feature says with what a casting hung at every site a spend is checked — derived on every read rather than compiled onto the creature, because a stored copy "would put a permanent unconditional row into every Rogue’s state" and would reach no character already written into a log. SRD Cunning Action and SRD Adrenaline Rush are written through it. **What is left is the other direction**, and the SRD writes it on a *hit*: a rule hung on the creature you have just struck — Improved Brutal Strike stopping its Opportunity Attacks — which a casting does through an effect on its target and a feature through nothing, because a standing grant is a fact about its own holder. packages/engine/src/combat.ts used to refuse the neighbouring question about spending somebody else’s budget and no longer does — the owner’s ruling of 2026-09-22 settled it, and the module now records that "a spell may spend another creature’s budget" — so this is the narrower one left beside it, waiting on the moment that would hang the rule as much as on the reach.',
-  'a-requirement-on-the-armour-its-holder-is-wearing':
-    'a standing grant conditioned on the armour its holder **is** wearing. The axis exists and both of its members are the other polarity: packages/engine/src/standing.ts carries `not-wearing-heavy-armor` — "while you aren\'t wearing **Heavy** armor." — and `unarmored` — "while you aren\'t wearing armor **or wielding a Shield**." — each read off the sheet\'s two slots on every read. SRD Defense asks the opposite question, "While you\'re wearing armor, you gain a +1 bonus to Armor Class", and the Fighting Style feat that prints it says so in its own note: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and what is missing is the clause that would gate it. Gate G1 is where it was found, because the feats were in no population and nothing read that note.',
   'a-roll-mode-a-feature-takes-away':
     'a mode **cancelled** rather than granted. packages/engine/src/roll-modifiers.ts builds the axis as presence — "The mode is not part of the identity" — and `combineRollModes` weighs Advantage against Disadvantage — and SRD Elusive says something else again: no attack roll may **have** Advantage against you at all, which is neither a grant of Disadvantage nor a cancellation the vocabulary can express.',
   'a-turn-boundary-payout-a-feature-owes':
@@ -952,13 +950,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Sorcerer —
-  'sorcerer:innate-sorcery': [
-    {
-      clause: 'the +1 to spell save DC and Advantage on spell attacks',
-      why: 'a-bonus-to-spell-attack-rolls',
-      note: 'the item map’s own id, whose description already names the save DC beside the attack roll.',
-    },
-  ],
   'sorcerer:metamagic': [
     {
       clause: 'Empowered Spell and Seeking Spell are `rerollDice` in the dice layer',
@@ -1173,17 +1164,16 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // `allFeatures` walked classes, subclasses, species and backgrounds and
   // never `SRD_CONTENT.feats`, so sixteen feats — nine of them in a level 1–5
   // character's reach — were in no map, no row and no guard. A `FeatDefinition`
-  // has no `automation` flag to select on, which is why the three below are
-  // declared in {@link FEATS_ANSWERED_FOR} rather than derived; what is *not*
-  // declared is whether each is a debt, because each says so in its own note
-  // and the clauses here are anchored in it exactly as a feature's are.
-  defense: [
-    {
-      clause: 'The +1 to Armour Class is not applied',
-      why: 'a-requirement-on-the-armour-its-holder-is-wearing',
-      note: 'one clause short: the arithmetic is a standing flat bonus applying to `ac` that magic armour already uses, and a feat carries a standing grant now — Archery and Great Weapon Fighting beside it are declared that way and are applied.',
-    },
-  ],
+  // has no `automation` flag to select on, which is why what this arm answers
+  // for is declared in {@link FEATS_ANSWERED_FOR} rather than derived; what is
+  // *not* declared is whether each is a debt, because each says so in its own
+  // note and the clauses here are anchored in it exactly as a feature's are.
+  //
+  // **The arm is empty and the machinery stays**, which is the same discipline
+  // the origin sweep's breach record keeps: Defense was the one feat this map
+  // ever carried, its clause was the armour requirement, and building
+  // `wearing-armor` retired both. A seventeenth feat that printed something
+  // the engine did not do would be recorded here rather than argued about.
 };
 
 /**
@@ -1339,7 +1329,7 @@ export const POOLS_ONLY_PARTLY_BOUGHT: readonly string[] = ['monk:focus'];
  * population is `stale`, a member with no line is `unrecorded`, and every
  * clause anchors in its own note exactly once.
  */
-export const FEATS_ANSWERED_FOR: readonly string[] = ['defense'];
+export const FEATS_ANSWERED_FOR: readonly string[] = [];
 
 /**
  * The whole population this map answers for: the three arms together.

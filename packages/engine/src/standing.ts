@@ -438,6 +438,44 @@ export type StandingGrant =
    */
   | { readonly kind: 'save-bonus'; readonly fromAbility: Ability; readonly minimum: number }
   /**
+   * SRD Innate Sorcery: "The spell save DC of Sorcerer spells you cast
+   * increases by 1."
+   *
+   * **The other end of a saving throw**, and that is why it is a member rather
+   * than a field on the one above. `save-bonus` is a number the creature
+   * *rolling* adds; this is a number added to the DC the creature rolling has
+   * to beat, and the two never meet: a Paladin's aura helps whoever is inside
+   * it, and this makes its holder's own magic harder to shrug off. A grant
+   * that tried to be both would have to know which side of the roll it was on.
+   *
+   * **Flat, and read where the casting settles its numbers.** `numbersFor` is
+   * the one place a class casting's DC is worked out, so the bonus is added
+   * there and pinned onto the casting like every other number — which is the
+   * reading the SRD's own sentence takes: the DC of a spell *you cast* while
+   * the minute runs, and a Web already on the floor does not get harder when
+   * its caster switches the feature on afterwards.
+   */
+  | {
+      readonly kind: 'spell-save-dc-bonus';
+      /** Signed, so a curse that lowered a DC would need no second member. */
+      readonly flat: number;
+      /**
+       * SRD's "**Sorcerer** spells you cast" — the class the casting was made
+       * through, and nothing else.
+       *
+       * A feature belongs to exactly one class and the SRD says so in the
+       * sentence itself, so a Sorcerer 1 / Wizard 4 raises the DC of the half
+       * she casts as a Sorcerer and not the other. The class is read off the
+       * casting's own route, which is the only place the answer lives: a
+       * feat's route and an item's name no class and are therefore never it.
+       *
+       * Absent reaches every casting its holder makes, which is what a magic
+       * item's "your spell save DC increases by 2" prints — no class, because
+       * an item does not belong to one.
+       */
+      readonly onlyThroughClass?: string;
+    }
+  /**
    * SRD Divine Order (Thaumaturge) and SRD Primal Order (Magician): "you have
    * a bonus to the Intelligence (Arcana) and Intelligence (Religion) checks
    * you make. The bonus equals your Wisdom modifier (minimum of +1)."
@@ -1257,6 +1295,27 @@ export type StandingRequirement =
    * reading the clause as the stricter one would quietly take them away.
    */
   | { readonly kind: 'not-wearing-heavy-armor' }
+  /**
+   * SRD Defense: "While you're **wearing Light, Medium, or Heavy armor**, you
+   * gain a +1 bonus to Armor Class."
+   *
+   * The third member on the armour axis and the only one with the positive
+   * polarity, which is why it could not be had by negating either of the other
+   * two: a Barbarian in a chain shirt satisfies `not-wearing-heavy-armor` and
+   * a Wizard in a robe satisfies both, so "not unarmoured" and "wearing
+   * armour" are the same sentence only by accident of there being two slots.
+   *
+   * **The armour slot and not the Shield.** `unarmored` below reads both
+   * slots because its own sentence names both; this one names the three
+   * armour categories and stops, so a Fighter holding a Shield and wearing
+   * nothing gains nothing — the reading `handsFor` already takes of a Shield
+   * as a thing held rather than worn.
+   *
+   * The three categories are the whole of what the armour slot can hold, so
+   * the question is "is anything worn there" rather than a list of names: an
+   * SRD suit is Light, Medium or Heavy and there is no fourth.
+   */
+  | { readonly kind: 'wearing-armor' }
   /**
    * SRD Unarmored Movement: "while you aren't wearing armor **or wielding a
    * Shield**."
@@ -2245,6 +2304,12 @@ function requirementsHold(
     ) {
       return false;
     }
+    // The same slot the clause above reads, asked from the other end — and
+    // only that slot, because SRD Defense names the three armour categories
+    // and says nothing of a Shield.
+    if (requirement.kind === 'wearing-armor' && creature.sheet.armor === null) {
+      return false;
+    }
     if (
       requirement.kind === 'unarmored' &&
       (creature.sheet.armor !== null || creature.sheet.shield !== null)
@@ -2589,6 +2654,41 @@ export function standingCheckBonuses(
   }
 
   return [...best.values()];
+}
+
+/**
+ * What this creature's standing effects add to the save DC of a casting made
+ * through a named class.
+ *
+ * The other side of a saving throw from {@link standingSaveBonuses}, and asked
+ * at the one place a class casting's numbers are settled — `numbersFor` — so a
+ * Fireball's DC and a Charm Person's are raised by one reading of one grant
+ * and the number is pinned onto the casting like every other.
+ *
+ * `through` is the class the casting is made through, or null where it is made
+ * through none: a feat's granted route, a stat block's declaration, and a wand.
+ * A grant narrowed to a class misses all three, which is the SRD's own reading
+ * — "Sorcerer spells you cast" is a sentence about the class, and a Wand of
+ * Fireballs belongs to nobody's.
+ *
+ * Summed rather than kept per feature, because these are different sentences
+ * on different pages rather than two holders of one name: a Robe of the
+ * Archmagi and an Innate Sorcery are both true at once, and the "only the most
+ * potent applies" rule is about a *name* repeated.
+ */
+export function standingSpellSaveDcBonus(
+  state: GameState,
+  who: CharacterId,
+  through: string | null,
+): number {
+  let total = 0;
+  for (const { from, effect } of standingFor(state, who)) {
+    if (from !== who || effect.grant.kind !== 'spell-save-dc-bonus') continue;
+    const only = effect.grant.onlyThroughClass;
+    if (only !== undefined && only !== through) continue;
+    total += effect.grant.flat;
+  }
+  return total;
 }
 
 /**

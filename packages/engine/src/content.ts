@@ -310,6 +310,13 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
 export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
   'save-bonus',
+  // The other end of a saving throw, admitted on the same test the rest of
+  // this list is held to — what a reader reaches: `numbersFor` asks
+  // `standingSpellSaveDcBonus`, which walks `standingFor` and so already reads
+  // a worn item's grants. SRD Robe of the Archmagi prints exactly this
+  // sentence ("your spell save DC ... increase by 2"), so it is a line the
+  // book writes rather than one only a class does.
+  'spell-save-dc-bonus',
   'check-bonus',
   'flat-bonus',
   'condition-immunity',
@@ -743,6 +750,9 @@ function ownedStandingEffectProblems(
   if (effect.kind === 'jump-bonus') {
     found.push(...jumpBonusProblems(effect as unknown as Record<string, unknown>, at));
   }
+  if (effect.kind === 'spell-save-dc-bonus') {
+    found.push(...spellSaveDcBonusProblems(effect as unknown as Record<string, unknown>, at));
+  }
   if (effect.kind === 'sense') {
     found.push(...senseProblems(effect as unknown as Record<string, unknown>, at));
   }
@@ -1079,6 +1089,47 @@ function fallReductionProblems(
   return found;
 }
 
+/**
+ * Everything wrong with a `spell-save-dc-bonus` grant.
+ *
+ * Two things, and both are the "benefit nothing reads" this validator exists
+ * for: a bonus of nothing, which compiles onto the sheet and moves no DC, and
+ * a class narrowing that is not a string, which would match no route for ever.
+ * The class is **not** checked against the catalogue here, for the reason a
+ * `feature-active` requirement's feature id is not: `checkContent` validates a
+ * grant wherever it is written, homebrew included, and a class this content
+ * does not have is a benefit withheld rather than one misapplied.
+ */
+function spellSaveDcBonusProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const flat = effect['flat'];
+  if (!Number.isInteger(flat)) {
+    found.push({
+      code: 'bad_spell_save_dc_bonus',
+      reason: `a spell save DC moves by a whole number of points, not ${JSON.stringify(flat)}`,
+      field: `${at}.flat`,
+    });
+  } else if (flat === 0) {
+    found.push({
+      code: 'bad_spell_save_dc_bonus',
+      reason: 'a bonus of zero moves no saving throw DC at all',
+      field: `${at}.flat`,
+    });
+  }
+  const through = effect['onlyThroughClass'];
+  if (through !== undefined && (!isString(through) || through.length === 0)) {
+    found.push({
+      code: 'bad_spell_save_dc_bonus',
+      reason: `"Sorcerer spells you cast" names a class by its id, and ${JSON.stringify(through)} is not one`,
+      field: `${at}.onlyThroughClass`,
+    });
+  }
+  return found;
+}
+
 /** Everything wrong with a `jump-bonus` grant: an ability that is not one of the six. */
 function jumpBonusProblems(
   effect: Record<string, unknown>,
@@ -1179,6 +1230,10 @@ export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
   'feature-active',
   'has-speed',
   'not-wearing-heavy-armor',
+  // The positive polarity on the same axis — SRD Defense's "while you're
+  // wearing Light, Medium, or Heavy armor" — which an item may ask for
+  // exactly as it may ask for either of its two neighbours.
+  'wearing-armor',
   'unarmored',
   'while-attuned',
   'while-worn',

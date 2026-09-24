@@ -26,6 +26,7 @@ import { rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
+import { classOfRoute } from '../spellcasting.js';
 import { answerTheBlow } from './passive-defenses.js';
 import {
   attackRollsFor,
@@ -219,7 +220,16 @@ function resolveOneAttackRoll(
   // and the first die. Asking again per roll would roll a second save for one
   // targeting, and outside combat, where there is no turn to hold an attacker
   // to one save, it would roll one for every beam of a Scorching Ray.
-  const defending = defendingModes(current, casterId, target, ability);
+  //
+  // **And that it is a spell's**, which is the half a weapon swing cannot say
+  // and the half SRD Innate Sorcery's "Advantage on the attack rolls of
+  // Sorcerer spells you cast" is entirely about. The class comes off the
+  // casting's own route, so a Sorcerer/Wizard's Fire Bolt is narrowed by which
+  // half of her cast it, and a feat's or an item's route names no class at all.
+  const through = ctx.route === null ? null : classOfRoute(ctx.route);
+  const defending = defendingModes(current, casterId, target, ability, {
+    ...(through === null ? {} : { through }),
+  });
   unverified.push(...defending.unverified);
 
   // **A ranged spell attack is a ranged attack.** SRD "Ranged Attacks": "You
