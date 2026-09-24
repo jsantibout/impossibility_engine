@@ -7,6 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { resolveAttack, resolveMove, resolveTurn } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
+import { checkContent } from './content.js';
 
 /**
  * SRD Cunning Strike — Sneak Attack dice spent as a price, and the three
@@ -476,5 +477,174 @@ describe('a rider whose price is dice its holder has not got', () => {
   it('lets a rider with no dice price through, which is every rider before this', () => {
     const out = swing(withRider({}));
     expect(isErr(out)).toBe(false);
+  });
+});
+
+/**
+ * The authoring door, on the two names a dice price uses and its two halves.
+ *
+ * Every failure here is the same shape, which is the shape this whole layer
+ * exists to catch: a sentence that would **validate, compile and do nothing**.
+ * A count with no feature to take it from is a number the swing never spends;
+ * a feature named where nothing costs anything is a price nobody pays; and a
+ * rider priced in both a pool and a sibling's dice is two prices for one
+ * purchase with nothing to say which is paid first.
+ */
+describe('a rider priced in dice, at the authoring door', () => {
+  const TABLE = Array.from({ length: 20 }, (_, index) => ({
+    level: index + 1,
+    proficiencyBonus: 2 + Math.floor(index / 4),
+  }));
+
+  const clazz = (grant: Record<string, unknown>): unknown => ({
+    id: 'warden',
+    name: 'Warden',
+    primaryAbility: 'wis',
+    hitDie: 8,
+    saveProficiencies: ['wis', 'cha'],
+    skillChoices: { choose: 2, from: ['insight', 'perception'] },
+    weaponProficiencies: ['simple'],
+    armorTraining: { light: true, medium: false, heavy: false, shields: false },
+    subclassLevel: 3,
+    table: TABLE,
+    startingEquipment: [{ option: 'A', items: [], goldPieces: 50 }],
+    multiclass: {
+      weapons: ['simple'],
+      armorTraining: { light: true, medium: false, heavy: false, shields: false },
+      tools: [],
+    },
+    features: [
+      {
+        id: 'warden:bite',
+        name: 'Warden’s Bite',
+        level: 1,
+        automation: 'engine',
+        note: 'Dice a qualifying hit adds.',
+        grants: {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'attack-damage', dice: '1d6', oncePerTurn: true }],
+        },
+      },
+      {
+        id: 'warden:riposte',
+        name: 'Warden’s Riposte',
+        level: 3,
+        automation: 'engine',
+        note: 'An effect list a landed blow buys, paid for in the bite’s own dice.',
+        grants: { kind: 'on-hit', options: [], ...grant },
+      },
+    ],
+  });
+
+  const at = 'classes[warden].features[1].grants';
+
+  const codes = (grant: Record<string, unknown>): readonly string[] =>
+    checkContent({
+      classes: [clazz(grant) as never],
+      // The one item these riders ask for, rather than the whole catalogue:
+      // a fixture holding one invented class cannot answer for the classes
+      // the SRD's magic items require attunement by.
+      items: SRD_CONTENT.items.filter((item) => item.id === 'poisoners-kit') as never,
+    }).map((problem) => `${problem.code} @ ${problem.field}`);
+
+  const TRIP: Record<string, unknown> = {
+    id: 'trip',
+    name: 'Trip',
+    costsDice: 1,
+    effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+  };
+
+  it('admits a rider whose price is a sibling feature’s dice', () => {
+    expect(codes({ forgoesDiceOf: 'warden:bite', options: [TRIP] })).toEqual([]);
+  });
+
+  it('refuses a price with no feature to take it from', () => {
+    expect(codes({ options: [TRIP] })).toContain(
+      `dice_cost_without_a_source @ ${at}.options[0].costsDice`,
+    );
+  });
+
+  it('refuses a feature named where no option costs anything', () => {
+    const free = { ...TRIP, costsDice: undefined };
+    expect(codes({ forgoesDiceOf: 'warden:bite', options: [free] })).toContain(
+      `dice_source_without_a_cost @ ${at}.forgoesDiceOf`,
+    );
+  });
+
+  it('refuses a rider priced in a pool and in dice at once', () => {
+    expect(codes({ forgoesDiceOf: 'warden:bite', pool: 'rebuke', options: [TRIP] })).toContain(
+      `rider_priced_twice @ ${at}.forgoesDiceOf`,
+    );
+  });
+
+  it('refuses a feature nothing in reach carries, and a feature paying itself', () => {
+    expect(codes({ forgoesDiceOf: 'warden:fang', options: [TRIP] })).toContain(
+      `bad_forgone_dice @ ${at}.forgoesDiceOf`,
+    );
+    expect(codes({ forgoesDiceOf: 'warden:riposte', options: [TRIP] })).toContain(
+      `bad_forgone_dice @ ${at}.forgoesDiceOf`,
+    );
+    expect(codes({ forgoesDiceOf: '  ', options: [TRIP] })).toContain(
+      `bad_rider_dice_source @ ${at}.forgoesDiceOf`,
+    );
+  });
+
+  it('refuses a count that is not a whole number of dice', () => {
+    expect(codes({ forgoesDiceOf: 'warden:bite', options: [{ ...TRIP, costsDice: 0 }] })).toContain(
+      `bad_rider_dice_cost @ ${at}.options[0].costsDice`,
+    );
+  });
+
+  it('refuses a required item no catalogue sells, and admits one it does', () => {
+    expect(
+      codes({
+        forgoesDiceOf: 'warden:bite',
+        options: [{ ...TRIP, requiresItem: 'alchemists-dream' }],
+      }),
+    ).toContain(`unknown_required_item @ ${at}.options[0].requiresItem`);
+    expect(
+      codes({
+        forgoesDiceOf: 'warden:bite',
+        options: [{ ...TRIP, requiresItem: 'poisoners-kit' }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('holds an option’s own size clause to the printed sizes', () => {
+    expect(
+      codes({
+        forgoesDiceOf: 'warden:bite',
+        options: [{ ...TRIP, targetNoLargerThan: 'enormous' }],
+      }),
+    ).toContain(`bad_rider_size_limit @ ${at}.options[0].targetNoLargerThan`);
+    expect(
+      codes({
+        forgoesDiceOf: 'warden:bite',
+        options: [{ ...TRIP, targetNoLargerThan: 'large' }],
+      }),
+    ).toEqual([]);
+  });
+
+  /**
+   * And the move an option hands over is a purchase like the shove beside it:
+   * SRD Cunning Strike's Withdraw prints an empty effect list and buys
+   * something all the same.
+   */
+  it('admits an option whose whole purchase is a move', () => {
+    expect(
+      codes({
+        forgoesDiceOf: 'warden:bite',
+        options: [
+          {
+            id: 'away',
+            name: 'Away',
+            costsDice: 1,
+            effects: [],
+            handsMove: { share: 'half-speed' },
+          },
+        ],
+      }),
+    ).toEqual([]);
   });
 });
