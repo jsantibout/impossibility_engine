@@ -45,6 +45,7 @@ import {
 } from '../spell-definitions.js';
 import {
   armorClassOf,
+  conditionImmunitiesOf,
   effectiveConditions,
   evadesHalfDamage,
   grantedAttackRiders,
@@ -1106,9 +1107,23 @@ export function resolveSaveEffect(
   // The sheet as it stands — see `resolveSaveDamageEffect`. Two resolvers roll
   // two saves, so one of them moving is not the other moving.
   const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+  // SRD Sleep: "Creatures … that have Immunity to the Exhaustion condition
+  // **automatically succeed** on saves against this spell." A defence the
+  // target already has, read through the one gatherer — so a Zombie's printed
+  // Immunity and a granted one answer alike — and applied as the mirror of the
+  // automatic failure `againstType` writes on the other resolver: the die is
+  // still thrown and recorded, and the total is overridden.
+  const spared =
+    effect.autoSucceedIf !== undefined &&
+    conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo);
   const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
     dc: saveDc,
     conditions: support.conditions,
+    ...(spared
+      ? {
+          autoSucceed: `${name}: a creature with Immunity to the ${effect.autoSucceedIf!.immuneTo} condition automatically succeeds on the save`,
+        }
+      : {}),
     // SRD Charm Person: "It does so with Advantage if you or your allies are
     // fighting **it**." The fact was stated at the casting and refused if it
     // was not — `declaredFacts` asked before a slot went — so the only

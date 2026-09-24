@@ -2203,6 +2203,16 @@ describe('the fought fact is a second build that corrected the query', () => {
    * its save — how well the caster knows the target, and what of the target's
    * they are holding — are the same fact, recorded in `TRACKED_ADJUDICATED`
    * instead. The shape did not move; the spell did.
+   *
+   * **And a second executed claimant arrived by a build finishing half a
+   * sentence**, which is the reading this shape exists to keep honest. SRD
+   * Sleep spares "Creatures that don't sleep, such as elves, or that have
+   * Immunity to the Exhaustion condition"; `save.autoSucceedIf` is the second
+   * clause, read off `conditionImmunitiesOf`, and the first is a fact the
+   * engine holds about nobody — the SRD prints it of no creature type and the
+   * Elf states it as a species trait no grant kind carries. So the spell moved
+   * off the shape the build retired and onto this one, which is where a fact
+   * rather than a mechanism belongs.
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
@@ -2213,7 +2223,7 @@ describe('the fought fact is a second build that corrected the query', () => {
     // the half of it no mechanical marker sees: the undefined population is
     // empty of this shape and all three claims are live somewhere else.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['hunters-mark']);
+    expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
     expect(fact.tracked).toEqual(['call-lightning', 'enthrall', 'scrying']);
   });
 });

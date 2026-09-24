@@ -125,8 +125,6 @@ export const MISSING_SHAPES = {
     'an Immunity to a condition that holds against **some** of its causes and not others. IE-042 built the unconditional grant — the seventh sourced family, folded into the one gatherer — and this is the sentence that grant will not carry: SRD Protection from Evil and Good protects against gaining the Charmed or Frightened conditions "from them", SRD Freedom of Movement says "spells and other magical effects can neither reduce the target’s Speed nor cause the target to have the Paralyzed or Restrained conditions", and Magic Circle and Hallow narrow theirs to a creature type chosen at the casting. `docs/design/characters-and-equipment.md` draws the identical line on the printed side — "A qualified defence is not an unconditional one." — and keeps such entries out of the automatic table, where `conditionApplicability` answers `needs-adjudication` rather than guessing. `conditionImmunitiesOf` answers yes or no about a *condition* and is told nothing whatever about what is trying to cause it, so there is no second argument for the qualification to arrive in. The honest residue of the shape IE-042 retired, and four spells claim it.',
   'a-condition-a-spell-suppresses':
     'a condition switched off while it stays on the creature, by a **spell**. The reading exists and only a feature can write it: `StandingGrant`’s `condition-immunity` member is SRD Aura of Courage, and `docs/design/characters-and-equipment.md` states the distinction this needs — "An immunity refuses the condition outright; a suppression lets it land and does nothing with it, and merging them would get both wrong." `suppressedConditions` and `effectiveConditions` derive the answer from a feature’s standing effects and from nothing else; no spell effect kind writes a `StandingEffect`, so SRD Calm Emotions’ "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration" has the storage it needs and no way whatever to reach it. The second residue IE-042 left: the Immunity in the first half of that bullet is built, and the suppression in the second half is a different rule.',
-  'an-outcome-that-reads-the-targets-defences':
-    'a defence the target already has, read as an input to something other than damage. `docs/design/spell-definitions.md`: "**A creature’s defences are state, and damage reads them**" — `applyDamage` is the only reader, so a save a creature automatically makes because it is immune to a condition has nothing to consult.',
   'an-outcome-that-reads-the-targets-hit-points':
     'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 0 / 4 | vitals". The vitals are there and no effect asks them a question.',
   'a-target-rule-the-format-cannot-state':
@@ -1179,9 +1177,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // instead.
   sleep: [
     {
-      clause: 'the automatic successes are not granted',
-      why: 'an-outcome-that-reads-the-targets-defences',
-      note: 'SRD: "Creatures that don’t sleep, such as elves, or that have Immunity to the Exhaustion condition automatically succeed on saves against this spell." `checks.ts` carries an automatic **failure** and no automatic success, and the fact that decides it is read off the target’s own defences rather than stated by the spell — so the save is rolled here for a creature the book never asks to roll.',
+      clause: 'such as elves',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'SRD: "Creatures that don’t sleep, such as elves, or that have Immunity to the Exhaustion condition automatically succeed on saves against this spell." **The Immunity half is executed** — `save.autoSucceedIf` reads it off the target through `conditionImmunitiesOf`, and `checks.ts` carries the automatic success the automatic failure was the only half of. What is left is whether a creature sleeps at all, and it is a fact rather than a mechanism: the SRD prints it of no creature type, and the 2024 Elf states it as a species trait — Trance, which says a creature of that species neither needs sleep nor can be put to sleep by magic — that no `FeatureGrant` member carries.',
     },
   ],
   slow: [

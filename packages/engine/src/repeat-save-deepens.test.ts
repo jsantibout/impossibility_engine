@@ -278,3 +278,78 @@ describe('SRD Sleep: the save, the condition, and the repeat that deepens', () =
     expect(game.conditions(MOB)).toContain('incapacitated');
   });
 });
+
+/**
+ * An automatic **success**, which the D20 pipeline had no word for.
+ *
+ * SRD Sleep: "Creatures that don't sleep, such as elves, or that have Immunity
+ * to the Exhaustion condition automatically succeed on saves against this
+ * spell."
+ *
+ * `checks.ts` has carried an automatic *failure* since the Stunned condition
+ * landed — the die is thrown and recorded, other effects can care what it
+ * showed, and the total is overridden so nothing applied afterwards rescues
+ * it. This is that mechanism with the sign turned round, and it is read off a
+ * defence the target already has rather than supplied by the caster.
+ *
+ * **Half of one sentence, and the definition says which half.** "Immunity to
+ * the Exhaustion condition" is a fact `conditionImmunitiesOf` answers;
+ * "creatures that don't sleep" is not a fact this engine holds about anybody,
+ * the SRD prints it of no creature type, and the 2024 Elf states it in a
+ * species sentence — Trance's "You don't need to sleep, and magic can't put
+ * you to sleep" — that no grant kind carries. So the definition writes the
+ * half that reads and hands the table the half that does not.
+ */
+describe('a saving throw a defence the target already has makes for it', () => {
+  /** A Zombie's "Immunities … Exhaustion", read off the creature. */
+  const sleepless = (): GameEvent => ({
+    type: 'creature-added',
+    id: MOB,
+    name: MOB,
+    sheet: sheet(DOZY),
+    maxHp: 80,
+    diesAtZero: false,
+    creatureType: 'Undead',
+    side: 'foes',
+    conditionImmunities: ['exhaustion'],
+  });
+
+  /** The same field, with the immunity added and nothing else changed. */
+  const undead = (): GameEvent[] =>
+    field().map((event) =>
+      event.type === 'creature-added' && event.id === MOB ? sleepless() : event,
+    );
+
+  it('spares a creature immune to Exhaustion and catches the one beside it', () => {
+    const game = new Game(undead());
+    const casting = game.sleep();
+
+    // The Wisdom 1 humanoid is asleep; the Wisdom 1 zombie is not, and the
+    // difference is a defence rather than a die.
+    expect(game.conditions(FOE)).toContain('incapacitated');
+    expect(game.conditions(MOB)).toEqual([]);
+    expect(game.on(casting)).toEqual([FOE]);
+  });
+
+  /**
+   * The die is still thrown and still recorded, exactly as the automatic
+   * failure's is: the roll is in the log, and the outcome overrides it.
+   */
+  it('throws the die, records it, and overrides the total', () => {
+    const game = new Game(undead());
+    game.sleep();
+
+    const saves = game.events.filter(
+      (event) => event.type === 'roll-recorded' && event.who === MOB,
+    );
+    expect(saves).toHaveLength(1);
+    expect(saves[0]).toMatchObject({ label: 'Wisdom save vs Sleep', outcome: 'resisted' });
+  });
+
+  /** And a creature with no such immunity is asked in the ordinary way. */
+  it('leaves an ordinary creature to its own saving throw', () => {
+    const game = new Game(field());
+    game.sleep();
+    expect(game.conditions(MOB)).toContain('incapacitated');
+  });
+});

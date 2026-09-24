@@ -2282,6 +2282,19 @@ function checkEffect(
     case 'save': {
       const extra = (effect as { readonly conditions?: unknown }).conditions;
       if (extra !== undefined) readsAsList(extra, `${path}.conditions`, RIDER_LIST, found);
+      // SRD Sleep's "Immunity to the Exhaustion condition": one condition the
+      // glossary names, read off the target rather than stated by the caster.
+      const spares = (effect as { readonly autoSucceedIf?: unknown }).autoSucceedIf;
+      if (spares !== undefined) {
+        const named = (spares as { readonly immuneTo?: unknown })?.immuneTo;
+        if (typeof named !== 'string' || !CONDITION_NAMES.has(named)) {
+          found.push({
+            field: `${path}.autoSucceedIf.immuneTo`,
+            code: 'unknown_condition',
+            reason: `"${String(named)}" is not a condition the rules glossary names`,
+          });
+        }
+      }
       const source = withReadableRiders(effect);
       if (effect.condition === undefined) checkSaveWithoutCondition(effect, path, found);
       else {

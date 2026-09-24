@@ -1732,6 +1732,39 @@ export type SpellEffect =
        */
       readonly advantageIfFought?: true;
       /**
+       * A defence the target already has that makes the save for it.
+       *
+       * SRD Sleep: "Creatures that don't sleep, such as elves, or **that have
+       * Immunity to the Exhaustion condition** automatically succeed on saves
+       * against this spell."
+       *
+       * **`autoFail`'s mirror, read off the creature rather than stated.**
+       * {@link TypedSaveOutcome} is the neighbour and is a different question:
+       * that reads what the creature *is* — a Plant, a Construct — and this
+       * reads what it already **has**, a defence something granted it or its
+       * stat block printed. `conditionImmunitiesOf` is the one reader of that,
+       * so a Zombie's printed Immunity and a Mind Blank's granted one answer
+       * alike, and a creature that is somehow immune for six seconds is immune
+       * for those six seconds.
+       *
+       * **One condition, because the sentence names one.** A list would have
+       * to decide whether it meant any or all, and no SRD sentence of this
+       * shape names two.
+       *
+       * **Only half of Sleep's sentence, and the half that is left is not a
+       * missing field.** "Creatures that don't sleep, such as elves" is not a
+       * fact this engine holds about anybody: the SRD prints it of no creature
+       * type — the type list in the monster rules says nothing about sleeping
+       * — and the 2024 Elf states it in a species sentence, Trance's "You
+       * don't need to sleep, and magic can't put you to sleep", that no
+       * `FeatureGrant` member carries. So the definition writes this half and
+       * hands the table the other.
+       */
+      readonly autoSucceedIf?: {
+        /** SRD Sleep's "Immunity to the Exhaustion condition". */
+        readonly immuneTo: ConditionName;
+      };
+      /**
        * Write the verdict onto the casting, because the sentence says somebody
        * knows it.
        *
