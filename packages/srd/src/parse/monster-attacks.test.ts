@@ -1122,7 +1122,12 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Vile Appearance). This section read no save at all before that: a
       // trait is not a line a creature spends, so a save on one was a die
       // nothing could ever throw until the fold learned to raise it.
-      traits: { printed: 337, read: 147 },
+      // And eleven more with the second batch of traits that have a mechanic:
+      // four Siege Monsters, two Running Leaps, two Agiles, one Blood Frenzy,
+      // one Aura of Authority and one Aberrant Ground. The Giant Boar's
+      // Bloodied Fury and the Gray Ooze's Corrosive Form are still refused,
+      // which is the count saying so.
+      traits: { printed: 337, read: 158 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

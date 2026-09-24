@@ -1171,6 +1171,12 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Undead Fortitude | `resolveDamage`, which throws the save and pins the floor on `damage-taken` |
  * | SRD Magic Resistance | `adaptMonster`, as a `roll-mode` narrowed to saves a spell forced |
  * | SRD Illumination | `lightAt`, which derives a carried patch on every read |
+ * | SRD Agile | `provokedBy`, the same reader SRD Flyby goes through |
+ * | SRD Running Leap | `checkJump`, as a second bound on a running Long Jump |
+ * | SRD Aura of Authority | `adaptMonster`, as a `roll-mode` on an aura reach |
+ * | SRD Blood Frenzy | the same, narrowed by `RollSelector.targetMissingHitPoints` |
+ * | SRD Siege Monster | `dealSpellDamage`, as SRD's first-applied multiplier |
+ * | SRD Aberrant Ground | `terrainAt`, which derives a carried patch the way `lightAt` does |
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1179,13 +1185,19 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * anchored to a creature and move with it. `carriedLight` is that patch.
  */
 export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
+  'advantage-against-a-wounded-target',
   'advantage-when-ally-is-within-5-feet-of-the-target',
   'advantage-while-bloodied',
+  'allies-in-emanation-have-advantage',
   'climbs-without-a-check',
+  'deals-double-damage-to-objects',
   'disadvantage-in-sunlight',
   'does-not-provoke-when-flying-out-of-reach',
+  'does-not-provoke-when-leaving-reach',
+  'emanation-is-difficult-terrain',
   'hides-in-dim-light-or-darkness',
   'jumps-without-a-running-start',
+  'long-jump-with-a-running-start',
   'magic-resistance',
   'sheds-light',
   'takes-a-named-action-as-a-bonus-action',

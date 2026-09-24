@@ -629,6 +629,92 @@ const MAGIC_RESISTANCE = new RegExp(
   `^${SUBJECT} has Advantage on saving throws against spells and other magical effects\\.$`,
 );
 
+/**
+ * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against any
+ * creature that doesn't have all its Hit Points."
+ *
+ * Anchored end to end like everything else, which is what keeps it apart from
+ * {@link BLOODIED_ADVANTAGE}: both sentences are Advantage on attack rolls and
+ * they differ in *whose* Hit Points are being read. A sentence read down to the
+ * words they share would give a sahuagin Advantage on every swing it made.
+ */
+const BLOOD_FRENZY = new RegExp(
+  `^${SUBJECT} has Advantage on attack rolls against any creature that doesn['’]t have all its Hit Points\\.$`,
+);
+
+/**
+ * The lists of rolls the book actually prints in a sentence of this shape, in
+ * its own nouns.
+ *
+ * A closed alternation for {@link BLOODIED_ADVANTAGE}'s reason: a third
+ * breadth nobody printed must not be readable out of a longer sentence.
+ */
+const ROLL_LIST = 'attack rolls and saving throws|attack rolls|saving throws';
+
+/** The same three phrasings, in the kind's own words. */
+const ROLL_LISTS: Readonly<Record<string, readonly ('attack-roll' | 'saving-throw')[]>> = {
+  'attack rolls': ['attack-roll'],
+  'saving throws': ['saving-throw'],
+  'attack rolls and saving throws': ['attack-roll', 'saving-throw'],
+};
+
+/**
+ * SRD Aura of Authority: "While in a 10-foot Emanation originating from the
+ * hobgoblin, the hobgoblin and its allies have Advantage on attack rolls and
+ * saving throws, provided the hobgoblin doesn't have the Incapacitated
+ * condition."
+ *
+ * The Incapacitated clause is **required** rather than optional, for the
+ * reason every regex here is anchored: an aura without a gate is a different
+ * rule, and reading the clause away would hand a Stunned captain's allies a
+ * benefit the book takes off them.
+ */
+const ALLY_AURA = new RegExp(
+  `^While in a (\\d+)-foot Emanation originating from ${SUBJECT}, ${SUBJECT} and its allies have ` +
+    `Advantage on (${ROLL_LIST}), provided ${SUBJECT} doesn['’]t have the Incapacitated condition\\.$`,
+);
+
+/**
+ * SRD Agile, on the Deer and the Rat: "The deer doesn't provoke an Opportunity
+ * Attack when it moves out of an enemy's reach."
+ *
+ * {@link FLYBY} with one word changed, and the word is the whole rule — so
+ * they are two patterns rather than an alternation, and a block printing one
+ * never reaches the other's kind.
+ */
+const AGILE = new RegExp(
+  `^${SUBJECT} doesn['’]t provoke an Opportunity Attack when it moves out of an enemy['’]s reach\\.$`,
+);
+
+/**
+ * SRD Running Leap: "With a 10-foot running start, the lion can Long Jump up
+ * to 25 feet."
+ *
+ * Both numbers, because both are the rule: the jump is bought with the first
+ * and reaches the second. {@link STANDING_LEAP} is the sentence that says the
+ * opposite and is matched separately.
+ */
+const RUNNING_LEAP = new RegExp(
+  `^With a (\\d+)-foot running start, ${SUBJECT} can Long Jump up to (\\d+) feet\\.$`,
+);
+
+/** SRD Siege Monster: "The elemental deals double damage to objects and structures." */
+const SIEGE_MONSTER = new RegExp(
+  `^${SUBJECT} deals double damage to objects and structures\\.$`,
+);
+
+/**
+ * SRD Aberrant Ground: "The ground in a 10-foot Emanation originating from the
+ * mouther is Difficult Terrain."
+ *
+ * One sentence and nothing else in it, which is what makes the Emanation
+ * readable: a second clause about what the ground also does would be a rule
+ * the kind carries no field for.
+ */
+const ABERRANT_GROUND = new RegExp(
+  `^The ground in a (\\d+)-foot Emanation originating from ${SUBJECT} is Difficult Terrain\\.$`,
+);
+
 /** The book's nouns for the rolls, in the kind's own three words. */
 const BLOODIED_ROLLS: Readonly<Record<string, readonly ('attack-roll' | 'saving-throw')[]>> = {
   'attack rolls': ['attack-roll'],
@@ -662,6 +748,16 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   }
   if (SPIDER_CLIMB.test(text)) return { kind: 'climbs-without-a-check' };
   if (FLYBY.test(text)) return { kind: 'does-not-provoke-when-flying-out-of-reach' };
+  if (AGILE.test(text)) return { kind: 'does-not-provoke-when-leaving-reach' };
+
+  const running = RUNNING_LEAP.exec(text);
+  if (running !== null) {
+    return {
+      kind: 'long-jump-with-a-running-start',
+      runningStartFeet: Number(running[1]),
+      longJumpFeet: Number(running[2]),
+    };
+  }
 
   const leap = STANDING_LEAP.exec(text);
   if (leap !== null) {
@@ -739,6 +835,29 @@ export function parseTraitShape(text: string): MonsterTrait | null {
 
   if (UNDEAD_FORTITUDE.test(text)) return { kind: 'undead-fortitude' };
   if (MAGIC_RESISTANCE.test(text)) return { kind: 'magic-resistance' };
+
+  // Asked **after** the bloodied sentence, which is belt and braces rather
+  // than a dependency: both are Advantage on attack rolls and each is anchored
+  // from the first word, so neither order reads one as the other.
+  if (BLOOD_FRENZY.test(text)) return { kind: 'advantage-against-a-wounded-target' };
+  if (SIEGE_MONSTER.test(text)) return { kind: 'deals-double-damage-to-objects' };
+
+  const aura = ALLY_AURA.exec(text);
+  if (aura !== null) {
+    const rolls = ROLL_LISTS[aura[2]!];
+    if (rolls !== undefined) {
+      return {
+        kind: 'allies-in-emanation-have-advantage',
+        feet: Number(aura[1]),
+        rolls: [...rolls],
+      };
+    }
+  }
+
+  const ground = ABERRANT_GROUND.exec(text);
+  if (ground !== null) {
+    return { kind: 'emanation-is-difficult-terrain', feet: Number(ground[1]) };
+  }
 
   return null;
 }

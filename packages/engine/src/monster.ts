@@ -1014,6 +1014,34 @@ export const printedLeap = (
 };
 
 /**
+ * SRD Running Leap: the distance a block's own running jump covers, or null.
+ *
+ * "With a 10-foot running start, the lion can Long Jump up to 25 feet."
+ * {@link printedLeap}'s opposite number and read separately for that reason:
+ * SRD Standing Leap *removes* the running start and replaces both distances,
+ * while this one keeps the running start and states one distance the jump may
+ * reach.
+ *
+ * **A second bound rather than a replacement**, which is what "can Long Jump
+ * up to 25 feet" says: a creature whose Strength already carried it further
+ * does not get a shorter jump for having the trait. `checkJump` takes the
+ * longer of the two, exactly as it does with a jump a spell bought.
+ *
+ * The running start is carried rather than assumed, because the number is the
+ * line's: every SRD block prints ten, and a homebrew line may print any.
+ */
+export const printedRunningLeap = (
+  sheet: CharacterSheet,
+): { readonly runningStartFeet: number; readonly longJumpFeet: number } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'long-jump-with-a-running-start') {
+      return { runningStartFeet: trait.runningStartFeet, longJumpFeet: trait.longJumpFeet };
+    }
+  }
+  return null;
+};
+
+/**
  * The Speeds a block prints beside its walking one, onto the sheet.
  *
  * The parser has read "Speed 20 ft., Fly 40 ft." into five numbers and a flag
@@ -1223,6 +1251,85 @@ function printedMagicResistance(
 }
 
 /**
+ * SRD Aura of Authority, onto the sheet as the aura it is.
+ *
+ * "While in a 10-foot Emanation originating from the hobgoblin, the hobgoblin
+ * and its allies have Advantage on attack rolls and saving throws, provided
+ * the hobgoblin doesn't have the Incapacitated condition."
+ *
+ * **SRD Aura of Protection's shape with a roll mode inside it**, and nothing
+ * here is new: `reach: { kind: 'aura', feet }` has meant "the holder and the
+ * allies within" since the Paladin's aura landed, `standingFor` walks it for
+ * every grant kind rather than for the one it was built for, and
+ * `not-incapacitated` is the sentence's last clause word for word. So a
+ * printed aura is the same three fields a class feature fills in.
+ *
+ * **One effect per roll the sentence names**, for `printedSunlight`'s reason:
+ * a `roll-mode` grant carries one selector and the line names a list.
+ *
+ * Read from **Traits**, which is where the book prints it — though nothing
+ * here depends on that, because {@link printedStanding} dispatches on the
+ * shape the parser read and a heading says what a line costs.
+ */
+function printedAllyAura(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'allies-in-emanation-have-advantage') return [];
+  const feet = line.trait.feet;
+  return line.trait.rolls.map(
+    (roll): StandingEffect => ({
+      feature: key,
+      // The block's own heading, so a roll reports the rule the book printed.
+      name: line.name,
+      reach: { kind: 'aura', feet },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: SUNLIT_ROLL[roll], relation: 'roller' },
+        },
+      },
+      requires: [{ kind: 'not-incapacitated' }],
+    }),
+  );
+}
+
+/**
+ * SRD Blood Frenzy, onto the sheet as the roll mode it is.
+ *
+ * "The sahuagin has Advantage on attack rolls against any creature that
+ * doesn't have all its Hit Points."
+ *
+ * `printedBloodiedAdvantage`'s mirror image across the blow: that sentence
+ * reads the holder's own Hit Points and this one reads the Hit Points of
+ * whoever is being swung at, which is a narrowing on the *roll* rather than a
+ * requirement on the holder — so it sits on the selector beside
+ * `againstMagic`, and `not-incapacitated` and its siblings have nothing to say
+ * about it.
+ */
+function printedFrenzy(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'advantage-against-a-wounded-target') return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: { roll: 'attack', relation: 'roller', targetMissingHitPoints: true },
+        },
+      },
+    },
+  ];
+}
+
+/**
  * SRD Nimble Escape, SRD Cunning Action, SRD Deathless Agility and SRD Shadow
  * Stealth: a named action paid for out of a Bonus Action.
  *
@@ -1329,6 +1436,8 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
         ...printedSunlight(line, key),
         ...printedBloodiedAdvantage(line, key),
         ...printedMagicResistance(line, key),
+        ...printedAllyAura(line, key),
+        ...printedFrenzy(line, key),
         ...printedBonusActionAllowance(line, key, costsABonusAction),
       ];
     }),

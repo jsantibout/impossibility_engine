@@ -1527,6 +1527,103 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('magic-resistance'),
   }),
+  z.object({
+    /**
+     * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against
+     * any creature that doesn't have all its Hit Points."
+     *
+     * **A bare kind, because the sentence carries no number and no menu.** One
+     * mode, one family, one narrowing — and the narrowing is a fact about the
+     * creature being swung at rather than about the holder, which is what
+     * tells it from `advantage-while-bloodied` one member up. The book's
+     * "doesn't have all its Hit Points" is the same predicate SRD Colossus
+     * Slayer writes as "if it's missing any of its Hit Points"; a creature at
+     * full Hit Points is not it.
+     */
+    kind: z.literal('advantage-against-a-wounded-target'),
+  }),
+  z.object({
+    /**
+     * SRD Aura of Authority: "While in a 10-foot Emanation originating from
+     * the hobgoblin, the hobgoblin and its allies have Advantage on attack
+     * rolls and saving throws, provided the hobgoblin doesn't have the
+     * Incapacitated condition."
+     *
+     * A printed aura, which is the shape SRD Aura of Protection is already
+     * written in — a reach in feet, the holder and its allies inside it, and a
+     * gate on the holder. The radius is part of the shape for
+     * {@link MonsterTraitSchema}'s stated reason, and `rolls` for
+     * `disadvantage-in-sunlight`'s: the sentence names a list and a kind per
+     * breadth would put one rule in two places.
+     *
+     * **The Incapacitated clause is not carried**, because every printed
+     * emanation the book gates gates it the same way and the engine's
+     * `not-incapacitated` requirement is that clause exactly. A sentence
+     * without it is a different sentence and this refuses it.
+     */
+    kind: z.literal('allies-in-emanation-have-advantage'),
+    /** "a 10-foot Emanation", measured from the holder. */
+    feet: z.number().int().min(0),
+    rolls: z
+      .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
+      .min(1),
+  }),
+  z.object({
+    /**
+     * SRD Agile, on the Deer and the Rat: "The deer doesn't provoke an
+     * Opportunity Attack when it moves out of an enemy's reach."
+     *
+     * SRD Flyby without the flying, and its own kind rather than a field on
+     * it: a gargoyle keeps its Opportunity Attack when it walks away and a
+     * deer never does, so folding the two together would hand every flier the
+     * wider rule. The wider one implies the narrower and nothing in the
+     * bestiary prints both.
+     */
+    kind: z.literal('does-not-provoke-when-leaving-reach'),
+  }),
+  z.object({
+    /**
+     * SRD Running Leap, on the Lion and the Saber-Toothed Tiger: "With a
+     * 10-foot running start, the lion can Long Jump up to 25 feet."
+     *
+     * `jumps-without-a-running-start`'s opposite number, and its own kind for
+     * that reason: SRD Standing Leap *removes* the running start and prints
+     * both jumps, and this one *requires* it and prints one. A creature
+     * holding this still needs the ten feet, which is why they are carried
+     * rather than assumed — the Minotaur's charge prints thirty and a homebrew
+     * line may print any number.
+     */
+    kind: z.literal('long-jump-with-a-running-start'),
+    /** "With a 10-foot running start" — what the jump has to be bought with. */
+    runningStartFeet: z.number().int().min(0),
+    /** "can Long Jump up to 25 feet" — the distance it then reaches. */
+    longJumpFeet: z.number().int().min(0),
+  }),
+  z.object({
+    /**
+     * SRD Siege Monster: "The elemental deals double damage to objects and
+     * structures."
+     *
+     * A bare kind for `magic-resistance`'s reason: nothing in the sentence
+     * varies across the four blocks that print it. "Structures" names nothing
+     * this engine holds — a declared object is the whole of what can be broken
+     * — so the multiplier lands on an object and the word is the table's.
+     */
+    kind: z.literal('deals-double-damage-to-objects'),
+  }),
+  z.object({
+    /**
+     * SRD Aberrant Ground: "The ground in a 10-foot Emanation originating from
+     * the mouther is Difficult Terrain."
+     *
+     * Difficult Terrain that is **derived from where the creature stands**
+     * rather than declared over a region, because an Emanation moves when its
+     * creature does. The radius is part of the shape for
+     * {@link MonsterTraitSchema}'s stated reason.
+     */
+    kind: z.literal('emanation-is-difficult-terrain'),
+    feet: z.number().int().min(0),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 

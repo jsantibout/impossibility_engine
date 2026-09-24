@@ -20,6 +20,8 @@ import { parseNotation } from '../dice.js';
 import { canUseFeatureThisTurn, spendReaction } from '../combat.js';
 import { damageReductionsOf, reductionApplies } from '../damage-reduction.js';
 import { isIncapacitated } from '../conditions.js';
+import { hasPrintedTrait } from '../monster.js';
+import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import {
   applyEvent,
   type CreatureState,
@@ -161,6 +163,52 @@ export function adjustmentsFor(
     left -= off;
   }
   return adjustments;
+}
+
+/**
+ * SRD Siege Monster: "The elemental deals double damage to objects and
+ * structures."
+ *
+ * **An adjustment, in SRD's own order.** "Modifiers to damage are applied in
+ * the following order: adjustments such as bonuses, penalties, or
+ * **multipliers** are applied first; Resistance is applied second" — so the
+ * doubling goes in beside {@link adjustmentsFor}'s reduction rather than being
+ * applied to what comes back, and a door with Resistance to Bludgeoning takes
+ * half of twenty rather than twice of five.
+ *
+ * **Per type, because that is the shape an adjustment has here.** A blow of
+ * two kinds is doubled in both, which is what "double damage" says about a
+ * blow rather than about a die.
+ *
+ * **"Structures" names nothing this engine holds**, and that is the whole of
+ * what is handed over: a declared object is the one thing that can be broken,
+ * so the multiplier lands on `OBJECT_CREATURE_TYPE` and a castle wall is
+ * whatever the table declared it as.
+ *
+ * **One road, and the other cannot carry an object.** A blow held open at a
+ * Reaction window settles through `settleDamage` instead of here — and the
+ * window is offered off the *target's* own Reactions, which an object has
+ * none of, so no blow at a door is ever held. A creature is never doubled by
+ * this at all.
+ */
+function siegeDoubling(
+  state: GameState,
+  target: CharacterId,
+  by: CharacterId | undefined,
+  components: readonly DamageComponent[],
+): Record<string, number> {
+  if (by === undefined) return {};
+  if (state.creatures[target]?.creatureType !== OBJECT_CREATURE_TYPE) return {};
+  const dealer = state.creatures[by];
+  if (dealer === undefined || !hasPrintedTrait(dealer.sheet, 'deals-double-damage-to-objects')) {
+    return {};
+  }
+
+  const extra: Record<string, number> = {};
+  for (const component of components) {
+    extra[component.type] = (extra[component.type] ?? 0) + Math.max(0, component.total);
+  }
+  return extra;
 }
 
 /** A standing reduction, rolled: what it took off and what the log says about it. */
@@ -523,10 +571,22 @@ export function dealSpellDamage(
 
   // A creature's own defences and the ones its features grant, together. The
   // stat block's entries alone would miss a Sorcerer's Elemental Affinity.
+  // The ward's reduction and SRD Siege Monster's multiplier, which are one
+  // list because the book makes them one step: "adjustments such as bonuses,
+  // penalties, or multipliers are applied first; Resistance is applied
+  // second." Nothing in the SRD prints both on one blow, and the sum is what
+  // either would be alone where only one is present.
+  const adjustments = adjustmentsFor(components, warded.value.amount);
+  for (const [type, extra] of Object.entries(
+    siegeDoubling(state, target, options.by, components),
+  )) {
+    adjustments[type] = (adjustments[type] ?? 0) + extra;
+  }
+
   const applied = applyDamage(
     components,
     options.ignoresDefenses === true ? {} : defensesOf(state, target),
-    adjustmentsFor(components, warded.value.amount),
+    adjustments,
   );
   const resolved = resolveDamage(
     state,

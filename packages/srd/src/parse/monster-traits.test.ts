@@ -322,6 +322,114 @@ describe('a trait that says what being Bloodied buys', () => {
   });
 });
 
+describe('a trait that reads the creature being swung at', () => {
+  /**
+   * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against any
+   * creature that doesn't have all its Hit Points" — the same predicate SRD
+   * Colossus Slayer writes as "if it's missing any of its Hit Points", read
+   * off the target rather than off the holder.
+   */
+  it('reads SRD Blood Frenzy off the target rather than the holder', () => {
+    expect(traitOf('sahuagin-warrior', 'Blood Frenzy')).toEqual({
+      kind: 'advantage-against-a-wounded-target',
+    });
+  });
+
+  it('refuses a sentence that drops the target clause', () => {
+    expect(
+      parseTraitShape(
+        "The sahuagin has Advantage on attack rolls against any creature that doesn't have all its Hit Points.",
+      ),
+    ).toEqual({ kind: 'advantage-against-a-wounded-target' });
+    expect(parseTraitShape('The sahuagin has Advantage on attack rolls.')).toBeNull();
+  });
+});
+
+describe('a trait that is an aura', () => {
+  /**
+   * SRD Aura of Authority, which is SRD Aura of Protection's shape worn by a
+   * stat block: a reach in feet, the holder and its allies inside it, and a
+   * gate on the holder.
+   */
+  it('reads the radius, the rolls and nothing else', () => {
+    expect(traitOf('hobgoblin-captain', 'Aura of Authority')).toEqual({
+      kind: 'allies-in-emanation-have-advantage',
+      feet: 10,
+      rolls: ['attack-roll', 'saving-throw'],
+    });
+  });
+
+  it('refuses the same aura with the Incapacitated clause read away', () => {
+    const printed = find('hobgoblin-captain').traits.find(
+      (trait) => trait.name === 'Aura of Authority',
+    )!.text;
+    expect(
+      parseTraitShape(
+        printed.replace(", provided the hobgoblin doesn't have the Incapacitated condition", ''),
+      ),
+    ).toBeNull();
+  });
+
+  /**
+   * SRD Aberrant Ground: an Emanation that is Difficult Terrain, which moves
+   * when the creature does.
+   */
+  it('reads the Gibbering Mouther’s ground as an emanation', () => {
+    expect(traitOf('gibbering-mouther', 'Aberrant Ground')).toEqual({
+      kind: 'emanation-is-difficult-terrain',
+      feet: 10,
+    });
+  });
+});
+
+describe('a trait that says how a creature jumps or leaves a reach', () => {
+  /**
+   * SRD Running Leap, which is SRD Standing Leap's opposite: it *requires* the
+   * ten feet where the frog's sentence removes them, so both numbers are the
+   * rule.
+   */
+  it('reads both numbers of a running leap', () => {
+    expect(traitOf('lion', 'Running Leap')).toEqual({
+      kind: 'long-jump-with-a-running-start',
+      runningStartFeet: 10,
+      longJumpFeet: 25,
+    });
+    expect(traitOf('saber-toothed-tiger', 'Running Leap')).toEqual({
+      kind: 'long-jump-with-a-running-start',
+      runningStartFeet: 10,
+      longJumpFeet: 25,
+    });
+  });
+
+  /**
+   * SRD Agile is SRD Flyby with one word changed, and the word is the whole
+   * rule — so the two sentences reach two kinds and neither block gets the
+   * other's.
+   */
+  it('tells a creature that walks away from one that flies away', () => {
+    expect(traitOf('deer', 'Agile')).toEqual({ kind: 'does-not-provoke-when-leaving-reach' });
+    expect(traitOf('rat', 'Agile')).toEqual({ kind: 'does-not-provoke-when-leaving-reach' });
+    expect(traitOf('gargoyle', 'Flyby')).toEqual({
+      kind: 'does-not-provoke-when-flying-out-of-reach',
+    });
+  });
+});
+
+describe('a trait about what a creature does to a thing rather than a creature', () => {
+  it('reads SRD Siege Monster', () => {
+    expect(traitOf('earth-elemental', 'Siege Monster')).toEqual({
+      kind: 'deals-double-damage-to-objects',
+    });
+  });
+
+  it('refuses a doubling against anything the sentence does not name', () => {
+    expect(
+      parseTraitShape('The elemental deals double damage to objects and structures.'),
+    ).toEqual({ kind: 'deals-double-damage-to-objects' });
+    expect(parseTraitShape('The elemental deals double damage to Plants.')).toBeNull();
+  });
+});
+
 describe('the reader is a list of matched sentences and not an interpreter', () => {
   it('reads nothing out of a trait nobody has matched', () => {
     expect(parseTraitShape('The elemental can move through a space as narrow as 1 inch.')).toBeNull();

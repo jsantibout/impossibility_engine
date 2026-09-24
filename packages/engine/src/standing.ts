@@ -2972,6 +2972,29 @@ export function isBloodied(creature: CreatureState | undefined): boolean {
 }
 
 /**
+ * The query with SRD Blood Frenzy's fact worked out, where there is one to
+ * work out.
+ *
+ * "against any creature that doesn't have all its Hit Points" — the same
+ * predicate SRD Colossus Slayer writes as "if it's missing any of its Hit
+ * Points", asked of the creature the roll is against. A roll that records no
+ * second creature is left alone rather than answered false, because absent and
+ * false read the same way to the predicate and writing one would claim the
+ * engine had looked.
+ *
+ * **Not `isBloodied`'s threshold.** One point short of the maximum is missing
+ * Hit Points and is not Bloodied, and the two sentences are in the book side
+ * by side; a shared helper would quietly make them one rule.
+ */
+function missingHitPoints(state: GameState, query: RollQuery): RollQuery {
+  const against = query.against ?? null;
+  if (against === null) return query;
+  const victim = state.creatures[against];
+  if (victim === undefined) return query;
+  return { ...query, targetMissingHitPoints: victim.vitals.hp < victim.vitals.hpMax };
+}
+
+/**
  * The style that reaches this swing, or null where none does.
  *
  * Three questions, and a style has to answer all three: its gate holds, it
@@ -3627,9 +3650,17 @@ export function standingWeaponRollRule(
  */
 export function rollModesFor(
   state: GameState,
-  query: RollQuery,
+  asked: RollQuery,
   options: { readonly seenByHolder?: boolean | null } = {},
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
+  // **The one fact on the query this gathers rather than receives.** SRD Blood
+  // Frenzy reads the Hit Points of the creature being swung at, which is the
+  // engine's own record and not something the site throwing the die knows any
+  // better than this does — so it is filled in here, once, and
+  // `selectorMatches` stays the single predicate every mode is decided by. A
+  // roll with no second creature is left silent, and a selector asking for it
+  // reads that as a miss.
+  const query: RollQuery = missingHitPoints(state, asked);
   const modes: ModeSource[] = [];
   const unverified: string[] = [];
   const seen = new Set<string>();

@@ -12,7 +12,7 @@ import { itemInstanceNumber } from './item-instance.js';
 // SRD Illumination, read off a sheet — see {@link carriedLight}. A value edge,
 // and a safe one: `character.ts` imports nothing but `@ie/shared` at value
 // level, so this pulls in one module and not the engine behind it.
-import { activatedLight, printedLight } from './character.js';
+import { activatedLight, printedDifficultGround, printedLight } from './character.js';
 import type { ResourcePool } from './resources.js';
 
 /**
@@ -2330,10 +2330,61 @@ export function livePatchesOf<T extends LatticePatch>(
     });
 }
 
-/** The expensive ground still charging, in a fixed order. */
+/**
+ * SRD Aberrant Ground: "The ground in a 10-foot Emanation originating from the
+ * mouther is Difficult Terrain."
+ *
+ * {@link carriedLight}'s twin on the ground rather than in the air, and it is
+ * derived for exactly that function's reason: an Emanation moves when its
+ * creature does, so there is no moment at which a patch could be taken off and
+ * put back. A mouther that is shoved makes the new ground expensive and leaves
+ * the old ground ordinary, and nothing had to remember either.
+ *
+ * The region is a Sphere **carried by the creature** — `{ origin: { creature } }`,
+ * the shape the area vocabulary already had — so nothing here computes a
+ * coordinate. A creature nobody has placed makes nothing difficult, because
+ * `spaceInRegion` would have nothing to measure from; that is the same answer
+ * `carriedLight` gives an unplaced lamp.
+ *
+ * Sorted by creature, because the names reach {@link TerrainCharge.patches}
+ * and a report whose order depended on the order creatures arrived in would
+ * describe one world two ways.
+ */
+function carriedDifficultGround(
+  state: GameState,
+): readonly (readonly [string, DifficultPatch])[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+
+  const dragged: (readonly [string, DifficultPatch])[] = [];
+  for (const who of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[who];
+    if (creature === undefined) continue;
+    const feet = printedDifficultGround(creature.sheet);
+    if (feet === null || feet <= 0) continue;
+    if (positionOf(scene, creature.id) === null) continue;
+    dragged.push([
+      `the ground around ${who}`,
+      {
+        region: { origin: { creature: creature.id }, shape: { kind: 'sphere', radius: feet } },
+        costPerFoot: DIFFICULT_TERRAIN,
+      },
+    ]);
+  }
+  return dragged;
+}
+
+/**
+ * The expensive ground still charging, in a fixed order.
+ *
+ * Two sources and they add: what the table declared, and what a stat block
+ * drags about with it. `chargeAt` takes the dearer where they overlap, which
+ * is SRD's own "Difficult Terrain isn't cumulative".
+ */
 function livePatches(state: GameState): readonly (readonly [string, DifficultPatch])[] {
   const scene = state.scene;
-  return scene === null ? [] : livePatchesOf(state, scene.terrain);
+  if (scene === null) return [];
+  return [...livePatchesOf(state, scene.terrain), ...carriedDifficultGround(state)];
 }
 
 /**

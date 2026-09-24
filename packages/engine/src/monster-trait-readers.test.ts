@@ -36,6 +36,7 @@ import {
   addSceneLandmark,
   declareCreatureSide,
   declareLight,
+  declareObject,
   placeCreatureInScene,
   resolveMove,
   setScene,
@@ -44,6 +45,7 @@ import {
   takeHide,
   type MoveResolution,
 } from './commands.js';
+import { dealSpellDamage } from './commands/damage.js';
 import { allowedActions } from './combat.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -474,5 +476,414 @@ describe('a price is the one thing a heading says that a sentence does not', () 
 
     // Not vacuous: the block as the book prints it does compile the rule.
     expect(adaptMonster(goblin, id('as-printed')).sheet.standing).toHaveLength(2);
+  });
+});
+
+/**
+ * The second batch of printed traits with a mechanic, and the same rule built
+ * them: a sentence the parser typed, compiled into something the engine
+ * already holds.
+ *
+ * | Sentence | What spends it |
+ * |---|---|
+ * | SRD Agile | `provokedBy`, the same reader SRD Flyby goes through |
+ * | SRD Running Leap | `checkJump`, as a second bound on a running Long Jump |
+ * | SRD Aura of Authority | `standingFor`'s aura reach, which Aura of Protection already walks |
+ * | SRD Blood Frenzy | `rollModesFor`, against a target missing Hit Points |
+ * | SRD Siege Monster | `dealSpellDamage`, as SRD's first-applied multiplier |
+ * | SRD Aberrant Ground | `terrainAt`, as a patch derived from where the holder stands |
+ */
+describe('SRD Agile: an Opportunity Attack a walker does not provoke', () => {
+  /**
+   * "The deer doesn't provoke an Opportunity Attack when it moves out of an
+   * enemy's reach." SRD Flyby with one word changed, and the word is the whole
+   * rule: the gargoyle keeps its Reaction against a walker and the deer never
+   * gives one.
+   */
+  it('offers nobody a swing when the holder walks out of reach', () => {
+    const log = field('deer', id('deer'));
+    const moved = unwrap(resolveMove(at(log), id('deer'), away('walk'), supply()), 'walking');
+    expect(provokedIn(moved)).toEqual([]);
+  });
+
+  it('gives the same freedom to the other block that prints it', () => {
+    const log = field('rat', id('rat'));
+    const moved = unwrap(resolveMove(at(log), id('rat'), away('walk'), supply()), 'walking');
+    expect(provokedIn(moved)).toEqual([]);
+  });
+
+  /**
+   * And the narrower sentence stays narrow: a gargoyle's Flyby is about
+   * flying, so the same creature on foot provokes exactly as it always did.
+   * Without this the two kinds would have collapsed into one.
+   */
+  it('leaves SRD Flyby saying only what it says', () => {
+    const log = field('gargoyle', id('gargoyle'));
+    const moved = unwrap(resolveMove(at(log), id('gargoyle'), away('walk'), supply()), 'walking');
+    expect(provokedIn(moved)).toEqual([WATCHER]);
+  });
+});
+
+describe('SRD Running Leap: the jump the ten feet buys', () => {
+  /**
+   * A lion is Large, so the watcher stands clear of the space it fills — and
+   * the fight is left out, because a Speed is not what is being measured here.
+   * `field` pins every combatant at thirty feet, and a creature that has paid
+   * ten for its run-up cannot then spend twenty-five: the refusal would be
+   * `not_enough_movement` and would prove nothing about the jump. Outside
+   * combat the running start is reported as unchecked and the distance is
+   * still bounded, which is precisely the bound this sentence sets.
+   */
+  const lionsField = (): GameEvent[] =>
+    field('lion', id('lion'), 15).filter((event) => event.type !== 'combat-started');
+
+  const leaps = (feet: number, running: boolean) =>
+    resolveMove(
+      at(lionsField()),
+      id('lion'),
+      {
+        placement: { from: { landmark: 'the stone' }, feet, bearing: 270 },
+        jump: { kind: 'long', ...(running ? { running: true } : {}) },
+      },
+      supply(),
+    );
+
+  /**
+   * "With a 10-foot running start, the lion can Long Jump up to 25 feet." A
+   * lion has Strength 17, so the jump the sheet computes is seventeen feet and
+   * the printed one is the longer of the two — which is what "up to 25 feet"
+   * says.
+   */
+  it('lets the lion clear the twenty-five feet its block prints', () => {
+    const jumped = unwrap(leaps(25, true), 'the leap');
+    expect(jumped.feet).toBe(25);
+  });
+
+  it('still refuses a leap past the printed distance', () => {
+    const over = leaps(30, true);
+    expect(isErr(over) && over.code).toBe('jump_too_far');
+  });
+
+  /**
+   * And the running start is still required, which is the half of the sentence
+   * that is not the distance: the lion standing still is measured against its
+   * own legs, which carry it eight feet and no further.
+   */
+  it('gives the standing lion nothing the sentence did not print', () => {
+    expect(isErr(leaps(25, false)) && (leaps(25, false) as { code: string }).code).toBe(
+      'jump_too_far',
+    );
+    expect(unwrap(leaps(5, false), 'a standing hop').feet).toBe(5);
+  });
+});
+
+describe('SRD Aura of Authority: a printed aura worn by a stat block', () => {
+  const CAPTAIN = id('captain');
+  const NEAR = id('near');
+  const FAR = id('far');
+
+  /**
+   * A captain with two of its own within ten feet and fifteen, and an enemy
+   * beside it. Sides are declared because "its allies" is a declared fact and
+   * an undeclared one is nobody's ally.
+   */
+  const warband = (): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const add = (who: CharacterId, block: string): void => {
+      log.push(...unwrap(addCreature(state(), SRD_CONTENT, who, block), block).events);
+    };
+    const step = (what: string, produce: () => ReturnType<typeof declareCreatureSide>): void => {
+      log.push(...unwrap(produce(), what));
+    };
+
+    add(CAPTAIN, 'hobgoblin-captain');
+    add(NEAR, 'hobgoblin-warrior');
+    add(FAR, 'hobgoblin-warrior');
+    add(WATCHER, 'goblin-warrior');
+    for (const who of [CAPTAIN, NEAR, FAR]) {
+      step(`${who} takes a side`, () => declareCreatureSide(state(), who, 'monsters'));
+    }
+    step('the watcher takes the other', () => declareCreatureSide(state(), WATCHER, 'party'));
+    step('the field', () => setScene(state(), { width: 400, depth: 400, height: 200 }));
+    step('a stone on it', () => addSceneLandmark(state(), 'the stone', { x: 100, y: 100, z: 0 }));
+    step('the captain on the stone', () =>
+      placeCreatureInScene(state(), CAPTAIN, { from: { landmark: 'the stone' }, feet: 0 }),
+    );
+    step('one of its own within the emanation', () =>
+      placeCreatureInScene(state(), NEAR, { from: { creature: CAPTAIN }, feet: 10, bearing: 90 }),
+    );
+    step('and one outside it', () =>
+      placeCreatureInScene(state(), FAR, { from: { creature: CAPTAIN }, feet: 15, bearing: 270 }),
+    );
+    step('the enemy beside the captain', () =>
+      placeCreatureInScene(state(), WATCHER, { from: { creature: CAPTAIN }, feet: 5, bearing: 180 }),
+    );
+    return log;
+  };
+
+  const savesWith = (state: GameState, who: CharacterId): readonly string[] =>
+    rollModesFor(state, { roller: who, family: 'saving-throw' }).modes.map((mode) => mode.source);
+
+  /**
+   * "While in a 10-foot Emanation originating from the hobgoblin, the
+   * hobgoblin and its allies have Advantage on attack rolls and saving throws."
+   * Ten feet is inside; fifteen is not.
+   */
+  it('reaches an ally inside the emanation and not one outside it', () => {
+    const state = at(warband());
+    expect(savesWith(state, NEAR)).toEqual(['Aura of Authority']);
+    expect(savesWith(state, FAR)).toEqual([]);
+  });
+
+  /** "the hobgoblin **and** its allies" — the holder is inside its own aura. */
+  it('reaches the captain itself', () => {
+    expect(savesWith(at(warband()), CAPTAIN)).toEqual(['Aura of Authority']);
+  });
+
+  /** And never an enemy standing in it, however close. */
+  it('reaches nobody on the other side', () => {
+    expect(savesWith(at(warband()), WATCHER)).toEqual([]);
+  });
+
+  /**
+   * "provided the hobgoblin doesn't have the Incapacitated condition" — the
+   * clause the parser refuses to read away, and the requirement the engine
+   * already had for it.
+   */
+  it('gives nobody anything while the captain is Incapacitated', () => {
+    const log = warband();
+    log.push({
+      type: 'condition-applied',
+      id: CAPTAIN,
+      condition: 'incapacitated',
+      source: 'the test',
+    });
+    const state = at(log);
+    expect(savesWith(state, NEAR)).toEqual([]);
+    expect(savesWith(state, CAPTAIN)).toEqual([]);
+  });
+});
+
+describe('SRD Blood Frenzy: Advantage read off the creature being swung at', () => {
+  const SAHUAGIN = id('sahuagin');
+
+  const swingsWith = (state: GameState, at_: CharacterId): readonly string[] =>
+    rollModesFor(state, { roller: SAHUAGIN, against: at_, family: 'attack' }).modes.map(
+      (mode) => mode.source,
+    );
+
+  const hurt = (log: readonly GameEvent[], who: CharacterId, amount: number): GameState =>
+    fold(SEED, [...log, { type: 'damage-taken', id: who, amount }]);
+
+  /**
+   * "The sahuagin has Advantage on attack rolls against any creature that
+   * doesn't have all its Hit Points." One point short is enough — which is the
+   * difference between this sentence and SRD Bloodied Fury, printed a page
+   * apart.
+   */
+  it('gives Advantage against a creature one point short of its maximum', () => {
+    const log = field('sahuagin-warrior', SAHUAGIN);
+    expect(swingsWith(at(log), WATCHER)).toEqual([]);
+    expect(swingsWith(hurt(log, WATCHER, 1), WATCHER)).toEqual(['Blood Frenzy']);
+  });
+
+  /**
+   * And the Hit Points read are the **target's**. A wounded sahuagin swinging
+   * at an unhurt goblin gets nothing, which is what tells this rule from the
+   * one it shares nine words with.
+   */
+  it('reads the target and never the holder', () => {
+    const log = field('sahuagin-warrior', SAHUAGIN);
+    expect(swingsWith(hurt(log, SAHUAGIN, 5), WATCHER)).toEqual([]);
+  });
+
+  /** A block that prints no such sentence swings flat at a bleeding enemy. */
+  it('gives a block that prints no such sentence nothing', () => {
+    const log = field('bandit', id('bandit'));
+    expect(
+      rollModesFor(hurt(log, WATCHER, 1), {
+        roller: id('bandit'),
+        against: WATCHER,
+        family: 'attack',
+      }).modes,
+    ).toEqual([]);
+  });
+});
+
+describe('SRD Siege Monster: double damage to a thing that can be broken', () => {
+  const ELEMENTAL = id('elemental');
+  const DOOR = id('the oak door');
+
+  /** The elemental, a goblin and a door, with nothing else in the room. */
+  const quarry = (block = 'earth-elemental'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    log.push(...unwrap(addCreature(state(), SRD_CONTENT, ELEMENTAL, block), block).events);
+    log.push(
+      ...unwrap(addCreature(state(), SRD_CONTENT, WATCHER, 'goblin-warrior'), 'a goblin').events,
+    );
+    log.push(
+      ...unwrap(
+        declareObject(state(), SRD_CONTENT, DOOR, {
+          name: 'the oak door',
+          material: 'wood',
+          size: 'medium',
+          build: 'resilient',
+        }),
+        'the door',
+      ),
+    );
+    return log;
+  };
+
+  const hits = (state: GameState, victim: CharacterId, by: CharacterId): number =>
+    unwrap(
+      dealSpellDamage(
+        state,
+        victim,
+        [{ source: 'a slam', type: 'bludgeoning', roll: null, flat: 10, total: 10 }],
+        'a slam',
+        supply(),
+        { by },
+      ),
+      'the blow',
+    ).amount;
+
+  /**
+   * "The elemental deals double damage to objects and structures." An
+   * adjustment in SRD's own order — "multipliers are applied first" — so it is
+   * the same seam a ward's reduction goes through.
+   */
+  it('doubles what the holder deals to a declared object', () => {
+    expect(hits(at(quarry()), DOOR, ELEMENTAL)).toBe(20);
+  });
+
+  it('leaves what the holder deals to a creature alone', () => {
+    expect(hits(at(quarry()), WATCHER, ELEMENTAL)).toBe(10);
+  });
+
+  /** And a block that prints no such sentence breaks a door at the usual rate. */
+  it('gives a block that prints no such sentence nothing', () => {
+    expect(hits(at(quarry('ogre')), DOOR, ELEMENTAL)).toBe(10);
+  });
+
+  /** A blow nobody dealt is nobody's doubling. */
+  it('doubles nothing where no dealer was recorded', () => {
+    const state = at(quarry());
+    expect(
+      unwrap(
+        dealSpellDamage(
+          state,
+          DOOR,
+          [{ source: 'a slam', type: 'bludgeoning', roll: null, flat: 10, total: 10 }],
+          'a falling rock',
+          supply(),
+          {},
+        ),
+        'the rock',
+      ).amount,
+    ).toBe(10);
+  });
+});
+
+describe('SRD Aberrant Ground: Difficult Terrain derived from where a creature stands', () => {
+  const MOUTHER = id('mouther');
+  const MOVER = id('mover');
+
+  /**
+   * The mouther on the stone and a walker beside it, both placed and on
+   * opposite sides, in a fight so that the move has a budget to be charged
+   * against.
+   */
+  const around = (block = 'gibbering-mouther'): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const step = (what: string, produce: () => ReturnType<typeof declareCreatureSide>): void => {
+      log.push(...unwrap(produce(), what));
+    };
+
+    log.push(...unwrap(addCreature(state(), SRD_CONTENT, MOUTHER, block), block).events);
+    log.push(
+      ...unwrap(addCreature(state(), SRD_CONTENT, MOVER, 'goblin-warrior'), 'the walker').events,
+    );
+    step('the mouther takes a side', () => declareCreatureSide(state(), MOUTHER, 'monsters'));
+    step('the walker takes the other', () => declareCreatureSide(state(), MOVER, 'party'));
+    step('the field', () => setScene(state(), { width: 400, depth: 400, height: 200 }));
+    step('a stone on it', () => addSceneLandmark(state(), 'the stone', { x: 100, y: 100, z: 0 }));
+    step('the mouther on the stone', () =>
+      placeCreatureInScene(state(), MOUTHER, { from: { landmark: 'the stone' }, feet: 0 }),
+    );
+    // Measured from the stone rather than from the mouther, so that a variant
+    // which never places the mouther still has somewhere to put the walker.
+    step('the walker beside it', () =>
+      placeCreatureInScene(state(), MOVER, { from: { landmark: 'the stone' }, feet: 5, bearing: 90 }),
+    );
+    log.push({
+      type: 'combat-started',
+      combatants: [
+        { id: MOVER, initiative: 20, speed: 30 },
+        { id: MOUTHER, initiative: 5, speed: 20 },
+      ],
+    });
+    return log;
+  };
+
+  /** What five feet across the ground beside the mouther cost. */
+  const stepsAside = (log: readonly GameEvent[]): number =>
+    unwrap(
+      resolveMove(
+        at(log),
+        MOVER,
+        { placement: { from: { creature: MOVER }, feet: 5, bearing: 0 } },
+        supply(),
+      ),
+      'the step',
+    ).cost;
+
+  /**
+   * "The ground in a 10-foot Emanation originating from the mouther is
+   * Difficult Terrain." Every foot in it costs an extra foot, and the space
+   * the walker crosses is inside it.
+   */
+  it('charges an extra foot for every foot in the emanation', () => {
+    expect(stepsAside(around())).toBe(10);
+  });
+
+  /**
+   * And the emanation **moves when the creature does**, which is why it is
+   * derived rather than declared: the same step over the same ground is
+   * ordinary once the mouther has walked away. There is no event that took a
+   * patch off, because there was never a patch to take.
+   */
+  it('stops charging where the holder has gone', () => {
+    const log = around();
+    log.push(
+      ...unwrap(
+        resolveMove(
+          at(log),
+          MOUTHER,
+          // Shoved rather than walked, because it is not the mouther's turn
+          // and whose turn it is has nothing to do with what the ground costs.
+          { placement: { from: { creature: MOUTHER }, feet: 30, bearing: 180 }, forced: true },
+          supply(),
+        ),
+        'the mouther leaving',
+      ).events,
+    );
+    expect(stepsAside(log)).toBe(5);
+  });
+
+  /** And a block that prints no such sentence drags nothing behind it. */
+  it('charges nothing extra around a block that prints no such sentence', () => {
+    expect(stepsAside(around('bandit'))).toBe(5);
+  });
+
+  /** A creature nobody has placed has no ground to make difficult. */
+  it('makes nothing difficult for a holder nobody has placed', () => {
+    const log = around().filter(
+      (event) => !(event.type === 'creature-placed' && event.id === MOUTHER),
+    );
+    expect(stepsAside(log)).toBe(5);
   });
 });

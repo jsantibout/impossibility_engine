@@ -367,6 +367,35 @@ export interface RollSelector {
    * *against* them is somebody else's Concentration.
    */
   readonly onlyConcentration?: true;
+  /**
+   * The creature at the **other end** of this roll is missing Hit Points.
+   *
+   * SRD Blood Frenzy: "The sahuagin has Advantage on attack rolls against any
+   * creature that doesn't have all its Hit Points" — the same predicate SRD
+   * Colossus Slayer writes as "if it's missing any of its Hit Points", which
+   * `attack-damage.targetMissingHitPoints` has carried since the Ranger's
+   * feature landed. A roll mode had no way to say it: every field here narrows
+   * by what the roll *is*, and this is a fact about a creature.
+   *
+   * **The creature rolled against, and only that one.** It is named for the
+   * end it reads rather than for "the end the relation left free", because on
+   * an `against-holder` selector that end is the holder itself and a sentence
+   * about the holder's own Hit Points is `while-bloodied`'s. So the validator
+   * confines it to `roller`, which is the sentence the book prints.
+   *
+   * **Answered from state by the gatherer**, which is the one thing that can:
+   * a creature's current and maximum Hit Points are the engine's own record,
+   * so `rollModesFor` fills {@link RollQuery.targetMissingHitPoints} in
+   * before the predicate is asked rather than waiting for the site that throws
+   * the die to volunteer it. Silence is a miss, which is the reading every
+   * narrowing here takes — a roll with no recorded second creature is not this
+   * sentence.
+   *
+   * **Legal only on an attack roll**, because that is the single D20 Test the
+   * engine records a second participant for; a selector naming it on a save
+   * would pick out nothing for ever.
+   */
+  readonly targetMissingHitPoints?: true;
 }
 
 /** A mode, and the rolls it reaches. */
@@ -628,6 +657,22 @@ export interface RollQuery {
    * that as a miss rather than a guess — the reading {@link magical} takes.
    */
   readonly concentration?: boolean;
+  /**
+   * Whether the creature at the other end of this roll is missing Hit Points —
+   * what {@link RollSelector.targetMissingHitPoints} matches.
+   *
+   * **Filled in by the gatherer rather than by the site that throws the die**,
+   * and it is the one field here that is: every other fact on this query is
+   * something only the roller knows — what the save was about, whether a spell
+   * forced it, which class a casting went through — and this one is read off
+   * `CreatureState.vitals`, which `rollModesFor` has in hand and the swing
+   * would only be repeating. So no attack site has to remember it and no
+   * caller can assert it.
+   *
+   * Absent means nobody worked it out, which a selector asking for it reads as
+   * a miss — the reading {@link magical} takes.
+   */
+  readonly targetMissingHitPoints?: boolean;
 }
 
 /**
@@ -702,6 +747,17 @@ export function selectorMatches(
   // to maintain Concentration." Read exactly as the line above is — the site
   // that throws the die says which save this is, and silence is a miss.
   if (selector.onlyConcentration === true && query.concentration !== true) return false;
+
+  // SRD Blood Frenzy: "against any creature that doesn't have all its Hit
+  // Points." The fact is the gatherer's — see
+  // {@link RollQuery.targetMissingHitPoints} — and silence is a miss, so
+  // a swing at nobody in particular is not this sentence.
+  if (
+    selector.targetMissingHitPoints === true &&
+    query.targetMissingHitPoints !== true
+  ) {
+    return false;
+  }
 
   // SRD Innate Sorcery: "the attack rolls of Sorcerer spells you cast." Two
   // narrowings of one sentence, read the same way `againstMagic` is: a swing
@@ -885,6 +941,32 @@ export function rollSelectorProblems(
       found.push({
         code: 'condition_off_a_saving_throw',
         reason: `a saving throw and the ability check that ends an effect say what they are about; a ${selector.roll} does not, so naming a condition on one would pick out nothing for ever`,
+      });
+    }
+  }
+
+  // SRD Blood Frenzy is a sentence about the creature at the other end of a
+  // swing, and an attack roll is the only D20 Test that has one. See
+  // {@link RollSelector.targetMissingHitPoints}.
+  if (selector.targetMissingHitPoints !== undefined) {
+    if (selector.targetMissingHitPoints !== true) {
+      found.push({
+        code: 'bad_wounded_gate',
+        reason:
+          '"against a creature that doesn\'t have all its Hit Points" is written targetMissingHitPoints: true, or left off',
+      });
+    }
+    if (selector.roll !== 'attack') {
+      found.push({
+        code: 'wounded_gate_off_an_attack',
+        reason: `only an attack roll records a second creature, so a clause about that creature's Hit Points cannot pick out a ${selector.roll}`,
+      });
+    }
+    if (selector.relation !== 'roller') {
+      found.push({
+        code: 'wounded_gate_off_the_roller',
+        reason:
+          "this clause reads the creature rolled against, and on an \"against-holder\" selector that creature is the holder — a sentence about the holder's own Hit Points is written with the while-bloodied requirement instead",
       });
     }
   }
