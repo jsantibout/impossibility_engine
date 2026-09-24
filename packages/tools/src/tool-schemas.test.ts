@@ -110,11 +110,14 @@ describe('toolSchemas', () => {
     // features track's one new door. Re-pinned again the same day: the
     // feature vocabulary track's sentence on `extend_feature` about a printed
     // span, on both surfaces; and once more for `cast_spell.ritual`, the
-    // casting-cost track's one published field.
+    // casting-cost track's one published field. Re-pinned once more for
+    // `take_action.using_feature` and `take_action.also_taking`, the two
+    // fields the standing-kinds track published so a caller can say which of
+    // a creature's allowances is paying and what one spend buys.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(102351);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(123273);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(103631);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(124553);
   });
 });
 

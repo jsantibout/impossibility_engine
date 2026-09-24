@@ -1301,7 +1301,11 @@ export function checkActionRule(
       const offered = Object.entries(STATABLE_PRICES)
         .map(([named, slots]) => `${named} as ${(slots ?? []).join(' or ')}`)
         .join('; ');
-      bad(`no command will charge ${rule.from} for ${buys.join(' or ')}, so an allowance saying so would be read by nothing; the engine offers ${offered}`);
+      bad(
+        buys.length === 1
+          ? `no command will charge ${rule.from} for the ${buys[0]} action, so an allowance saying so would be read by nothing; the engine offers ${offered}`
+          : `no command will charge ${rule.from} for any of ${buys.join(', ')}, so one spend could never open this bundle; the engine offers ${offered}`,
+      );
     }
     return;
   }
