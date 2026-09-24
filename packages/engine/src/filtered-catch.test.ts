@@ -10,6 +10,7 @@ import { declaredCasting } from './spellcasting.js';
 import { terrainAt, type Point } from './positioning.js';
 import {
   availableChecks,
+  eligibleTargets,
   endOngoingSpell,
   resolveEffectCheck,
   resolveSpell,
@@ -468,5 +469,118 @@ describe('the filters narrow a catch and nothing else', () => {
     });
     expect(isErr(listed)).toBe(true);
     if (isErr(listed)) expect(listed.code).toBe('area_picks_its_own_targets');
+  });
+});
+
+/**
+ * The shortlist a model's door reads is the catch the casting settles.
+ *
+ * `eligibleTargets` answers "whom could this caster aim this spell at", and
+ * for an area spell it used to know nothing whatever about the area: it
+ * excluded the caster because the spell's target line prints no `self`, and it
+ * listed every creature inside the spell's *Range* — which for Sleep is sixty
+ * feet around a five-foot Sphere. So the door offered creatures the casting
+ * then refused with `not_in_the_area`, and left off the one the Sphere really
+ * does catch. A shortlist that disagrees with its own refusal is worse than no
+ * shortlist, because a caller acts on it.
+ *
+ * It answers through `areaCatch` now — the same function the casting settles
+ * its catch with, narrowed by the same three clauses — so the two cannot
+ * drift. What it needs from the caller is the one thing the catch turns on and
+ * the spell does not print: **where the area is laid**. Absent, it says so as
+ * a `route` request rather than guessing a point, which is the same answer
+ * `resolveSpell` gives the same caller.
+ */
+describe('the shortlist knows the area', () => {
+  const shortlist = (
+    spellId: string,
+    slotLevel: number,
+    placement?: { at?: Point; towards?: Point },
+    log: readonly GameEvent[] = SETUP,
+  ) => eligibleTargets(fold('seed', log), SRD_CONTENT, CASTER, spellId, slotLevel, placement);
+
+  it('lists exactly the Sphere’s catch, the caster among them', () => {
+    const out = shortlist('sleep', 1, { at: AT });
+    expect(out.eligible.slice().sort()).toEqual([CASTER, HOBGOBLIN, SLEEPER].sort());
+    expect(out.needsContext).toEqual([]);
+  });
+
+  /**
+   * The property the whole change is for: every name the door offers is one
+   * the casting accepts, and every name it withholds is one the casting
+   * refuses.
+   */
+  it('agrees with the casting about every creature in the scene', () => {
+    const out = shortlist('sleep', 1, { at: AT });
+    const landed = unwrap(
+      castOn(SETUP, { spellId: 'sleep', targets: out.eligible, at: AT, slotLevel: 1 }, FORCED),
+      'sleep on the shortlist',
+    );
+    expect(caught(landed.outcomes)).toEqual(out.eligible.slice().sort());
+
+    for (const key of Object.keys(fold('seed', SETUP).creatures)) {
+      const who = id(key);
+      if (out.eligible.includes(who)) continue;
+      const refused = castOn(SETUP, { spellId: 'sleep', targets: [who], at: AT, slotLevel: 1 });
+      expect(isErr(refused) && refused.code).toBe('not_in_the_area');
+    }
+  });
+
+  /** And says why the others are off it, in the sentences the catch writes. */
+  it('names everyone it left off, and the geometry for those outside', () => {
+    const out = shortlist('sleep', 1, { at: AT });
+    const off = Object.fromEntries(out.excluded.map((e) => [e.target, e.reason]));
+    expect(Object.keys(off).sort()).toEqual([ALLY, GOBLIN, OUTSIDER].sort());
+    expect(off[OUTSIDER]).toContain('area');
+  });
+
+  /**
+   * Without a point there is no catch, and no list either. A `route` request
+   * rather than a refusal or a guess: the caller re-sends the question with
+   * the field filled in, which is exactly what `no_origin` tells `resolveSpell`
+   * to do.
+   */
+  it('asks for the point rather than falling back on the Range', () => {
+    const out = shortlist('sleep', 1);
+    expect(out.eligible).toEqual([]);
+    expect(out.needsContext.map((n) => n.kind)).toEqual(['route']);
+    expect(out.needsContext[0]?.satisfyWith).toContain('at');
+  });
+
+  /** A directional template wants its direction on the same terms. */
+  it('asks for the direction a Cube is pointed in', () => {
+    const out = shortlist('entangle', 1, { at: AT });
+    expect(out.eligible).toEqual([]);
+    expect(out.needsContext.map((n) => n.kind)).toEqual(['route']);
+  });
+
+  /** SRD Entangle's parenthesis reaches the shortlist as it reaches the catch. */
+  it('leaves the caster out of their own plants, and says which clause did it', () => {
+    const out = shortlist('entangle', 1, { at: AT, towards: TOWARDS });
+    expect(out.eligible.slice().sort()).toEqual([ALLY, GOBLIN].sort());
+    expect(out.excluded.find((e) => e.target === CASTER)?.reason).toContain('other than you');
+  });
+
+  /** And Hypnotic Pattern's sight clause, which is now the helper's answer. */
+  it('leaves a blind creature off the pattern’s list', () => {
+    const out = shortlist('hypnotic-pattern', 3, { at: AT, towards: TOWARDS }, [
+      ...SETUP,
+      { type: 'condition-applied', id: ALLY, condition: 'blinded', source: 'a faceful of sand' },
+    ]);
+    expect(out.eligible).not.toContain(ALLY);
+    expect(out.excluded.find((e) => e.target === ALLY)?.reason).toContain('see');
+  });
+
+  /**
+   * A spell that takes named targets is untouched: the shortlist is the
+   * per-creature walk it always was, and a placement it never needed is
+   * ignored rather than changing the answer.
+   */
+  it('leaves a named-target spell exactly as it was', () => {
+    const plain = shortlist('hold-person', 2);
+    // It asks about each creature's sight line one at a time, which is the
+    // walk an area spell no longer makes.
+    expect(plain.needsContext.map((n) => n.kind)).toContain('visibility');
+    expect(shortlist('hold-person', 2, { at: AT })).toEqual(plain);
   });
 });

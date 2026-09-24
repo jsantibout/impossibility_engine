@@ -124,10 +124,15 @@ describe('toolSchemas', () => {
     // that an area printing "each creature of your choice" takes the subset in
     // the list a casting already has. A sentence rather than a door, and the
     // pin moves for a sentence exactly as it does for a door.
+    // Re-pinned once more for the Blinded track's two fields on
+    // `eligible_targets`: `at` and `towards`. An area spell's shortlist is
+    // whoever is standing in the area, so the door that asks for one now takes
+    // the placement the catch turns on — the same two points `cast_spell`
+    // already takes, on a tool that changes nothing.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(105644);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(126566);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(106447);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(127369);
   });
 });
 

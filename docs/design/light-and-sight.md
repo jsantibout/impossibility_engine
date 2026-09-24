@@ -130,7 +130,9 @@ Opportunity Attacks, Dodge, the ranged-at-close-quarters clause; the Hide
 command's `obscured` flag becomes derivable where a patch says so and stays
 declarable where none does; Perception's `requiresSight`; Sunlight
 Sensitivity as a `StandingRequirement` reading `lightAt` at the target's
-space. Blinded itself changes nothing: a Blinded creature already fails sight.
+space. Blinded was written here as changing nothing, on the belief that a
+Blinded creature already failed sight; it did not, and the section below is
+what the helper reads now.
 
 ## What it reaches
 
@@ -146,6 +148,33 @@ Sight; Sacred Weapon's light; the six Illumination traits, Shadow Stealth,
 Sunlight Weakness and Vampire Spawn's Sunlight. Mirror Image and Blur are
 the attacker-side sense reading (P2-T16), not this; the Darkvision spell
 confers its sense through a `sense` effect and `sensesOf` reads it.
+
+## Not built, on purpose
+
+## Blinded reaches every one of them (2026-09-23)
+
+SRD Blinded — "You can't see and automatically fail any ability check that
+requires sight" — is a flat sentence about the **looker**, so it is the first
+thing all three questions read, ahead of the declaration: `canSee`,
+`canSeePoint` and `canSomehowSee` answer `false` for a Blinded creature,
+whatever the table said and whatever the light. **The condition outranks a
+declared line** — that is the one place a declaration does not win, and the
+reason is that a table declaring "Dain can see the orc" stated a fact about
+eyes that have since stopped working; a declaration is for what the engine
+cannot know, and this it knows. **Blindsight is the only exception**: it lets
+a creature "see within a specific range without relying on physical sight",
+which is precisely the reliance the condition removes, so a Blinded looker
+sees inside that range and nothing beyond it. Darkvision and Truesight are
+sight and go dark with the eyes. A creature still sees *itself*, which is
+answered before everything for the reason `seeing-yourself.test.ts` gives.
+
+The paragraph above replaces this note's earlier line that "Blinded itself
+changes nothing: a Blinded creature already fails sight" — it did not. Blinded
+reached exactly one sight question, `areaTargets` composing it beside
+`canSeePoint` for Hypnotic Pattern, and a Blinded caster could target "a
+creature you can see", a Blinded teleporter could pick "a space you can see",
+and a Blinded reactor swung an Opportunity Attack. That composition is gone;
+the helper is the one rule.
 
 ## Not built, on purpose
 

@@ -706,6 +706,14 @@ const ELIGIBLE_TARGETS = tool({
     caster: creatureId,
     spellId: z.string().min(1).describe('SRD spell id, e.g. hold-person.'),
     slotLevel: z.int().min(0).max(9).optional().describe('Slot level, if a levelled spell.'),
+    at: pointSchema
+      .optional()
+      .describe(
+        'Where an area spell would be centred. An area catches whoever is standing in it, so without this the answer for one is a request for the point rather than a list.',
+      ),
+    towards: pointSchema
+      .optional()
+      .describe('Point a Cone, Cube or Line at this exact spot, for an area spell that needs one.'),
   }),
   run: (context, args) => {
     const shortlist = eligibleTargets(
@@ -714,6 +722,10 @@ const ELIGIBLE_TARGETS = tool({
       who(args.caster),
       args.spellId,
       args.slotLevel ?? 0,
+      {
+        ...(args.at === undefined ? {} : { at: point(args.at) }),
+        ...(args.towards === undefined ? {} : { towards: point(args.towards) }),
+      },
     );
     return okOutcome([], {
       eligible: shortlist.eligible,
