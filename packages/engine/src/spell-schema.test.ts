@@ -738,6 +738,77 @@ describe('each rule refuses something', () => {
     ).toEqual(['bad_armor_class']);
   });
 
+  /** SRD Barkskin's floor is held to the same number rule as Mage Armor's base. */
+  it('refuses a floor under an Armour Class that is not a number either', () => {
+    expect(
+      only({ durationSeconds: 60, effects: [{ kind: 'armor-class', minimum: 0 }] }),
+    ).toEqual(['bad_armor_class']);
+  });
+
+  /**
+   * And never both, because the two arms are read at different points of one
+   * sum: a base competes to *be* the calculation and a floor refuses the total
+   * it came to. An effect claiming both would be two rules in one field.
+   */
+  it('refuses an Armour Class that is both a base and a floor', () => {
+    expect(
+      only({
+        durationSeconds: 60,
+        effects: [
+          { kind: 'armor-class', base: 13, plusAbility: null, shieldAllowed: true, minimum: 17 },
+        ],
+      }),
+    ).toEqual(['armor_class_base_and_floor']);
+  });
+
+  /**
+   * SRD Vampiric Touch's "within reach", which is the caster's arm — so it is
+   * a whole number of spaces, and it belongs to the swing rather than to a
+   * ranged attack, whose distance is the spell's own Range.
+   */
+  it('refuses a reach that is not a whole number of spaces', () => {
+    expect(
+      only({
+        effects: [
+          { kind: 'attack', attack: 'melee', damage: { dice: '3d6' }, damageType: 'necrotic', reach: 2 },
+        ],
+      }),
+    ).toEqual(['bad_reach']);
+  });
+
+  it('refuses a reach on an attack the caster does not make with an arm', () => {
+    expect(
+      only({
+        effects: [
+          { kind: 'attack', attack: 'ranged', damage: { dice: '1d10' }, damageType: 'piercing', reach: 5 },
+        ],
+      }),
+    ).toEqual(['reach_without_a_melee_attack']);
+  });
+
+  /**
+   * SRD Mind Spike's "against you": the caster, and the only role the sentence
+   * can name — a benefit denied against the creature it is hung on is a denial
+   * against nobody.
+   */
+  it('refuses a denial narrowed to anybody but the caster', () => {
+    expect(
+      only({
+        durationSeconds: 60,
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'wis',
+            damage: { dice: '3d8' },
+            damageType: 'psychic',
+            onSuccess: 'half',
+            modifiers: [{ kind: 'benefit', denies: 'invisible', against: 'target' }],
+          },
+        ],
+      }),
+    ).toEqual(['bad_denial_target']);
+  });
+
   // — a grant with no lifetime ————————————————————————————————————————————
   //
   // See the `describe` below: driven one carrier at a time, because the rule
@@ -2917,25 +2988,39 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
     ...(definition.activation?.effects ?? []).map(
       (effect, i) => [`${definition.id}.activation.effects[${i}]`, effect] as const,
     ),
-    // **And a second roll's own list, which is a list of effects.** SRD Ice
-    // Knife's burst is a parent rather than a rider — see `SequencedBurst` —
-    // so its children are swept in their own right rather than as objects
-    // below somebody else's effect, which is what {@link below} then excludes.
-    ...definition.effects.flatMap((effect, i) =>
-      (effect.kind === 'attack' ? (effect.then?.effects ?? []) : []).map(
-        (child, n) => [`${definition.id}.effects[${i}].then.effects[${n}]`, child] as const,
-      ),
-    ),
   ]);
+
+  /**
+   * And a second roll's own list, which is a list of effects.
+   *
+   * SRD Ice Knife's burst is a parent rather than a rider — see
+   * `SequencedBurst` — so its children are swept in their own right rather
+   * than as objects below somebody else's effect, which is what {@link below}
+   * then excludes. Derived off `EVERY_EFFECT` rather than off the spell's own
+   * list, so a `then` written on an activation's or an area trigger's attack
+   * is swept too: the exception {@link below} makes is host-shaped, and an
+   * exception wider than the sweep that pays for it is the hole this whole
+   * describe block exists to refuse.
+   */
+  const EVERY_SEQUENCE = EVERY_EFFECT.flatMap(([path, effect]) =>
+    (effect.kind === 'attack' ? (effect.then?.effects ?? []) : []).map(
+      (child, n) => [`${path}.then.effects[${n}]`, child] as const,
+    ),
+  );
+
+  const EVERY_EFFECT_AND_SEQUENCE = [...EVERY_EFFECT, ...EVERY_SEQUENCE];
 
   /**
    * Every object strictly below `value`, with the path it was found at.
    *
-   * **The `then` slot is not below an effect in the sense this sweep means**:
-   * it is a second resolution sequenced after the first, with its own area and
-   * its own effect list, and every one of those is a thing the sweep exists to
-   * refuse *in a rider*. Its children are in `EVERY_EFFECT` above, so they are
-   * swept as the effects they are rather than skipped.
+   * **The `then` slot of an `attack` is not below an effect in the sense this
+   * sweep means**: it is a second resolution sequenced after the first, with
+   * its own area and its own effect list, and every one of those is a thing
+   * the sweep exists to refuse *in a rider*. Its children are in
+   * `EVERY_SEQUENCE`, so they are swept as the effects they are rather than
+   * skipped — and the exception is the attack host's alone, which is the same
+   * line the validator draws, so a `then` on any other kind is still caught
+   * here as the nested effect it would be.
    */
   const below = (
     value: unknown,
@@ -2943,23 +3028,26 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
     top = false,
   ): readonly (readonly [string, unknown])[] => {
     if (typeof value !== 'object' || value === null) return [];
+    const skipThen =
+      top && !Array.isArray(value) && (value as { kind?: unknown }).kind === 'attack';
     const entries: (readonly [string, unknown])[] = Array.isArray(value)
       ? value.map((entry, i) => [`${path}[${i}]`, entry] as const)
       : Object.entries(value as Record<string, unknown>)
-          .filter(([key]) => !(top && key === 'then'))
+          .filter(([key]) => !(skipThen && key === 'then'))
           .map(([key, entry]) => [`${path}.${key}`, entry] as const);
     return entries.flatMap(([at, entry]) => [[at, entry] as const, ...below(entry, at)]);
   };
 
   it('has some, so the sweep below is not vacuous', () => {
     expect(EVERY_EFFECT.length).toBeGreaterThan(50);
+    expect(EVERY_SEQUENCE.length).toBeGreaterThan(0);
     expect(
-      EVERY_EFFECT.flatMap(([path, effect]) => below(effect, path, true)).length,
+      EVERY_EFFECT_AND_SEQUENCE.flatMap(([path, effect]) => below(effect, path, true)).length,
     ).toBeGreaterThan(50);
   });
 
   it('nests no effect below an effect, anywhere in the catalogue', () => {
-    for (const [path, effect] of EVERY_EFFECT) {
+    for (const [path, effect] of EVERY_EFFECT_AND_SEQUENCE) {
       for (const [at, nested] of below(effect, path, true)) {
         if (typeof nested !== 'object' || nested === null || Array.isArray(nested)) continue;
         const kind = (nested as { kind?: unknown }).kind;
@@ -2973,7 +3061,7 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
 
   /** And nothing below an effect brings its own targets, area or effect list. */
   it('gives nothing below an effect its own targets, area or effects', () => {
-    for (const [path, effect] of EVERY_EFFECT) {
+    for (const [path, effect] of EVERY_EFFECT_AND_SEQUENCE) {
       for (const [at, nested] of below(effect, path, true)) {
         if (typeof nested !== 'object' || nested === null || Array.isArray(nested)) continue;
         expect(
@@ -2999,7 +3087,7 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
               : Object.values(value as Record<string, unknown>)
             ).map(depthOf),
           );
-    for (const [path, effect] of EVERY_EFFECT) {
+    for (const [path, effect] of EVERY_EFFECT_AND_SEQUENCE) {
       // The one slot that is deliberately a second effect and not a rider —
       // see `SequencedBurst`, and the entry `EVERY_EFFECT` makes for its own
       // children, which are measured on their own terms above.
@@ -3091,6 +3179,28 @@ describe('a rider never rolls, and nothing below an effect is an effect', () => 
       expect(problems(shard(burst({ effects: [shard(burst())] })))).toContain(
         'nested_sequenced_roll',
       );
+    });
+
+    /**
+     * And the allowance is the attack host's alone.
+     *
+     * `attack` is the one kind whose type declares the slot, the one kind
+     * `checkEffect` validates one on, and the one kind `runEffects` reads one
+     * off — so a `then` anywhere else is a second resolution nothing would
+     * ever perform. It stays what it was before the slot existed: a nested
+     * effect, refused by the leaf denylist rather than accepted and dropped.
+     */
+    it('refuses a second roll hung on a host that would never perform one', () => {
+      expect(
+        problems({
+          kind: 'save-damage',
+          ability: 'dex',
+          damage: { dice: '2d6' },
+          damageType: 'fire',
+          onSuccess: 'none',
+          then: burst(),
+        }),
+      ).toContain('nested_effect');
     });
 
     /** And the children are checked as effects, by the rules effects are held to. */

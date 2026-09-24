@@ -12160,7 +12160,7 @@ export const SHINING_SMITE: SpellDefinition = {
   durationSeconds: 60,
   unmodelled: [
     'the Advantage on attack rolls against the target is not granted: it belongs to every other creature in the fight rather than to the one this casting touched, and a spell applies its effects to the targets it reached',
-    'and "it can’t benefit from the Invisible condition" switches off a benefit the condition layer derives while leaving the condition on the creature, which only a feature’s standing effect can do',
+    'and "it can’t benefit from the Invisible condition" switches off a benefit the condition layer derives while leaving the condition on the creature. The rider that does that exists — Starry Wisp, Faerie Fire and Mind Spike all hang it — and what this spell cannot reach it with is the host: a smite is cast on a hit, its one effect kind is `attack-damage`, and that kind carries no riders at all',
     'the Bright Light in a 5-foot radius is the DM’s, because light is not a state the engine holds',
   ],
 };

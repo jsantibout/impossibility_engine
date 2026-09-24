@@ -598,6 +598,27 @@ export function rollSavingThrow(
 }
 
 /**
+ * What a test comes to once the arithmetic has moved, with the two answers the
+ * arithmetic cannot touch.
+ *
+ * `resolve` settles them before the die is even read — a condition's automatic
+ * failure, a spell's automatic success — and both are overrides of the
+ * *total*, so a bonus or a penalty applied afterwards must not argue either
+ * away. This is the one place that rule is written, because it is asked from
+ * three: the roll itself, an intervention after it, and a reroll.
+ *
+ * It was asked from one. `interveneAfterRoll` and `rerollTest` each carried
+ * their own copy of the failure half and neither knew about the success half,
+ * so a Cutting Words took Sleep's automatic success off a creature immune to
+ * Exhaustion — a result carrying `autoSucceeded` and `success: false`, which
+ * {@link D20TestOptions.autoSucceed} says cannot exist.
+ */
+function outrightOr(result: D20TestResult, beat: boolean): boolean {
+  if (result.autoSucceeded !== null) return true;
+  return result.autoFailed === null && beat;
+}
+
+/**
  * An effect used *after* a roll lands but before its outcome is settled.
  *
  * There is a real window here in the rules, and three distinct shapes fill it:
@@ -666,8 +687,12 @@ export function interveneAfterRoll(
     bonuses,
     total,
     // A test a condition failed outright stays failed: no die turns a Stunned
-    // creature's Strength save into a success.
-    success: result.autoFailed === null && total >= result.dc,
+    // creature's Strength save into a success. **And the other end of the
+    // same rule**: a test a defence passed outright stays passed, so a Cutting
+    // Words does not take Sleep's automatic success off an Exhaustion-immune
+    // creature. Both overrides are the total's, so neither can be argued away
+    // by arithmetic applied afterwards.
+    success: outrightOr(result, total >= result.dc),
     margin: total - result.dc,
   });
 }
@@ -713,7 +738,10 @@ export function rerollTest(
     modifier: rolled.value.modifier,
     bonuses: [...result.bonuses, ...rolled.value.bonuses],
     total,
-    success: result.autoFailed === null && total >= result.dc,
+    // The two outright answers survive a reroll for the reason they survive an
+    // intervention — see {@link outrightOr}. SRD Indomitable rerolls a *failed*
+    // save, and a save a defence made outright was never one.
+    success: outrightOr(result, total >= result.dc),
     margin: total - result.dc,
     supersedes: { natural: result.natural, total: result.total },
   });

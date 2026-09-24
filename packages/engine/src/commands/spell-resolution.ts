@@ -69,6 +69,7 @@ import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
   creaturesInArea,
   distanceBetween,
+  positionOf,
   type Placement,
   type Point,
   type PointAnchoring,
@@ -926,13 +927,21 @@ export function castOrRelease(
         // already asked for whatever it needed, and for a Range of Self it
         // asked nothing — so the request is made here rather than the reach
         // being waved through or guessed at.
+        //
+        // **Whichever of the two is unplaced**, because either can be and a
+        // request naming the wrong one is a loop: placing a creature who is
+        // already placed hands back the identical request. `reachFromCaster`
+        // names both for the same reason, on every later swing of the same
+        // spell.
         if (!apart.ok) {
+          const unplaced =
+            positionOf(state.scene, casterId) === null ? casterId : target;
           needs.push({
             kind: 'position',
-            subject: target,
-            need: `where ${target} is standing`,
+            subject: unplaced,
+            need: `where ${unplaced} is standing`,
             because: `${definition.name} strikes a creature within ${swing} feet of you`,
-            satisfyWith: `a placeCreatureInScene command for ${target}`,
+            satisfyWith: `a placeCreatureInScene command for ${unplaced}`,
           });
           continue;
         }

@@ -128,8 +128,8 @@ describe('Barkskin floors the Armour Class rather than replacing it', () => {
   });
 
   /**
-   * The floor is read **after** everything else � the calculation, the Shield,
-   * every flat bonus � and it is a floor rather than an addend, which is the
+   * The floor is read **after** everything else — the calculation, the Shield,
+   * every flat bonus — and it is a floor rather than an addend, which is the
    * pair of facts a `+5` bonus would get wrong in both directions. A Shield of
    * Faith's +2 on a 12 is 14, still under the seventeen, so the total is
    * seventeen and not nineteen; a +6 clears it, and the floor then does

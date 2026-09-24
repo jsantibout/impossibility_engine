@@ -5848,7 +5848,7 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
     ...lists,
     ...lists.flatMap(([where, entries]) =>
       entries.flatMap((entry, i): (readonly [string, readonly unknown[]])[] => {
-        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+        if (!hostCarriesASequence(entry)) return [];
         const then = (entry as { readonly then?: unknown }).then;
         if (typeof then !== 'object' || then === null || Array.isArray(then)) return [];
         const inner = (then as { readonly effects?: unknown }).effects;
@@ -5882,6 +5882,24 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
  * the thing this validates, and reporting that is more useful than recursing
  * into it.
  */
+/**
+ * Whether this is the one effect kind a second resolution may hang on.
+ *
+ * `attack` and nothing else: it is the only kind whose type declares `then`,
+ * the only kind `checkEffect` validates one on, and the only kind `runEffects`
+ * reads one off. A `then` anywhere else is data no resolver would ever
+ * perform, so it stays what it was before the slot existed — a nested effect,
+ * refused by the leaf denylist.
+ *
+ * Read off untyped input like every other reader in this file, so a `kind`
+ * that is missing, null or something this engine has never heard of answers
+ * false and is reported by the rule that knows what is wrong with it.
+ */
+function hostCarriesASequence(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  return (value as { readonly kind?: unknown }).kind === 'attack';
+}
+
 function checkNoNestedEffect(
   value: unknown,
   path: string,
@@ -5913,7 +5931,15 @@ function checkNoNestedEffect(
     // effects are checked as effects; what this rule still holds is that
     // nothing *else* below an effect may carry one, and `checkEffect` is what
     // stops a `then` inside a `then`.
-    if (depth === 0 && key === 'then') continue;
+    //
+    // **On the `attack` host and nowhere else**, which is the whole of the
+    // allowance: `attack` is the one kind whose type carries the slot and the
+    // one kind `runEffects` reads it off, so a `then` written on a
+    // `save-damage` would be a second resolution nothing ever performs. It was
+    // refused before this shape existed and it is refused still — by falling
+    // through to the denylist below, which is what `then.area` and
+    // `then.effects` are.
+    if (depth === 0 && key === 'then' && hostCarriesASequence(value)) continue;
     if (depth > 0 && FORBIDDEN_BELOW_AN_EFFECT.has(key)) {
       found.push({
         field: `${path}.${key}`,
