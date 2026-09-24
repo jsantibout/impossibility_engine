@@ -33,12 +33,14 @@ import {
   advanceTime,
   endFeature,
   extendFeature,
+  grappleTarget,
   resolveTest,
   takeDash,
 } from './commands.js';
 
 const HERO = asCharacterId('hero');
 const GOBLIN = asCharacterId('goblin');
+const OGRE = asCharacterId('ogre');
 
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
@@ -348,6 +350,41 @@ describe('SRD Large Form', () => {
     expect(active(over)).not.toContain('goliath:large-form');
     expect(over.scene?.sizes[HERO]).toBe('medium');
     expect(speedOf(over, HERO)).toBe(walk);
+  });
+
+  it('is the size the rules read, not only the size the map shows', () => {
+    // An independent review found Large Form on the map and Medium to every
+    // rule: the readers asked the record before the scene. SRD Grapple reaches
+    // "a creature no more than one size larger than you" — Huge from Large.
+    const state = fold('seed', [
+      ...yard(fighter('goliath', 5)),
+      {
+        type: 'creature-added',
+        id: OGRE,
+        name: 'ogre',
+        sheet: plain(),
+        maxHp: 59,
+        diesAtZero: true,
+        creatureType: 'Giant',
+        side: 'ogres',
+        size: 'huge',
+      },
+      { type: 'creature-placed', id: OGRE, placement: { from: { creature: HERO }, feet: 5, bearing: 0 } },
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: HERO, initiative: 20, speed: 30 },
+          { id: OGRE, initiative: 10, speed: 40 },
+        ],
+      },
+    ]);
+    const medium = grappleTarget(state, HERO, { target: OGRE, save: 'str' }, supply('grapple'));
+    expect(medium.ok).toBe(false);
+    if (!medium.ok) expect(medium.code).toBe('too_large');
+
+    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'goliath:large-form' }), 'activate'));
+    const large = grappleTarget(on, HERO, { target: OGRE, save: 'str' }, supply('grapple'));
+    expect(large.ok).toBe(true);
   });
 
   it('puts the size back when the Goliath ends it early', () => {

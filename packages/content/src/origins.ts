@@ -664,8 +664,8 @@ export const HUMAN: SpeciesDefinition = {
       id: 'human:resourceful',
       name: 'Resourceful',
       level: 1,
-      automation: 'engine',
-      note: 'Executed as a Reaction in the window Indomitable already answers: SRD "You gain Heroic Inspiration whenever you finish a Long Rest", and the glossary, "you can expend it to reroll any die immediately after rolling it, and you must use the new roll." A pool of one that a Long Rest refills, spent from the test-rolled window on a failed ability check or saving throw, costing no Reaction. Not offered: the reroll of a roll that succeeded, so that an ordinary check stays a single call (the one case where a made roll’s total still matters, a Stealth check’s total being the DC to find the hider, is the table’s), and the reroll of an attack roll or a damage die, which land in no window a reroll can answer in. The DM allows those.',
+      automation: 'manual',
+      note: 'Most of it is applied, which is why this is not marked as executed. The Heroic Inspiration is a Reaction in the window Indomitable already answers: SRD "You gain Heroic Inspiration whenever you finish a Long Rest", and the glossary, "you can expend it to reroll any die immediately after rolling it, and you must use the new roll." A pool of one that a Long Rest refills, spent from the test-rolled window on a failed ability check or saving throw, costing no Reaction. Not offered: the reroll of a roll that succeeded, so that an ordinary check stays a single call (the one case where a made roll’s total still matters, a Stealth check’s total being the DC to find the hider, is the table’s), and the reroll of an attack roll or a damage die, which land in no window a reroll can answer in. Those three are the clause the ledger files, not the table’s.',
       grants: {
         kind: 'reaction',
         costsReaction: false,

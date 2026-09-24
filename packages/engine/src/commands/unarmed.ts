@@ -51,8 +51,8 @@ import {
   bearingBetween,
   moveCreature,
   sizeAtMost,
-  sizeOf,
 } from '../positioning.js';
+import { effectiveSizeOf } from '../size.js';
 import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
 import { timerKey, type EffectCheck } from '../timers.js';
 import { type Supply } from './casting.js';
@@ -205,7 +205,7 @@ export const oneLargerThan = (size: CreatureSize): CreatureSize =>
  * re-stated when they placed it.
  */
 const sizeStated = (state: GameState, who: CharacterId): CreatureSize | null =>
-  state.creatures[who]?.size ?? (state.scene === null ? null : sizeOf(state.scene, who));
+  effectiveSizeOf(state, who);
 
 /**
  * SRD Grapple and SRD Shove: "possible only if the target is no more than one

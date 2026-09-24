@@ -46,6 +46,7 @@ import { applyTimers, isTimersEvent } from './timers.js';
 import { applyCombat, isCombatEvent } from './combat.js';
 import { applyScene, isSceneEvent } from './scene.js';
 import { applyFeatures, isFeaturesEvent, resized } from './features.js';
+import { printedSizeOf, printsASize } from '../size.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
 import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
 import { applyGrants, isGrantsEvent } from './grants.js';
@@ -631,10 +632,10 @@ function settleSizes(state: GameState): GameState {
   for (const key of Object.keys(state.creatures).sort()) {
     const creature = state.creatures[key];
     if (creature === undefined || creature.size === null || scene.sizes[key] === undefined) continue;
-    const printing = (creature.sheet.activated ?? []).filter((one) => one.size !== undefined);
-    if (printing.length === 0) continue;
-    const printed = printing.find((one) => creature.activeFeatures.includes(one.feature))?.size;
-    const wanted = printed ?? creature.size;
+    // Only a creature whose sheet prints a size is settled: a DM who stated a
+    // size on the map for anybody else is not overruled by the record.
+    if (!printsASize(creature)) continue;
+    const wanted = printedSizeOf(creature) ?? creature.size;
     if (scene.sizes[key] !== wanted) current = resized(current, creature.id, wanted);
   }
   return current;

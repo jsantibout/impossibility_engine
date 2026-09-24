@@ -820,10 +820,13 @@ describe('features are granted, and say what is not automated', () => {
     // and the free daily casting is a pool the engine spends. Potent Cantrip
     // left it the day a feature could reach into a casting's damage. What is
     // left is genuinely unexecuted.
-    // Resourceful left it the day Heroic Inspiration became a Reaction in the
-    // test-rolled window, and Ritual Adept the day a Ritual could be cast from
-    // the book. Every granted feature of this Wizard executes.
-    expect(manual.map((f) => f.id)).toEqual([]);
+    // Ritual Adept left it the day a Ritual could be cast from the book.
+    // Resourceful left and came back: Heroic Inspiration is a Reaction in the
+    // test-rolled window, but the glossary's "any die" also names a roll that
+    // succeeded, an attack roll and a damage die, which no window opens on —
+    // so the flag says partial, as an independent review asked, and the ledger
+    // files the residue under `a-reroll-outside-the-test-window`.
+    expect(manual.map((f) => f.id)).toEqual(['human:resourceful']);
     for (const feature of manual) expect(feature.note.length).toBeGreaterThan(0);
   });
 
