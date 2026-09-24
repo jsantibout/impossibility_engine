@@ -548,10 +548,7 @@ describe('the features blocked by nothing', () => {
     expect(featuresTheTableOwns()).toEqual([
       'champion:additional-fighting-style',
       'druid:druidic',
-      'fighter:fighting-style',
       'hunter:hunters-lore',
-      'paladin:fighting-style',
-      'ranger:fighting-style',
       'rogue:thieves-cant',
     ]);
     for (const id of featuresTheTableOwns()) {

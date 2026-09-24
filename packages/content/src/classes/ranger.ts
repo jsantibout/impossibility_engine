@@ -148,8 +148,8 @@ export const RANGER: ClassDefinition = {
       id: 'ranger:fighting-style',
       name: 'Fighting Style',
       level: 2,
-      automation: 'manual',
-      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list, and applied exactly as a Fighter’s is: Archery and Great Weapon Fighting each carry a standing grant. The other two of the four are still a note rather than a grant.',
+      automation: 'engine',
+      note: 'Executed, exactly as a Fighter’s is: the feature records which Fighting Style feat was taken and `checkFeats` refuses one outside the category, and what a style *does* is the feat’s own standing grant in FIGHTING_STYLE_FEATS, compiled onto the sheet under the feat’s id.',
       choice: { kind: 'feat', choose: 1, category: 'fighting-style' },
     },
     {

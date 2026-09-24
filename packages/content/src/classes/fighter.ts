@@ -149,8 +149,8 @@ export const FIGHTER: ClassDefinition = {
       id: 'fighter:fighting-style',
       name: 'Fighting Style',
       level: 1,
-      automation: 'manual',
-      note: 'The chosen Fighting Style feat is recorded and validated against the SRD list. Archery and Great Weapon Fighting are applied: each carries a standing grant, compiled onto the sheet at creation and read at the swing. Three of the four are applied now: Two-Weapon Fighting carries a standing grant too, which puts the ability modifier back on the extra attack the Light property buys. Defense is the one left, and it wants a requirement about wearing armour.',
+      automation: 'engine',
+      note: 'Executed. The feature is the question and nothing else: SRD prints "You gain a Fighting Style feat of your choice", so what this declares is which feat was taken, and `checkFeats` refuses one outside the fighting-style category. What a style *does* is the feat’s own grant — every feat in FIGHTING_STYLE_FEATS carries a standing grant, compiled onto the sheet at creation under the feat’s own id and read where its sentence bites. The note used to restate the four here, in three class files, and two of the three copies were a batch out of date; it points at the definitions instead.',
       choice: { kind: 'feat', choose: 1, category: 'fighting-style' },
     },
     {

@@ -444,13 +444,10 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Fighter —
-  'fighter:fighting-style': [
-    {
-      clause: 'Defense is the one left',
-      why: 'table',
-      note: 'three of the four feats are executed now and the fourth is its own feat’s debt; recording and validating the choice is all this feature ever claimed, and that has not changed.',
-    },
-  ],
+  // `fighter:fighting-style` stood here, and left the population by being
+  // read: all four Fighting Style feats carry a grant that executes, so the
+  // feature — which only ever recorded and validated the choice — declares
+  // `engine`. Its siblings on the Paladin and the Ranger left with it.
   'fighter:studied-attacks': [
     {
       clause: 'Advantage on the next attack after a miss is not tracked between attacks',
@@ -569,13 +566,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Paladin —
-  'paladin:fighting-style': [
-    {
-      clause: 'The other two of the four are still a note rather than a grant',
-      why: 'table',
-      note: 'the two unbuilt feats’ own debt, exactly as the Fighter’s Fighting Style is.',
-    },
-  ],
+  // `paladin:fighting-style` left with the Fighter's — see the note there.
   'paladin:abjure-foes': [
     {
       clause: 'succeed on a Wisdom saving throw',
@@ -624,13 +615,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Ranger —
-  'ranger:fighting-style': [
-    {
-      clause: 'The other two of the four are still a note rather than a grant',
-      why: 'table',
-      note: 'the two unbuilt feats’ own debt, exactly as the Fighter’s Fighting Style is.',
-    },
-  ],
+  // `ranger:fighting-style` left with the Fighter's — see the note there.
   'ranger:tireless': [
     {
       clause: 'Temporary Hit Points as a Magic action',
