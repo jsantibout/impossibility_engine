@@ -118,7 +118,11 @@ export function copyNamed(
   if (lines.length === 1) return ok(lines[0]!);
   return err(
     'ambiguous_copy',
-    `${creature.id} has ${lines.length} of ${named}, each with a record of its own (${lines
+    // **Each named where it has a name**, which is not every line any more: a
+    // conjured thing of one carries a record and the Longsword bought beside
+    // it does not, so "each with a record of its own" would be a sentence the
+    // list under it contradicts.
+    `${creature.id} has ${lines.length} of ${named}, named where they have a name (${lines
       .map((line) => line.instance ?? 'an unlabelled copy')
       .join(', ')}); name the one you mean`,
   );
@@ -658,7 +662,20 @@ export function dropConjured(
         id,
         // The whole handful: SRD's sentence is about the thing in the hand,
         // and half a blade is not a state the book describes.
-        items: [{ id: held.line.id, quantity: held.line.quantity, casting: held.castingId }],
+        //
+        // **And which copy, where the conjuring named one.** A line with a
+        // record is merged under that record and nothing else, so a loss that
+        // named only the kind and the casting would find no line to take, be
+        // filtered away by the `quantity > 0` rule, and leave the blade in the
+        // hand — which is the silent removal `leavingIsNamed` exists to refuse.
+        items: [
+          {
+            id: held.line.id,
+            quantity: held.line.quantity,
+            casting: held.castingId,
+            ...(held.line.instance === undefined ? {} : { instance: held.line.instance }),
+          },
+        ],
         source: `${content.item(held.line.id)?.name ?? held.line.id}, let go of`,
         ...(stamp === null ? {} : { command: stamp }),
       },
@@ -746,7 +763,7 @@ export function evokeConjured(
     events.push({
       type: 'items-gained',
       id,
-      items: [conjuredLine(item.id, from.conjures, from.casting.castingId)],
+      items: [conjuredLine(state.itemsIssued, item.id, from.conjures, from.casting.castingId)],
       source: `${from.casting.spell}, evoked again`,
       ...(stamp === null ? {} : { command: stamp }),
     });
@@ -1304,6 +1321,28 @@ export function itemsWithinReach(state: GameState, id: CharacterId): Result<read
 export const conjuredHands = (conjures: ConjuredItems): number => conjures.hands ?? 1;
 
 /**
+ * The name a conjuring gives the **one** thing it puts in a hand, out of the
+ * ids the log has issued.
+ *
+ * SRD Pact of the Blade's Longsword beside a Longsword bought in town is two
+ * lines of one kind, and two lines of one kind are a question `copyNamed`
+ * refuses rather than guesses at — so before this the conjured weapon could
+ * not be named at all, and the refusal it provoked named neither copy. A
+ * record of its own is the answer the item-instance door already had: the
+ * command computes the id from {@link GameState.itemsIssued}, pins it on the
+ * event, and the fold checks it is the next one.
+ *
+ * **One thing, because a record is one copy.** SRD Goodberry conjures a
+ * *handful* — ten berries are one line of ten — and a record stands for a
+ * single copy with state of its own, which is what `items-gained` checks when
+ * it sees one. So a conjured handful stays the counted stack it has always
+ * been, and it loses nothing by it: a handful is already keyed to the casting
+ * that made it, and two castings' berries never were one line.
+ */
+const conjuredInstance = (issued: number, count: number): { readonly instance?: string } =>
+  count === 1 ? { instance: itemInstanceFor(issued + 1) } : {};
+
+/**
  * The line a conjuring puts in a hand, pinned from the definition that printed
  * it.
  *
@@ -1312,8 +1351,13 @@ export const conjuredHands = (conjures: ConjuredItems): number => conjures.hands
  * disagree. Rule 5: what the command read from content travels with the event,
  * **the default included**: a line that left the hands off would be a line
  * whose cost the fold had to go and look up.
+ *
+ * `issued` is what the log has issued so far, exactly as `issueItemCopies`
+ * takes it and for the same reason: the id has to be the next one or the fold
+ * refuses the event.
  */
 export function conjuredLine(
+  issued: number,
   itemId: string,
   conjures: ConjuredItems,
   castingId?: string,
@@ -1322,6 +1366,7 @@ export function conjuredLine(
     id: itemId,
     quantity: conjures.count,
     ...(castingId === undefined ? {} : { casting: castingId }),
+    ...conjuredInstance(issued, conjures.count),
     hands: conjuredHands(conjures),
   };
 }
@@ -1346,12 +1391,23 @@ export function conjuredLine(
  * here: one spelling of what a conjuring puts in a hand, in the module that
  * owns what a creature is carrying, so the sweep in `item-instances.test.ts`
  * has one thing to count.
+ *
+ * **And a weapon is always one thing**, so this always names what it hands
+ * over — see {@link conjuredInstance}, which is where the rule is written and
+ * why a spell's handful may not be named.
  */
 export function featureConjuredLine(
+  issued: number,
   item: CatalogueItem,
   feature: string,
 ): InventoryLine {
-  return { id: item.id, quantity: 1, feature, hands: handsFor(item) };
+  return {
+    id: item.id,
+    quantity: 1,
+    feature,
+    ...conjuredInstance(issued, 1),
+    hands: handsFor(item),
+  };
 }
 
 /**

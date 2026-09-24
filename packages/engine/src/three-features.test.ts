@@ -97,6 +97,54 @@ const dragonborn = (over: Partial<CharacterChoices> = {}): CharacterChoices => (
 
 const BREATH = 'dragonborn:breath-weapon';
 
+const BRAX = id('brax');
+
+/**
+ * A Dragonborn Barbarian 1: **one** attack in the Attack action, and a breath.
+ *
+ * The population the price is really about. Every Dragonborn is one of these
+ * for four levels, and a reading of "replace one of your attacks" that wanted
+ * an attack left over after the action was taken would be a sentence none of
+ * them could ever say.
+ */
+const dragonbornOne = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
+  name: 'Brax',
+  classId: 'barbarian',
+  level: 1,
+  speciesId: 'dragonborn',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { con: 2, wis: 1 },
+  classSkills: ['athletics', 'survival'],
+  languages: ['Dwarvish', 'Orc'],
+  alignment: 'Neutral',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: {
+    'dragonborn:draconic-ancestry': ['Silver'],
+    'barbarian:weapon-mastery': [],
+  },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int' as const,
+      cantrips: ['mage-hand', 'light'],
+      levelOneSpell: 'find-familiar',
+    },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+  ...over,
+});
+
 const ANSEL = id('ansel');
 
 /** A Cleric 3, for the one option on a menu that prints a single template. */
@@ -218,6 +266,48 @@ const breathe = (
     supply(seed),
   );
 
+/** Brax alone with the thug down the lane, a fight running, and no Extra Attack. */
+const oneAttackTable = (): readonly GameEvent[] => [
+  ...(unwrap(createCharacter(SRD_CONTENT, dragonbornOne(), BRAX), 'create') as GameEvent[]),
+  { type: 'creature-side-declared', id: BRAX, side: 'party' },
+  {
+    type: 'creature-added',
+    id: THUG,
+    name: 'thug',
+    sheet: plain(),
+    maxHp: 400,
+    diesAtZero: false,
+    creatureType: 'Humanoid',
+    side: 'thugs',
+  },
+  { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+  { type: 'landmark-added', name: 'the mouth', at: { x: 50, y: 50, z: 0 } },
+  { type: 'landmark-added', name: 'the step', at: { x: 55, y: 50, z: 0 } },
+  { type: 'creature-placed', id: BRAX, placement: { from: { landmark: 'the mouth' }, feet: 0 } },
+  { type: 'creature-placed', id: THUG, placement: { from: { landmark: 'the step' }, feet: 0 } },
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: BRAX, initiative: 20, speed: 30 },
+      { id: THUG, initiative: 10, speed: 30 },
+    ],
+  },
+];
+
+/** The same exhalation, asked of whoever is holding the trait. */
+const breatheAs = (who: typeof KESS, log: readonly GameEvent[], seed = 'breath') =>
+  usePoolOption(
+    fold('seed', log),
+    who,
+    {
+      feature: BREATH,
+      option: 'breath-weapon',
+      shape: 'cone',
+      towards: DOWN_THE_LANE,
+    } as unknown as Parameters<typeof usePoolOption>[2],
+    supply(seed),
+  );
+
 /** The same call with the shape left out entirely, which is not the same as `undefined`. */
 const breatheUnshaped = (log: readonly GameEvent[]) =>
   usePoolOption(
@@ -334,7 +424,7 @@ describe('SRD Breath Weapon — an exhalation in place of one attack', () => {
     expect(line.outcomes.map((one) => one.target).sort()).toEqual([OGRE, THUG].sort());
   });
 
-  it('refuses a shape it does not offer, and refuses breathing outside the Attack action', () => {
+  it('refuses a shape it does not offer, and refuses a use that names none', () => {
     const log = swing(table());
 
     const wrong = breathe(log, { shape: 'sphere' });
@@ -342,10 +432,70 @@ describe('SRD Breath Weapon — an exhalation in place of one attack', () => {
 
     const silent = breatheUnshaped(log);
     expect(isErr(silent) && silent.code).toBe('shape_required');
+  });
 
-    // No Attack action taken at all: there is no attack to replace.
-    const fresh = breathe(table());
-    expect(isErr(fresh) && fresh.code).toBe('no_attack_action');
+  /**
+   * "When you take the Attack action on your turn, you can replace one of your
+   * attacks with an exhalation of magical energy."
+   *
+   * **The taking**, which is the reading SRD Pact of the Chain's identical
+   * clause is already read under: the sentence is spoken of the Attack action
+   * you are taking, and a creature with one attack replaces it. Read the other
+   * way — the action already taken with an attack left over — the trait is
+   * unusable by every Dragonborn below level 5, which is most of them.
+   */
+  it('takes the Attack action for a Dragonborn who has not taken one', () => {
+    const used = unwrap(breathe(table()), 'breath');
+    const after = fold('seed', [...table(), ...used.events]);
+
+    // The Action went on the exhalation, and the Fighter's *second* attack is
+    // still there to swing with.
+    expect(after.combat?.budgets[KESS]?.action).toBe(false);
+    expect(after.combat?.budgets[KESS]?.attacksRemaining).toBe(1);
+    expect(after.combat?.budgets[KESS]?.bonusAction).toBe(true);
+
+    // And the swing that is left goes through, so Extra Attack buys one of
+    // each in either order.
+    const swung = resolveAttack(
+      after,
+      KESS,
+      { target: THUG, weapon: null, attackBonuses: [{ source: 'forced', flat: 40 }] },
+      supply('after-breath'),
+    );
+    expect(swung.ok).toBe(true);
+  });
+
+  /**
+   * And the level the trait is printed at: a Dragonborn with no Extra Attack
+   * exhales **instead of** swinging, which costs the whole Attack action.
+   */
+  it('is the whole Attack action for a Dragonborn with no Extra Attack', () => {
+    const log = oneAttackTable();
+    const used = unwrap(breatheAs(BRAX, log), 'breath');
+    const after = fold('seed', [...log, ...used.events]);
+
+    expect(after.combat?.budgets[BRAX]?.action).toBe(false);
+    // One attack in the action, and the exhalation was it.
+    expect(after.combat?.budgets[BRAX]?.attacksRemaining).toBe(0);
+
+    // A second breath in the same turn has no attack left to replace and no
+    // action left to buy one with.
+    const refused = breatheAs(BRAX, [...log, ...used.events]);
+    expect(isErr(refused) && refused.code).toBe('no_attacks_left');
+  });
+
+  /**
+   * And the price that is a refusal rather than a waiver.
+   *
+   * Every other cost in the book is waived outside a fight, because there is
+   * no economy there to spend in — but an Attack action nobody could have
+   * taken is not an Attack action taken for free, and a Dragonborn who could
+   * exhale out of combat would breathe once a round for ever between fights.
+   */
+  it('refuses a breath outside combat, where there is no Attack action to take', () => {
+    const peace = oneAttackTable().filter((event) => event.type !== 'combat-started');
+    const refused = breatheAs(BRAX, peace);
+    expect(isErr(refused) && refused.code).toBe('not_in_combat');
   });
 
   it('refuses a shape named for an option that prints a single area', () => {

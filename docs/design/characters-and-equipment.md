@@ -301,7 +301,11 @@ one is the counted stack it has always been, so arrows are untouched. Only a
 copy whose catalogue record has state of its own is born labelled — today,
 one with a charge pool, whose key is the copy rather than the item, declared
 when the copy is gained rather than when it is equipped. So two wands no
-longer share a pool, and one put down keeps what it had left.
+longer share a pool, and one put down keeps what it had left. **And a
+conjured thing of one takes a record at the conjuring** — a casting's, Flame
+Blade's blade, and an activation's, the pact weapon — so a pact Longsword can
+be named while a bought one stands beside it; a conjured *handful* stays the
+counted stack it was, because a record stands for a single copy.
 
 A copy also **moves**. `transferItem` hands one creature's copy to another and
 its pool travels whole, spent charges included, read off the giver's own keys

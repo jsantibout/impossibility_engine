@@ -2606,7 +2606,7 @@ function resolveOnTargets(
     events.push({
       type: 'items-gained',
       id: casterId,
-      items: [conjuredLine(definition.conjures.item, definition.conjures, castingId)],
+      items: [conjuredLine(state.itemsIssued, definition.conjures.item, definition.conjures, castingId)],
       source: `${definition.name}, conjured`,
     });
   }

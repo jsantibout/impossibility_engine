@@ -706,8 +706,10 @@ function settleConjuredLines(state: GameState): GameState {
     //
     // **Only where nothing that is left backs the wielding.** A Warlock who
     // bonds a Longsword while carrying one of their own has two lines — the
-    // key `mergeKey` gives a conjured line is the bond's — and the pack's copy
-    // is what keeps the wielding standing when the pact weapon goes.
+    // conjured one is keyed by the record it was given at the conjuring, and a
+    // conjured *handful* by the casting or the activation it names, but never
+    // by the kind the pack's copy is under — and the pack's copy is what keeps
+    // the wielding standing when the pact weapon goes.
     //
     // It writes `equipped` without going back through `withEquipment`, so the
     // sheet's armour view is not recomputed. Harmless by construction rather
@@ -715,9 +717,17 @@ function settleConjuredLines(state: GameState): GameState {
     // `imbuedWeapon` refuses anything the catalogue does not print a weapon
     // record for, so only a weapon can ever be dropped here and no armour or
     // shield can.
+    //
+    // **A wielding that names no copy is about the kind**, which is
+    // `dropItem`'s reading of the same pair of facts and written in the same
+    // words: a hand-written `item-equipped` says "a Glaive", and the conjured
+    // Glaive carries a record of its own, so an equality between the two
+    // records would have left the wielding standing over a weapon that had
+    // ceased to exist. A wielding that *does* name a copy is about that copy
+    // and nothing else.
     const gone = creature.inventory.filter((line) => !kept.includes(line));
     const backs = (line: InventoryLine, worn: EquippedItem): boolean =>
-      line.id === worn.id && (line.instance ?? undefined) === (worn.instance ?? undefined);
+      line.id === worn.id && (worn.instance === undefined || worn.instance === line.instance);
     const equipped = creature.equipped.filter(
       (worn) => kept.some((line) => backs(line, worn)) || !gone.some((line) => backs(line, worn)),
     );
