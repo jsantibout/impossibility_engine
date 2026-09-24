@@ -1982,12 +1982,12 @@ function printedCastLines(
           // The heading's price, and the only thing about this route that is
           // not the spell's own.
           castingTime,
-          // **And the heading this route is taken through.** The price is the
-          // heading's, so a casting that found this route for itself would pay
-          // nothing at all; `routesFor` therefore leaves it out of what a
-          // casting searches. A casting that *names* the source still reaches
-          // it, which `GrantedSpell.throughLine` records rather than claims
-          // away, along with what would close it.
+          // **And the heading this route is taken through, which is the only
+          // road to it.** The price is the heading's, so a casting that
+          // reached this route any other way would pay nothing at all:
+          // `routesFor` leaves it out of what a casting searches, and
+          // `chooseRoute` refuses a caller that names its source without the
+          // printed line's own licence. See `GrantedSpell.throughLine`.
           throughLine: line.name,
           // Paid at the door, out of the heading's recharge or its day's
           // count — see the note above.

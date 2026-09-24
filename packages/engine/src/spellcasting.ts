@@ -154,22 +154,22 @@ export interface GrantedSpell {
    * about what is left of it.
    *
    * A route like that must not be castable **around** the line, or the price
-   * would simply not be paid: a Priest would cast Bless all day. So
-   * {@link routesFor} leaves it out of the routes a casting finds for itself,
-   * and `castPrintedLine` names its source.
+   * would simply not be paid: a Priest would cast Bless all day.
    *
-   * **Half of that is closed and half is recorded**, which is said here rather
-   * than claimed away. A casting that names no source cannot reach one of
-   * these — `routesFor` is the whole of what it searches. A casting that
-   * **names the source** still can: `chooseRoute`'s named branch looks a
-   * source up on `granted` directly, without passing through `routesFor`, and
-   * the string is published (`look` reports it, and `routeLabel` writes it
-   * into every `spell-cast`). Closing that is one line in `chooseRoute` —
-   * refuse a grant whose `throughLine` is set unless the printed line's own
-   * door is calling — and it needs a licence to travel from that door, which
-   * is `commands/casting.ts` and `commands/targeting.ts` rather than this
-   * file. `monster-cast-line.test.ts` records the gap as a test, so the day it
-   * closes the test says so.
+   * **Two roads lead to a route and both are closed.** {@link routesFor}
+   * leaves one of these out of what a casting *searches*, which closes the
+   * road a caller takes when it names no source. `chooseRoute`'s named branch
+   * does not come through here — it looks a source up on `granted` directly,
+   * and the source is published (`look` reports it, `routeLabel` writes it
+   * into every `spell-cast`) — so that road is closed by a **licence**: it
+   * refuses `route_through_line_only` unless the printed line's own door says
+   * it is the one calling. The licence is an argument between engine
+   * functions and is on no request and no tool schema, because a licence a
+   * caller could set is a caller granting itself the licence.
+   *
+   * And a casting like this is not **readied**: `releaseReady` settles without
+   * ever asking `castingOf`, so the heading's price would go nowhere —
+   * `readied_printed_line`, refused before the slot.
    *
    * Absent is every other grant in the book — a feat's, a feature's, an
    * item's — each of which carries its own price and is cast wherever its
@@ -360,10 +360,10 @@ export type CastingRoute =
  * or the recharge going anywhere. `castPrintedLine` names the source, which
  * `chooseRoute` looks up directly.
  *
- * **This closes the road a casting takes when it names nothing, and only
- * that one.** `chooseRoute`'s named-source branch does not come through here,
- * so a caller that names the line's source still reaches the route — see
- * {@link GrantedSpell.throughLine}, which says what would close it and where.
+ * **This closes the road a casting takes when it names nothing, and only that
+ * one.** `chooseRoute`'s named-source branch does not come through here, and
+ * closes its own road with a licence — see {@link GrantedSpell.throughLine},
+ * which says what the licence is and why it is internal.
  */
 export function routesFor(
   spellcasting: SpellcastingState,

@@ -20,6 +20,7 @@ import {
   placeCreatureInScene,
   resolveSpell,
   setScene,
+  takeReady,
   takeStatedBonusAction,
 } from './commands.js';
 import { extendContent } from './content.js';
@@ -488,40 +489,75 @@ describe('a casting does not find the route a line holds open', () => {
   });
 
   /**
-   * **And the road that is still open, recorded rather than argued about.**
+   * **And the other road, which is the one leaving it out of the search does
+   * not close.**
    *
    * `chooseRoute`'s named-source branch does not come through `routesFor`: it
-   * looks a source up on `granted` directly. So a caller that names the
-   * line's own source reaches the route and pays **none** of the heading's
-   * price — no recharge expended, no day's use counted — which is a gap and
-   * not a feature. The source is not even obscure: `look` reports it, and
-   * `routeLabel` writes it into every `spell-cast`.
-   *
-   * Closing it is one line in `chooseRoute` — refuse a grant whose
-   * `throughLine` is set unless the printed line's own door is calling — and
-   * a licence has to travel from that door to reach it, which is
-   * `commands/casting.ts` and `commands/targeting.ts`. This track owns
-   * neither, so the gap is written down here, asserted, and will fail loudly
-   * on the day somebody closes it. That is the same discipline the breach
-   * record in `origin-and-feature-sweep.test.ts` keeps.
+   * looks a source up on `granted` directly, and the source is published —
+   * `look` reports it and `routeLabel` writes it into every `spell-cast`. So a
+   * caller that wrote it down would cast a Priest's Bless at the block's own
+   * DC for ever, with no day's use and no recharge going anywhere. The licence
+   * is what closes it: the printed line's own door says it is the one calling,
+   * and it is an argument between engine functions rather than a field on the
+   * request, because a licence a caller could set is a caller granting itself
+   * the licence.
    */
-  it('records the road still open: naming the source reaches the route unpaid', () => {
+  it('refuses a casting that names the line’s own source', () => {
     const table = inTheChapel(PRIEST, 'priest');
-    const named = unwrap(
-      resolveSpell(
+    const named = resolveSpell(
+      table.state,
+      PRIEST,
+      { spellId: 'bless', targets: [ALLY, OTHER], source: 'priest:divine-aid-3-day' },
+      supply(),
+    );
+    expect(isErr(named) && named.code).toBe('route_through_line_only');
+    // And the refusal left no footprint, which is the whole of the point.
+    expect(table.state.combat!.budgets[PRIEST]!.bonusAction).toBe(true);
+    expect(tallied(table.state.creatures[PRIEST]!.resources, perDayTallyKey(DIVINE_AID))).toBe(0);
+  });
+
+  /**
+   * **And a printed line is not readied**, which is the same road one door
+   * along: `releaseReady` settles a held casting without ever asking
+   * `castingOf`, so a readied Divine Aid would spend the Ready's own Action
+   * and none of the heading's price. Refused before the slot rather than
+   * mispriced at the release.
+   */
+  it('refuses readying a spell only a printed line supplies', () => {
+    const table = inTheChapel(PRIEST, 'priest');
+    const readied = takeReady(
+      table.state,
+      PRIEST,
+      {
+        trigger: 'when the door opens',
+        response: {
+          kind: 'spell',
+          spellId: 'bless',
+          source: 'priest:divine-aid-3-day',
+          slotLevel: 1,
+        },
+      },
+      SRD_CONTENT,
+    );
+    expect(isErr(readied) && readied.code).toBe('readied_printed_line');
+  });
+
+  /**
+   * And the door itself still casts, which is what makes the two refusals
+   * above a narrowing rather than a wall.
+   */
+  it('still casts through the door that holds the licence', () => {
+    const table = inTheChapel(PRIEST, 'priest');
+    const cast = unwrap(
+      castPrintedLine(
         table.state,
         PRIEST,
-        { spellId: 'bless', targets: [ALLY, OTHER], source: 'priest:divine-aid-3-day' },
+        { line: DIVINE_AID, spell: 'bless', casting: { targets: [ALLY] } },
         supply(),
       ),
-      'Bless through the named source',
+      'Divine Aid, through its own door',
     );
-    const after = table.add(named.events);
-    // It casts, at the heading's casting time — and the heading's *price* goes
-    // nowhere, which is the whole of the gap.
-    expect(after.combat!.budgets[PRIEST]!.bonusAction).toBe(false);
-    expect(tallied(after.creatures[PRIEST]!.resources, perDayTallyKey(DIVINE_AID))).toBe(0);
-    expect(after.creatures[PRIEST]!.expendedLines).toEqual([]);
+    expect(cast.castingId).toBe('cast:1');
   });
 
   /**

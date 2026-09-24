@@ -2263,7 +2263,26 @@ export function chooseRoute(
   spellcasting: SpellcastingState,
   spellId: string,
   source: string | undefined,
-  licence: RitualLicence = {},
+  licence: RitualLicence & {
+    /**
+     * The printed heading this casting is being **taken through**, where a
+     * printed line's own door is what called.
+     *
+     * SRD Priest, Divine Aid (3/Day): the spell is the creature's and the
+     * price is the *heading's* — a count between dawns, or a recharge — and
+     * `castPrintedLine` is the only thing that spends it. `routesFor` already
+     * leaves such a route out of what a casting finds for itself; this closes
+     * the other road, where a caller names the source outright.
+     *
+     * **Internal, and it may never become a field on `CastSpellRequest` or on
+     * any tool schema.** A licence a caller could set is a caller granting
+     * itself the licence, which is the whole of what this refuses — and the
+     * source string is published, so the road is not a secret. It travels as
+     * an argument between engine functions instead: `castPrintedLine` →
+     * `castOrRelease` → here, and nowhere else.
+     */
+    readonly throughLine?: string;
+  } = {},
 ): Result<CastingRoute> {
   const routes = routesFor(spellcasting, spellId);
 
@@ -2315,6 +2334,20 @@ export function chooseRoute(
   const grant = spellcasting.granted.find((g) => g.source === source && g.spellId === spellId);
   if (grant === undefined) {
     return err('source_does_not_supply', `${source} does not supply ${spellId}`);
+  }
+  // **A route a printed line holds open is reached through that line and by no
+  // other road.** `routesFor` leaves it out of what a casting finds for
+  // itself, which closes the search; this closes the *name*, because a source
+  // is published — `look` reports it and `routeLabel` writes it into every
+  // `spell-cast` — so a caller that wrote it down would otherwise cast a
+  // Priest's Bless at the block's own DC for ever, with no day's use and no
+  // recharge going anywhere. The licence is the printed line's door saying it
+  // is the one calling; see the parameter, which says why it is internal.
+  if (grant.throughLine !== undefined && grant.throughLine !== licence.throughLine) {
+    return err(
+      'route_through_line_only',
+      `${source} casts ${spellId} only as part of taking ${grant.throughLine}, which is what prices the use; take the line and the casting goes with it`,
+    );
   }
   return ok({ kind: 'granted', ability: grant.ability, grant });
 }

@@ -1698,15 +1698,20 @@ export function castPrintedLine(
           // is that name — read off the grant rather than rebuilt, so two
           // spellings of one key cannot drift apart.
           //
-          // **It is not the only road, and that is recorded rather than
-          // claimed away**: any caller that names the same source reaches the
-          // same route without this door's price. See
-          // `GrantedSpell.throughLine` for what would close it and why the
-          // line is not here.
+          // **Naming it is not enough on its own**, which is what keeps this
+          // door the only road: the source is published, so `chooseRoute`
+          // refuses it `route_through_line_only` without the licence below.
           source: route.source,
         },
         supply,
         null,
+        // **The licence, and the reason the road is closed rather than
+        // merely unsearched.** `chooseRoute` refuses a route a heading prices
+        // unless the heading's own door says it is calling, and this is that
+        // saying. It is an argument between engine functions and appears on no
+        // request and no tool schema — a caller that could set it would be
+        // granting itself the licence.
+        { throughLine: line.name },
       );
       if (!cast.ok) return cast;
 
@@ -3009,6 +3014,30 @@ function holdSpell(
 
   const caster = creatureOf(state, id);
   if (caster === null) return unknownCreature(id);
+
+  // **A spell a printed line holds open is not a spell a creature readies.**
+  // SRD Priest's Divine Aid is a *use of a heading* whose price is the
+  // heading's — a count between dawns, a recharge — and a Ready spends its
+  // slot now and settles later through `releaseReady`, which never asks
+  // `castingOf` and so would apply none of that price. So it is refused here,
+  // before the slot, rather than left to be mispriced at the release: the line
+  // is taken with the door that prices it, and the casting goes with it.
+  //
+  // Reachable only by naming the source, which is the same road
+  // `route_through_line_only` closes one door along — a Ready that names none
+  // never finds the route at all, because `routesFor` leaves it out.
+  const heldOpen = caster.spellcasting.granted.find(
+    (grant) =>
+      grant.throughLine !== undefined &&
+      grant.spellId === response.spellId &&
+      grant.source === response.source,
+  );
+  if (heldOpen !== undefined) {
+    return err(
+      'readied_printed_line',
+      `${response.spellId} is cast as part of taking ${heldOpen.throughLine}, which prices the use — a readied casting settles without that price, so the line is taken rather than readied`,
+    );
+  }
 
   // SRD: you ready what you know or have prepared, and nothing else.
   const chosen = chooseRoute(caster.spellcasting, response.spellId, response.source);

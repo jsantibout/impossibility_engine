@@ -522,6 +522,18 @@ export function castOrRelease(
   request: CastSpellRequest,
   supply: Supply,
   held: HeldCasting | null,
+  /**
+   * The printed heading this casting is being **taken through**, where a
+   * printed line's own door is what called — see `chooseRoute`'s licence.
+   *
+   * **A parameter and never a field on the request**, which is the whole of
+   * what makes it a licence: `CastSpellRequest` is what a tool schema
+   * publishes, and a caller that could set this would be granting itself
+   * permission to cast a stat block's rationed spell for nothing. It is
+   * absent for every casting but `castPrintedLine`'s, and `resolveSpell` —
+   * the entry point every other caller uses — cannot supply one at all.
+   */
+  taking?: { readonly throughLine: string },
 ): Result<SpellResolution> {
   // **The duplicate check comes first, always.** A retry arrives at whatever
   // the world has become since its first run — the caster removed, the free
@@ -732,6 +744,10 @@ export function castOrRelease(
         ? chooseRoute(caster.spellcasting, request.spellId, request.source, {
             ritual: request.ritual === true,
             fromBook: ritualsFromBookOn(state, casterId),
+            // The printed line's own door saying it is the one calling, and
+            // absent for every other caster — so a route a heading prices is
+            // refused `route_through_line_only` however its source was named.
+            ...(taking === undefined ? {} : { throughLine: taking.throughLine }),
           })
         : // The sheet as it stands, because a wand that printed no numbers
           // leaves them to the wielder's own — and an item that sets the
