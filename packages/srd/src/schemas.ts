@@ -1285,6 +1285,58 @@ export const MonsterTeleportSchema = z.object({
 export type MonsterTeleport = z.infer<typeof MonsterTeleportSchema>;
 
 /**
+ * One shape a creature's own line offers it.
+ *
+ * SRD Shape-Shift: "The werewolf shape-shifts into a Large wolf-humanoid
+ * hybrid or a Medium wolf, or it returns to its true humanoid form."
+ *
+ * **The name is a word, because the block's other headings gate on it.** "Bite
+ * (Wolf or Hybrid Form Only)" names one of these, so the last noun of each
+ * alternative is what is read — `hybrid`, `wolf`, `humanoid` — and a line that
+ * returns to a form the book gives no noun is `true`.
+ */
+export const MonsterFormSchema = z.object({
+  /** The word the block's qualified headings name this form by. */
+  name: z.string().regex(/^[a-z][a-z-]*$/),
+  /**
+   * The sizes the line prints for this form, in the order it prints them.
+   *
+   * A list because the book offers a choice — "a Medium or Small Humanoid" —
+   * and empty where the line prints none, which is every true form: the
+   * sentence says the statistics are the same *other than* the size, so a form
+   * with no printed size is the creature's own.
+   */
+  sizes: z.array(CreatureSizeSchema),
+  /**
+   * The Speeds this form prints, or null where it prints none.
+   *
+   * SRD Imp: "a rat (Speed 20 ft.), a raven (20 ft., Fly 60 ft.), or a spider
+   * (20 ft., Climb 20 ft.)" — the one thing those two blocks say changes
+   * between forms, against the size every other printing names.
+   */
+  speed: SpeedSchema.nullable(),
+});
+export type MonsterForm = z.infer<typeof MonsterFormSchema>;
+
+/**
+ * The forms one printed line offers, and whatever else the line said.
+ *
+ * `handedOver` is `MonsterSave`'s field by the same argument: the reader goes
+ * sentence by sentence, the promises the book repeats on every printing are
+ * inert and swallowed — the statistics unchanged, the equipment untransformed
+ * — and anything else comes back verbatim so the table gets it. SRD Succubus
+ * prints one such clause ("its Fly Speed is available only in its true form")
+ * and reading it away would give the succubus a Speed the book withheld.
+ */
+export const MonsterFormsSchema = z.object({
+  /** At least two, because a line that offers one form offers no choice. */
+  forms: z.array(MonsterFormSchema).min(2),
+  /** Every sentence of the line this reader did not read, verbatim. */
+  handedOver: z.array(z.string().min(1)),
+});
+export type MonsterForms = z.infer<typeof MonsterFormsSchema>;
+
+/**
  * One Reaction line that adds a flat number to somebody's D20 Test.
  *
  * SRD Sphinx of Wonder, Burst of Ingenuity (2/Day): "_Trigger:_ The sphinx or
@@ -2223,6 +2275,28 @@ export const FeatureSchema = z.object({
   casts: MonsterCastLineSchema.optional(),
   /** Where this line teleports its creature — see {@link MonsterTeleportSchema}. */
   teleports: MonsterTeleportSchema.optional(),
+  /**
+   * The forms this line puts its creature into — see {@link MonsterFormsSchema}.
+   *
+   * Read on every section like everything else here. The book prints
+   * Shape-Shift as an Action on two blocks and as a Bonus Action on eleven,
+   * which is a heading saying what the use *costs*.
+   */
+  forms: MonsterFormsSchema.optional(),
+  /**
+   * The forms this line may be used in, where its **heading** says so.
+   *
+   * SRD Werewolf: "Bite (Wolf or Hybrid Form Only)", "Longbow (Humanoid or
+   * Hybrid Form Only)"; SRD Weretiger's Prowl and SRD Mimic's Adhesive print
+   * the same clause. The words are lowercased into the names the block's own
+   * Shape-Shift prints its forms under, so the gate and the form are one
+   * vocabulary rather than two strings that happen to agree.
+   *
+   * Read off the *name* for {@link MonsterRechargeSchema}'s reason: the book
+   * prints it inside the heading, and a heading is exactly what nothing
+   * downstream may branch on.
+   */
+  onlyInForms: z.array(z.string().regex(/^[a-z][a-z-]*$/)).min(1).optional(),
   /**
    * The flat addend this Reaction line puts on somebody's D20 Test — see
    * {@link MonsterRollAddendSchema}.
