@@ -52,13 +52,15 @@ import {
   placeCreatureInScene,
   resolveTurn,
   setScene,
+  takeDodge,
 } from './commands.js';
+import { canSpendSlot } from './combat.js';
 import { createRng, type Rng } from './dice.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { distanceBetween } from './positioning.js';
 import { grantedRollModes } from './roll-modifiers.js';
 import { createRollIssuer } from './rolls.js';
-import { speedOf } from './standing.js';
+import { actionRulesOn, speedOf } from './standing.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 
 const id = (s: string) => asCharacterId(s);
@@ -236,8 +238,12 @@ describe('a condition a failure imposes', () => {
       if (out.outcomes[0]!.save.success) continue;
       expect(has(state, BREN, 'poisoned')).toBe(true);
       expect(timersOn(state, BREN)[0]?.deadline).toMatchObject({ kind: 'turn-end', of: BREN });
-      // And the sentence the reader carried comes back, once, at the moment of use.
-      expect(out.unverified.some((line) => line.includes('While Poisoned, the creature can take either'))).toBe(true);
+      // The sentence the reader used to carry — "While Poisoned, the creature
+      // can take either an action or a Bonus Action…" — is applied now, and
+      // nothing of this line is handed over but the area it names, which
+      // needs an origin and a facing nobody declared. See the block below.
+      expect(out.unverified.some((line) => line.includes('either an action'))).toBe(false);
+      expect(out.unverified).toHaveLength(1);
       return;
     }
     throw new Error('no seed failed the save');
@@ -557,6 +563,204 @@ describe('a mode a condition this line imposed carries', () => {
       return;
     }
     throw new Error('no seed failed the save');
+  });
+});
+
+/**
+ * SRD Dretch, Fetid Cloud: "While Poisoned, the creature can take either an
+ * action or a Bonus Action on its turn, not both, and it can't take
+ * Reactions." SRD Copper Dragon Wyrmling, Slowing Breath: "The target can't
+ * take Reactions; its Speed is halved; and it can take either an action or a
+ * Bonus Action on its turn, not both. This effect lasts until the end of its
+ * next turn."
+ *
+ * Two dressings of one rule, and both lifetimes the vocabulary offers: the
+ * Dretch's hangs on the condition instance the same failure created, exactly
+ * as the Ravens' Disadvantage does, and the Copper Dragon's hangs under a
+ * `grants` timer, exactly as the Steam Mephit's Speed cut does. Nothing new
+ * below either of them — the `one-of` rule is `combat.ts`'s and the halving is
+ * `SpeedChange`'s, both of which SRD Slow already needed.
+ */
+describe('a rule a failure puts on the target’s turn', () => {
+  const rulesOn = (state: GameState, who: CharacterId) =>
+    [...(state.creatures[who]?.actionRules ?? [])].map((held) => held.rule);
+
+  /** The engine's own door onto "may this slot be spent", with the rules standing. */
+  const maySpend = (
+    state: GameState,
+    who: CharacterId,
+    slot: 'action' | 'bonus-action' | 'reaction',
+  ) =>
+    canSpendSlot(state.combat!, who, slot, state.creatures[who]!.conditions, {
+      rules: actionRulesOn(state, who),
+    });
+
+  describe('the Dretch’s cloud, whose lifetime is the Poisoned it imposed', () => {
+    const CLOUD = 'Fetid Cloud (1/Day)';
+    const SOURCE = `poisoned:printed:${FOE}:${CLOUD}`;
+
+    const poisoned = () => {
+      for (const seed of SEEDS) {
+        const one = forced('dretch', CLOUD, seed);
+        if (has(one.state, BREN, 'poisoned')) return one;
+      }
+      throw new Error('no seed failed the save');
+    };
+
+    it('reads the line whole, with nothing left for the table', () => {
+      const seen: { success: boolean }[] = [];
+      for (const seed of SEEDS) {
+        const { out, state } = forced('dretch', CLOUD, seed);
+        const [one] = out.outcomes;
+        seen.push({ success: one!.save.success });
+        // The sentence used to come back in `unverified` at every use. It is
+        // applied now, so nothing about the coupling is handed over.
+        expect(out.unverified.some((line) => line.includes('either an action'))).toBe(false);
+        if (one!.save.success) expect(rulesOn(state, BREN)).toEqual([]);
+      }
+      bothBranches(seen);
+    });
+
+    it('hangs both rules on the condition instance, with no deadline of their own', () => {
+      const { state } = poisoned();
+      expect(state.creatures[BREN]!.actionRules.map((held) => held.source)).toEqual([
+        SOURCE,
+        SOURCE,
+      ]);
+      // The instance is the deadline, so no `grants` timer stands beside it —
+      // the reading the Ravens' Disadvantage already takes.
+      expect(
+        Object.values(state.timers).some((t) => t.target.kind === 'grants' && t.target.on === BREN),
+      ).toBe(false);
+      expect(rulesOn(state, BREN)).toEqual([
+        { kind: 'forbids', slots: ['reaction'] },
+        { kind: 'one-of', slots: ['action', 'bonus-action'] },
+      ]);
+    });
+
+    it('couples the two slots and takes the Reaction away, live', () => {
+      const { state } = poisoned();
+      const theirTurn = applyEvent(state, { type: 'turn-advanced' });
+
+      // The Reaction is gone outright: the second half of the same sentence.
+      const reaction = maySpend(theirTurn, BREN, 'reaction');
+      expect(reaction.ok ? 'permitted' : reaction.code).toBe('action_forbidden');
+
+      // And either slot may be taken, but not both. The Dodge is a real
+      // command spending a real Action; the Bonus Action has no spender a
+      // level 1 Fighter holds, so the budget is asked at the engine's own
+      // door — which is the door every Bonus Action command goes through.
+      expect(maySpend(theirTurn, BREN, 'bonus-action').ok).toBe(true);
+      const dodged = after(theirTurn, unwrap(takeDodge(theirTurn, BREN, {}), 'dodge'));
+      const refused = maySpend(dodged, BREN, 'bonus-action');
+      expect(refused.ok ? 'permitted' : refused.code).toBe('slot_foreclosed');
+    });
+
+    it('lifts all of it when the printed span ends the Poisoned', () => {
+      const { state } = poisoned();
+      // "until the end of its next turn" — the target's. The dretch went
+      // first, so Bren's turn and the end of it is the moment.
+      const later = applyEvent(applyEvent(state, { type: 'turn-advanced' }), {
+        type: 'turn-advanced',
+      });
+      expect(has(later, BREN, 'poisoned')).toBe(false);
+      expect(later.creatures[BREN]!.actionRules).toEqual([]);
+    });
+
+    it('lifts all of it when a Lesser Restoration ends the Poisoned early', () => {
+      const { state } = poisoned();
+      const cured = after(state, unwrap(liftConditionFrom(state, BREN, 'poisoned'), 'cure'));
+      expect(has(cured, BREN, 'poisoned')).toBe(false);
+      expect(cured.creatures[BREN]!.actionRules).toEqual([]);
+      expect(maySpend(applyEvent(cured, { type: 'turn-advanced' }), BREN, 'reaction').ok).toBe(
+        true,
+      );
+    });
+
+    it('hangs nothing on a Zombie the Poisoned never reached, and says so', () => {
+      for (const seed of SEEDS) {
+        const { out, state } = forced('dretch', CLOUD, seed, [ZOMBIE], [
+          { id: ZOMBIE, monster: 'zombie' },
+        ]);
+        if (out.outcomes[0]!.save.success) continue;
+        expect(out.outcomes[0]!.immuneTo).toEqual(['poisoned']);
+        // A grant sourced to an instance nobody created would be a coupling
+        // nothing could ever lift, so it is not written — and the caller is
+        // told, exactly as the Ravens' Disadvantage tells them.
+        expect(state.creatures[ZOMBIE]!.actionRules).toEqual([]);
+        expect(out.unverified.some((line) => line.includes('Poisoned'))).toBe(true);
+        return;
+      }
+      throw new Error('no seed failed the save');
+    });
+  });
+
+  describe('the Copper Dragon’s breath, whose lifetime is a printed span', () => {
+    const breathed = () => {
+      for (const seed of SEEDS) {
+        const one = forced('copper-dragon-wyrmling', 'Slowing Breath', seed);
+        if (!one.out.outcomes[0]!.save.success) return one;
+      }
+      throw new Error('no seed failed the save');
+    };
+
+    it('halves the Speed, couples the slots and takes the Reaction away', () => {
+      const seen: { success: boolean }[] = [];
+      for (const seed of SEEDS) {
+        const { out, state } = forced('copper-dragon-wyrmling', 'Slowing Breath', seed);
+        seen.push({ success: out.outcomes[0]!.save.success });
+        // The area is the table's; every sentence of the failure is read.
+        expect(out.unverified).toEqual([
+          `Slowing Breath reads "each creature in a 15-foot Cone" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
+        ]);
+        if (out.outcomes[0]!.save.success) {
+          expect(speedOf(state, BREN)).toBe(30);
+          expect(rulesOn(state, BREN)).toEqual([]);
+          continue;
+        }
+        expect(speedOf(state, BREN)).toBe(15);
+        expect(rulesOn(state, BREN)).toEqual([
+          { kind: 'forbids', slots: ['reaction'] },
+          { kind: 'one-of', slots: ['action', 'bonus-action'] },
+        ]);
+      }
+      bothBranches(seen);
+    });
+
+    it('holds the three under deadlines that end together', () => {
+      const { out, state } = breathed();
+      // **Two timers and two events.** The two rules share a source, because
+      // `actionRuleKey` tells two statements of one source apart and one
+      // ending takes both — so a timer is raised once per source rather than
+      // once per clause, and the log says so as well as the state.
+      expect(out.events.filter((e) => e.type === 'effect-scheduled')).toHaveLength(2);
+      const deadlines = Object.values(state.timers)
+        .filter((t) => t.target.kind === 'grants' && t.target.on === BREN)
+        .map((t) => t.deadline);
+      // Two sourced grants under two timers — the rules share one source and
+      // the halving has its own, because `speed-modifier-granted` is keyed by
+      // the source alone and a line may cut *and* halve.
+      expect(deadlines).toHaveLength(2);
+      for (const deadline of deadlines) expect(deadline).toMatchObject({ kind: 'turn-end', of: BREN });
+    });
+
+    it('gives it all back at the end of the target’s next turn', () => {
+      const { state } = breathed();
+      const later = applyEvent(applyEvent(state, { type: 'turn-advanced' }), {
+        type: 'turn-advanced',
+      });
+      expect(speedOf(later, BREN)).toBe(30);
+      expect(later.creatures[BREN]!.actionRules).toEqual([]);
+    });
+
+    it('couples the two slots while it stands', () => {
+      const { state } = breathed();
+      const theirTurn = applyEvent(state, { type: 'turn-advanced' });
+      expect(maySpend(theirTurn, BREN, 'bonus-action').ok).toBe(true);
+      const dodged = after(theirTurn, unwrap(takeDodge(theirTurn, BREN, {}), 'dodge'));
+      const refused = maySpend(dodged, BREN, 'bonus-action');
+      expect(refused.ok ? 'permitted' : refused.code).toBe('slot_foreclosed');
+    });
   });
 });
 

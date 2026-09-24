@@ -166,6 +166,86 @@ function durationOf(
   return undefined;
 }
 
+/** Every clause that carries a lifetime of either kind — see {@link hangTo}. */
+type LastingClause = Extract<PrintedSaveEffect, { kind: 'action-rule' | 'speed-halved' }>;
+
+/** Where a clause's grant is filed, and how a refusal finishes its sentence. */
+interface Hung {
+  /** A condition instance's id, or a key of the line's own that a timer ends. */
+  readonly source: string;
+  /** The span a `grants` timer holds, where the clause printed one. */
+  readonly deadline?: PrintedSpan;
+  /** `GrantedActionRule.until`: "the end of its own next turn", "the Poisoned condition ends". */
+  readonly until: string;
+}
+
+/**
+ * A printed span in the words a refusal ends with.
+ *
+ * `durationOf` above answers the same question for the clock; this answers it
+ * for the **person reading the refusal**, which is what `GrantedActionRule`
+ * carries `until` for: "you cannot do this" with no end in sight is the least
+ * useful true thing a rules engine can say.
+ */
+function spanWords(span: PrintedSpan): string {
+  if (span.kind === 'turn') {
+    return `the ${span.moment} of ${span.of === 'target' ? 'its own' : "the source's"} next turn`;
+  }
+  const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+  if (span.seconds % 3600 === 0) return plural(span.seconds / 3600, 'hour');
+  if (span.seconds % 60 === 0) return plural(span.seconds / 60, 'minute');
+  return plural(span.seconds, 'second');
+}
+
+/**
+ * Where one clause's grant goes, or null where it has nowhere to go.
+ *
+ * **Two lifetimes and the corpus prints both**, which is why the pair of
+ * clauses share this. A `whileCondition` is the Ravens' reading: the grant is
+ * sourced to the condition instance *this failure* created and carries no
+ * deadline, because the instance is the deadline. A `lasts` is the Steam
+ * Mephit's: a key of the line's own with a `grants` timer over it.
+ *
+ * Null on the two ways a clause can end up with no host — a condition that did
+ * not land, and a clause that named no lifetime at all. Both are reported
+ * rather than hung, for the reason the mode clause gives: a rule sourced to an
+ * instance nobody created, or to nothing, is one that could never be lifted.
+ */
+function hangTo(
+  clause: LastingClause,
+  lineSource: string,
+  landed: ReadonlyMap<ConditionName, string>,
+): Hung | null {
+  if (clause.whileCondition !== undefined) {
+    const instance = landed.get(clause.whileCondition);
+    if (instance === undefined) return null;
+    return {
+      source: instance,
+      until: `the ${conditionTitle(clause.whileCondition)} condition ends`,
+    };
+  }
+  if (clause.lasts === undefined) return null;
+  // Keyed by the **kind** as well as the line, because the two clauses are
+  // stored in different families and `speed-modifier-granted` is identified by
+  // its source alone: a line that both cut and halved a Speed would lose the
+  // first to the second under one key. `speed-decrease` is the neighbour that
+  // already takes `:speed`.
+  return { source: `${lineSource}:${clause.kind}`, deadline: clause.lasts, until: spanWords(clause.lasts) };
+}
+
+/** What the caller is told about a clause that found nothing to hang on. */
+function describeUnhung(clause: LastingClause, line: string, target: CharacterId): string {
+  const what =
+    clause.kind === 'speed-halved'
+      ? `halves ${target}'s Speed`
+      : `changes what ${target}'s turn may hold`;
+  if (clause.whileCondition === undefined) {
+    return `${line} ${what} and says no span and names no condition to end it — nothing was hung`;
+  }
+  const title = conditionTitle(clause.whileCondition);
+  return `${line} ${what} while ${title}, and the ${title} condition did not land on them — nothing was hung`;
+}
+
 /**
  * Apply the clauses one outcome of a printed save carries to one creature.
  *
@@ -204,6 +284,16 @@ export function applyPrintedClauses(
    * source it went on, the line's or the grapple's.
    */
   const landedInstances = new Map<ConditionName, string>();
+  /**
+   * The sources a `grants` timer has already been raised for.
+   *
+   * One line may print two rules under one span — SRD Copper Dragon Wyrmling
+   * prints a `forbids` and a `one-of` — and they share a source, because
+   * `actionRuleKey` tells two statements of one source apart and one ending
+   * takes both. A second timer under the same key would be a second deadline
+   * for one sentence, with nothing to keep the two in step.
+   */
+  const scheduled = new Set<string>();
 
   const land = (more: readonly GameEvent[]): void => {
     events.push(...more);
@@ -361,6 +451,61 @@ export function applyPrintedClauses(
             },
           })),
         );
+        break;
+      }
+
+      case 'action-rule':
+      case 'speed-halved': {
+        // SRD Dretch: "While Poisoned, the creature can take either an action
+        // or a Bonus Action on its turn, not both, and it can't take
+        // Reactions." SRD Copper Dragon Wyrmling: the same rules, and a Speed
+        // halved beside them, under one printed span.
+        //
+        // **Two lifetimes, one clause**, which is why these two share a case:
+        // the corpus prints each of them both ways. A `whileCondition` is
+        // sourced to the instance the same failure created and carries no
+        // deadline of its own — the Ravens' reading exactly — and a `lasts` is
+        // a `grants` timer, which is the Steam Mephit's Speed cut exactly.
+        const hung = hangTo(clause, lineSource, landedInstances);
+        if (hung === null) {
+          // Either the sentence named a condition that did not land — an
+          // immune target, which is the one way a clause the reader gated can
+          // still find no host — or it reached here with no lifetime at all,
+          // which `parsePrintedSave` refuses and a pinned record from some
+          // other door might not. A rule nothing could ever lift is not
+          // written, and the caller is told.
+          unverified.push(describeUnhung(clause, line, target));
+          break;
+        }
+        if (hung.deadline !== undefined && !scheduled.has(hung.source)) {
+          const duration = durationOf(hung.deadline, undefined, source, target);
+          if (duration === undefined) break;
+          const timer = schedule(
+            current,
+            { kind: 'grants', on: target, source: hung.source },
+            duration,
+          );
+          if (!timer.ok) return timer;
+          scheduled.add(hung.source);
+          land([timer.value]);
+        }
+        land([
+          clause.kind === 'speed-halved'
+            ? {
+                type: 'speed-modifier-granted',
+                id: target,
+                modifier: { source: hung.source, change: 'halve' },
+              }
+            : {
+                type: 'action-rule-granted',
+                id: target,
+                // The vocabulary is `combat.ts`'s and the clause is
+                // `@ie/srd`'s, and this assignment is the seam: a slot word
+                // the book's side gains and the engine's side has not is a
+                // compile error here rather than a rule nobody enforces.
+                rule: { source: hung.source, rule: clause.rule, label: line, until: hung.until },
+              },
+        ]);
         break;
       }
 
