@@ -492,17 +492,14 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
     expect(knownFeatureBlockers()).not.toContain('a-cheaper-price-only-one-command-offers');
     expect(featureConsumersOf('an-action-a-spell-compels-or-forbids')).toEqual({
       shape: 'an-action-a-spell-compels-or-forbids',
-      blocks: [
-        'open-hand:fleet-step',
-        // Open Hand Technique joined this row when the hit-bought effect list
-        // landed: the clause that had been filed under the missing trigger is
-        // Addle, and Addle forbids somebody else an Opportunity Attack. The
-        // feature is still blocked on the Flurry of Blows the three effects
-        // ride on, so this shape does not finish it.
-        'open-hand:technique',
-        'paladin:abjure-foes',
-        'rogue:devious-strikes',
-      ],
+      // Open Hand Technique used to stand here for Addle — "the target can't
+      // make Opportunity Attacks until the start of its next turn" — and is
+      // gone from the row because the clause is executed: `action-rule` is a
+      // conferred effect kind now, and a hit rider hangs it on the creature it
+      // struck with the target's own next turn as the deadline. What is left
+      // on this row is the half no rider reaches: a second Bonus Action, an
+      // action granted rather than governed.
+      blocks: ['open-hand:fleet-step', 'paladin:abjure-foes', 'rogue:devious-strikes'],
       finishes: ['open-hand:fleet-step'],
     });
   });

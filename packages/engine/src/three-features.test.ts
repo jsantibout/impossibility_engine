@@ -5,7 +5,7 @@ import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent } from './events.js';
-import { resolveAttack, usePoolOption } from './commands.js';
+import { resolveAttack, useBudgetPurchase, usePoolOption } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { remaining } from './resources.js';
 
@@ -357,5 +357,190 @@ describe('SRD Breath Weapon — an exhalation in place of one attack', () => {
     const log = swing(swing(table(), 'a'), 'b');
     const refused = breathe(log);
     expect(isErr(refused) && refused.code).toBe('no_attacks_left');
+  });
+});
+
+/**
+ * SRD Open Hand Technique: "Whenever you hit a creature with an attack granted
+ * by your **Flurry of Blows**, you can impose one of the following effects on
+ * that target."
+ *
+ * The three effects were nearly data the day a hit could buy an effect list.
+ * What blocked them was the sentence's first clause: a swing knew what it cost
+ * and not what had *bought* it, so nothing could tell a Flurry's punch from
+ * any other. `GrantedAttacks` carries what sold it now, and `fromGrant` is the
+ * filter that reads it.
+ */
+
+const SHAN = id('shan');
+const MARK = id('mark');
+
+const TECHNIQUE = 'open-hand:technique';
+
+const monk = (): CharacterChoices => ({
+  name: 'Shan',
+  classId: 'monk',
+  level: 5,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 12, dex: 15, con: 13, int: 8, wis: 14, cha: 10 },
+  },
+  abilityIncreases: { con: 2, wis: 1 },
+  classSkills: ['acrobatics', 'stealth'],
+  languages: ['Dwarvish', 'Orc'],
+  alignment: 'Lawful Neutral',
+  subclassId: 'warrior-of-the-open-hand',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'human:skillful': ['perception'] },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int' as const,
+      cantrips: ['mage-hand', 'light'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'alert' },
+    'monk:ability-score-improvement': { featId: 'defense' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+});
+
+/** The Monk, a mark five feet away, and a fight on the Monk's turn. */
+const dojo = (): readonly GameEvent[] => [
+  ...(unwrap(createCharacter(SRD_CONTENT, monk(), SHAN), 'monk') as GameEvent[]),
+  { type: 'creature-side-declared', id: SHAN, side: 'party' },
+  {
+    type: 'creature-added',
+    id: MARK,
+    name: 'mark',
+    sheet: plain(),
+    maxHp: 400,
+    diesAtZero: false,
+    creatureType: 'Humanoid',
+    side: 'thugs',
+  },
+  { type: 'scene-set', extent: { width: 200, depth: 200, height: 40 } },
+  { type: 'landmark-added', name: 'the mat', at: { x: 50, y: 50, z: 0 } },
+  { type: 'landmark-added', name: 'the edge', at: { x: 55, y: 50, z: 0 } },
+  { type: 'creature-placed', id: SHAN, placement: { from: { landmark: 'the mat' }, feet: 0 } },
+  { type: 'creature-placed', id: MARK, placement: { from: { landmark: 'the edge' }, feet: 0 } },
+  {
+    type: 'combat-started',
+    combatants: [
+      { id: SHAN, initiative: 20, speed: 30 },
+      { id: MARK, initiative: 10, speed: 30 },
+    ],
+  },
+];
+
+/** SRD Flurry of Blows: a Bonus Action and a Focus Point buy two strikes. */
+const flurry = (log: readonly GameEvent[]): readonly GameEvent[] => [
+  ...log,
+  ...unwrap(
+    useBudgetPurchase(fold('seed', log), SHAN, {
+      feature: 'monk:focus',
+      purchase: 'flurry-of-blows',
+    }),
+    'flurry',
+  ),
+];
+
+/** A punch, with the roll forced to land so the test is about the rider. */
+const punch = (
+  log: readonly GameEvent[],
+  onHit: { readonly feature: string; readonly option: string } | undefined,
+  options: { readonly seed?: string; readonly save?: number } = {},
+) =>
+  resolveAttack(
+    fold('seed', log),
+    SHAN,
+    {
+      target: MARK,
+      weapon: null,
+      attackBonuses: [{ source: 'forced', flat: 40 }],
+      ...(onHit === undefined ? {} : { onHit }),
+    },
+    {
+      issuer: createRollIssuer('r'),
+      rng: createRng(options.seed ?? 'flurry') as Rng,
+      content: SRD_CONTENT,
+      ...(options.save === undefined
+        ? {}
+        : { bonuses: [{ source: 'the test insists', flat: options.save }] }),
+    },
+  );
+
+const landed = (
+  log: readonly GameEvent[],
+  onHit: { readonly feature: string; readonly option: string },
+  options: Parameters<typeof punch>[2] = {},
+) => {
+  const out = unwrap(punch(log, onHit, options), 'punch');
+  return { out, state: fold('seed', [...log, ...out.events]), log: [...log, ...out.events] };
+};
+
+/** The die is the engine's; which side of the DC it lands on is the test's. */
+const DOOMED = -40;
+const CERTAIN = 40;
+
+describe('SRD Open Hand Technique — a rider the Flurry has to have bought', () => {
+  it('refuses the rider on an ordinary punch that no Flurry paid for', () => {
+    const refused = punch(dojo(), { feature: TECHNIQUE, option: 'topple' });
+    expect(isErr(refused) && refused.code).toBe('not_from_that_grant');
+
+    // And nothing was spent: the refusal arrives before the roll.
+    const after = fold('seed', dojo());
+    expect(after.combat?.budgets[SHAN]?.action).toBe(true);
+  });
+
+  it('allows it on a strike the Flurry bought, and Topple knocks a failure Prone', () => {
+    const log = flurry(dojo());
+    expect(fold('seed', log).combat?.budgets[SHAN]?.grantedAttacks?.remaining).toBe(2);
+
+    const { state } = landed(log, { feature: TECHNIQUE, option: 'topple' }, { save: DOOMED });
+    expect(state.creatures[MARK]?.conditions.conditions).toContain('prone');
+    // The strike came out of the Flurry rather than out of the Attack action.
+    expect(state.combat?.budgets[SHAN]?.grantedAttacks?.remaining).toBe(1);
+    expect(state.combat?.budgets[SHAN]?.action).toBe(true);
+  });
+
+  it('leaves a Dexterity save that succeeds standing', () => {
+    const log = flurry(dojo());
+    const { state } = landed(log, { feature: TECHNIQUE, option: 'topple' }, { save: CERTAIN });
+    expect(state.creatures[MARK]?.conditions.conditions ?? []).not.toContain('prone');
+  });
+
+  it('Push moves a failed Strength save fifteen feet straight away', () => {
+    const log = flurry(dojo());
+    const start = fold('seed', log).scene?.positions[MARK];
+    const { state } = landed(log, { feature: TECHNIQUE, option: 'push' }, { save: DOOMED });
+    const end = state.scene?.positions[MARK];
+    // SRD: "pushed up to 15 feet away from you", along the bearing between them.
+    expect(end?.x).toBe((start?.x ?? 0) + 15);
+  });
+
+  it('Addle stops the target making an Opportunity Attack until the start of its turn', () => {
+    const log = flurry(dojo());
+    const { state, log: after } = landed(log, { feature: TECHNIQUE, option: 'addle' });
+
+    const rules = state.creatures[MARK]?.actionRules ?? [];
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.rule).toMatchObject({ kind: 'forbids', actions: ['opportunity-attack'] });
+
+    // "until the start of its next turn" — the target's own, not the Monk's.
+    const later = fold('seed', [
+      ...after,
+      { type: 'turn-advanced', from: SHAN, to: MARK } as GameEvent,
+    ]);
+    expect(later.creatures[MARK]?.actionRules ?? []).toEqual([]);
   });
 });

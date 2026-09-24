@@ -3441,9 +3441,15 @@ export function planCharacter(
         ...(grant.oncePerTurn === undefined ? {} : { oncePerTurn: grant.oncePerTurn }),
         ...(grant.weapons === undefined ? {} : { weapons: grant.weapons }),
         ...(grant.unarmedStrike === undefined ? {} : { unarmedStrike: grant.unarmedStrike }),
+        // SRD Open Hand Technique: "an attack granted by your Flurry of
+        // Blows" — a fact about what bought the swing rather than about what
+        // is in the hand, asked of the budget at the moment of the swing.
+        ...(grant.fromGrant === undefined ? {} : { fromGrant: grant.fromGrant }),
         effects: option.effects,
         ability,
         ...(option.lasts === undefined ? {} : { lasts: option.lasts }),
+        ...(option.lastsOn === undefined ? {} : { lastsOn: option.lastsOn }),
+        ...(option.forcedMove === undefined ? {} : { forcedMove: option.forcedMove }),
         ...(option.durationSeconds === undefined
           ? {}
           : { durationSeconds: option.durationSeconds }),

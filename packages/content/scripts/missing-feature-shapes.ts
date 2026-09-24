@@ -553,28 +553,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'and it costs three Focus Points at once, where an activation spends exactly one use.',
     },
   ],
-  'open-hand:technique': [
-    {
-      clause: 'Flurry of Blows is not modelled',
-      why: 'an-attack-the-class-redefines',
-      note: 'the attack the three effects ride on, and the whole of what is left of the trigger: a hit buys an effect list now, and nothing can tell a Flurry’s hit from any other punch.',
-    },
-    {
-      clause: 'Topple is a Dexterity save with Prone on a failure and would be data',
-      why: 'expressible',
-      note: 'one of the three effects, and the one the rider host would execute today.',
-    },
-    {
-      clause: 'Push moves the target fifteen feet',
-      why: 'forced-movement-a-spell-causes',
-      note: 'the same `moveCreature` with `forced: true` that no spell effect reaches either.',
-    },
-    {
-      clause: 'Addle stops its Opportunity Attacks',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'an action forbidden to somebody else, which is the action economy answering to a feature.',
-    },
-  ],
   'open-hand:fleet-step': [
     {
       clause: 'A free Step of the Wind alongside another Bonus Action',

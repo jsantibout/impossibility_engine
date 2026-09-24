@@ -2152,6 +2152,19 @@ export type GameEvent =
       };
       /** SRD Flurry of Blows: "two Unarmed Strikes". */
       readonly attacks?: { readonly remaining: number; readonly unarmedOnly: boolean };
+      /**
+       * Which purchase sold them, as `budgetPurchaseSlot`'s `<feature>/<id>`.
+       *
+       * {@link source} is what the log calls it and this is what a rule reads:
+       * SRD Open Hand Technique rides on "an attack granted by your Flurry of
+       * Blows", which is a fact about the *purchase* rather than about its
+       * printed name, and a name is a thing a translation changes.
+       *
+       * Absent for every door but the pool purchase — a spell and a turn
+       * boundary hand a budget something without selling it — and absent from
+       * every log written before the field, which is what the optional says.
+       */
+      readonly purchase?: string;
       readonly command?: CommandStamp;
     }
 

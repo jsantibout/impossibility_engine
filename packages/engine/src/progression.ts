@@ -23,6 +23,8 @@ import { CASTING_MARK } from './spells.js';
 import type {
   ActivationEnd,
   CastingCostAlteration,
+  HitForcedMove,
+  HitRiderAnchor,
   HungGrant,
   StandingGrant,
   StandingRequirement,
@@ -783,6 +785,31 @@ export interface HitOptionGrant {
    * condition the engine cannot time and one that would never lift.
    */
   readonly lasts?: TurnAnchor;
+  /**
+   * Whose next turn {@link lasts} is anchored on.
+   *
+   * Omitted, the **holder's**, which is what SRD Stunning Strike writes:
+   * "until the start of **your** next turn". SRD Open Hand Technique's Addle
+   * writes the other one in the same breath — "until the start of **its** next
+   * turn" — and the two are a round apart in the order, so filing one on the
+   * other is a wrong rule rather than a refusal. `HitOption.lastsOn` is the
+   * compiled field and a printed stat line already writes it; this is the door
+   * a **feature** says it through.
+   */
+  readonly lastsOn?: HitRiderAnchor;
+  /**
+   * A shove the rider itself delivers — SRD Open Hand Technique's Push: "The
+   * target must succeed on a Strength saving throw or be **pushed up to 15
+   * feet away from you**."
+   *
+   * `HitOption.forcedMove` is the compiled field and a printed stat line
+   * already writes it, unconditionally: a satyr simply pushes. What a feature
+   * adds is the branch — {@link HitForcedMove.save} — and the reason it is
+   * here rather than in the effect list is `HitOption.forcedMove`'s own: a
+   * shove is arithmetic **between two creatures**, and an effect is a thing
+   * hung on one of them.
+   */
+  readonly forcedMove?: HitForcedMove;
   /**
    * How long what it hangs lasts, in seconds — SRD Cunning Strike's Poison,
    * "the target has the Poisoned condition for 1 minute".
@@ -1802,6 +1829,21 @@ export type FeatureGrant =
       readonly weapons?: readonly WeaponSelector[];
       /** SRD Stunning Strike: "or an Unarmed Strike", the second clause. */
       readonly unarmedStrike?: boolean;
+      /**
+       * The purchase the swing has to have been **bought by** — SRD Open Hand
+       * Technique's "an attack granted by your Flurry of Blows".
+       *
+       * A third clause beside {@link weapons} and {@link unarmedStrike}, and a
+       * different question from both: those ask what is in the holder's hand
+       * and this asks where the swing came from. `budgetPurchaseSlot`'s key,
+       * `<feature>/<purchase>`, which is the one string a purchase already
+       * mints and the one the budget already pins.
+       *
+       * Absent asks nothing, which is every other rider in the book: SRD
+       * Stunning Strike rides on any qualifying swing and a Goliath's boon on
+       * "an attack roll".
+       */
+      readonly fromGrant?: string;
       /**
        * The ability the save DC is derived from, where the feature prints one.
        *

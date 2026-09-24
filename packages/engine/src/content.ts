@@ -1627,6 +1627,16 @@ const CONFERRED_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'attack-rider',
   'condition-immunity',
   'turn-payout',
+  // SRD Open Hand Technique's Addle: "The target can't make Opportunity
+  // Attacks until the start of its next turn." A rule about the *target's*
+  // turn, which a casting already hangs — `actionRulesOn` merges what a
+  // feature says with what a casting hung at every site a spend is checked —
+  // and which no feature could say until a hit could buy an effect list.
+  //
+  // It is in {@link CONFERRED_GRANT_KINDS} too, so the lifetime rule bites: a
+  // rule hung with no deadline would be a creature that never makes an
+  // Opportunity Attack again.
+  'action-rule',
 ]);
 
 /**
@@ -1647,6 +1657,7 @@ const CONFERRED_GRANT_KINDS: ReadonlySet<string> = new Set([
   'attack-rider',
   'condition-immunity',
   'turn-payout',
+  'action-rule',
 ]);
 
 /**
@@ -1878,6 +1889,85 @@ function rolledSpanProblems(span: unknown, field: string): readonly ContentProbl
  * spell's list is held to rather than to a third vocabulary kept in step by
  * hand.
  */
+/**
+ * The conditions a creature takes off **itself**, which is why an option that
+ * imposes one need print no lifetime.
+ *
+ * The lifetime rule exists for one reason and says it in as many words: there
+ * is no casting for `releaseCasting` to end, so a grant with no deadline would
+ * run for ever. Prone is the one condition the SRD hands out with no span and
+ * no casting, because the creature stands up — and the engine already imposes
+ * it that way from the Topple weapon mastery and from a shove, through
+ * `applyConditionTo` with no timer at all. Demanding a deadline here would
+ * have made SRD Open Hand Technique's Topple and SRD Cunning Strike's Trip
+ * unwritable, or written them with an invented minute.
+ *
+ * One member, and it stays one until the book prints a second: a condition
+ * added here is a condition nothing would ever lift.
+ */
+const ENDS_ITSELF: ReadonlySet<string> = new Set(['prone']);
+
+/** Whether a condition an option imposes is one its holder ends. */
+const endsItself = (condition: unknown): boolean => ENDS_ITSELF.has(String(condition));
+
+function hitForcedMoveProblems(
+  featureId: string,
+  declared: unknown,
+  at: string,
+  host: 'pool' | 'hit',
+): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const say = (code: string, reason: string, field: string): void => {
+    found.push({ field, code, reason });
+  };
+
+  // SRD Open Hand Technique's Push — "The target must succeed on a Strength
+  // saving throw or be pushed up to 15 feet away from you" — is the one
+  // feature in the book that writes one, and `applyHitRider` is the only host
+  // that reads it: a pool option is spent on whoever the caller named at
+  // whatever reach the option prints, and a shove is measured **from the
+  // shover**, which only a blow supplies.
+  if (host === 'pool') {
+    say(
+      'shove_without_a_blow',
+      `a shove is measured from the creature doing the shoving, and ${featureId} is spent on an action rather than delivered by a blow`,
+      at,
+    );
+    return found;
+  }
+
+  const move = declared as Record<string, unknown>;
+  if (move === null || typeof move !== 'object') {
+    say('bad_forced_move', 'a shove names a direction and a distance', at);
+    return found;
+  }
+  if (move['direction'] !== 'push' && move['direction'] !== 'pull') {
+    say(
+      'bad_forced_move',
+      `a shove pushes or pulls, not "${String(move['direction'])}"`,
+      `${at}.direction`,
+    );
+  }
+  if (!Number.isInteger(move['feet']) || (move['feet'] as number) <= 0) {
+    say(
+      'bad_forced_move',
+      `a shove moves a whole number of feet, got ${String(move['feet'])}`,
+      `${at}.feet`,
+    );
+  }
+  if (
+    move['save'] !== undefined &&
+    !(ABILITIES as readonly string[]).includes(move['save'] as string)
+  ) {
+    say(
+      'bad_forced_move',
+      `a save is rolled on one of the six abilities, not "${String(move['save'])}"`,
+      `${at}.save`,
+    );
+  }
+  return found;
+}
+
 function featureOptionProblems(
   featureId: string,
   option: PoolOptionGrant,
@@ -2069,8 +2159,17 @@ function featureOptionProblems(
     say('bad_option_effects', 'an option confers a list of effects', `${at}.effects`);
     return found;
   }
-  if (option.effects.length === 0 && divides === undefined) {
+  // **A shove is the third thing an option may be**, beside the effect list
+  // and the hit points a division mints — SRD Open Hand Technique's Push is
+  // "pushed up to 15 feet away from you" and nothing else. It is outside the
+  // effect list for the reason `HitOption.forcedMove` is: forced movement is
+  // arithmetic between two creatures, and an effect is hung on one of them.
+  const shoves = (option as unknown as { readonly forcedMove?: unknown }).forcedMove;
+  if (option.effects.length === 0 && divides === undefined && shoves === undefined) {
     say('empty_feature_option', 'an option that confers an empty list buys nothing', `${at}.effects`);
+  }
+  if (shoves !== undefined) {
+    found.push(...hitForcedMoveProblems(featureId, shoves, `${at}.forcedMove`, host));
   }
 
   let hangs = false;
@@ -2121,7 +2220,7 @@ function featureOptionProblems(
     }
 
     if (kind === 'condition') {
-      hangs = true;
+      hangs = hangs || !endsItself(record['condition']);
       outlasts = true;
       conditions += 1;
       found.push(...castingOwnedFields(featureId, record['condition'], `${on}.condition`));
@@ -2141,7 +2240,7 @@ function featureOptionProblems(
     // authoring door every effect here has already been through.
     if (kind === 'save') {
       if (record['condition'] !== undefined) {
-        hangs = true;
+        hangs = hangs || !endsItself(record['condition']);
         outlasts = true;
         conditions += 1;
       }
@@ -2777,6 +2876,17 @@ function hitRiderProblems(
         found.push(...weaponSelectorProblems(selector, `${at}.weapons[${index}]`));
       });
     }
+  }
+
+  // SRD Open Hand Technique: "an attack granted by your Flurry of Blows" —
+  // `budgetPurchaseSlot`'s `<feature>/<purchase>` key, which is what the
+  // budget pinned. A blank one names no purchase and would refuse every swing.
+  if (grant.fromGrant !== undefined && (!isString(grant.fromGrant) || grant.fromGrant.trim() === '')) {
+    say(
+      'bad_rider_grant',
+      'the purchase a rider rides on is named by the key it was sold under, and a blank name names nothing',
+      `${at}.fromGrant`,
+    );
   }
 
   if (grant.saveAbility !== undefined && !(ABILITIES as readonly string[]).includes(grant.saveAbility)) {

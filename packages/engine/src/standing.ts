@@ -2012,6 +2012,17 @@ export interface HitOption {
   readonly oncePerTurn?: boolean;
   readonly weapons?: readonly WeaponSelector[];
   readonly unarmedStrike?: boolean;
+  /**
+   * The purchase the swing has to have been bought by — SRD Open Hand
+   * Technique's "an attack granted by your Flurry of Blows".
+   *
+   * The `on-hit` grant's `fromGrant`, compiled: `budgetPurchaseSlot`'s
+   * `<feature>/<purchase>` key, matched against what `GrantedAttacks.from`
+   * recorded when the purchase was made. Asked at the **swing**, where every
+   * other qualification is, so a rider bought by nothing is refused before the
+   * die.
+   */
+  readonly fromGrant?: string;
   readonly effects: readonly SpellEffect[];
   /**
    * The ability the DC is read from — {@link PoolOption.ability} exactly, with
@@ -2166,6 +2177,22 @@ export type HitRiderAnchor = 'attacker' | 'target';
 /** Which way a hit shoves, and how far. */
 export interface HitForcedMove {
   readonly direction: 'push' | 'pull';
+  /**
+   * The saving throw the shove itself forces, where the sentence prints one.
+   *
+   * SRD Open Hand Technique's Push: "The target must succeed on a **Strength
+   * saving throw** or be pushed up to 15 feet away from you." A printed stat
+   * line has no such branch — a satyr simply pushes — so this is absent for
+   * every one of them, and a shove with no save is the shove those already
+   * deliver.
+   *
+   * **The save is the shove's own rather than an effect beside it**, and that
+   * is the same argument the shove itself makes: forced movement is arithmetic
+   * between two creatures, and a `save` effect resolved against one of them
+   * would have nothing to impose on the failure — which the authoring door
+   * refuses outright (`save_imposes_nothing`, "a die thrown for nothing").
+   */
+  readonly save?: Ability;
   /**
    * SRD's "up to 10 feet", read as the whole distance.
    *

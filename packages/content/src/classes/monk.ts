@@ -452,8 +452,54 @@ export const WARRIOR_OF_THE_OPEN_HAND: SubclassDefinition = {
       id: 'open-hand:technique',
       name: 'Open Hand Technique',
       level: 3,
-      automation: 'manual',
-      note: 'Not applied, and the trigger is no longer the reason: a feature’s effect list can be bought by a hit now, which is how Stunning Strike rides on one. What blocks this one is the hit it names — SRD says "whenever you hit a creature with an attack granted by your Flurry of Blows", and Flurry of Blows is not modelled, so nothing can tell a swing that came out of one from any other punch. Of the three effects, Topple is a Dexterity save with Prone on a failure and would be data; Push moves the target fifteen feet, which no feature reaches; and Addle stops its Opportunity Attacks until the start of its next turn, which is the action economy answering to somebody else.',
+      automation: 'engine',
+      note: 'Executed. SRD: "Whenever you hit a creature with an attack granted by your Flurry of Blows, you can impose one of the following effects on that target." The trigger is the whole of what was missing and it is two halves: a hit buys an effect list, and the budget records which purchase sold a swing — `monk:focus/flurry-of-blows`, the key Flurry of Blows is already counted under — so `fromGrant` refuses the same rider on an ordinary punch before the die is thrown. Topple is a Dexterity save with the Prone condition on a failure; Push is a Strength save and a fifteen-foot shove, delivered by `shoveAwayFrom` because forced movement is arithmetic between two creatures rather than a thing hung on one; Addle is an `action-rule` forbidding the Opportunity Attack, hung on the target and anchored on the start of **its** next turn rather than the Monk’s. The DC is Monk’s Focus’s own — "8 plus your Wisdom modifier and Proficiency Bonus" — because the subclass prints none of its own.',
+      grants: {
+        kind: 'on-hit',
+        // "an attack granted by your Flurry of Blows", by the key the purchase
+        // was sold under. The feature charges nothing else: SRD prints no
+        // Focus Point on this sentence.
+        fromGrant: 'monk:focus/flurry-of-blows',
+        // A Monk casts nothing, so the DC is the one Monk's Focus prints for
+        // every feature its points reach: "8 plus your Wisdom modifier and
+        // Proficiency Bonus".
+        saveAbility: 'wis',
+        options: [
+          {
+            id: 'addle',
+            name: 'Addle',
+            // "The target can't make Opportunity Attacks until the start of
+            // its next turn."
+            effects: [
+              {
+                kind: 'action-rule',
+                rule: { kind: 'forbids', actions: ['opportunity-attack'] },
+              },
+            ],
+            lasts: 'start-of-next-turn',
+            // "**its** next turn" — the creature that was struck, which is a
+            // round away from the Monk's own.
+            lastsOn: 'target',
+          },
+          {
+            id: 'push',
+            name: 'Push',
+            // "The target must succeed on a Strength saving throw or be pushed
+            // up to 15 feet away from you." The shove is the whole of what the
+            // option buys, so there is no effect list at all: a `save` effect
+            // would have nothing to impose on the failure.
+            effects: [],
+            forcedMove: { direction: 'push', feet: 15, save: 'str' },
+          },
+          {
+            id: 'topple',
+            name: 'Topple',
+            // "The target must succeed on a Dexterity saving throw or have the
+            // Prone condition."
+            effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+          },
+        ],
+      },
     },
     {
       id: 'open-hand:wholeness-of-body',

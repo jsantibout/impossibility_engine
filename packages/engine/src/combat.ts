@@ -862,6 +862,20 @@ export interface GrantedMove {
 export interface GrantedAttacks {
   readonly remaining: number;
   readonly unarmedOnly: boolean;
+  /**
+   * What bought them, as the key the purchase is already counted under.
+   *
+   * SRD Open Hand Technique: "Whenever you hit a creature with **an attack
+   * granted by your Flurry of Blows**". The sentence is about where the swing
+   * came from, and a swing knew what it *cost* and not what had sold it — so
+   * nothing could tell a Flurry's punch from the Attack action's. It is
+   * `budgetPurchaseSlot`'s key, `<feature>/<purchase>`, because that is the
+   * one string already minted per purchase and already pinned in the event.
+   *
+   * Absent for a log written before the field, and for anything that hands a
+   * turn attacks without selling them.
+   */
+  readonly from?: string;
 }
 
 /**
@@ -1464,6 +1478,12 @@ export function grantTurnBudget(
               grantedAttacks: {
                 remaining: (standing?.remaining ?? 0) + grant.attacks.remaining,
                 unarmedOnly: grant.attacks.unarmedOnly,
+                // What sold them, carried so a rider written about "an attack
+                // granted by your Flurry of Blows" has something to ask. The
+                // newest grant names it, which is the same rule
+                // `unarmedOnly` above follows: the refusal one block up keeps
+                // two rules about what may be swung from standing at once.
+                ...(grant.attacks.from === undefined ? {} : { from: grant.attacks.from }),
               },
             }),
       },

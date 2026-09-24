@@ -50,6 +50,9 @@ import { applyConditionTo, schedule } from './conditions.js';
 import { conditionLanding } from './spell-effect-riders.js';
 import { runEffects } from './spell-resolution.js';
 import { pullToward, shoveAwayFrom } from './spell-effect-movement.js';
+import { ABILITY_NAMES } from '@ie/shared';
+import { rollSavingThrow } from '../checks.js';
+import { recordD20Test, savingSupport } from './rolls.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
@@ -87,6 +90,17 @@ export function hitRiderAsked(
   sheet: CharacterSheet,
   weapon: Weapon | null,
   request: HitRiderRequest | undefined,
+  /**
+   * Whether this swing is an Unarmed Strike.
+   *
+   * Only {@link HitOption.fromGrant} reads it, and it has to: attacks a
+   * purchase sold may be narrowed to Unarmed Strikes, so whether *this* swing
+   * will come out of them is a question about the swing as well as about the
+   * budget. A weapon is not the answer — a stat block's printed Claw is
+   * neither a weapon nor an Unarmed Strike — which is why the caller states it
+   * rather than this reading it off `weapon`.
+   */
+  unarmed = false,
 ): Result<HitOption | null> {
   if (request === undefined) return ok(null);
 
@@ -115,6 +129,29 @@ export function hitRiderAsked(
       'weapon_not_covered',
       `${option.featureName} rides on ${describeWeapons(option)}, and ${id} is swinging ${weapon === null ? 'no weapon at all' : `a ${weapon.name}`}`,
     );
+  }
+
+  // SRD Open Hand Technique: "Whenever you hit a creature with **an attack
+  // granted by your Flurry of Blows**."
+  //
+  // **Asked of the budget and answered before the roll**, which is where every
+  // other qualification on a swing is settled. `spendAttack` takes an attack a
+  // purchase sold before it takes one of the Attack action's, and takes it
+  // only where the swing qualifies — so what is left standing and what this
+  // swing would spend are the same question, asked here one moment early.
+  if (option.fromGrant !== undefined) {
+    const granted = state.combat?.budgets[id]?.grantedAttacks ?? null;
+    const sold =
+      granted !== null &&
+      granted.remaining > 0 &&
+      granted.from === option.fromGrant &&
+      (!granted.unarmedOnly || unarmed);
+    if (!sold) {
+      return err(
+        'not_from_that_grant',
+        `${option.featureName} rides on an attack ${option.fromGrant} granted, and this swing is not one of those`,
+      );
+    }
   }
 
   // SRD: "Once per turn." Outside combat there are no turns to count it
@@ -323,9 +360,10 @@ export function applyHitRider(
   // and no printed line does both: a hold and a push are two answers to "where
   // is the target now", and a homebrew line that wrote both would otherwise be
   // ambiguous.
-  const shoved = shoveOnTheHit(held, hit, option);
-  events.push(...shoved.events);
-  unverified.push(...shoved.unverified);
+  const shoved = shoveOnTheHit(held, hit, option, saveDc, supply);
+  if (!shoved.ok) return shoved;
+  events.push(...shoved.value.events);
+  unverified.push(...shoved.value.unverified);
 
   // **The maximum, off the damage rather than off the roll.** SRD Specter:
   // "an amount equal to the damage taken" — what the target actually took,
@@ -363,7 +401,7 @@ export function applyHitRider(
   events.push(...emptied.value);
 
   const timed = fileDeadlines(
-    [...shoved.events, ...lowering, ...emptied.value].reduce(applyEvent, held),
+    [...shoved.value.events, ...lowering, ...emptied.value].reduce(applyEvent, held),
     resolved.value.outcomes,
     resolved.value.held,
     { attacker: hit.attacker, option },
@@ -631,14 +669,51 @@ function shoveOnTheHit(
   world: GameState,
   hit: { readonly attacker: CharacterId; readonly target: CharacterId },
   option: HitOption,
-): HitRiderOutcome {
+  saveDc: number,
+  supply: Supply,
+): Result<HitRiderOutcome> {
   const move = option.forcedMove;
-  if (move === undefined) return NOTHING;
+  if (move === undefined) return ok(NOTHING);
+
+  // **The branch a feature prints and a printed line does not.** SRD Open Hand
+  // Technique's Push: "The target must succeed on a Strength saving throw or
+  // be pushed up to 15 feet away from you." A satyr simply pushes, so a line
+  // with no `save` is the shove that always lands.
+  const events: GameEvent[] = [];
+  if (move.save !== undefined) {
+    const victim = creatureOf(world, hit.target);
+    if (victim === null) return ok(NOTHING);
+    const issuedBefore = supply.issuer.count;
+    const sheet = sheetAsItStands(world, hit.target) ?? victim.sheet;
+    const support = savingSupport(world, hit.target, victim, move.save, supply);
+    const save = rollSavingThrow(supply.issuer, supply.rng, sheet, move.save, {
+      dc: saveDc,
+      conditions: support.conditions,
+      modes: support.modes,
+      bonuses: support.bonuses,
+    });
+    if (!save.ok) return save;
+    events.push(
+      recordD20Test(
+        hit.target,
+        `${ABILITY_NAMES[move.save]} save vs ${option.name} (DC ${saveDc})`,
+        save.value,
+        save.value.success ? 'stands its ground' : 'is moved',
+      ),
+      {
+        type: 'rolls-issued',
+        count: supply.issuer.count - issuedBefore,
+        rng: supply.rng.snapshot(),
+      },
+    );
+    if (save.value.success) return ok({ events, unverified: [] });
+  }
+
   const performed =
     move.direction === 'push'
       ? shoveAwayFrom(world, hit.target, hit.attacker, { feet: move.feet }, option.name)
       : pullToward(world, hit.target, hit.attacker, { feet: move.feet }, option.name);
-  return { events: performed.events, unverified: performed.unverified };
+  return ok({ events: [...events, ...performed.events], unverified: performed.unverified });
 }
 
 /**
