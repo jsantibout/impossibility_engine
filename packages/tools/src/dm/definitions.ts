@@ -633,6 +633,12 @@ const ROLL_IMPROVISED_DAMAGE = tool({
         concentration: value.concentration,
         duplicate: value.duplicate,
       }),
+      // **And what the engine applied without being able to check it.** The
+      // kind is stated here, so Undead Fortitude is applied whole and says
+      // nothing — but a feature watching whoever the brazier killed still
+      // needs a side and a scene, and the sibling above has always reported
+      // the same sentence.
+      (value) => value.unverified,
     ),
 });
 

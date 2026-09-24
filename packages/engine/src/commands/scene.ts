@@ -354,6 +354,11 @@ export function beginCombat(
     const after = applyEvent(state, opened);
     const beginning = after.combat === null ? undefined : currentCombatant(after.combat).id;
 
+    // **The events only, and the report it came with is dropped here.** A
+    // payout that drops a creature tells the funnel's caller what a watching
+    // feature could not check, and `beginCombat` returns a bare list of events
+    // with nowhere to put a sentence. No SRD payout deals damage today, so
+    // nothing is lost yet; the gap is named rather than hidden.
     const paid = settleBoundaryPayouts(after, supply, undefined, beginning);
     if (!paid.ok) return paid;
 
@@ -362,7 +367,7 @@ export function beginCombat(
     // turns" — a fight opening on the turn of a creature whose breath weapon
     // is spent from the last fight is that start, by the second door.
     const recharged = settleStartOfTurnRecharges(
-      paid.value.reduce(applyEvent, after),
+      paid.value.events.reduce(applyEvent, after),
       supply,
       beginning,
     );
@@ -373,11 +378,11 @@ export function beginCombat(
     // creature's turn is one of those, by the same second door the recharge
     // above arrives through.
     const granted = settleStartOfTurnGrants(
-      [...paid.value, ...recharged.value].reduce(applyEvent, after),
+      [...paid.value.events, ...recharged.value].reduce(applyEvent, after),
       beginning,
     );
 
-    return ok([opened, ...paid.value, ...recharged.value, ...granted]);
+    return ok([opened, ...paid.value.events, ...recharged.value, ...granted]);
   });
 }
 

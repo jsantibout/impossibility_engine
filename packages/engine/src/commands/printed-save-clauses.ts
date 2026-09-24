@@ -32,7 +32,7 @@ import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { ZERO_HIT_POINTS } from './command.js';
 import { healCreature } from './creatures.js';
-import { rewardsForDropping } from './damage.js';
+import { rewardsForDropping } from './drop-rewards.js';
 import type { Supply } from './casting.js';
 import { rollSpellDice } from './rolls.js';
 import { shoveAwayFrom } from './spell-effect-movement.js';
