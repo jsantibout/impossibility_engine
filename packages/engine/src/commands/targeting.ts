@@ -1164,11 +1164,19 @@ export function placeOrigin(
  * point is in range, and which of the creatures caught are ones this spell can
  * actually affect.
  *
- * **The catch is settled once, here, and everything downstream reads it** —
- * the saves, the damage, the riders, the record. So the three clauses that
- * narrow it ({@link TargetRule.notTheCaster}, `mustSeeTheOrigin`,
- * `chosenFromTheArea`) are applied at this one seam and nothing below has to
- * know they exist.
+ * **The casting's catch is settled once, here, and everything the casting
+ * does reads it** — the saves, the damage, the riders, the record. So the
+ * three clauses that narrow it ({@link TargetRule.notTheCaster},
+ * `mustSeeTheOrigin`, `chosenFromTheArea`) are applied at this one seam and
+ * nothing below has to know they exist.
+ *
+ * **What this is not is every catch the spell will ever make.** A persistent
+ * area catches people again at the boundaries it prints, and that later catch
+ * is `creaturesStandingInCastingArea` re-deriving it off the pinned record —
+ * a different seam, reading `unaffected` and none of the three. So a spell
+ * that printed both a filter and an `areaTrigger` would narrow its first
+ * catch and not its later ones, and `checkSpellDefinition` refuses the pair
+ * (`area_filter_and_a_later_catch`) rather than letting half a rule through.
  *
  * `unverified` is the caller's list, appended to rather than returned, for the
  * reason `namedTargets` takes its `needs` that way: a sight question about a

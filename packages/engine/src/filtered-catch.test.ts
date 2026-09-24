@@ -423,6 +423,17 @@ describe('SRD Sleep: "each creature of your choice in a 5-foot-radius Sphere"', 
     }
   });
 
+  /**
+   * A set, exactly as a named target list is: one effect list runs per
+   * creature, so a creature chosen twice would be a second save, a second
+   * condition and a second rider.
+   */
+  it('refuses the same creature chosen twice', () => {
+    const out = sleep([HOBGOBLIN, HOBGOBLIN]);
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('duplicate_target');
+  });
+
   it('no longer says the filter is unbuilt', () => {
     const gaps = SRD_CONTENT.spell('sleep')?.unmodelled ?? [];
     expect(gaps).toHaveLength(2);

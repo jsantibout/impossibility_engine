@@ -3770,21 +3770,43 @@ export function checkSpellDefinition(
    */
   /*
    * The three clauses that narrow what an **area** catches, held to a
-   * definition that has one.
+   * definition whose catch is the one they are read at.
    *
-   * Each is read in `areaTargets` and nowhere else, so on a spell cast at
-   * named targets every one of them is a field with no reader — written by
-   * somebody who believed they had said something, applied by nothing, and
-   * invisible until a druid's Entangle failed to spare the druid. The other
-   * two target clauses need no such guard because they are checked wherever a
-   * caller *names* somebody, which every definition does.
+   * Each is read in `areaTargets` — the seam where a **casting** settles who
+   * it caught — and nowhere else. Two definitions could therefore carry one
+   * with no reader, and both are refused here rather than being applied to
+   * half of the spell:
+   *
+   * | | |
+   * |---|---|
+   * | `area_filter_without_area` | a spell cast at named targets: there is no catch, so the field is a sentence the author believed they had said and nothing ever reads |
+   * | `area_filter_and_a_later_catch` | a **persistent** area: `creaturesStandingInCastingArea` re-derives the catch off the pinned record at every boundary the spell triggers on, and reads `unaffected` and nothing else — so the filter would hold for the casting and let go of it a turn later |
+   *
+   * The second is the one worth naming. `areaTrigger` and `areaStanding` are
+   * the two clauses that make an area go on catching people, and a Web that
+   * spared its caster at the cast and Restrained her when she stepped back in
+   * would be the silent half-applied rule this whole discipline is about. The
+   * day a spell prints both sentences the reader is written first and this row
+   * goes; until then the refusal is what says the reader is missing.
+   *
+   * The other two target clauses need no such guard, because they are checked
+   * wherever a caller *names* somebody and every definition does.
    */
   for (const clause of ['notTheCaster', 'mustSeeTheOrigin', 'chosenFromTheArea'] as const) {
-    if (definition.targets[clause] === true && definition.area === undefined) {
+    if (definition.targets[clause] !== true) continue;
+    if (definition.area === undefined) {
       found.push({
         field: `targets.${clause}`,
         code: 'area_filter_without_area',
         reason: `\`${clause}\` narrows what an area catches, and this spell fills no area, so nothing would ever read it`,
+      });
+      continue;
+    }
+    if (definition.areaTrigger !== undefined || definition.areaStanding !== undefined) {
+      found.push({
+        field: `targets.${clause}`,
+        code: 'area_filter_and_a_later_catch',
+        reason: `\`${clause}\` narrows the catch this casting settles, and an area that goes on catching creatures at a later boundary re-derives its own catch from the pinned record and would not narrow it`,
       });
     }
   }

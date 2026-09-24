@@ -618,7 +618,40 @@ describe('each rule refuses something', () => {
     },
   );
 
-  /** And each is content the moment there is an area for it to narrow. */
+  /**
+   * And the second reader that is missing, which is the one worth a guard of
+   * its own: a **persistent** area re-derives its catch off the pinned record
+   * at every boundary it triggers on, and that seam reads `unaffected` and
+   * none of the three. A Web that spared its caster at the cast and
+   * Restrained her when she stepped back in is half a rule, applied silently.
+   */
+  it.each([['notTheCaster'], ['mustSeeTheOrigin'], ['chosenFromTheArea']] as const)(
+    'refuses %s on an area that goes on catching creatures',
+    (clause) => {
+      expect(
+        only({
+          targets: { count: 0, [clause]: true },
+          area: { kind: 'sphere', radius: 20, origin: 'point' },
+          durationSeconds: 60,
+          effects: [],
+          areaTrigger: {
+            at: 'start-of-turn',
+            label: 'Fire Dart (the flames)',
+            effects: [
+              {
+                kind: 'save-damage',
+                ability: 'dex',
+                damage: { dice: '2d6' },
+                damageType: 'fire',
+              },
+            ],
+          },
+        }),
+      ).toEqual(['area_filter_and_a_later_catch']);
+    },
+  );
+
+  /** And each is content the moment there is one catch for it to narrow. */
   it.each([['notTheCaster'], ['mustSeeTheOrigin'], ['chosenFromTheArea']] as const)(
     'accepts %s on a spell that fills one',
     (clause) => {
