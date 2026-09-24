@@ -2418,3 +2418,31 @@ Appended after wave seven's first spells track (2026-09-24):
   waits on a lifetime for a jump a Bonus Action buys. A latent defect in the
   reachability sweep's import scanner is fixed: a relative import following an
   `@ie/srd` one had been silently dropped. Main re-ingested.
+- **A Speed doubled, a lethargy at the end, a repeat save raised by harm, and
+  a filter on the attacker.** `SpeedChange.double` composes *base + flat →
+  double → halve → zero*, doubled first so Slow over Haste is the walk again
+  (the book prints no order; the other rounds 25 to 12 and back to 24) and an
+  increase is the walking Speed's; Haste's extra action is narrowed to the
+  five the book names (`GrantedAction.only` — the code's note that Utilize had
+  no spender was stale). A bonus rider may be narrowed by ability
+  (`ModifierRider.bonus.only`), and a defect fell out: bonuses were keyed by
+  source alone, so a spell's second grant evicted its first — `bonusKey` now
+  keys on source, families and narrowing. Slow's repeat is the casting-hosted
+  save **per target** (`end-on-target`), so a spell catching six carries six
+  hooks; the curses track's four decisions collapsed to one because the book
+  prints "on itself" and no failure branch. A repeat save may be raised by a
+  blow (`alsoWhenDamaged`, rolled where damage lands on both roads, never
+  owed — a debt keyed by turn would give a creature struck twice one save;
+  Hideous Laughter). A roll mode may be narrowed by the **attacker's** type
+  (`attackerType`, legal on `against-holder` only) and a granted condition
+  Immunity by the type of what causes it (`fromTypes`, the caster **stated**
+  by the resolver, because the record is written after the effects resolve —
+  derived from the source it was dead); a creature nobody typed is in no
+  list. A casting may leave something behind when it ends
+  (`SpellDefinition.onEnd`, laid in the fold under the spell's bare name —
+  Haste's lethargy), on every ending. **Gaps named:** `onEnd` lays nothing
+  outside combat because "until the end of its next turn" is a moment in an
+  order the fold cannot ask for, and nothing reports it; there is **no
+  stand-up command** at all, so Hideous Laughter's "can't end the Prone
+  condition on itself" waits on one; `castOnHit` does not pin `onEnd`. The
+  spell population did not move: all four keep a clause.

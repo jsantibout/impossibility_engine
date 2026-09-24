@@ -78,8 +78,9 @@ homebrew.
   its own running copies, ward a fall, or lift a creature a save did not spare;
   a spell may print branches and run the one named, hang a rider on a made
   save, make a creature subtract from its own damage rolls, or pick out D20
-  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its
-  Concentration, and a save may be nothing but its verdict; a tracked spell read to
+  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its Concentration, a save may be nothing but its verdict, a
+  casting may leave something behind when it ends, and a repeat save may be
+  raised by a blow; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
@@ -113,11 +114,12 @@ homebrew.
 - **A Druid's known forms are the ones it was made with**; no rest replaces
   one yet, the form's limbs decide nothing about what can be held, and the
   block's senses are not carried.
-- **A summons still carries one debt.** A casting raises a creature out of the bestiary, states its form and type
-  and seats it; what no field can hold is a printed line whose numbers are the summoner's (the Otherworldly
-  Steed's) and a creature stowed somewhere that is not the scene.
-- **Jumping is half.** A Thief's running jump lengthens by the Dexterity
-  modifier; Slow Fall is elected on the landing rather than in a window.
+- **A summons still carries one debt**: a printed line whose numbers are the
+  summoner's (the Otherworldly Steed's), and a creature stowed somewhere that
+  is not the scene.
+- **Jumping is half**; Slow Fall is elected on the landing rather than in a
+  window; **nothing stands a creature up** by its own act, so a spell that
+  forbids standing has nothing to forbid.
 - **A printed hit is read clause by clause**: the charge, a push or pull, a
   Speed cut, a lowered maximum, a one-roll mode, a grapple that implies
   Restrained and extra damage execute; what nothing read is handed back and
@@ -159,9 +161,8 @@ character can reach is executed**, not the common turn executed and the rest
 narrated · persistence is Supabase with the event log as the only truth · one
 player per campaign for the first release · Infinite Realms calls OpenAI, so the wire format is OpenAI function
 calling · movement modes are ordinary spatial dynamics and are built · Find Familiar names a bestiary id at the
-casting, and Find Steed's and Phantom Steed's stat blocks are catalogue
-entries · the sight model is built · the feature blocker map was widened to
-pool-only features.
+casting, and Find Steed's and Phantom Steed's stat blocks are catalogue entries · the
+sight model is built.
 
 ## Decisions genuinely open
 

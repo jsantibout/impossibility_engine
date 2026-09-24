@@ -71,6 +71,7 @@ exactly the silently-missing entry this report’s header refuses.
 |---|---|---|
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-fact-only-the-table-can-declare` | 4 | 2 |
+| `an-action-a-spell-compels-or-forbids` | 2 | 2 |
 | `difficult-terrain-an-area-creates` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
 | `a-barrier-that-blocks-passage` | 3 | 1 |
@@ -81,21 +82,20 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-choice-made-at-the-casting` | 2 | 1 |
 | `a-duration-the-slot-changes` | 2 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
+| `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
+| `a-self-cure-a-spell-forbids` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
 | `a-second-place-to-put-a-creature` | 3 | 0 |
-| `a-bonus-narrowed-to-a-skill` | 2 | 0 |
-| `a-filter-on-the-attackers-creature-type` | 2 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
-| `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 0 |
-| `an-action-the-engine-has-no-spender-for` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
+| `a-bonus-narrowed-to-a-skill` | 1 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
@@ -104,18 +104,15 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-damage-penalty-a-spell-grants` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
-| `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
+| `a-filter-on-the-attackers-creature-type` | 1 | 0 |
 | `a-range-that-scales-with-caster-level` | 1 | 0 |
-| `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 |
+| `a-repeat-save-raised-by-a-trigger` | 1 | 0 |
 | `a-selector-for-every-d20-test` | 1 | 0 |
-| `a-self-cure-a-spell-forbids` | 1 | 0 |
-| `a-speed-an-effect-multiplies` | 1 | 0 |
-| `an-action-a-spell-compels-or-forbids` | 1 | 0 |
+| `an-action-the-engine-has-no-spender-for` | 1 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 1 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
 | `an-area-trigger-measured-from-a-point` | 1 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 1 | 0 |
-| `an-effect-that-fires-when-the-casting-ends` | 1 | 0 |
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 |
 | `senses-beyond-declared-sight` | 1 | 0 |
 | `several-attack-rolls-from-one-casting` | 1 | 0 |
@@ -140,6 +137,11 @@ sums to the population.
 - **Sleep** (level 1) — executed-partial
 - **Enthrall** (level 2) — tracked — also waits on 1
 - **Call Lightning** (level 3) — tracked — also waits on 1
+
+#### `an-action-a-spell-compels-or-forbids` — blocks 2, finishes 2
+
+- **Haste** (level 3) — executed-partial
+- **Slow** (level 3) — executed-partial
 
 #### `difficult-terrain-an-area-creates` — blocks 2, finishes 2
 
@@ -197,6 +199,14 @@ sums to the population.
 
 - **Command** (level 1) — executed-partial
 
+#### `a-mode-on-the-save-a-spell-forces` — blocks 1, finishes 1
+
+- **Protection from Evil and Good** (level 1) — executed-partial
+
+#### `a-self-cure-a-spell-forbids` — blocks 1, finishes 1
+
+- **Hideous Laughter** (level 1) — executed-partial
+
 #### `an-object-with-statistics-of-its-own` — blocks 1, finishes 1
 
 - **Silence** (level 2) — executed-partial
@@ -217,25 +227,10 @@ sums to the population.
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
 
-#### `a-bonus-narrowed-to-a-skill` — blocks 2, finishes 0
-
-- **Enthrall** (level 2) — tracked — also waits on 1
-- **Slow** (level 3) — executed-partial — also waits on 2
-
-#### `a-filter-on-the-attackers-creature-type` — blocks 2, finishes 0
-
-- **Protection from Evil and Good** (level 1) — tracked — also waits on 1
-- **Magic Circle** (level 3) — tracked — also waits on 3
-
 #### `a-random-outcome-that-is-not-a-d20` — blocks 2, finishes 0
 
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
-
-#### `a-repeat-save-raised-by-a-trigger` — blocks 2, finishes 0
-
-- **Hideous Laughter** (level 1) — executed-partial — also waits on 1
-- **Fear** (level 3) — executed-partial — also waits on 1
 
 #### `a-repeat-save-that-does-something-on-a-failure` — blocks 2, finishes 0
 
@@ -257,11 +252,6 @@ sums to the population.
 - **Warding Bond** (level 2) — tracked — also waits on 1
 - **Conjure Animals** (level 3) — tracked — also waits on 1
 
-#### `an-action-the-engine-has-no-spender-for` — blocks 2, finishes 0
-
-- **Gaseous Form** (level 3) — executed-partial — also waits on 2
-- **Haste** (level 3) — executed-partial — also waits on 2
-
 #### `an-activation-taken-by-somebody-other-than-the-caster` — blocks 2, finishes 0
 
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
@@ -271,6 +261,10 @@ sums to the population.
 
 - **Dragon's Breath** (level 2) — tracked — also waits on 1
 - **Call Lightning** (level 3) — tracked — also waits on 1
+
+#### `a-bonus-narrowed-to-a-skill` — blocks 1, finishes 0
+
+- **Enthrall** (level 2) — tracked — also waits on 1
 
 #### `a-condition-a-spell-suppresses` — blocks 1, finishes 0
 
@@ -304,33 +298,25 @@ sums to the population.
 
 - **Spike Growth** (level 2) — executed-partial — also waits on 1
 
-#### `a-mode-on-the-save-a-spell-forces` — blocks 1, finishes 0
+#### `a-filter-on-the-attackers-creature-type` — blocks 1, finishes 0
 
-- **Protection from Evil and Good** (level 1) — tracked — also waits on 1
+- **Magic Circle** (level 3) — tracked — also waits on 3
 
 #### `a-range-that-scales-with-caster-level` — blocks 1, finishes 0
 
 - **Spare the Dying** (level 0) — tracked — also waits on 1
 
-#### `a-repeat-save-with-no-condition-to-hang-it-on` — blocks 1, finishes 0
+#### `a-repeat-save-raised-by-a-trigger` — blocks 1, finishes 0
 
-- **Slow** (level 3) — executed-partial — also waits on 2
+- **Fear** (level 3) — executed-partial — also waits on 1
 
 #### `a-selector-for-every-d20-test` — blocks 1, finishes 0
 
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 
-#### `a-self-cure-a-spell-forbids` — blocks 1, finishes 0
+#### `an-action-the-engine-has-no-spender-for` — blocks 1, finishes 0
 
-- **Hideous Laughter** (level 1) — executed-partial — also waits on 1
-
-#### `a-speed-an-effect-multiplies` — blocks 1, finishes 0
-
-- **Haste** (level 3) — executed-partial — also waits on 2
-
-#### `an-action-a-spell-compels-or-forbids` — blocks 1, finishes 0
-
-- **Slow** (level 3) — executed-partial — also waits on 2
+- **Gaseous Form** (level 3) — executed-partial — also waits on 2
 
 #### `an-activation-that-forces-a-saving-throw` — blocks 1, finishes 0
 
@@ -347,10 +333,6 @@ sums to the population.
 #### `an-area-trigger-on-the-casters-turn` — blocks 1, finishes 0
 
 - **Phantasmal Force** (level 2) — no-definition — also waits on 2
-
-#### `an-effect-that-fires-when-the-casting-ends` — blocks 1, finishes 0
-
-- **Haste** (level 3) — executed-partial — also waits on 2
 
 #### `an-effect-that-stabilises-a-dying-creature` — blocks 1, finishes 0
 
