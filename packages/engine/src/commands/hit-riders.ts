@@ -526,6 +526,27 @@ export function applyHitRider(
   });
   if (!resolved.ok) return resolved;
 
+  // **The hazard, before the hold and after the list**, because it is neither
+  // and holds nothing open: SRD Fire Elemental's Burn leaves a creature
+  // standing in a fire that nothing about this rider owns — no source to
+  // release it by, no deadline to lift it, and no condition immunity that
+  // reaches it. A creature already alight is re-lit rather than doubled, which
+  // is the fold's own reading of the mark.
+  if (option.hazard !== undefined) {
+    events.push({
+      type: 'hazard-caught',
+      id: hit.target,
+      hazard: { hazard: option.hazard, lit: option.name },
+    });
+  }
+
+  // **The armour, beside the hazard and for its reason**: what it changes is
+  // not the creature but the thing the creature is wearing, and an effect list
+  // hangs what it hangs on a creature. On the world the effects left, which is
+  // the rule the grapple below keeps — what the target is wearing is a fact
+  // this rider has to read after everything before it has had its say.
+  events.push(...corrodeArmor(resolved.value.state, hit, option, unverified));
+
   // **The grapple, after the effect list and before the deadlines**, because
   // it is neither: it hangs no condition the option's own span is about — SRD
   // ends a grapple on facts about the grappler and never on the clock — and it
@@ -634,6 +655,79 @@ export function applyHitRider(
   if (!timed.ok) return timed;
 
   return ok({ events: [...events, ...timed.value], unverified });
+}
+
+/**
+ * SRD Black Pudding's Dissolving Pseudopod: "Nonmagical armor worn by the
+ * target takes a −1 penalty to the AC it offers. The armor is destroyed if the
+ * penalty reduces its AC to 10."
+ *
+ * **The suit being worn and not a suit in the pack.** `sheet.armor` is the one
+ * piece `withEquipment` put on the sheet out of what is equipped, so it is the
+ * piece the target is standing behind and the only one the acid can reach.
+ * Matching the equipped record back to it is what gives the penalty a *copy*
+ * to land on: a second coat of mail in the same party is a second record.
+ *
+ * **Destroyed rather than penalised at the ceiling**, and the ceiling is the
+ * armour's own printed number rather than the creature's Armour Class: SRD
+ * says "reduces **its** AC to 10", and a Dexterity modifier is not the mail's.
+ * It leaves by the door every lost item leaves by — unequipped, then out of
+ * the pack — so nothing has to learn a second way for armour to go.
+ *
+ * **Nothing worn is reported rather than refused.** The blow has landed by the
+ * time this runs, which is the reading every other printed clause here takes
+ * of a fact that turned out not to hold.
+ */
+function corrodeArmor(
+  world: GameState,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+  unverified: string[],
+): readonly GameEvent[] {
+  const points = option.penalisesArmor;
+  if (points === undefined) return [];
+
+  const creature = creatureOf(world, hit.target);
+  const worn = creature?.sheet.armor ?? null;
+  const record =
+    creature?.equipped.find((held) => held.armor !== null && held.armor.name === worn?.name) ??
+    undefined;
+  if (worn === null || record === undefined) {
+    unverified.push(
+      `${option.featureName} corrodes the armour its target is wearing, and ${hit.target} is wearing no armour for it to eat`,
+    );
+    return [];
+  }
+
+  // A piece that states no number of its own has no "AC it offers" for a
+  // penalty to reduce, so the ceiling has nothing to be measured against. No
+  // body armour in the catalogue is like that — a shield is, and a shield is
+  // not what `sheet.armor` holds — and the honest answer to one that were is
+  // the penalty and no destruction rather than an invented number.
+  const offers = worn.baseAc;
+  const eaten = (record.penalty ?? 0) + points;
+  if (offers === null || offers - eaten > 10) {
+    return [{ type: 'armor-penalised', id: hit.target, item: record.id, points }];
+  }
+
+  unverified.push(
+    `${option.featureName} ate the last of ${hit.target}'s ${worn.name}: the penalty took what it offers to ${offers - eaten}, and armour at 10 is destroyed`,
+  );
+  return [
+    { type: 'item-unequipped', id: hit.target, item: record.id },
+    {
+      type: 'items-lost',
+      id: hit.target,
+      items: [
+        {
+          id: record.id,
+          quantity: 1,
+          ...(record.instance === undefined ? {} : { instance: record.instance }),
+        },
+      ],
+      source: option.featureName,
+    },
+  ];
 }
 
 /**

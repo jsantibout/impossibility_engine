@@ -54,6 +54,8 @@ export const GRANTS_EVENTS = [
   'turn-payout-granted',
   'creature-attached',
   'creature-detached',
+  'hazard-caught',
+  'hazard-ended',
   'action-rule-granted',
   'reaction-granted',
   'healing-rule-granted',
@@ -430,6 +432,28 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
       // the reading `endTimedCondition` takes of the same absence.
       if (other === undefined) return released;
       return withCreature(released, event.to, releaseGrants(other, attachSource(event.id)), other);
+    }
+
+    case 'hazard-caught': {
+      const creature = creatureOf(state, event, event.id);
+      // **The hazard is the identity**, which is the rule this seam keeps
+      // everywhere and is here the glossary's own: a creature is burning or it
+      // is not, so a second Burn re-lights one fire rather than stacking a
+      // second 1d4 on it. Sorted so a fold compares byte for byte.
+      const hazards = [
+        ...creature.hazards.filter((held) => held.hazard !== event.hazard.hazard),
+        event.hazard,
+      ].sort((a, b) => (a.hazard < b.hazard ? -1 : a.hazard > b.hazard ? 1 : 0));
+      return withCreature(next, event.id, { hazards }, creature);
+    }
+
+    case 'hazard-ended': {
+      const creature = creatureOf(state, event, event.id);
+      // Nothing is released beside it: a hazard hangs no grant, which is the
+      // whole of what keeps it out of the family above. The Prone the action
+      // buys arrives on its own `condition-applied`.
+      const hazards = creature.hazards.filter((held) => held.hazard !== event.hazard);
+      return withCreature(next, event.id, { hazards }, creature);
     }
 
     case 'action-rule-granted': {

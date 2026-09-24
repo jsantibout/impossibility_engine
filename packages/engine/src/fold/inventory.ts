@@ -39,6 +39,7 @@ export const INVENTORY_EVENTS = [
   'coins-changed',
   'item-equipped',
   'item-unequipped',
+  'armor-penalised',
   'attuned',
   'attunement-ended',
 ] as const;
@@ -555,6 +556,24 @@ export function applyInventory({ state, next, legacy }: Applying, event: Invento
         { equipped, sheet: withEquipment(creature.sheet, equipped) },
         creature,
       );
+    }
+
+    case 'armor-penalised': {
+      const creature = creatureOf(state, event, event.id);
+      const worn = creature.equipped.find((held) => held.id === event.item);
+      if (worn === undefined) {
+        throw new CorruptLogError(event, `${event.item} is not equipped`);
+      }
+      // **A number moved, not a record replaced** — the reading
+      // `decoy-destroyed` states about the only other event in the engine that
+      // edits one in place. A pudding's second pseudopod eats a second point.
+      const equipped = creature.equipped.map((held) =>
+        held === worn ? { ...held, penalty: (held.penalty ?? 0) + event.points } : held,
+      );
+      // The sheet is untouched: what armour *offers* is the catalogue's and
+      // what has been eaten out of this suit is the record's, and
+      // `armorClassOf` is where the two meet. See `EquippedItem.penalty`.
+      return withCreature(next, event.id, { equipped }, creature);
     }
 
     case 'attuned': {

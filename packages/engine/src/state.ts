@@ -38,6 +38,7 @@ import type { GrantedCreatureType } from './creature-type.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
+import type { CreatureHazard } from './hazards.js';
 import { type SpellcastingState } from './spellcasting.js';
 import type { RestState } from './rest.js';
 import type { HitOption, StandingEffect } from './standing.js';
@@ -111,6 +112,28 @@ export interface EquippedItem {
    * grant anything.
    */
   readonly grants?: readonly StandingEffect[];
+  /**
+   * Points of Armour Class acid has eaten out of **this copy** — SRD Black
+   * Pudding's Dissolving Pseudopod: "Nonmagical armor worn by the target takes
+   * a −1 penalty to the AC it offers."
+   *
+   * **On the equipped record because the record is the copy.** The catalogue
+   * says what chain mail offers and is the same book in every campaign; this
+   * says what has happened to the suit this creature is wearing, and the two
+   * could not share a home — a penalty written into the armour record would be
+   * a pudding corroding every coat of mail in the world.
+   *
+   * Cumulative, like `decoy-destroyed`'s count and unlike every sourced grant:
+   * a second pseudopod eats a second point rather than restating the first.
+   * Absent is no wear at all, which is what every log written before acid
+   * could bite says — so both frozen fixtures fold unchanged.
+   *
+   * Read by `armorClassOf` alone. The armour is *destroyed* rather than
+   * penalised once the penalty would take what it offers to 10, and that is
+   * the command's arithmetic rather than a state this can hold: a destroyed
+   * suit leaves the inventory through the door every lost item leaves by.
+   */
+  readonly penalty?: number;
 }
 
 /**
@@ -887,6 +910,29 @@ export interface CreatureState {
    * *target* is filed under `attach:<the attacher>` and ends with it.
    */
   readonly attachments: readonly Attachment[];
+  /**
+   * The glossary's **hazards** this creature is caught in — SRD *Burning*: "A
+   * burning creature or object takes 1d4 Fire damage at the start of each of
+   * its turns."
+   *
+   * **Beside {@link conditions} and not inside them**, which is the glossary's
+   * own filing: the fifteen conditions are one closed list under one heading
+   * and a hazard is under another, so a stat block's "Immunities … Exhaustion,
+   * Poisoned" run reaches conditions and reaches nothing here. A creature
+   * immune to every condition in the game still burns, which is what putting a
+   * fire in the condition table would have quietly denied.
+   *
+   * **Not one of the sourced grants above either.** Every member of that
+   * family is hung on a creature by an effect and ends by a source match — a
+   * casting, a deadline, a dispel — and a fire ends by somebody rolling on the
+   * ground. The Magmin that lit it may be dead; the fire is not its lifetime.
+   *
+   * Sorted by hazard, so state serialises identically however they were
+   * caught, and keyed by hazard for the same reason a grapple is keyed by its
+   * grappler: a creature is burning or it is not, and a second Burn re-lights
+   * one fire rather than doubling the die.
+   */
+  readonly hazards: readonly CreatureHazard[];
   /**
    * What a running effect has changed about what this creature may spend a
    * turn on — the ninth member of the family the eight above form.

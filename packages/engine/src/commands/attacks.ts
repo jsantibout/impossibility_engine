@@ -71,6 +71,8 @@ import {
   statedBonusActionsUsed,
   unreadActionsOf,
 } from '../monster.js';
+import type { HazardName } from '../hazards.js';
+import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   SAME_BEARING_DEGREES,
@@ -796,6 +798,8 @@ function printedRiderOnASwing(
   let attaches: HitAttach | undefined;
   let forcedMove: HitForcedMove | undefined;
   let lowersHitPointMaximum: 'damage-taken' | undefined;
+  let hazard: HazardName | undefined;
+  let penalisesArmor: number | undefined;
   let onDroppingToZero: HitDropToZero | undefined;
   let saveDc: number | undefined;
   let span: { readonly lasts: TurnAnchor; readonly lastsOn: HitRiderAnchor } | undefined;
@@ -934,6 +938,34 @@ function printedRiderOnASwing(
 
       case 'hit-point-maximum':
         lowersHitPointMaximum = 'damage-taken';
+        break;
+
+      // SRD Fire Elemental's Burn: "If the target is a creature or a flammable
+      // object, it starts burning." **The creature half is applied and the
+      // object half is handed back**, because the engine holds no
+      // flammability: a declared object is a substance and a size, and whether
+      // the oak door in this room takes light is the table's. So a creature is
+      // set alight outright, and a *declared object* that was hit gets the
+      // sentence back in the book's own words. No span is claimed for it: a
+      // fire has no deadline, which is what keeps a hazard out of the clause
+      // above that would have needed one.
+      case 'hazard':
+        if (state.creatures[target]?.creatureType === OBJECT_CREATURE_TYPE) {
+          unverified.push(
+            `${printed.name} hit ${target}, and its line sets a flammable object burning — the engine holds no record of what takes light, so whether ${target} is now alight is the table's`,
+          );
+          break;
+        }
+        hazard = rider.hazard;
+        break;
+
+      // SRD Black Pudding's Dissolving Pseudopod, SRD Gray Ooze's Pseudopod.
+      // The points ride on the option and `applyHitRider` finds the suit: a
+      // target wearing nothing is said out loud there rather than here,
+      // because the blow has already landed and what it found is a fact about
+      // the world at the settlement.
+      case 'armor-penalty':
+        penalisesArmor = (penalisesArmor ?? 0) + rider.points;
         break;
 
       // SRD Phase Spider, SRD Vampire Familiar, SRD Gibbering Mouther. **No
@@ -1082,6 +1114,8 @@ function printedRiderOnASwing(
     forcedMove === undefined &&
     lowersHitPointMaximum === undefined &&
     onDroppingToZero === undefined &&
+    hazard === undefined &&
+    penalisesArmor === undefined &&
     attaches === undefined
   ) {
     return { option: null, unverified };
@@ -1108,6 +1142,8 @@ function printedRiderOnASwing(
       ...(forcedMove === undefined ? {} : { forcedMove }),
       ...(lowersHitPointMaximum === undefined ? {} : { lowersHitPointMaximum }),
       ...(onDroppingToZero === undefined ? {} : { onDroppingToZero }),
+      ...(hazard === undefined ? {} : { hazard }),
+      ...(penalisesArmor === undefined ? {} : { penalisesArmor }),
     },
     unverified,
   };

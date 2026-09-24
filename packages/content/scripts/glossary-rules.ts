@@ -228,6 +228,13 @@ export const GLOSSARY_RULES: readonly GlossaryRule[] = [
 
   // — the general rules neither list covers ——————————————————————————————
   {
+    id: 'burning',
+    name: 'Burning',
+    kind: 'rule',
+    built: 'extinguishFire',
+    note: 'the hazard, not a sixteenth condition: a mark on the creature beside its conditions, so a stat block’s condition Immunities reach it not at all. The 1d4 Fire is collected at the start of each of its turns by the same boundary that settles a payout, so a creature with Immunity to Fire burns and takes nothing. The action that puts it out spends an Action and gives the creature the Prone condition, which is the method the sentence prints rather than a price the fire charges — a creature that cannot be given Prone still puts the fire out. SRD Fire Elemental’s Burn and SRD Magmin’s Touch light it, and the object half of both sentences is the table’s because nothing here holds flammability. The book’s other three endings — “doused, submerged, or suffocated” — are neither built nor handed over: there is no water in this world and no door a DM could rule one through, so they are a named gap and the action is the whole of what puts a fire out.',
+  },
+  {
     id: 'two-weapon-fighting',
     name: 'Two-Weapon Fighting',
     kind: 'rule',

@@ -142,6 +142,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             lineImmunities: [],
             payouts: [],
             attachments: [],
+            // Nothing is on fire. Empty is what every log written before the
+            // glossary's hazards existed says, so both frozen fixtures fold
+            // unchanged.
+            hazards: [],
             actionRules: [],
             grantedReactions: [],
             healingRules: [],

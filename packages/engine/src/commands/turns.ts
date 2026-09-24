@@ -41,6 +41,7 @@ import {
   type ScheduledDamage,
 } from '../timers.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import { HAZARD_RULES, hazardSource } from '../hazards.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   printedBoundaryDamage,
@@ -485,7 +486,56 @@ function payoutsDue(
   ended: CharacterId | undefined,
   begun: CharacterId | undefined,
 ): readonly DuePayout[] {
-  return [...payoutsAt(state, ended, 'end-of-turn'), ...payoutsAt(state, begun, 'start-of-turn')];
+  return [
+    ...payoutsAt(state, ended, 'end-of-turn'),
+    ...payoutsAt(state, begun, 'start-of-turn'),
+    ...hazardsDue(state, begun),
+  ];
+}
+
+/**
+ * What the glossary's hazards cost the creature whose turn is beginning.
+ *
+ * SRD *Burning*: "A burning creature or object takes 1d4 Fire damage at the
+ * start of each of its turns."
+ *
+ * **Derived rather than filed**, which is exactly the reading
+ * {@link GrantedPayout} states about itself: nothing is ever *owed* between
+ * turns, because the boundary reads the fact off the creature and settles it
+ * there. So a hazard writes no arrangement when it is lit and leaves no debt
+ * to forget — the mark is the whole record, and this is the only thing that
+ * looks at it.
+ *
+ * **And it is settled by the machinery a payout already has**, rather than by
+ * a hit-point calculator of its own: the die is thrown at the boundary, the
+ * Fire meets the creature's own Resistance and Immunity, a drop to 0 is a drop
+ * to 0, and a Concentration goes at risk. A fire-immune creature therefore
+ * still burns and takes nothing from it, which is the book — the hazard is not
+ * a condition and no immunity reaches the *mark*.
+ *
+ * The damage has no dealer: nobody is holding the fire, and the Magmin that
+ * lit it may be three rounds dead. `GrantedPayout.to` is left absent for that
+ * reason, which is what makes `settleTurnPayouts` attribute it to nobody.
+ */
+function hazardsDue(state: GameState, begun: CharacterId | undefined): readonly DuePayout[] {
+  if (begun === undefined) return [];
+  const creature = state.creatures[begun];
+  if (creature === undefined || creature.vitals.dead) return [];
+  return creature.hazards.map((held) => {
+    const rule = HAZARD_RULES[held.hazard];
+    return {
+      target: begun,
+      holder: begun,
+      payout: {
+        source: hazardSource(held.hazard),
+        at: 'start-of-turn' as const,
+        payout: 'damage' as const,
+        dice: rule.dice,
+        flat: 0,
+        damageType: rule.damageType,
+      },
+    };
+  });
 }
 
 /**
@@ -601,9 +651,12 @@ function settleTurnPayouts(
   // A log that does not say how far the generator moved is a log that rewinds
   // on replay: a session resumed from it rebuilds the stream from where the
   // last record left it, and the next command draws the same faces under the
-  // same roll ids. **No log carries this hole**, because no SRD payout throws
-  // dice — every one of them hands over a printed number or an ability
-  // modifier — so this is a determinism defect fixed and not a migration.
+  // same roll ids. **No log carried this hole when the bracket was written**,
+  // because no SRD *spell's* payout throws dice — every one of them hands over
+  // a printed number or an ability modifier — so it was a determinism defect
+  // fixed and not a migration. It is load-bearing now: the glossary's Burning
+  // arrives here through {@link hazardsDue} carrying a 1d4, and that die is
+  // thrown at the boundary like any other.
   if (supply.issuer.count > issuedBefore) {
     events.push({
       type: 'rolls-issued',

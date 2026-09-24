@@ -39,6 +39,7 @@ import type {
 } from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
 import type { GrantedCreatureType } from './creature-type.js';
+import type { CreatureHazard, HazardName } from './hazards.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionWindow } from './reactions.js';
@@ -819,6 +820,47 @@ export type GameEvent =
     }
 
   /**
+   * A creature set alight — SRD Fire Elemental's Burn: "If the target is a
+   * creature or a flammable object, it starts burning."
+   *
+   * **The hazard is the identity and the event carries no number**, which is
+   * the two halves of {@link CreatureHazard}'s own reading: a second Burn
+   * re-lights one fire rather than adding a second, and the 1d4 belongs to the
+   * glossary rather than to any of the three lines that print the sentence. So
+   * nothing is pinned here that a stat block supplied — because a stat block
+   * supplies nothing but the fact.
+   */
+  | {
+      readonly type: 'hazard-caught';
+      readonly id: CharacterId;
+      readonly hazard: CreatureHazard;
+      readonly command?: CommandStamp;
+    }
+
+  /**
+   * A fire put out — SRD *Burning*: "As an action, you can extinguish fire on
+   * yourself by giving yourself the Prone condition and rolling on the
+   * ground."
+   *
+   * One event for one ending, as an attach's is: the Prone the action costs
+   * arrives through `condition-applied`, which is the door every condition
+   * comes in by, and the action through `action-spent`.
+   *
+   * **`extinguishFire` is the only thing that writes it**, and the book's
+   * other three endings — doused, submerged, suffocated — have no writer at
+   * all: what they would need is a world with water in it. They are not
+   * "handed to the table" either, because a table has nowhere to hand them
+   * *to*; a DM who rules a fire out has no door, and the day one exists it
+   * emits this.
+   */
+  | {
+      readonly type: 'hazard-ended';
+      readonly id: CharacterId;
+      readonly hazard: HazardName;
+      readonly command?: CommandStamp;
+    }
+
+  /**
    * A rule this creature's turn is now subject to — the ninth sourced grant.
    *
    * SRD Stinking Cloud: "can't take an action or a Bonus Action." SRD Wind
@@ -1538,6 +1580,39 @@ export type GameEvent =
       readonly type: 'item-unequipped';
       readonly id: CharacterId;
       readonly item: string;
+      readonly command?: CommandStamp;
+    }
+
+  /**
+   * Acid eating into the armour somebody is wearing — SRD Black Pudding's
+   * Dissolving Pseudopod, SRD Gray Ooze's: "Nonmagical armor worn by the
+   * target takes a −1 penalty to the AC it offers."
+   *
+   * **Cumulative, and that is the sentence rather than a convention.** Every
+   * other record in the inventory seam is restated by the event that writes
+   * it; this one is a thing that has *happened to* a suit, and a second
+   * pseudopod is a second point. `decoy-destroyed` is the only other event in
+   * the engine that moves a number rather than replacing a record, and for the
+   * same reason.
+   *
+   * It carries the catalogue id rather than the copy's instance, because
+   * `equipped` is what wears armour and a creature wears one suit: the record
+   * this lands on is the one being worn, and a second suit in the pack is not
+   * the one the acid touched.
+   *
+   * **The destruction is not here.** "The armor is destroyed if the penalty
+   * reduces its AC to 10" is the same ending any lost item has, and the swing
+   * writes it as an `item-unequipped` and an `items-lost` — so a caller
+   * watching for armour leaving a creature has one thing to watch rather than
+   * two.
+   */
+  | {
+      readonly type: 'armor-penalised';
+      readonly id: CharacterId;
+      /** The catalogue id of the suit being worn. */
+      readonly item: string;
+      /** How many points of Armour Class this event eats. SRD prints 1. */
+      readonly points: number;
       readonly command?: CommandStamp;
     }
   /**

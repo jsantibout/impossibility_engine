@@ -33,6 +33,7 @@ import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import { saveModifier, skillModifier } from './character.js';
 import type { ShapeShiftRow } from './progression.js';
 import { isCreatureType } from './spell-definitions.js';
+import type { HazardName } from './hazards.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
 import type { HitRiderAnchor, StandingEffect, StandingRequirement } from './standing.js';
 import type { RollFamily } from './roll-modifiers.js';
@@ -2468,7 +2469,9 @@ export type PrintedRider =
   | PrintedMaximumRider
   | PrintedModeRider
   | PrintedDroppedToZeroRider
-  | PrintedAttachRider;
+  | PrintedAttachRider
+  | PrintedHazardRider
+  | PrintedArmorPenaltyRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -2688,6 +2691,54 @@ export interface PrintedSpeedCutRider {
  */
 export interface PrintedMaximumRider {
   readonly kind: 'hit-point-maximum';
+}
+
+/**
+ * A **hazard** the hit leaves the target standing in — SRD Fire Elemental's
+ * Burn: "If the target is a creature or a flammable object, it starts
+ * burning"; SRD Magmin's Touch, the same with the object qualified.
+ *
+ * It carries no number and no span, and neither is an omission. The 1d4 and
+ * the boundary it falls due at are the **glossary's** — every line that prints
+ * this sentence prints "it starts burning" and nothing else — so a copy here
+ * would be one of three transcriptions of one rule, free to disagree. And a
+ * fire has no deadline: it burns until somebody rolls on the ground or the
+ * table douses it, which is why this is not a {@link PrintedConditionRider}
+ * whose span the reader would then have had to invent.
+ *
+ * **Only the creature half is read.** The same sentence catches "a flammable
+ * object", and the engine holds no flammability — a declared object is a
+ * substance and a size, and whether the oak door in this room takes light is
+ * the table's. So the swing applies it to a creature and hands the object half
+ * back where the target is one; and SRD Barbed Devil's Hurl Flame, which
+ * catches **only** an object, is not read at all.
+ */
+export interface PrintedHazardRider {
+  readonly kind: 'hazard';
+  readonly hazard: HazardName;
+}
+
+/**
+ * Armour the hit **wears down** — SRD Black Pudding's Dissolving Pseudopod and
+ * SRD Gray Ooze's Pseudopod: "Nonmagical armor worn by the target takes a −1
+ * penalty to the AC it offers."
+ *
+ * The points are the sentence's own number and the destruction is not a field:
+ * "The armor is destroyed if the penalty reduces its AC to 10" is a second
+ * sentence stating the rule the swing then applies, so it is read and consumed
+ * rather than carried — the reading {@link ATTACH_DETACH_ACTION} already gets.
+ * A line printing some *other* ceiling would not match and would go back to
+ * the table, which is the right answer: nothing here could apply it.
+ *
+ * "Nonmagical" is carried by nothing, and that is honest rather than a gap: no
+ * armour in the SRD catalogue is magical, so there is no record to narrow on
+ * and a flag nothing could ever read would be the speculative member the
+ * sweeps refuse. The day a +1 Breastplate exists, the swing asks the record.
+ */
+export interface PrintedArmorPenaltyRider {
+  readonly kind: 'armor-penalty';
+  /** SRD's "a −1 penalty", as a positive number of points eaten. */
+  readonly points: number;
 }
 
 /**
@@ -3107,6 +3158,53 @@ const PRINTED_SPEED_CUT = new RegExp(
 /** SRD Specter and SRD Wraith, word for word. */
 const PRINTED_MAXIMUM =
   /^If the target is a creature, its Hit Point maximum decreases by an amount equal to the damage taken\.$/;
+
+/**
+ * SRD Fire Elemental's Burn: "If the target is a creature or a flammable
+ * object, it starts burning." SRD Magmin's Touch qualifies the object — "that
+ * isn't being worn or carried" — and says the same thing about the creature.
+ *
+ * **"a creature" is required and the object half is optional**, which is what
+ * refuses SRD Barbed Devil's Hurl Flame: "If the target is a flammable object
+ * that isn't being worn or carried, it starts burning" catches no creature at
+ * all, and a reader that matched it would set fire to everybody the devil hit.
+ * The two sentences differ by four words and by the whole of the rule.
+ */
+const STARTS_BURNING = new RegExp(
+  `^If the target is a creature(?: or a flammable object)?(?: that isn${APOSTROPHE}t being worn or carried)?, it starts burning\\.$`,
+);
+
+/**
+ * SRD Black Pudding's Dissolving Pseudopod and SRD Gray Ooze's Pseudopod:
+ * "Nonmagical armor worn by the target takes a −1 penalty to the AC it
+ * offers."
+ *
+ * Both the hyphen-minus and the book's own minus sign, because a transcription
+ * may carry either and they are the same number.
+ */
+const PRINTED_ARMOR_PENALTY =
+  /^Nonmagical armor worn by the target takes a [-−](\d+) penalty to the AC it offers\.$/;
+
+/**
+ * SRD's second sentence: "The armor is destroyed if the penalty reduces its AC
+ * to 10."
+ *
+ * **Read and consumed rather than stored**, exactly as SRD Stirge's five-foot
+ * detach is: it states the rule the swing already applies to every armour
+ * penalty, so a field for it would be a second copy of one number free to
+ * disagree.
+ *
+ * **The ceiling is the engine's, and the consumed sentence does not carry
+ * it.** Both lines in the book print the same 10, so reading the number off
+ * the page and reading it off `corrodeArmor` come to the same answer today —
+ * and a homebrew line that printed a *different* ceiling would have this
+ * sentence handed back while its penalty went on being destroyed at 10. That
+ * is a wrong rule rather than a refusal, and it is the one this shape has:
+ * the day a second ceiling is printed, the number joins
+ * {@link PrintedArmorPenaltyRider} and `HitOption.penalisesArmor` becomes a
+ * pair.
+ */
+const ARMOR_DESTROYED_AT_TEN = /^The armor is destroyed if the penalty reduces its AC to 10\.$/;
 
 /** SRD Ettin: a mode on the roll the creature that was hit makes next. */
 const PRINTED_MODE_ON_TARGET = new RegExp(
@@ -3540,6 +3638,14 @@ type ClauseRead =
       readonly detail: Partial<Omit<PrintedAttachRider, 'kind'>>;
       readonly handedOver?: string;
     }
+  /**
+   * "The armor is destroyed if the penalty reduces its AC to 10" — a sentence
+   * about the sentence before it, and the rule the swing already keeps. Its
+   * own member rather than an empty rider list, for `attach-detail`'s reason:
+   * standing alone it names a penalty that is not there, and a reader that
+   * swallowed it anywhere would consume it off a line that never wrote one.
+   */
+  | { readonly kind: 'armor-detail' }
   | { readonly kind: 'no-healing' };
 
 /** One rider and no residue, which is what most clauses read to. */
@@ -3663,6 +3769,13 @@ function readClause(text: string): ClauseRead | null {
   }
 
   if (PRINTED_MAXIMUM.test(text)) return one({ kind: 'hit-point-maximum' });
+
+  if (STARTS_BURNING.test(text)) return one({ kind: 'hazard', hazard: 'burning' });
+
+  const corroded = PRINTED_ARMOR_PENALTY.exec(text);
+  if (corroded !== null) return one({ kind: 'armor-penalty', points: Number(corroded[1]) });
+
+  if (ARMOR_DESTROYED_AT_TEN.test(text)) return { kind: 'armor-detail' };
 
   const ownRoll = PRINTED_MODE_ON_TARGET.exec(text);
   if (ownRoll !== null) {
@@ -3993,6 +4106,15 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
           held === carrier ? { ...held, implies: [...(held.implies ?? []), read.implies] } : held,
         ),
       };
+      continue;
+    }
+
+    if (read.kind === 'armor-detail') {
+      const host = riders.at(-1);
+      // The ceiling belongs to the penalty before it, and the swing already
+      // keeps it. Nothing is stored; a clause with no penalty in front of it
+      // names a rule about nothing, and it goes back to the table.
+      if (host === undefined || host.kind !== 'armor-penalty') handedOver.push(clause);
       continue;
     }
 
