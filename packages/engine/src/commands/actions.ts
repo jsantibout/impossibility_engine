@@ -81,8 +81,8 @@ import {
   type Point,
   positionOf,
   sizeAtMost,
-  sizeOf,
 } from '../positioning.js';
+import { effectiveSizeOf } from '../size.js';
 import {
   describePerDay,
   describeRecharge,
@@ -1144,10 +1144,10 @@ function largerCreatureBeside(state: GameState, hider: CharacterId): CharacterId
   );
   const scene = state.scene;
   if (!holds || scene === null) return null;
-  const own = state.creatures[hider]?.size ?? sizeOf(scene, hider) ?? 'medium';
+  const own = effectiveSizeOf(state, hider) ?? 'medium';
   for (const other of Object.keys(state.creatures).sort()) {
     if (other === hider) continue;
-    const size = state.creatures[other as CharacterId]?.size ?? sizeOf(scene, other as CharacterId);
+    const size = effectiveSizeOf(state, other as CharacterId);
     if (size === null || sizeAtMost(size, own)) continue;
     const apart = distanceBetween(scene, hider, other as CharacterId);
     if (apart.ok && apart.value <= 5) return other as CharacterId;

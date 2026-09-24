@@ -27,7 +27,8 @@ import type { WeaponMastery } from '@ie/srd';
 import { modifierFor, proficiencyBonus } from '../character.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { bearingBetween, moveCreature, sizeAtMost, sizeOf } from '../positioning.js';
+import { bearingBetween, moveCreature, sizeAtMost } from '../positioning.js';
+import { effectiveSizeOf } from '../size.js';
 import { rollSavingThrow } from '../checks.js';
 import { endOfNextTurn, startOfNextTurn, type Duration } from '../time.js';
 import { recordD20Test, savingSupport } from './rolls.js';
@@ -305,7 +306,7 @@ function push(state: GameState, hit: MasteryHit): Result<MasteryOutcome> {
   // size into `creature-added` and the map defaults an unplaced one to Medium,
   // so asking the map first would answer "Medium" for a Gargantuan creature
   // nobody re-stated when they placed it.
-  const size = state.creatures[hit.target]?.size ?? sizeOf(scene, hit.target);
+  const size = effectiveSizeOf(state, hit.target);
   if (size !== null && !sizeAtMost(size, PUSHABLE_UP_TO)) {
     return ok({
       events: [],

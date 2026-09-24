@@ -130,6 +130,8 @@ export const FEATURE_SHAPES = {
     'Temporary Hit Points a feature pays at a *moment*. The state is real — `Vitals.temporaryHp` — and a feature writes it now: an allowance carries `temporaryHitPoints` in packages/engine/src/standing.ts and pays it the moment its price is taken, which is SRD Adrenaline Rush. What SRD Dark One’s Blessing prints is the same number at a moment no feature route opens — "when you reduce an enemy to 0 Hit Points" — and a kill is an outcome of damage rather than a price anybody takes.',
   'heroic-inspiration':
     'Heroic Inspiration regained by a feature mid-fight. The resource itself exists now: a pool of one on the sheet, `human:heroic-inspiration`, which a `reaction` grant declares, a Long Rest refills and the `test-rolled` window spends on a failed ability check or saving throw. What a feature that grants it in combat still has nothing for is the **grant**: SRD Heroic Warrior refills it at the start of each of the holder’s turns, and `recovers` — the field on a pool in packages/engine/src/progression.ts — knows a Short Rest and a Long Rest and no turn boundary.',
+  'a-reroll-outside-the-test-window':
+    'a reroll of a die the `test-rolled` window does not open on. docs/design/rolls-and-damage.md describes the reaction windows, and that one opens on a failed ability check or saving throw, where a `reroll` reaction answers; SRD Heroic Inspiration reads "reroll any die immediately after rolling it", which is also a roll that succeeded, an attack roll and a damage die. A window on every die was tried and withdrawn on 2026-09-23 because a table then settles a window before every next roll; what is left is a window that need not be settled — an offer the next roll may simply pass — which no window has.',
   'a-rule-the-engine-fixes-for-everybody':
     'a constant the engine applies to every creature, which one feature is meant to bend. A Long Rest is eight hours, an attunement limit is a number inside a command, and the concealment a Hide asks for is a test inside `takeHide`. `docs/design/characters-and-equipment.md` keeps the list of what the attunement rules still owe — "what ends attunement besides a command — death, losing the item, another creature attuning to it" — and every one of these is that same shape: a rule the engine holds rather than the sheet, so a trait bending it for its holder alone has nothing to bend. **Two of these used to be named here and are not any more**, in both directions. The objects batch built the Carrying Capacity table, and a `carrying-capacity` grant now moves which row of it a creature reads, which is what SRD Powerful Build walks through. And moving through an occupied space, which wanted two sizes of difference for everybody, is now read off the route a move states: a `passage` grant lowers the two sizes for its holder alone, which is what SRD Halfling Nimbleness walks through.',
   'a-spell-list-that-is-not-your-class-list':
@@ -795,6 +797,18 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       clause: 'narration the engine could answer but is not asked',
       why: 'table',
       note: 'knowledge rather than a rule, and the one entry in this map whose feature is finished business.',
+    },
+  ],
+  'human:resourceful': [
+    {
+      clause: 'the reroll of a roll that succeeded',
+      why: 'a-reroll-outside-the-test-window',
+      note: 'the pool, the Long Rest refill and the reroll of a failed check or save are executed; a roll that succeeded opens no window, by the ruling the shape records.',
+    },
+    {
+      clause: 'the reroll of an attack roll or a damage die',
+      why: 'a-reroll-outside-the-test-window',
+      note: 'the same shape from the other side: an attack roll and a damage die land in no window a reroll can answer in.',
     },
   ],
   'hunter:defensive-tactics': [

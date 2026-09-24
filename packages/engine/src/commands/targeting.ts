@@ -1420,22 +1420,27 @@ export function namedTargets(
       );
     }
 
-    if (target === casterId) {
-      // A creature is always within reach of itself and can always see itself,
-      // so a touch laid on the caster's own hand — SRD Light on the torch they
-      // hold — measures nothing and asks for no scene to measure it in.
-    } else if (state.scene === null) {
-      needs.push({
-        kind: 'scene',
-        subject: target,
-        need: 'a scene, so that distances mean something',
-        because: `${definition.name} has a range to check`,
-        satisfyWith: 'a setScene command',
-      });
+    // A creature is always within reach of itself and can always see itself,
+    // so a touch laid on the caster's own hand — SRD Light on the torch they
+    // hold — measures nothing and asks for no scene to measure it in. What it
+    // does **not** skip is a reach measured from a point the spell placed and
+    // the bound of an area: a force five feet from the caster is a fact of the
+    // map whoever the target is, and so is standing inside a Sphere.
+    const self = target === casterId;
+    if (state.scene === null) {
+      if (!self || origin !== null || eligible !== null) {
+        needs.push({
+          kind: 'scene',
+          subject: target,
+          need: 'a scene, so that distances mean something',
+          because: `${definition.name} has a range to check`,
+          satisfyWith: 'a setScene command',
+        });
+      }
     } else if (reach !== null) {
       // SRD Hold Person: "a Humanoid that you can see." Unknown is a fact to
       // establish; declared *unseen* is the refusal.
-      if (definition.requiresSight === true) {
+      if (definition.requiresSight === true && !self) {
         // **The caster's senses, because the caster is the one looking.**
         // "A creature *you* can see" names the caster in as many words, and
         // a target's own Darkvision says nothing about whether the caster
@@ -1492,7 +1497,7 @@ export function namedTargets(
             `${definition.name} may only be aimed at a creature inside its area; ${target} is not in it`,
           );
         }
-      } else {
+      } else if (!self) {
         const apart = distanceBetween(state.scene, casterId, target);
         if (!apart.ok) {
           needs.push({
@@ -1512,7 +1517,7 @@ export function namedTargets(
 
       // SRD: "To target something with a spell, a caster must have a clear
       // path to it, so it can't be behind Total Cover."
-      if (coverBetween(state.scene, casterId, target) === 'total') {
+      if (!self && coverBetween(state.scene, casterId, target) === 'total') {
         return err('total_cover', `${target} is behind Total Cover`);
       }
     }

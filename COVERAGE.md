@@ -607,6 +607,7 @@ be the second spelling of one derivation.
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
 | `a-creature-fact-an-effect-overrides` | 1 | 1 |
 | `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
+| `a-reroll-outside-the-test-window` | 1 | 1 |
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
 | `a-stat-block-created-mid-fight` | 1 | 1 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
@@ -657,7 +658,7 @@ exactly like an entry nobody read:
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 33 |
+| 9 | 4 | 37 | 32 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
@@ -685,7 +686,7 @@ derived would be somebody’s opinion instead.
 | Gnome | species | 3 | 2 |
 | Goliath | species | 3 | 2 |
 | Halfling | species | 4 | 4 |
-| Human | species | 3 | 3 |
+| Human | species | 3 | 2 |
 | Orc | species | 3 | 3 |
 | Sage | background | 1 | 1 |
 | Soldier | background | 1 | 1 |

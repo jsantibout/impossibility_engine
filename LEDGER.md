@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 104 spells | 71 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 22 features | 16 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 23 features | 17 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 248 items | on 143 of 244 blocks | 0 | 101 blocks already clean |
@@ -518,7 +518,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 22, 17 are class or subclass features printed at level 5 or below, 4 are species or background traits and 1 are feats.
+Of the 23, 17 are class or subclass features printed at level 5 or below, 5 are species or background traits and 1 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -531,6 +531,7 @@ comes from.
 | `a-bonus-to-spell-attack-rolls` | 1 | 1 |
 | `a-declared-fact-a-feature-sets` | 1 | 1 |
 | `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
+| `a-reroll-outside-the-test-window` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
 | `an-attack-the-class-redefines` | 3 | 0 |
@@ -577,6 +578,10 @@ sums to the population.
 #### `a-requirement-on-the-armour-its-holder-is-wearing` — blocks 1, finishes 1
 
 - `defense` — Defense (level 1, feat, fighting-style)
+
+#### `a-reroll-outside-the-test-window` — blocks 1, finishes 1
+
+- `human:resourceful` — Resourceful (level 1, species, manual)
 
 #### `an-object-with-statistics-of-its-own` — blocks 1, finishes 1
 
