@@ -26,8 +26,8 @@ import {
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type D20TestResult, rollAbilityCheck, rollSavingThrow } from '../checks.js';
 import { currentCombatant, extraActionsOwedAtTurnStart, spendAction } from '../combat.js';
-import { type CheckContext } from '../conditions.js';
-import { isDue, timeView, type TurnMoment } from '../time.js';
+import { conditionInstanceId, type CheckContext } from '../conditions.js';
+import { forSeconds, isDue, timeView, type TurnMoment } from '../time.js';
 import {
   mayAttempt,
   pendingSaveKey,
@@ -50,6 +50,7 @@ import {
 import { actionRulesOn, effectiveConditions, rollModesFor, sheetAsItStands } from '../standing.js';
 import { healingRuleOf, isDown, maximisedHealing, rollDeathSave } from '../vitals.js';
 import { type Supply } from './casting.js';
+import { schedule } from './conditions.js';
 import { type DamageComponent } from '../attack.js';
 import { creatureOf, unknownCreature, ZERO_HIT_POINTS } from './command.js';
 import { grantTemporaryHpTo, healCreature, strandedSummons } from './creatures.js';
@@ -1125,23 +1126,34 @@ export function conditionEndedBy(state: GameState, effectKey: string): readonly 
  * it lifted, so the repeat is repeated once — the SRD's "the second save" —
  * and no event of its own is needed to say so.
  *
+ * **What ends the *deeper* condition comes with it, where the sentence gives
+ * it one.** SRD Brass Dragon Wyrmling's Sleep Breath deepens into "the
+ * Unconscious condition **for 1 minute**" and SRD Silver Dragon Wyrmling's
+ * into a Paralyzed that repeats its own save until it is shaken off or the
+ * minute is up. Both are scheduled onto the instance this creates, in the one
+ * `effect-scheduled` the new condition needs — which is why a *deepening* may
+ * carry a deadline where the rung above it may not: this moment has already
+ * arrived, so nothing here can race a save nobody has rolled.
+ *
  * Nothing at all where the hook writes no failure branch, which is every
  * repeat save the engine had before this: a failure that does nothing is still
  * the commonest answer in the book.
  */
-function deepenedBy(state: GameState, pending: PendingSave): readonly GameEvent[] {
+function deepenedBy(state: GameState, pending: PendingSave): Result<readonly GameEvent[]> {
   const timer = state.timers[pending.effectKey];
   const deeper = timer?.repeatSave?.onFailure;
-  if (timer === undefined || deeper === undefined || timer.target.kind !== 'condition') return [];
+  if (timer === undefined || deeper === undefined || timer.target.kind !== 'condition') {
+    return ok([]);
+  }
 
   // What is being deepened, read the way `conditionEndedBy` reads it: the
   // instance the timer names, on the creature it names. An instance already
   // gone — cured between the boundary and the roll — is nothing to deepen,
   // and the save was owed against an effect that is no longer there.
   const shallow = conditionEndedBy(state, pending.effectKey);
-  if (shallow.length === 0) return [];
+  if (shallow.length === 0) return ok([]);
 
-  return [
+  const events: GameEvent[] = [
     ...shallow.map(
       (condition): GameEvent => ({
         type: 'condition-removed',
@@ -1157,6 +1169,26 @@ function deepenedBy(state: GameState, pending: PendingSave): readonly GameEvent[
       source: pending.source,
     },
   ];
+
+  // A hook needs a timer to hang on even where the effect has no deadline of
+  // its own, and a deadline needs one even where nothing repeats — the pair
+  // `applyConditionTo` already writes, on the instance the event above
+  // creates. Nothing at all where the deepening says neither: the deeper
+  // condition then runs for whatever put the shallow one there, which is what
+  // every deepening the engine had before this did.
+  if (deeper.lasts === undefined && deeper.repeats === undefined) return ok(events);
+  const hung = schedule(
+    state,
+    {
+      kind: 'condition',
+      on: pending.target,
+      instance: conditionInstanceId(deeper.condition, pending.source),
+    },
+    deeper.lasts === undefined ? { kind: 'indefinite' } : forSeconds(deeper.lasts.seconds),
+    deeper.repeats,
+  );
+  if (!hung.ok) return hung;
+  return ok([...events, hung.value]);
 }
 
 /**
@@ -1339,6 +1371,15 @@ export function resolvePendingSaves(
       });
       if (!save.ok) return save;
 
+      // **And what a failure buys, where the SRD writes a failure that buys
+      // something.** After the resolution and not before it: the resolution is
+      // what clears the debt, and a removal that dropped the timer first would
+      // leave `dropOrphanedSaves` to discard a save nobody had answered.
+      const deepened = save.value.success
+        ? ok([] as readonly GameEvent[])
+        : deepenedBy(state, pending);
+      if (!deepened.ok) return deepened;
+
       events.push(
         recordD20Test(
           pending.target,
@@ -1352,12 +1393,7 @@ export function resolvePendingSaves(
           turn: pending.turn,
           success: save.value.success,
         },
-        // **And what a failure buys, where the SRD writes a failure that
-        // buys something.** After the resolution and not before it: the
-        // resolution is what clears the debt, and a removal that dropped the
-        // timer first would leave `dropOrphanedSaves` to discard a save
-        // nobody had answered.
-        ...(save.value.success ? [] : deepenedBy(state, pending)),
+        ...deepened.value,
       );
       saves.push({
         effectKey: pending.effectKey,

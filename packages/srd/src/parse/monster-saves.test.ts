@@ -454,6 +454,109 @@ describe('a failure the line grades', () => {
     ]);
   });
 
+  /**
+   * SRD Brass Dragon Wyrmling's Sleep Breath: "_Failure:_ The target has the
+   * Incapacitated condition until the end of its next turn, at which point it
+   * repeats the save. _Second Failure:_ The target has the Unconscious
+   * condition for 1 minute. This effect ends for the target if it takes damage
+   * or a creature within 5 feet of it takes an action to wake it."
+   *
+   * Two things this family prints and the Gorgon's does not. The first rung
+   * names the repeat's **moment** rather than a span of its own — "until the
+   * end of its next turn, at which point it repeats the save" is one moment
+   * said twice, and what the moment does is change the condition — and the
+   * second rung carries a lifetime of its own. The two early endings are a
+   * rule nothing here executes, so they are handed over under their own
+   * heading rather than dropped: the deeper condition ends *later* than the
+   * book says and the difference is the table's to apply.
+   */
+  it('reads a second rung that deepens into a span of its own', () => {
+    expect(lineOf('brass-dragon-wyrmling', 'Sleep Breath').save).toEqual({
+      ability: 'con',
+      dc: 11,
+      targets: 'each creature in a 15-foot Cone',
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'incapacitated',
+          repeats: {
+            at: 'end',
+            of: 'target',
+            onFailure: {
+              condition: 'unconscious',
+              lasts: { kind: 'seconds', seconds: 60 },
+            },
+          },
+        },
+      ],
+      handedOver: [
+        '_Second Failure:_ This effect ends for the target if it takes damage or a creature within 5 feet of it takes an action to wake it.',
+      ],
+    });
+  });
+
+  /**
+   * SRD Silver Dragon Wyrmling's Paralyzing Breath: "_First Failure:_ The
+   * target has the Incapacitated condition until the end of its next turn,
+   * when it repeats the save. _Second Failure:_ The target has the Paralyzed
+   * condition, and it repeats the save at the end of each of its turns, ending
+   * the effect on itself on a success. After 1 minute, it succeeds
+   * automatically."
+   *
+   * The other thing a second rung can carry: a repeat of its own, standing
+   * rather than one-shot, with the minute it succeeds automatically after as
+   * its cap. Nothing is handed over — the whole line is read.
+   */
+  it('reads a second rung that deepens into a repeat of its own', () => {
+    expect(lineOf('silver-dragon-wyrmling', 'Paralyzing Breath').save).toEqual({
+      ability: 'con',
+      dc: 13,
+      targets: 'each creature in a 15-foot Cone',
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'incapacitated',
+          repeats: {
+            at: 'end',
+            of: 'target',
+            onFailure: {
+              condition: 'paralyzed',
+              repeats: { at: 'end', of: 'target', capSeconds: 60 },
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  /** And the same sentences at every tier the family prints them at. */
+  it('reads the whole of both families, wyrmling to ancient', () => {
+    const deepening = (id: string, line: string) => {
+      const save = lineOf(id, line).save;
+      const [clause] = save?.onFailure ?? [];
+      return clause?.kind === 'condition' ? clause.repeats?.onFailure : undefined;
+    };
+    for (const id of ['young-brass-dragon', 'adult-brass-dragon', 'ancient-brass-dragon']) {
+      expect(deepening(id, 'Sleep Breath')?.condition).toBe('unconscious');
+      expect(deepening(id, 'Sleep Breath')?.lasts?.kind).toBe('seconds');
+    }
+    // The two older Brass Dragons print ten minutes where the wyrmling prints
+    // one, which is the span being read rather than assumed.
+    expect(deepening('adult-brass-dragon', 'Sleep Breath')?.lasts).toEqual({
+      kind: 'seconds',
+      seconds: 600,
+    });
+    for (const id of ['young-silver-dragon', 'adult-silver-dragon', 'ancient-silver-dragon']) {
+      expect(deepening(id, 'Paralyzing Breath')?.repeats).toEqual({
+        at: 'end',
+        of: 'target',
+        capSeconds: 60,
+      });
+    }
+  });
+
   it('reads a failure graded by how far the save missed', () => {
     // SRD Pseudodragon: "_Failure by 5 or More:_ While Poisoned, the target
     // also has the Unconscious condition, which ends early if…" — the same
@@ -750,15 +853,43 @@ describe('the lines the reader does not reach', () => {
     expect(lineOf('solar', 'Slaying Bow').save).toBeUndefined();
   });
 
-  it('refuses a graded failure whose second rung it cannot hold', () => {
-    // SRD Brass Dragon Wyrmling's Sleep Breath deepens to "the Unconscious
-    // condition **for 1 minute**", and SRD Silver Dragon Wyrmling's deepens to
-    // a Paralyzed that repeats its own save. `repeats.onFailure` is a bare
-    // condition name — a span and a second repeat are not on it — so the
-    // deeper rung would be applied forever, which is worse than handing the
-    // line over. Refused whole, as the family was before.
-    expect(lineOf('brass-dragon-wyrmling', 'Sleep Breath').save).toBeUndefined();
-    expect(lineOf('silver-dragon-wyrmling', 'Paralyzing Breath').save).toBeUndefined();
+  /**
+   * **A second rung the grammar cannot hold still refuses the whole line**,
+   * which is the property the two dragon families were refused under until a
+   * deepening could carry a lifetime — and it is the half most easily lost by
+   * widening the rung grammar, because what it buys is a *refusal*.
+   *
+   * The sentence is SRD Cockatrice's, whose Petrifying Bite prints the "instead
+   * of" spelling with a span threaded through its middle: "The target has the
+   * Petrified condition, instead of the Restrained condition, for 24 hours."
+   * Asserted here through the template rather than off the block, because that
+   * line opens with `_Melee Attack Roll:_` and would be refused for its
+   * opening whatever this reader did with its rung — an assertion that passes
+   * for the wrong reason is not a guard. Beside it, a rung that says two
+   * things: a deepening is one condition and what ends it, and a rule riding
+   * on the deeper condition has nowhere to be written.
+   */
+  it('refuses a graded failure whose second rung it still cannot hold', () => {
+    const graded = (rung: string) =>
+      parseSaveLine(
+        '_Constitution Saving Throw:_ DC 11, each creature in a 15-foot Cone. ' +
+          '_First Failure:_ The target has the Restrained condition and repeats the save at the ' +
+          'end of its next turn, ending the effect on itself on a success. ' +
+          `_Second Failure:_ ${rung}`,
+      );
+
+    // The rung that is read, so the fixture is known to be a rung this reader
+    // reaches at all — and then the two that are not.
+    expect(graded('The target has the Petrified condition instead of the Restrained condition.'))
+      .not.toBeNull();
+    expect(
+      graded(
+        'The target has the Petrified condition, instead of the Restrained condition, for 24 hours.',
+      ),
+    ).toBeNull();
+    expect(
+      graded('The target has the Petrified condition and is pushed up to 10 feet straight away from the gorgon.'),
+    ).toBeNull();
   });
 
   it('refuses a trigger printed before the save', () => {

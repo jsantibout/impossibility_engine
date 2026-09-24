@@ -1141,6 +1141,29 @@ function checkConditionRider(
       found,
     );
 
+    // **And the deeper condition may carry a span, where the first may not.**
+    // The rule the comment below states is about the condition the *repeat*
+    // sits on: its deadline and the save's moment are the same moment, so one
+    // silently eats the other. A deepening is applied at a moment that has
+    // already arrived and scheduled there, so its own span races nothing —
+    // which is the whole difference, and why this is checked rather than
+    // refused. A span on the clock only: see `SpellRepeatSave.onFailure`.
+    const deepened: unknown = rider.repeats.onFailure.lasts;
+    if (
+      deepened !== undefined &&
+      (typeof deepened !== 'object' ||
+        deepened === null ||
+        !Number.isFinite((deepened as { seconds: number }).seconds) ||
+        (deepened as { seconds: number }).seconds <= 0)
+    ) {
+      found.push({
+        field: `${riderPath}.repeats.onFailure.lasts`,
+        code: 'bad_rider_duration',
+        reason:
+          'the condition a failure deepens to lasts for a span of seconds — SRD Brass Dragon Wyrmling prints a minute — and a span of none does not last; omit it for a deepening that runs for whatever imposed the first condition',
+      });
+    }
+
     // **And the condition that carries one takes no deadline of its own.**
     // SRD Sleep names one moment twice — "until the end of its next turn, at
     // which point it must repeat the save" — and what the moment does is

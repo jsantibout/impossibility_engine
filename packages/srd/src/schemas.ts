@@ -366,13 +366,28 @@ export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
  * the engine's `Duration`, because this package knows no creature ids; the
  * executor resolves `target` and `source` to the two creatures in the save.
  */
+/**
+ * The half of a span that is a reading of the clock.
+ *
+ * Split out because one slot takes this and not the turn anchor beside it: a
+ * **deepened** condition's lifetime — see `repeats.onFailure` below — is a
+ * span in minutes wherever the book prints one, and a turn anchor there would
+ * be the very moment the repeat fires on, which is the race the first rung is
+ * already held away from.
+ */
+export const PrintedSecondsSchema = z.object({
+  kind: z.literal('seconds'),
+  seconds: z.number().int().min(1),
+});
+export type PrintedSeconds = z.infer<typeof PrintedSecondsSchema>;
+
 export const PrintedSpanSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('turn'),
     moment: z.enum(['start', 'end']),
     of: z.enum(['target', 'source']),
   }),
-  z.object({ kind: z.literal('seconds'), seconds: z.number().int().min(1) }),
+  PrintedSecondsSchema,
 ]);
 export type PrintedSpan = z.infer<typeof PrintedSpanSchema>;
 
@@ -465,6 +480,22 @@ export type PrintedActionRule = z.infer<typeof PrintedActionRuleSchema>;
  * ceiling under a ceiling, and `z.lazy` would buy a shape nobody wrote at the
  * cost of the inference every reader of this union depends on.
  */
+/**
+ * The save a clause retakes at a turn boundary, without what a failure buys.
+ *
+ * The book prints this sentence twice in one line where it grades a failure —
+ * once on the condition the first rung imposed and once on the deeper
+ * condition the second rung replaces it with — so it is written once and
+ * spread into both. The failure branch belongs to the **outer** one alone:
+ * there is no third rung anywhere in the corpus.
+ */
+const PRINTED_REPEAT = {
+  at: z.literal('end'),
+  of: z.literal('target'),
+  /** "After 1 minute, it succeeds automatically." */
+  capSeconds: z.number().int().min(1).optional(),
+} as const;
+
 const PRINTED_SAVE_CLAUSES = [
   z.object({
     kind: z.literal('condition'),
@@ -491,9 +522,7 @@ const PRINTED_SAVE_CLAUSES = [
     implies: z.array(PrintedConditionSchema).min(1).optional(),
     repeats: z
       .object({
-        at: z.literal('end'),
-        of: z.literal('target'),
-        capSeconds: z.number().int().min(1).optional(),
+        ...PRINTED_REPEAT,
         /**
          * What a **failed** repeat leaves behind, where the line grades its
          * failures.
@@ -507,14 +536,28 @@ const PRINTED_SAVE_CLAUSES = [
          * goes with it — so the save is repeated once, which is the book's
          * "second" failure.
          *
-         * **A bare condition name and nothing else**, which is what refuses
-         * the two wyrmlings: SRD Brass Dragon Wyrmling deepens to an
-         * Unconscious *for 1 minute* and SRD Silver Dragon Wyrmling to a
-         * Paralyzed that repeats its own save, and neither a span nor a second
-         * repeat can be said here. Those lines stay prose rather than being
-         * read down to a rung that would never end.
+         * **And a deepening may carry a lifetime of its own**, which the two
+         * dragon families are why. SRD Brass Dragon Wyrmling deepens to an
+         * Unconscious *for 1 minute* — {@link lasts}, a span on the clock, the
+         * one the book ever prints here — and SRD Silver Dragon Wyrmling to a
+         * Paralyzed that *repeats the save at the end of each of its turns*,
+         * which is {@link repeats}: a standing obligation on the deeper
+         * condition, capped where the line says it succeeds automatically
+         * after a minute. The deepened condition is applied fresh and
+         * scheduled fresh, which is what makes either sayable here where the
+         * first rung may say neither beside its own repeat.
+         *
+         * **No third rung**, because the book prints none at any tier: the
+         * nested repeat has the shape of the one above it with the failure
+         * branch taken off.
          */
-        onFailure: z.object({ condition: PrintedConditionSchema }).optional(),
+        onFailure: z
+          .object({
+            condition: PrintedConditionSchema,
+            lasts: PrintedSecondsSchema.optional(),
+            repeats: z.object(PRINTED_REPEAT).optional(),
+          })
+          .optional(),
       })
       .optional(),
   }),

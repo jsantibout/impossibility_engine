@@ -326,29 +326,43 @@ export function applyPrintedClauses(
         // grappler, escaped at the printed DC through `escapeGrapple`.
         const grapple = clause.escapeDc !== undefined;
         const conditionSource = grapple ? grappleSource(source) : lineSource;
-        const repeat: RepeatSave | undefined =
-          clause.repeats === undefined
+        // The host's own ability and DC on every repeat this line hangs: SRD
+        // writes "repeats **the** save", and the anchor is the printed `end`
+        // of the `target`'s turn, which is the only pair the reader produces.
+        const repeatOf = (onFailure?: RepeatSave['onFailure']): RepeatSave => ({
+          at: 'end-of-turn',
+          of: target,
+          ability: save.ability,
+          dc: save.dc,
+          onSuccess: 'end-on-target',
+          ...(onFailure === undefined ? {} : { onFailure }),
+          label: `${ABILITY_NAMES[save.ability]} save vs ${line}`,
+        });
+        // SRD Gorgon: "_Second Failure:_ The target has the Petrified
+        // condition instead of the Restrained condition." The printed field is
+        // `RepeatSave.onFailure` word for word, so it is pinned on and
+        // `deepenedBy` does the rest — the deeper condition under the same
+        // source, the shallow one lifted and the timer gone with it, which is
+        // why the save is repeated once.
+        //
+        // **And what the deeper condition is ended by comes with it.** SRD
+        // Brass Dragon Wyrmling's minute is a span on the clock; SRD Silver
+        // Dragon Wyrmling's ending is a save of its own, under the minute
+        // after which the block says that save succeeds automatically — so a
+        // cap is read into the deepening's span exactly as the first rung's
+        // cap is read into the condition's, by `durationOf` below.
+        const deepening = clause.repeats?.onFailure;
+        const deepenedFor = deepening?.lasts?.seconds ?? deepening?.repeats?.capSeconds;
+        const deeper: RepeatSave['onFailure'] =
+          deepening === undefined
             ? undefined
             : {
-                at: 'end-of-turn',
-                of: target,
-                ability: save.ability,
-                dc: save.dc,
-                onSuccess: 'end-on-target',
-                // SRD Gorgon: "_Second Failure:_ The target has the Petrified
-                // condition instead of the Restrained condition." The printed
-                // field is `RepeatSave.onFailure` word for word, so it is
-                // pinned on and `deepenedBy` does the rest — the deeper
-                // condition under the same source, the shallow one lifted and
-                // the timer gone with it, which is why the save is repeated
-                // once. A line that printed both a span and a deepening would
-                // race its own deadline; none does, and the reader is what
-                // says so.
-                ...(clause.repeats.onFailure === undefined
-                  ? {}
-                  : { onFailure: { condition: clause.repeats.onFailure.condition } }),
-                label: `${ABILITY_NAMES[save.ability]} save vs ${line}`,
+                condition: deepening.condition,
+                ...(deepenedFor === undefined ? {} : { lasts: { seconds: deepenedFor } }),
+                ...(deepening.repeats === undefined ? {} : { repeats: repeatOf() }),
               };
+        const repeat: RepeatSave | undefined =
+          clause.repeats === undefined ? undefined : repeatOf(deeper);
         const landed = conditionLanding(
           applyConditionTo(
             current,
