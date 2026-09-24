@@ -1914,11 +1914,68 @@ function featureOptionProblems(
       `${at}.name`,
     );
   }
-  if (host === 'pool' && option.action !== 'action' && option.action !== 'bonus-action') {
+  if (
+    host === 'pool' &&
+    option.action !== 'action' &&
+    option.action !== 'bonus-action' &&
+    option.action !== 'one-attack'
+  ) {
     say(
       'bad_option_action',
-      `SRD prints what a use costs — "As a Magic action" — and "${String(option.action)}" is neither an Action nor a Bonus Action`,
+      `SRD prints what a use costs — "As a Magic action", "you can replace one of your attacks" — and "${String(option.action)}" is none of an Action, a Bonus Action and one attack of the Attack action`,
       `${at}.action`,
+    );
+  }
+
+  // **The shapes an option offers, and the one it prints, are alternatives.**
+  // SRD Breath Weapon is the only sentence in the book that gives its holder a
+  // choice of template — "a 15-foot Cone or a 30-foot Line ... (choose the
+  // shape each time)" — and an option that wrote both would print a shape the
+  // caller could never elect. Each entry is named by its own `kind`, which is
+  // how the use states which it took, so two of a kind is a choice nobody
+  // could make.
+  if (host === 'pool' && option.areas !== undefined) {
+    if (!Array.isArray(option.areas) || option.areas.length < 2) {
+      say(
+        'bad_option_shapes',
+        `an option offering a choice of shape prints at least two; one shape is ${featureId}'s "area"`,
+        `${at}.areas`,
+      );
+    } else {
+      const kinds = option.areas.map((one) => (one as { readonly kind?: unknown }).kind);
+      if (new Set(kinds).size !== kinds.length) {
+        say(
+          'bad_option_shapes',
+          `${featureId} offers two areas of one kind, and a use names the shape it takes by that kind`,
+          `${at}.areas`,
+        );
+      }
+    }
+    if (option.area !== undefined) {
+      say(
+        'feature_option_reaches_twice',
+        `${featureId} prints one area and offers a choice of several; an option does one or the other`,
+        `${at}.areas`,
+      );
+    }
+    if (option.reach !== undefined) {
+      say(
+        'feature_option_reaches_twice',
+        `${featureId} offers a choice of area and reaches a target it names; an option does one or the other`,
+        `${at}.areas`,
+      );
+    }
+  }
+
+  // The ability a feature derives its own DC from — SRD Breath Weapon's
+  // Constitution. A save nobody rolls is a formula nothing reads, which is the
+  // same emptiness `mustBeType` without an area is.
+  if (host === 'pool' && option.saveAbility !== undefined &&
+    !(ABILITIES as readonly string[]).includes(option.saveAbility)) {
+    say(
+      'bad_option_save_ability',
+      `a saving throw DC is derived from one of the six abilities, not "${String(option.saveAbility)}"`,
+      `${at}.saveAbility`,
     );
   }
 

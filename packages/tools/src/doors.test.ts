@@ -900,6 +900,12 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // against half each creature's maximum and against the types the option will
   // not touch. `holdings.test.ts` drives both halves.
   division_required: { fields: ['use_pool_option.among'] },
+  // The one option in the book that prints two templates and gives the choice
+  // to its holder — SRD Breath Weapon's "a 15-foot Cone or a 30-foot Line
+  // that is 5 feet wide (choose the shape each time)". `damage_type_required`
+  // one field along, and answered the same way: the engine names the shapes
+  // and will not pick between them.
+  shape_required: { fields: ['use_pool_option.shape'] },
 
   // — a creature named for a roll that the split never gave one ——————————————
   // SRD Scorching Ray's "at one target within range or at several" with the

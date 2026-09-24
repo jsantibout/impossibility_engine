@@ -1744,7 +1744,14 @@ export interface PoolOption {
   readonly option: string;
   /** What this option is called: SRD's "Turn Undead". */
   readonly name: string;
-  readonly action: 'action' | 'bonus-action';
+  /**
+   * What spending it costs in the economy.
+   *
+   * `one-attack` is SRD Breath Weapon's, and is one swing of an Attack action
+   * already taken rather than an action of its own — see
+   * `PoolOptionGrant.action`.
+   */
+  readonly action: 'action' | 'bonus-action' | 'one-attack';
   readonly pool: string;
   /** The effects, with any class-table dice already resolved. */
   readonly effects: readonly SpellEffect[];
@@ -1766,6 +1773,15 @@ export interface PoolOption {
    */
   readonly ability: Ability | null;
   readonly area?: SpellArea;
+  /**
+   * The shapes the option offers, where the holder chooses one at the use —
+   * SRD Breath Weapon's "15-foot Cone or a 30-foot Line ... (choose the shape
+   * each time)".
+   *
+   * Beside {@link area} and never with it, and each entry a different `kind`,
+   * because the kind is what the caller names the shape by.
+   */
+  readonly areas?: readonly SpellArea[];
   readonly reach?: number;
   readonly mustBeType?: string;
   readonly durationSeconds?: number;

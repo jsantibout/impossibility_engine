@@ -62,6 +62,19 @@ const DRACONIC_ANCESTORS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * SRD Breath Weapon: "This damage increases by 1d10 when you reach character
+ * levels 5 (2d10), 11 (3d10), and 17 (4d10)."
+ *
+ * A column of twenty rows rather than four numbers, because that is what every
+ * other table the vocabulary reads is: `diceCountByLevel` takes one entry per
+ * level and reads the row the holder is on, and a species trait's level is the
+ * character's own.
+ */
+const BREATH_WEAPON_DICE: readonly number[] = [
+  1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4,
+];
+
+/**
  * One row of a lineage or legacy table: what the option knows now, and the two
  * spells it learns later.
  *
@@ -224,14 +237,51 @@ export const DRAGONBORN: SpeciesDefinition = {
       id: 'dragonborn:breath-weapon',
       name: 'Breath Weapon',
       level: 1,
-      automation: 'manual',
-      note: 'None of it is applied. Replacing one of the Attack action attacks with a 15-foot Cone or a 30-foot Line, the Dexterity save against DC 8 plus Constitution modifier and Proficiency Bonus, and the 1d10 that becomes 2d10, 3d10 and 4d10 at character levels 5, 11 and 17 are the DM to adjudicate. The uses are declared: a pool the Proficiency Bonus sizes, on the sheet and refilled by a Long Rest, with nothing to buy from it until the breath itself is the engine’s.',
+      automation: 'engine',
+      note: 'Executed. SRD: "When you take the Attack action on your turn, you can replace one of your attacks with an exhalation of magical energy in a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose the shape each time). Each creature in that area must make a Dexterity saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus). On a failed save, a creature takes 1d10 damage of the type determined by your Draconic Ancestry trait. On a successful save, a creature takes half as much damage." The price is one swing of an Attack action already taken, which is what `one-attack` spends; the shape is named at the use, out of the two the sentence prints; the DC is the trait’s own formula rather than a spell save DC a species has not got; the type is read off the Draconic Ancestors table through the same choice the Damage Resistance trait reads; and the dice are a column at the character’s own level — 1d10, then 2d10 at 5, 3d10 at 11 and 4d10 at 17. The uses are the pool they always were, sized by the Proficiency Bonus and refilled by a Long Rest.',
       grants: {
         kind: 'pool',
         key: 'dragonborn:breath-weapon',
         label: 'Breath Weapon',
         perProficiencyBonus: true,
         recovers: 'long-rest',
+        // "damage of the type determined by your Draconic Ancestry trait" —
+        // the same answer, off the same table, that the Damage Resistance
+        // trait below reads. The type written on the effect is the placeholder
+        // a stated choice always replaces.
+        damageTypesFromChoice: true,
+        choiceFrom: 'dragonborn:draconic-ancestry',
+        options: [
+          {
+            id: 'breath-weapon',
+            name: 'Breath Weapon',
+            // "you can replace one of your attacks".
+            action: 'one-attack',
+            // "DC 8 plus your Constitution modifier and Proficiency Bonus."
+            saveAbility: 'con',
+            // "a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose
+            // the shape each time)."
+            areas: [
+              { kind: 'cone', length: 15, origin: 'self' },
+              { kind: 'line', length: 30, width: 5, origin: 'self' },
+            ],
+            // "This damage increases by 1d10 when you reach character levels 5
+            // (2d10), 11 (3d10), and 17 (4d10)" — a column read at the
+            // character's own level, which is what a species trait's namespace
+            // resolves to.
+            diceCountByLevel: BREATH_WEAPON_DICE,
+            effects: [
+              {
+                kind: 'save-damage',
+                ability: 'dex',
+                damage: { dice: '1d10' },
+                damageType: 'fire',
+                // "On a successful save, a creature takes half as much damage."
+                onSuccess: 'half',
+              },
+            ],
+          },
+        ],
       },
     },
     {

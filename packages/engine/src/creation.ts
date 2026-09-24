@@ -48,7 +48,7 @@ import type {
   TradeFeature,
 } from './standing.js';
 import type { TurnAnchor } from './time.js';
-import type { SpellEffect } from './spell-definitions.js';
+import { statedDamageType, type SpellEffect } from './spell-definitions.js';
 import { formIneligibility } from './monster.js';
 import type {
   ConferrableReaction,
@@ -3221,7 +3221,39 @@ export function planCharacter(
     readonly host: FeatureDefinition;
     readonly pool: string;
     readonly options: readonly PoolOptionGrant[];
+    /**
+     * The damage type the player's own answer named, where the grant said the
+     * options read one — SRD Breath Weapon's "of the type determined by your
+     * Draconic Ancestry trait".
+     *
+     * Resolved where the grant is found rather than where the option is
+     * compiled, because the table belongs to the feature that asked the
+     * question and the gate that reads it is the grant's, not the menu's.
+     */
+    readonly damageType?: string;
   }[] = [];
+
+  /**
+   * The damage type a grant's own choice names, for a grant that says its
+   * damage comes from one.
+   *
+   * The `standing` loop's `chosenTypes` asked of a second host and answered
+   * with one type rather than a list: a `damage-resistance` resists everything
+   * the answer named and one blow deals a single type, so a table entry that
+   * meant two would have to say which. The SRD prints one type per dragon and
+   * `checkContent` holds every meaning to naming some.
+   */
+  const chosenDamageTypeOf = (
+    feature: FeatureDefinition,
+    grant: { readonly choiceFrom?: string },
+  ): string | undefined => {
+    const chooser = byFeatureId.get(featureOfAnswerKey(grant.choiceFrom ?? feature.id));
+    const picked = choices.featureChoices[chooser?.id ?? feature.id] ?? [];
+    const meanings = chooser?.optionMeans;
+    return picked
+      .flatMap((option) => (meanings === undefined ? [option] : (meanings[option]?.damageTypes ?? [])))
+      .map((type) => type.toLowerCase())[0];
+  };
   /**
    * What a later feature changes about a form already on a menu, by host and
    * option — SRD Sear Undead's Radiant damage on Turn Undead's failed save.
@@ -3237,7 +3269,14 @@ export function planCharacter(
   }[] = [];
   for (const [feature, grant] of grantsIn(features)) {
     if (grant.kind === 'pool' && grant.options !== undefined) {
-      menus.push({ host: feature, pool: grant.key, options: grant.options });
+      const typed =
+        grant.damageTypesFromChoice === true ? chosenDamageTypeOf(feature, grant) : undefined;
+      menus.push({
+        host: feature,
+        pool: grant.key,
+        options: grant.options,
+        ...(typed === undefined ? {} : { damageType: typed }),
+      });
       continue;
     }
     if (grant.kind !== 'pool-options') continue;
@@ -3271,14 +3310,28 @@ export function planCharacter(
   const amendmentFor = (host: string, option: string): FailedSaveDamage | undefined =>
     amendments.find((one) => one.host === host && one.option === option)?.damage;
 
-  for (const { host, pool, options } of menus) {
-    const ability = castingAbilityFor(host.id);
+  for (const { host, pool, options, damageType } of menus) {
     const count =
       options.some((option) => option.diceCountByLevel !== undefined)
         ? classLevelFor(choices, host.id)
         : 0;
 
     for (const option of options) {
+      // SRD Breath Weapon prints its own formula — "DC 8 plus your
+      // Constitution modifier and Proficiency Bonus" — where SRD Channel
+      // Divinity reads the granting class's. The option's own answer wins,
+      // which is the rule an `on-hit` grant's `saveAbility` already keeps one
+      // trigger along.
+      const ability = option.saveAbility ?? castingAbilityFor(host.id);
+      const counted =
+        option.diceCountByLevel === undefined
+          ? option.effects
+          : withDiceCount(
+              option.effects,
+              option.diceCountByLevel[
+                Math.max(0, Math.min(count, option.diceCountByLevel.length) - 1)
+              ] ?? 1,
+            );
       poolOptions.push({
         feature: host.id,
         featureName: host.name,
@@ -3286,15 +3339,11 @@ export function planCharacter(
         name: option.name,
         action: option.action,
         pool,
-        effects:
-          option.diceCountByLevel === undefined
-            ? option.effects
-            : withDiceCount(
-                option.effects,
-                option.diceCountByLevel[
-                  Math.max(0, Math.min(count, option.diceCountByLevel.length) - 1)
-                ] ?? 1,
-              ),
+        // The type the player's own answer named — SRD Breath Weapon's "of the
+        // type determined by your Draconic Ancestry trait", written onto the
+        // effects here with the substitution a stated damage type already goes
+        // through, because the answer was given once and does not change.
+        effects: statedDamageType(counted, damageType),
         // What a later feature hangs on this form's failed saving throw — SRD
         // Sear Undead on Turn Undead. Absent for every option nobody amended,
         // which is every option but one.
@@ -3303,6 +3352,7 @@ export function planCharacter(
           : { damagesFailures: amendmentFor(host.id, option.id)! }),
         ability,
         ...(option.area === undefined ? {} : { area: option.area }),
+        ...(option.areas === undefined ? {} : { areas: option.areas }),
         ...(option.reach === undefined ? {} : { reach: option.reach }),
         ...(option.mustBeType === undefined ? {} : { mustBeType: option.mustBeType }),
         ...(option.durationSeconds === undefined

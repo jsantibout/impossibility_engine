@@ -100,8 +100,6 @@ export const FEATURE_SHAPES = {
     'a spell a feature lets you cast without a slot. The route exists for an **item** and is refused to a feature by name: packages/engine/src/progression.ts says of the `casts` grant "An item-only member. Nothing executes it from a class feature and `checkContent` refuses it there", because the charges it spends are an item\'s pool looked up by the granting item\'s id. Every SRD sentence of the shape "cast it without expending a spell slot" wants exactly that grant with a feature\'s pool behind it.',
   'an-option-whose-span-is-a-turn-boundary':
     'a feature\'s conferred effect that runs to a **moment in the Initiative order** rather than for a printed span. What an option hangs is ended by a deadline it files itself, and `PoolOptionGrant` in packages/engine/src/progression.ts admits exactly one kind of it — "How long what it hangs lasts, in seconds" — because Channel Divinity\'s minute is what it was built from. An `activated` grant one member along carries a `TurnAnchor` instead and a `standing` grant needs none, so the vocabulary holds both spellings of a lifetime and this host holds one: SRD Nature\'s Veil gives the Invisible condition "until the end of your next turn", and there is no field to write that in. It is the mirror of the entry below rather than the same gap — that one is a switched-on feature wanting a span, and this is a conferred effect wanting a boundary.',
-  'a-dc-a-feature-derives-from-its-own-abilities':
-    'a saving throw DC a feature computes for itself. A feature\'s option rolls against its holder\'s spell save DC, and `PoolOption` in packages/engine/src/standing.ts says whose: "The **granting class\'s** ability, resolved at creation, because a multiclassed holder has more than one and the feature belongs to exactly one of them." A species trait belongs to no class and casts nothing — the same declaration goes on, "Null where the granting class casts nothing at all" — so SRD Breath Weapon\'s "DC 8 plus your Constitution modifier and Proficiency Bonus" is a formula the vocabulary cannot name, and what it would fall back to is an item\'s.',
   'a-feature-that-rewrites-another-features-rule':
     'a later feature that changes an earlier one. The engine allows exactly five restatements and each arrived with its sentence — a `critical-range` threshold restated, a `lifts-conditions` list lengthened, `widens-reaction` which packages/engine/src/progression.ts calls "A second feature restating the first rather than a second mechanism", `executedBy` for a step in another feature\'s table, and the pool field the same file calls "A **later feature** that rewrites this pool\'s recovery", declared on the pool and gated on the feature whose sentence moves it. A feature that changes another one\'s **duration**, or what its uses buy, is a sixth and has no member.',
   'an-option-re-chosen-on-a-rest':
@@ -1052,23 +1050,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Species and backgrounds. Read here; `origins.ts` is somebody else's file. —
-  'dragonborn:breath-weapon': [
-    {
-      clause: 'Replacing one of the Attack action attacks',
-      why: 'an-attack-the-class-redefines',
-      note: 'an attack swapped for something that is not an attack, which the economy does not offer.',
-    },
-    {
-      clause: 'a 15-foot Cone or a 30-foot Line',
-      why: 'an-area-an-item-creates',
-      note: 'the item vocabulary’s own id: an area with no casting and no definition behind it.',
-    },
-    {
-      clause: 'the Dexterity save against DC 8 plus Constitution modifier and Proficiency Bonus',
-      why: 'a-dc-a-feature-derives-from-its-own-abilities',
-      note: 'an area option rolls this save now; the number it would roll against is a species trait\'s own formula, and a species casts nothing for a spell save DC to be read from.',
-    },
-  ],
   'elf:elven-lineage': [
     {
       clause: 'is an option re-chosen on a rest',
