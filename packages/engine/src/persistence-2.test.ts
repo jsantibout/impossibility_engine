@@ -481,6 +481,18 @@ function declaredEventTypes(): readonly string[] {
  * and ended by the casting and by a broken Concentration.
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
+  // An ability score an effect lowers, and the rest that gives it back — SRD
+  // Shadow's Draining Swipe. Neither log was written when a score could move
+  // at all: the sheet held the six authoritatively, the sentence was carried
+  // verbatim and handed to the DM, and `CreatureState` had no list for what
+  // had been drained — so both fixtures fold to exactly the states they always
+  // folded to with that list empty on every creature.
+  // `strength-drained.test.ts` folds it and drives it end to end: the die off
+  // the score, every reader of the sheet seeing the lowered number, an
+  // Athletics check made off it, a Short Rest and a Long one giving it back,
+  // and a rogue drained to 0 dying through the road a death takes.
+  'ability-score-lowered',
+  'ability-score-restored',
   'action-rule-granted',
   // Acid eating into worn armour — SRD Black Pudding's Dissolving Pseudopod,
   // SRD Gray Ooze's Pseudopod. Neither log was written when a *copy* of an

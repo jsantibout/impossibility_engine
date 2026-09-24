@@ -1205,7 +1205,13 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Restrained whose lifetime is a **thing** — an object the line creates,
       // with its own Armour Class, Hit Points and defences, read whole out of
       // the parenthesis the book prints them in.
-      actions: { printed: 811, read: 763 },
+      // And four more with a failure hung on the target's **own rolls**: the
+      // four Gold Dragons' Weakening Breath, a Disadvantage on Strength-based
+      // D20 Tests and a die off the target's damage rolls under one repeat
+      // save and a minute's cap — a lifetime that is neither a span nor a
+      // condition, and the first such the reader has held. Nothing of the
+      // four is handed over.
+      actions: { printed: 811, read: 767 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

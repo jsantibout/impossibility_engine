@@ -2735,6 +2735,18 @@ export interface HitOption {
    */
   readonly penalisesArmor?: number;
   /**
+   * An ability score the blow **drains** — SRD Shadow's Draining Swipe: "the
+   * target's Strength score decreases by 1d4. The target dies if this reduces
+   * that score to 0."
+   *
+   * Beside {@link effects} for {@link penalisesArmor}'s reason: what it changes
+   * is not a condition or a grant on the creature but a number the sheet is
+   * read through, and it is thrown at the settlement rather than at the swing
+   * because the die is the block's. The death is not a second field: it is
+   * arithmetic over the score as it then stands, and `applyHitRider` does it.
+   */
+  readonly lowersAbility?: HitAbilityDrain;
+  /**
    * What the blow leaves behind **only if it was the blow that emptied them**
    * — SRD Phase Spider: "If this damage reduces the target to 0 Hit Points,
    * the target becomes Stable, and it has the Poisoned condition for 1 hour."
@@ -2783,6 +2795,17 @@ export interface HitOption {
    * blow has already landed by the time the line is read.
    */
   readonly targetNoLargerThan?: CreatureSize;
+}
+
+/**
+ * The score a blow drains and the die it throws for it — SRD Shadow's "the
+ * target's Strength score decreases by 1d4". Two fields because the sentence
+ * prints exactly two things.
+ */
+export interface HitAbilityDrain {
+  readonly ability: Ability;
+  /** SRD's "1d4". */
+  readonly dice: string;
 }
 
 /**
@@ -5000,6 +5023,18 @@ export function abilityScoresOf(
   if (own === undefined) return { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
 
   let changed: Record<Ability, number> | null = null;
+  // **What has been drained comes off first**, and a set is read over the
+  // result. SRD Shadow's Draining Swipe lowers the score the creature *has*;
+  // an item that sets a score says "your Strength is at least this" about
+  // whatever it finds, so a drained fighter in a Belt of Giant Strength still
+  // has the belt's number, and takes the belt off to a score the shadow has
+  // eaten. Floored at nothing, because a score below it is not a score — and
+  // the swing that reads 0 here is what writes the death the sentence prints.
+  for (const held of creature?.abilityLowerings ?? []) {
+    const standing: Record<Ability, number> = changed ?? { ...own };
+    standing[held.ability] = Math.max(0, standing[held.ability] - held.amount);
+    changed = standing;
+  }
   for (const active of standingFor(state, who)) {
     const grant = active.effect.grant;
     if (grant.kind !== 'ability-score-set') continue;

@@ -119,6 +119,7 @@ import {
   strikeStyleFor,
   weaponRiderDamageType,
   type HitAttach,
+  type HitAbilityDrain,
   type HitDropToZero,
   type HitForcedMove,
   type HitHoldPayout,
@@ -808,6 +809,7 @@ function printedRiderOnASwing(
   let lowersHitPointMaximum: 'damage-taken' | undefined;
   let hazard: HazardName | undefined;
   let penalisesArmor: number | undefined;
+  let lowersAbility: HitAbilityDrain | undefined;
   let onDroppingToZero: HitDropToZero | undefined;
   let saveDc: number | undefined;
   let span: { readonly lasts: TurnAnchor; readonly lastsOn: HitRiderAnchor } | undefined;
@@ -976,6 +978,13 @@ function printedRiderOnASwing(
         penalisesArmor = (penalisesArmor ?? 0) + rider.points;
         break;
 
+      // SRD Shadow's Draining Swipe. The die rides on the option and
+      // `applyHitRider` throws it at the settlement, where the death the
+      // sentence carries is read off the score as it then stands.
+      case 'ability-score-decrease':
+        lowersAbility = { ability: rider.ability, dice: rider.dice };
+        break;
+
       // SRD Phase Spider, SRD Vampire Familiar, SRD Gibbering Mouther. **No
       // span is claimed for it**, deliberately: the hour it prints is a number
       // of seconds carried on the clause itself, and `claimSpan` is about the
@@ -1124,6 +1133,7 @@ function printedRiderOnASwing(
     onDroppingToZero === undefined &&
     hazard === undefined &&
     penalisesArmor === undefined &&
+    lowersAbility === undefined &&
     attaches === undefined
   ) {
     return { option: null, unverified };
@@ -1152,6 +1162,7 @@ function printedRiderOnASwing(
       ...(onDroppingToZero === undefined ? {} : { onDroppingToZero }),
       ...(hazard === undefined ? {} : { hazard }),
       ...(penalisesArmor === undefined ? {} : { penalisesArmor }),
+      ...(lowersAbility === undefined ? {} : { lowersAbility }),
     },
     unverified,
   };

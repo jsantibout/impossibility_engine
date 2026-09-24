@@ -86,6 +86,7 @@ import {
 // `{@link}`, and the barrel below re-exports it, so the link resolves in this
 // module without an import that ESLint reads as unused and `tsc` does not.
 import type {
+  AbilityLowering,
   Attachment,
   CommandStamp,
   GrantedFallWard,
@@ -560,6 +561,38 @@ export type GameEvent =
       readonly type: 'damage-penalty-granted';
       readonly id: CharacterId;
       readonly penalty: GrantedDamagePenalty;
+    }
+  /**
+   * An effect takes points off one of a creature's ability scores — SRD
+   * Shadow's Draining Swipe: "the target's Strength score decreases by 1d4."
+   *
+   * **A grant and not an edit to the sheet.** The sheet says what the creature
+   * is; this says what has been done to it and by what, so the rest that gives
+   * the points back — "The reduction lasts until the target finishes a Short
+   * or Long Rest" — names the source rather than remembering a number. Read
+   * where the scores are derived, so every roller sees the lowered score.
+   *
+   * Sourced per use, so two swipes stack rather than the second restating the
+   * first; re-granting from one source replaces, as every family does. The
+   * death the sentence carries — "dies if this reduces that score to 0" — is
+   * not here: the swing reads the derived score after this lands and writes
+   * `creature-died`, through the road a death takes.
+   */
+  | {
+      readonly type: 'ability-score-lowered';
+      readonly id: CharacterId;
+      readonly lowering: AbilityLowering;
+    }
+  /**
+   * A lowering given back — the rest's half of the same sentence, and the one
+   * removal in this family that is not a source ending for some other reason.
+   * `endRest` writes one per lowering the creature holds, on a Short Rest and
+   * a Long one alike.
+   */
+  | {
+      readonly type: 'ability-score-restored';
+      readonly id: CharacterId;
+      readonly source: string;
     }
   /**
    * A running effect takes a **fall's** cost away from a creature entirely —

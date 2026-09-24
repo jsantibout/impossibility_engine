@@ -137,6 +137,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             senseModifiers: [],
             damageReductions: [],
             damagePenalties: [],
+            // Nothing has drained a score. Empty is what every log written
+            // before a score could be lowered says, so both frozen fixtures
+            // fold unchanged.
+            abilityLowerings: [],
             fallWards: [],
             lifts: [],
             jumpAllowances: [],

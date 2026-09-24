@@ -2567,7 +2567,8 @@ export type PrintedRider =
   | PrintedDroppedToZeroRider
   | PrintedAttachRider
   | PrintedHazardRider
-  | PrintedArmorPenaltyRider;
+  | PrintedArmorPenaltyRider
+  | PrintedAbilityDrainRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -2835,6 +2836,29 @@ export interface PrintedArmorPenaltyRider {
   readonly kind: 'armor-penalty';
   /** SRD's "a −1 penalty", as a positive number of points eaten. */
   readonly points: number;
+}
+
+/**
+ * An ability score the hit **drains** — SRD Shadow's Draining Swipe: "the
+ * target's Strength score decreases by 1d4. The target dies if this reduces
+ * that score to 0."
+ *
+ * The die is the sentence's own and is thrown at the settlement, never here;
+ * the death is not a field, because "dies if this reduces that score to 0" is
+ * arithmetic over the score as it then stands and `applyHitRider` does it —
+ * the reading {@link PrintedArmorPenaltyRider}'s destruction sentence already
+ * gets. A line printing some other floor would not match and would go back to
+ * the table.
+ *
+ * What the sentence after it says — "If a Humanoid is slain by this attack, a
+ * Shadow rises from the corpse 1d4 hours later" — is a stat block created
+ * hours later from a corpse, which is the table's, and is carried.
+ */
+export interface PrintedAbilityDrainRider {
+  readonly kind: 'ability-score-decrease';
+  readonly ability: Ability;
+  /** SRD's "1d4". */
+  readonly dice: string;
 }
 
 /**
@@ -3302,6 +3326,29 @@ const PRINTED_ARMOR_PENALTY =
  */
 const ARMOR_DESTROYED_AT_TEN = /^The armor is destroyed if the penalty reduces its AC to 10\.$/;
 
+/**
+ * SRD Shadow's Draining Swipe: "and the target's Strength score decreases by
+ * 1d4."
+ *
+ * The book's ability word, because `abilityWord` keys it; the notation whole,
+ * because the die is thrown where the blow settles.
+ */
+const PRINTED_ABILITY_DRAIN = new RegExp(
+  `^and the target${APOSTROPHE}s (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) score decreases by (\\d+d\\d+)\\.$`,
+);
+
+/**
+ * SRD's second sentence: "The target dies if this reduces that score to 0."
+ *
+ * **Read and consumed rather than stored**, for {@link ARMOR_DESTROYED_AT_TEN}'s
+ * reason: it states the rule the swing applies to every drain — a score at 0
+ * is a death — so a field for it would be a second copy of one number free to
+ * disagree. The floor is the engine's, and a homebrew line that printed a
+ * different one would have this sentence handed back while its drain went on
+ * killing at 0, which is the same wrong rule the armour sentence records.
+ */
+const DIES_AT_ZERO_SCORE = /^The target dies if this reduces that score to 0\.$/;
+
 /** SRD Ettin: a mode on the roll the creature that was hit makes next. */
 const PRINTED_MODE_ON_TARGET = new RegExp(
   `^and the target has (Advantage|Disadvantage) on the next attack roll it makes before ${NEXT_TURN_MOMENT}\\.$`,
@@ -3742,6 +3789,12 @@ type ClauseRead =
    * swallowed it anywhere would consume it off a line that never wrote one.
    */
   | { readonly kind: 'armor-detail' }
+  /**
+   * "The target dies if this reduces that score to 0" — a sentence about the
+   * drain before it, stating the rule the swing keeps, and stored nowhere for
+   * the reason `armor-detail` is not: see {@link DIES_AT_ZERO_SCORE}.
+   */
+  | { readonly kind: 'drain-detail' }
   | { readonly kind: 'no-healing' };
 
 /** One rider and no residue, which is what most clauses read to. */
@@ -3872,6 +3925,16 @@ function readClause(text: string): ClauseRead | null {
   if (corroded !== null) return one({ kind: 'armor-penalty', points: Number(corroded[1]) });
 
   if (ARMOR_DESTROYED_AT_TEN.test(text)) return { kind: 'armor-detail' };
+
+  // SRD Shadow: the drain, and the sentence about it that states the rule the
+  // swing keeps.
+  const drained = PRINTED_ABILITY_DRAIN.exec(text);
+  if (drained !== null) {
+    const ability = abilityWord(drained[1]!);
+    if (ability === null) return null;
+    return one({ kind: 'ability-score-decrease', ability, dice: drained[2]! });
+  }
+  if (DIES_AT_ZERO_SCORE.test(text)) return { kind: 'drain-detail' };
 
   const ownRoll = PRINTED_MODE_ON_TARGET.exec(text);
   if (ownRoll !== null) {
@@ -4211,6 +4274,14 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
       // keeps it. Nothing is stored; a clause with no penalty in front of it
       // names a rule about nothing, and it goes back to the table.
       if (host === undefined || host.kind !== 'armor-penalty') handedOver.push(clause);
+      continue;
+    }
+
+    if (read.kind === 'drain-detail') {
+      const host = riders.at(-1);
+      // The death belongs to the drain before it, and the swing already keeps
+      // it — the same reading the armour's ceiling gets one clause up.
+      if (host === undefined || host.kind !== 'ability-score-decrease') handedOver.push(clause);
       continue;
     }
 

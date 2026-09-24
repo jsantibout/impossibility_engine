@@ -30,6 +30,7 @@
     "ITEM_INSTANCE_PREFIX",
     "itemInstanceFor",
     "itemInstanceNumber",
+    "AbilityLowering",
     "EquippedItem",
     "AttunedItem",
     "GameState",

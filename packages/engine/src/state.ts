@@ -88,6 +88,23 @@ import type { GameEvent } from './events.js';
  * and not of whichever item catalogue is loaded today. Null for anything that
  * is not armour — a held weapon is equipped and contributes nothing here.
  */
+/**
+ * Points taken off one ability score by one use of one effect.
+ *
+ * SRD Shadow's Draining Swipe. Sourced per use, so a second swipe lowers the
+ * score again rather than restating the first; released by a rest through
+ * `ability-score-restored`, and by any ending that names the source.
+ */
+export interface AbilityLowering {
+  /** The use that did it — `<feature>:<roll position>` for a printed rider. */
+  readonly source: string;
+  readonly ability: Ability;
+  /** How many points came off, which is the die the blow threw. */
+  readonly amount: number;
+  /** What the log calls it — the line's own heading. */
+  readonly label: string;
+}
+
 export interface EquippedItem {
   readonly id: string;
   readonly armor: Armor | null;
@@ -774,6 +791,23 @@ export interface CreatureState {
    * already existed.
    */
   readonly damagePenalties: readonly GrantedDamagePenalty[];
+  /**
+   * Points a running effect has taken off one of this creature's ability
+   * scores — SRD Shadow's Draining Swipe: "the target's Strength score
+   * decreases by 1d4. The target dies if this reduces that score to 0."
+   *
+   * **A sourced grant and not an edit to the sheet**, for the reason every
+   * other family here is: the sheet says what the creature *is*, and this says
+   * what has been done to it and by what, so a rest can give it back without
+   * having to remember the number. Read where the scores are derived
+   * (`abilityScoresOf`) and so by every roller that asks `sheetAsItStands`;
+   * released by either rest, which is the glossary's sentence about the
+   * drain, and by whatever else ends a source.
+   *
+   * Absent means none, which is what every log written before a score could
+   * be lowered says — so both frozen fixtures fold unchanged.
+   */
+  readonly abilityLowerings: readonly AbilityLowering[];
   /**
    * Running effects that take the cost of a **fall** away entirely.
    *
