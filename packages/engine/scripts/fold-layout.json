@@ -89,6 +89,8 @@
   ],
   "fold/turns.ts": [
     "raiseTurnSaves",
+    "aurasCaughtAtStart",
+    "standsInside",
     "sourceOfCasting",
     "failUnsustainedCastings",
     "forgetSustainedTurns",
@@ -144,7 +146,10 @@
     "withoutTimersFor",
     "clearTemporaryHp",
     "withoutTemporaryHpDeadline",
-    "applyVitals"
+    "applyVitals",
+    "raiseDeathBursts",
+    "caughtByTheBurst",
+    "BURST_EMANATION"
   ],
   "fold/upkeep.ts": [
     "UPKEEP_EVENTS",

@@ -111,6 +111,17 @@ export function dropOrphanedSaves(state: GameState): GameState {
   const live: Record<string, PendingSave> = {};
   let changed = false;
   for (const [key, pending] of Object.entries(state.pendingSaves)) {
+    // **A printed line's debt has no effect to be orphaned from.** What is
+    // owed there is a *moment that has already happened* — a magmin that
+    // exploded, a turn that began in a stench — and there is no timer, nothing
+    // running, and nothing that could quietly stop being true between the
+    // raising and the roll. It is discharged by being rolled and by nothing
+    // else; the three ways it can turn out unrollable are `settlePrintedSave`'s
+    // and each of them says so out loud rather than vanishing here.
+    if (pending.printed !== undefined) {
+      live[key] = pending;
+      continue;
+    }
     if (state.timers[pending.effectKey] === undefined) {
       changed = true;
       continue;

@@ -71,6 +71,7 @@ export { declareObject } from './commands/objects.js';
 export type { ObjectDeclaration } from './commands/objects.js';
 export {
   declareCreatureType,
+  declareDamageType,
   declareDifficultTerrain,
   declareFalling,
   declareLight,

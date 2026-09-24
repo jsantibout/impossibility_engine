@@ -1727,7 +1727,10 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     aura !== null ? aura.trigger : prelude.kind === 'dies' ? { kind: 'dies' } : null;
   // A prelude that defined what babbling is, on a line whose targeting clause
   // never said "while it is babbling", is a sentence read and then dropped.
-  if (prelude.kind === 'babbling' && aura?.trigger.onlyIf !== 'holder-not-incapacitated') {
+  if (
+    prelude.kind === 'babbling' &&
+    !(aura !== null && aura.trigger.kind === 'starts-turn-within' && aura.trigger.onlyIf === 'holder-not-incapacitated')
+  ) {
     return null;
   }
 

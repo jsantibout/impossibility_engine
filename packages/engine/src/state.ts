@@ -284,6 +284,22 @@ export interface CreatureState {
    */
   readonly creatureType: string | null;
   /**
+   * The damage type this creature's stat block declined to print, once the
+   * table has ruled on it.
+   *
+   * SRD Half-Dragon's Draconic Origin names five types and says "(GM's
+   * choice)", and two of its lines read their type off that trait. Null when
+   * nobody has said, which is a real state and not a default: the lines that
+   * want it ask for it — `needsContext('undeclared_damage_type', …)` — rather
+   * than rolling something typeless or picking one.
+   *
+   * **One per creature**, because the trait is one sentence about the whole
+   * block: the Claw and the Dragon's Breath both read "the type chosen for the
+   * Draconic Origin trait", and two answers to one question is how they would
+   * come to disagree.
+   */
+  readonly declaredDamageType: string | null;
+  /**
    * Resistance, Vulnerability and Immunity, per damage type.
    *
    * A stat block prints these and `adaptMonster` reads them; until they reached

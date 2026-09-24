@@ -42,7 +42,7 @@ import {
 } from './endings.js';
 
 import { applyRoster, isRosterEvent } from './roster.js';
-import { applyVitals, isVitalsEvent } from './vitals.js';
+import { applyVitals, isVitalsEvent, raiseDeathBursts } from './vitals.js';
 import { applyUpkeep, isUpkeepEvent } from './upkeep.js';
 import { applyCasting, isCastingEvent } from './casting.js';
 import { applyOngoing, isOngoingEvent } from './ongoing.js';
@@ -263,10 +263,24 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
   // the expiries and the drops, exactly as it does on the ordinary path, and a
   // consequence added there arrives at the opening turn without anybody
   // remembering that fights have two beginnings.
-  const applied =
+  const settled =
     event.type === 'combat-started'
       ? openTurnStart(applyOne(state, event, legacy))
       : applyOne(state, event, legacy);
+  // **What a creature that has just died owes the room.**
+  //
+  // Derived rather than a seam's, and comparing the world before with the
+  // world after rather than reading one event, because that is what the fact
+  // *is*: a monster dies inside `applyDamageToVitals`, a character at
+  // Exhaustion 6, and `creature-died` is only the deaths nobody else settled.
+  //
+  // **Here, against the state the event itself left**, before any of the
+  // passes below: the burst catches whoever was standing there when the
+  // magmin went, and an expiry or a release running first could take one of
+  // them out of the room between the death and the moment it is measured.
+  // What it raises is a debt and not a die — `resolvePendingSaves` rolls it,
+  // and `resolveTurn` refuses to advance while it stands.
+  const applied = raiseDeathBursts(state, settled);
   // **Outermost, so it sees every release.** The maximum a spell is holding
   // up is the one grant the fold has to *reconcile* rather than merely carry,
   // and every pass below can take one away: a broken Concentration, a

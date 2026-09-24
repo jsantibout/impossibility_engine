@@ -579,6 +579,14 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // one Scorching Ray, the held road a Reaction opened, and the grant going
   // back when the Concentration does.
   'damage-reduction-granted',
+  // The one word a stat block declines to print, ruled on by the table. SRD
+  // Half-Dragon's Draconic Origin names five damage types and chooses none,
+  // and two of its lines read their type off that trait; neither frozen log
+  // has a half-dragon in it, and no other block in the book prints the
+  // sentence. `printed-save-trigger.test.ts` declares one and drives both
+  // lines through the public API, and the refusal before the declaration is
+  // asserted beside it.
+  'damage-type-declared',
   // The two a passive defence writes. Neither log was written within a year of
   // the owner's ruling that made the shape exist — an ongoing effect on the
   // defender that the attack path consults with nobody taking a Reaction — so

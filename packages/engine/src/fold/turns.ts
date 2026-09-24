@@ -19,11 +19,14 @@
  * `openTurnStart` is the boundary a fight *opens* on, which is the same moment
  * arriving by a different door — see its own docstring.
  */
-import type { CharacterId } from '@ie/shared';
-import { sourceOfInstance } from '../conditions.js';
+import { ABILITY_NAMES, type CharacterId } from '@ie/shared';
+import { isIncapacitated, sourceOfInstance } from '../conditions.js';
+import { printedLineSource, triggeredSavesOf } from '../monster.js';
+import { creaturesInArea, distanceBetween } from '../positioning.js';
+import { canSee } from '../standing.js';
 import { castingSource } from '../spells.js';
 import { isDue } from '../time.js';
-import { pendingSaveKey, type PendingSave } from '../timers.js';
+import { pendingSaveKey, printedSaveKey, type PendingSave } from '../timers.js';
 import { type CombatState } from '../combat.js';
 
 import type { GameState, PendingCasting } from '../state.js';
@@ -108,8 +111,134 @@ export function raiseTurnSaves(
     };
   }
 
+  // **And the auras the creature whose turn is beginning is standing in.**
+  // SRD Ghast: "any creature that starts its turn in a 5-foot Emanation
+  // originating from the ghast." A second population walked by a second
+  // reading, merged into one record so the sorted order — and therefore which
+  // save gets which die — is total over both kinds.
+  if (begun !== undefined) {
+    for (const debt of aurasCaughtAtStart(state, begun, after.turnsTaken)) {
+      raised[pendingSaveKey(debt.effectKey, debt.turn)] = debt;
+    }
+  }
+
   if (Object.keys(raised).length === 0) return state;
   return { ...state, pendingSaves: sortedRecord({ ...state.pendingSaves, ...raised }) };
+}
+
+/**
+ * The printed auras a creature begins its turn inside.
+ *
+ * The whole of a start-of-turn aura, and every word of it comes off the sheet
+ * the block was pinned onto: **`triggeredSavesOf` never names a line**, the
+ * geometry is `creaturesInArea`'s, and what the save costs is the holder's own
+ * printed record. Nothing here opens a catalogue and nothing branches on a
+ * heading.
+ *
+ * Four questions are asked of each holder, in the order that makes the cheapest
+ * one first:
+ *
+ * 1. Is it alive? A dead ghast stinks of nothing, and `Stench` has no clause
+ *    saying it outlives its owner.
+ * 2. Is the aura on at all? SRD Gibbering Mouther's "while it is babbling" is
+ *    its own first sentence — "the mouther babbles incoherently **while it
+ *    doesn't have the Incapacitated condition**" — so the reader wrote it as
+ *    `holder-not-incapacitated` and this is the check. SRD Pit Fiend prints the
+ *    same shape on its Fear Aura.
+ * 3. Is the creature inside it? An Emanation is measured from the holder's
+ *    space and a plain radius with a ruler, which is why the reader keeps the
+ *    two apart. A creature nobody has placed is not in the aura — the answer
+ *    `creaturesInArea` gives everywhere else, and the engine does not guess
+ *    where anybody might be standing.
+ * 4. Does the line reach *this* creature? Its type, where the clause names
+ *    types — SRD Sea Hag's "any Beast or Humanoid" — and its sight, where the
+ *    clause asks for it. A creature whose type nobody has declared is **not**
+ *    spared: the engine cannot show it is exempt, and sparing a creature on a
+ *    fact nobody has stated would be the aura quietly missing.
+ *
+ * And a creature holding the day's grace the line itself granted is not asked
+ * again: SRD's "_Success:_ The target is immune to this ghast's Stench for 24
+ * hours" is exactly that, hung on `printedLineSource` by the same executor.
+ */
+function aurasCaughtAtStart(
+  state: GameState,
+  begun: CharacterId,
+  turn: number,
+): readonly PendingSave[] {
+  const caught = state.creatures[begun];
+  if (caught === undefined || caught.vitals.dead) return [];
+
+  const debts: PendingSave[] = [];
+  for (const holder of Object.keys(state.creatures).sort()) {
+    if (holder === begun) continue;
+    const creature = state.creatures[holder];
+    if (creature === undefined || creature.vitals.dead) continue;
+
+    for (const { line, save } of triggeredSavesOf(creature.sheet)) {
+      const trigger = save.trigger;
+      if (trigger === undefined || trigger.kind !== 'starts-turn-within') continue;
+      if (
+        trigger.onlyIf === 'holder-not-incapacitated' &&
+        isIncapacitated(creature.conditions)
+      ) {
+        continue;
+      }
+      if (!standsInside(state, holder as CharacterId, begun, trigger)) continue;
+      if (trigger.onlyIf === 'can-see-holder' && !canSee(state, begun, holder as CharacterId)) {
+        continue;
+      }
+      if (save.onlyIfTargetType !== undefined) {
+        const type = caught.creatureType;
+        if (type !== null && !save.onlyIfTargetType.includes(type)) continue;
+      }
+      if (
+        caught.lineImmunities.some(
+          (held) => held.source === printedLineSource(holder as CharacterId, line),
+        )
+      ) {
+        continue;
+      }
+
+      debts.push({
+        effectKey: printedSaveKey(holder as CharacterId, line, begun),
+        target: begun,
+        source: printedLineSource(holder as CharacterId, line),
+        ability: save.ability,
+        dc: save.dc,
+        label: `${ABILITY_NAMES[save.ability]} save vs ${line}`,
+        turn,
+        printed: { by: holder as CharacterId, line },
+      });
+    }
+  }
+  return debts;
+}
+
+/**
+ * Whether one creature is standing in another's printed aura.
+ *
+ * The book writes the same moment two ways and they are not the same
+ * measurement: an **Emanation** spreads from the holder's own space and so
+ * takes its size into account, which is `creaturesInArea`'s geometry; "within
+ * 20 feet of the mouther" is a ruler laid between two creatures. Either way a
+ * creature the scene has not placed is simply not in it.
+ */
+function standsInside(
+  state: GameState,
+  holder: CharacterId,
+  who: CharacterId,
+  trigger: { readonly feet: number; readonly emanation?: true | undefined },
+): boolean {
+  if (state.scene === null) return false;
+  if (trigger.emanation === true) {
+    const inside = creaturesInArea(state.scene, { creature: holder }, {
+      kind: 'emanation',
+      distance: trigger.feet,
+    });
+    return inside.ok && inside.value.includes(who);
+  }
+  const apart = distanceBetween(state.scene, holder, who);
+  return apart.ok && apart.value <= trigger.feet;
 }
 
 /**
