@@ -580,7 +580,7 @@ describe('a bonus an area gives whoever stands in it and is on its list', () => 
 
   it('reaches its caster and nobody else when the caster chose nobody', () => {
     const lane = new Lane();
-    passWithoutTrace(lane, []);
+    const castingId = passWithoutTrace(lane, []);
 
     // "**you** and each creature you choose", with nobody chosen. An empty
     // list is not an absent one here, which is where this fact parts company
@@ -590,7 +590,9 @@ describe('a bonus an area gives whoever stands in it and is on its list', () => 
     expect(lane.stealth(RANGER)).toEqual([{ source: 'Pass without Trace', flat: 10 }]);
     expect(lane.stealth(ROGUE)).toEqual([]);
     expect(lane.stealth(FIGHTER)).toEqual([]);
-    expect(ongoingSpellOf(lane.state, passWithoutTrace(new Lane(), []))?.chosen).toEqual([RANGER]);
+    // And the list really is pinned rather than merely read as empty: absence
+    // on the record would mean the spell offers no such clause at all.
+    expect(ongoingSpellOf(lane.state, castingId)?.chosen).toEqual([RANGER]);
   });
 
   it('withholds the bonus from a check it does not name', () => {

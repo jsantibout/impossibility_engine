@@ -1460,9 +1460,16 @@ export interface PendingCasting {
    *
    * SRD Pass without Trace: "you and each creature you choose". The
    * designation above with the polarity turned over, normalised by `chosenFor`
-   * — sorted, absent when nobody was named, and with the caster on it, because
-   * the sentence names them first and a reader that had to remember that would
-   * be a second place for the rule to live.
+   * — sorted, and with the caster on it, because the sentence names them first
+   * and a reader that had to remember that would be a second place for the
+   * rule to live.
+   *
+   * **Absent means the spell offers no such clause, and never that nobody was
+   * named**, which is the one place this parts company with the designation it
+   * otherwise copies. An empty designation and no designation are one casting;
+   * an empty choice is not, because "you and each creature you choose" with
+   * nobody chosen reaches the caster and nobody else, and a reader that saw
+   * absence there would hand the aura to whoever the geometry caught.
    */
   readonly chosen?: readonly CharacterId[];
   /**
