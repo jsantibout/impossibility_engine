@@ -420,6 +420,20 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly choice?: string;
   /**
+   * Which of the branches this spell prints the casting runs.
+   *
+   * SRD Command: "Choose the command from these options: _Approach. Drop.
+   * Flee. Grovel. Halt._"; Thaumaturgy: "You create one of the effects below";
+   * Enlarge/Reduce: "see the chosen effect below". The tenth stated fact, and
+   * the same two refusals every one before it makes — required where the spell
+   * prints branches, refused where it prints none, refused off the list.
+   *
+   * **`choice`'s neighbour rather than a wider version of it.** That one names
+   * a value substituted into an effect the definition already carries; this
+   * names which effects run at all, and a spell may print both.
+   */
+  readonly option?: string;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "One Humanoid you can see within range makes a Wisdom
@@ -1116,6 +1130,38 @@ export function declaredFacts(
       'unknown_choice',
       `${definition.name} prints ${choice.options.join(', ')}, not ${answered}`,
     );
+  }
+
+  // — which of the spell's printed branches this casting runs ————————————
+  //
+  // The tenth stated fact, and the same two refusals a seventh time. SRD
+  // Command prints five words and a casting speaks one; SRD Thaumaturgy
+  // prints six wonders and works one; SRD Enlarge/Reduce prints two halves
+  // and does one of them. The list is the spell's, the pick is the caster's,
+  // and the engine makes neither — speaking Approach because it is printed
+  // first would be the engine answering "Choose the command" for ever.
+  const branches = definition.options;
+  if (branches === undefined) {
+    if (request.option !== undefined) {
+      return err(
+        'no_option_clause',
+        `${definition.name} prints no branches to choose between; which one is not a fact it asks for`,
+      );
+    }
+  } else {
+    const names = Object.keys(branches).sort();
+    if (request.option === undefined) {
+      return err(
+        'option_required',
+        `${definition.name} prints ${names.map((key) => branches[key]!.label).join(', ')} and the engine will not choose between them; name which`,
+      );
+    }
+    if (!names.includes(request.option)) {
+      return err(
+        'unknown_option',
+        `${definition.name} prints ${names.join(', ')}, not ${request.option}`,
+      );
+    }
   }
 
   // SRD Transmuted Spell prints its own list — "Acid, Cold, Fire, Lightning,

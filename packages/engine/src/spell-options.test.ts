@@ -205,12 +205,12 @@ describe('Command runs the branch its caster spoke and no other', () => {
 
   it('Grovel knocks the target Prone', () => {
     const { state } = spoken(ARMED, { option: 'grovel' });
-    expect(Object.keys(state.creatures[THUG]?.conditions ?? {})).toContain('prone');
+    expect((state.creatures[THUG]?.conditions.conditions ?? [])).toContain('prone');
   });
 
   it('Grovel does nothing to a creature that made the save', () => {
     const { state } = spoken(ARMED, { option: 'grovel' }, SAVES);
-    expect(Object.keys(state.creatures[THUG]?.conditions ?? {})).not.toContain('prone');
+    expect((state.creatures[THUG]?.conditions.conditions ?? [])).not.toContain('prone');
   });
 
   it('Approach hands its sentence over by name and moves nobody', () => {

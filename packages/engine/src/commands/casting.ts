@@ -544,6 +544,15 @@ export interface CastingPlan {
    */
   readonly choice?: string;
   /**
+   * Which of the spell's printed branches this casting runs.
+   *
+   * Beside the choice and for its reason: a Command declared as Halt must not
+   * settle as Grovel, and a settlement takes no fresh request to ask again.
+   * The bare name, not the branch — a settlement re-reads the whole definition
+   * anyway, so the half it cannot work out again is the caster's word.
+   */
+  readonly option?: string;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * The third fact stated at the casting, beside the other two and for the
@@ -967,6 +976,7 @@ function castSpellWith(
         // disagrees with the first.
         ...(command.hold.damageType === undefined ? {} : { damageType: command.hold.damageType }),
         ...(command.hold.choice === undefined ? {} : { choice: command.hold.choice }),
+        ...(command.hold.option === undefined ? {} : { option: command.hold.option }),
         ...(command.hold.fought === undefined ? {} : { fought: command.hold.fought }),
         ...(command.hold.unaffected === undefined ? {} : { unaffected: command.hold.unaffected }),
         // And the mode an option hung on one target's saves, and whether the

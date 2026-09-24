@@ -39,6 +39,7 @@ import type {
   SpellCheck,
   SpellDefinition,
   SpellEffect,
+  SpellOption,
   SpellRepeatSave,
   SpentBudget,
   StatedChoiceOf,
@@ -1872,7 +1873,7 @@ function checkRiders(
     readonly spends?: SpentBudget;
     readonly light?: LightRider;
     readonly breaksConcentration?: true;
-    readonly drops?: { readonly orElse?: readonly ModifierRider[] };
+    readonly drops?: { readonly all?: unknown; readonly orElse?: readonly ModifierRider[] };
   },
   level: number,
   path: string,
@@ -2009,6 +2010,17 @@ function checkRiders(
         found,
       )
     ) {
+      // "whatever it is holding" — the arm that names nothing, and the only
+      // value is `true` for the reason every other flag on this format has
+      // one: absence is how a rider says it names the casting's object, and
+      // `false` would be a second way to say it.
+      if (riders.drops.all !== undefined && riders.drops.all !== true) {
+        found.push({
+          field: `${path}.drops.all`,
+          code: MALFORMED,
+          reason: 'a drop either empties the hands or takes the object the casting named; the only value is true',
+        });
+      }
       const instead = riders.drops.orElse;
       if (instead !== undefined && readsAsList(instead, `${path}.drops.orElse`, RIDER_LIST, found)) {
         instead.forEach((rider, i) =>
@@ -4746,6 +4758,10 @@ export function checkSpellDefinition(
     }
   }
 
+  // — the branches the spell prints, of which a casting runs one ——————————
+
+  checkOptions(definition, found);
+
   // — what the individual dice of this spell's damage do ————————————————————
 
   if (
@@ -5284,6 +5300,9 @@ export function checkSpellDefinition(
     definition.activation === undefined &&
     definition.areaTrigger === undefined &&
     definition.conjures === undefined &&
+    // A spell whose whole content is its branches says what it does one level
+    // down, and `checkOptions` holds each of them to saying it.
+    definition.options === undefined &&
     notes.length === 0 &&
     handovers.length === 0
   ) {
@@ -5458,6 +5477,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
+      checkBranchPlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
     });
   }
@@ -5568,7 +5588,7 @@ function checkFoughtClause(
   const stated = (effect as { advantageIfFought?: unknown }).advantageIfFought;
   if (stated === undefined) return;
 
-  if (where !== 'effects') {
+  if (where !== 'effects' && !isBranchList(where)) {
     found.push({
       field: `${path}.advantageIfFought`,
       code: 'fought_outside_the_casting',
@@ -5592,6 +5612,197 @@ function checkFoughtClause(
       reason: 'a spell either prints the clause or does not; the only value is true',
     });
   }
+}
+
+/**
+ * Whether this effect list belongs to one of a spell's printed branches — see
+ * {@link SpellDefinition.options}.
+ *
+ * Read off the path rather than passed down, for the reason the three rules
+ * above read `where`: the walk names every list it visits, and a fourth
+ * parameter threaded through every placement rule would be the same fact said
+ * twice. A branch is the casting's own list under a word the caster spoke, so
+ * every rule that asks "is this the casting's list" answers yes for it.
+ */
+function isBranchList(where: string): boolean {
+  return where.startsWith('options.') && where.endsWith('.effects');
+}
+
+/**
+ * The branches a spell prints, held to being a choice and to saying what each
+ * of them is — see {@link SpellDefinition.options}.
+ *
+ * Two rules, and both are about the same failure in opposite directions. **At
+ * least two branches**, because one branch is a spell with no choice in it
+ * written the long way round, and a casting would then be asked a question
+ * with one answer. **And a branch says what it is**, by running effects, by
+ * handing its sentence to the table, or by declaring what the engine does not
+ * do with it — a branch that says none of those is a word a caster may speak
+ * for nothing at all, which is `silent_gap`'s argument one level down.
+ *
+ * The effects inside a branch are checked by the ordinary rules rather than
+ * here: {@link effectLists} walks them, so `checkEffect`, `checkGrantLifetimes`
+ * and every placement rule reach a branch the day they are written.
+ */
+function checkOptions(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  const options = definition.options;
+  if (options === undefined) return;
+  if (
+    !readsAsObject(
+      options,
+      'options',
+      'the branches a spell prints are an object keyed by the name a casting speaks',
+      found,
+    )
+  ) {
+    return;
+  }
+
+  const keys = Object.keys(options).sort();
+  if (keys.length < 2) {
+    found.push({
+      field: 'options',
+      code: 'one_option',
+      reason: 'this records a spell printing branches to choose between; one branch is not a choice',
+    });
+  }
+
+  for (const key of keys) {
+    const branch = options[key] as SpellOption | undefined;
+    if (
+      branch === undefined ||
+      !readsAsObject(
+        branch,
+        `options.${key}`,
+        'a branch is an object naming what the book calls it and what it does',
+        found,
+      )
+    ) {
+      continue;
+    }
+    if (typeof branch.label !== 'string' || branch.label.trim().length === 0) {
+      found.push({
+        field: `options.${key}.label`,
+        code: 'missing_field',
+        reason: 'a branch carries the name the book prints for it',
+      });
+    }
+    const effects =
+      branch.effects === undefined
+        ? []
+        : readsAsList(
+              branch.effects,
+              `options.${key}.effects`,
+              'a branch resolves a list of effects, empty for one whose whole content is the table’s',
+              found,
+            )
+          ? branch.effects
+          : [];
+    const handsOver = readsAsSentences(
+      branch.handsOver,
+      `options.${key}.handsOver`,
+      'the printed text a branch hands to the DM is a list of sentences',
+      found,
+    );
+    const notes = readsAsSentences(
+      branch.unmodelled,
+      `options.${key}.unmodelled`,
+      'what a branch leaves out is a list of sentences',
+      found,
+    );
+
+    // **The ordinary rules, on an ordinary effect list.** `checkShape` reaches
+    // a branch through {@link effectLists} and this is the deep half, called
+    // exactly where `effects` and `activation.effects` call it — so a save in
+    // a branch that imposes nothing is refused by the rule that already
+    // refuses one anywhere else.
+    effects.forEach((effect, i) =>
+      checkEffect(effect as SpellEffect, definition.level, `options.${key}.effects[${i}]`, found),
+    );
+
+    if (effects.length === 0 && handsOver.length === 0 && notes.length === 0) {
+      found.push({
+        field: `options.${key}`,
+        code: 'option_says_nothing',
+        reason:
+          'a branch a casting may run resolves something, hands its sentence to the DM, or declares what the engine leaves out; this one does none of the three',
+      });
+    }
+  }
+}
+
+/**
+ * A list of sentences on a branch, read once for both of the fields that carry
+ * one and reported at its own path.
+ *
+ * Mirrors what `checkSpellDefinition` does for `unmodelled` and `dmDecides` one
+ * level up, and answers with the empty list where the input is not a list at
+ * all — so the "says nothing" rule below does not credit a branch for a field
+ * that is malformed.
+ */
+function readsAsSentences(
+  value: unknown,
+  at: string,
+  why: string,
+  found: SpellDefinitionProblem[],
+): readonly unknown[] {
+  if (value === undefined) return [];
+  if (!readsAsList(value, at, why, found)) return [];
+  const list = value as readonly unknown[];
+  list.forEach((entry, i) => {
+    if (typeof entry !== 'string' || entry.trim().length === 0) {
+      found.push({
+        field: `${at}[${i}]`,
+        code: MALFORMED,
+        reason: `a sentence, and this is ${nameOf(entry)}`,
+      });
+    }
+  });
+  return list;
+}
+
+/**
+ * The effect kinds a branch may not carry, because the casting settles them
+ * before it knows which branch it is running.
+ *
+ * `resolveSpell`'s pre-flight reads `SpellDefinition.effects` four times
+ * before any effect resolves: it sizes the target list by the aimed rolls an
+ * `attack` makes, measures a melee spell attack's reach, refuses a spell cast
+ * *as* a swing or *on* a hit up front, and requires the weapon a
+ * `weapon-rider` imbues. A branch is read at resolution, so an effect of one
+ * of these kinds inside one would be a roll nobody made room for or a stated
+ * fact nobody was asked for — silent in both directions, which is what the
+ * whole validator exists to convert into a refusal at authoring.
+ *
+ * **The other pre-settled kinds need no entry here**, because the rules beside
+ * this one already refuse them outside the casting's own list by name: a
+ * `teleport`, a `summon`, a `chance` and an `end-attunement` each have a
+ * placement rule of their own, and a branch is not `effects`.
+ */
+const PRESETTLED_EFFECT_KINDS: ReadonlySet<string> = new Set([
+  'attack',
+  'weapon-attack',
+  'attack-damage',
+  'weapon-rider',
+]);
+
+function checkBranchPlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!isBranchList(where)) return;
+  if (!PRESETTLED_EFFECT_KINDS.has(String(kind))) return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'option_effect_settled_early',
+    reason:
+      'the casting sizes its target list, measures a swing and demands a stated weapon off the spell’s own effects before it runs a branch; write this in effects, where the pre-flight can read it',
+  });
 }
 
 /**
@@ -5641,7 +5852,9 @@ function checkRecordedVerdict(
     });
     return;
   }
-  if (where === 'effects') {
+  // A branch's list resolves in the same breath the casting's own does, so
+  // the record it would write onto does not exist there either.
+  if (where === 'effects' || isBranchList(where)) {
     found.push({
       field: `${path}.recordsOutcome`,
       code: 'verdict_before_the_record',
@@ -5943,7 +6156,9 @@ function checkObjectPlacement(
 
   const drops = (effect as { readonly drops?: unknown }).drops;
   if (drops === undefined) return;
-  if (where === 'effects' || where === 'activation.effects') return;
+  // A branch's list is the casting's own list with a word spoken over it —
+  // SRD Command's _Drop_ — so it is where the stated object is known too.
+  if (where === 'effects' || where === 'activation.effects' || isBranchList(where)) return;
   found.push({
     field: `${path}.drops`,
     code: 'drop_outside_the_casting',
@@ -6404,12 +6619,39 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
     return Array.isArray(list) ? [[`${parent}.effects`, list]] : [];
   };
 
+  /**
+   * And one list per branch of a spell that prints several — see
+   * {@link SpellDefinition.options}.
+   *
+   * Walked here rather than beside {@link checkOptions}, so every rule this
+   * function feeds reaches a branch's effects on the day it is written:
+   * `checkEffect`'s, `checkGrantLifetimes`' and the placement rules alike. A
+   * branch is not a second format; it is another place the one format's
+   * effects are written.
+   *
+   * Key order is sorted, for the reason `optionEffectLists` sorts: two readers
+   * of one definition report its problems in one order.
+   */
+  const branches = (): (readonly [string, readonly unknown[]])[] => {
+    const holder = d['options'];
+    if (typeof holder !== 'object' || holder === null || Array.isArray(holder)) return [];
+    return Object.keys(holder as Record<string, unknown>)
+      .sort()
+      .flatMap((key): (readonly [string, readonly unknown[]])[] => {
+        const branch = (holder as Record<string, unknown>)[key];
+        if (typeof branch !== 'object' || branch === null || Array.isArray(branch)) return [];
+        const list = (branch as { readonly effects?: unknown }).effects;
+        return Array.isArray(list) ? [[`options.${key}.effects`, list]] : [];
+      });
+  };
+
   const lists: (readonly [string, readonly unknown[]])[] = [
     ...(Array.isArray(d['effects'])
       ? ([['effects', d['effects']]] as (readonly [string, readonly unknown[]])[])
       : []),
     ...nested('areaTrigger'),
     ...nested('activation'),
+    ...branches(),
   ];
 
   // **And the one list that hangs below an effect rather than beside one.**
