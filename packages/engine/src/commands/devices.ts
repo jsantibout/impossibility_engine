@@ -183,9 +183,9 @@ export function createDevice(
       );
     }
 
-    // — from here it costs something ——————————————————————————————————————
+    // — from here it costs time ———————————————————————————————————————————
     //
-    // **And the whole of what it costs is the clock.** There is no action to
+    // **And time is the whole of what it costs.** There is no action to
     // charge: every making happens outside a fight, by the refusal above, and
     // outside one there is no economy to spend an action from. The grant
     // carries no field for one either, so nothing here is being skipped.
