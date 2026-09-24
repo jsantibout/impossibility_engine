@@ -582,26 +582,26 @@ be the second spelling of one derivation.
 | `a-casting-paid-for-out-of-a-feature-pool` | 6 | 4 |
 | `a-roll-result-an-effect-replaces` | 4 | 3 |
 | `a-feature-that-changes-who-a-casting-catches` | 3 | 2 |
-| `movement-modes` | 3 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
 | `a-spell-list-that-is-not-your-class-list` | 2 | 2 |
 | `healing-modified-by-an-effect` | 2 | 2 |
+| `movement-modes` | 2 | 2 |
 | `a-modifier-a-feature-puts-on-another-creature` | 3 | 1 |
 | `a-move-a-feature-hands-its-holder` | 3 | 1 |
 | `a-resource-traded-for-another` | 3 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 3 | 1 |
 | `an-action-a-spell-compels-or-forbids` | 3 | 1 |
 | `an-attack-the-class-redefines` | 3 | 1 |
-| `an-option-re-chosen-on-a-rest` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-one-shot-roll-modifier` | 2 | 1 |
-| `a-stat-block-created-mid-fight` | 2 | 1 |
+| `an-option-re-chosen-on-a-rest` | 2 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
 | `a-creature-fact-an-effect-overrides` | 1 | 1 |
 | `a-declared-fact-a-feature-sets` | 1 | 1 |
 | `a-reaction-effect-the-vocabulary-lacks` | 1 | 1 |
 | `a-reroll-outside-the-test-window` | 1 | 1 |
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
+| `a-stat-block-created-mid-fight` | 1 | 1 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 1 |
 | `an-area-an-item-creates` | 1 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 1 |
@@ -613,16 +613,17 @@ be the second spelling of one derivation.
 | `a-turn-boundary-payout-a-feature-owes` | 2 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `temporary-hit-points-a-feature-grants` | 2 | 0 |
+| `a-choice-made-at-the-casting` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
 | `a-rule-the-engine-fixes-for-everybody` | 1 | 0 |
 | `a-second-place-to-put-a-creature` | 1 | 0 |
 | `a-speed-a-feature-reduces` | 1 | 0 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 1 | 0 |
 | `a-target-list-an-ability-modifier-sizes` | 1 | 0 |
 | `an-action-rule-a-feature-holds` | 1 | 0 |
 | `an-effect-that-ends-when-its-target-is-hurt` | 1 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 1 | 0 |
 | `forced-movement-a-spell-causes` | 1 | 0 |
+| `senses-beyond-declared-sight` | 1 | 0 |
 
 A feature can need more than one shape, so neither column sums to the
 size of the population.

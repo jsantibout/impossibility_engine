@@ -442,12 +442,10 @@ comes from.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-reroll-outside-the-test-window` | 1 | 1 |
+| `a-choice-made-at-the-casting` | 1 | 0 |
 | `a-feature-that-changes-what-a-casting-costs` | 1 | 0 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 1 | 0 |
-| `a-stat-block-created-mid-fight` | 1 | 0 |
 | `an-attack-the-class-redefines` | 1 | 0 |
-| `an-option-re-chosen-on-a-rest` | 1 | 0 |
-| `movement-modes` | 1 | 0 |
+| `senses-beyond-declared-sight` | 1 | 0 |
 
 **Blocks** is every feature of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
@@ -458,29 +456,21 @@ sums to the population.
 
 - `human:resourceful` — Resourceful (level 1, species, manual)
 
+#### `a-choice-made-at-the-casting` — blocks 1, finishes 0
+
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 3
+
 #### `a-feature-that-changes-what-a-casting-costs` — blocks 1, finishes 0
 
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
-
-#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 1, finishes 0
-
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
-
-#### `a-stat-block-created-mid-fight` — blocks 1, finishes 0
-
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 3
 
 #### `an-attack-the-class-redefines` — blocks 1, finishes 0
 
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 3
 
-#### `an-option-re-chosen-on-a-rest` — blocks 1, finishes 0
+#### `senses-beyond-declared-sight` — blocks 1, finishes 0
 
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
-
-#### `movement-modes` — blocks 1, finishes 0
-
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 3
 
 #### Waiting on a definition — 0
 

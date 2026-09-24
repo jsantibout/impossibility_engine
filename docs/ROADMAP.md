@@ -2078,3 +2078,26 @@ Appended after wave seven's first spells track (2026-09-24):
   second half, in flight; Resourceful's window). Follow-ups:
   `champion:additional-fighting-style` (level 7, out of reach) is one line;
   `STATUS.md` sits at its cap and the coordinator trims it.
+- **Eldritch Invocations, part two: three of five built, and the feature stays
+  `manual` on purpose.** Two standing grant kinds beside `casting-damage` —
+  `casting-range` (feet scaled off the granting class's level, read where a
+  reach is settled: Eldritch Spear) and `casting-rider` (an `OutcomeRiders`
+  value composed onto one named spell's `attack` effects, filling a slot the
+  definition left empty and never overwriting one it printed: Repelling
+  Blast, whose size ceiling is `ForcedMovement.targetNoLargerThan`, read by
+  `shoveAwayFrom` as the Push mastery reads its own). An option question may
+  declare which options are `repeatable`; a repeated copy answers under a
+  suffixed key and a copy naming what an earlier one named is refused
+  (Agonizing Blast on two cantrips). A `spells` grant may carry `requires`
+  (One with Shadows in Dim Light or Darkness); Gift of the Depths is a Swim
+  Speed matching walk and a pool of one; Gaze of Two Minds is a filed clause,
+  not an offered option, because an option that does nothing is forbidden by
+  the note's own rule. **Not built: Pact of the Blade and Pact of the Chain**
+  — four primitives the builder rightly declined to build at speed (a feature
+  that conjures an inventory line; an ability *imposed* through a weapon
+  rider; a granted route that states a casting time; a choice a route
+  widens). They are the next features brief, and the feature flips to
+  `engine` when they land. One review note overridden and recorded: an unlit
+  room **refuses** rather than asks, because `declareLight` settles no context
+  kind — the "no default ambient" ruling read from this end; making light a
+  kind is the owner's call.
