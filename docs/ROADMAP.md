@@ -1793,3 +1793,19 @@ Appended after wave five's first two tracks (2026-09-24):
   Action; the spender reads the budget it already holds. In flight as W5-E,
   which retires `a-rule-that-couples-two-slots-of-a-turn` and carries
   `speed-halved` with it.
+- **Breath Weapon and Open Hand Technique execute.** A pool option may cost
+  one attack of an Attack action already taken (`action: 'one-attack'`,
+  emitting the same `attack-made` a swing does), derive its DC from the
+  holder's own ability (`saveAbility`), and offer a choice of areas at the use
+  (`areas`, `shape_required` / `shape_fixed` / `no_such_shape` on
+  `damage_type_required`'s pattern); a species feature's dice already scaled by
+  character level, so no band table was needed. A swing now remembers what
+  **sold** it (`GrantedAttacks.from`, `turn-budget-granted.purchase`), which is
+  the gate Open Hand's rider needed (`fromGrant`); Prone is the one condition a
+  rider hands out with no deadline, said once in `ENDS_ITSELF`. **Giant
+  Ancestry is not built, and the reason is filed:** Fire's Burn and Frost's
+  Chill add damage to a blow, and `rider_deals_damage` refuses a hit-bought
+  rider that deals damage because an attack holds one damage roll at a time.
+  The fix is the shape `castOnHit` already uses — a rider's dice folded into
+  the blow's own components before the roll — filed as
+  `a-rider-that-adds-damage-to-the-blow` and briefed as W5-G.

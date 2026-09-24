@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 99 spells | 66 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 17 features | 11 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 15 features | 9 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 202 items | on 124 of 244 blocks | 0 | 120 blocks already clean |
@@ -509,7 +509,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 17, 12 are class or subclass features printed at level 5 or below, 5 are species or background traits and 0 are feats.
+Of the 15, 11 are class or subclass features printed at level 5 or below, 4 are species or background traits and 0 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -522,20 +522,17 @@ comes from.
 | `a-reroll-outside-the-test-window` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
-| `an-attack-the-class-redefines` | 3 | 0 |
 | `a-move-a-feature-hands-its-holder` | 2 | 0 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 |
-| `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-feature-that-changes-who-a-casting-catches` | 1 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
 | `a-reaction-effect-the-vocabulary-lacks` | 1 | 0 |
 | `a-resource-traded-for-another` | 1 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 |
+| `a-rider-that-adds-damage-to-the-blow` | 1 | 0 |
 | `a-speed-a-feature-reduces` | 1 | 0 |
-| `an-action-a-spell-compels-or-forbids` | 1 | 0 |
-| `an-area-an-item-creates` | 1 | 0 |
-| `forced-movement-a-spell-causes` | 1 | 0 |
+| `an-attack-the-class-redefines` | 1 | 0 |
 
 **Blocks** is every feature of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
@@ -563,24 +560,14 @@ sums to the population.
 
 - `elf:elven-lineage` — Elven Lineage (level 1, species, manual)
 
-#### `an-attack-the-class-redefines` — blocks 3, finishes 0
-
-- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 2
-- `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
-- `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
-
 #### `a-move-a-feature-hands-its-holder` — blocks 2, finishes 0
 
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
+- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
 - `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
 
 #### `a-casting-ended-by-a-trigger` — blocks 1, finishes 0
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
-
-#### `a-dc-a-feature-derives-from-its-own-abilities` — blocks 1, finishes 0
-
-- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 2
 
 #### `a-die-behaviour-a-spell-asks-for` — blocks 1, finishes 0
 
@@ -596,7 +583,7 @@ sums to the population.
 
 #### `a-reaction-effect-the-vocabulary-lacks` — blocks 1, finishes 0
 
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
+- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
 
 #### `a-resource-traded-for-another` — blocks 1, finishes 0
 
@@ -606,21 +593,17 @@ sums to the population.
 
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
 
+#### `a-rider-that-adds-damage-to-the-blow` — blocks 1, finishes 0
+
+- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
+
 #### `a-speed-a-feature-reduces` — blocks 1, finishes 0
 
-- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
+- `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 3
 
-#### `an-action-a-spell-compels-or-forbids` — blocks 1, finishes 0
+#### `an-attack-the-class-redefines` — blocks 1, finishes 0
 
-- `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
-
-#### `an-area-an-item-creates` — blocks 1, finishes 0
-
-- `dragonborn:breath-weapon` — Breath Weapon (level 1, species, manual) — also waits on 2
-
-#### `forced-movement-a-spell-causes` — blocks 1, finishes 0
-
-- `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
+- `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
 
 #### Waiting on a definition — 0
 
