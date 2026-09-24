@@ -167,6 +167,7 @@ import {
   resolveCreatureTypeOverrideEffect,
   resolveEndAttunementEffect,
   resolveReviveEffect,
+  resolvePreservesEffect,
   resolveStabiliseEffect,
   reviveProblem,
 } from './spell-effect-creatures.js';
@@ -2128,6 +2129,15 @@ function resolveOnTargets(
     // in the definition an activation already holds, so there is no second
     // half for the record to lose. See `OngoingSpell.option`.
     ...(request.option === undefined ? {} : { option: request.option }),
+    // **And the moment a body began being kept**, for the one spell in the
+    // book whose running span is subtracted from another casting's window —
+    // SRD Gentle Repose. Read off the clock at the cast, because that is the
+    // fact, and pinned for the reason every other field here is pinned: the
+    // fold opens no catalogue, so a `revive` a week later must be able to ask
+    // the record rather than the book.
+    ...(definition.effects.some((effect) => effect.kind === 'preserves')
+      ? { preserving: state.elapsed }
+      : {}),
   });
 
   /**
@@ -2876,6 +2886,8 @@ function resolveOneEffect(
       return resolveReviveEffect(ctx, effect, target, world);
     case 'stabilise':
       return resolveStabiliseEffect(ctx, target, world);
+    case 'preserves':
+      return resolvePreservesEffect(ctx, target, world);
     case 'turn-payout':
       return resolveTurnPayoutEffect(ctx, effect, target, world);
     case 'healing-rule':
@@ -3237,6 +3249,9 @@ export function resolveEffects(
         // And the branch the casting ran, so a later activation acts through
         // the word its caster spoke — see `OngoingSpell.option`.
         ...(becomes.option === undefined ? {} : { option: becomes.option }),
+        // And the moment the body began being kept — see
+        // `OngoingSpell.preserving`, which `revive` is the one reader of.
+        ...(becomes.preserving === undefined ? {} : { preserving: becomes.preserving }),
       },
     });
   }
@@ -3746,6 +3761,8 @@ interface OngoingRecordPlan {
   readonly choice?: StatedChoicePin;
   /** The branch the casting ran, where the spell prints branches. */
   readonly option?: string;
+  /** When this casting began keeping a body — see `OngoingSpell.preserving`. */
+  readonly preserving?: number;
 }
 
 /**

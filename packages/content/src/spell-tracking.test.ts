@@ -780,6 +780,13 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     // "rate of descent". The ward it hangs is executed all the same.
     'feather-fall',
     'fog-cloud',
+    // And the seventh kind of clean paragraph: SRD Gentle Repose's prints
+    // decay, the Undead, and a time limit that days do not count against. The
+    // marker list knows dice, saves, checks, conditions and the rest, and it
+    // knows none of those — yet the sentence it cannot see is the one the
+    // engine executes, because `revive.within` is a window this casting's own
+    // running span comes back out of.
+    'gentle-repose',
     'light',
     'magic-weapon',
     // And the sixth kind of clean paragraph: SRD Pass without Trace's says

@@ -688,6 +688,14 @@ describe('every definition in the catalogue actually casts', () => {
     } else if (run.length === 0) {
       expect(out.outcomes).toEqual([]);
       expect(out.unverified.length).toBeGreaterThan(0);
+    } else if (run.every((effect) => effect.kind === 'preserves')) {
+      // The fourth case, and it is a spell rather than a stub too: SRD Gentle
+      // Repose's mark is a fact about the **casting** — how long it has been
+      // running on this body — and nothing about the creature changes. So it
+      // reports no outcome by design, and what it leaves is the record
+      // `revive` reads: the casting is on the body, which is `aimed`.
+      expect(out.outcomes).toEqual([]);
+      expect(out.castingId).not.toBeNull();
     } else {
       expect(out.outcomes.length).toBeGreaterThan(0);
     }

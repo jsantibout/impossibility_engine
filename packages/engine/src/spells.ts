@@ -591,6 +591,29 @@ export interface OngoingSpell {
    * other casting in the book.
    */
   readonly negates?: { readonly casting: string; readonly spell: string };
+  /**
+   * The moment on the clock at which this casting began keeping its target's
+   * body — SRD Gentle Repose.
+   *
+   * > "days spent under the influence of this spell **don't count against the
+   * > time limit** of spells such as _Raise Dead_."
+   *
+   * The whole of what `revive` needs to obey that sentence, and both halves of
+   * it are here: *which bodies* is `isOn`, and *since when* is this number.
+   * `preservedSpan` is the one reader, and it takes the span from the earliest
+   * such casting running on the creature — so two reposes laid over each other
+   * take back the union of what they covered rather than the sum.
+   *
+   * **A moment rather than a running total**, for the reason every other field
+   * on this record is what it is: a total would have to be updated by
+   * something, and nothing ticks. The span is `state.elapsed` minus this,
+   * computed where it is asked.
+   *
+   * Pinned at the cast, and absent on every other casting in the book —
+   * including every record written before the field existed, which is a
+   * casting that was keeping nothing.
+   */
+  readonly preserving?: number;
 }
 
 /**

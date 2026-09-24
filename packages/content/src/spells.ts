@@ -4400,7 +4400,10 @@ export const FLOATING_DISK: SpellDefinition = {
  * > protected from decay and can't become Undead."
  *
  * Ten days is 864,000 seconds. The clock counts seconds precisely so that a
- * duration this long is subtraction rather than a special case.
+ * duration this long is subtraction rather than a special case — which is
+ * exactly what the third sentence needs: `preserves` marks the body, the
+ * ongoing record pins the moment the marking began, and `revive` takes the
+ * span back out of the time since `Vitals.diedAt`.
  */
 export const GENTLE_REPOSE: SpellDefinition = {
   id: 'gentle-repose',
@@ -4411,23 +4414,25 @@ export const GENTLE_REPOSE: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 0 },
-  effects: [],
+  // "You touch a corpse" — a dead creature, which is the only remains the
+  // engine holds. "Or other remains" is the table's and is handed over below.
+  targets: { count: 1, mustBeDead: true },
+  // "days spent under the influence of this spell don't count against the time
+  // limit of spells such as _Raise Dead_" — the whole of the third sentence,
+  // and the one clause in the book where a casting changes another casting's
+  // arithmetic.
+  effects: [{ kind: 'preserves' }],
   durationSeconds: 864_000,
-  // **Two sentences handed over and one that is not**, which is P3-S6's
-  // reading of this spell and the reason it did not leave the ledger with the
-  // other thirty-two. A corpse is an object rather than a creature in state,
-  // and decay and becoming Undead are the DM's. The third sentence is not:
-  // `healing-that-raises-the-dead` was **built**, `Vitals.diedAt` is stamped by
-  // the vitals seam and `revive.within` is subtraction over it, so a rule the
-  // engine runs really does read the time limit this spell extends — and
-  // nothing in the effect vocabulary widens another casting's window.
+  // **Two sentences handed over and one that is executed**, which was P3-S6's
+  // reading of this spell and is now its whole content. Decay and becoming
+  // Undead are the DM's, and so is a heap of remains that is not a creature
+  // the engine holds. The third sentence was the debt this definition named:
+  // `revive.within` is subtraction over `Vitals.diedAt`, so a rule the engine
+  // runs really does read the time limit this spell extends — and now the
+  // `preserves` mark takes the repose's own running span back out of it.
   dmDecides: [
     'You touch a corpse or other remains.',
     "For the duration, the target is protected from decay and can't become Undead.",
-  ],
-  unmodelled: [
-    'the days this spell buys back are not counted: "days spent under the influence of this spell don’t count against the time limit of spells such as _Raise Dead_" is arithmetic over `Vitals.diedAt`, which `revive` already reads — so a corpse under this casting is refused by a resurrection the book would allow, and no effect kind widens another casting’s window',
   ],
 };
 

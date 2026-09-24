@@ -134,6 +134,7 @@ const ATOMIC: readonly string[] = HANDING_OVER.filter(
 const id = (s: string) => asCharacterId(s);
 const CLERIC = id('cleric');
 const SLEEPER = id('sleeper');
+const CORPSE = id('corpse');
 
 const sheet = (): CharacterSheet => ({
   level: 13,
@@ -160,6 +161,11 @@ const added = (who: CharacterId): GameEvent => ({
 const SETUP: readonly GameEvent[] = [
   added(CLERIC),
   added(SLEEPER),
+  added(CORPSE),
+  // **And a body**, for SRD Gentle Repose: "You touch a corpse or other
+  // remains" is a target rule now, and refusing the sleeper is the spell
+  // working rather than the fixture being in the way.
+  { type: 'creature-died', id: CORPSE, cause: 'the fixture' },
   // Every level the handed-over spells are cast at. The sweep widened the
   // population from three level-5-and-7 rites to eleven spells between level 2
   // and level 9; P3-S6 widened it again, to every tracked spell in level-5
@@ -189,6 +195,12 @@ const SETUP: readonly GameEvent[] = [
   },
   { type: 'sight-declared', from: CLERIC, to: SLEEPER, seen: true },
   {
+    type: 'creature-placed',
+    id: CORPSE,
+    placement: { from: { creature: CLERIC }, feet: 5, bearing: 90 },
+  },
+  { type: 'sight-declared', from: CLERIC, to: CORPSE, seen: true },
+  {
     type: 'spellcasting-declared',
     id: CLERIC,
     spellcasting: declaredCasting({
@@ -217,7 +229,15 @@ const SETUP: readonly GameEvent[] = [
  */
 const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
   const targets =
-    definition.targets.count === 0 ? [] : [definition.targets.self === true ? CLERIC : SLEEPER];
+    definition.targets.count === 0
+      ? []
+      : [
+          definition.targets.self === true
+            ? CLERIC
+            : definition.targets.mustBeDead === true
+              ? CORPSE
+              : SLEEPER,
+        ];
   return {
     targets,
     // **An area the caster puts somewhere needs the point.** A `self` origin

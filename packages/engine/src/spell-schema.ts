@@ -4030,6 +4030,12 @@ function checkEffect(
     // fields, so there is nothing here to be wrong. Who it may be aimed at is
     // `TargetRule.mustBeDying`, checked where every other target rule is.
     case 'stabilise':
+    // And SRD Gentle Repose's mark carries none either: the span it takes back
+    // is the casting's own, which is on the record rather than on the effect.
+    // What it *does* need is a casting to be the span of, and that is a fact
+    // about the definition rather than about this effect — checked beside the
+    // durations, with `preserves_without_a_casting`.
+    case 'preserves':
       return;
 
     // **Its own arm rather than a third name on the fall-through above**,
@@ -5668,6 +5674,25 @@ export function checkSpellDefinition(
         reason: `a band at level ${drops} is not a *higher* slot than this level ${definition.level} spell`,
       });
     }
+  }
+
+  // **A mark on a body needs a casting to be the span of.** SRD Gentle Repose
+  // takes its own *running* span back out of a resurrection's window, so an
+  // Instantaneous casting of it would keep the body for no time at all — the
+  // reachability rule `cap_without_a_casting` states one field along, arriving
+  // at the one effect kind whose whole content is how long it has been there.
+  if (
+    definition.effects.some(
+      (effect) => (effect as { readonly kind?: unknown }).kind === 'preserves',
+    ) &&
+    !castingPersists(definition)
+  ) {
+    found.push({
+      field: 'effects',
+      code: 'preserves_without_a_casting',
+      reason:
+        'an Instantaneous casting leaves no record, so a body it kept would be kept for no span at all',
+    });
   }
 
   // **And the third half of the same sentence.** SRD Major Image's level 4+
@@ -7915,6 +7940,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'heal',
   'revive',
   'stabilise',
+  'preserves',
   'attack-damage',
   'save',
   'condition',

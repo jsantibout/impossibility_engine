@@ -4380,6 +4380,10 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     // either. Who it may be aimed at is `TargetRule.mustBeDying`, which is
     // swept where every other target rule is.
     'stabilise',
+    // And the sixth: SRD Gentle Repose's mark carries no field either. What
+    // `revive` reads is the casting's own running span, which is on the
+    // ongoing record rather than on the effect.
+    'preserves',
   ]);
 
   /**

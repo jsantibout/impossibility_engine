@@ -1938,6 +1938,33 @@ export type SpellEffect =
    */
   | { readonly kind: 'stabilise' }
   /**
+   * A body the casting keeps, so the time it lies there does not count against
+   * a resurrection's window.
+   *
+   * > SRD Gentle Repose: "The spell also effectively extends the time limit on
+   * > raising the target from the dead, since **days spent under the influence
+   * > of this spell don't count against the time limit** of spells such as
+   * > _Raise Dead_."
+   *
+   * **The only sentence in the book where one casting changes another
+   * casting's arithmetic.** {@link revive}'s window is subtraction over
+   * `Vitals.diedAt` and `state.elapsed`, and this takes its own running span
+   * back out of the difference — so a corpse that died a minute before the
+   * repose began is still within Revivify's minute a week later.
+   *
+   * **It carries nothing and it writes nothing**, which is what makes it a
+   * mark rather than a grant: the fact `revive` reads is *that this casting is
+   * running on this body, and since when*, and both halves are on the ongoing
+   * record the casting already leaves (`OngoingSpell.preserving`). A grant
+   * would have needed a holder, a release and a reader, and there is nothing
+   * about the creature to change — being preserved is a fact about the
+   * casting.
+   *
+   * So it is refused on a definition that leaves no casting running: a spell
+   * with no duration would mark a body for no time at all.
+   */
+  | { readonly kind: 'preserves' }
+  /**
    * Something handed over at every one of the target's turn boundaries, for as
    * long as the casting runs.
    *
@@ -6802,6 +6829,9 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // And a stabilising reads nothing at all: it carries no number, so there
       // is none of anybody's for it to pin.
       case 'stabilise':
+      // Nor does a body kept: the span it takes back is the casting's own and
+      // the clock's, and nothing about the caster decides any of it.
+      case 'preserves':
       case 'turn-payout':
       case 'action-rule':
       case 'healing-rule':
