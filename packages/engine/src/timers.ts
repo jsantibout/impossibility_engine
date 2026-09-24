@@ -228,10 +228,16 @@ export interface RepeatSave {
      * The same shape as the hook carrying it, because it is the same sentence
      * about a different condition — `deepenedBy` hangs it on the instance it
      * creates, so the boundary raises it from there and a success releases
-     * that instance. No third rung: the SRD prints none at any tier, and one
-     * would be a deepening of a deepening rather than a field.
+     * that instance.
+     *
+     * **Without the failure branch, which is the type keeping the rule rather
+     * than a comment claiming it.** The SRD prints no third rung at any tier,
+     * and `RepeatSave` written plainly here would admit a stack of them —
+     * `onFailure.repeats.onFailure.repeats` — that `deepenedBy` would go on
+     * scheduling. `PrintedSaveEffectSchema` says the same thing on the printed
+     * side by spreading its repeat's shape without the branch.
      */
-    readonly repeats?: RepeatSave;
+    readonly repeats?: Omit<RepeatSave, 'onFailure'>;
   };
   /**
    * Damage the creature takes **before** the die is thrown.

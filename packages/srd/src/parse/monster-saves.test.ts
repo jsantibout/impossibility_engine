@@ -853,6 +853,45 @@ describe('the lines the reader does not reach', () => {
     expect(lineOf('solar', 'Slaying Bow').save).toBeUndefined();
   });
 
+  /**
+   * **A second rung the grammar cannot hold still refuses the whole line**,
+   * which is the property the two dragon families were refused under until a
+   * deepening could carry a lifetime — and it is the half most easily lost by
+   * widening the rung grammar, because what it buys is a *refusal*.
+   *
+   * The sentence is SRD Cockatrice's, whose Petrifying Bite prints the "instead
+   * of" spelling with a span threaded through its middle: "The target has the
+   * Petrified condition, instead of the Restrained condition, for 24 hours."
+   * Asserted here through the template rather than off the block, because that
+   * line opens with `_Melee Attack Roll:_` and would be refused for its
+   * opening whatever this reader did with its rung — an assertion that passes
+   * for the wrong reason is not a guard. Beside it, a rung that says two
+   * things: a deepening is one condition and what ends it, and a rule riding
+   * on the deeper condition has nowhere to be written.
+   */
+  it('refuses a graded failure whose second rung it still cannot hold', () => {
+    const graded = (rung: string) =>
+      parseSaveLine(
+        '_Constitution Saving Throw:_ DC 11, each creature in a 15-foot Cone. ' +
+          '_First Failure:_ The target has the Restrained condition and repeats the save at the ' +
+          'end of its next turn, ending the effect on itself on a success. ' +
+          `_Second Failure:_ ${rung}`,
+      );
+
+    // The rung that is read, so the fixture is known to be a rung this reader
+    // reaches at all — and then the two that are not.
+    expect(graded('The target has the Petrified condition instead of the Restrained condition.'))
+      .not.toBeNull();
+    expect(
+      graded(
+        'The target has the Petrified condition, instead of the Restrained condition, for 24 hours.',
+      ),
+    ).toBeNull();
+    expect(
+      graded('The target has the Petrified condition and is pushed up to 10 feet straight away from the gorgon.'),
+    ).toBeNull();
+  });
+
   it('refuses a trigger printed before the save', () => {
     // "The mephit explodes when it dies." A line read without it is a Death
     // Burst a creature could set off on purpose.

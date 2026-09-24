@@ -521,6 +521,20 @@ export interface SpellRepeatSave {
    * Pure data, with no field naming a spell: the deeper condition is a
    * {@link ConditionName} like any other, sourced to whatever imposed the
    * first one and released with it.
+   *
+   * **This is the engine's `RepeatSave.onFailure` one field short, and the
+   * missing one is deliberate.** A deepening may be ended by a span or by a
+   * repeat of its own; a *definition* may say only the span. Two reasons, and
+   * the second is the one that would bite: no SRD spell prints a deepening
+   * that repeats — the sentence that does is a stat block's, SRD Silver Dragon
+   * Wyrmling's "and it repeats the save at the end of each of its turns", and
+   * it reaches the same record by the printed road rather than through a
+   * definition. And this object is spread **straight into** a `RepeatSave` by
+   * `castOnHit` in `commands/attacks.ts`, so every field here must be
+   * assignable to the engine's: a span is (both are `{ seconds }`), and a
+   * nested `SpellRepeatSave` is not, because it names neither the creature nor
+   * the DC a record pins. A definition that needs one is a change to that
+   * spread as well as to this type.
    */
   readonly onFailure?: {
     readonly condition: ConditionName;
