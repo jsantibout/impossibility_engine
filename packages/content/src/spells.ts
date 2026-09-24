@@ -9631,11 +9631,23 @@ export const HEAT_METAL: SpellDefinition = {
  * > Action, you can move the sphere up to 30 feet, rolling it along the
  * > ground."
  *
- * **Spiritual Weapon's point with Web's trigger**, and the pair is exactly
- * what the engine does not have: `CastingOrigin` holds a point a later Bonus
- * Action may move, and `AreaTrigger` raises a save at a turn boundary over an
- * *area the casting placed* — not over a radius measured from a point that
- * moves. Either half alone is written elsewhere in this catalogue.
+ * **Spiritual Weapon's point with Web's trigger**, and the pair is what
+ * `areaTrigger.within` is: the clause is measured from a point the casting
+ * holds rather than over the template the casting laid, and the point is
+ * rolled about on a Bonus Action by the machinery Moonbeam's beam already
+ * uses.
+ *
+ * **The area is the light, which is Dancing Lights' reading.** The sphere
+ * itself is one space of fire; what fills a volume is what it sheds — "Bright
+ * Light in a 20-foot radius and Dim Light for an additional 20 feet" — so that
+ * is the template, and the five feet that burn are the trigger's reach. Two
+ * questions about one point, and neither is the other's radius.
+ *
+ * **The ram is its own clause and not the beam's.** Moonbeam's `onAreaEntry`
+ * catches whoever the *area* sweeps over; this spell catches only the creature
+ * whose *space* the sphere is rolled into, and then stops moving — so
+ * `onPointEntry` is a second sentence rather than a spelling of the first,
+ * and the route is asked for by the same rule Moonbeam's is.
  */
 export const FLAMING_SPHERE: SpellDefinition = {
   id: 'flaming-sphere',
@@ -9646,12 +9658,42 @@ export const FLAMING_SPHERE: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
+  // "it sheds Bright Light in a 20-foot radius and Dim Light for an additional
+  // 20 feet" — the one volume this spell fills, laid at the point the sphere
+  // is conjured on and laid again wherever it is rolled to.
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  areaLight: { level: 'bright', dimBeyond: 20 },
   effects: [],
+  // "You create a 5-foot-diameter sphere of fire in an unoccupied space on the
+  // ground within range." Nothing happens at the casting: every save this
+  // spell ever calls for comes from the trigger, exactly as Web's does.
+  areaTrigger: {
+    at: 'end-of-turn',
+    within: 5,
+    onPointEntry: true,
+    label: 'Flaming Sphere (the sphere)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+      },
+    ],
+  },
+  // "As a Bonus Action, you can move the sphere up to 30 feet, rolling it
+  // along the ground." The action's entire content, which is why it carries no
+  // effects and aims at nobody.
+  activation: {
+    action: 'bonus-action',
+    movesArea: 30,
+    label: 'Flaming Sphere (the sphere rolls)',
+    effects: [],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the sphere burns nobody: "Any creature that ends its turn within 5 feet of the sphere makes a Dexterity saving throw, taking 2d6 Fire damage on a failed save or half as much damage on a successful one" is an ordinary save for half, raised at a turn boundary over a radius measured from a point the casting holds — and a trigger reads the area a casting placed rather than a distance from a movable point',
-    'the Bonus Action that rolls the sphere up to 30 feet, and the save a creature makes when the sphere is rolled into its space, are the same absence from the other end',
-    'the barriers it is directed over, the pits it jumps, the flammable objects it sets alight and the Bright Light it sheds are the DM’s',
+    'the ground it is conjured on, the unoccupied space it needs, the barriers up to 5 feet tall it is directed over, the pits up to 10 feet wide it jumps and the flammable objects it sets alight are the DM’s',
   ],
 };
 

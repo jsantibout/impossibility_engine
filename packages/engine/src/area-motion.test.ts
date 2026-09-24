@@ -457,12 +457,14 @@ describe('only a spell whose area the rules move has an area-entry clause', () =
    * can be moved and prints no clause would move silently and legally, and
    * inventing a rule against it would be the engine adding a sentence.
    */
-  it('is two spells so far, so nothing here generalises from a family', () => {
+  it('is three spells so far, so nothing here generalises from a family', () => {
     // Dancing Lights joined Moonbeam the day a casting's light followed its
     // origin: its Bonus Action moves the motes, and the dim patch they shed is
-    // laid again where they land.
+    // laid again where they land. Flaming Sphere is the third and arrives with
+    // both halves at once — a Bonus Action that rolls it thirty feet, and a
+    // patch of Bright Light that goes with it.
     const movable = SPELL_DEFINITIONS.filter((d) => d.activation?.movesArea !== undefined);
-    expect(movable.map((d) => d.id)).toEqual(['dancing-lights', 'moonbeam']);
+    expect(movable.map((d) => d.id)).toEqual(['dancing-lights', 'flaming-sphere', 'moonbeam']);
   });
 });
 

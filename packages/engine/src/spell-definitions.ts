@@ -3053,6 +3053,50 @@ export interface AreaTrigger {
    */
   readonly onAreaEntry?: true;
   /**
+   * SRD Flaming Sphere: "If you move the sphere **into a creature's space**,
+   * that creature makes the save against the sphere."
+   *
+   * {@link onAreaEntry}'s narrow twin and not a spelling of it. That clause is
+   * about an *area* sweeping over somebody — Moonbeam's Cylinder is five feet
+   * of radius and catches whoever it covers — and this one is about the
+   * casting's **point** arriving in an occupied space, which is a different
+   * set of creatures the moment the trigger reaches further than the point
+   * does: a sphere rolled past a goblin ends up beside it, and the book says
+   * the goblin saves only when the sphere is rolled *into* it.
+   *
+   * So the two are refused together. One spell prints one of these sentences,
+   * and a definition carrying both would be asking two questions of one move
+   * with no SRD sentence behind either answer.
+   *
+   * **The route matters here for {@link onAreaEntry}'s reason**, and
+   * `relocateOrigin` asks for it under the same rule: a thirty-foot roll
+   * crosses five spaces, and a creature standing in one of them was rolled
+   * into whatever the endpoint says.
+   */
+  readonly onPointEntry?: true;
+  /**
+   * How far from the casting's **point** this trigger reaches, in feet.
+   *
+   * SRD Flaming Sphere: "Any creature that **ends its turn within 5 feet of
+   * the sphere**." The clause is measured from a point the casting holds
+   * rather than over the template the casting laid, and the two are genuinely
+   * different questions for this spell: the sphere is one space of fire that
+   * lights a room twenty feet across, so {@link SpellDefinition.area} is the
+   * lit region — Dancing Lights' reading, where an area is what the light
+   * fills — and the burning reaches five feet.
+   *
+   * Absent is every other persistent area in the book and means what it has
+   * always meant: the clauses fire over the area itself. A radius here does
+   * **not** shrink the area; it answers a different question about the same
+   * point, and the light, the terrain and the standing effect all go on
+   * reading the template.
+   *
+   * Only on a point-origin area, because a point is what it measures from: a
+   * carried area's origin is a creature with a volume, and "within 5 feet of
+   * the Emanation" is a sentence the SRD does not print.
+   */
+  readonly within?: number;
+  /**
    * SRD "A creature makes this save only once per turn."
    *
    * Caps the *creature*, across every clause above, for one casting. Distinct

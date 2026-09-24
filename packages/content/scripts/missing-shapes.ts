@@ -1947,20 +1947,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the mode and the deadline are both ordinary; what they hang on is a creature **choosing** to keep hold of the object rather than drop it, which is the branch the clause above has no writer for.',
     },
   ],
-  'flaming-sphere': [
-    {
-      marker: 'saving-throw',
-      clause: 'Any creature that ends its turn within 5 feet of the sphere makes a Dexterity saving throw',
-      why: 'an-area-trigger-measured-from-a-point',
-      note: 'the turn boundary is one `AreaTrigger` already names and the geometry is not: five feet measured from a point the casting holds, rather than an area the casting placed \u2014 and the point moves on a Bonus Action besides.',
-    },
-    {
-      marker: 'dice',
-      clause: 'taking 2d6 Fire damage on a failed save',
-      why: 'an-area-trigger-measured-from-a-point',
-      note: 'an ordinary save for half with ordinary slot scaling, waiting on the trigger above it to have somewhere to fire from.',
-    },
-  ],
   'ray-of-enfeeblement': [
     {
       marker: 'saving-throw',

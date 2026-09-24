@@ -26,6 +26,7 @@ import {
   statedChoiceReaches,
 } from './spell-definitions.js';
 import type {
+  AreaTrigger,
   AttackRollCount,
   ConditionRider,
   DiceScaling,
@@ -3932,6 +3933,7 @@ export function checkSpellDefinition(
       definition.areaTrigger.effects.forEach((effect, i) =>
         checkEffect(effect, definition.level, `areaTrigger.effects[${i}]`, found),
       );
+      checkPointMeasuredTrigger(definition.areaTrigger, definition.area, found);
     }
   }
 
@@ -5145,6 +5147,75 @@ function checkTeleportPlacement(
     reason:
       'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
   });
+}
+
+/**
+ * The two clauses an area trigger measures from the casting's **point**.
+ *
+ * SRD Flaming Sphere prints both of them: "Any creature that ends its turn
+ * **within 5 feet of the sphere**", and "If you move the sphere **into a
+ * creature's space**, that creature makes the save."
+ *
+ * Both are about a point, so both are refused on an area a creature carries:
+ * a carried origin is a creature with a volume, "within 5 feet of the
+ * Emanation" is a sentence the SRD does not print, and a point that is a
+ * creature cannot be moved into somebody's space by an activation.
+ *
+ * And the ram is refused beside {@link AreaTrigger.onAreaEntry}, which is the
+ * clause it narrows: one spell writes one of those sentences, and a definition
+ * writing both would ask two questions of one move and catch the same creature
+ * twice on the answer neither sentence gave.
+ */
+function checkPointMeasuredTrigger(
+  trigger: AreaTrigger,
+  area: SpellArea | undefined,
+  found: SpellDefinitionProblem[],
+): void {
+  const onPoint = (trigger as { readonly onPointEntry?: unknown }).onPointEntry;
+  if (onPoint !== undefined) {
+    if (onPoint !== true) {
+      found.push({
+        field: 'areaTrigger.onPointEntry',
+        code: 'malformed_field',
+        reason: 'a spell either catches the creature its point is moved into or does not; the only value is true',
+      });
+    } else if (trigger.onAreaEntry === true) {
+      found.push({
+        field: 'areaTrigger.onPointEntry',
+        code: 'two_arrival_clauses',
+        reason:
+          'the area arriving and the point arriving are two SRD sentences and no spell prints both; a definition carrying both catches the same creature twice for one move',
+      });
+    } else if (area !== undefined && area.origin !== 'point') {
+      found.push({
+        field: 'areaTrigger.onPointEntry',
+        code: 'point_clause_without_a_point',
+        reason:
+          'a point moved into a creature’s space is a point the casting holds; a carried area’s origin is its caster and no activation moves one',
+      });
+    }
+  }
+
+  const within = trigger.within;
+  if (within === undefined) return;
+
+  if (typeof within !== 'number' || !Number.isInteger(within) || within <= 0 || within % 5 !== 0) {
+    found.push({
+      field: 'areaTrigger.within',
+      code: 'bad_trigger_reach',
+      reason: `${String(within)} is not a reach measured on the 5-foot lattice everything else is measured on`,
+    });
+    return;
+  }
+
+  if (area !== undefined && area.origin !== 'point') {
+    found.push({
+      field: 'areaTrigger.within',
+      code: 'point_clause_without_a_point',
+      reason:
+        'a reach measured from the casting’s point needs one; a carried area’s origin is a creature with a volume, and "within 5 feet of the Emanation" is not a sentence the SRD prints',
+    });
+  }
 }
 
 /**

@@ -75,6 +75,7 @@
   ],
   "fold/areas.ts": [
     "creaturesInCastingArea",
+    "creaturesOnCastingPoint",
     "originOfCastingArea",
     "areaShapeOf",
     "areaDefinitionOf",

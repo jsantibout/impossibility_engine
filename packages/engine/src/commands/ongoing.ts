@@ -372,7 +372,16 @@ export function relocateOrigin(
   // nothing as it travels has no route to be wrong about, which is every
   // Spiritual Weapon — and giving it this requirement because Moonbeam has it
   // would be a neighbouring spell's clause lending it a rule again.
-  if (definition.areaTrigger?.onAreaEntry === true) {
+  //
+  // **Both arrival clauses read it**, for one reason written twice: SRD
+  // Moonbeam catches whoever the *area* sweeps over and SRD Flaming Sphere
+  // catches whoever the *point* is rolled into, and thirty feet of rolling
+  // crosses five spaces either way. A ram that only ever looked at the
+  // endpoint would be the engine silently skipping the goblin in the middle.
+  if (
+    definition.areaTrigger?.onAreaEntry === true ||
+    definition.areaTrigger?.onPointEntry === true
+  ) {
     const coarse: ContextRequest[] = [];
     let previous = current;
     for (const space of legs) {

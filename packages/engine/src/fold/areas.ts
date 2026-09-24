@@ -52,13 +52,51 @@ import { endTimedCondition } from './release.js';
  * thing the trigger path asks for and the standing one does not: a casting
  * with no trigger clauses catches nobody *here*, because there is nothing for
  * it to catch them with.
+ *
+ * **And the second thing: a reach measured from the point rather than over the
+ * template.** SRD Flaming Sphere's clause is "within 5 feet of the sphere",
+ * and the sphere is one space of fire that lights a room twenty feet across —
+ * so the record's `area` is the lit region and `AreaTrigger.within` is what
+ * burns. The substitution is a Sphere of that radius at the same point, run
+ * through the same one geometry with the same designated-unaffected filter, so
+ * there is no second ruler; a Cube's `towards` is simply unread, as it is for
+ * every Sphere.
  */
 function creaturesInCastingArea(
   scene: PositionState,
   record: OngoingSpell,
 ): ReadonlySet<CharacterId> | null {
-  if (areaDefinitionOf(record) === null) return null;
-  return creaturesStandingInCastingArea(scene, record);
+  const definition = areaDefinitionOf(record);
+  if (definition === null) return null;
+
+  const within = definition.trigger.within;
+  if (within === undefined) return creaturesStandingInCastingArea(scene, record);
+  return creaturesStandingInCastingArea(scene, {
+    ...record,
+    area: { kind: 'sphere', radius: within, origin: 'point' },
+  });
+}
+
+/**
+ * Whoever is standing in the space the casting's point occupies.
+ *
+ * SRD Flaming Sphere: "If you move the sphere **into a creature's space**." A
+ * Sphere of radius zero is exactly that question asked of the one geometry —
+ * the point's own space and nothing adjacent — which is why it is a
+ * substitution rather than a coordinate comparison: a Large creature occupies
+ * four spaces and a comparison against its anchor would find it in one of
+ * them.
+ */
+function creaturesOnCastingPoint(
+  scene: PositionState,
+  record: OngoingSpell,
+  at: Point,
+): ReadonlySet<CharacterId> | null {
+  return creaturesStandingInCastingArea(scene, {
+    ...record,
+    area: { kind: 'sphere', radius: 0, origin: 'point' },
+    origin: at,
+  });
 }
 
 /**
@@ -487,10 +525,25 @@ function raiseArrivalDebts(
   // **A fixed area gains nothing from a neighbour's moving one.** Web's Cube
   // stays where it was conjured, and a hand-built log that moved its point
   // anyway must not make it start catching people on a clause it never printed.
-  if (definition === null || definition.trigger.onAreaEntry !== true) return state;
+  if (definition === null) return state;
+  const trigger = definition.trigger;
+  if (trigger.onAreaEntry !== true && trigger.onPointEntry !== true) return state;
 
-  const was = creaturesInCastingArea(scene, { ...record, origin: from });
-  const now = creaturesInCastingArea(scene, { ...record, origin: to });
+  // **Two clauses, two populations, and the SRD wrote them about two different
+  // things.** Moonbeam's is the *area* sweeping over somebody, so it is
+  // everyone the area covers now and did not cover before; Flaming Sphere's is
+  // the *point* arriving in an occupied space, so it is whoever is standing
+  // where the point landed and was not standing where it was. A definition
+  // carries one or the other — `checkSpellDefinition` refuses both — so this
+  // chooses rather than unions.
+  const was =
+    trigger.onPointEntry === true
+      ? creaturesOnCastingPoint(scene, record, from)
+      : creaturesInCastingArea(scene, { ...record, origin: from });
+  const now =
+    trigger.onPointEntry === true
+      ? creaturesOnCastingPoint(scene, record, to)
+      : creaturesInCastingArea(scene, { ...record, origin: to });
   if (was === null || now === null) return state;
 
   const turn = state.combat?.turnsTaken ?? null;
@@ -498,7 +551,7 @@ function raiseArrivalDebts(
   let current = state;
   for (const who of [...now].sort()) {
     if (was.has(who)) continue;
-    if (!areaTriggerAllowed(current, castingId, who, definition.trigger, 'area-moved', turn)) {
+    if (!areaTriggerAllowed(current, castingId, who, trigger, 'area-moved', turn)) {
       continue;
     }
     current = oweAreaEffect(current, castingId, who, 'area-moved', turn);

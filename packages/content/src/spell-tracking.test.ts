@@ -1551,6 +1551,14 @@ describe('every spell this batch added is cast for real', () => {
     'expeditious-retreat',
     'faerie-fire',
     'find-steed',
+    // **Flaming Sphere leaves on a reach rather than on a template.** Its
+    // clause is "within 5 feet of the sphere", measured from a point the
+    // casting holds — `areaTrigger.within` — while the volume it fills is the
+    // light it sheds, which is Dancing Lights' reading of what an area is. The
+    // ram is a second sentence and gets a second field: `onPointEntry` catches
+    // only the creature whose space the sphere is rolled into, where Moonbeam's
+    // `onAreaEntry` catches everyone the area sweeps over.
+    'flaming-sphere',
     'fog-cloud',
     'goodberry',
     'magic-jar',
