@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 49 spells | 49 | 0 | 0 | 32 |
+| Spells in reach, not executed | 48 spells | 48 | 0 | 0 | 32 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -81,24 +81,24 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-choice-made-at-the-casting` | 2 | 1 |
 | `a-duration-the-slot-changes` | 2 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
+| `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
-| `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
 | `a-second-place-to-put-a-creature` | 3 | 0 |
+| `a-bonus-narrowed-to-a-skill` | 2 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 0 |
 | `an-action-the-engine-has-no-spender-for` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
-| `a-condition-that-ends-when-its-holder-leaves-an-area` | 1 | 0 |
 | `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-damage-penalty-a-spell-grants` | 1 | 0 |
@@ -198,22 +198,13 @@ sums to the population.
 
 - **Command** (level 1) — executed-partial
 
+#### `an-object-with-statistics-of-its-own` — blocks 1, finishes 1
+
+- **Silence** (level 2) — executed-partial
+
 #### `healing-that-raises-the-dead` — blocks 1, finishes 1
 
 - **Gentle Repose** (level 2) — tracked
-
-#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 4, finishes 0
-
-- **Pass without Trace** (level 2) — tracked — also waits on 1
-- **Silence** (level 2) — tracked — also waits on 1
-- **Warding Bond** (level 2) — tracked — also waits on 1
-- **Conjure Animals** (level 3) — tracked — also waits on 1
-
-#### `a-bonus-narrowed-to-a-skill` — blocks 3, finishes 0
-
-- **Enthrall** (level 2) — tracked — also waits on 1
-- **Pass without Trace** (level 2) — tracked — also waits on 1
-- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `a-check-another-creature-may-attempt` — blocks 3, finishes 0
 
@@ -226,6 +217,11 @@ sums to the population.
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
+
+#### `a-bonus-narrowed-to-a-skill` — blocks 2, finishes 0
+
+- **Enthrall** (level 2) — tracked — also waits on 1
+- **Slow** (level 3) — executed-partial — also waits on 2
 
 #### `a-filter-on-the-attackers-creature-type` — blocks 2, finishes 0
 
@@ -257,6 +253,11 @@ sums to the population.
 - **Calm Emotions** (level 2) — tracked — also waits on 1
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
 
+#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 2, finishes 0
+
+- **Warding Bond** (level 2) — tracked — also waits on 1
+- **Conjure Animals** (level 3) — tracked — also waits on 1
+
 #### `an-action-the-engine-has-no-spender-for` — blocks 2, finishes 0
 
 - **Gaseous Form** (level 3) — executed-partial — also waits on 2
@@ -283,10 +284,6 @@ sums to the population.
 #### `a-condition-immunity-narrowed-to-its-source` — blocks 1, finishes 0
 
 - **Magic Circle** (level 3) — tracked — also waits on 3
-
-#### `a-condition-that-ends-when-its-holder-leaves-an-area` — blocks 1, finishes 0
-
-- **Silence** (level 2) — tracked — also waits on 1
 
 #### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 0
 

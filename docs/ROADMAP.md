@@ -2358,3 +2358,25 @@ Appended after wave seven's first spells track (2026-09-24):
   the boundary — filed under `a-repeat-save-that-does-something-on-a-failure`
   with the four named, and the odds-and-ends brief that owns Slow's repeat
   reads the same list.
+- **What an area imposes while you stand in it.** `AreaStanding` is a list of
+  clauses now — a Speed, a bonus narrowed by skill, a condition, a damage
+  defence, and a casting it forbids — each derived on every read from where
+  the creature stands and stored on nobody, so walking out is the whole of
+  the ending and no condition event is ever written; "entirely inside" is a
+  field on the clause (`whollyInside`), answered by running the shape's own
+  predicate over every cube of the creature's volume. Pass without Trace and
+  Silence execute off it. The eleventh stated fact is `chosen` (`unaffected`
+  with its polarity turned over, the caster always on the list), and a spell
+  that designates chosen creatures pins a list even when nobody was named —
+  the review caught a Pass without Trace naming nobody granting its bonus to
+  every enemy in the aura. `silenced` refuses a Verbal casting inside, which
+  needed a fact the engine had never held: **`SpellDefinition.noVerbalComponent`**,
+  a negative marker (absent means the spell has a V, the book's own default),
+  checked against the parsed book in both directions — a primitive the brief
+  did not authorise and the coordinator accepts, since the named deliverable
+  had no other foundation. `save.verdictOnly` lifts `save_imposes_nothing` for
+  a save whose whole content is its verdict, refused beside any rider or
+  record; Animal Messenger's definition is written by the coordinator now
+  that the Challenge Rating has landed. `a-condition-that-ends-when-its-holder-leaves-an-area`
+  is retired: presence needs no ending, and Web's Restrained is another
+  sentence.
