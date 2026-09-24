@@ -738,9 +738,21 @@ const listedSlots = (slots: readonly ActionSlot[]): string => {
  * Three of the four are a flag the budget keeps; **movement is the one nothing
  * spends by name**, so it is read off the feet the turn has been charged.
  * `movementSpent` and not `movementSegments`: a move with no scene records no
- * segment and is still a move, and `grantedMoves` are feet a feature handed
- * over out of nothing — a Tactical Shift is somebody else's sentence and
- * charging this one for it would be a rule nobody printed.
+ * segment and is still a move.
+ *
+ * **Feet a feature handed over are asked and do not answer, and that is
+ * deliberate rather than a gap being left.** {@link spendMovement} asks this
+ * question before it reaches the `grantedMoves` branch, so a Tactical Shift
+ * *after* the action is refused under a rule coupling the two — a move is a
+ * move, and the sentence says "move". The other direction cannot be read:
+ * `GrantedMove.feet` holds what is **left** of a grant rather than what has
+ * gone, so a turn that has spent five of fifteen granted feet is
+ * indistinguishable from one handed ten, and a counter that pretended
+ * otherwise would be inventing a fact. No printed sentence reaches the
+ * asymmetry — SRD Ice Devil is the only line that couples movement at all, it
+ * is CR 14, and nothing that hands feet over has ever stood beside it — so
+ * this is written down rather than arranged for, exactly as
+ * `TurnBudget.movementGained`'s open reading is.
  *
  * The Reaction is the odd member and says so: a budget refreshes at the start
  * of the holder's *own* turn, so "has this creature taken a Reaction" is

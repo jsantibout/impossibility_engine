@@ -679,13 +679,53 @@ describe('a failure that changes what a turn may hold', () => {
     ]);
   });
 
-  it('carries a semicolon list one of whose clauses it cannot read', () => {
+  it('refuses a semicolon list one of whose clauses it cannot read', () => {
     // The transaction the whole reader is written under, over the new split:
-    // a list is read whole or handed over whole, never half-applied.
+    // a list is read whole or handed over whole, never half-applied. Nothing
+    // of it reaches a caller, which is what null says here — the two clauses
+    // it *could* read are discarded with the one it could not.
     const read = parseSaveLine(
       "_Constitution Saving Throw:_ DC 11, each creature in a 15-foot Cone. _Failure:_ The target can't take Reactions; its Speed is halved; and it is sad. This effect lasts until the end of its next turn.",
     );
     expect(read).toBeNull();
+  });
+
+  /**
+   * SRD Adult Brass Dragon, Scorching Sands: "27 (6d8) Fire damage, and the
+   * target's Speed is halved **until the end of its next turn**."
+   *
+   * The halving with a span of its own, which is the other way the corpus
+   * prints the clause and the arm no Copper Dragon exercises — theirs is
+   * printed once underneath a list. A reader that dropped an inline span would
+   * leave this line with a halving that ends at no moment, and the lifetime
+   * gate would then refuse the whole line: the DC, the targets and the 6d8
+   * would all stop being read, not merely the halving.
+   *
+   * Read off the line's text rather than off its `save`, because a legendary
+   * action is not a line this pipeline spends and so carries none — the
+   * economy is what holds that block back, not the grammar.
+   */
+  it('reads a halving with a span of its own, on a line the economy still holds back', () => {
+    for (const [id, dc, dice, average] of [
+      ['adult-brass-dragon', 16, '6d8', 27],
+      ['ancient-brass-dragon', 20, '8d8', 36],
+    ] as const) {
+      const sands = lineOf(id, 'Scorching Sands');
+      expect(sands.save, id).toBeUndefined();
+      expect(parseSaveLine(sands.text), id).toEqual({
+        ability: 'dex',
+        dc,
+        targets: 'one creature the dragon can see within 120 feet',
+        damage: { dice, flat: 0, type: 'fire', average },
+        onSuccess: 'none',
+        onFailure: [
+          { kind: 'speed-halved', lasts: { kind: 'turn', moment: 'end', of: 'target' } },
+        ],
+        handedOver: [
+          "_Failure or Success:_ The dragon can't take this action again until the start of its next turn.",
+        ],
+      });
+    }
   });
 });
 

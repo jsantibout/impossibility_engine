@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, expect as unwrap, isErr, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { attackerConditionModes, targetConditionModes } from './conditions.js';
 import { createRng, type Rng } from './dice.js';
@@ -11,7 +11,8 @@ import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { conditionRiderOf } from './spell-definitions.js';
 import { resolveSpell } from './commands.js';
-import { armorClassOf, effectiveConditions, speedOf } from './standing.js';
+import { actionRulesOn, armorClassOf, effectiveConditions, speedOf } from './standing.js';
+import { spendAction, spendBonusAction, startCombat } from './combat.js';
 
 /**
  * A saving throw whose failure imposes **no condition**.
@@ -172,10 +173,11 @@ describe('what a definition may say about a save that imposes no condition', () 
 /**
  * SRD Slow, against a target that fails its save.
  *
- * Three grants off one Wisdom save: the Speed halved, the −2 to Armour Class
- * and the Reaction taken away. A second `save` effect for any of them would
- * have rolled a second saving throw, so a creature could have been slowed and
- * not penalised — which is not the spell.
+ * Four grants off one Wisdom save: the Speed halved, the −2 to Armour Class,
+ * the Reaction taken away and the turn's two slots coupled to each other. A
+ * second `save` effect for any of them would have rolled a second saving
+ * throw, so a creature could have been slowed and not penalised — which is
+ * not the spell.
  */
 describe('Slow', () => {
   const SETUP: readonly GameEvent[] = [
@@ -226,12 +228,47 @@ describe('Slow', () => {
       .filter((one) => one.rule.kind === 'forbids' && one.rule.slots?.includes('reaction') === true)
       .map((one) => one.label);
 
+  const couplings = (state: GameState): readonly unknown[] =>
+    (state.creatures[OGRE]?.actionRules ?? [])
+      .filter((one) => one.rule.kind === 'one-of')
+      .map((one) => one.rule);
+
   it('halves the Speed, subtracts two from the Armour Class and takes the Reaction away', () => {
     const state = cast(FAILS);
 
     expect(speedOf(state, OGRE), 'the ogre’s 40 halved').toBe(20);
     expect(armorClassOf(state, OGRE), '12 less the printed −2').toBe(10);
     expect(reactionRules(state)).toEqual(['Slow']);
+  });
+
+  /**
+   * SRD Slow: "On its turns, it can take either an action or a Bonus Action,
+   * not both."
+   *
+   * The fourth grant, and the one the spell waited on: every other member of
+   * the rule vocabulary judges one slot alone, so a `forbids` naming the pair
+   * would refuse the turn entirely and a `forbids` naming one would take away
+   * the choice the sentence offers.
+   *
+   * **Live as well as landed.** Said at the primitives rather than through a
+   * command, because the fixture holds no fight and the two slots this is
+   * about are spent by the four functions every command spends through.
+   */
+  it('couples the turn’s two slots, so the first spent forecloses the other', () => {
+    const state = cast(FAILS);
+    expect(couplings(state)).toEqual([{ kind: 'one-of', slots: ['action', 'bonus-action'] }]);
+
+    const rules = actionRulesOn(state, OGRE);
+    const fight = must(startCombat([{ id: OGRE, initiative: 10, speed: 40 }]));
+
+    // Either, on a turn that has spent neither.
+    expect(isErr(spendBonusAction(fight, OGRE, undefined, { rules }))).toBe(false);
+    expect(isErr(spendAction(fight, OGRE, undefined, { rules }))).toBe(false);
+
+    const acted = must(spendAction(fight, OGRE, undefined, { rules }));
+    const refused = spendBonusAction(acted, OGRE, undefined, { rules });
+    expect(isErr(refused) && refused.code).toBe('slot_foreclosed');
+    if (isErr(refused)) expect(refused.reason).toContain('Slow');
   });
 
   /** And the failure imposes no condition at all, which is the whole point. */
