@@ -207,6 +207,27 @@ describe('Mind Blank grants an Immunity to the Charmed condition', () => {
    * very same casting: a target nobody had protected has to land, or the
    * refusal below would be indistinguishable from a successful save.
    */
+  it('meets an implied condition with the same immunity as the host', () => {
+    // SRD Lamia: "the target has the Charmed and Poisoned conditions" for the
+    // hour — Poisoned lands and implies the Charmed. A creature under Mind
+    // Blank takes the Poisoned and not the Charmed, and the record says so:
+    // the fold adds an implied instance without asking, so the asking is the
+    // command's, once, before the event is written.
+    const before = base();
+    const during = applyAll(before, mindBlank(before, WIZARD).events);
+    const events = must(
+      applyConditionTo(during, FIGHTER, 'poisoned', 'a lamia', [], undefined, undefined, {}, undefined, [
+        'charmed',
+      ]),
+    );
+    const applied = events.find((e) => e.type === 'condition-applied');
+    expect(applied !== undefined && 'implies' in applied ? applied.implies : undefined).toBeUndefined();
+    const after = applyAll(during, events);
+    const held = JSON.stringify(after.creatures[FIGHTER]?.conditions);
+    expect(held).toContain('poisoned');
+    expect(held).not.toContain('charmed');
+  });
+
   it('leaves a Charm Person unaffected while charming the creature beside it', () => {
     const during = applyAll(base(), mindBlank(base(), WIZARD).events);
     const charm = must(

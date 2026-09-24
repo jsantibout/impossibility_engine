@@ -95,9 +95,19 @@ export function applyConditionTo(
     if (creatureOf(state, id) === null) {
       return unknownCreature(id);
     }
-    if (immuneTo.includes(condition) || conditionImmunitiesOf(state, id).includes(condition)) {
+    const immunities = conditionImmunitiesOf(state, id);
+    if (immuneTo.includes(condition) || immunities.includes(condition)) {
       return err('immune', `${id} is immune to the ${condition} condition`);
     }
+    // **An implied condition meets the same immunity the host does.** SRD
+    // Crocodile: "While Grappled, the target has the Restrained condition" —
+    // a creature immune to Restrained is still held and is not Restrained,
+    // the way a Grappled it was immune to would never have landed. The fold
+    // adds implied instances without asking, so the asking is here, once,
+    // and the event carries only what the creature can take.
+    const implied = (implies ?? []).filter(
+      (one) => !immuneTo.includes(one) && !immunities.includes(one),
+    );
     // **A success cannot end a casting there is none of.** A repeat save is
     // honoured under any source now — a poison in a bottle repeats its save
     // like a spell — and `end-casting` is the one thing that does not
@@ -120,7 +130,7 @@ export function applyConditionTo(
         id,
         condition,
         source,
-        ...(implies === undefined || implies.length === 0 ? {} : { implies }),
+        ...(implied.length === 0 ? {} : { implies: implied }),
         ...(stamp === null ? {} : { command: stamp }),
       },
     ];

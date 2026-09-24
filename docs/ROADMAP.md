@@ -1703,3 +1703,17 @@ Appended after wave four (2026-09-23), four tracks merged and one in flight:
   after an `only`-narrowed extra action makes the fold throw (Expeditious
   Retreat can reach it; pre-existing); `coverage.test.ts` does not guard the
   class and level tables the way `ledger.test.ts` guards its own.
+- **A printed save's second pass merged** (the parser runs at ingest, so main
+  re-ingested): the graded failure (`_First Failure:_` … `_Second Failure:_`
+  onto the repeat's `onFailure`), the margin (`_Failure by 5 or More:_`
+  replacing the failure list), a condition another implies, a curse that is
+  only conditions, and `dies` with the printed ceiling on who it may be
+  forced on. An implied condition now meets the same immunity its host does
+  (found by the pass's reviewer; fixed at integration). **Four decisions it
+  left, each a small brief:** `RepeatSave.onFailure` gaining a `Duration` and
+  a nested repeat (the two dragon wyrmlings' breaths); a sourced grant bound
+  to a condition instance's lifetime (Dretch's action rule, the Ravens' mode
+  "while Deafened"); an event for "drops to 0 Hit Points" that is not damage
+  (Sea Hag's glare, then Incubus' threshold branch); and the attach family
+  (Water Elemental's Whelm, Darkmantle, Stirge) as a hold with a per-turn
+  payout.
