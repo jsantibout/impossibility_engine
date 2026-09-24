@@ -81,8 +81,8 @@ const FIELD: readonly GameEvent[] = [
     { type: 'items-gained', id: who, items: [{ id: 'longsword', quantity: 1 }], source: 'kit' },
     { type: 'item-equipped', id: who, item: 'longsword', armor: null },
     // Both of them can cast Fear, which is how the *spell* road is driven: a
-    // condition a casting imposes names no creature in its source, so the door
-    // reads the caster off the casting's own record.
+    // condition a casting imposes names no creature in its source, so the
+    // resolver that imposes it has to state who cast it.
     {
       type: 'spellcasting-declared',
       id: who,
@@ -188,11 +188,11 @@ class Game {
    * Somebody casts Fear over the cleric, and what the engine said about the
    * Frightened it tried to impose.
    *
-   * **The road that names no creature.** A condition a casting imposes is
-   * filed under `Fear#cast:N`, and the door reads the caster back off the
-   * casting's own record rather than being handed one — which is the whole of
-   * what makes a narrowed Immunity answerable without threading a caster
-   * through four resolvers.
+   * **The road whose source names no creature.** A condition a casting imposes
+   * is filed under `Fear#cast:N`, and there is nothing in that string to read
+   * a caster out of — nor anywhere else at that moment, because the record a
+   * casting leaves is written *after* its effects resolve. So the caster is
+   * **stated**: `applySpellEffect` already holds it and hands it to the door.
    */
   fear(by: CharacterId): readonly string[] {
     this.until(by);
@@ -268,7 +268,7 @@ describe('a condition Immunity narrowed to its source', () => {
     expect(game.frighten(BANDIT)).toBeNull();
   });
 
-  it('reads the caster off a casting, so the Ghoul’s Fear is refused and the bandit’s is not', () => {
+  it('is told who cast it, so the Ghoul’s Fear is refused and the bandit’s is not', () => {
     // Two games, because one Cone catches both of them and a Frightened
     // creature may only Dash — the second caster would be refused its own
     // Action by the first caster's spell.
