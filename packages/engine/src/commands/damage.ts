@@ -485,8 +485,18 @@ export function dealSpellDamage(
   // **Counting it twice is the safe direction and is precedented one line
   // down**: `resolveDamage` emits its own narrow `rolls-issued` for an Undead
   // Fortitude save while a casting's effect loop counts the same die again. A
-  // doubled count *skips* roll ids and never reuses one, and the last snapshot
-  // in the log is still the live generator either way.
+  // doubled count *skips* roll ids and never reuses one, which is the whole of
+  // what `rollsIssued` is for.
+  //
+  // **What this promises about the snapshot is the ward's own and no more.**
+  // The `rng` it carries is read after the d4 and before anything else this
+  // function throws, so it is never behind the generator at the moment it is
+  // written and never displaces a later reading: every roll that follows —
+  // `resolveDamage`'s save — writes its own. Whether the *log's last* snapshot
+  // is the live generator is a wider claim and not one to make here; a rider
+  // resolved after the blow (`applyHitRider`, from `resolveAttack`) throws
+  // without writing one at all, which is that road's gap rather than this
+  // one's.
   const wardCounted = rollsIssuedSince(supply, issuedBeforeWard);
 
   // A creature's own defences and the ones its features grant, together. The
