@@ -1992,3 +1992,22 @@ Appended after wave seven's first spells track (2026-09-24):
   coordinator added the three lines the track could not: the `weapon-rider`
   effect carries the clause and SRD Shillelagh prints it. Features waiting on
   a shape: two (Eldritch Invocations' second half, Resourceful's window).
+- **A save may gate a lift; Levitate and Gust of Wind execute in part.** The
+  movement rider landed narrower than ruled and that is right: `ForcedMovement`
+  is `push` or `lift` (no kind means push, so every older rider reads
+  unchanged), the flat `save` effect is the rider's third host beside `attack`
+  and `save-damage`, and `lift()` stands beside `shoveAwayFrom` writing
+  `creature-moved` and `creature-lifted`. The lift is held on the creature
+  (`GrantedLift`) and `settleToGround` brings it down at release, with no fall
+  window, when the last holder lets go. Pull stays unwritten until a spell in
+  reach asks for it. **Not built, and filed:** the `willing` word on the cast
+  request — Levitate today asks the Constitution save of every target, the
+  caster included, which is wrong and is the next spells brief (`fought` is
+  the nearest twin, through the casting command and the resolution); the two
+  activations (Levitate's altitude change, Gust's redirection); Gust's doubled
+  cost toward the caster, which `areaTerrain` cannot state because it has no
+  direction; Gust's gas and flames, handed to the table, whose protected-flame
+  coin no longer counts as an adjudication once the spell executes — the
+  definition still says it is the table's. A lifted creature may walk sideways
+  through the air, since `checkRise` refuses only a rise: recorded under
+  `movement-modes`. Both spells moved from tracked to executed-partial.

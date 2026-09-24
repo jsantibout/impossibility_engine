@@ -52,14 +52,13 @@ hold at all. An executed spell with nothing left is not here.
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-choice-made-at-the-casting` | 4 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
-| `a-fact-only-the-table-can-declare` | 4 | 1 |
+| `a-fact-only-the-table-can-declare` | 5 | 1 |
 | `a-barrier-that-blocks-passage` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 3 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
 | `difficult-terrain-an-area-creates` | 2 | 1 |
-| `forced-movement-a-spell-causes` | 2 | 1 |
 | `what-a-creature-is-holding` | 2 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
@@ -71,17 +70,18 @@ hold at all. An executed spell with nothing left is not here.
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
-| `a-random-outcome-that-is-not-a-d20` | 3 | 0 |
 | `a-second-place-to-put-a-creature` | 3 | 0 |
+| `an-activation-that-resolves-an-area` | 3 | 0 |
+| `movement-modes` | 3 | 0 |
 | `a-damage-penalty-a-spell-grants` | 2 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 |
+| `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
-| `an-activation-that-resolves-an-area` | 2 | 0 |
+| `an-activation-that-forces-a-saving-throw` | 2 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 2 | 0 |
-| `movement-modes` | 2 | 0 |
 | `a-casting-dismissed-early` | 1 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
@@ -98,7 +98,6 @@ hold at all. An executed spell with nothing left is not here.
 | `a-speed-an-effect-multiplies` | 1 | 0 |
 | `a-success-branch-that-does-something` | 1 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 |
-| `an-activation-that-forces-a-saving-throw` | 1 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
 | `an-area-trigger-measured-from-a-point` | 1 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 1 | 0 |
@@ -136,11 +135,12 @@ sums to the population.
 - **Warding Bond** (level 2) — tracked — also waits on 1
 - **Tiny Hut** (level 3) — tracked — also waits on 2
 
-#### `a-fact-only-the-table-can-declare` — blocks 4, finishes 1
+#### `a-fact-only-the-table-can-declare` — blocks 5, finishes 1
 
 - **Hunter's Mark** (level 1) — executed-partial — also waits on 1
 - **Sleep** (level 1) — executed-partial
 - **Enthrall** (level 2) — tracked — also waits on 1
+- **Levitate** (level 2) — executed-partial — also waits on 2
 - **Call Lightning** (level 3) — tracked — also waits on 1
 
 #### `a-barrier-that-blocks-passage` — blocks 3, finishes 1
@@ -174,13 +174,8 @@ sums to the population.
 
 #### `difficult-terrain-an-area-creates` — blocks 2, finishes 1
 
-- **Gust of Wind** (level 2) — tracked — also waits on 2
+- **Gust of Wind** (level 2) — executed-partial — also waits on 1
 - **Speak with Plants** (level 3) — tracked
-
-#### `forced-movement-a-spell-causes` — blocks 2, finishes 1
-
-- **Gust of Wind** (level 2) — tracked — also waits on 2
-- **Levitate** (level 2) — tracked
 
 #### `what-a-creature-is-holding` — blocks 2, finishes 1
 
@@ -237,17 +232,23 @@ sums to the population.
 - **Detect Thoughts** (level 2) — tracked — also waits on 1
 - **Spike Growth** (level 2) — executed-partial — also waits on 1
 
-#### `a-random-outcome-that-is-not-a-d20` — blocks 3, finishes 0
-
-- **Gust of Wind** (level 2) — tracked — also waits on 2
-- **Blink** (level 3) — tracked — also waits on 1
-- **Sending** (level 3) — no-definition — also waits on 2
-
 #### `a-second-place-to-put-a-creature` — blocks 3, finishes 0
 
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
+
+#### `an-activation-that-resolves-an-area` — blocks 3, finishes 0
+
+- **Dragon's Breath** (level 2) — tracked — also waits on 1
+- **Gust of Wind** (level 2) — executed-partial — also waits on 1
+- **Call Lightning** (level 3) — tracked — also waits on 1
+
+#### `movement-modes` — blocks 3, finishes 0
+
+- **Alter Self** (level 2) — tracked — also waits on 1
+- **Levitate** (level 2) — executed-partial — also waits on 2
+- **Gaseous Form** (level 3) — executed-partial — also waits on 2
 
 #### `a-damage-penalty-a-spell-grants` — blocks 2, finishes 0
 
@@ -258,6 +259,11 @@ sums to the population.
 
 - **Protection from Evil and Good** (level 1) — tracked — also waits on 1
 - **Magic Circle** (level 3) — tracked — also waits on 3
+
+#### `a-random-outcome-that-is-not-a-d20` — blocks 2, finishes 0
+
+- **Blink** (level 3) — tracked — also waits on 1
+- **Sending** (level 3) — no-definition — also waits on 2
 
 #### `a-repeat-save-raised-by-a-trigger` — blocks 2, finishes 0
 
@@ -279,20 +285,15 @@ sums to the population.
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
 - **Dragon's Breath** (level 2) — tracked — also waits on 1
 
-#### `an-activation-that-resolves-an-area` — blocks 2, finishes 0
+#### `an-activation-that-forces-a-saving-throw` — blocks 2, finishes 0
 
-- **Dragon's Breath** (level 2) — tracked — also waits on 1
-- **Call Lightning** (level 3) — tracked — also waits on 1
+- **Detect Thoughts** (level 2) — tracked — also waits on 1
+- **Levitate** (level 2) — executed-partial — also waits on 2
 
 #### `an-outcome-that-reads-the-targets-hit-points` — blocks 2, finishes 0
 
 - **Hex** (level 1) — tracked — also waits on 1
 - **Hunter's Mark** (level 1) — executed-partial — also waits on 1
-
-#### `movement-modes` — blocks 2, finishes 0
-
-- **Alter Self** (level 2) — tracked — also waits on 1
-- **Gaseous Form** (level 3) — executed-partial — also waits on 2
 
 #### `a-casting-dismissed-early` — blocks 1, finishes 0
 
@@ -357,10 +358,6 @@ sums to the population.
 #### `an-action-a-spell-compels-or-forbids` — blocks 1, finishes 0
 
 - **Slow** (level 3) — executed-partial — also waits on 2
-
-#### `an-activation-that-forces-a-saving-throw` — blocks 1, finishes 0
-
-- **Detect Thoughts** (level 2) — tracked — also waits on 1
 
 #### `an-area-moved-by-the-casters-own-movement` — blocks 1, finishes 0
 
