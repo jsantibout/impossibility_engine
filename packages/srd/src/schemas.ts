@@ -496,6 +496,32 @@ const PRINTED_REPEAT = {
   capSeconds: z.number().int().min(1).optional(),
 } as const;
 
+/**
+ * What a hold hands over at every one of somebody's turn boundaries, as a
+ * printed save states it.
+ *
+ * SRD Water Elemental's Whelm: "Until the grapple ends, the target … takes 9
+ * (2d8) Bludgeoning damage **at the start of each of the elemental's turns**."
+ *
+ * The same record the hit side's `PrintedHoldPayout` keeps, because it is the
+ * same sentence: the Stirge's attach writes it after an attack roll and the
+ * elemental's whelm writes it after a saving throw, and the only thing that
+ * differs is which door the hold came through. **`onTurnOf` is the
+ * load-bearing field** — the elemental collects at its *own* boundary and the
+ * damage lands on the creature it is holding, and the two are a round apart.
+ *
+ * The dice are a notation rather than a total, as everywhere else in this
+ * file: a payment that repeats throws a new die at each boundary.
+ */
+export const PrintedSavePayoutSchema = z.object({
+  damage: MonsterDamageSchema,
+  /** "at the **start** of each of …'s turns". */
+  at: z.enum(['start', 'end']),
+  /** Whose boundary collects it — "the elemental's" is the source's, "its" the target's. */
+  onTurnOf: z.enum(['target', 'source']),
+});
+export type PrintedSavePayout = z.infer<typeof PrintedSavePayoutSchema>;
+
 const PRINTED_SAVE_CLAUSES = [
   z.object({
     kind: z.literal('condition'),
@@ -503,6 +529,43 @@ const PRINTED_SAVE_CLAUSES = [
     lasts: PrintedSpanSchema.optional(),
     escapeDc: z.number().int().min(1).optional(),
     ifNoLargerThan: CreatureSizeSchema.optional(),
+    /**
+     * What the **hold** this clause makes costs at a turn boundary.
+     *
+     * SRD Water Elemental's Whelm, read only onto a grapple — the sentence
+     * says "until the grapple ends", so a payout with no hold would be a debt
+     * nothing could ever settle. {@link PrintedSavePayout} is the record, and
+     * `applyPrintedClauses` files it under the grapple's own source so
+     * `holdStillStands` stops reading it the moment the escape succeeds.
+     */
+    payout: PrintedSavePayoutSchema.optional(),
+    /**
+     * Which of the conditions **this clause imposes** end the moment the
+     * creature takes damage.
+     *
+     * SRD Incubus' Nightmare: "it has the Unconscious condition for 1 hour,
+     * **until it takes damage**, or until a creature within 5 feet of it takes
+     * an action to wake it." SRD Pseudodragon's Sting says the same of the
+     * Unconscious its Poisoned carries.
+     *
+     * **A list of names rather than a flag**, because the clause may impose
+     * more than one condition and the book ends only one of them: the
+     * Pseudodragon's hour of Poison runs on and the sleep it carries is what
+     * a blow lifts. Every name here is this clause's own condition or one of
+     * its {@link implies}; the executor marks the instances it landed and
+     * ignores a name it did not.
+     */
+    endsOnDamage: z.array(PrintedConditionSchema).min(1).optional(),
+    /**
+     * Which of the conditions **this clause imposes** a neighbour's action
+     * ends — "until a creature within 5 feet of it takes an action to wake
+     * it".
+     *
+     * {@link endsOnDamage}'s twin: the book prints the two halves in one
+     * sentence and the engine spends them through two doors, a blow and
+     * `wakeCreature`.
+     */
+    endsWhenWoken: z.array(PrintedConditionSchema).min(1).optional(),
     /**
      * Conditions **this** cause carries for exactly as long as it lasts.
      *
@@ -556,6 +619,19 @@ const PRINTED_SAVE_CLAUSES = [
             condition: PrintedConditionSchema,
             lasts: PrintedSecondsSchema.optional(),
             repeats: z.object(PRINTED_REPEAT).optional(),
+            /**
+             * SRD Brass Dragon Wyrmling: "The target has the Unconscious
+             * condition for 1 minute. **This effect ends for the target if it
+             * takes damage** or a creature within 5 feet of it takes an action
+             * to wake it."
+             *
+             * A flag rather than the list the first rung carries, because a
+             * deepening is exactly one condition: there is nothing else here
+             * for a name to pick out.
+             */
+            endsOnDamage: z.literal(true).optional(),
+            /** The other half of the same sentence — see `wakeCreature`. */
+            endsWhenWoken: z.literal(true).optional(),
           })
           .optional(),
       })
@@ -567,7 +643,37 @@ const PRINTED_SAVE_CLAUSES = [
     feet: z.number().int().min(5),
     lasts: PrintedSpanSchema,
   }),
-  z.object({ kind: z.literal('hit-point-maximum-decrease'), by: z.literal('damage-taken') }),
+  /**
+   * SRD Wight: "The target's Hit Point maximum decreases by an amount equal to
+   * the damage taken." SRD Vampire Spawn writes the same clause over one
+   * component of the blow and hands the amount to the biter: "equal to the
+   * **Necrotic** damage taken, and the vampire regains Hit Points equal to
+   * that amount."
+   */
+  z.object({
+    kind: z.literal('hit-point-maximum-decrease'),
+    by: z.literal('damage-taken'),
+    /**
+     * The one component of the blow the sentence names, where it names one.
+     *
+     * SRD Vampire Spawn's Bite deals "5 (1d4 + 3) Piercing damage plus 10
+     * (3d6) Necrotic damage" and lowers the maximum by the Necrotic alone.
+     * Absent is the Wight's reading and the older one: the whole of what the
+     * line dealt.
+     */
+    ofType: z.string().min(1).optional(),
+    /**
+     * SRD Vampire Spawn: "and the vampire regains Hit Points equal to that
+     * amount."
+     *
+     * A literal rather than a number or dice, because the sentence names no
+     * amount of its own: what the biter regains **is** what the target lost,
+     * which is the number this clause has just computed. The Will-o'-Wisp's
+     * `dies.sourceRegains` is the neighbouring shape and rolls its own dice,
+     * which is why the two are spelled differently rather than shared.
+     */
+    sourceRegains: z.literal('the-amount').optional(),
+  }),
   /**
    * SRD Swarm of Ravens: "The target has the Deafened condition until the
    * start of the swarm's next turn. **While Deafened, the target also has
@@ -732,6 +838,31 @@ const PRINTED_SAVE_CLAUSES = [
    * printed.
    */
   z.object({ kind: z.literal('drops-to-zero') }),
+  /**
+   * SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
+   * Visage for 24 hours." SRD Mummy's Dreadful Glare prints the same sentence.
+   *
+   * **An immunity to one printed line, which is not an immunity to a
+   * condition.** A creature that shrugs off the visage is still Frightenable
+   * by everything else in the room — by a second ghost's visage, by a Lion's
+   * Roar, by Fear — and what it has bought is a day's grace from *this*
+   * creature's *this* line. So the engine hangs it on the line's own source
+   * (`printed:<who>:<heading>`) with a `grants` deadline over it, and
+   * `forcePrintedSave` reads it when it gathers who the line caught.
+   *
+   * **The heading is carried and checked**, because the sentence names it —
+   * "this ghost's **Horrific Visage**" — and the reader is handed the line's
+   * text without its heading. The executor compares the two and hands the
+   * sentence over where they disagree, rather than granting an immunity to a
+   * line the book did not name.
+   */
+  z.object({
+    kind: z.literal('line-immunity'),
+    /** The heading the sentence names — SRD's "Horrific Visage". */
+    line: z.string().min(1),
+    /** SRD's "for 24 hours", in seconds. */
+    seconds: z.number().int().min(1),
+  }),
 ] as const;
 
 const PrintedSaveClauseSchema = z.discriminatedUnion('kind', PRINTED_SAVE_CLAUSES);
@@ -798,6 +929,40 @@ export const MonsterSaveSchema = z.object({
    * success that bought half anyway would be a line the book did not print.
    */
   onSuccess: z.enum(['half', 'none']),
+  /**
+   * What a **success** does besides halving the damage, where the line prints
+   * something it does.
+   *
+   * SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
+   * Visage for 24 hours." Two blocks print it and both print exactly this
+   * clause, which is why the field exists at all: every other `_Success:_` in
+   * the corpus is "Half damage" or nothing, and {@link onSuccess} is what says
+   * so. A clause here is read the same way a failure's is and executed through
+   * the same door.
+   */
+  onSuccessEffects: z.array(PrintedSaveEffectSchema).min(1).optional(),
+  /**
+   * The restriction the targeting clause puts on **who the line may be forced
+   * on**, where the engine already holds the fact.
+   *
+   * SRD Vampire Spawn's Bite: "one creature within 5 feet that is willing or
+   * that has the Grappled, Incapacitated, or Restrained condition." The
+   * conditions are the engine's own to check; willingness is the table's, so
+   * the caller says it and the command asks when nobody has.
+   *
+   * **The second part of a targeting clause this reader takes**, after the Hit
+   * Point ceiling a `dies` is gated by, and for the same reason: who stands in
+   * a Cone needs an origin and a facing nobody declared, and this is a fact
+   * about one creature somebody has already named.
+   */
+  onlyIfTargetHas: z
+    .object({
+      /** The conditions the clause lists, in the order it prints them. */
+      conditions: z.array(PrintedConditionSchema).min(1),
+      /** SRD's "that is willing or …" — the half only a table can answer. */
+      orWilling: z.literal(true).optional(),
+    })
+    .optional(),
   /** What a failure does besides the damage, in the order the line prints it. */
   onFailure: z.array(PrintedSaveEffectSchema).optional(),
   /**
