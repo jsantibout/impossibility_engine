@@ -498,6 +498,17 @@ export interface SpellRepeatSave {
    */
   readonly onSuccess: 'end-on-target' | 'end-casting';
   /**
+   * A second moment the save is raised at, and what that moment does to it —
+   * see `RepeatSave.alsoWhenDamaged`, where the shape and its reader are
+   * argued.
+   *
+   * SRD Hideous Laughter, and the one spell in the book that writes it: "At
+   * the end of each of its turns **and each time it takes damage**, it makes
+   * another Wisdom saving throw. The target has Advantage on the save if the
+   * save is triggered by damage."
+   */
+  readonly alsoWhenDamaged?: { readonly mode: 'advantage' };
+  /**
    * What a **failure** does, where the SRD writes a failure that acts.
    *
    * SRD Sleep: "at which point it must repeat the save. If the target fails

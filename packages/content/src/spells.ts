@@ -2103,12 +2103,20 @@ export const HIDEOUS_LAUGHTER: SpellDefinition = {
       ability: 'wis',
       condition: 'prone',
       conditions: [{ name: 'incapacitated' }],
-      repeats: { at: 'end-of-turn', onSuccess: 'end-casting' },
+      // "At the end of each of its turns **and each time it takes damage**, it
+      // makes another Wisdom saving throw. The target has Advantage on the
+      // save if the save is triggered by damage." One save, two moments, one
+      // of which changes the mode — so the trigger rides on the repeat rather
+      // than standing beside it as a second hook.
+      repeats: {
+        at: 'end-of-turn',
+        onSuccess: 'end-casting',
+        alsoWhenDamaged: { mode: 'advantage' },
+      },
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the second Wisdom save each time the target takes damage, which is made with Advantage',
     'the target being unable to end the Prone condition on itself, so it may stand up while the spell runs',
     'laughing uncontrollably, and whether the creature is capable of laughter at all',
   ],

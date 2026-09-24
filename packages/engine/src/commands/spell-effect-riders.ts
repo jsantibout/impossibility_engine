@@ -170,6 +170,12 @@ export function repeatSaveFrom(
     // failure imposes is the definition's and the source it lands under is the
     // one the first condition already carries, so nothing is decided here.
     ...(repeats.onFailure === undefined ? {} : { onFailure: repeats.onFailure }),
+    // And SRD Hideous Laughter's second trigger, carried the same way: the
+    // moment is the book's and the mode is the book's, and what raises the
+    // save reads both off the timer.
+    ...(repeats.alsoWhenDamaged === undefined
+      ? {}
+      : { alsoWhenDamaged: repeats.alsoWhenDamaged }),
     label: `${ABILITY_NAMES[ability]} save vs ${context.name}`,
   };
 }

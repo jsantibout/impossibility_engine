@@ -1025,12 +1025,12 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Any creature in physical contact with the object takes 2d8 Fire damage when you cast the spell." **What the engine keeps is what a creature has equipped** — armour on a body, a weapon in a hand — and that is the whole of the contact it can see. A metal gate, a chain across a door and a coin in a pouch are all objects nothing here is holding, so who is touching one is the DM’s and always will be. What follows from the contact is the engine’s and is executed: the wearer takes the dice, fails the save, and lets go of the thing if it can.',
     },
   ],
+  // **The damage trigger is built and this spell is what built it.**
+  // `RepeatSave.alsoWhenDamaged` is a second moment beside the turn boundary,
+  // carrying the mode the sentence prints, and `repeatsRaisedByDamage` rolls
+  // it where the blow lands rather than owing it as a debt — because a debt is
+  // keyed by the turn and a creature struck twice in one turn owes two saves.
   'hideous-laughter': [
-    {
-      clause: 'the second Wisdom save each time the target takes damage',
-      why: 'a-repeat-save-raised-by-a-trigger',
-      note: 'SRD: "At the end of each of its turns and each time it takes damage, it makes another Wisdom saving throw." The turn boundary is exactly what `RepeatSave` names and is rolled; a save raised by a **trigger** is not, and nor is the Advantage that one carries.',
-    },
     {
       clause: 'unable to end the Prone condition on itself',
       why: 'a-self-cure-a-spell-forbids',

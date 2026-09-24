@@ -1215,6 +1215,8 @@ function checkCastingRepeat(
     });
   }
 
+  checkDamageTrigger(repeats.alsoWhenDamaged, path, found);
+
   const burns = repeats.beforeTheSave;
   if (
     burns !== undefined &&
@@ -1299,6 +1301,8 @@ function checkSaveCastingRepeat(
     });
   }
 
+  checkDamageTrigger(repeats.alsoWhenDamaged, at, found);
+
   if (repeats.beforeTheSave !== undefined) {
     found.push({
       field: `${at}.beforeTheSave`,
@@ -1377,6 +1381,8 @@ function checkConditionRider(
         'damage before a repeat save is collected from the casting’s own hook, and a rider’s repeat is raised from the condition it landed on; written here it would be dealt by nothing',
     });
   }
+
+  checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
 
   // **And a repeat that ends the casting needs one the rider has not
   // disowned.** `outlivesCasting` is exactly the field that records the
@@ -1461,6 +1467,46 @@ function checkConditionRider(
   // which are grants with the same problem and no rider at all. Two places
   // reporting one defect under two codes is the second place to get one
   // sentence wrong.
+}
+
+/**
+ * The second moment a repeat save may be raised at, wherever it is written.
+ *
+ * SRD Hideous Laughter is the one spell in the book that prints it — "each
+ * time it takes damage ... The target has Advantage on the save if the save is
+ * triggered by damage" — and the whole of what there is to be wrong about is
+ * the mode: the moment has no vocabulary of its own, because there is one
+ * trigger, and a field naming a second would be shape built ahead of a
+ * sentence.
+ *
+ * **One rule, three carriers**, the reading {@link checkSpeedChange} already
+ * takes: the rider's repeat, the casting-hosted repeat on a saving throw, and
+ * the casting-hosted repeat on a smite all say the same sentence, and a second
+ * copy is a second place for it to be got wrong.
+ */
+function checkDamageTrigger(
+  trigger: { readonly mode?: unknown } | undefined,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (trigger === undefined) return;
+  if (
+    !readsAsObject(
+      trigger,
+      `${path}.alsoWhenDamaged`,
+      'a save raised by damage is an object naming what the trigger does to the roll',
+      found,
+    )
+  ) {
+    return;
+  }
+  if (trigger.mode !== 'advantage') {
+    found.push({
+      field: `${path}.alsoWhenDamaged.mode`,
+      code: 'bad_damage_trigger',
+      reason: `"${String(trigger.mode)}" is not what a damage trigger does to a repeat save; SRD prints one sentence and it grants Advantage`,
+    });
+  }
 }
 
 /**
