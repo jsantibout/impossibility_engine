@@ -1879,3 +1879,17 @@ Appended after wave six's first two tracks (2026-09-24):
   a level-up can swap a rest-re-chosen answer without the rest; every
   rest-re-chosen answer already had that door open, and closing it is a rule
   about which keys a level-up may write.
+- **Metamagic executes, all ten options.** The six that were prose are six
+  arms of one casting alteration bought off one menu under one price and one
+  per-casting limit: Careful spares named creatures by leaving them out of
+  the catch (what "automatically succeeds" comes to on every success branch
+  the SRD prints), Heightened hangs a mode on one target's saves with its
+  source on the roll's record, Empowered rerolls the **lowest** dice (a stated
+  count is the whole of the player's choice; die indices in a request would be
+  a caller reaching into the roll), Seeking is pre-committed and spends its
+  point only on a miss, Subtle opens no `casting-a-spell` window, Transmuted
+  restates the type through `statedDamageType`. Empowered and Seeking are
+  refused on a casting held open for a Counterspell; the other four survive
+  one because what they need is pinned. Levels 10 and 17 print more options
+  and are out of reach; if wanted, two feature entries and the `option`
+  choice's column.
