@@ -2120,13 +2120,16 @@ export interface InventoryLine {
    * different things and read by different passes: a casting is looked up in
    * `state.ongoing`, and an activation in the holder's own `activeFeatures`.
    *
-   * **Its lifetime is derived, and for the same reason.** A bond ends when its
-   * holder uses the Bonus Action again, when they die, and when a condition
-   * takes the feature away — three doors, not one of which knows a weapon was
-   * conjured, and two of which write no event a removal could hang on. So
-   * `settleConjuredLines` in the fold drops the line the moment the feature
-   * leaves `activeFeatures`, exactly as `settleWeaponRiders` drops the rider
-   * beside it.
+   * **Its lifetime is settled in the fold**, which is where it differs from
+   * {@link casting} as well. A bond ends when its holder uses the Bonus Action
+   * again, when they die, and when a condition takes the feature away — three
+   * doors, not one of which knows a weapon was conjured, and two of which write
+   * no event a removal could hang on. So `settleConjuredLines` drops the line
+   * the moment the feature leaves `activeFeatures`, exactly as
+   * `settleWeaponRiders` drops the rider beside it; a read-time filter like
+   * `carrying`'s would keep a Glaive alive beside the Longsword that replaced
+   * it, because an activation has no id and the second use of a feature wears
+   * the same name as the first.
    *
    * Absent on everything bought, found, awarded, carried and conjured by a
    * spell, which is every line the log held before a feature could make one.

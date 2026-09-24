@@ -399,8 +399,14 @@ export function handsInUse(state: GameState, content: Content, id: CharacterId):
     const item = content.item(worn.id);
     return total + (item === null ? 0 : handsFor(item));
   }, 0);
+  // A conjured line, whichever kind of magic put it there: a casting's
+  // handful, or the weapon a feature's activation made. Both pinned their own
+  // hand count at the moment they appeared — see `conjuredLine` and
+  // `featureConjuredLine` — and neither is in `equipped`, which is what makes
+  // adding them to the worn total right rather than double-counting.
   const conjured = carrying(state, id).reduce(
-    (total, line) => total + (line.casting === undefined ? 0 : (line.hands ?? 0)),
+    (total, line) =>
+      total + (line.casting === undefined && line.feature === undefined ? 0 : (line.hands ?? 0)),
     0,
   );
   return wielded + conjured;
@@ -1300,22 +1306,28 @@ export function conjuredLine(
  * The line a **feature's** conjuring puts in a hand — SRD Pact of the Blade's
  * "you can conjure a pact weapon in your hand".
  *
- * Beside {@link conjuredLine} rather than inside it, because the two differ in
- * both of the fields that one exists to pin. The lifetime is an *activation*
- * rather than a casting, which is a different question asked of a different
- * part of state. And there is no hand count: a spell conjures a **handful**
- * whose hands the spell prints, and a feature conjures one weapon whose hands
- * are the weapon's own — `handsFor` answers that off the catalogue record, and
- * a number pinned here would be a second answer to a question the equipment
- * table has already answered.
+ * Beside {@link conjuredLine} rather than inside it, because the lifetime is an
+ * *activation* rather than a casting, which is a different question asked of a
+ * different part of state.
+ *
+ * **The hands are the weapon's own**, which is where this differs from a
+ * spell's: SRD Goodberry conjures a *handful* and the number of hands is the
+ * spell's to print, and a Glaive out of the air is swung with two hands for
+ * exactly the reason a Glaive off the rack is. So `handsFor` answers it off the
+ * catalogue record and the answer is pinned onto the line, which is rule 5 —
+ * what the command read from the catalogue travels with the event it emitted,
+ * so `handsInUse` never has to open one.
  *
  * Here rather than in `commands/features.ts` for the reason its sibling is
  * here: one spelling of what a conjuring puts in a hand, in the module that
  * owns what a creature is carrying, so the sweep in `item-instances.test.ts`
  * has one thing to count.
  */
-export function featureConjuredLine(itemId: string, feature: string): InventoryLine {
-  return { id: itemId, quantity: 1, feature };
+export function featureConjuredLine(
+  item: CatalogueItem,
+  feature: string,
+): InventoryLine {
+  return { id: item.id, quantity: 1, feature, hands: handsFor(item) };
 }
 
 /**

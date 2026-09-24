@@ -63,9 +63,10 @@ import {
   speedOf,
 } from '../standing.js';
 import { weaponNarrowingHolds } from '../attack.js';
+import { handsFor } from '../catalogue.js';
 import { type Content } from '../content.js';
 import { type Supply } from './casting.js';
-import { featureConjuredLine, quantityOf } from './inventory.js';
+import { featureConjuredLine, freeHands, quantityOf } from './inventory.js';
 import { resolveAttack } from './attacks.js';
 import { reactionSwing } from './movement.js';
 import { attacksInAction } from '../monster.js';
@@ -155,6 +156,45 @@ export function activateFeature(
     const imbuing = imbuedWeapon(state, id, definition, command.weapon, content);
     if (!imbuing.ok) return imbuing;
 
+    // **And whether there is a hand to put it in**, asked here for the reason
+    // `resolveSpell` asks it of a casting's conjuring: before the action, the
+    // pool and the deadline, so a Warlock with both hands full pays nothing
+    // for finding out. SRD Pact of the Blade: "you can conjure a pact weapon
+    // **in your hand**" — a Glaive takes two of them, off the catalogue
+    // record, and `featureConjuredLine` pins the same number onto the line.
+    const conjuring =
+      definition.conjuresWeapon === true && imbuing.value !== null
+        ? (content.item(imbuing.value) ?? null)
+        : null;
+    if (conjuring !== null) {
+      const wants = handsFor(conjuring);
+      // **Asked of the world the *previous* bond has already left.** SRD Pact
+      // of the Blade ends the first bond with the same Bonus Action that
+      // begins the second — "if you use this feature's Bonus Action again" —
+      // so a Warlock holding a two-handed Glaive has two hands free for the
+      // Longsword, not none. The ending is folded here as a hypothetical and
+      // thrown away: nothing is emitted until every refusal has passed, which
+      // is the rule this whole block is under.
+      const free = freeHands(
+        reused
+          ? applyEvent(state, {
+              type: 'feature-ended',
+              id,
+              feature: command.feature,
+              reason: 'dismissed',
+            })
+          : state,
+        content,
+        id,
+      );
+      if (wants > free) {
+        return err(
+          'no_free_hand',
+          `${definition.name} puts ${conjuring.name} in ${id}'s hand${wants === 1 ? '' : 's'}, and ${free === 0 ? 'both are' : 'not enough is'} full`,
+        );
+      }
+    }
+
     // SRD Rage: "if you aren't wearing Heavy armor". The same clause that ends
     // it is the one that stops it starting, so it is read from one list.
     for (const requirement of definition.endsOn ?? []) {
@@ -224,14 +264,14 @@ export function activateFeature(
     // feature the log has already switched on, and before the rider so the
     // weapon the rider is hung on is a weapon the holder has. SRD Pact of the
     // Blade's "you can conjure a pact weapon in your hand": pinned from the
-    // sheet, taken away by nothing, and gone the read after the bond is — see
-    // `InventoryLine.feature`, whose lifetime is derived because a bond ends by
-    // three doors and writes an event about a weapon at none of them.
-    if (definition.conjuresWeapon === true && imbuing.value !== null) {
+    // sheet, taken away by nothing, and gone the fold after the bond is — see
+    // `InventoryLine.feature`, whose lifetime the fold settles because a bond
+    // ends by three doors and writes an event about a weapon at none of them.
+    if (conjuring !== null) {
       events.push({
         type: 'items-gained',
         id,
-        items: [featureConjuredLine(imbuing.value, definition.feature)],
+        items: [featureConjuredLine(conjuring, definition.feature)],
         source: `${definition.name}, conjured`,
       });
     }
@@ -1101,6 +1141,28 @@ function imbuedWeapon(
         `${named} keeps charges of its own, and a weapon that lasts only as long as ${definition.name} has nothing to remember`,
       );
     }
+    // **And the book's own narrowing, which the kind alone cannot say.** SRD
+    // Pact of the Blade conjures "a Simple or Martial Melee weapon" — a row of
+    // the Weapons table — and reaches a *magic* weapon only through the other
+    // half of its sentence, "create a bond with a magic weapon you touch",
+    // which prints two exclusions this engine cannot check. A conjuring that
+    // admitted a Frost Brand would be handing over the half that is not
+    // offered, for nothing, at will.
+    //
+    // **"Magic" is read as what the catalogue actually marks**, which is the
+    // three things `docs/design/characters-and-equipment.md` says a magic item
+    // is a `CatalogueItem` that has grown: grants of its own, an attunement
+    // requirement, and a charge pool. There is no `magical` flag to read, and
+    // this is the honest reading of its absence rather than a guess: every one
+    // of the SRD's twenty-eight Melee Weapons table rows carries none of the
+    // three, and every magic weapon built on one of those rows carries at
+    // least one.
+    if ((item.grants ?? []).length > 0 || item.attunement !== undefined) {
+      return err(
+        'weapon_is_magical',
+        `${named} is a magic item, and ${definition.name} conjures a weapon off the Weapons table; bonding a magic weapon is the half of the sentence this feature does not offer`,
+      );
+    }
     return ok(named);
   }
   if (quantityOf(state, id, named) < 1) {
@@ -1317,6 +1379,13 @@ export function orderSummonsAttack(
       const forgone = spendAttack(
         combat,
         id,
+        // **No printed lines, and that is a fact about who holds this rather
+        // than a shortcut.** `attacksInAction`'s third argument narrows a
+        // *stat block's* gated Multiattack branch, and a feature compiled onto
+        // a character's sheet has no Multiattack to gate: `multiattackOf`
+        // answers null and the list is never read. Written as the empty list
+        // rather than threaded from the turn's ledger because there is nothing
+        // there to thread, and a reader should be told so.
         attacksInAction(sheet, creature.heads, []),
         creature.conditions,
         { rules: actionRulesOn(state, id) },

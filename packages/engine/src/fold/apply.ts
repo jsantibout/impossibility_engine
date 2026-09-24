@@ -28,7 +28,7 @@ import { settleHitPointMaximum } from '../vitals.js';
 import { INITIATIVE_LABEL } from '../combat.js';
 
 import type { GameEvent } from '../events.js';
-import type { CreatureState, GameState } from '../state.js';
+import type { CreatureState, EquippedItem, GameState } from '../state.js';
 import { initialState } from '../state.js';
 import { castingIdOf } from '../spells.js';
 import { featureOfSource } from '../progression.js';
@@ -691,7 +691,27 @@ function settleConjuredLines(state: GameState): GameState {
       (line) => line.feature === undefined || creature.activeFeatures.includes(line.feature),
     );
     if (kept.length === creature.inventory.length) continue;
-    creatures[key] = { ...creature, inventory: kept };
+
+    // **And what was in the hand goes with it.** `equipped` is a fact of its
+    // own — which is exactly why `dropItem` refuses to put down what is being
+    // wielded rather than quietly unequipping it — and a weapon that has
+    // ceased to exist is the one case where nobody can be asked to take it off
+    // first. So the line and the wielding go together, and `equipped` never
+    // names something its holder does not own. Only the copies that went: a
+    // Warlock who conjured a second Longsword beside the one in their pack
+    // keeps the pack's.
+    const gone = creature.inventory.filter((line) => !kept.includes(line));
+    const equipped = gone.reduce(
+      (worn: readonly EquippedItem[], line) => {
+        const at = worn.findIndex(
+          (one) => one.id === line.id && (one.instance ?? undefined) === line.instance,
+        );
+        return at === -1 ? worn : [...worn.slice(0, at), ...worn.slice(at + 1)];
+      },
+      creature.equipped,
+    );
+
+    creatures[key] = { ...creature, inventory: kept, equipped };
     moved = true;
   }
 

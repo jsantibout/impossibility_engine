@@ -1978,6 +1978,21 @@ function grantProblems(
         reason: `a route casts its spell as an Action, a Bonus Action, a Reaction or over a span, and "${String(time)}" is none of them`,
       });
     }
+    // **And `long` is the one of the four a route may not state**, because the
+    // field carries no seconds to measure it by: a definition prints
+    // `castingSeconds` beside its own `long`, and a route that shortened a
+    // spell to "a span" and said nothing about how long would leave the
+    // settlement with a casting that never completes. Every route the book
+    // writes shortens a casting to a moment in the turn; a feature that
+    // lengthened one would be a sentence nobody has printed.
+    if (time === 'long') {
+      found.push({
+        field: 'grants.castingTime',
+        code: 'bad_casting_time',
+        reason:
+          'a route states a casting time to shorten one to a moment in the turn; "long" is a span and this field carries no seconds to measure it by',
+      });
+    }
     // And the forms it adds to a summons' list. Whether the ids name stat
     // blocks is `checkContent`'s, which holds the bestiary; what is asked here
     // is whether the sentence says anything at all — a list of none widens

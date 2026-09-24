@@ -1717,10 +1717,11 @@ export type FeatureGrant =
        * a spell's {@link ConjuredItems}. Goodberry's ten berries are a
        * *handful* and the number of hands is the spell's to print; a weapon's
        * hands are the weapon's own, answered by `handsFor` off the catalogue
-       * record, and a Glaive out of the air is swung with two hands for the
-       * same reason a Glaive off the rack is. So the line is an ordinary owned
-       * line with a lifetime, and "in your hand" is `equipItem`'s door and its
-       * `no_free_hand`.
+       * record and pinned onto the line by `featureConjuredLine`. So "in your
+       * hand" is asked and charged exactly as a casting's conjuring asks and
+       * charges it: `activateFeature` refuses `no_free_hand` before the action,
+       * the pool and the deadline, and a Glaive out of the air occupies the two
+       * hands a Glaive off the rack does.
        *
        * Declared beside `imbuesWeapon` and never instead of it: what is
        * conjured is a weapon the use has already decided to hang a rider on,
@@ -1728,10 +1729,10 @@ export type FeatureGrant =
        * its holder an ordinary Glaive out of the air.
        * `checkFeatureDefinition` refuses one without the other.
        *
-       * **The line's lifetime is the activation's**, derived in the fold the
-       * way a casting's conjured line is derived from its casting: "A conjured
-       * weapon disappears when the bond ends", and the bond ends by three
-       * doors that write no event about a weapon.
+       * **The line's lifetime is the activation's**, settled in the fold by
+       * `settleConjuredLines`: "A conjured weapon disappears when the bond
+       * ends", and the bond ends by three doors that write no event about a
+       * weapon.
        */
       readonly conjuresWeapon?: true;
       /**

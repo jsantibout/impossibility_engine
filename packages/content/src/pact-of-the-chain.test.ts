@@ -3,6 +3,7 @@ import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
   checkCharacter,
+  checkContent,
   createCharacter,
   createRng,
   createRollIssuer,
@@ -276,6 +277,59 @@ describe('Pact of the Chain', () => {
     const cast = castFamiliar(table(throughTheFeat()), 'imp');
     expect(cast.ok).toBe(false);
     expect(cast.ok ? '' : cast.code).toBe('form_not_offered');
+  });
+
+  /**
+   * The rows the validators grew with the two terms.
+   *
+   * A casting time the vocabulary has no word for would be preferred over the
+   * definition's and price the casting against a slot of the action economy
+   * that does not exist; a form naming no stat block would refuse every
+   * familiar the sentence offered, at the table rather than here; and a
+   * widening of nothing offers what the spell already offered.
+   */
+  it('refuses the shapes the two new fields can be written wrong in', () => {
+    const grants = (): readonly { readonly kind: string }[] => {
+      const warlock = SRD_CONTENT.classes.find((one) => one.id === 'warlock')!;
+      const feature = warlock.features.find((one) => one.id === FIEND)!;
+      return feature.grants as readonly { readonly kind: string }[];
+    };
+    const index = grants().findIndex(
+      (grant) => grant.kind === 'spells' && (grant as { widensForm?: unknown }).widensForm !== undefined,
+    );
+    const at = `classes[warlock].features[0].grants[${index}]`;
+
+    const rewritten = (over: Record<string, unknown>): readonly string[] => {
+      const warlock = JSON.parse(
+        JSON.stringify(SRD_CONTENT.classes.find((one) => one.id === 'warlock')),
+      ) as { features: { id: string; grants: Record<string, unknown>[] }[] };
+      const feature = warlock.features.find((one) => one.id === FIEND)!;
+      feature.grants[index] = { ...feature.grants[index], ...over };
+      // The bestiary is handed over too, because a form naming a stat block is
+      // checked against one and a catalogue holding none judges nothing.
+      return checkContent({ classes: [warlock as never], monsters: SRD_CONTENT.monsters }).map(
+        (problem) => `${problem.code} @ ${problem.field}`,
+      );
+    };
+
+    expect(rewritten({ castingTime: 'a while' })).toContain(`bad_casting_time @ ${at}.castingTime`);
+    // And the one of the four a route may not state: the field carries no
+    // seconds, so a route that made a casting long would never complete.
+    expect(rewritten({ castingTime: 'long' })).toContain(`bad_casting_time @ ${at}.castingTime`);
+    expect(rewritten({ widensForm: [] })).toContain(`widens_no_form @ ${at}.widensForm`);
+    expect(rewritten({ widensForm: [''] })).toContain(`widens_no_form @ ${at}.widensForm[0]`);
+    expect(rewritten({ widensForm: ['slaad-tadpole'] })).toContain(
+      `unknown_monster @ ${at}.widensForm[0]`,
+    );
+    // And the catalogue as it stands says none of them. Filtered, because a
+    // class judged on its own holds no spells — see the same note in
+    // `pact-of-the-blade.test.ts`.
+    expect(
+      rewritten({}).filter(
+        (said) =>
+          !said.startsWith('unknown_granted_spell') && !said.startsWith('unknown_free_casting'),
+      ),
+    ).toEqual([]);
   });
 });
 

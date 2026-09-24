@@ -4,6 +4,7 @@ import { asCharacterId, expect as unwrap } from '@ie/shared';
 import {
   activateFeature,
   checkCharacter,
+  checkContent,
   createCharacter,
   createRng,
   createRollIssuer,
@@ -229,6 +230,66 @@ describe('Pact of the Blade', () => {
   });
 
   /**
+   * "a Simple or Martial **Melee** weapon of your choice" — a row of the
+   * Weapons table, and not a magic weapon.
+   *
+   * A magic weapon is reached only by the other half of the sentence, "create a
+   * bond with a magic weapon you touch", which prints two exclusions this
+   * engine cannot check and which this feature therefore does not offer. A
+   * conjuring that admitted one would be handing that half over for nothing,
+   * at will, from level 1.
+   */
+  it.each(['vicious-weapon', 'frost-brand', 'defender'])(
+    'refuses to conjure a %s, which is a magic item',
+    (weapon) => {
+      const refused = activateFeature(
+        fold('seed', table()),
+        WHO,
+        { feature: FIEND, weapon, commandId: `magic-${weapon}` },
+        SRD_CONTENT,
+      );
+      expect(refused.ok).toBe(false);
+      expect(refused.ok ? '' : refused.code).toBe('weapon_is_magical');
+    },
+  );
+
+  /**
+   * "you can conjure a pact weapon **in your hand**", which is a hand a Warlock
+   * has to have. The same question `resolveSpell` asks of Flame Blade, asked
+   * before the Bonus Action is spent.
+   */
+  it('refuses to conjure a Glaive into hands that are full', () => {
+    const full = [
+      ...table(),
+      {
+        type: 'items-gained',
+        id: WHO,
+        items: [{ id: 'greatsword', quantity: 1 }],
+        source: 'a gift',
+      },
+      { type: 'item-equipped', id: WHO, item: 'greatsword', armor: null },
+    ] as GameEvent[];
+    const refused = activateFeature(
+      fold('seed', full),
+      WHO,
+      { feature: FIEND, weapon: 'glaive', commandId: 'full' },
+      SRD_CONTENT,
+    );
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? '' : refused.code).toBe('no_free_hand');
+
+    // And the two hands the Glaive takes are the Glaive's own: with nothing in
+    // hand it appears, and a second conjuring then finds none free — until the
+    // Bonus Action that ends the first bond frees them, which is the sentence
+    // the book prints and the next test.
+    const log = table();
+    const held = [...log, ...conjure(fold('seed', log), 'glaive', 'one')];
+    expect(fold('seed', held).creatures[WHO]?.inventory.find((l) => l.id === 'glaive')?.hands).toBe(
+      2,
+    );
+  });
+
+  /**
    * "Until the bond ends, you have proficiency with the weapon." A Warlock is
    * trained in Simple weapons and a Glaive is Martial, so the Proficiency
    * Bonus on the swing is the whole of what the bond added.
@@ -372,6 +433,32 @@ describe('Pact of the Blade', () => {
     expect(after.creatures[WHO]?.weaponRiders.map((rider) => rider.weapon)).toEqual(['longsword']);
   });
 
+  /**
+   * And what was in the hand goes with it: `equipped` never names something
+   * its holder does not own.
+   *
+   * `dropItem` refuses to put down what is being wielded rather than quietly
+   * unequipping it, and a weapon that has ceased to exist is the one case
+   * where nobody can be asked to take it off first — so the fold's own pass
+   * takes both.
+   */
+  it('takes the wielding with the weapon when the bond ends', () => {
+    const log = table();
+    const bonded = [
+      ...log,
+      ...conjure(fold('seed', log), 'glaive', 'one'),
+      { type: 'item-equipped', id: WHO, item: 'glaive', armor: null },
+    ] as GameEvent[];
+    expect(fold('seed', bonded).creatures[WHO]?.equipped.map((one) => one.id)).toContain('glaive');
+
+    const dead = [...bonded, { type: 'creature-died', id: WHO }] as GameEvent[];
+    const after = fold('seed', dead);
+    expect(after.creatures[WHO]?.inventory.some((line) => line.id === 'glaive')).toBe(false);
+    expect(after.creatures[WHO]?.equipped.map((one) => one.id)).not.toContain('glaive');
+    // And the armour the Warlock was actually wearing is untouched.
+    expect(after.creatures[WHO]?.equipped.map((one) => one.id)).toContain('leather-armor');
+  });
+
   /** "... or if you die." */
   it('loses the Glaive when the Warlock dies', () => {
     const log = table();
@@ -406,6 +493,65 @@ describe('Pact of the Blade', () => {
     );
     expect(refused.ok).toBe(false);
     expect(refused.ok ? '' : refused.code).toBe('no_such_feature');
+  });
+
+  /**
+   * The rows the validators grew with the feature.
+   *
+   * Each is a shape nothing downstream could recover from: an activation with
+   * no deadline and no word saying so is a lifetime nobody wrote down, a
+   * conjuring with no imbuing beside it has no narrowing to hold its weapon to
+   * and hangs nothing on what appears, and an ability or a training that is not
+   * one is arithmetic no reader can do.
+   */
+  it('refuses the shapes the new fields can be written wrong in', () => {
+    const rewritten = (over: Record<string, unknown>): readonly string[] => {
+      const warlock = JSON.parse(
+        JSON.stringify(SRD_CONTENT.classes.find((one) => one.id === 'warlock')),
+      ) as { features: { id: string; grants: Record<string, unknown>[] }[] };
+      const feature = warlock.features.find((one) => one.id === FIEND)!;
+      const index = feature.grants.findIndex((grant) => grant['kind'] === 'activated');
+      feature.grants[index] = { ...feature.grants[index], ...over };
+      return checkContent({ classes: [warlock as never] }).map(
+        (problem) => `${problem.code} @ ${problem.field}`,
+      );
+    };
+    const grantAt = (): string => {
+      const warlock = SRD_CONTENT.classes.find((one) => one.id === 'warlock')!;
+      const feature = warlock.features.find((one) => one.id === FIEND)!;
+      const grants = feature.grants as readonly { readonly kind: string }[];
+      return `classes[warlock].features[0].grants[${grants.findIndex((g) => g.kind === 'activated')}]`;
+    };
+    const at = grantAt();
+
+    // One lifetime, in one of three spellings.
+    expect(rewritten({ lastsSeconds: 600 })).toContain(`ambiguous_activation_span @ ${at}.lasts`);
+    expect(rewritten({ lastsUntilEnded: undefined })).toContain(`no_activation_span @ ${at}.lasts`);
+    expect(rewritten({ lastsUntilEnded: 'yes' })).toContain(
+      `bad_activation_span @ ${at}.lastsUntilEnded`,
+    );
+
+    // A conjuring hangs on an imbuing.
+    expect(rewritten({ imbuesWeapon: undefined })).toContain(
+      `conjuring_without_an_imbuing @ ${at}.conjuresWeapon`,
+    );
+
+    // And the two clauses the imbuing grew.
+    expect(rewritten({ imbuesWeapon: { offersAbility: 'luck' } })).toContain(
+      `bad_imbued_weapon @ ${at}.imbuesWeapon.offersAbility`,
+    );
+    expect(rewritten({ imbuesWeapon: { grantsProficiency: 'sometimes' } })).toContain(
+      `bad_imbued_weapon @ ${at}.imbuesWeapon.grantsProficiency`,
+    );
+
+    // And the catalogue as it stands says none of them. Filtered, because a
+    // class judged on its own holds no spells: every `fixed` id it grants is
+    // reported unknown, which is a fact about this fixture and not about the
+    // feature — `content.test.ts` judges the catalogue whole.
+    expect(
+      rewritten({}).filter((said) => !said.startsWith('unknown_granted_spell')
+        && !said.startsWith('unknown_free_casting')),
+    ).toEqual([]);
   });
 
   /**
