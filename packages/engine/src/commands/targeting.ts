@@ -1313,6 +1313,14 @@ export function areaTargets(
   // the spell shrugs at — it is the caster aiming at somebody the spell does
   // not reach, and quietly dropping them would be the engine casting a
   // different spell from the one it was asked for.
+  //
+  // **Not `outside_area`, and the two are worth keeping apart.** That one is
+  // `namedTargets`' answer for a `targetsWithin` bound — a template that
+  // merely *fences* a list the caller named, where being outside it is a
+  // matter of geometry alone. This is an area's own catch, which the dead, a
+  // creature type the spell cannot touch and Total Cover have already been
+  // taken out of, so the list a caller is held to here is a different list and
+  // the remedy names different creatures.
   const outside = request.targets.filter((who) => !shortlist.includes(who));
   if (outside.length > 0) {
     return err(
