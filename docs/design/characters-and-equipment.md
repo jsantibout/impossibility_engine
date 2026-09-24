@@ -195,8 +195,7 @@ armour none, and Versatile one, because what Versatile changes is the damage.
 `equipItem` refuses `no_free_hand` for the same reason it already refuses a
 second shield.
 
-**A conjured thing is an inventory line with a casting — or an activation — on
-it, and where it is one thing it has an id of its own.** A definition's
+**A conjured thing is an inventory line with a casting on it.** A definition's
 `conjures` names an item, a count and the hands the handful takes; the
 resolution refuses `no_free_hand` before any slot, action or die, and pins the
 line into `items-gained`. **Its lifetime is derived rather than folded**: a
@@ -204,12 +203,7 @@ casting that runs out of time writes no event a removal could hang on, so
 `carrying` filters a lapsed line exactly as a lapsed patch of Difficult
 Terrain is filtered. Goodberry's ten berries and Flame Blade's blade are the
 two the SRD prints, and `let_go_of_conjured` / `evoke_conjured` are the two
-halves of Flame Blade's own sentence. A feature's conjuring — Pact of the
-Blade's pact weapon — is the same line with a `feature` on it instead, ended
-by the bond rather than by a casting. A conjuring of a **single** thing takes
-an `instance` at the conjuring, so a pact Longsword standing beside a bought
-one can be named; a handful stays the counted stack, because a record stands
-for one copy.
+halves of Flame Blade's own sentence.
 
 ## Monsters
 
