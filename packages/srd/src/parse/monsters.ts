@@ -1,20 +1,26 @@
 import {
   CreatureSizeSchema,
   MonsterAttackSchema,
+  MonsterCastLineSchema,
+  MonsterRollAddendSchema,
   MonsterSaveSchema,
   MonsterSchema,
   MonsterSpellcastingSchema,
+  MonsterTeleportSchema,
   slugify,
   type Feature,
   type Monster,
   type MonsterAttack,
+  type MonsterCastLine,
   type MonsterDamage,
   type MonsterMultiattack,
   type MonsterMultiattackEntry,
   type MonsterRecharge,
+  type MonsterRollAddend,
   type MonsterSave,
   type MonsterSpell,
   type MonsterSpellcasting,
+  type MonsterTeleport,
   type MonsterTrait,
   type ParseOutput,
   type ParseProblem,
@@ -911,6 +917,212 @@ export function parseSpellcastingLine(text: string): MonsterSpellcasting | null 
   return checked.success ? checked.data : null;
 }
 
+/**
+ * The book's **fourth** opening, matched end to end.
+ *
+ * "The priest casts _Bless, Dispel Magic, Healing Word,_ or _Lesser
+ * Restoration,_ using the same spellcasting ability as Spellcasting." "The
+ * mephit casts the _Sleep_ spell, requiring no spell components and using
+ * Charisma as the spellcasting ability (spell save DC 10)."
+ *
+ * Three clauses vary and are all optional: the word "the" and the noun
+ * "spell" a single-spell line wraps its name in, the components the casting
+ * does without, and the printed save DC. The ability clause is the one that
+ * says something the other opening's does not — "the same spellcasting ability
+ * as Spellcasting" is a **reference** to another line of the same block, and
+ * it is carried as one.
+ *
+ * **What the anchors refuse is the point of them.** SRD Vampire's Beguile and
+ * SRD Mummy's Dread Command each print a second sentence about a second rule;
+ * SRD Unicorn's Blessing touches a creature first and names a target; SRD
+ * Imp's Invisibility is cast "on itself"; SRD Lich's Protective Magic casts
+ * "in response to the spell's trigger". Every one of those is a clause this
+ * shape has no field for, and a line read down to the part that fits is a
+ * creature doing something nobody printed.
+ */
+const CAST_LINE = new RegExp(
+  `^The ${SUBJECT} casts (?:the )?(.+?)(?: spell)?,? ` +
+    `(?:requiring no [A-Za-z ]+ components and )?` +
+    `using (?:(the same) spellcasting ability as Spellcasting` +
+    `|(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) as (?:the )?spellcasting ability)` +
+    `(?: \\(spell save DC (\\d+)\\))?\\.$`,
+);
+
+/**
+ * The menu one cast line offers, consumed to the last character or refused.
+ *
+ * The grammar is italic groups joined by `, `, `, or ` or ` or `, and a group
+ * may hold several names because the book italicises a run of them together as
+ * readily as one at a time: `_Bless_, _Lesser Restoration_, or _Sanctuary_`
+ * and `_Bless, Dispel Magic, Healing Word,_ or _Lesser Restoration,_` are the
+ * same menu typeset two ways.
+ *
+ * **A trailing comma inside the italics is punctuation and not an empty
+ * name** — the book closes the run with one — so it is dropped where it ends a
+ * group and refused anywhere else, which is what keeps `_Bless, , Sanctuary_`
+ * from reading as two spells.
+ *
+ * Refused whole on anything it cannot consume, on a name the SRD's own index
+ * does not hold, and on a menu offering one spell twice: a duplicate is two
+ * routes to one spell and the engine picks between them without being asked.
+ */
+function readCastMenu(menu: string): string[] | null {
+  const names: string[] = [];
+  let rest = menu;
+
+  while (rest.length > 0) {
+    const group = /^_([^_]+)_/.exec(rest);
+    if (group === null) return null;
+    rest = rest.slice(group[0].length);
+
+    const inside = group[1]!.split(',').map((name) => name.trim());
+    for (const [at, name] of inside.entries()) {
+      // The run's closing comma, which the book prints inside the italics.
+      if (name === '' && at === inside.length - 1 && inside.length > 1) continue;
+      if (name === '') return null;
+      names.push(name);
+    }
+
+    if (rest === '') break;
+    const joiner = /^(?:,? or |, )/.exec(rest);
+    if (joiner === null) return null;
+    rest = rest.slice(joiner[0].length);
+  }
+
+  if (names.length === 0) return null;
+
+  const ids: string[] = [];
+  for (const name of names) {
+    const spellId = spellIdOf(name);
+    if (spellId === null) return null;
+    ids.push(spellId);
+  }
+  // One spell at two places in one menu is two ways to choose it, and nothing
+  // downstream could tell them apart. The SRD prints no such line.
+  return new Set(ids).size === ids.length ? ids : null;
+}
+
+/**
+ * The spells a line casts, or null for every other line in the book.
+ *
+ * Read off the **sentence** and never off the heading, which is the rule every
+ * reader here follows. What the heading says is how often the line may be
+ * taken, and that is `parseRecharge` and `parsePerDay`'s answer rather than
+ * this one's.
+ */
+export function parseCastLine(text: string): MonsterCastLine | null {
+  const matched = CAST_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+
+  const spells = readCastMenu(matched[1]!);
+  if (spells === null) return null;
+
+  const stated = matched[3] === undefined ? undefined : ABILITY_KEYS[matched[3]];
+  if (matched[3] !== undefined && stated === undefined) return null;
+
+  const line = {
+    spells,
+    ability: stated ?? ('spellcasting' as const),
+    ...(matched[4] === undefined ? {} : { saveDc: Number(matched[4]) }),
+  };
+
+  // Validated rather than trusted, for the reason `parseSaveLine` validates
+  // its own: a shape that does not satisfy its schema leaves the line prose.
+  const checked = MonsterCastLineSchema.safeParse(line);
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Blink Dog: "The dog teleports up to 40 feet to an unoccupied space it
+ * can see." SRD Marilith and SRD Nalfeshnee print it at 120.
+ *
+ * Anchored end to end, which is what refuses the four longer sentences the
+ * book writes about teleporting: the Lich's damage around the space it left,
+ * the Solar's saving throw at the destination, the Balor's willing demon and
+ * the Dryad's pair of trees. Each says something this shape has no field for.
+ */
+const TELEPORT_LINE = new RegExp(
+  `^The ${SUBJECT} teleports up to (\\d+) feet to an unoccupied space it can see\\.$`,
+);
+
+/** Where this line teleports its creature, or null for every other line. */
+export function parseTeleportLine(text: string): MonsterTeleport | null {
+  const matched = TELEPORT_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+  const checked = MonsterTeleportSchema.safeParse({
+    feet: Number(matched[1]!),
+    mustSee: true,
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Sphinx of Wonder: "_Trigger:_ The sphinx or another creature within 30
+ * feet makes an ability check or a saving throw. _Response:_ The sphinx adds 2
+ * to the roll."
+ *
+ * The book's `_Trigger:_` / `_Response:_` template, read for the one shape the
+ * engine has a window for. The nine other lines that write it add to an
+ * **Armour Class** against one attack — SRD Parry, SRD Riposte, the Mummy's
+ * Whirlwind of Sand — which is a different instant and a rule nothing here
+ * holds, so they are refused by the same anchors and stay prose.
+ */
+const ROLL_ADDEND_LINE = new RegExp(
+  `^_Trigger:_ (?:The ${SUBJECT} or )?[Aa]nother creature within (\\d+) feet ` +
+    `makes (.+?)\\. _Response:_ The ${SUBJECT} adds (\\d+) to the roll\\.$`,
+);
+
+/**
+ * The D20 Tests one trigger phrase names, in the glossary's order.
+ *
+ * "an ability check or a saving throw" is two of the three; "a D20 Test" is
+ * all three, which the rules glossary settles in as many words. Anything else
+ * refuses the line, because a trigger read down to the rolls the reader
+ * recognised is a Reaction offered at moments nobody printed.
+ */
+const ROLL_NAMES: Readonly<Record<string, readonly MonsterRollAddend['tests'][number][]>> = {
+  'an ability check': ['ability-check'],
+  'an attack roll': ['attack-roll'],
+  'a saving throw': ['saving-throw'],
+  'a D20 Test': ['ability-check', 'attack-roll', 'saving-throw'],
+};
+
+const ORDERED_ROLLS: readonly MonsterRollAddend['tests'][number][] = [
+  'ability-check',
+  'attack-roll',
+  'saving-throw',
+];
+
+function readTriggeringRolls(phrase: string): MonsterRollAddend['tests'] | null {
+  const named = new Set<MonsterRollAddend['tests'][number]>();
+  for (const term of phrase.split(' or ')) {
+    const rolls = ROLL_NAMES[term.trim()];
+    if (rolls === undefined) return null;
+    for (const roll of rolls) named.add(roll);
+  }
+  const tests = ORDERED_ROLLS.filter((roll) => named.has(roll));
+  return tests.length === 0 ? null : tests;
+}
+
+/** The flat addend this Reaction puts on a roll, or null for every other line. */
+export function parseRollAddendLine(text: string): MonsterRollAddend | null {
+  const matched = ROLL_ADDEND_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+
+  const tests = readTriggeringRolls(matched[2]!);
+  if (tests === null) return null;
+
+  const checked = MonsterRollAddendSchema.safeParse({
+    addend: Number(matched[3]!),
+    withinFeet: Number(matched[1]!),
+    // "The sphinx **or** another creature": present, the holder's own roll is
+    // one the trigger names; absent, the sentence is about somebody else only.
+    includesSelf: matched[0]!.startsWith('_Trigger:_ The'),
+    tests,
+  });
+  return checked.success ? checked.data : null;
+}
+
 /** The counts a Multiattack sentence is written with; the book uses no digits. */
 const COUNT_WORDS: Readonly<Record<string, number>> = {
   one: 1,
@@ -1406,6 +1618,17 @@ function parseFeatures(
       // Asked of every line for the reason `save` is asked of every line: what
       // a line says is not a property of the heading it is printed under.
       const spellcasting = parseSpellcastingLine(text);
+      // The book's fourth opening. **Refused where the heading rations the
+      // line by a recharge**, which is the same conservative direction
+      // `printedBonusActionAllowance` already refuses in: a per-day count is a
+      // pool the block declares and the casting pipeline spends, and a
+      // recharge is a die at a turn boundary with no pool behind it — so a
+      // recharging cast line compiled into a route would be a casting nothing
+      // could run out of. Six SRD lines print this sentence with a per-day
+      // count or no limit at all; the four that recharge stay prose.
+      const casts = recharge === null ? parseCastLine(text) : null;
+      const teleports = parseTeleportLine(text);
+      const addsToRoll = parseRollAddendLine(text);
       features.push({
         name: current.name,
         text,
@@ -1416,6 +1639,9 @@ function parseFeatures(
         ...(recharge === null ? {} : { recharge }),
         ...(perDay === null ? {} : { perDay }),
         ...(spellcasting === null ? {} : { spellcasting }),
+        ...(casts === null ? {} : { casts }),
+        ...(teleports === null ? {} : { teleports }),
+        ...(addsToRoll === null ? {} : { addsToRoll }),
       });
     }
     current = null;
