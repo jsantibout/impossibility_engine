@@ -323,13 +323,14 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
  * misapplied rather than one never applied: strictly worse than the refusal.
  * The day an item prints the sentence, the field comes with it.
  *
- * **`weapon-damage-type` is the third, on `attack-bonus`'s reason exactly**:
- * it narrows by a kind of weapon and has no `onlyWithItem`, so a blade
- * admitted here would offer its type on every swing its wielder made with
- * anything. No SRD item prints the sentence — a Flame Tongue adds a die, which
- * is `attack-damage` — so the refusal costs the catalogue nothing.
+ * A `weapon-damage-type` grant stood beside it and was refused for the same
+ * reason, and is no longer refused because it no longer exists: the sentence
+ * it carried — SRD Sacred Weapon's "its normal damage type or Radiant damage"
+ * — is `ImbuedWeapon.damageTypes` now, keyed to the one object a use imbues,
+ * which is a narrowing sharper than any `onlyWithItem`. The day an **item**
+ * prints such a sentence it will come through that door rather than this one.
  *
- * **`light` is the fourth, and on `speed`'s**: what reads it is `carriedLight`
+ * **`light` is the third, and on `speed`'s**: what reads it is `carriedLight`
  * inside `lightAt`, which gathers from the sheet alone. It cannot gather a
  * worn item's grants, because `lightAt` sits below `standing.ts` in the import
  * graph, and it must not, because `requirementsHold` calls `lightAt` and a
@@ -432,7 +433,7 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
 /**
  * Every kind of standing benefit there is, for the holders that are not items.
  *
- * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the two
+ * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the three
  * members that list withholds, and `content.test.ts` holds that list equal to
  * the union in `standing.ts` in both directions — so this stays exactly the
  * union without anybody keeping it so. `speed` is withheld from an *item* for
