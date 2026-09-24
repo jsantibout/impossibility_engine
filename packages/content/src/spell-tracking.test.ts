@@ -458,9 +458,11 @@ describe('a tracked spell is retried and replayed like any other', () => {
  * "no shape sits unclaimed", is in `blocked-on.test.ts`, because asked of this
  * map alone it would delete every shape only the other two populations name.
  *
- * The two ids this bucket used to own privately, `jumping` and
- * `teleportation`, are in the shared vocabulary now and each still says where
- * this repository already described the gap.
+ * The two ids this bucket used to own privately were `jumping` and
+ * `teleportation`. Both moved into the shared vocabulary, and `jumping` has
+ * since been **retired**: SRD Jump's 2024 sentence prints two flat numbers and
+ * a cap rather than the multiplier the older one did, so the spell that was
+ * the shape's last claimant is executed and the id names no gap.
  */
 
 /**

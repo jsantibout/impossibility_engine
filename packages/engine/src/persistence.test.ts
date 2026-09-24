@@ -273,6 +273,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'item-unequipped',
   'items-gained',
   'items-lost',
+  'jump-allowance-granted',
+  'jump-allowance-spent',
   'landmark-added',
   'light-declared',
   'mounted',

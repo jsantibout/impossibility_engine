@@ -676,6 +676,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'item-dropped',
   'item-taken-up',
   'item-transferred',
+  // The jump SRD Jump buys a creature, and the turn it was spent on. Neither
+  // log was written when a casting could buy one: no creature record had a
+  // `jumpAllowances` list, `checkJump` measured every jump against the sheet
+  // alone, and a move's cost was whatever the ground came to — so both
+  // fixtures fold to exactly the states they always folded to with that list
+  // empty on every creature. `jump-spell.test.ts` casts the spell through the
+  // public API and drives it end to end: the thirty feet a Wizard could not
+  // otherwise clear, the ten feet it costs instead of thirty, the once a turn
+  // it may be taken, and the grant going back when the casting does.
+  'jump-allowance-granted',
+  'jump-allowance-spent',
   // How bright a patch of the room is, and how obscured. Neither log was
   // written when the lattice held either — sight was pairwise and no square
   // was lit or unlit — and both fixtures fold to exactly the states they

@@ -2662,6 +2662,33 @@ function checkEffect(
     }
 
     // A sense conferred for the casting: one the glossary names, to a range.
+    // SRD *Jump*: "can jump up to 30 feet by spending 10 feet of movement."
+    // Both numbers are distances on the 5-foot lattice everything else is
+    // measured on, and both are refused at zero: a jump of nothing is not a
+    // jump, and one that costs nothing is a sentence the book does not print
+    // and would hand a creature an unlimited number of free leaps a turn.
+    case 'jump-allowance': {
+      if (!Number.isInteger(effect.feet) || effect.feet <= 0 || effect.feet % 5 !== 0) {
+        found.push({
+          field: `${path}.feet`,
+          code: 'bad_jump_distance',
+          reason: `a jump covers a whole number of 5-foot spaces, not ${String(effect.feet)}`,
+        });
+      }
+      if (
+        !Number.isInteger(effect.costsMovement) ||
+        effect.costsMovement <= 0 ||
+        effect.costsMovement % 5 !== 0
+      ) {
+        found.push({
+          field: `${path}.costsMovement`,
+          code: 'bad_jump_cost',
+          reason: `a jump is paid for in whole 5-foot spaces of movement, not ${String(effect.costsMovement)}`,
+        });
+      }
+      return;
+    }
+
     case 'sense': {
       if (!(SENSE_NAMES as readonly string[]).includes(effect.sense)) {
         found.push({
@@ -3539,6 +3566,17 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'light the target carries';
     case 'sense':
       return 'a sense the target gains';
+    // And the two a creature carries about gravity. Neither carries a deadline
+    // of its own, for the reason the light and the sense above do not: SRD
+    // Feather Fall's ward runs "until the spell ends" by the same sentence
+    // that ends it on a landing, and SRD Jump's allowance runs "until the
+    // spell ends" in as many words — so an Instantaneous casting of either
+    // would leave a creature that never pays for a landing again, or one that
+    // jumps thirty feet for ten for the rest of its life.
+    case 'fall-ward':
+      return 'a fall this casting will not charge for';
+    case 'jump-allowance':
+      return 'a jump this casting bought';
     // The seventeenth sourced grant, and it carries no deadline of its own for
     // the reason the fifth, sixth and seventh do not: SRD Resistance says
     // "before the spell ends", so the casting is the only thing that could
@@ -5890,6 +5928,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'sense',
   'damage-reduction',
   'fall-ward',
+  'jump-allowance',
   'attack-rider',
   'weapon-rider',
   'weapon-attack',

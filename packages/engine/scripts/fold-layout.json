@@ -13,6 +13,7 @@
     "LastDamage",
     "FallMoment",
     "GrantedFallWard",
+    "GrantedJump",
     "PendingAttack",
     "PendingMove",
     "PendingCasting",

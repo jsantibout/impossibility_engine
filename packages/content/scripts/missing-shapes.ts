@@ -229,8 +229,6 @@ export const MISSING_SHAPES = {
     'there is one scene, so a creature sent elsewhere has nowhere to be. `docs/design/spell-definitions.md`: "A destination *outside* the scene is different in kind ... there is one scene, so Plane Shift and Word of Recall have no position to move anybody to", and `docs/design/casting.md`: "the real fix is the doctrine’s multiple-scenes seam".',
   falling:
     '`docs/design/casting.md` lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". **Two of its three halves are built now.** The trigger is a declared fact, `fall-declared` beside `lastDamage`, and the Reaction window derived from it is what let Feather Fall be written; and the landing is a rule — `resolveFall` throws 1d6 Bludgeoning per ten feet to a maximum of 20d6 against a height the table states, and lands the faller Prone unless the drop cost nothing, through the same damage path a Fire Bolt takes. What is still missing is the half both claimants here actually need, which is **a reduction**: Feather Fall takes the fall damage away outright and Slow Fall subtracts five times the Monk level from it, and a number hung on a creature that one damage roll reads is a grant the format does not have. `FeatureReactionWindow` still excludes `creature-falling` for exactly that reason, and the descent rate is a separate absence — nothing measures a descent, so the sixty feet a round has nothing to be measured against.',
-  jumping:
-    'jumping, which nothing models, so a jump distance has nothing to be measured against. Jump’s own clause in spell-definitions.ts says it: "the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count".',
   'forced-movement-a-spell-causes':
     '**The rider half is built and the standalone half is not.** `OutcomeRiders` gained a fourth slot — a shove a settled outcome carries, ten feet straight away from the caster, spending no Speed and provoking nobody — and SRD Thunderwave writes it, which is what closed the recurring finding `docs/design/space-and-areas.md` recorded: that `moveCreature` took `forced: true` and no `SpellEffect` reached it. A rider is a leaf, and every claimant left here is one that is **not**: each of the three needs a push that is the whole of an outcome rather than something riding one, gated by a saving throw the push is the only consequence of. `save` requires a condition and has never carried the last two rider slots, so none of them can say it — Levitate’s lift, Gust of Wind’s fifteen feet and the Forceful Hand’s five are the same missing arm of the union, and every one of them is blocked on a second shape besides.',
   'an-activation-that-resolves-an-area':
@@ -1564,14 +1562,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'a message that is uttered when a trigger condition is met',
       why: 'table',
       note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds.',
-    },
-  ],
-  jump: [
-    {
-      marker: 'movement-cost',
-      clause: 'jump up to 30 feet by spending 10 feet of movement',
-      why: 'jumping',
-      note: '"jump up to 30 feet by spending 10 feet of movement" — the movement is spendable, the jump is not, so charging the 10 feet alone would be half a rule.',
     },
   ],
   'see-invisibility': [

@@ -2178,6 +2178,31 @@ export type SpellEffect =
    */
   | { readonly kind: 'fall-ward' }
   /**
+   * The casting buys its target a jump, and fixes what it costs — SRD *Jump*:
+   * "Once on each of its turns until the spell ends, that creature can jump up
+   * to 30 feet by spending 10 feet of movement."
+   *
+   * **Two numbers, because the sentence prints two and they are not the same
+   * kind of thing.** {@link feet} is a bound on the jump, read where the
+   * sheet's own Long Jump is read; {@link costsMovement} is the price, read
+   * where a move is charged. A spell that only lengthened the jump would leave
+   * a thirty-foot leap costing thirty feet of a creature's Speed, which is not
+   * what this spell is worth.
+   *
+   * **Not a multiplier.** The 2014 wording tripled a jump distance and this
+   * one does not: the book prints a flat thirty feet and a flat ten, so a
+   * Strength 20 Barbarian's jump is bounded by the spell exactly as a Strength
+   * 8 Wizard's is — and the spell is worth having to the second one.
+   *
+   * **The distance bounds a Long Jump.** SRD's "Jump" glossary names two
+   * jumps, one measured along the ground and one measured upward, and this
+   * sentence's thirty feet is a distance: a High Jump's own number is a
+   * height, and reading one as the other would hand a level 1 spell thirty
+   * feet of altitude. The spell says nothing about a High Jump and this
+   * reading says nothing either.
+   */
+  | { readonly kind: 'jump-allowance'; readonly feet: number; readonly costsMovement: number }
+  /**
    * An amount the spell takes off a hit **before** the target's defences meet
    * it — SRD Resistance: "When the creature takes damage of the chosen type
    * before the spell ends, the creature reduces the total damage taken by 1d4.
@@ -5144,8 +5169,11 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       case 'damage-reduction':
       // And the ward that takes a fall's cost away, which carries no number at
       // all: "no damage" is an outcome rather than an amount, so there is
-      // nothing of the caster's for it to pin.
+      // nothing of the caster's for it to pin. The jump beside it carries two
+      // and neither is the caster's: thirty feet and ten are the book's, and
+      // are the same numbers in a Barbarian's hand.
       case 'fall-ward':
+      case 'jump-allowance':
       case 'attack-rider':
       // The ability it may pin is not one of these three: it is an *ability*
       // and not a number, which is `castersAbilityRead`'s question and not

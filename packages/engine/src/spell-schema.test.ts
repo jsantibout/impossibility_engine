@@ -3790,6 +3790,15 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { sense: required(STRING_JUNK), feet: required(NUMBER_JUNK) },
     },
     {
+      // SRD Jump: "can jump up to 30 feet by spending 10 feet of movement."
+      // Both fields are required and both are distances on the 5-foot
+      // lattice: a jump of nothing is not a jump, and one that costs nothing
+      // is a sentence the book does not print.
+      kind: 'jump-allowance',
+      base: { kind: 'jump-allowance', feet: 30, costsMovement: 10 },
+      fields: { feet: required(NUMBER_JUNK), costsMovement: required(NUMBER_JUNK) },
+    },
+    {
       // An amount taken off later damage: the adjustment half of the printed
       // line the defence above is the multiplier half of. All three fields are
       // **required** — a reduction with no notation takes nothing off, a list

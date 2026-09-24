@@ -3940,6 +3940,20 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
  * > movement."
  * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
  * > for each spell slot level above 1."
+ *
+ * **The 2024 sentence, which is not the one this definition was written
+ * against.** The older printing tripled a jump distance, and a multiplier is
+ * what the engine would have needed to build; this prints two flat numbers and
+ * a cap, and all three are ordinary. So `jump-allowance` carries the thirty and
+ * the ten, `checkJump` takes the longer of the spell's bound and the creature's
+ * own, and `resolveMove` charges the spell's price instead of the ground's —
+ * which is what makes the spell worth casting on a Wizard as well as on a
+ * Barbarian.
+ *
+ * **The distance bounds a Long Jump**, because the sentence's thirty feet is a
+ * distance and the High Jump's own number is a height. The SRD's "Jump"
+ * glossary names the two separately and this spell names neither, so reading
+ * one as the other would hand a level 1 spell thirty feet of altitude.
  */
 export const JUMP: SpellDefinition = {
   id: 'jump',
@@ -3955,11 +3969,12 @@ export const JUMP: SpellDefinition = {
   // only yourself when you do so", a sentence with no meaning if the caster
   // were not a legal target of it.
   targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
-  effects: [],
+  // "Once on each of its turns until the spell ends, that creature can jump up
+  // to 30 feet by spending 10 feet of movement." Two numbers and a cap, and
+  // the cap is stamped on the grant rather than counted anywhere else — so a
+  // second casting of this spell is a second sentence with its own once.
+  effects: [{ kind: 'jump-allowance', feet: 30, costsMovement: 10 }],
   durationSeconds: 60,
-  unmodelled: [
-    'the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count',
-  ],
 };
 
 /**

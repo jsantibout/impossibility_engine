@@ -121,6 +121,7 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             senseModifiers: [],
             damageReductions: [],
             fallWards: [],
+            jumpAllowances: [],
             attackRiders: [],
             weaponRiders: [],
             grantedConditionImmunities: [],
