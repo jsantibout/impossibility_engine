@@ -166,8 +166,8 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
-    expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
+    expect(toolSchemas(player())).toHaveLength(84);
+    expect(toolSchemas(dm())).toHaveLength(103);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -184,20 +184,24 @@ describe('toolSchemas', () => {
     // fact — SRD Command's five words, Thaumaturgy's six wonders,
     // Enlarge/Reduce's two halves) is one field on one tool, so both surfaces
     // grew by the same amount and neither gained a tool.
-    expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
     // Re-pinned again for the bestiary traits track: `end_turn.burns` — the
     // creatures a Fire Aura's holder chooses to burn, `fought`'s twin, on the
-    // one tool both surfaces publish — grew both by the same amount. And
-    // again for the options track: `cast_spell.option`, the tenth stated
-    // fact, one field on one tool, both surfaces.
+    // one tool both surfaces publish — grew both by the same amount.
     // And again for the consent track, twice. First `cast_spell.willing`, the
     // ninth stated fact, on both surfaces and by the same 719 characters; then
     // the two a **later action** states — `activate_spell.altitude` and the
     // three spellings of `towards` — by the same 1,611. The tool count is
     // unmoved by either: both are fields on calls that already existed.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(121225);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(145355);
+    // Re-pinned again for the stat-block Reactions track, which opened one
+    // door on **both** surfaces: `take_attack_reaction` answers a hit whose
+    // damage is unrolled — SRD Parry, at the instant *Shield* answers — and it
+    // is on both for the reason `take_damage_reaction` is, because the
+    // creature answering is whoever was hit. One pin each and the same 802
+    // bytes on both, which is the tool being published once.
+    expect(toolSchemas(player())).toHaveLength(84);
+    expect(toolSchemas(dm())).toHaveLength(103);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(122027);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146157);
   });
 });
 

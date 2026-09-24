@@ -31,9 +31,10 @@ import type { FallMoment } from './state.js';
  * | `damaged-by-creature` | **everything** — the damage landed | nothing | *Hellish Rebuke*, Retaliation |
  * | `test-rolled` | the d20's total, and whether it beat the DC | the effects of that outcome | Indomitable, Dark One's Own Luck, Peerless Skill, Cutting Words, the Sphinx |
  * | `casting-a-spell` | the casting is declared and the action spent | the slot, the effects | *Counterspell* |
+ * | `targeted-by-spell` | the casting is declared and its targets are fixed | its effects, on each of them | *Shield*'s second trigger |
  * | `creature-falling` | the table has said a creature is falling | how far, how long, and what it lands on | *Feather Fall*; the Monk's Slow Fall |
  *
- * **Five of the six are points in a resolution; the sixth is a declaration.**
+ * **Six of the seven are points in a resolution; the last is a declaration.**
  * `creature-falling` is open because somebody at the table said so rather than
  * because the engine is in the middle of something, which is what it costs to
  * name an instant the engine has no other way to see — and the reason it is
@@ -44,14 +45,17 @@ import type { FallMoment } from './state.js';
  * evidence this vocabulary is shared rather than merely tidy: a spell
  * (*Hellish Rebuke*) and a class feature (Retaliation) answer the same instant
  * under the same rule, and there is exactly one place that decides whether the
- * instant is still open.
+ * instant is still open. `hit-by-attack` is the second such member and the
+ * same evidence again — *Shield* answers it with a spell and seven stat blocks
+ * answer it with Parry, which is the same sentence about the same number.
  *
  * **What this deliberately is not.** There is no predicate language, no
  * registry, no subscription and no ordering engine. A window is a named point
  * in a resolution path, and adding one means adding a point to a path — which
- * is why two of the six arrived with the mechanics that needed them, three were
- * already there under other names, and the sixth arrived with a fact the table
- * declares.
+ * is why two of the seven arrived with the mechanics that needed them, three
+ * were already there under other names, one arrived with a fact the table
+ * declares, and the seventh is a stop in a path the engine already walks: a
+ * casting that has been declared and not yet resolved.
  */
 export type ReactionWindow =
   /** SRD *Shield*: "when you are hit by an attack roll". Damage is unrolled. */
@@ -86,6 +90,29 @@ export type ReactionWindow =
   /** SRD *Counterspell*: "a creature in the process of casting a spell". */
   | 'casting-a-spell'
   /**
+   * SRD *Shield*: "Reaction, which you take when you are hit by an attack roll
+   * **or targeted by the *Magic Missile* spell**."
+   *
+   * The seventh, and a point in a resolution like the first five rather than a
+   * declaration like `creature-falling`: a casting that has been declared has
+   * settled its targets and has not resolved its effects, which is exactly the
+   * state `pendingCastings` already holds for *Counterspell*. The difference
+   * between the two is who may answer — Counterspell answers *the caster*, and
+   * this answers as one of *the targets* — and what the answer is allowed to
+   * change.
+   *
+   * **It opens where the casting is declared and nowhere else.** A casting
+   * resolved in one command has no seam between its targets and its effects —
+   * SRD Magic Missile settles both in a breath — so what opens the window is
+   * the same `hold` that opens Counterspell's, and a caller who wants the
+   * defender to have their say asks for the declaration. That is stated rather
+   * than worked around: an engine that held every casting open would make
+   * every Fire Bolt a two-command negotiation, which is the rule
+   * {@link offersForDamage} already keeps about a damage roll nobody can
+   * answer.
+   */
+  | 'targeted-by-spell'
+  /**
    * SRD *Feather Fall*: "when you or a creature you can see within 60 feet of
    * you **falls**"; SRD Slow Fall: "when you fall".
    *
@@ -115,17 +142,25 @@ export type ReactionWindow =
  */
 export type SpellReactionWindow = Extract<
   ReactionWindow,
-  'hit-by-attack' | 'damaged-by-creature' | 'casting-a-spell' | 'creature-falling'
+  | 'hit-by-attack'
+  | 'damaged-by-creature'
+  | 'casting-a-spell'
+  | 'creature-falling'
+  | 'targeted-by-spell'
 >;
 
 /**
- * The windows a **class feature** answers.
+ * The windows a **feature** answers — a class's, or a stat block's.
  *
- * Also a narrowing, and the two lists overlap in one member on purpose — see
- * {@link ReactionWindow}. No SRD class feature answers `hit-by-attack` by
- * changing the Armour Class the way *Shield* and Parry do; the two that look
- * as though they might (Uncanny Dodge, Deflect Attacks) are triggered by the
- * hit and **act on the damage**, so they belong to `damage-rolled`.
+ * Also a narrowing, and the two lists overlap in two members on purpose — see
+ * {@link ReactionWindow}. No SRD *class* feature answers `hit-by-attack`: the
+ * two that look as though they might (Uncanny Dodge, Deflect Attacks) are
+ * triggered by the hit and **act on the damage**, so they belong to
+ * `damage-rolled`. A **stat block** answers it in as many words — SRD Parry
+ * adds to an Armour Class against the triggering attack, which is *Shield*'s
+ * own sentence worn by a creature, and SRD Reflexive Antennae answers the same
+ * instant by using another line of its block. So the member is here because
+ * the book writes it, and it arrived with the two effects that write it.
  *
  * `creature-falling` is absent, and deliberately: the Monk's Slow Fall names
  * that window in as many words and *does* something this engine cannot — it
@@ -135,7 +170,7 @@ export type SpellReactionWindow = Extract<
  */
 export type FeatureReactionWindow = Extract<
   ReactionWindow,
-  'damage-rolled' | 'damaged-by-creature' | 'test-rolled'
+  'hit-by-attack' | 'damage-rolled' | 'damaged-by-creature' | 'test-rolled'
 >;
 
 /**
@@ -288,7 +323,52 @@ export type ReactionEffect =
       readonly damageType: string;
       /** SRD's "within 60 feet of you", measured to whoever dealt the damage. */
       readonly within: number;
-    };
+    }
+  /**
+   * Raise the Armour Class against the attack that triggered this, and no
+   * further.
+   *
+   * SRD Parry: "The knight adds 2 to its AC against that attack, possibly
+   * causing it to miss." Seven stat blocks print it and it is *Shield*'s
+   * sentence with the span taken off — the spell's +5 lasts until the start of
+   * the caster's next turn and is therefore a standing bonus; this one is
+   * spent by the blow it answered, so nothing is granted and nothing ends.
+   *
+   * That is why the number is here rather than a `StandingEffect`: a bonus
+   * that exists for one comparison has nowhere to live but the comparison.
+   * `reconsiderHeldAttack` is where it is made, against the Armour Class the
+   * swing was actually measured against — cover and all — for the reason
+   * `deflectTriggeringAttack` states about the same arithmetic.
+   */
+  | {
+      readonly kind: 'raise-ac';
+      readonly amount: number;
+      /** SRD Parry: "hit by a **melee** attack roll". */
+      readonly meleeOnly?: true;
+      /** SRD Parry: "**while holding a weapon**". */
+      readonly requiresWeapon?: true;
+    }
+  /**
+   * Use a line the creature's own stat block prints, by its heading.
+   *
+   * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
+   * rust monster. _Response:_ The rust monster uses Antennae." The trigger is
+   * a window this engine holds and the response is *somewhere else on the
+   * block*, which is what makes this a shape rather than an effect: what
+   * happens is whatever that line turns out to be.
+   *
+   * **The second sentence that writes it is the Nalfeshnee's Pursuit** — "The
+   * nalfeshnee uses Teleport" — at a window the engine does not hold and with
+   * a clause about where the teleport may land, so the parser refuses that
+   * line whole. One shape, two sentences, one of them readable today.
+   *
+   * **Nothing performs it yet, and the command says so.** The Reaction is
+   * offered and spent and the response is handed to the table by name, which
+   * is the honest half: the rust monster's Antennae is a save nothing has
+   * read, and a response half-performed would be a creature doing something
+   * nobody printed.
+   */
+  | { readonly kind: 'use-printed-line'; readonly line: string };
 
 /**
  * Who gave a Reaction away, and under what source it will end.
@@ -682,6 +762,155 @@ export function offersForDamage(state: GameState, context: DamageContext): React
   }
 
   return { offers, unverified };
+}
+
+/** What the `hit-by-attack` window is being asked about. */
+export interface AttackContext {
+  readonly target: CharacterId;
+  readonly attacker: CharacterId;
+  /** Whether the swing was a melee one, which SRD Parry's trigger names. */
+  readonly melee: boolean;
+  /**
+   * Whether the target has a weapon in hand — `null` where nobody has said.
+   *
+   * Three-valued for {@link reaches}' reason and answered the same way: a
+   * stat block prints its gear and **nothing reads it**, so a knight nobody
+   * has equipped is a knight whose hands are undeclared rather than one
+   * standing there empty-handed. An undeclared fact does not withhold a whole
+   * Reaction; a declared one that is false does.
+   */
+  readonly holdsAWeapon: boolean | null;
+  /**
+   * Whether the target can see the attacker — `null` where nobody has said.
+   *
+   * The same three values and the same reading {@link seen} takes for the
+   * other windows: absence from state is not evidence of blindness. No SRD
+   * line under this heading prints the clause, so it decides nothing today and
+   * is here because a feature carrying `requiresSight` must not have the field
+   * silently ignored.
+   */
+  readonly canSeeAttacker: boolean | null;
+}
+
+/**
+ * Who may answer a hit that is known and whose damage is unrolled.
+ *
+ * {@link offersForDamage}'s sibling one instant earlier, and narrower in one
+ * way that is the window's own: every sentence here is about *the creature
+ * that was hit*, so the reach is `self` and nobody else is walked. SRD
+ * *Shield* is the same instant answered by a spell, and `reactionOpportunities`
+ * puts the two side by side.
+ *
+ * The clauses a printed trigger states are checked here rather than at the
+ * command alone, so an offer that would be refused is never made — the rule
+ * `affordable` already states about a stale offer.
+ */
+export function offersForAttack(state: GameState, context: AttackContext): ReactionOffers {
+  const offers: ReactionOffer[] = [];
+  const unverified: string[] = [];
+
+  for (const feature of [...featuresFor(state, context.target, 'hit-by-attack')].sort(byFeature)) {
+    if (attackReactionRefusal(feature, context) !== null) continue;
+    if (!canAfford(state, context.target, feature)) continue;
+    unverified.push(...undeclaredFacts(feature, context));
+    offers.push(offerOf(context.target, feature));
+  }
+
+  return { offers, unverified };
+}
+
+/**
+ * What this Reaction was offered without being able to check — one string per
+ * fact nobody has declared.
+ *
+ * The other half of {@link attackReactionRefusal}'s three-valued reading, and
+ * shared by the same two callers for the same reason: a fact that merely goes
+ * unsaid does not withhold the Reaction, and a Reaction taken on an unsaid
+ * fact has to *say so* — otherwise the engine has quietly decided something
+ * nobody told it. The command puts these on its own `unverified`, which is
+ * where every other command puts what it could not check.
+ */
+export function undeclaredFacts(
+  feature: ReactionFeature,
+  context: AttackContext,
+): readonly string[] {
+  const said: string[] = [];
+  const does = feature.does;
+  if (does.kind === 'raise-ac' && does.requiresWeapon === true && context.holdsAWeapon === null) {
+    said.push(
+      `nobody has said what ${context.target} is holding, and ${feature.name} is taken while holding a weapon; it was offered rather than withheld`,
+    );
+  }
+  if (feature.requiresSight === true && context.canSeeAttacker === null) {
+    said.push(
+      `nobody has said whether ${context.target} can see ${context.attacker}, and ${feature.name} needs that; it was offered rather than withheld`,
+    );
+  }
+  return said;
+}
+
+/**
+ * Why this feature cannot answer this blow, or null where it can.
+ *
+ * **One rule, two callers**: the offer above and the command that takes it ask
+ * the same question of the same facts, so a Reaction the engine offers is one
+ * the engine will let a creature spend, and a Reaction it refuses is one it
+ * never offered. That is why the reach and the sight are decided here as well
+ * as the printed clauses: a check the offer made and the command did not would
+ * be a Reaction takeable at a moment nobody was shown it at. An *undeclared*
+ * fact is not a refusal — see {@link AttackContext.holdsAWeapon} — and
+ * {@link undeclaredFacts} is what says so instead.
+ */
+export function attackReactionRefusal(
+  feature: ReactionFeature,
+  context: AttackContext,
+): { readonly code: string; readonly reason: string } | null {
+  const does = feature.does;
+  if (does.kind !== 'raise-ac' && does.kind !== 'use-printed-line') {
+    return {
+      code: 'no_such_feature',
+      reason: `${feature.name} does not answer a hit`,
+    };
+  }
+
+  // **Every sentence at this window is about the creature that was hit.** SRD
+  // Parry and SRD Reflexive Antennae both begin with their own holder, so the
+  // reach is `self` and a feature reaching further would be answering somebody
+  // else's blow — which is a rule this window does not hold and a shape no
+  // printed line compiles. Refused rather than read past, on the discipline
+  // the parser keeps about a sentence it only half recognises.
+  if (feature.reach.kind !== 'self') {
+    return {
+      code: 'no_such_feature',
+      reason: `${feature.name} answers a hit on somebody else, and this window reaches only the creature that was hit`,
+    };
+  }
+
+  // "An attacker **that you can see**", where a feature prints the clause. No
+  // SRD line under this heading does; an undeclared sight line is reported
+  // rather than refused, which is the reading every other window takes.
+  if (feature.requiresSight === true && context.canSeeAttacker === false) {
+    return {
+      code: 'cannot_see_target',
+      reason: `${feature.name} answers an attacker ${context.target} can see, and they cannot see ${context.attacker}`,
+    };
+  }
+
+  if (does.kind !== 'raise-ac') return null;
+
+  if (does.meleeOnly === true && !context.melee) {
+    return {
+      code: 'melee_only',
+      reason: `${feature.name} answers a melee attack roll, and this one was not`,
+    };
+  }
+  if (does.requiresWeapon === true && context.holdsAWeapon === false) {
+    return {
+      code: 'no_weapon_in_hand',
+      reason: `${feature.name} is taken while holding a weapon, and ${context.target} holds none`,
+    };
+  }
+  return null;
 }
 
 /** What the `test-rolled` window is being asked about. */

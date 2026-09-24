@@ -1205,7 +1205,14 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Incubus' Nightmare, whose ceiling holds an Unconscious for the hour
       // the book prints, with its two early endings carried.
       bonusActions: { printed: 75, read: 21 },
-      reactions: { printed: 24, read: 0 },
+      // **Four, and every one of them a `trait`,** which is what this census
+      // counts: the Reactions section's own three templates — the Sphinx's
+      // addend, the seven Parry lines and the Rust Monster's response — are
+      // read into `addsToRoll`, `addsToAc` and `usesLine`, and none of those
+      // is one of the five fields asked about above. What is counted here is
+      // the four Reactions whose sentences turned out to be *kinds*: the two
+      // Splits, the Goblin Boss's Redirect Attack and the Shrieker's noise.
+      reactions: { printed: 24, read: 4 },
       legendaryActions: { printed: 82, read: 0 },
     });
   });

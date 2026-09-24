@@ -43,12 +43,15 @@ import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '.
 import { type CommandIdentity, once } from '../idempotency.js';
 import { distanceBetween } from '../positioning.js';
 import {
+  attackReactionRefusal,
   damageWindowOpen,
   fallingNow,
+  offersForAttack,
   offersForTest,
   reactionAddends,
   reactionFeatureOf,
   reactionsOf,
+  undeclaredFacts,
   type ReactionEffect,
   type ReactionFeature,
   type ReactionOffer,
@@ -57,13 +60,21 @@ import {
 } from '../reactions.js';
 import { remaining } from '../resources.js';
 import { type Content } from '../content.js';
+import { type SpellDefinition } from '../spell-definitions.js';
 import {
+  canSee,
   defensesOf,
   effectiveConditions,
   rollModesFor,
   sheetAsItStands,
 } from '../standing.js';
-import { type AttackResolution, resolveAttack } from './attacks.js';
+import {
+  heldSwingIsMelee,
+  holdsAWeapon,
+  reconsiderHeldAttack,
+  type AttackResolution,
+  resolveAttack,
+} from './attacks.js';
 import {
   type ConcentrationConsequence,
   type Supply,
@@ -74,8 +85,10 @@ import {
   adjustmentsFor,
   dealSpellDamage,
   heldDamageTotal,
+  printedTypeTriggers,
   reactionContributions,
   rollsIssuedSince,
+  siegeDoubling,
   spendReactionCost,
   standingReductionOf,
   statedFrom,
@@ -94,6 +107,124 @@ import {
 
 export interface DamageReactionCommand extends CommandIdentity {
   readonly feature: string;
+}
+
+export interface AttackReactionCommand extends CommandIdentity {
+  readonly feature: string;
+}
+
+export interface AttackReactionResolution {
+  readonly events: readonly GameEvent[];
+  /**
+   * Whether the Reaction turned the blow aside.
+   *
+   * False is the ordinary answer for most of them: SRD Parry says "**possibly**
+   * causing it to miss", and a response that is another printed line changes
+   * nothing about the swing at all.
+   */
+  readonly missed: boolean;
+  /** What the Reaction did that the engine could not carry out itself. */
+  readonly unverified: readonly string[];
+  /** True when this command id had already been applied; `events` is empty. */
+  readonly duplicate: boolean;
+}
+
+/**
+ * Answer a hit that is known and whose damage has not been rolled.
+ *
+ * SRD Parry and SRD Reflexive Antennae, which are the two things a stat block
+ * does at `hit-by-attack` — the window SRD *Shield* answers with a spell.
+ * Everything before the spend is the same question for both: the hold is
+ * open, it is aimed at this creature, and the clauses the printed trigger
+ * states are true. What differs is what the answer *is*:
+ *
+ * - **Parry re-decides the blow.** The number goes onto the Armour Class the
+ *   swing was measured against and `reconsiderHeldAttack` compares again; a
+ *   miss closes the hold with the same event a settled swing closes it with.
+ *   The Reaction is spent either way, because the SRD spends it on the
+ *   attempt rather than on the outcome.
+ * - **Reflexive Antennae hands its response over.** The line the block names
+ *   is a line nothing in the engine performs, so the Reaction is spent, the
+ *   log records that it was taken, and what the response *is* comes back in
+ *   `unverified` by name. Half a printed line performed would be a creature
+ *   doing something nobody printed.
+ *
+ * **No window state is cleared, because none was written.** `pendingAttack` is
+ * the attacker's own hold and this does not close it except by turning the
+ * blow into a miss — which is what `deflectTriggeringAttack` does for the
+ * spell that answers the same instant.
+ */
+export function takeAttackReaction(
+  state: GameState,
+  reactor: CharacterId,
+  command: AttackReactionCommand,
+  supply: Supply,
+): Result<AttackReactionResolution> {
+  return once(state, `attack-reaction:${reactor}`, command, () => ({
+    events: [],
+    missed: false,
+    unverified: [],
+    duplicate: true,
+  }), (stamp) => {
+    const pending = state.pendingAttack;
+    if (pending === null || pending.target !== reactor) {
+      return err('no_pending_attack', `no hit is waiting for ${reactor} to answer`);
+    }
+
+    const feature = reactionFeatureOf(state, reactor, command.feature, 'hit-by-attack');
+    if (feature === null) {
+      return err('no_such_feature', `${reactor} has no Reaction to a hit called ${command.feature}`);
+    }
+
+    const creature = creatureOf(state, reactor);
+    if (creature === null) return unknownCreature(reactor);
+
+    // The same question the offer asked, of the same facts — see
+    // `attackReactionRefusal`, which is the one place either is decided.
+    const context = {
+      target: reactor,
+      attacker: pending.attacker,
+      melee: heldSwingIsMelee(state, supply.content, pending),
+      holdsAWeapon: holdsAWeapon(supply.content, creature),
+      canSeeAttacker: canSee(state, reactor, pending.attacker),
+    };
+    const refusal = attackReactionRefusal(feature, context);
+    if (refusal !== null) return err(refusal.code, refusal.reason);
+
+    // Nothing is decided until everything has been paid for, which is the rule
+    // every other window's command keeps.
+    const spent = spendReactionCost(state, reactor, creature, feature);
+    if (!spent.ok) return spent;
+    const events: GameEvent[] = [...spent.value];
+
+    const does = feature.does;
+    // **What the Reaction was allowed on without being checked.** A stat
+    // block's hands are undeclared rather than empty, so a Parry taken by a
+    // knight nobody has equipped says so — the same channel, and the same
+    // three-valued reading, the offer reports it through.
+    const unverified: string[] = [...undeclaredFacts(feature, context)];
+    let missed = false;
+    if (does.kind === 'raise-ac') {
+      const again = reconsiderHeldAttack(pending, does.amount);
+      missed = again.missed;
+      events.push(...again.events);
+    } else if (does.kind === 'use-printed-line') {
+      unverified.push(
+        `${reactor} answered the hit with ${feature.name}, whose response is its own ${does.line} line; the engine does not perform that line, so it is the table's`,
+      );
+    }
+
+    events.push({
+      type: 'reaction-taken',
+      reactor,
+      window: 'hit-by-attack',
+      feature: feature.feature,
+      against: pending.attacker,
+      ...(stamp === null ? {} : { command: stamp }),
+    });
+
+    return ok({ events, missed, unverified, duplicate: false });
+  });
 }
 
 /**
@@ -359,6 +490,17 @@ export function settleDamage(
     const reduction =
       pending.reductions.reduce((sum, r) => sum + r.amount, 0) + warded.value.amount;
     const adjustments = adjustmentsFor(pending.components, reduction);
+    // **And SRD Siege Monster's multiplier, which belongs to the blow rather
+    // than to the road it took.** `dealSpellDamage` adds it to the same record
+    // at the same step — the book's order is "multipliers are applied first;
+    // Resistance is applied second" — and this road did not, so a Bard sixty
+    // feet away holding Cutting Words cost an Earth Elemental its doubling
+    // against a door. One function, asked twice.
+    for (const [type, extra] of Object.entries(
+      siegeDoubling(state, pending.target, pending.by ?? undefined, pending.components),
+    )) {
+      adjustments[type] = (adjustments[type] ?? 0) + extra;
+    }
     const applied = applyDamage(pending.components, defensesOf(state, pending.target), adjustments);
 
     const dealt = resolveDamage(
@@ -379,13 +521,28 @@ export function settleDamage(
     );
     if (!dealt.ok) return dealt;
 
-    const all = [...events, ...dealt.value.events];
+    // **And what the blow's own type set off on the creature it landed on.**
+    // SRD Lightning Absorption, SRD Aversion to Fire and SRD Freeze are read
+    // by `printedTypeTriggers` on the unheld road; a blow a Reaction held open
+    // is the same blow, and a golem struck by lightning a Bard was watching
+    // absorbed nothing until this call. After the damage, for the reason that
+    // road gives: both sentences are about it having landed, and a `healed`
+    // written before the `damage-taken` it answers is a log nobody could
+    // narrate in order.
+    const triggered = printedTypeTriggers(
+      state,
+      pending.target,
+      pending.components,
+      applied.byType,
+    );
+
+    const all = [...events, ...dealt.value.events, ...triggered.events];
 
     // **What the funnel could not settle, on its way through.** SRD Dark One's
     // Blessing is paid inside `resolveDamage` now — this road used to ask for
     // itself, one call of three — and what it could not check comes back the
     // same way, beside an Undead Fortitude thrown against a blow with no type.
-    const unverified: string[] = [...dealt.value.unverified];
+    const unverified: string[] = [...dealt.value.unverified, ...triggered.unverified];
 
     // **What the blow still owed, now that the defender has answered.** The
     // rider was held here rather than resolved at the swing precisely so that
@@ -1172,7 +1329,7 @@ function throwItBack(
  *
  * | Window | Where the opportunity comes from |
  * |---|---|
- * | `hit-by-attack` | a Reaction spell the target can cast — *Shield* |
+ * | `hit-by-attack` | a Reaction spell the target can cast — *Shield* — and a Reaction its own block prints — Parry |
  * | `damage-rolled` | the offers the engine computed when it held the damage |
  * | `test-rolled` | the offers the engine computed when it held the test |
  * | `damaged-by-creature` | a feature or a Reaction spell, against `lastDamage` |
@@ -1199,8 +1356,21 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     return state.combat.budgets[who]?.reaction !== false;
   };
 
-  /** Reaction spells this creature could cast for a given window. */
-  const spellsFor = (who: CharacterId, window: SpellReactionWindow): ReactionOpportunity[] => {
+  /**
+   * Reaction spells this creature could cast for a given window.
+   *
+   * The match is a predicate rather than the trigger alone, because one spell
+   * answers two windows: SRD *Shield*'s casting time prints "when you are hit
+   * by an attack roll **or** targeted by the *Magic Missile* spell", so its
+   * `trigger` is the first and its `targetedBy` is the second. Everything
+   * below the match is the same for either.
+   */
+  const spellsFor = (
+    who: CharacterId,
+    window: SpellReactionWindow,
+    matches: (definition: SpellDefinition) => boolean = (definition) =>
+      definition.trigger === window,
+  ): ReactionOpportunity[] => {
     const creature = state.creatures[who];
     if (creature === undefined) return [];
     const known = [
@@ -1209,7 +1379,7 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     ];
     return [...new Set(known)].sort().flatMap((spellId): ReactionOpportunity[] => {
       const definition = content.spell(spellId);
-      if (definition?.trigger !== window) return [];
+      if (definition === null || !matches(definition)) return [];
       return [
         {
           window,
@@ -1232,6 +1402,34 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     for (const chance of spellsFor(attack.target, 'hit-by-attack')) {
       found.push({ ...chance, against: attack.attacker });
     }
+    // **And what the target's own sheet answers the same instant with.** SRD
+    // Parry is *Shield*'s sentence worn by a stat block, so the two appear
+    // side by side here — the spell above and the feature below — and the
+    // offer is computed rather than read, because this window holds no list:
+    // `pendingAttack` is the attacker's hold and was written before anybody
+    // asked who could answer it.
+    const target = state.creatures[attack.target];
+    for (const offer of target === undefined
+      ? []
+      : offersForAttack(state, {
+          target: attack.target,
+          attacker: attack.attacker,
+          melee: heldSwingIsMelee(state, content, attack),
+          holdsAWeapon: holdsAWeapon(content, target),
+          canSeeAttacker: canSee(state, attack.target, attack.attacker),
+        }).offers) {
+      found.push({
+        window: 'hit-by-attack',
+        reactor: offer.reactor,
+        id: offer.feature,
+        name: offer.name,
+        kind: 'feature',
+        costsReaction: offer.costsReaction,
+        pool: offer.pool,
+        against: attack.attacker,
+        ...(offer.granted === undefined ? {} : { granted: offer.granted }),
+      });
+    }
   }
 
   // **Every casting that is open, and each offer names which.** Several may be
@@ -1240,6 +1438,23 @@ export function reactionOpportunities(state: GameState, content: Content): reado
   // caster would be indistinguishable, and the ambiguity refusal would then
   // tell a caller to name an id they could not see.
   for (const casting of pendingCastingsOf(state)) {
+    // **And the creatures the casting named, who answer the same hold at the
+    // other end of it.** SRD *Shield*: "or targeted by the *Magic Missile*
+    // spell." Counterspell answers the caster and this answers as a target, so
+    // the two are listed off one record — and this one is not filtered by
+    // `subtle`, because being *targeted* is a fact about the creature the
+    // casting named rather than about what anybody saw or heard.
+    for (const target of [...new Set(casting.targets)].sort()) {
+      if (!canReact(target)) continue;
+      for (const chance of spellsFor(
+        target,
+        'targeted-by-spell',
+        (definition) => definition.targetedBy === casting.spellId,
+      )) {
+        found.push({ ...chance, against: casting.caster, casting: casting.castingId });
+      }
+    }
+
     // SRD Subtle Spell: a spell cast "without any Verbal, Somatic, or Material
     // components" cannot be identified or Counterspelled, because there is
     // nothing to see or hear. The mark is on the record the declaration wrote,

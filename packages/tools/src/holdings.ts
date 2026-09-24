@@ -154,13 +154,15 @@ export type SpendableKind = keyof typeof SPENT_BY;
  * that answers a damage roll and one that answers a D20 Test are the same kind
  * of thing and are taken through different calls.
  *
- * A `Record` over the engine's own union, so the day a fourth window is opened
+ * A `Record` over the engine's own union, so the day a fifth window is opened
  * this is a compile error rather than a granted Reaction with no door — which
- * is the shape `outcome.ts` uses for the same reason one layer down. All three
- * of today's are answerable, which was not true until `take_damage_response`
- * arrived: the third window's feature half reached no tool at all.
+ * is the shape `outcome.ts` uses for the same reason one layer down. All four
+ * of today's are answerable: `take_damage_response` closed the third window's
+ * feature half, which had reached no tool at all, and `take_attack_reaction`
+ * arrived with the fourth — SRD Parry, at the instant *Shield* answers.
  */
 export const TAKEN_BY: Readonly<Record<FeatureReactionWindow, string>> = {
+  'hit-by-attack': 'take_attack_reaction',
   'damage-rolled': 'take_damage_reaction',
   'damaged-by-creature': 'take_damage_response',
   'test-rolled': 'take_test_reaction',

@@ -122,6 +122,16 @@ export function triggerRefusal(
   definition: SpellDefinition,
   request: CastSpellRequest,
 ): Err | null {
+  // **The second moment first, because a spell that prints two answers either
+  // one.** SRD *Shield*: "when you are hit by an attack roll **or** targeted
+  // by the *Magic Missile* spell." The window is a casting that has been
+  // declared and not yet resolved — the one `pendingCastings` already holds
+  // for *Counterspell* — read here as "and this creature is one of its
+  // targets". Where it matches, the first trigger is not asked about; where it
+  // does not, the switch below refuses on the first trigger's own terms, which
+  // is the answer a caller can act on.
+  if (targetedCasting(state, casterId, definition, request.answers) !== null) return null;
+
   const trigger: ReactionTrigger | undefined = definition.trigger;
 
   switch (trigger) {
@@ -242,6 +252,42 @@ export function triggerRefusal(
  * casting the trigger check accepted, by construction rather than by the
  * window happening to be unique.
  */
+/**
+ * The declared casting this Reaction's **second** trigger answers, or null.
+ *
+ * SRD *Shield*: "…or targeted by the *Magic Missile* spell." Three facts and
+ * no judgement: a casting is open, it is of the spell the definition names,
+ * and this creature is one of the targets it settled at its declaration.
+ *
+ * **One reader for the offer and the refusal**, which is the rule
+ * `attackReactionRefusal` keeps about the window one instant earlier:
+ * `reactionOpportunities` lists what this returns and `triggerRefusal` accepts
+ * exactly what this returns, so a window a caller is shown is one the casting
+ * will take.
+ *
+ * Where several are open — two casters throwing Magic Missiles at one wizard —
+ * the first in the order the fold keeps is the one answered, because nothing
+ * about the Reaction differs between them: it negates the casting it names,
+ * and a caller who cares names it with `answers`.
+ */
+export function targetedCasting(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  named?: string,
+): PendingCasting | null {
+  const wanted = definition.targetedBy;
+  if (wanted === undefined) return null;
+  return (
+    pendingCastingsOf(state).find(
+      (casting) =>
+        casting.spellId === wanted &&
+        casting.targets.includes(casterId) &&
+        (named === undefined || casting.castingId === named),
+    ) ?? null
+  );
+}
+
 export function answeredCasting(
   state: GameState,
   definition: SpellDefinition,

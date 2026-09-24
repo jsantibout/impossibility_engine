@@ -222,11 +222,14 @@ export {
   resolveTest,
   settleDamage,
   settleTest,
+  takeAttackReaction,
   takeDamageReaction,
   takeDamageResponse,
   takeTestReaction,
 } from './commands/reactions.js';
 export type {
+  AttackReactionCommand,
+  AttackReactionResolution,
   DamageReactionCommand,
   DamageResponseCommand,
   DeclineReactionCommand,

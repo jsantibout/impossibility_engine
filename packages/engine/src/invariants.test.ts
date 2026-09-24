@@ -131,6 +131,7 @@ import {
   settleDamage,
   settleTest,
   takeDamageReaction,
+  takeAttackReaction,
   takeDamageResponse,
   takeOpportunityAttack,
   takeItemUp,
@@ -1084,6 +1085,15 @@ const reactive = (): CharacterSheet =>
         reach: { kind: 'self' },
         does: { kind: 'melee-attack', withinFeet: 5 },
       },
+      {
+        feature: 'test:parry',
+        name: 'Parry',
+        window: 'hit-by-attack',
+        costsReaction: true,
+        pool: null,
+        reach: { kind: 'self' },
+        does: { kind: 'raise-ac', amount: 2, meleeOnly: true, requiresWeapon: true },
+      },
     ],
   });
 
@@ -1108,6 +1118,40 @@ const blunting = (): readonly GameEvent[] => {
       fold('s', turned),
       B,
       { target: A, weapon: 'longsword', attackBonuses: [{ source: 'forced', flat: 40 }] },
+      supply(),
+    ),
+    'swing',
+  );
+  return [...turned, ...swing.events];
+};
+
+/** B's swing at A is held, so A's Parry has a blow to answer. */
+const parried = (): readonly GameEvent[] => {
+  const log: readonly GameEvent[] = [
+    ...SETUP.map((e) =>
+      e.type === 'creature-added' && e.id === A ? { ...e, sheet: reactive() } : e,
+    ),
+    { type: 'items-gained', id: B, items: [{ id: 'longsword', quantity: 1 }], source: 'kit' },
+    {
+      type: 'item-equipped',
+      id: B,
+      item: 'longsword',
+      armor: SRD_CONTENT.item('longsword')?.armor ?? null,
+    },
+  ];
+  const turned = [...log, ...unwrap(resolveTurn(fold('s', log), supply()), 'turn').events];
+  // Forced high and **held**, which is what makes the window this one: the
+  // hold is the attacker's to ask for, and Parry answers a hit that has one.
+  const swing = unwrap(
+    resolveAttack(
+      fold('s', turned),
+      B,
+      {
+        target: A,
+        weapon: 'longsword',
+        hold: true,
+        attackBonuses: [{ source: 'forced', flat: 40 }],
+      },
       supply(),
     ),
     'swing',
@@ -2372,6 +2416,12 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) =>
       takeDamageResponse(s, A, { feature: 'test:riposte', weapon: 'mace', commandId }, supply()),
   },
+  {
+    name: 'takeAttackReaction',
+    log: parried(),
+    run: (s, commandId) =>
+      takeAttackReaction(s, A, { feature: 'test:parry', commandId }, supply()),
+  },
   /**
    * Acting through a spell that is still running. The most retry-vulnerable
    * casting there is: it spends an Action and rolls an attack, and the attack
@@ -3537,6 +3587,7 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
   takeOpportunityAttack: 'a Reaction, taken on somebody else’s turn',
   resolveFall:
     'the ground: the one thing it spends is the Reaction a faller elects to land with — SRD Slow Fall — and that is a Reaction taken while falling, on whoever’s turn the fall happens, which is `takeOpportunityAttack`’s exemption. The height is a fact the table states rather than an action anybody takes, and a guard would refuse to let a creature hit the floor because somebody else owed a saving throw',
+  takeAttackReaction: 'a Reaction, and it answers a window somebody else opened',
   takeDamageReaction: 'a Reaction, and it closes a window somebody else opened',
   takeTestReaction: 'a Reaction, and it closes a window somebody else opened',
   takeDamageResponse: 'a Reaction, and it closes a window somebody else opened',

@@ -355,6 +355,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // record at all.
   'searing-smite',
   'shatter',
+  // `shield.test.ts` (engine): both triggers. The Armour Class raised against
+  // a held hit, and the second clause the spell waited on a window for — the
+  // wizard answering a declared Magic Missile and taking none of its darts
+  // while the fighter beside them takes theirs, with the negation pinned by
+  // casting id so a second caster's volley still lands.
+  'shield',
   // Driven end to end by `executed-second-pass.test.ts`: refused by the
   // ordinary casting command, then settled onto a held greatsword hit, with
   // the 2d6 Radiant and its per-slot die measured as the gap between two
@@ -1123,6 +1129,10 @@ export interface StatBlockLine {
   readonly teleports?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
   readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
+  /** What a Reaction line adds to its own Armour Class against one attack. */
+  readonly addsToAc?: unknown;
+  /** The printed line a Reaction's whole response performs, by its heading. */
+  readonly usesLine?: string | undefined;
 }
 
 /** Every line of every section of one block, which is what the shapes count over. */
@@ -1139,7 +1149,8 @@ export const statBlockLines = (
 /**
  * A line the parser got structure out of: an attack's numbers, a trait's
  * mechanic, the DC and dice of a save a line forces, the spells a line casts,
- * where a line teleports, the addend a Reaction puts on a roll.
+ * where a line teleports, the addend a Reaction puts on a roll or on its own
+ * Armour Class, the printed line a Reaction's response performs.
  */
 export const isReadLine = (line: StatBlockLine): boolean =>
   line.attack !== undefined ||
@@ -1149,7 +1160,9 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.spellcasting !== undefined ||
   line.casts !== undefined ||
   line.teleports !== undefined ||
-  line.addsToRoll !== undefined;
+  line.addsToRoll !== undefined ||
+  line.addsToAc !== undefined ||
+  line.usesLine !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -1336,6 +1349,14 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Berserk, Vampire Spawn's Stake to the Heart | a creature somebody else is playing: a d6 and a compulsion, a coup de grâce a DM adjudicates |
  * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
  * | Succubus Form, Incubus Form, Troll Spawn, Soul Bag | one stat block becoming another, at a rest or on a 24-hour timer |
+ * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
+ * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
+ *
+ * **Those last two are read as *kinds* and still unspent**, which is the one
+ * thing that makes them look different from the rest of this paragraph: a
+ * sentence with a kind is off the residue list below and onto
+ * {@link UNEXECUTED_TRAIT_SHAPE}, where it is counted as the debt it is. The
+ * table above is the reason each waits, whichever list the line is on.
  */
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'a-heading-over-the-lines-that-follow':
@@ -1360,6 +1381,8 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
     'SRD Hold Breath. A span with nothing at the end of it: the clock could count the hour, but there is no rule waiting for it to run out, so the number is the table\'s to narrate.',
   'is-hurt-by-water':
     'SRD Water Susceptibility and SRD Running Water. A gallon thrown and a river waded are things a DM narrates rather than rules anything sets off, and the damage that follows a ruling already has a door built for it: the DM states the amount and the engine applies it. So the sentence is the number to use through a door that exists, which is what a handover is.',
+  'makes-a-noise':
+    'SRD Shrieker Fungus, Shriek: "The shrieker emits a shriek audible within 300 feet of itself for 1 minute or until the shrieker dies." Nothing in this engine hears anything — there is no sound in state, nothing that reads one, and no check or Reaction waiting on one — so what the sentence does is tell a DM that everything nearby now knows where the party is. It is the same family as SRD Mimicry, which is already here: a noise made, and nobody to hear it but the table.',
   'is-perceived-through-by-its-master':
     'SRD Vampiric Connection: a master who sees through the familiar\'s senses. Sight is asked of the creature rolling, and there is nothing that could borrow one creature\'s senses for another; what the vampire knows is narration.',
   'mimics-sounds':
@@ -1454,6 +1477,12 @@ export const hasHandedOverSave = (line: StatBlockLine): boolean =>
  */
 export const isExecutedLine = (line: StatBlockLine): boolean =>
   line.teleports !== undefined ||
+  // **SRD Parry, executed at the window SRD *Shield* already answered.** The
+  // number goes onto the Armour Class the held attack was measured against and
+  // the hit is re-decided, which is the whole of what the sentence says — so
+  // unlike the line below it there is nothing left over, and unlike
+  // `usesLine` beside it there is no second line to perform.
+  line.addsToAc !== undefined ||
   // **The addend, narrowed the way the adapter narrows it.** `test-rolled` is
   // the instant a check or a save has landed and an attack roll is not one of
   // them, so `triggeringTests` in `monster.ts` compiles nothing for a trigger
@@ -1488,6 +1517,29 @@ export const CAST_LINE_SHAPE = 'A line that casts, read and not spent';
 export const hasUnspentCastLine = (line: StatBlockLine): boolean => line.casts !== undefined;
 
 /**
+ * A Reaction whose **response** is another line of the same block.
+ *
+ * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
+ * rust monster. _Response:_ The rust monster uses Antennae."
+ *
+ * {@link SAVE_HANDOVER_SHAPE}'s sibling and on the ledger's over-read list for
+ * its reason: the line **is** read — the trigger is `hit-by-attack`, the
+ * window the engine holds, and the name of the response is structure on the
+ * sheet — and it is not **paid**, because the engine performs no printed line
+ * as a Reaction's response. What it does instead is offer the Reaction and
+ * hand the response to the table by name, which is a handover with a debt
+ * behind it rather than a finished sentence: the rust monster's Antennae is a
+ * save line nothing has read, and eating the weapon that hit it is a rule
+ * somebody will build.
+ *
+ * It retires when a response is performed rather than named — the same way the
+ * Multiattack and Spellcasting rows shrank when their sentences became
+ * something the engine runs.
+ */
+export const REACTION_USE_SHAPE = 'A Reaction whose printed response is handed over';
+export const hasHandedOverResponse = (line: StatBlockLine): boolean => line.usesLine !== undefined;
+
+/**
  * The shapes a printed stat-block line waits on, over the whole bestiary and
  * over the CR ≤ 5 tail alike.
  *
@@ -1517,6 +1569,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
   [CAST_LINE_SHAPE, hasUnspentCastLine],
+  [REACTION_USE_SHAPE, hasHandedOverResponse],
   [RIDER_SHAPE, hasUnappliedRider],
   [RIDER_HANDOVER_SHAPE, hasHandedOverRider],
   [UNEXECUTED_TRAIT_SHAPE, hasUnexecutedTrait],

@@ -546,6 +546,30 @@ describe('each rule refuses something', () => {
     expect(only({ castingTime: 'reaction' })).toEqual(['reaction_without_trigger']);
   });
 
+  /**
+   * The second trigger and the benefit that hangs on it — SRD *Shield*'s "or
+   * targeted by the *Magic Missile* spell", and "you take no damage" from it.
+   * Neither means anything apart from the other or apart from the Reaction.
+   */
+  it('refuses a second trigger on a spell that is not a Reaction', () => {
+    expect(only({ targetedBy: 'magic-missile' })).toEqual(['trigger_without_reaction']);
+  });
+
+  it('refuses a negation with no casting that triggered it', () => {
+    expect(only({ negatesTriggeringCasting: true })).toEqual(['negation_without_a_trigger']);
+  });
+
+  it('accepts the pair on a Reaction', () => {
+    expect(
+      only({
+        castingTime: 'reaction',
+        trigger: 'hit-by-attack',
+        targetedBy: 'magic-missile',
+        negatesTriggeringCasting: true,
+      }),
+    ).toEqual([]);
+  });
+
   // — what it does ————————————————————————————————————————————————————————
 
   it('refuses a spell that resolves nothing and explains nothing', () => {

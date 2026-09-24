@@ -198,18 +198,18 @@ export function adjustmentsFor(
  * so the multiplier lands on `OBJECT_CREATURE_TYPE` and a castle wall is
  * whatever the table declared it as.
  *
- * **One road of two, and the gap is stated rather than assumed away.** A blow
- * held open at a Reaction window settles through `settleDamage` in
- * `commands/reactions.ts`, which reaches `applyDamage` directly and never
- * comes here — and the window is not offered off the *target's* Reactions
- * alone: `offersForDamage` walks every creature and skips only a reactor whose
- * feature reaches `self`, so a Bard within sixty feet of an Earth Elemental
- * smashing a door holds that blow open with Cutting Words and the doubling is
- * skipped. The same is true of {@link printedTypeTriggers} one function down.
- * The fix is one call in `settleDamage`; that file belongs to another track
- * this batch, so the gap is written here and reported rather than half-closed.
+ * **Two roads and one rule, which is why this is exported.** A blow held open
+ * at a Reaction window settles through `settleDamage` in
+ * `commands/reactions.ts` rather than here — and the window is not offered off
+ * the *target's* Reactions alone: `offersForDamage` walks every creature and
+ * skips only a reactor whose feature reaches `self`, so a Bard within sixty
+ * feet of an Earth Elemental smashing a door holds that blow open with Cutting
+ * Words. That road called `applyDamage` with the reductions alone and the
+ * doubling was skipped; it calls this on the way past now, at the same step
+ * and out of the same function, exactly as `standingReductionOf` is shared.
+ * The same was true of {@link printedTypeTriggers} one function down.
  */
-function siegeDoubling(
+export function siegeDoubling(
   state: GameState,
   target: CharacterId,
   by: CharacterId | undefined,
@@ -249,13 +249,14 @@ function siegeDoubling(
  * clause on a stat-block line takes: the blow lands, and the sentence the
  * engine could not carry is named.
  *
- * **Only on the road that lands damage here**, which is the gap
- * {@link siegeDoubling} states above and it is the same gap: a blow somebody
- * held open at a Reaction window settles in `commands/reactions.ts` and never
- * reaches this function, so a Flesh Golem struck by a Lightning Bolt a Bard
- * answered absorbs nothing. One call in `settleDamage` closes both.
+ * **On both roads that land damage**, which is what {@link siegeDoubling}
+ * above says about itself and for the same reason: a blow somebody held open
+ * at a Reaction window settles in `commands/reactions.ts`, and a Flesh Golem
+ * struck by lightning a Bard held open absorbed nothing until that road asked
+ * this function too. It is asked there after the damage has landed, which is
+ * where this road asks it and what both sentences are about.
  */
-function printedTypeTriggers(
+export function printedTypeTriggers(
   state: GameState,
   target: CharacterId,
   components: readonly DamageComponent[],

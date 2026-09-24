@@ -540,6 +540,31 @@ export interface OngoingSpell {
    * replay that changed is the one thing the pinning was for.
    */
   readonly areaStanding?: AreaStanding;
+  /**
+   * The casting this one was taken against, and the spell whose damage it
+   * turns aside while it runs.
+   *
+   * SRD *Shield*: "**Until the start of your next turn**, you have a +5 bonus
+   * to AC, including against the triggering attack, **and you take no damage
+   * from *Magic Missile***." Both halves of that sentence are inside the
+   * duration, so what is turned aside is the spell for as long as the barrier
+   * stands rather than the one volley that provoked it — a second caster's
+   * darts in the same round are stopped by the book and are stopped here.
+   *
+   * **Both facts, because they answer different questions.** `spell` is what
+   * the negation reads: a casting of that id deals this creature nothing. And
+   * it is a **pinned** id rather than a rule naming a catalogue entry — the
+   * discipline CLAUDE.md states, where what a command read from content is
+   * written into the event it emitted — so no engine file knows the name and
+   * a definition that names another spell works for free. `casting` is what
+   * the Reaction answered, kept so a log can say which volley the barrier went
+   * up against; nothing decides anything by it.
+   *
+   * Pinned at the cast for the reason every other field here is pinned, and
+   * read where a casting's damage would land on this creature. Absent on every
+   * other casting in the book.
+   */
+  readonly negates?: { readonly casting: string; readonly spell: string };
 }
 
 /**

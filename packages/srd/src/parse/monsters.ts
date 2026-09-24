@@ -1,5 +1,6 @@
 import {
   CreatureSizeSchema,
+  MonsterAcAddendSchema,
   MonsterAttackSchema,
   MonsterCastLineSchema,
   MonsterRollAddendSchema,
@@ -10,6 +11,7 @@ import {
   slugify,
   type Feature,
   type Monster,
+  type MonsterAcAddend,
   type MonsterAttack,
   type MonsterCastLine,
   type MonsterDamage,
@@ -1003,6 +1005,43 @@ const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
 
   // SRD Vampire Weakness: a heading, and a rule of nothing on its own.
   [new RegExp(`^${SUBJECT} has these weaknesses:$`), 'a-heading-over-the-lines-that-follow'],
+
+  // SRD Goblin Boss, Redirect Attack. Read whole, and every clause of it is
+  // why: the window is a swing **before** the roll is decided, and the
+  // response swaps two creatures' spaces and re-aims the attack.
+  [
+    new RegExp(
+      `^_Trigger:_ A creature ${SUBJECT} can see makes an attack roll against it\\. ` +
+        `_Response:_ ${SUBJECT} chooses a Small or Medium ally within \\d+ feet of itself\\. ` +
+        `${SUBJECT} and that ally swap places, and the ally becomes the target of the attack ` +
+        `instead\\.$`,
+    ),
+    'swaps-places-with-an-ally-to-take-an-attack',
+  ],
+
+  // SRD Black Pudding and SRD Ochre Jelly, Split. Two creatures that did not
+  // exist a moment ago, in the Initiative order, sharing the original's Hit
+  // Points.
+  [
+    new RegExp(
+      `^_Trigger:_ While ${SUBJECT} is Large or Medium and has \\d+\\+ Hit Points, it becomes ` +
+        `Bloodied or is subjected to Lightning or Slashing damage\\. _Response:_ ${SUBJECT} ` +
+        `splits into two new \\*\\*${SUBJECT}\\*\\*\\. Each new ${SUBJECT} is one size smaller ` +
+        `than the original ${SUBJECT} and acts on its Initiative\\. The original ${SUBJECT}['’]s ` +
+        `Hit Points are divided evenly between the new ${SUBJECT} \\(round down\\)\\.$`,
+    ),
+    'splits-into-two-creatures',
+  ],
+
+  // SRD Shrieker Fungus, Shriek. A noise, which nothing in this engine hears.
+  [
+    new RegExp(
+      `^_Trigger:_ A creature or a source of Bright Light moves within \\d+ feet of ${SUBJECT}\\. ` +
+        `_Response:_ ${SUBJECT} emits a shriek audible within \\d+ feet of itself for ` +
+        `\\d+ minutes? or until ${SUBJECT} dies\\.$`,
+    ),
+    'makes-a-noise',
+  ],
 ];
 
 /** The book's nouns for the rolls, in the kind's own three words. */
@@ -1595,6 +1634,69 @@ export function parseRollAddendLine(text: string): MonsterRollAddend | null {
   return checked.success ? checked.data : null;
 }
 
+/**
+ * SRD Parry: "_Trigger:_ The knight is hit by a melee attack roll while
+ * holding a weapon. _Response:_ The knight adds 2 to its AC against that
+ * attack, possibly causing it to miss."
+ *
+ * The book's second `_Trigger:_` / `_Response:_` template and the commonest
+ * one — seven blocks print it, five of them at CR 5 or below. It is read
+ * because the engine holds the instant it names: `hit-by-attack` is SRD
+ * *Shield*'s own window, where the roll is known and the damage is not.
+ *
+ * Anchored end to end, which refuses the three lines that add a number to an
+ * Armour Class and then say something else: the Pirate Captain's Riposte
+ * swings back on a miss, the Mummy Lord's Whirlwind of Sand answers *any*
+ * attack roll and teleports, and the Shield Guardian's Protection raises
+ * somebody else's Armour Class until its next turn.
+ */
+const AC_ADDEND_LINE = new RegExp(
+  `^_Trigger:_ The ${SUBJECT} is hit by a melee attack roll while holding a weapon\\. ` +
+    `_Response:_ The ${SUBJECT} adds (\\d+) to its AC against that attack, ` +
+    `possibly causing it to miss\\.$`,
+);
+
+/** What this Reaction adds to its Armour Class, or null for every other line. */
+export function parseAcAddendLine(text: string): MonsterAcAddend | null {
+  const matched = AC_ADDEND_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+
+  const checked = MonsterAcAddendSchema.safeParse({
+    addend: Number(matched[1]!),
+    // Both printed by every line of this shape, and both anchored above — see
+    // {@link MonsterAcAddendSchema} for why they are written down anyway.
+    meleeOnly: true,
+    requiresWeapon: true,
+  });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
+ * rust monster. _Response:_ The rust monster uses Antennae."
+ *
+ * The third `_Trigger:_` template the engine can read, and the first whose
+ * *response* is another line of the same block rather than a rule. What is
+ * read is the trigger — which is `hit-by-attack`, the window the two above it
+ * answer — and the **name** of the line the response performs; what that line
+ * does is that line's own business, and the SRD's is a save nothing reads yet.
+ *
+ * The capture is the shape a printed heading has: capitalised words, which is
+ * the same claim `NAMES` makes below about a Multiattack's menu. Anchored end
+ * to end, which refuses the Nalfeshnee's Pursuit — a different trigger, and a
+ * clause about where the response may put the creature.
+ */
+const REACTION_USE_LINE = new RegExp(
+  `^_Trigger:_ An attack roll hits ${SUBJECT}\\. ` +
+    `_Response:_ ${SUBJECT} uses ([A-Z][A-Za-z'’-]*(?: [A-Z][A-Za-z'’-]*)*)\\.$`,
+);
+
+/** The printed line this Reaction performs, or null for every other line. */
+export function parseReactionUseLine(text: string): string | null {
+  const matched = REACTION_USE_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  return matched === null ? null : matched[1]!;
+}
+
 /** The counts a Multiattack sentence is written with; the book uses no digits. */
 const COUNT_WORDS: Readonly<Record<string, number>> = {
   one: 1,
@@ -2099,6 +2201,12 @@ function parseFeatures(
       const casts = parseCastLine(text);
       const teleports = parseTeleportLine(text);
       const addsToRoll = parseRollAddendLine(text);
+      // The Reactions section's other two templates, read off the sentence for
+      // the reason every detector here is: SRD Parry's number goes on an
+      // Armour Class, and SRD Reflexive Antennae's response is the name of
+      // another line of this same block.
+      const addsToAc = parseAcAddendLine(text);
+      const usesLine = parseReactionUseLine(text);
       features.push({
         name: current.name,
         text,
@@ -2112,6 +2220,8 @@ function parseFeatures(
         ...(casts === null ? {} : { casts }),
         ...(teleports === null ? {} : { teleports }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
+        ...(addsToAc === null ? {} : { addsToAc }),
+        ...(usesLine === null ? {} : { usesLine }),
       });
     }
     current = null;

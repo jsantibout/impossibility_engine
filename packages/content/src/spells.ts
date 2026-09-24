@@ -337,6 +337,33 @@ export const COUNTERSPELL: SpellDefinition = {
   ],
 };
 
+/**
+ * SRD Shield:
+ *
+ * > _Level 1 Abjuration (Sorcerer, Wizard)._ **Casting Time:** Reaction, which
+ * > you take when you are hit by an attack roll or targeted by the _Magic
+ * > Missile_ spell. **Range:** Self. **Duration:** 1 round.
+ * > "An invisible barrier of magical force appears and protects you. Until the
+ * > start of your next turn, you have a +5 bonus to AC, including against the
+ * > triggering attack, and you take no damage from _Magic Missile_."
+ *
+ * **The one spell in the book with two triggers**, and the second waited two
+ * years on a window nobody had a point in a path for. It has one now: a
+ * casting that has been *declared* has settled its targets and not resolved
+ * its effects, which is where Counterspell already stands — so the same hold
+ * answers both, from opposite ends. `targetedBy` names the spell and
+ * `negatesTriggeringCasting` is the benefit: the spell is pinned off the
+ * casting that triggered it and its damage is turned aside for as long as the
+ * barrier stands, which is where the SRD puts it — inside the same duration as
+ * the +5, so a second caster's volley in the same round is stopped too.
+ *
+ * What the second trigger costs is a declaration: a Magic Missile resolved in
+ * one command passes through the moment without stopping, so a table that
+ * wants the defender to have their say casts it with `hold`. That is the same
+ * price Counterspell pays and it is stated rather than worked around — an
+ * engine that held every casting open would make every Fire Bolt a two-command
+ * negotiation.
+ */
 export const SHIELD: SpellDefinition = {
   id: 'shield',
   name: 'Shield',
@@ -344,6 +371,18 @@ export const SHIELD: SpellDefinition = {
   school: 'abjuration',
   castingTime: 'reaction',
   trigger: 'hit-by-attack',
+  // "…**or targeted by the _Magic Missile_ spell**." The book's one spell with
+  // two triggers, and the second is a window that opens where a casting has
+  // named its targets and not yet resolved on them — which is the hold
+  // Counterspell already answers, read from the other end of it.
+  targetedBy: 'magic-missile',
+  // "Until the start of your next turn … and you take no damage from _Magic
+  // Missile_." Both halves of the sentence are inside the duration, so what
+  // the barrier turns aside is the spell for as long as it stands — a second
+  // caster's volley included. The spell is pinned off the casting that
+  // triggered it, which is why this is not `damage-defense`: that vocabulary
+  // names a damage type, and nothing in the engine names this one.
+  negatesTriggeringCasting: true,
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 1, self: true },
@@ -356,9 +395,6 @@ export const SHIELD: SpellDefinition = {
     },
   ],
   durationUntil: 'start-of-casters-next-turn',
-  unmodelled: [
-    'being targeted by Magic Missile is also a trigger, and taking no damage from it is also a benefit; neither is modelled, and Magic Missile being executable is no longer the reason. The trigger needs a reaction window that opens on being targeted by a particular spell, which is a seventh ReactionWindow and a point in a resolution path nothing stops at today; the benefit needs a damage Immunity narrowed to one spell, which `damage-defense` refuses to be by construction and which no engine rule may name anyway',
-  ],
 };
 
 /**
@@ -3368,11 +3404,13 @@ export const MAGE_ARMOR: SpellDefinition = {
  * Which creature gets how many is the caster's, said with `rollsAt` and dealt
  * round the list when they say nothing, exactly as Scorching Ray's rays are.
  *
- * **Shield's second trigger is still not modelled and this does not finish
- * it.** That spell needs two things this one does not provide: a Reaction
- * window that opens on *being targeted by a particular spell*, and a damage
- * Immunity narrowed to one spell id, which the engine may not hold — see
- * `SHIELD.unmodelled`.
+ * **Shield's second trigger is answered here now**, and neither of the two
+ * things it was waiting for turned out to be what finished it. The window is
+ * `targeted-by-spell` — a casting that has been *declared* and not resolved,
+ * which is where Counterspell already stands — and the benefit is narrowed to
+ * a **casting id** rather than to a spell, so the engine names nothing and
+ * `damage-defense` is left saying what it always said. A volley a defender is
+ * meant to answer is declared with `hold`; see `SHIELD`.
  */
 export const MAGIC_MISSILE: SpellDefinition = {
   id: 'magic-missile',
