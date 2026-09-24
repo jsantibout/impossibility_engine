@@ -607,17 +607,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'needs a fact about whose hand an object is in',
       why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: "This effect also ends if you aren’t carrying the weapon." That shape’s own description names letting go of an object among the causes with no member, and names Shillelagh for it; this is the same sentence on a feature’s activation, where the vocabulary is `ActivationEnd` rather than `endsEarly` and is just as short of it.',
-    },
-    {
-      clause: 'a damage type the holder chooses on each hit',
-      why: 'an-attack-the-class-redefines',
-      note: 'SRD: "each time you hit with it, you cause it to deal its normal damage type or Radiant damage." That shape’s own description names a damage type chosen on each hit as one of the two halves of it still unbuilt, and this is the feature that prints it; Shillelagh prints the same sentence from the spell side.',
-    },
-    {
-      clause: 'The Bright Light in a 20-foot radius is fiction',
-      why: 'table',
-      note: 'the engine holds no Bright, Dim or Darkness, which `sightBetween` says outright.',
+      note: 'SRD: "This effect also ends if you aren’t carrying the weapon." That shape’s own description names letting go of an object among the causes with no member, and names Shillelagh for it; this is the same sentence on a feature’s activation, where the vocabulary is `ActivationEnd` rather than `endsEarly`. What it is short of is not a member but a fact: the ending is derived by the fold after every event, an `item-equipped` line pins an armour record and no weapon record, and a `WeaponNarrowing` is a description of a kind of weapon — so no pass over `equipped` or `inventory` can tell a Longsword from a torch without opening a catalogue, which rule 5 forbids the fold.',
     },
   ],
   'oath-of-devotion:smite-of-protection': [

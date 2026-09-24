@@ -1184,17 +1184,31 @@ describe('what an item may grant is derived from the union, not recalled', () =>
   });
 
   /**
-   * And every standing grant but the two deliberately withheld. `speedOf`
-   * gathers Speed from the sheet alone, because it is the function a
-   * `has-speed` requirement asks, so an item's Speed grant is refused by name
-   * rather than accepted and never read; and an ability-sized `attack-bonus`
-   * has no `onlyWithItem` narrowing, so an item's would reach every swing its
-   * wearer made with anything — a benefit **misapplied** rather than one never
-   * applied, which is the worse of the two.
+   * And every standing grant but the four deliberately withheld, which are two
+   * of each of the two reasons.
+   *
+   * **A reader that does not reach an item's grants.** `speedOf` gathers Speed
+   * from the sheet alone, because it is the function a `has-speed` requirement
+   * asks; `carriedLight` gathers a `light` grant from the sheet alone, because
+   * it sits inside `lightAt`, below `standing.ts` in the import graph and
+   * *called by* the requirement reader — so gathering an item's there would be
+   * a question asked of its own answer. Either grant on an item is refused by
+   * name rather than accepted and never read.
+   *
+   * **A narrowing the item's own sentence would need.** An ability-sized
+   * `attack-bonus` and a `weapon-damage-type` offer both narrow by a kind of
+   * weapon and have no `onlyWithItem`, so an item's would reach every swing
+   * its wearer made with anything — a benefit **misapplied** rather than one
+   * never applied, which is the worse of the two.
    */
-  const WITHHELD_FROM_AN_ITEM: readonly string[] = ['speed', 'attack-bonus'];
+  const WITHHELD_FROM_AN_ITEM: readonly string[] = [
+    'speed',
+    'attack-bonus',
+    'weapon-damage-type',
+    'light',
+  ];
 
-  it('carries every standing grant but the two withheld, and invents none', () => {
+  it('carries every standing grant but the withheld, and invents none', () => {
     for (const kind of WITHHELD_FROM_AN_ITEM) expect(unionKinds('StandingGrant')).toContain(kind);
     expect([...ITEM_EFFECT_KINDS].sort()).toEqual(
       unionKinds('StandingGrant').filter((kind) => !WITHHELD_FROM_AN_ITEM.includes(kind)),

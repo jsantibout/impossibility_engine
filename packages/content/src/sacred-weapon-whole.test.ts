@@ -27,6 +27,7 @@ import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/sh
 import {
   activateFeature,
   advanceTime,
+  checkContent,
   createCharacter,
   createRollIssuer,
   endFeature,
@@ -343,5 +344,82 @@ describe('SRD Sacred Weapon: "it deals its normal damage type or Radiant damage"
     const refused = swing(imbued(), 'shortbow', { [SACRED_WEAPON]: 'radiant' });
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.code).toBe('no_such_feature_choice');
+  });
+});
+
+/**
+ * What a catalogue can write here that nothing downstream could recover from.
+ *
+ * Each member has one reader — `carriedLight` lays a sphere per radius,
+ * `damageTypesOffered` gathers the types a swing may name — so a radius of
+ * nothing and an offer of nothing are each a clause that validates, compiles
+ * onto the sheet and is matched by nobody. Refused at authoring, where a
+ * catalogue's mistakes belong, and on the spelling the SRD prints them in:
+ * inside a feature the holder switches on.
+ */
+describe('the two clauses are refused at the door where they say nothing', () => {
+  const rewritten = (whileActiveOver: readonly unknown[]): readonly string[] => {
+    const oath = JSON.parse(
+      JSON.stringify(SRD_CONTENT.subclasses.find((one) => one.id === 'oath-of-devotion')),
+    ) as { features: { id: string; grants: Record<string, unknown> }[] };
+    const feature = oath.features.find((one) => one.id === SACRED_WEAPON)!;
+    feature.grants = { ...feature.grants, whileActive: whileActiveOver };
+    return checkContent({ subclasses: [oath as never] }).map(
+      (problem) => `${problem.code} @ ${problem.field}`,
+    );
+  };
+
+  const at = 'subclasses[oath-of-devotion].features[1].grants.whileActive[0]';
+
+  it('refuses a light of no radius, and one at a level the glossary does not print', () => {
+    expect(rewritten([{ kind: 'light', level: 'bright', radius: 0 }])).toContain(
+      `bad_light_radius @ ${at}.radius`,
+    );
+    expect(rewritten([{ kind: 'light', level: 'blinding', radius: 20 }])).toContain(
+      `bad_light_level @ ${at}.level`,
+    );
+    expect(rewritten([{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 2 }])).toContain(
+      `bad_light_radius @ ${at}.dimBeyond`,
+    );
+  });
+
+  it('refuses an offer of no damage types, which could never be answered', () => {
+    expect(rewritten([{ kind: 'weapon-damage-type', damageTypes: [] }])).toContain(
+      `offers_no_damage_type @ ${at}.damageTypes`,
+    );
+  });
+
+  /**
+   * And neither reaches an **item**, by name. A light on a worn thing is
+   * gathered by nobody: `lightAt` reads the sheet alone and must, because
+   * `requirementsHold` calls it and a reader that went back through the item's
+   * grants would be asking a question of its own answer. An offer on a blade
+   * would be the other failure and the worse one — it narrows by a *kind* of
+   * weapon and has no "made with this item", so it would put Radiant on every
+   * swing its wearer made with anything.
+   */
+  it('refuses both from an item, which reads neither', () => {
+    const codesOf = (effect: unknown): readonly string[] =>
+      checkContent({
+        items: [
+          {
+            id: 'lantern-of-misplaced-hope',
+            name: 'Lantern of Misplaced Hope',
+            kind: 'wondrous',
+            weightLb: 0,
+            costCp: null,
+            armor: null,
+            weapon: null,
+            contents: [],
+            attunement: {},
+            grants: [{ kind: 'standing', reach: 'self', effects: [effect] }],
+          } as never,
+        ],
+      }).map((problem) => problem.code);
+
+    expect(codesOf({ kind: 'light', level: 'bright', radius: 20 })).toContain('bad_item_effect');
+    expect(codesOf({ kind: 'weapon-damage-type', damageTypes: ['radiant'] })).toContain(
+      'bad_item_effect',
+    );
   });
 });
