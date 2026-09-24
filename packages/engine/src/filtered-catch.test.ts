@@ -554,6 +554,18 @@ describe('the shortlist knows the area', () => {
     expect(out.needsContext.map((n) => n.kind)).toEqual(['route']);
   });
 
+  /**
+   * And the Range still bounds the *point*, which is the one thing it is for
+   * once the template is doing the catching: a Sphere the caster cannot reach
+   * is a placement to correct, not a list to hand back.
+   */
+  it('refuses a point beyond the spell’s Range, and says to move it', () => {
+    const out = shortlist('sleep', 1, { at: AWAY });
+    expect(out.eligible).toEqual([]);
+    expect(out.needsContext.map((n) => n.kind)).toEqual(['route']);
+    expect(out.needsContext[0]?.need).toContain('60 feet');
+  });
+
   /** SRD Entangle's parenthesis reaches the shortlist as it reaches the catch. */
   it('leaves the caster out of their own plants, and says which clause did it', () => {
     const out = shortlist('entangle', 1, { at: AT, towards: TOWARDS });
