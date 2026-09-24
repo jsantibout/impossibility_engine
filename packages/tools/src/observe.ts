@@ -136,6 +136,32 @@ export interface ObservedPrintedLine {
    * `take_printed_bonus_action` over one heading are a guess.
    */
   readonly engineTeleports: boolean;
+  /**
+   * The forms this line offers, by the word each goes by, or an empty list
+   * where the line offers none.
+   *
+   * {@link engineTeleports}'s sibling and one thing more than a boolean, for
+   * one reason: `shape_shift_printed_line` takes a *word* off the line's own
+   * list, and a caller told only that the door exists would still have to
+   * guess what to send it. So the list is the report and its emptiness is the
+   * flag.
+   *
+   * SRD Werewolf's Shape-Shift reads `['hybrid', 'wolf', 'humanoid']`; SRD
+   * Vampire's reads `[]`, because its sentence is gated on sunlight and
+   * running water and the reader is anchored against saying otherwise. Read
+   * off the pinned record the command itself reads, so the report and the
+   * refusal cannot disagree.
+   */
+  readonly formsOffered: readonly string[];
+  /**
+   * Whether the engine will drag what this line says the creature is holding,
+   * or the sentence is the caller's to adjudicate.
+   *
+   * {@link engineTeleports}'s sibling, read the same way. SRD Roper's Reel
+   * reads `true`; SRD Ettercap's line under the same heading reads `false`,
+   * because it pulls by a web rather than by a grapple.
+   */
+  readonly engineMakesThePull: boolean;
 }
 
 /**
@@ -515,6 +541,8 @@ function printedBlock(
     readonly recharge?: StatedAttack['recharge'];
     readonly save?: StatedAction['save'];
     readonly teleports?: StatedAction['teleports'];
+    readonly forms?: StatedAction['forms'];
+    readonly pulls?: StatedAction['pulls'];
   }): ObservedPrintedLine => ({
     name: one.name,
     text: one.text,
@@ -528,6 +556,12 @@ function printedBlock(
     // The same, one door along: the pinned record that `takePrintedTeleport`
     // itself reads, so the report and the refusal cannot disagree.
     engineTeleports: one.teleports !== undefined,
+    // The words `shape_shift_printed_line` takes, off the same pinned record
+    // it reads: a caller told only that the door exists would still have had
+    // to guess what to send it.
+    formsOffered: (one.forms?.forms ?? []).map((form) => form.name),
+    // And the same, one door along, for `pull_printed_line`.
+    engineMakesThePull: one.pulls !== undefined,
   });
 
   return {

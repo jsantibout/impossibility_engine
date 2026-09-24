@@ -211,9 +211,15 @@ describe('the adapter carries what a block says it does', () => {
     expect(wolf.sheet.stated?.traits).toEqual([
       { kind: 'advantage-when-ally-is-within-5-feet-of-the-target' },
     ]);
-    // The spider prints two, and one of them is a sentence the parser now
-    // reads: Web Walker is still prose and Spider Climb is not.
-    expect(spider.sheet.stated?.traits).toEqual([{ kind: 'climbs-without-a-check' }]);
+    // The spider prints two and both are read now — and the two are read for
+    // opposite reasons, which is why they are asserted together: Spider Climb
+    // is a rule `climbCheck` spends, and Web Walker is a fact about a world
+    // holding no webs, handed to the table and consulted by nothing. See
+    // `HANDOVER_TRAIT_KINDS`.
+    expect(spider.sheet.stated?.traits).toEqual([
+      { kind: 'climbs-without-a-check' },
+      { kind: 'ignores-a-webs-restrictions' },
+    ]);
     expect(ogre.sheet.stated?.traits ?? []).toEqual([]);
     expect(azer.sheet.stated?.traits).toEqual([
       {

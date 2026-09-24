@@ -1168,6 +1168,10 @@ export interface StatBlockLine {
   readonly casts?: unknown;
   /** Where a line teleports its creature. */
   readonly teleports?: unknown;
+  /** The forms a line puts its creature into — SRD Shape-Shift. */
+  readonly forms?: unknown;
+  /** What a line drags toward its creature — SRD Roper's Reel. */
+  readonly pulls?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
   readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
   /** What a Reaction line adds to its own Armour Class against one attack. */
@@ -1201,6 +1205,8 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.spellcasting !== undefined ||
   line.casts !== undefined ||
   line.teleports !== undefined ||
+  line.forms !== undefined ||
+  line.pulls !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined;
@@ -1389,6 +1395,17 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * minds, sounds, a narrated substance or a GM's choice, and not one of them
  * names a thing a rule consults.
  *
+ * **And the world family joined them**, which is the same test pointed at the
+ * ground instead of at the air. A gap an inch wide, solid rock, a web, a sheet
+ * of ice, another creature's own space and a vampire's heart are all facts
+ * about the *place* rather than about the creature, and this scene holds
+ * creatures, landmarks, declared objects and declared regions and nothing that
+ * anything is made of. They share one reason, written once at the head of
+ * their group below and again per kind in the sentence's own terms, and the
+ * day the lattice holds materials it is false — which is not left to be
+ * noticed, because the inverted pin fails the moment one of them grows a
+ * reader.
+ *
  * **What is deliberately *not* here is the other half of the residue**, and it
  * is worth naming family by family, because a line with no note beside it
  * looks like a line nobody read. Each of these states a mechanic the engine
@@ -1398,16 +1415,17 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Amorphous ×4, Compression, Air Form, Fire Form, Water Form, Ooze Cube | a space narrower than the lattice's five feet, and a creature's space entered and stopped in |
- * | Earth Glide ×2, Tunneler, Incorporeal Movement ×4, Ephemeral, Ice Walk | ground and walls as material rather than as declared regions |
- * | Web Walker ×4, Adhesive, Spider Climb (the Swarm's) | a restriction with a *source*, so a web's Restrained can be told from a rope's |
+ * | Ooze Cube | `a-second-place-to-put-a-creature`: the cube holds a Large creature or four Medium ones **inside itself**, they have Total Cover there, and a neighbour pulls one out on a check. The narrow-gap half of its paragraph is the movement family below; the rest is not, and reading the whole as fiction would lose four rules |
  * | Swarm ×7 | a healing rule a stat block states. `HealingRule` exists and `healingRuleOf` reads granted state; nothing writes one when a block arrives, so "can't regain Hit Points" has no door |
  * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
- * | Berserk, Vampire Spawn's Stake to the Heart | a creature somebody else is playing: a d6 and a compulsion, a coup de grâce a DM adjudicates |
+ * | Berserk ×2 | a creature somebody else is playing: a d6 at the start of a turn and a compulsion that picks the golem's target for it. `a-creature-somebody-else-is-playing` |
+ * | Abduct ×2 | the price of dragging a creature you have Grappled. "Needn't spend extra movement to move a creature it is grappling" is a rule about a cost the engine charges, so it is a debt rather than a fact about the world |
  * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
- * | Succubus Form, Incubus Form, Troll Spawn, Soul Bag | one stat block becoming another, at a rest or on a 24-hour timer |
+ * | Succubus Form, Incubus Form, Troll Spawn | one stat block replaced by another, at a Long Rest or on a 24-hour timer. `assumeStatBlock` is the mechanism and Wild Shape is its one caller; what is missing is the door a *creature's own printed line* comes through, and the Troll Limb's d12 besides |
+ * | Soul Bag | an object a block is born holding. `declareObject` holds a thing with an Armour Class, Hit Points and a Resistance that can be broken; nothing gives one to a creature when its stat block arrives, and the hag's Nightmare Haunting is gated on carrying it |
+ * | Spider Climb (the Swarm's) | a **gate** on a kind that already has a reader: "If the swarm has a Climb Speed, the swarm can climb…". `climbs-without-a-check` is spent by `climbCheck`, so this is a field on that kind rather than a third answer — and a gate read away would be a rule nobody printed |
  * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
  *
@@ -1460,6 +1478,50 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
     'SRD Speak with Beasts and Plants: "can communicate with Beasts and Plants as if they shared a language." A language is a fact on the sheet that nothing consults, and what a Beast says back is the DM\'s.',
   'thoughts-cannot-be-read':
     'SRD Shielded Mind: "The couatl\'s thoughts can\'t be read by any means." Nothing here reads a thought, so the defence guards a door that was never there; it is a fact about the couatl for whoever is narrating.',
+
+  // ------------------------------------------------------------------
+  // **The world family**, and the movement half of it shares one reason.
+  //
+  // The scene holds creatures, landmarks, declared objects and declared
+  // regions. It does not hold what anything is *made of*, how wide a gap
+  // between two things is, or whether a creature's own space may be stood in
+  // — so squeezing through an inch, gliding through rock, walking a web and
+  // stepping inside another creature each name a fact nobody can state and no
+  // rule would read afterwards. That is the same test the breathing traits
+  // pass, pointed at the ground instead of at the air.
+  //
+  // **The day the lattice holds materials the shared reason is false**, and
+  // the guards say so rather than leaving it to be noticed: the moment one of
+  // these grows a reader in `packages/engine/src`, `coverage.test.ts` fails on
+  // the inverted pin, and whoever built the reader moves the kind to the
+  // roster in the same commit.
+  // ------------------------------------------------------------------
+  'moves-through-a-one-inch-gap':
+    'SRD Amorphous and SRD Compression: "can move through a space as narrow as 1 inch without expending extra movement to do so." The lattice\'s smallest unit is a five-foot space and nothing in the scene has a width, so there is no gap for the ooze to be refused and none for it to be let through; what the sentence does is tell a DM that the grating is not an obstacle.',
+  'enters-a-creature-space-and-a-one-inch-gap':
+    'SRD Air Form and SRD Water Form: "can enter a creature\'s space and stop there", beside the inch above. A creature\'s own space is not a place anything can be put — `positioning.ts` holds one occupant per space and a shared space has no meaning for reach, cover or a Grapple — so the permission is one the engine has nothing to grant.',
+  'burns-a-creature-whose-space-it-enters':
+    'SRD Fire Form: the two clauses above with "The first time it enters a creature\'s space on a turn, that creature takes 5 (1d10) Fire damage" after them. The damage is real and its trigger is the standing-inside clause the lattice cannot hold, so the whole sentence goes to the table together — a DM who narrates the elemental walking through somebody states the damage through the door that already takes one.',
+  'moves-through-creatures-and-objects':
+    'SRD Incorporeal Movement: "can move through other creatures and objects as if they were Difficult Terrain. It takes 5 (1d10) Force damage if it ends its turn inside an object." Difficult Terrain is a declared region rather than a property of what is standing there, and *inside an object* is a position with no address, so neither the licence nor the damage has anything to read.',
+  'burrows-through-earth-and-stone':
+    'SRD Earth Glide: "can burrow through nonmagical, unworked earth and stone." Ground and walls are narration here — the scene knows where a creature is and not what is between two of them — so there is no material for the elemental to be told apart from, and no move that would have been refused.',
+  'burrows-through-solid-rock':
+    'SRD Tunneler: "can burrow through solid rock at half its Burrow Speed and leaves a 10-foot-diameter tunnel in its wake." The same absent material as Earth Glide, and the tunnel besides: a hole left in the world is a change to the map the DM is drawing, and the engine draws none.',
+  'ignores-a-webs-restrictions':
+    'SRD Web Walker: "ignores movement restrictions caused by webs, and the spider knows the location of any other creature in contact with the same web." A web is not a thing in this scene — the Giant Spider\'s own Web line is a save the engine has not read either — so there is no restriction with a source for this to be an exception to, and no web for two creatures to be in contact with.',
+  'walks-on-ice':
+    'SRD Ice Walk: "can move across and climb icy surfaces without needing to make an ability check. Additionally, Difficult Terrain composed of ice or snow doesn\'t cost it extra movement." A patch of Difficult Terrain is declared and has no composition, and an icy surface is a description of a place rather than a fact about it, so the exemption names nothing the mover reads.',
+  'cannot-wear-or-carry-anything':
+    'SRD Ephemeral, on the will-o\'-wisp: "can\'t wear or carry anything." A stat block\'s inventory is whatever its printed Gear line gives it and nothing hands a monster anything else, so the sentence forbids something nobody was going to do — a promise to the table about what the wisp is, in the family of SRD Immutable Form.',
+  'adheres-to-what-touches-it':
+    'SRD Adhesive, on the mimic in object form: "adheres to anything that touches it", and then a Grappled condition at escape DC 13 with Disadvantage on the escape. The grapple, the DC and the Disadvantage are all rules the engine holds and a DM applies through doors that exist; what it has no notion of is one thing *touching* another, which is the clause the rest of the sentence hangs on. So the ruling is the table\'s and the mechanics are already built.',
+  'confers-a-resistance-to-a-rider':
+    'SRD Confer Fire Resistance, on the nightmare: "can grant Resistance to Fire damage to a rider while it is on the nightmare." Nothing here is ridden — there is no mount, no rider and no relation between two creatures that would end when one gets off — so the beneficiary of the Resistance is somebody only the fiction knows about.',
+  'destroyed-by-a-stake-through-the-heart':
+    'SRD Stake to the Heart, on the vampire spawn: "is destroyed if a weapon that deals Piercing damage is driven into the vampire\'s heart while the vampire has the Incapacitated condition." A heart is not a place, and driving a weapon into one is not an attack the engine could be asked for; it is the coup de grâce a DM adjudicates, and the death it ends in already has a door.',
+  'paralyzed-by-a-stake-through-the-heart':
+    'SRD Stake to the Heart, on the vampire, which is the other rule under that heading: the vampire "has the Paralyzed condition until the weapon is removed" rather than being destroyed. The condition is one the engine applies and the trigger is the same absent heart, so the sentence tells a DM which condition to state and the engine takes it through the door it already has.',
 };
 
 /** Whether this line's trait is one the engine reads and hands over. */
@@ -1539,6 +1601,16 @@ export const hasHandedOverSave = (line: StatBlockLine): boolean =>
  */
 export const isExecutedLine = (line: StatBlockLine): boolean =>
   line.teleports !== undefined ||
+  // **A line that takes a form is spent** — `takePrintedForm` changes the
+  // size, the Speeds and the word the block's own gated headings read, at the
+  // heading's own price. What the sentence promises besides is honoured by
+  // the engine doing nothing: "Its game statistics, other than its size, are
+  // the same in each form", and the equipment untransformed.
+  line.forms !== undefined ||
+  // **A line that pulls is spent** — `takePrintedPull` drags every creature
+  // the Roper is holding toward it, through the primitive a Merrow's rider
+  // already goes through, at the heading's price.
+  line.pulls !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -1673,6 +1745,63 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
     (line) => /^Spellcasting/.test(line.name) && line.spellcasting === undefined,
   ],
 ];
+
+/**
+ * The Action and Bonus Action lines at CR ≤ 5 that no enumerated shape names,
+ * with the one seam each waits on.
+ *
+ * **The ledger lists them and cannot say why**, because a residue line is by
+ * definition one no predicate reaches: `LEDGER.md`'s "Handed-over lines
+ * matching no enumerated shape" is a list of headings with nothing beside
+ * them, and a heading with nothing beside it looks like a heading nobody read.
+ * `HANDOVER_TRAIT_KINDS` and `RIDER_HANDOVER_SHAPE` each solved that for their
+ * own half by writing the reason out family by family; this is the same thing
+ * for the third half, and `coverage.test.ts` holds it to the catalogue so an
+ * entry that has been built, renamed or retired fails rather than rotting.
+ *
+ * **Read against the book, not against a summary.** Four of the entries below
+ * correct a claim that had been made about them from a heading alone: the
+ * Ettercap's Reel pulls by a **web** and not by a grapple, the Magmin's block
+ * prints no `sheds-light` trait for its Bonus Action to toggle, the Wisp's
+ * Vanish is Concentration on something that is not a spell, and the Succubus's
+ * Charm is a **cast** line at a fixed level rather than a save.
+ *
+ * Keyed `<block id>/<heading>`, because two blocks print one heading over two
+ * rules and the pair is what a reader needs.
+ *
+ * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
+ * own note — Coven Magic, the Swarm's healing rule, Regeneration, Berserk and
+ * the rest — and keeping the two apart is what stops one sentence being
+ * answered for twice in two places that could come to disagree.
+ */
+export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
+  'ettercap/Reel':
+    'a-condition-an-object-holds. The Roper\'s Reel under the same heading is executed now, and this one is not the same sentence: it pulls "one creature within 30 feet of itself that is Restrained by its Web Strand", and the web is a thing the engine has no record of. Reading it as a grapple would have been a rule nobody printed. It lands the day the Web Strand save creates an object the Restrained is held by.',
+  'magmin/Ignited Illumination':
+    'a light a use turns on and off. `sheds-light` exists and `carriedLight` derives a patch that moves with its holder — but the magmin\'s block prints no such trait: the radii are printed on this Bonus Action and nowhere else, so what is missing is a *toggle*, a light patch a use hangs and a second use takes away, rather than a reader for a trait the block does not have.',
+  'will-o-wisp/Vanish':
+    'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
+  'succubus/Charm':
+    'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states.',
+  'wraith/Create Specter':
+    'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
+  'bulette/Leap':
+    'a jump allowance with a lifetime. "Jumps up to 30 feet by spending 10 feet of movement" is SRD *Jump*\'s sentence word for word, and `GrantedJump` already carries both numbers — but a spell\'s allowance ends when its casting does, and a Bonus Action that buys one has no casting to end it. A grant a printed line hangs needs the deadline the mastery riders file, or the jump is free on every later turn. The Half-Dragon\'s and the Lamia\'s print the same sentence.',
+  'troll/Charge':
+    'nothing, and that is the answer. "The troll moves up to half its Speed straight toward an enemy it can see" is a move the DM makes with the move command, and the engine already refuses one that is too far or blocked; what the line adds over `move_creature` is a *restriction* on the DM rather than a rule the engine owes. The Xorn\'s and the Sahuagin\'s Aquatic Charge are the same sentence over a different Speed.',
+  'seahorse/Bubble Dash':
+    'a move that provokes nothing. "While underwater, the seahorse moves up to its Swim Speed without provoking Opportunity Attacks" — one field on a move, and `provokedBy` already reads the mover\'s mode for SRD Flyby and SRD Agile. What it waits on is a *declared* exemption on one move rather than a standing one on a creature, which is a field `MoveCommand` does not have. The Giant Seahorse prints it too.',
+  'giant-frog/Swallow':
+    'a-second-place-to-put-a-creature: a creature inside another one, with its own escape, its own damage at the swallower\'s turn boundary, and a way out when the swallower dies. The Giant Toad, the Gelatinous Cube\'s Engulf and the Shambling Mound\'s are the same want.',
+  'roper/Tentacle':
+    'the same second place, reached the other way: the tendril the Reel pulls on is an object with its own Armour Class and Hit Points that a creature may attack, which is `declareObject` given to a creature as part of its body.',
+  'ghost/Etherealness':
+    'a second **plane**, which the scene has no address for. The Nightmare\'s Ethereal Stride and the Phase Spider\'s Ethereal Jaunt are the same sentence, and the Dryad\'s Tree Stride is its cousin with a tree in place of a plane. Filed together under `a-second-place-to-put-a-creature` because what they need is one thing: somewhere a creature can be that is not a space on this map.',
+  'sea-hag/Illusory Appearance':
+    'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
+  'unicorn/Shimmering Shield':
+    'the legendary economy, which is its own row on both reports and belongs to the *block* rather than to any line. The Charging Horn beside it is the same debt.',
+};
 
 /** The economy a legendary block owes, which is the block's rather than a line's. */
 export const LEGENDARY_ECONOMY = 'A legendary action’s own economy';

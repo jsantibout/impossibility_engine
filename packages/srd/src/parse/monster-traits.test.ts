@@ -656,6 +656,121 @@ describe('the sentences that are fiction, read so the table gets them', () => {
   });
 });
 
+/**
+ * The sentences that describe a **world** this lattice does not hold.
+ *
+ * The same third answer the paragraph above is, arrived at from the other
+ * side. Those sentences name minds, planes, sounds and a GM's choice; these
+ * name materials, gaps, webs, ice and a heart — facts about the place a
+ * creature is standing in rather than about the creature — and the scene holds
+ * creatures, landmarks, declared objects and declared regions and no substance
+ * at all. So there is nothing for a rule to read afterwards, which is the test
+ * `docs/design/content.md` sets.
+ *
+ * **They are not the same claim as the residue beside them.** A sentence that
+ * states a mechanic the engine would run the day it had one seam stays unread
+ * and stays a debt: the Gelatinous Cube's Ooze Cube holds creatures inside
+ * itself, the Night Hag's Soul Bag is an object with an Armour Class that
+ * gates an action, and the Troll Limb's Troll Spawn rolls a d12 and puts a
+ * second stat block in the fight. None of those is here.
+ */
+describe('the sentences that describe a world the lattice does not hold', () => {
+  const worldFacts: readonly (readonly [string, string, string])[] = [
+    ['black-pudding', 'Amorphous', 'moves-through-a-one-inch-gap'],
+    ['gray-ooze', 'Amorphous', 'moves-through-a-one-inch-gap'],
+    ['ochre-jelly', 'Amorphous', 'moves-through-a-one-inch-gap'],
+    ['shadow', 'Amorphous', 'moves-through-a-one-inch-gap'],
+    ['octopus', 'Compression', 'moves-through-a-one-inch-gap'],
+    ['air-elemental', 'Air Form', 'enters-a-creature-space-and-a-one-inch-gap'],
+    ['invisible-stalker', 'Air Form', 'enters-a-creature-space-and-a-one-inch-gap'],
+    ['water-elemental', 'Water Form', 'enters-a-creature-space-and-a-one-inch-gap'],
+    ['fire-elemental', 'Fire Form', 'burns-a-creature-whose-space-it-enters'],
+    ['ghost', 'Incorporeal Movement', 'moves-through-creatures-and-objects'],
+    ['specter', 'Incorporeal Movement', 'moves-through-creatures-and-objects'],
+    ['will-o-wisp', 'Incorporeal Movement', 'moves-through-creatures-and-objects'],
+    ['wraith', 'Incorporeal Movement', 'moves-through-creatures-and-objects'],
+    ['earth-elemental', 'Earth Glide', 'burrows-through-earth-and-stone'],
+    ['xorn', 'Earth Glide', 'burrows-through-earth-and-stone'],
+    ['ankheg', 'Tunneler', 'burrows-through-solid-rock'],
+    ['purple-worm', 'Tunneler', 'burrows-through-solid-rock'],
+    ['drider', 'Web Walker', 'ignores-a-webs-restrictions'],
+    ['ettercap', 'Web Walker', 'ignores-a-webs-restrictions'],
+    ['phase-spider', 'Web Walker', 'ignores-a-webs-restrictions'],
+    ['giant-spider', 'Web Walker', 'ignores-a-webs-restrictions'],
+    ['spider', 'Web Walker', 'ignores-a-webs-restrictions'],
+    ['white-dragon-wyrmling', 'Ice Walk', 'walks-on-ice'],
+    ['ancient-white-dragon', 'Ice Walk', 'walks-on-ice'],
+    ['will-o-wisp', 'Ephemeral', 'cannot-wear-or-carry-anything'],
+    ['mimic', 'Adhesive (Object Form Only)', 'adheres-to-what-touches-it'],
+    ['nightmare', 'Confer Fire Resistance', 'confers-a-resistance-to-a-rider'],
+    ['vampire-spawn', 'Stake to the Heart', 'destroyed-by-a-stake-through-the-heart'],
+    ['vampire', 'Stake to the Heart', 'paralyzed-by-a-stake-through-the-heart'],
+  ];
+
+  it.each(worldFacts)('reads %s’s %s as %s', (block, line, kind) => {
+    expect(traitOf(block, line)).toEqual({ kind });
+  });
+
+  /**
+   * **The two stakes are two kinds**, because the book prints two rules under
+   * one heading: the spawn is destroyed and the vampire is Paralyzed until the
+   * weapon is drawn out. One kind over both would have claimed the weaker of
+   * the two about the stronger creature.
+   */
+  it('keeps the two stakes apart', () => {
+    expect(traitOf('vampire-spawn', 'Stake to the Heart')).not.toEqual(
+      traitOf('vampire', 'Stake to the Heart'),
+    );
+  });
+
+  /**
+   * And every one of them is anchored end to end, exactly as the fiction above
+   * is: a sentence that says one more thing is a different sentence.
+   *
+   * The Fire Elemental is the case that makes the rule worth a test. Its Fire
+   * Form is the Air Elemental's two clauses **plus** damage to the creature
+   * whose space it entered, so a regex loose enough to read one would read the
+   * other and lose the damage without saying so.
+   */
+  it('refuses a world-fact sentence that says one more thing', () => {
+    const narrow =
+      'The pudding can move through a space as narrow as 1 inch without expending extra movement to do so.';
+    expect(parseTraitShape(narrow)).toEqual({ kind: 'moves-through-a-one-inch-gap' });
+    expect(parseTraitShape(narrow.replace('1 inch', '1 foot'))).toBeNull();
+    expect(
+      parseTraitShape(`${narrow.slice(0, -1)}, and it can enter a creature's space and stop there.`),
+    ).toBeNull();
+
+    // The Fire Elemental's, one clause at a time: the whole sentence is a kind
+    // of its own and the two clauses it shares with the Air Elemental are not
+    // read out of it.
+    const fire = traitOf('fire-elemental', 'Fire Form');
+    expect(fire).toEqual({ kind: 'burns-a-creature-whose-space-it-enters' });
+    const air = find('fire-elemental').traits.find((t) => t.name === 'Fire Form')!.text;
+    expect(parseTraitShape(air.replace(/ The first time[^]*$/, ''))).toBeNull();
+  });
+
+  /**
+   * And the sentences that stay unread, named here so that a later reader
+   * cannot quietly promote one: each states a mechanic this engine holds a
+   * primitive for and the seam it is missing is written beside it in
+   * `HANDOVER_TRAIT_KINDS`' own note. Calling one of these fiction would
+   * retire a debt by renaming it.
+   */
+  it.each([
+    ['gelatinous-cube', 'Ooze Cube'],
+    ['night-hag', 'Soul Bag'],
+    ['troll-limb', 'Troll Spawn'],
+    ['succubus', 'Incubus Form'],
+    ['incubus', 'Succubus Form'],
+    ['flesh-golem', 'Berserk'],
+    ['bugbear-warrior', 'Abduct'],
+    ['swarm-of-insects', 'Spider Climb'],
+  ])('leaves %s’s %s unread, because it states a mechanic', (block, line) => {
+    expect(traitOf(block, line)).toBeNull();
+  });
+});
+
 describe('the reader is a list of matched sentences and not an interpreter', () => {
   it('reads nothing out of a trait nobody has matched', () => {
     expect(parseTraitShape('The elemental can move through a space as narrow as 1 inch.')).toBeNull();

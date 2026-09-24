@@ -255,10 +255,44 @@ export interface DeviceRecord {
 }
 
 /**
- * What a creature wearing a form has set aside — see {@link CreatureState.shape}.
+ * A form a creature's own stat block offers it — see
+ * {@link CreatureState.form}.
+ *
+ * {@link AssumedShape}'s smaller sibling, and the fields say how they differ:
+ * there is no feature, because a printed line is not an activation and nothing
+ * ends this but another use of the same line; and `original` holds only what a
+ * form can move — the sheet, for the two blocks that print a Speed per form,
+ * and the size every other printing names.
  *
  * `sceneSize` is the scene's own copy of the size at the moment of the change,
  * so the form's footprint can be taken back off the map as well as off the
+ * creature; null where the creature stood in no scene.
+ */
+export interface WornForm {
+  /** The form's own name, as the line prints it: `wolf`, `hybrid`, `object`. */
+  readonly name: string;
+  /** The heading it was taken off, so a refusal and a log can say which line. */
+  readonly line: string;
+  /**
+   * What the creature was before it took **any** form.
+   *
+   * Kept from the first change rather than the last, for `AssumedShape`'s
+   * reason: a werewolf going wolf-to-hybrid without passing through its own
+   * skin must still have its own skin to go back to.
+   */
+  readonly original: {
+    readonly sheet: CharacterSheet;
+    readonly size: CreatureSize | null;
+    readonly sceneSize: CreatureSize | null;
+  };
+}
+
+/**
+ * What a creature wearing another creature's statistics has set aside — see
+ * {@link CreatureState.shape}.
+ *
+ * `sceneSize` is the scene's own copy of the size at the moment of the change,
+ * so the shape's footprint can be taken back off the map as well as off the
  * creature; null where the creature stood in no scene.
  */
 export interface AssumedShape {
@@ -529,6 +563,17 @@ export interface CreatureState {
    * form's, which is the whole point of the swap.
    */
   readonly shape: AssumedShape | null;
+  /**
+   * The form this creature's own stat block has it in, or null while it is in
+   * the one its line returns to.
+   *
+   * SRD Shape-Shift. Null is **not** "no form": a creature that has never
+   * shifted is in the form its line prints last, which is why `formWornBy`
+   * answers with that rather than with this field. What this holds is the
+   * change — the name three readers ask for, and the sheet and size the fold
+   * puts back when the line is used to return.
+   */
+  readonly form: WornForm | null;
   /**
    * The lines this creature's stat block prints a **recharge** on that it has
    * used and not got back, by the heading the block prints them under.

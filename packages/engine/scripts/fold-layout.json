@@ -3,6 +3,7 @@
     "SummonBond",
     "KeptBond",
     "DeviceRecord",
+    "WornForm",
     "AssumedShape",
     "Attachment",
     "attachSource",

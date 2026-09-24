@@ -2821,6 +2821,34 @@ export type GameEvent =
       readonly command?: CommandStamp;
     }
   /**
+   * A creature taking one of the **forms its own stat block prints** — SRD
+   * Shape-Shift, and the other half of the pair above.
+   *
+   * Not `shape-assumed` with a different name. Wild Shape replaces a sheet
+   * with another creature's; this changes a size, sometimes a set of Speeds,
+   * and the word the block's own headings gate on — "Its game statistics,
+   * other than its size, are the same in each form" — and the two are as
+   * different as a druid and a werewolf.
+   *
+   * The sheet is pinned whole for `shape-assumed`'s reason: the Imp's rat,
+   * raven and spider each print their own Speeds, the command reads them off
+   * the line the creature was added with, and the fold opens nothing. The
+   * size comes with it because the scene keeps a copy, and is null for a form
+   * the line prints no size for — which is every true form, because the
+   * creature's own size is the one the block already states.
+   */
+  | {
+      readonly type: 'form-assumed';
+      readonly id: CharacterId;
+      /** The form's own name, as its line prints it: `wolf`, `hybrid`, `object`. */
+      readonly form: string;
+      /** The heading the form was taken off, so a log says which line was spent. */
+      readonly line: string;
+      readonly sheet: CharacterSheet;
+      readonly size: CreatureSize | null;
+      readonly command?: CommandStamp;
+    }
+  /**
    * A once-per-turn feature spending its allowance for this turn.
    *
    * SRD Sneak Attack is "Once per turn", Colossus Slayer "only once per turn",

@@ -6,6 +6,8 @@ import {
   MonsterRollAddendSchema,
   MonsterSaveSchema,
   MonsterSchema,
+  MonsterFormsSchema,
+  MonsterPullSchema,
   MonsterSpellcastingSchema,
   MonsterTeleportSchema,
   slugify,
@@ -15,7 +17,10 @@ import {
   type MonsterAttack,
   type MonsterCastLine,
   type MonsterDamage,
+  type MonsterForm,
+  type MonsterForms,
   type MonsterMultiattack,
+  type MonsterPull,
   type MonsterMultiattackEntry,
   type MonsterRecharge,
   type MonsterRollAddend,
@@ -1042,6 +1047,139 @@ const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
     ),
     'makes-a-noise',
   ],
+
+  // ------------------------------------------------------------------
+  // The sentences that describe a **world** rather than a creature: a gap
+  // narrower than five feet, solid rock, a web, a sheet of ice, a heart. The
+  // scene holds creatures, landmarks, declared objects and declared regions
+  // and no substance at all, so each of these names a fact nothing can be
+  // told and no rule would read. See `HANDOVER_TRAIT_KINDS` for the reason
+  // per kind, and the note on this table for why they are matched last.
+  // ------------------------------------------------------------------
+
+  // SRD Amorphous, on four blocks, and SRD Compression on the octopus: one
+  // sentence under two headings.
+  [
+    new RegExp(
+      `^${SUBJECT} can move through a space as narrow as 1 inch without expending extra movement ` +
+        `to do so\\.$`,
+    ),
+    'moves-through-a-one-inch-gap',
+  ],
+
+  // SRD Air Form and SRD Water Form — the same two clauses, and the book
+  // writes "a creature's space" for one elemental and "an enemy's space" for
+  // the other two.
+  [
+    new RegExp(
+      `^${SUBJECT} can enter an? (?:creature|enemy)['’]s space and stop there\\. It can move ` +
+        `through a space as narrow as 1 inch without expending extra movement to do so\\.$`,
+    ),
+    'enters-a-creature-space-and-a-one-inch-gap',
+  ],
+
+  // SRD Fire Form: those two clauses in the other order, with damage on the
+  // end of it. Its own entry because a regex loose enough to read it as the
+  // one above would have dropped the damage without saying so.
+  [
+    new RegExp(
+      `^${SUBJECT} can move through a space as narrow as 1 inch without expending extra movement ` +
+        `to do so, and it can enter a creature['’]s space and stop there\\. The first time it ` +
+        `enters a creature['’]s space on a turn, that creature takes \\d+ \\(\\d+d\\d+\\) \\w+ ` +
+        `damage\\.$`,
+    ),
+    'burns-a-creature-whose-space-it-enters',
+  ],
+
+  // SRD Incorporeal Movement, on the ghost, the specter, the wisp and the
+  // wraith.
+  [
+    new RegExp(
+      `^${SUBJECT} can move through other creatures and objects as if they were Difficult ` +
+        `Terrain\\. It takes \\d+ \\(\\d+d\\d+\\) \\w+ damage if it ends its turn inside an ` +
+        `object\\.$`,
+    ),
+    'moves-through-creatures-and-objects',
+  ],
+
+  // SRD Earth Glide.
+  [
+    new RegExp(
+      `^${SUBJECT} can burrow through nonmagical, unworked earth and stone\\. While doing so, ` +
+        `${SUBJECT} doesn['’]t disturb the material it moves through\\.$`,
+    ),
+    'burrows-through-earth-and-stone',
+  ],
+
+  // SRD Tunneler.
+  [
+    new RegExp(
+      `^${SUBJECT} can burrow through solid rock at half its Burrow Speed and leaves a ` +
+        `\\d+-foot-diameter tunnel in its wake\\.$`,
+    ),
+    'burrows-through-solid-rock',
+  ],
+
+  // SRD Web Walker. The second clause names the creature again on four blocks
+  // and says "it" on the fifth.
+  [
+    new RegExp(
+      `^${SUBJECT} ignores movement restrictions caused by webs, and (?:it|${SUBJECT}) knows the ` +
+        `location of any other creature in contact with the same web\\.$`,
+    ),
+    'ignores-a-webs-restrictions',
+  ],
+
+  // SRD Ice Walk. Not SRD Spider Climb: the surfaces are named by what they
+  // are made of, and a patch of Difficult Terrain here has no composition.
+  [
+    new RegExp(
+      `^${SUBJECT} can move across and climb icy surfaces without needing to make an ability ` +
+        `check\\. Additionally, Difficult Terrain composed of ice or snow doesn['’]t cost it ` +
+        `extra movement\\.$`,
+    ),
+    'walks-on-ice',
+  ],
+
+  // SRD Ephemeral.
+  [new RegExp(`^${SUBJECT} can['’]t wear or carry anything\\.$`), 'cannot-wear-or-carry-anything'],
+
+  // SRD Adhesive. The grapple and its DC are rules the engine holds; one
+  // thing *touching* another is not.
+  [
+    new RegExp(
+      `^${SUBJECT} adheres to anything that touches it\\. A \\w+ or smaller creature adhered to ` +
+        `${SUBJECT} has the Grappled condition \\(escape DC \\d+\\)\\. Ability checks made to ` +
+        `escape this grapple have Disadvantage\\.$`,
+    ),
+    'adheres-to-what-touches-it',
+  ],
+
+  // SRD Confer Fire Resistance. Nothing here is ridden.
+  [
+    new RegExp(
+      `^${SUBJECT} can grant Resistance to \\w+ damage to a rider while it is on ${SUBJECT}\\.$`,
+    ),
+    'confers-a-resistance-to-a-rider',
+  ],
+
+  // SRD Stake to the Heart, printed twice as two different rules: the spawn
+  // is destroyed and the vampire is Paralyzed until the weapon is drawn out.
+  [
+    new RegExp(
+      `^${SUBJECT} is destroyed if a weapon that deals \\w+ damage is driven into ` +
+        `${SUBJECT}['’]s heart while ${SUBJECT} has the Incapacitated condition\\.$`,
+    ),
+    'destroyed-by-a-stake-through-the-heart',
+  ],
+  [
+    new RegExp(
+      `^If a weapon that deals \\w+ damage is driven into ${SUBJECT}['’]s heart while ` +
+        `${SUBJECT} has the Incapacitated condition in its resting place, ${SUBJECT} has the ` +
+        `Paralyzed condition until the weapon is removed\\.$`,
+    ),
+    'paralyzed-by-a-stake-through-the-heart',
+  ],
 ];
 
 /** The book's nouns for the rolls, in the kind's own three words. */
@@ -1580,6 +1718,188 @@ export function parseTeleportLine(text: string): MonsterTeleport | null {
     mustSee: true,
   });
   return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it."
+ *
+ * Anchored end to end, which is what refuses the Ettercap's line under the
+ * same heading — "pulls one creature within 30 feet of itself that is
+ * Restrained by its Web Strand" — and the Shambling Mound's, whose pull is a
+ * clause of a hit rather than a line of its own.
+ */
+const PULL_LINE = new RegExp(
+  `^The ${SUBJECT} pulls each creature Grappled by it up to (\\d+) feet straight toward it\\.$`,
+);
+
+/** What this line drags toward its creature, or null for every other line. */
+export function parsePullLine(text: string): MonsterPull | null {
+  const matched = PULL_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+  const checked = MonsterPullSchema.safeParse({ feet: Number(matched[1]!), of: 'grappled' });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Shape-Shift's first sentence, in the two openings the book writes it in:
+ * "The werewolf shape-shifts **into** a Large wolf-humanoid hybrid or a Medium
+ * wolf, or it returns to its true humanoid form" and "The imp shape-shifts
+ * **to resemble** a rat (Speed 20 ft.), a raven (20 ft., Fly 60 ft.), or a
+ * spider (20 ft., Climb 20 ft.), or it returns to its true form".
+ *
+ * Two captures: the alternatives, and the noun the book gives the form it
+ * returns to. Anchored end to end, which is what refuses the Vampire's — its
+ * sentence opens on a condition ("If the vampire isn't in sunlight or running
+ * water") the engine cannot evaluate, and its line goes on to say the opposite
+ * of what every other printing says about equipment.
+ */
+const SHAPE_SHIFT_LINE = new RegExp(
+  `^The ${SUBJECT} shape-shifts (?:into|to resemble) (.+), or it returns to its ` +
+    `(?:true |)([a-z]*) ?form\\.$`,
+);
+
+/**
+ * One alternative of that sentence: an article, optional sizes, the noun, and
+ * the Speeds two blocks print in brackets after it.
+ *
+ * The **last word** of the descriptor is the form's name, because that is what
+ * the block's own headings gate on: "Large wolf-humanoid hybrid" is `hybrid`
+ * and "Medium wolf" is `wolf`. A trailing "form" is dropped for the same
+ * reason — SRD Werebear writes "a Large bear-humanoid hybrid form" and SRD
+ * Wereboar writes the same alternative without the word.
+ */
+const FORM_ALTERNATIVE =
+  /^an? ((?:(?:Tiny|Small|Medium|Large|Huge|Gargantuan)(?: or )?)*)\s*([A-Za-z-]+(?: [a-z-]+)*?)(?: form)?(?: while retaining its game statistics)?(?: \((.+)\))?$/;
+
+/**
+ * One Speed clause of such an alternative: "Speed 20 ft.", "Fly 60 ft.",
+ * "Climb 20 ft.", "Swim 40 ft.", "Fly Speed 30 ft. [hover]".
+ */
+const FORM_SPEED = /^(?:(Fly|Climb|Swim|Burrow) )?(?:Speed )?(\d+) ft\.(?: \[hover\])?$/;
+
+/**
+ * The promises the book repeats under every printing of Shape-Shift, which
+ * this engine honours by doing nothing.
+ *
+ * "Its game statistics, other than its size, are the same in each form" is the
+ * sentence the `sizes` field above *is*; "Any equipment it is wearing or
+ * carrying isn't transformed" is what the command already does by not touching
+ * an inventory. A sentence not on this list is carried verbatim.
+ */
+const INERT_FORM_SENTENCES: readonly RegExp[] = [
+  /^Its game statistics, other than its (?:size|speed), are the same in each form\.$/i,
+  /^Other than its (?:size|speed), its game statistics are the same in each form\.$/i,
+  /^Its game statistics are the same in each form, except for its (?:size|Speed)\.$/i,
+  /^Any equipment it is wearing or carrying isn['’]t transformed\.$/i,
+];
+
+/**
+ * A printed line's sentences, split where one ends and the next begins.
+ *
+ * On a full stop followed by a capital, which leaves "(Speed 20 ft.)" and
+ * "(20 ft., Fly 60 ft.)" whole: every stop inside a Speed clause is followed
+ * by a comma or a bracket.
+ */
+const formSentences = (text: string): readonly string[] =>
+  text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/(?<=\.) (?=[A-Z])/)
+    .map((one) => one.trim())
+    .filter((one) => one !== '');
+
+/**
+ * One alternative's Speeds — null where the line prints none for it, and
+ * `undefined` for a bracket this grammar could not read whole, which leaves
+ * the whole line prose the way every other reader here does.
+ */
+function formSpeed(printed: string | undefined): MonsterForm['speed'] | undefined {
+  if (printed === undefined) return null;
+  const speed: {
+    walk: number;
+    burrow: number | null;
+    climb: number | null;
+    fly: number | null;
+    swim: number | null;
+    hover: boolean;
+  } = { walk: 0, burrow: null, climb: null, fly: null, swim: null, hover: false };
+  for (const clause of printed.split(', ')) {
+    const matched = FORM_SPEED.exec(clause.trim());
+    if (matched === null) return undefined;
+    const feet = Number(matched[2]);
+    if (matched[1] === undefined) speed.walk = feet;
+    else speed[matched[1].toLowerCase() as 'burrow' | 'climb' | 'fly' | 'swim'] = feet;
+  }
+  return speed;
+}
+
+/**
+ * The forms one line offers, or null for every line that offers none.
+ *
+ * SRD Shape-Shift and nothing else: read sentence by sentence, with the first
+ * carrying the forms and every one after it either a promise the engine keeps
+ * by doing nothing or a clause handed to the table verbatim.
+ */
+export function parseFormLine(text: string): MonsterForms | null {
+  const sentences = formSentences(text);
+  const first = sentences[0];
+  if (first === undefined) return null;
+  const matched = SHAPE_SHIFT_LINE.exec(first);
+  if (matched === null) return null;
+
+  // "a Large wolf-humanoid hybrid or a Medium wolf" — the book separates the
+  // alternatives with a comma, with "or", or with both, and **every one of
+  // them opens on an article**. Splitting on the word alone would have cut
+  // "a Medium or Small Humanoid" in half, which is one form offered at two
+  // sizes rather than two forms; the same lookahead leaves the commas inside
+  // a Speed bracket ("20 ft., Fly 60 ft.") alone.
+  const alternatives = matched[1]!.split(/(?:, or |, | or )(?=an? )/);
+  const forms: MonsterForm[] = [];
+  for (const alternative of alternatives) {
+    const read = FORM_ALTERNATIVE.exec(alternative.trim());
+    if (read === null) return null;
+    const words = read[2]!.trim().split(' ');
+    const name = words[words.length - 1]!.toLowerCase();
+    const speed = formSpeed(read[3]);
+    if (speed === undefined) return null;
+    forms.push({
+      name,
+      sizes: (read[1] ?? '')
+        .split(' or ')
+        .map((size) => size.trim().toLowerCase())
+        .filter((size) => size !== '')
+        .map((size) => CreatureSizeSchema.parse(size)),
+      speed,
+    });
+  }
+
+  // "or it returns to its true humanoid form" — the noun where the book gives
+  // one, and `true` where it does not. The block's own headings gate on it:
+  // the Werewolf's Longbow is "(Humanoid or Hybrid Form Only)".
+  forms.push({ name: matched[2] === '' ? 'true' : matched[2]!.toLowerCase(), sizes: [], speed: null });
+
+  const handedOver = sentences
+    .slice(1)
+    .filter((sentence) => !INERT_FORM_SENTENCES.some((inert) => inert.test(sentence)));
+
+  const checked = MonsterFormsSchema.safeParse({ forms, handedOver });
+  return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Werewolf: "Bite (**Wolf or Hybrid Form Only**)". The forms a heading
+ * says its line may be used in, or null where it says nothing.
+ *
+ * Read off the name rather than the sentence, because that is where the book
+ * prints it — the same place a recharge and a day's count are printed, and for
+ * the same reason it is read here once: a name is what nothing downstream may
+ * branch on.
+ */
+export function parseFormQualification(name: string): readonly string[] | null {
+  const matched = /\(([A-Za-z]+(?: or [A-Za-z]+)*) Form Only\)\s*$/.exec(name);
+  if (matched === null) return null;
+  return matched[1]!.split(' or ').map((word) => word.toLowerCase());
 }
 
 /**
@@ -2215,6 +2535,15 @@ function parseFeatures(
       // already give correctly for every line in the book.
       const casts = parseCastLine(text);
       const teleports = parseTeleportLine(text);
+      // The book's fifth opening — a line that puts its creature into a form —
+      // read off the sentence for the reason the four above are, and the
+      // qualification the *heading* prints beside it, read off the name for
+      // the reason the recharge and the day's count are.
+      const forms = parseFormLine(text);
+      const onlyInForms = parseFormQualification(current.name);
+      // And the sixth: a line that drags toward itself what it is already
+      // holding, which is `pullToward` at a heading's price.
+      const pulls = parsePullLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
       // the reason every detector here is: SRD Parry's number goes on an
@@ -2234,6 +2563,9 @@ function parseFeatures(
         ...(spellcasting === null ? {} : { spellcasting }),
         ...(casts === null ? {} : { casts }),
         ...(teleports === null ? {} : { teleports }),
+        ...(forms === null ? {} : { forms }),
+        ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),
+        ...(pulls === null ? {} : { pulls }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),
         ...(usesLine === null ? {} : { usesLine }),

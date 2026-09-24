@@ -26,7 +26,9 @@ import type {
   Armor,
   MonsterAttack,
   MonsterCastLine,
+  MonsterForms,
   MonsterMultiattack,
+  MonsterPull,
   MonsterRecharge,
   MonsterSave,
   MonsterTeleport,
@@ -120,6 +122,26 @@ export interface StatedAttack extends MonsterAttack {
    * out a recharging one.
    */
   readonly perDay?: number;
+  /**
+   * The forms this attack may be made in, where its **heading** says so.
+   *
+   * SRD Werewolf: "Bite (Wolf or Hybrid Form Only)", "Longbow (Humanoid or
+   * Hybrid Form Only)". Fourteen attack headings across five lycanthropes and
+   * the vampire print the clause, and until a form was a fact on a creature
+   * nothing could evaluate it.
+   *
+   * **Carried from the line onto the attack** for the reason the recharge is:
+   * the book prints it on the heading, and `Feature` owns it in `@ie/srd`.
+   *
+   * **Carried and not yet read**, which is a debt and is written down as one:
+   * `wrongFormFor` is the reader, and today only the two hand-over doors in
+   * `commands/actions.ts` ask it. A swing at one of these headings is still
+   * made in whatever form the creature is in — a werewolf in wolf form can
+   * still draw its longbow — because `commands/attacks.ts` belonged to another
+   * track the batch this field landed in. `monster-forms.test.ts` pins which
+   * modules ask, so the day the swing asks too, the pin says so.
+   */
+  readonly onlyInForms?: readonly string[];
 }
 
 /**
@@ -166,6 +188,30 @@ export interface StatedBonusAction {
   readonly save?: MonsterSave;
   /** Where this line teleports its creature — see {@link StatedAction.teleports}. */
   readonly teleports?: MonsterTeleport;
+  /**
+   * The forms this line offers — see {@link StatedAction.forms}, which this is
+   * the same field as and for the same reason.
+   *
+   * **Where eleven of the book's thirteen Shape-Shift lines are printed.**
+   * Only the Imp's and the Quasit's are Actions, which is a heading saying
+   * what the use costs and nothing else the engine can see.
+   */
+  readonly forms?: MonsterForms;
+  /**
+   * The forms this line may be taken in — see {@link StatedAction.onlyInForms}.
+   *
+   * SRD Weretiger, Prowl (Tiger or Hybrid Form Only), which is the one Bonus
+   * Action in the book that prints the clause.
+   */
+  readonly onlyInForms?: readonly string[];
+  /**
+   * What this line drags toward its creature — see {@link StatedAction.pulls},
+   * which this is the same field as. No SRD Bonus Action reaches the shape;
+   * it is here because the heading is what says what a use costs, and a
+   * homebrew block printing the sentence under this one is printing the same
+   * rule at another price.
+   */
+  readonly pulls?: MonsterPull;
   /**
    * The spells this line casts — see {@link StatedAction.casts}, which this is
    * the same field as and for the same reason.
@@ -267,6 +313,40 @@ export interface StatedAction {
    * and done nothing.
    */
   readonly casts?: MonsterCastLine;
+  /**
+   * The forms this line offers, where its sentence is the book's Shape-Shift
+   * template — see `MonsterFormsSchema`.
+   *
+   * SRD Werewolf: "shape-shifts into a Large wolf-humanoid hybrid or a Medium
+   * wolf, or it returns to its true humanoid form. Its game statistics, other
+   * than its size, are the same in each form." A **form** is a fact the DM
+   * states and the engine then reads in three places: the size every rule
+   * asks for through `effectiveSizeOf`, the Speeds two blocks print per form,
+   * and the headings that name one ({@link onlyInForms}). Everything else the
+   * sentence promises — the statistics unchanged, the equipment untouched —
+   * the engine honours by doing nothing.
+   */
+  readonly forms?: MonsterForms;
+  /**
+   * The forms this line may be taken in, where its **heading** says so.
+   *
+   * SRD Vampire: "Multiattack (Vampire Form Only)", "Grave Strike (Vampire
+   * Form Only)". The clause is printed inside the heading, which is exactly
+   * what nothing downstream may branch on, so the parser reads it into the
+   * same words the block's own Shape-Shift prints its forms under.
+   */
+  readonly onlyInForms?: readonly string[];
+  /**
+   * What this line drags toward its creature, where its sentence is the
+   * book's pull template — see `MonsterPullSchema`.
+   *
+   * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30
+   * feet straight toward it." Both halves are rules the engine already holds
+   * — `pullToward` is what SRD Merrow's rider goes through, and the grapple is
+   * the one `escapeGrapple` answers — so the line is the same mechanism at the
+   * heading's price.
+   */
+  readonly pulls?: MonsterPull;
 }
 
 /**

@@ -186,10 +186,13 @@ describe('parseTraitShape', () => {
 
   it('is null for a trait whose sentence nothing reads', () => {
     // A trait with a mechanic somebody has matched is `monster-traits.test.ts`'s
-    // subject; this is the other half. The Giant Spider's Web Walker is one of
-    // the many the reader still says nothing about: a web's restriction is not
-    // a thing the lattice holds, so ignoring one is a rule with nowhere to go.
-    expect(parseTraitShape(trait('giant-spider', 'Web Walker').text)).toBeNull();
+    // subject; this is the other half. The Gelatinous Cube's Ooze Cube is one
+    // of the many the reader still says nothing about — a creature inside
+    // another creature, with Total Cover there and a check to pull it out — and
+    // it stays prose because it states a mechanic rather than a fact about the
+    // world. The Giant Spider's Web Walker used to stand here and is now read
+    // and handed over; see `HANDOVER_TRAIT_KINDS` for why the two differ.
+    expect(parseTraitShape(trait('gelatinous-cube', 'Ooze Cube').text)).toBeNull();
   });
 });
 
@@ -1145,7 +1148,19 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Aura under another heading over the same sentence, and the Barbed
       // Devil's Barbed Hide. The Fire Elemental's is refused whole, because
       // its sentence goes on to set the room alight.
-      traits: { printed: 337, read: 204 },
+      // And thirty-one more with the **world family**, which is the third
+      // answer again and the paragraph above is now half wrong about: five
+      // one-inch gaps (four Amorphous and the Octopus's Compression), three
+      // Air and Water Forms, the Fire Elemental's Fire Form, four Incorporeal
+      // Movements, two Earth Glides, two Tunnelers, five Web Walkers, four Ice
+      // Walks, the Wisp's Ephemeral, the Mimic's Adhesive, the Nightmare's
+      // Confer Fire Resistance and the two Stakes to the Heart. Each names a
+      // material, a gap, a web or a heart — a fact about the *place* — and
+      // this scene holds no substance at all. What stayed prose is the half
+      // that states a mechanic: the Cube that holds creatures inside itself,
+      // the Hag's Soul Bag, the Troll Limb's d12, and the Swarm's Spider
+      // Climb, whose sentence is a gate on a kind that already has a reader.
+      traits: { printed: 337, read: 235 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

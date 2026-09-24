@@ -26,6 +26,7 @@ export const FEATURES_EVENTS = [
   'feature-activated',
   'feature-ended',
   'shape-assumed',
+  'form-assumed',
   'readied-declared',
   'readied-released',
 ] as const;
@@ -95,6 +96,34 @@ export function applyFeatures({ state, next }: Applying, event: FeaturesEvent): 
         creature,
       );
       return resized(worn, event.id, event.size);
+    }
+
+    case 'form-assumed': {
+      const creature = creatureOf(state, event, event.id);
+      // Kept from the **first** change, exactly as the shape above keeps its:
+      // a werewolf going wolf-to-hybrid without passing through its own skin
+      // must still have its own skin to go back to.
+      const original = creature.form?.original ?? {
+        sheet: creature.sheet,
+        size: creature.size,
+        sceneSize: next.scene?.sizes[event.id] ?? null,
+      };
+      const changed = withCreature(
+        next,
+        event.id,
+        {
+          sheet: event.sheet,
+          size: event.size,
+          form: { name: event.form, line: event.line, original },
+        },
+        creature,
+      );
+      // The scene's copy follows the form, which is the owner's ruling of
+      // 2026-09-20 about Wild Shape and the same question. A form whose line
+      // prints no size is the creature's own, so the footprint goes back to
+      // what it was before any form was taken.
+      const footprint = event.size ?? original.sceneSize ?? original.size;
+      return footprint === null ? changed : resized(changed, event.id, footprint);
     }
 
     case 'readied-declared': {

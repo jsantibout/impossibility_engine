@@ -106,6 +106,8 @@ import {
   settleTest,
   takeInfluence,
   takeSearch,
+  takePrintedForm,
+  takePrintedPull,
   takePrintedTeleport,
   takeStatedAction,
   takeStatedBonusAction,
@@ -1791,6 +1793,121 @@ const CAST_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Put a creature into one of the forms its **own** stat block prints.
+ *
+ * SRD Werewolf, Shape-Shift: "The werewolf shape-shifts into a Large
+ * wolf-humanoid hybrid or a Medium wolf, or it returns to its true humanoid
+ * form. Its game statistics, other than its size, are the same in each form."
+ *
+ * **It is here and not on the model's surface, by {@link TELEPORT_PRINTED_LINE}'s
+ * rule.** The engine settles the whole sentence; what the call takes that the
+ * block does not state is **which** form off a menu of two, three or four, and
+ * on two blocks which of the sizes that form prints — a choice the book hands
+ * to whoever is running the creature, exactly as the space a teleport lands in
+ * is. A model choosing a monster's shape is a model playing the monster.
+ *
+ * **It states no number.** The size, the Speeds and the name each form goes by
+ * are the block's, pinned at `add_creature`; what the call carries is a word
+ * off the line's own list.
+ *
+ * **The other doors over the same line are untouched.**
+ * {@link TAKE_PRINTED_ACTION} and {@link TAKE_PRINTED_BONUS_ACTION} still
+ * spend the slot and hand the sentence back, so a DM who would rather
+ * adjudicate the change themselves has lost nothing.
+ */
+const SHAPE_SHIFT_PRINTED_LINE = tool({
+  name: 'shape_shift_printed_line',
+  description:
+    'Have the engine put a creature into one of the forms its own stat block prints — the Werewolf’s wolf and hybrid, the Doppelganger’s Humanoid, the Imp’s rat, raven and spider. Name the heading as the block prints it and which form off its list; the engine reads the size and any Speeds off the block, spends whichever slot the heading names along with its recharge or daily limit, and changes the size on the map, so every later Grapple, Shove and Hide is measured against it. Equipment is untouched, as the book says. You state no number. Which form is yours because the line offers a choice and the engine makes none of it; a form the line prints at two sizes asks which. Only some printed lines can be taken this way: `look` says which, under `formsOffered` on `printed.actions[]` and `printed.bonusActions[]` alike, which also lists the words this call takes — the Imp’s is an Action and the Werewolf’s a Bonus Action, because a heading says what a line costs. Two things it does NOT yet do: an attack heading printed for one form only ("Bite (Wolf or Hybrid Form Only)") is still swung whatever form the creature is in, so that restriction is yours to keep; and a Bonus Action heading printed the same way (the Weretiger’s Prowl) IS refused. For this line if you would rather adjudicate the change yourself, use `take_printed_action` or `take_printed_bonus_action`.',
+  mutates: true,
+  // Which form, and which size, are both answered by re-sending *this* call
+  // with the field filled in, so the door the refusal names is this tool.
+  selfAnswers: ['route'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+    form: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Which form off the line’s list, by the word the block prints it under — wolf, hybrid, humanoid, object, true. Omit it and the engine comes back listing the words the line offers.',
+      ),
+    size: sizeSchema
+      .optional()
+      .describe(
+        'Which size, where the line prints a form at more than one — the Doppelganger’s "Medium or Small Humanoid". Ignored by every form that prints one size or none.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedForm(context.campaign.state(), who(args.who), {
+        line: args.line,
+        ...(args.form === undefined ? {} : { form: args.form }),
+        ...(args.size === undefined ? {} : { size: args.size }),
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        // Which slot was spent is the heading's answer and the caller does not
+        // know it, so both events are searched — see {@link lineTaken}.
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        form: value.form,
+        size: value.size,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
+ * Drag toward a creature everything its printed line says it is holding.
+ *
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it."
+ *
+ * **It is here and not on the model's surface**, by the rule its four
+ * siblings follow — though this one takes no decision at all: the book says
+ * "each creature", so there is nothing off a menu to choose and the call is a
+ * heading and a creature. It sits on the DM's door because playing a monster
+ * is the DM's job, which is the same reason `take_printed_action` does.
+ */
+const PULL_PRINTED_LINE = tool({
+  name: 'pull_printed_line',
+  description:
+    'Have the engine take the pull a creature’s stat block prints — the Roper’s Reel. Name the heading as the block prints it; the engine reads the distance off the block, drags every creature that creature is Grappling straight toward it, stops each at the gap rather than through it, and spends whichever slot the heading names along with any recharge or daily limit. You state no distance and choose nobody: the line says "each creature". Only some printed lines can be taken this way: `look` says which, under `engineMakesThePull` on `printed.actions[]` and `printed.bonusActions[]` alike. The Ettercap’s line under the same heading pulls by a web rather than a grapple and is refused here — take it with `take_printed_action` and rule it yourself.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedPull(context.campaign.state(), who(args.who), {
+        line: args.line,
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        pulled: value.pulled,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   CAST_PRINTED_LINE,
@@ -1803,11 +1920,13 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   FORCE_PRINTED_SAVE,
   IMPROVISED_DAMAGE,
   LOSE_ITEMS,
+  PULL_PRINTED_LINE,
   RESOLVE_FALL,
   ROLL_IMPROVISED_DAMAGE,
   RULE_CONDITION,
   SAVING_THROW,
   SETTLE_TEST,
+  SHAPE_SHIFT_PRINTED_LINE,
   TAKE_COIN,
   TAKE_PRINTED_ACTION,
   TAKE_PRINTED_BONUS_ACTION,

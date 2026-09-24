@@ -38,6 +38,11 @@ export * from './vitals.js';
 export * from './positioning.js';
 export * from './reactions.js';
 export * from './monster.js';
+// The form a creature's own stat block has it in — SRD Shape-Shift. Exported
+// whole because a door above the engine has to be able to say which forms a
+// line offers and which one is being worn, and `CreatureState.form` is null
+// for the printed default rather than for "no form".
+export * from './forms.js';
 // A thing you can attack and break: the vocabulary an object's two tables are
 // written in, and the rule that stands over both of them.
 export * from './objects.js';

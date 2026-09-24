@@ -1285,6 +1285,89 @@ export const MonsterTeleportSchema = z.object({
 export type MonsterTeleport = z.infer<typeof MonsterTeleportSchema>;
 
 /**
+ * One shape a creature's own line offers it.
+ *
+ * SRD Shape-Shift: "The werewolf shape-shifts into a Large wolf-humanoid
+ * hybrid or a Medium wolf, or it returns to its true humanoid form."
+ *
+ * **The name is a word, because the block's other headings gate on it.** "Bite
+ * (Wolf or Hybrid Form Only)" names one of these, so the last noun of each
+ * alternative is what is read — `hybrid`, `wolf`, `humanoid` — and a line that
+ * returns to a form the book gives no noun is `true`.
+ */
+export const MonsterFormSchema = z.object({
+  /** The word the block's qualified headings name this form by. */
+  name: z.string().regex(/^[a-z][a-z-]*$/),
+  /**
+   * The sizes the line prints for this form, in the order it prints them.
+   *
+   * A list because the book offers a choice — "a Medium or Small Humanoid" —
+   * and empty where the line prints none, which is every true form: the
+   * sentence says the statistics are the same *other than* the size, so a form
+   * with no printed size is the creature's own.
+   */
+  sizes: z.array(CreatureSizeSchema),
+  /**
+   * The Speeds this form prints, or null where it prints none.
+   *
+   * SRD Imp: "a rat (Speed 20 ft.), a raven (20 ft., Fly 60 ft.), or a spider
+   * (20 ft., Climb 20 ft.)" — the one thing those two blocks say changes
+   * between forms, against the size every other printing names.
+   */
+  speed: SpeedSchema.nullable(),
+});
+export type MonsterForm = z.infer<typeof MonsterFormSchema>;
+
+/**
+ * The forms one printed line offers, and whatever else the line said.
+ *
+ * `handedOver` is `MonsterSave`'s field by the same argument: the reader goes
+ * sentence by sentence, the promises the book repeats on every printing are
+ * inert and swallowed — the statistics unchanged, the equipment untransformed
+ * — and anything else comes back verbatim so the table gets it. SRD Succubus
+ * prints one such clause ("its Fly Speed is available only in its true form")
+ * and reading it away would give the succubus a Speed the book withheld.
+ */
+export const MonsterFormsSchema = z.object({
+  /**
+   * The forms, in printed order, and **the last is the one the line returns
+   * to**.
+   *
+   * At least two, because a line that offers one form offers no choice. The
+   * order is a contract rather than a convenience: a creature that has not
+   * used the line is in its own form already, and the reader that answers
+   * "which form is it in" reads this last entry when nothing has been stated.
+   * A list written any other way would silently give a homebrew creature the
+   * wrong default — which is why the rule is here, on the vocabulary, rather
+   * than only beside the reader.
+   */
+  forms: z.array(MonsterFormSchema).min(2),
+  /** Every sentence of the line this reader did not read, verbatim. */
+  handedOver: z.array(z.string().min(1)),
+});
+export type MonsterForms = z.infer<typeof MonsterFormsSchema>;
+
+/**
+ * A line that drags toward itself whatever it is already holding.
+ *
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it."
+ *
+ * **`of` is a field rather than an assumption**, because the book prints the
+ * same heading over a different hold: the Ettercap's Reel pulls a creature
+ * "Restrained by its Web Strand", which is a condition held by an object the
+ * engine has no record of. A shape that read only the distance would have
+ * turned that web into a grapple.
+ */
+export const MonsterPullSchema = z.object({
+  /** "up to 30 feet", measured toward the puller and capped at the gap. */
+  feet: z.number().int().min(5),
+  /** What the line pulls. One member today, and the field exists to keep it one. */
+  of: z.literal('grappled'),
+});
+export type MonsterPull = z.infer<typeof MonsterPullSchema>;
+
+/**
  * One Reaction line that adds a flat number to somebody's D20 Test.
  *
  * SRD Sphinx of Wonder, Burst of Ingenuity (2/Day): "_Trigger:_ The sphinx or
@@ -1967,6 +2050,151 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('makes-a-noise'),
   }),
+
+  // ---------------------------------------------------------------------
+  // The sentences that describe a **world** rather than a creature.
+  //
+  // Each names a material, a gap, a web, a sheet of ice or a heart, and the
+  // scene holds creatures, landmarks, declared objects and declared regions
+  // and no substance at all — so there is no fact for a rule to read and no
+  // move that would be refused. They are handovers by the test
+  // `docs/design/content.md` sets, and `HANDOVER_TRAIT_KINDS` carries the
+  // reason for each in the sentence's own terms.
+  //
+  // **They stop being handovers the day the lattice holds materials**, and
+  // that is written down rather than left to be noticed: the reason on each
+  // says what would have to be true for it to be false.
+  // ---------------------------------------------------------------------
+  z.object({
+    /**
+     * SRD Amorphous, on four oozes and shadows, and SRD Compression on the
+     * octopus: "can move through a space as narrow as 1 inch without
+     * expending extra movement to do so."
+     *
+     * One kind over two headings, because the two print one sentence — the
+     * rule this file follows everywhere: the sentence is matched and the
+     * heading is not.
+     */
+    kind: z.literal('moves-through-a-one-inch-gap'),
+  }),
+  z.object({
+    /**
+     * SRD Air Form and SRD Water Form: "The elemental can enter a creature's
+     * space and stop there. It can move through a space as narrow as 1 inch
+     * without expending extra movement to do so."
+     *
+     * A kind of its own rather than the one above with a flag, because the
+     * first clause is the larger of the two claims and a flag on the narrow
+     * gap would have buried it.
+     */
+    kind: z.literal('enters-a-creature-space-and-a-one-inch-gap'),
+  }),
+  z.object({
+    /**
+     * SRD Fire Form: the sentence above with damage on the end of it — "The
+     * first time it enters a creature's space on a turn, that creature takes
+     * 5 (1d10) Fire damage."
+     *
+     * **Its own kind, and the damage is deliberately not carried.** The
+     * trigger is the clause the lattice cannot hold, so a die read out of
+     * this sentence would be a die nothing could ever throw; what the kind
+     * claims is that the sentence was recognised whole, damage included, and
+     * that the whole of it went to the table.
+     */
+    kind: z.literal('burns-a-creature-whose-space-it-enters'),
+  }),
+  z.object({
+    /**
+     * SRD Incorporeal Movement, on the ghost, the specter, the wisp and the
+     * wraith: "can move through other creatures and objects as if they were
+     * Difficult Terrain. It takes 5 (1d10) Force damage if it ends its turn
+     * inside an object."
+     *
+     * The damage is not carried for the reason above: *inside an object* is a
+     * position this lattice has no word for, so the condition on the damage
+     * can never be evaluated.
+     */
+    kind: z.literal('moves-through-creatures-and-objects'),
+  }),
+  z.object({
+    /**
+     * SRD Earth Glide: "can burrow through nonmagical, unworked earth and
+     * stone. While doing so, the elemental doesn't disturb the material it
+     * moves through."
+     */
+    kind: z.literal('burrows-through-earth-and-stone'),
+  }),
+  z.object({
+    /**
+     * SRD Tunneler: "can burrow through solid rock at half its Burrow Speed
+     * and leaves a 10-foot-diameter tunnel in its wake."
+     */
+    kind: z.literal('burrows-through-solid-rock'),
+  }),
+  z.object({
+    /**
+     * SRD Web Walker: "ignores movement restrictions caused by webs, and the
+     * spider knows the location of any other creature in contact with the
+     * same web."
+     */
+    kind: z.literal('ignores-a-webs-restrictions'),
+  }),
+  z.object({
+    /**
+     * SRD Ice Walk: "can move across and climb icy surfaces without needing
+     * to make an ability check. Additionally, Difficult Terrain composed of
+     * ice or snow doesn't cost it extra movement."
+     *
+     * Not the same sentence as SRD Spider Climb, which is why it is not that
+     * kind: the surfaces are named by what they are made of, and a patch of
+     * Difficult Terrain here is a declared region with no composition.
+     */
+    kind: z.literal('walks-on-ice'),
+  }),
+  z.object({
+    /** SRD Ephemeral, on the will-o'-wisp: "can't wear or carry anything." */
+    kind: z.literal('cannot-wear-or-carry-anything'),
+  }),
+  z.object({
+    /**
+     * SRD Adhesive, on the mimic in object form: "adheres to anything that
+     * touches it. A Huge or smaller creature adhered to the mimic has the
+     * Grappled condition (escape DC 13). Ability checks made to escape this
+     * grapple have Disadvantage."
+     *
+     * The grapple and its escape DC are rules the engine holds and there is a
+     * door a DM applies them through; what it has no notion of is one thing
+     * *touching* another, which is the clause the rest hangs on.
+     */
+    kind: z.literal('adheres-to-what-touches-it'),
+  }),
+  z.object({
+    /**
+     * SRD Confer Fire Resistance, on the nightmare: "can grant Resistance to
+     * Fire damage to a rider while it is on the nightmare." Nothing here is
+     * ridden.
+     */
+    kind: z.literal('confers-a-resistance-to-a-rider'),
+  }),
+  z.object({
+    /**
+     * SRD Stake to the Heart, on the vampire spawn: "is destroyed if a weapon
+     * that deals Piercing damage is driven into the vampire's heart while the
+     * vampire has the Incapacitated condition."
+     */
+    kind: z.literal('destroyed-by-a-stake-through-the-heart'),
+  }),
+  z.object({
+    /**
+     * SRD Stake to the Heart, on the vampire, which is a different rule under
+     * the same heading: the vampire "has the Paralyzed condition until the
+     * weapon is removed" rather than being destroyed.
+     *
+     * Two kinds because the book prints two rules, and one kind over both
+     * would have claimed the weaker of them about the stronger creature.
+     */
+    kind: z.literal('paralyzed-by-a-stake-through-the-heart'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 
@@ -2078,6 +2306,35 @@ export const FeatureSchema = z.object({
   casts: MonsterCastLineSchema.optional(),
   /** Where this line teleports its creature — see {@link MonsterTeleportSchema}. */
   teleports: MonsterTeleportSchema.optional(),
+  /**
+   * The forms this line puts its creature into — see {@link MonsterFormsSchema}.
+   *
+   * Read on every section like everything else here. The book prints
+   * Shape-Shift as an Action on two blocks and as a Bonus Action on eleven,
+   * which is a heading saying what the use *costs*.
+   */
+  forms: MonsterFormsSchema.optional(),
+  /**
+   * What this line drags toward its creature — see {@link MonsterPullSchema}.
+   *
+   * Read on every section like everything else here; SRD prints the one line
+   * that reaches this shape under Actions.
+   */
+  pulls: MonsterPullSchema.optional(),
+  /**
+   * The forms this line may be used in, where its **heading** says so.
+   *
+   * SRD Werewolf: "Bite (Wolf or Hybrid Form Only)", "Longbow (Humanoid or
+   * Hybrid Form Only)"; SRD Weretiger's Prowl and SRD Mimic's Adhesive print
+   * the same clause. The words are lowercased into the names the block's own
+   * Shape-Shift prints its forms under, so the gate and the form are one
+   * vocabulary rather than two strings that happen to agree.
+   *
+   * Read off the *name* for {@link MonsterRechargeSchema}'s reason: the book
+   * prints it inside the heading, and a heading is exactly what nothing
+   * downstream may branch on.
+   */
+  onlyInForms: z.array(z.string().regex(/^[a-z][a-z-]*$/)).min(1).optional(),
   /**
    * The flat addend this Reaction line puts on somebody's D20 Test — see
    * {@link MonsterRollAddendSchema}.

@@ -5,6 +5,7 @@ import {
   parseAcAddendLine,
   parseCastLine,
   parseMonsters,
+  parsePullLine,
   parseReactionUseLine,
   parseRollAddendLine,
   parseTeleportLine,
@@ -528,5 +529,223 @@ describe('the corpus', () => {
       'ochre-jelly/Split/splits-into-two-creatures',
       'shrieker-fungus/Shriek/makes-a-noise',
     ]);
+  });
+});
+
+/**
+ * A line that **pulls** what it is already holding.
+ *
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it." Every clause of that is a rule the engine holds —
+ * `pullToward` is what SRD Merrow's rider already goes through, and the
+ * grapple is the one `escapeGrapple` answers — so the sentence is the same
+ * mechanism at a heading's price.
+ *
+ * Anchored end to end, which is what refuses the Ettercap's line under the
+ * same heading: it pulls "one creature within 30 feet of itself that is
+ * **Restrained by its Web Strand**", and a web is neither a grapple nor
+ * anything else this engine holds.
+ */
+describe('a line that pulls what it is holding', () => {
+  it('reads the roper’s distance and what it pulls', () => {
+    expect(lineOf('roper', 'Reel').pulls).toEqual({ feet: 30, of: 'grappled' });
+  });
+
+  it('refuses the ettercap’s, whose hold is a web rather than a grapple', () => {
+    expect(lineOf('ettercap', 'Reel').pulls).toBeUndefined();
+  });
+
+  it('refuses a sentence that moves any of its clauses', () => {
+    const printed = 'The roper pulls each creature Grappled by it up to 30 feet straight toward it.';
+    expect(parsePullLine(printed)).toEqual({ feet: 30, of: 'grappled' });
+    expect(parsePullLine(printed.replace('Grappled by it', 'Restrained by it'))).toBeNull();
+    expect(parsePullLine(printed.replace('each creature', 'one creature'))).toBeNull();
+    expect(parsePullLine(printed.replace(' straight toward it', ''))).toBeNull();
+  });
+
+  it('is the only line in the bestiary that prints it', () => {
+    const printed = bestiary.flatMap((block) =>
+      [...block.actions, ...block.bonusActions].filter((line) => line.pulls !== undefined),
+    );
+    expect(printed.length).toBe(1);
+  });
+});
+
+/**
+ * A line that puts its creature into **a form**.
+ *
+ * SRD Shape-Shift, printed thirteen times: "The werewolf shape-shifts into a
+ * Large wolf-humanoid hybrid or a Medium wolf, or it returns to its true
+ * humanoid form. Its game statistics, other than its size, are the same in
+ * each form. Any equipment it is wearing or carrying isn't transformed."
+ *
+ * Three things vary between the printings and each is part of the shape: the
+ * **names** the forms go by, because the block's own attack lines gate on them
+ * ("Bite (Wolf or Hybrid Form Only)"); the **sizes**, because the sentence
+ * says the statistics are the same *other than* those; and the **Speeds**, on
+ * the two blocks that print a Speed per form. What the sentence promises about
+ * the rest of the block — the statistics unchanged, the equipment untouched —
+ * is honoured by the engine doing nothing, which is why neither is a field.
+ *
+ * Anchored end to end like every reader in this file, and every sentence after
+ * the first is either one of the inert promises above or is carried verbatim
+ * in `handedOver`: the Succubus's Fly Speed clause is a rule, and reading it
+ * away would give the succubus a Speed the book withheld.
+ */
+describe('a line that takes a form', () => {
+  const formsOf = (id: string, name: string) => lineOf(id, name).forms ?? null;
+
+  it('reads the werewolf’s three forms, with the sizes the line prints', () => {
+    expect(formsOf('werewolf', 'Shape-Shift')).toEqual({
+      forms: [
+        { name: 'hybrid', sizes: ['large'], speed: null },
+        { name: 'wolf', sizes: ['medium'], speed: null },
+        { name: 'humanoid', sizes: [], speed: null },
+      ],
+      handedOver: [],
+    });
+  });
+
+  it('names the true form by the noun the line gives it, or `true` where it gives none', () => {
+    expect(formsOf('mimic', 'Shape-Shift')).toEqual({
+      forms: [
+        { name: 'object', sizes: ['medium', 'small'], speed: null },
+        { name: 'blob', sizes: [], speed: null },
+      ],
+      handedOver: [],
+    });
+    expect(formsOf('doppelganger', 'Shape-Shift')).toEqual({
+      forms: [
+        { name: 'humanoid', sizes: ['medium', 'small'], speed: null },
+        { name: 'true', sizes: [], speed: null },
+      ],
+      handedOver: [],
+    });
+  });
+
+  it('reads the Speeds the imp’s three animals print, one per form', () => {
+    expect(formsOf('imp', 'Shape-Shift')).toEqual({
+      forms: [
+        {
+          name: 'rat',
+          sizes: [],
+          speed: { walk: 20, burrow: null, climb: null, fly: null, swim: null, hover: false },
+        },
+        {
+          name: 'raven',
+          sizes: [],
+          speed: { walk: 20, burrow: null, climb: null, fly: 60, swim: null, hover: false },
+        },
+        {
+          name: 'spider',
+          sizes: [],
+          speed: { walk: 20, burrow: null, climb: 20, fly: null, swim: null, hover: false },
+        },
+        { name: 'true', sizes: [], speed: null },
+      ],
+      handedOver: [],
+    });
+    expect(formsOf('quasit', 'Shape-Shift')?.forms.map((form) => form.name)).toEqual([
+      'bat',
+      'centipede',
+      'toad',
+      'true',
+    ]);
+  });
+
+  it('reads a line whose alternatives the book joins with no comma', () => {
+    // The Oni: "into a Small or Medium Humanoid or a Large Giant".
+    expect(formsOf('oni', 'Shape-Shift')).toEqual({
+      forms: [
+        { name: 'humanoid', sizes: ['small', 'medium'], speed: null },
+        { name: 'giant', sizes: ['large'], speed: null },
+        { name: 'true', sizes: [], speed: null },
+      ],
+      handedOver: [],
+    });
+  });
+
+  it('carries the succubus’s Fly Speed clause rather than reading it away', () => {
+    // "Its game statistics are the same in each form, except its Fly Speed is
+    // available only in its true form." A rule, and the engine has no arm for
+    // a Speed a *form* takes away — so the forms are read and the sentence
+    // comes back whole.
+    const read = formsOf('succubus', 'Shape-Shift');
+    expect(read?.forms.map((form) => form.name)).toEqual(['humanoid', 'true']);
+    expect(read?.handedOver).toEqual([
+      'Its game statistics are the same in each form, except its Fly Speed is available only in its true form.',
+    ]);
+  });
+
+  it('refuses the vampire’s, whose line is gated and transforms what it wears', () => {
+    // "If the vampire isn't in sunlight or running water, it shape-shifts…"
+    // and "Anything it is wearing transforms with it" — a gate the engine
+    // cannot evaluate, and the opposite of the equipment rule every other
+    // printing states.
+    expect(formsOf('vampire', 'Shape-Shift')).toBeNull();
+  });
+
+  it('reads it on both of the sections the book prints it under', () => {
+    // The imp's and the quasit's are Actions; every other printing is a Bonus
+    // Action. A heading says what a line costs and not what it says.
+    expect(find('imp').actions.some((line) => line.forms !== undefined)).toBe(true);
+    expect(find('werewolf').bonusActions.some((line) => line.forms !== undefined)).toBe(true);
+  });
+
+  it('reads every Shape-Shift line the bestiary prints but the vampire’s', () => {
+    const printed = bestiary.flatMap((block) =>
+      [...block.actions, ...block.bonusActions].filter((line) => line.name === 'Shape-Shift'),
+    );
+    expect(printed.length).toBe(13);
+    expect(printed.filter((line) => line.forms === undefined).length).toBe(1);
+  });
+});
+
+/**
+ * The qualification a heading prints, read off the **name**.
+ *
+ * SRD Werewolf: "Bite (Wolf or Hybrid Form Only)", "Longbow (Humanoid or
+ * Hybrid Form Only)". The clause is printed inside the heading rather than in
+ * the sentence, and a name is exactly what nothing downstream may branch on —
+ * so it is read here, once, into the same lowercase words the line's own
+ * Shape-Shift prints its forms under.
+ */
+describe('a heading that names the forms its line may be used in', () => {
+  it('reads one form and a menu of two', () => {
+    expect(lineOf('mimic', 'Adhesive (Object Form Only)').onlyInForms).toEqual(['object']);
+    expect(lineOf('werewolf', 'Bite (Wolf or Hybrid Form Only)').onlyInForms).toEqual([
+      'wolf',
+      'hybrid',
+    ]);
+    expect(lineOf('werewolf', 'Longbow (Humanoid or Hybrid Form Only)').onlyInForms).toEqual([
+      'humanoid',
+      'hybrid',
+    ]);
+  });
+
+  it('reads it on a Bonus Action as readily as on an attack', () => {
+    // SRD Weretiger, Prowl: Hide as a Bonus Action, in two of its three forms.
+    expect(lineOf('weretiger', 'Prowl (Tiger or Hybrid Form Only)').onlyInForms).toEqual([
+      'tiger',
+      'hybrid',
+    ]);
+  });
+
+  it('leaves a heading with no such clause alone', () => {
+    expect(lineOf('werewolf', 'Scratch').onlyInForms).toBeUndefined();
+    expect(lineOf('werewolf', 'Multiattack').onlyInForms).toBeUndefined();
+  });
+
+  it('names a form the line’s own Shape-Shift prints, on every block that gates one', () => {
+    for (const block of bestiary) {
+      const forms = [...block.actions, ...block.bonusActions]
+        .flatMap((line) => line.forms?.forms ?? [])
+        .map((form) => form.name);
+      if (forms.length === 0) continue;
+      const gated = [...block.traits, ...block.actions, ...block.bonusActions].flatMap(
+        (line) => line.onlyInForms ?? [],
+      );
+      expect(gated.filter((name) => !forms.includes(name)), block.id).toEqual([]);
+    }
   });
 });
