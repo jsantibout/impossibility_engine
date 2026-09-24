@@ -8042,9 +8042,17 @@ export const WALL_OF_FIRE: SpellDefinition = {
  *
  * **Not Resistance the defence**, which is the reason this cantrip is worth
  * reading twice: `defensesOf` halves a type and this subtracts a die from it,
- * and the two are different arithmetic with the same name. Nothing in the
- * damage pipeline takes a die away from a total, so the minute of
- * Concentration runs and the 1d4 does not.
+ * and the two are different arithmetic with the same name. The `damage-reduction`
+ * effect is the first of them the pipeline learned — an *adjustment*, which
+ * SRD's "Order of Application" puts before the halving, so a 1d4 off 10 Fire
+ * against a fire-resistant target leaves 3 rather than 4.
+ *
+ * **The eleven printed types are a `damageTypeStated` list**, and the field is
+ * the same one Spirit Guardians and Protection from Energy already use: the
+ * definition carries one so the shape is well-formed, the caster names one at
+ * the casting, and a casting that names none is refused rather than defaulted.
+ * The list here is the book's, minus Force and Psychic, which the SRD does not
+ * print in this sentence.
  */
 export const RESISTANCE: SpellDefinition = {
   id: 'resistance',
@@ -8055,12 +8063,35 @@ export const RESISTANCE: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  effects: [
+    {
+      kind: 'damage-reduction',
+      // "reduces the total damage taken by 1d4" — a notation, thrown by the
+      // blow that arrives rather than at the cast.
+      reduces: { dice: '1d4' },
+      // Rewritten to the one the caster named; `fire` is here so the shape is
+      // well-formed, exactly as Spirit Guardians carries one of its two.
+      damageTypes: ['fire'],
+      // "A creature can benefit from this spell only once per turn."
+      oncePerTurn: true,
+    },
+  ],
+  // The eleven the sentence prints, in the book's own order.
+  damageTypeStated: [
+    'acid',
+    'bludgeoning',
+    'cold',
+    'fire',
+    'lightning',
+    'necrotic',
+    'piercing',
+    'poison',
+    'radiant',
+    'slashing',
+    'thunder',
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'the die is not subtracted: "the creature reduces the total damage taken by 1d4" is a reduction applied to damage, and the pipeline adjusts, halves and doubles a total but never takes a roll off one',
-    'which damage type was chosen is not recorded, because nothing reads it — the eleven the spell prints would be a `damageTypeStated` list if there were an effect for it to choose the type of',
-    'the once-per-turn limit is not enforced, because nothing is applied for it to limit',
     'whether the creature touched is willing is not modelled; willingness is fiction',
   ],
 };
@@ -8572,11 +8603,21 @@ export const SEARING_SMITE: SpellDefinition = {
  * > or that have Immunity to the Exhaustion condition automatically succeed
  * > on saves against this spell."
  *
- * **2024 rewrote this spell too**, and the hit-point total everybody
- * remembers is gone: it is a save now, and the save repeats once and
- * *deepens* on the second failure. A repeat save in this engine releases an
- * effect on a success and does nothing on a failure, which is the wrong way
- * round for every sentence here.
+ * **2024 rewrote this spell too**, and the hit-point total everybody remembers
+ * is gone: it is a save now, and the save repeats once and *deepens* on the
+ * second failure. That deepening is what `SpellRepeatSave.onFailure` was built
+ * for — a repeat save released an effect on a success and did nothing at all
+ * on a failure, which is the wrong way round for the middle sentence of this
+ * paragraph; the Cockatrice's "_First Failure:_ Restrained … _Second Failure:_
+ * Petrified" writes the same shape outside the spell book.
+ *
+ * **The Incapacitated carries no `lasts` of its own, and that is the spell
+ * rather than a shortcut.** "Until the end of its next turn" and "at which
+ * point it must repeat the save" are one moment named twice: a deadline there
+ * would expire the timer and drop the pending save before anybody rolled it,
+ * so what the moment does is *change* the condition — deepened on a failure,
+ * released on a success — and the minute the casting runs for is what ends it
+ * either way.
  */
 export const SLEEP: SpellDefinition = {
   id: 'sleep',
@@ -8587,13 +8628,41 @@ export const SLEEP: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
-  effects: [],
+  // "in a 5-foot-radius Sphere centered on a point within range" — a template
+  // the engine already has, on a point the caster names. What it cannot say is
+  // "Each creature of your choice" inside it: an area catches everybody
+  // standing in it, and that filter stays in `unmodelled`.
+  area: { kind: 'sphere', radius: 5, origin: 'point' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'incapacitated',
+      repeats: {
+        // "until the end of its next turn, at which point it must repeat the
+        // save" — the sleeper's own turn, and the condition's lifetime is the
+        // casting's, so this moment is the only thing that changes it.
+        at: 'end-of-turn',
+        // A creature that shakes it off is awake; the rest go on sleeping,
+        // which is what "on a target" means for a spell cast at a Sphere.
+        onSuccess: 'end-on-target',
+        // "If the target fails the second save, the target has the Unconscious
+        // condition for the duration." Under the casting's own source, so the
+        // minute, the Concentration and a dispel all reach it; and the repeat
+        // stops there, because the SRD asks for a second save and not a third.
+        onFailure: { condition: 'unconscious' },
+      },
+    },
+  ],
   durationSeconds: 60,
+  // "The spell ends on a target if it takes damage" — **any** damage, from
+  // anybody or from nobody at all, and on that sleeper rather than on the
+  // Sphere: the rest of the room stays asleep. Hypnotic Pattern writes the
+  // same sentence and reaches the same cause.
+  endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
   unmodelled: [
-    'the save is not rolled and the Incapacitated is not applied: the condition lasts "until the end of its next turn, at which point it must repeat the save", and the repeat is a save whose **failure** deepens the effect rather than a save whose success releases it',
-    'so the second failure is not applied either: "If the target fails the second save, the target has the Unconscious condition for the duration"',
-    'the 5-foot-radius Sphere is not a template, and "Each creature of your choice" inside it is a filter on what an area catches; nothing is resolved over either',
-    'the two ways out are not offered: "The spell ends on a target if it takes damage" is any damage from anybody, which no casting-end cause expresses, and somebody within 5 feet taking an action to shake the sleeper awake is a check nobody else may attempt',
+    '"Each creature of your choice" inside the Sphere is a filter on what an area catches, and an area catches everybody standing in it — so a casting aimed at a mixed crowd puts the caster’s own allies to sleep',
+    'somebody standing beside the sleeper taking an action to shake them out of the spell is not offered: one creature spending an action to free another is an action nothing spends, and the check it would buy is one only the sleeper may attempt',
     'the automatic successes are not granted: creatures that do not sleep, and creatures with Immunity to the Exhaustion condition, are an outcome read off the target’s own defences, and `checks.ts` carries an automatic failure and no automatic success',
   ],
 };

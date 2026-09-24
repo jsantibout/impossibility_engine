@@ -1017,6 +1017,39 @@ function checkConditionRider(
     });
   }
 
+  // **A deepening names a condition, out of the same fifteen.** SRD Sleep's
+  // "the target has the Unconscious condition for the duration" is the failure
+  // branch of the repeat above, and the only thing there is to be wrong about
+  // is the name: the source, the lifetime and the end of the timer are all the
+  // first condition's, which is what makes this one field rather than a second
+  // rider.
+  if (rider?.repeats?.onFailure !== undefined) {
+    checkCondition(
+      String(rider.repeats.onFailure.condition),
+      `${riderPath}.repeats.onFailure.condition`,
+      found,
+    );
+
+    // **And the condition that carries one takes no deadline of its own.**
+    // SRD Sleep names one moment twice — "until the end of its next turn, at
+    // which point it must repeat the save" — and what the moment does is
+    // *change* the condition rather than end it. A `lasts` beside a deepening
+    // is the same moment written as an ending, and the two passes that read it
+    // would race: `expireEffects` deletes the timer and `dropOrphanedSaves`
+    // drops the pending save, so the sentence the author wrote would silently
+    // do nothing. The condition runs for the casting's own duration instead,
+    // and this refuses the pair rather than leaving four docstrings to claim a
+    // rule nothing keeps.
+    if (rider.lasts !== undefined) {
+      found.push({
+        field: `${riderPath}.lasts`,
+        code: 'deepening_with_a_deadline',
+        reason:
+          'a repeat save whose failure deepens the condition is the moment that changes it, so the condition runs for the casting and carries no deadline of its own; a "lasts" here would expire the timer and drop the save before anybody rolled it',
+      });
+    }
+  }
+
   checkRiderDuration(rider?.lasts, riderPath, found);
 
   // **A rider with no lifetime is checked once, and not here.** The rule that
@@ -2591,6 +2624,63 @@ function checkEffect(
       return;
     }
 
+    // The **adjustment** half of the printed line above, and the same three
+    // rules about the list — SRD Resistance's "damage of the chosen type",
+    // where the defence's is "Resistance to Fire damage". What is extra is the
+    // notation, because this one rolls: a reduction with no dice takes nothing
+    // off, and the ledger that caps it needs a value it can key on.
+    case 'damage-reduction': {
+      if (
+        readsAsList(
+          effect.damageTypes,
+          `${path}.damageTypes`,
+          'a reduction names the damage types it answers as a list',
+          found,
+        )
+      ) {
+        if (effect.damageTypes.length === 0) {
+          found.push({
+            field: `${path}.damageTypes`,
+            code: 'reduces_nothing',
+            reason:
+              'a reduction that names no damage type never meets a blow it is about; name the types the SRD prints',
+          });
+        }
+        const named = new Set<string>();
+        effect.damageTypes.forEach((type, i) => {
+          checkDamageType(type, `${path}.damageTypes[${i}]`, found);
+          if (named.has(type)) {
+            found.push({
+              field: `${path}.damageTypes[${i}]`,
+              code: 'duplicate_damage_type',
+              reason: `${type} is named twice, and one blow of a type is one blow`,
+            });
+          }
+          named.add(type);
+        });
+      }
+      const reduces = effect.reduces?.dice;
+      if (typeof reduces !== 'string' || !parseNotation(reduces).ok) {
+        found.push({
+          field: `${path}.reduces.dice`,
+          code: 'bad_dice',
+          reason: `"${String(reduces)}" is not dice notation`,
+        });
+      }
+      // **`true` is the only value, and it is required.** Every SRD sentence
+      // of this shape prints the limit, and a definition that left it out
+      // would be granting a much larger rule by omission than by statement.
+      if (effect.oncePerTurn !== true) {
+        found.push({
+          field: `${path}.oncePerTurn`,
+          code: 'malformed_field',
+          reason:
+            'a reduction states the once-per-turn limit the SRD prints beside it; the only value is true',
+        });
+      }
+      return;
+    }
+
     // The condition half of the same sentence, and the same three rules — with
     // one field fewer, because there is no Vulnerability to a condition and no
     // halfway house: the list is the whole of what a definition states.
@@ -3156,6 +3246,13 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'light the target carries';
     case 'sense':
       return 'a sense the target gains';
+    // The seventeenth sourced grant, and it carries no deadline of its own for
+    // the reason the fifth, sixth and seventh do not: SRD Resistance says
+    // "before the spell ends", so the casting is the only thing that could
+    // stop the subtraction — and an Instantaneous casting would take a d4 off
+    // every hit of that type for ever.
+    case 'damage-reduction':
+      return 'an amount taken off later damage';
     // The sixth sourced grant, and it carries no deadline of its own for the
     // reason `speed` does not: every SRD sentence of this shape says "until
     // the spell ends", so the casting is the only thing that could take the
@@ -5224,6 +5321,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'speed',
   'light',
   'sense',
+  'damage-reduction',
   'attack-rider',
   'weapon-rider',
   'teleport',

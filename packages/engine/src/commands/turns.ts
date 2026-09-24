@@ -996,6 +996,63 @@ export function conditionEndedBy(state: GameState, effectKey: string): readonly 
 }
 
 /**
+ * What a failed repeat leaves behind, where the SRD writes a failure that acts.
+ *
+ * SRD Sleep: "at which point it must repeat the save. If the target fails the
+ * second save, the target has the Unconscious condition for the duration." The
+ * Cockatrice's bite writes the same shape with no spell anywhere in it, which
+ * is why {@link RepeatSave.onFailure} is a bare condition name and this reads
+ * it off the timer rather than off anything that knows what a spell is.
+ *
+ * **Two events, and the second sentence is the first one's consequence.** The
+ * deeper condition lands under the **same source** — a casting's mark, an
+ * item's label, a caller's own string — so whatever released the first one
+ * releases this one, and no second lifetime has to be arranged. The shallow
+ * condition is lifted by that source, which is what makes this a *deepening*
+ * rather than a creature holding both: Unconscious carries Incapacitated, and
+ * an Incapacitated instance already standing under the same source would keep
+ * the implication from being recorded and outlive the cause that carried it.
+ *
+ * **And the timer goes with the instance**, which is the half that stops the
+ * boundary asking again: `condition-removed` drops every deadline hung on what
+ * it lifted, so the repeat is repeated once — the SRD's "the second save" —
+ * and no event of its own is needed to say so.
+ *
+ * Nothing at all where the hook writes no failure branch, which is every
+ * repeat save the engine had before this: a failure that does nothing is still
+ * the commonest answer in the book.
+ */
+function deepenedBy(state: GameState, pending: PendingSave): readonly GameEvent[] {
+  const timer = state.timers[pending.effectKey];
+  const deeper = timer?.repeatSave?.onFailure;
+  if (timer === undefined || deeper === undefined || timer.target.kind !== 'condition') return [];
+
+  // What is being deepened, read the way `conditionEndedBy` reads it: the
+  // instance the timer names, on the creature it names. An instance already
+  // gone — cured between the boundary and the roll — is nothing to deepen,
+  // and the save was owed against an effect that is no longer there.
+  const shallow = conditionEndedBy(state, pending.effectKey);
+  if (shallow.length === 0) return [];
+
+  return [
+    ...shallow.map(
+      (condition): GameEvent => ({
+        type: 'condition-removed',
+        id: pending.target,
+        condition,
+        source: pending.source,
+      }),
+    ),
+    {
+      type: 'condition-applied',
+      id: pending.target,
+      condition: deeper.condition,
+      source: pending.source,
+    },
+  ];
+}
+
+/**
  * Roll the turn-boundary saves a state already owes.
  *
  * The deferred half of {@link resolveTurn}: a caller who advanced without a
@@ -1086,6 +1143,12 @@ export function resolvePendingSaves(
           turn: pending.turn,
           success: save.value.success,
         },
+        // **And what a failure buys, where the SRD writes a failure that
+        // buys something.** After the resolution and not before it: the
+        // resolution is what clears the debt, and a removal that dropped the
+        // timer first would leave `dropOrphanedSaves` to discard a save
+        // nobody had answered.
+        ...(save.value.success ? [] : deepenedBy(state, pending)),
       );
       saves.push({
         effectKey: pending.effectKey,

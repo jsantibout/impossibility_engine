@@ -543,6 +543,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // Hit's doubled dice, a Resistance halving the total the faces made, and the
   // held path that reports the same faces on `damage-rolled` instead.
   'damage-dice-recorded',
+  // An amount a running effect takes off a hit before the defences meet it —
+  // SRD Resistance the cantrip, which is not the granted defence two entries
+  // above. Neither log was written when a *standing* arrangement on the
+  // defender could reach the arithmetic at all: `reduceDamage` was behind a
+  // Reaction somebody spent, and both fixtures fold to exactly the states they
+  // always folded to with an empty list on every creature.
+  // `damage-reduction.test.ts` casts the cantrip through the public API and
+  // drives it end to end: the d4 off a blow of the named type, the order that
+  // puts it before the halving, the once-per-turn limit across three rays of
+  // one Scorching Ray, the held road a Reaction opened, and the grant going
+  // back when the Concentration does.
+  'damage-reduction-granted',
   // The two a passive defence writes. Neither log was written within a year of
   // the owner's ruling that made the shape exist — an ongoing effect on the
   // defender that the attack path consults with nobody taking a Reaction — so

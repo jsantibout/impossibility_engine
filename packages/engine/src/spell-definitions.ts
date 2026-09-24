@@ -425,6 +425,60 @@ export interface SpellCheck {
 }
 
 /**
+ * A saving throw an effect retakes at a turn boundary, as a definition asks
+ * for one.
+ *
+ * `RepeatSave` in `timers.ts` is the *record* — the ability, the DC, the label
+ * and whose turns it is anchored to, all of them the host's and all of them
+ * pinned when the effect landed. This is the half a **definition** writes, and
+ * it was spelled out twice: once inline on {@link ConditionRider.repeats} and
+ * once inline on the flat `save.repeats`, two identical object literals that
+ * had to be widened in step and had no name for a reader to look up. One
+ * exported type, two slots.
+ *
+ * **The ability and the DC are deliberately not here.** SRD writes "the target
+ * repeats **the** save" — the one the host already rolled — so a definition
+ * naming its own would be a second place for one sentence to be got wrong.
+ */
+export interface SpellRepeatSave {
+  /** Which boundary it fires on, on the turns of whoever it landed on. */
+  readonly at: TurnMoment;
+  /**
+   * What a success does — see `RepeatSave.onSuccess`, which is where the
+   * difference between ending the casting and ending it on one target is
+   * argued and where the three doors that refuse the first are named.
+   */
+  readonly onSuccess: 'end-on-target' | 'end-casting';
+  /**
+   * What a **failure** does, where the SRD writes a failure that acts.
+   *
+   * SRD Sleep: "at which point it must repeat the save. If the target fails
+   * the second save, the target has the Unconscious condition for the
+   * duration." The Cockatrice's bite writes it too — "_First Failure:_
+   * Restrained and repeats the save at the end of its next turn. _Second
+   * Failure:_ Petrified" — and neither of them repeats a third time.
+   *
+   * So one failure does two things and they are one sentence: **the deeper
+   * condition is applied under the same source, and the timer that raised the
+   * save ends with it.** The first condition goes when the deeper one lands,
+   * which is what "deepens" means rather than two conditions held at once; and
+   * with the timer gone the boundary owes nothing further, which is what
+   * "repeats the save" once rather than for ever means.
+   *
+   * **The condition that carries this takes no `lasts` of its own.** It runs
+   * for the casting's duration and the repeat is what changes it. A `lasts`
+   * landing on the same moment as {@link at} would let `expireEffects` delete
+   * the timer and `dropOrphanedSaves` drop the pending save before anybody
+   * rolled it, so the sentence would quietly do nothing.
+   *
+   * Pure data, with no field naming a spell: the deeper condition is a
+   * {@link ConditionName} like any other, sourced to whatever imposed the
+   * first one and released with it.
+   */
+  readonly onFailure?: { readonly condition: ConditionName };
+}
+
+/**
  * The moment a Reaction spell is cast in answer to.
  *
  * SRD writes a Reaction's casting time as a clause — "Reaction, which you take
@@ -580,10 +634,7 @@ export interface ConditionRider {
    * the Constitution is the one the spell already asked for. A rider naming
    * its own would be a second place for one sentence to be got wrong.
    */
-  readonly repeats?: {
-    readonly at: TurnMoment;
-    readonly onSuccess: 'end-on-target' | 'end-casting';
-  };
+  readonly repeats?: SpellRepeatSave;
 }
 
 /**
@@ -1661,10 +1712,7 @@ export type SpellEffect =
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
        */
-      readonly repeats?: {
-        readonly at: TurnMoment;
-        readonly onSuccess: 'end-on-target' | 'end-casting';
-      };
+      readonly repeats?: SpellRepeatSave;
       /**
        * When this condition ends, if it ends before the casting does.
        *
@@ -1968,6 +2016,65 @@ export type SpellEffect =
    * sourced grant is.
    */
   | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
+  /**
+   * An amount the spell takes off a hit **before** the target's defences meet
+   * it — SRD Resistance: "When the creature takes damage of the chosen type
+   * before the spell ends, the creature reduces the total damage taken by 1d4.
+   * A creature can benefit from this spell only once per turn."
+   *
+   * **Not `damage-defense`, which is the neighbour it is easiest to mistake
+   * for.** That kind names a damage type and grants Resistance, Immunity or
+   * Vulnerability over it — a *multiplier*, and the second step of SRD's
+   * "Order of Application". This is the **first** step, an adjustment, and the
+   * difference is observable: a d4 off 10 Fire against a fire-resistant target
+   * leaves 3, where halving first would leave 4 and round twice. The cantrip
+   * and the defence share one word and are different arithmetic.
+   *
+   * **The die is a notation and is thrown at the blow.** A reduction rolled at
+   * the cast would put the number in the log a minute before the hit that
+   * produced it, which is the rule a scheduled hit and a turn payout already
+   * follow.
+   *
+   * **The type is chosen at the casting through the mechanism that exists.**
+   * `SpellDefinition.damageTypeStated` lists what a definition prints and
+   * `statedDamageType` rewrites a `damageTypes` field to the one the caster
+   * named — the same door SRD Protection from Energy's granted defence goes
+   * through — so this field is plural to be reachable by that rewrite and SRD
+   * Resistance leaves it holding exactly one. A casting that names none is
+   * `damage_type_required` at the door, as it already is for the other two.
+   *
+   * **It carries no `lasts` of its own**, for the reason `sense`, `speed` and
+   * `action-rule` carry none: the SRD sentence in this position runs for the
+   * spell's own duration, and an Instantaneous casting would leave a reduction
+   * nothing could ever lift. `checkGrantLifetimes` refuses that pairing.
+   */
+  | {
+      readonly kind: 'damage-reduction';
+      /** What comes off. A notation, thrown when a blow arrives. */
+      readonly reduces: { readonly dice: string };
+      /**
+       * The kinds of damage the sentence is about — see `statedDamageType`.
+       *
+       * `readonly string[]`, as `damage-defense`'s list is and for the same
+       * two reasons: the table `applyDamage` sums into is keyed by string, and
+       * {@link statedDamageType} writes `[damageType]` into this field out of
+       * a casting's stated choice, which is a string. The vocabulary is held
+       * at the door instead — `checkSpellDefinition` refuses a type the SRD
+       * does not print, exactly as it does for a granted defence.
+       */
+      readonly damageTypes: readonly string[];
+      /**
+       * SRD Resistance's "only once per turn".
+       *
+       * Required rather than optional, and `true` is its only value: every SRD
+       * sentence of this shape prints the limit, and a definition that left it
+       * out would be claiming a reduction off *every* blow — which is a much
+       * bigger rule to grant by omission than by statement. The ledger that
+       * enforces it is the engine's own `feature-used`, keyed on the casting,
+       * so outside combat there are no turns and nothing restricts it.
+       */
+      readonly oncePerTurn: true;
+    }
   /**
    * What the spell changes about how its target may spend a turn.
    *
@@ -4650,6 +4757,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // read nothing of the caster's — a radius and a range are the book's.
       case 'light':
       case 'sense':
+      // And a reduction the target takes off later damage: a notation and a
+      // list of types, both the book's, with nothing of the caster's in
+      // either — SRD Resistance's d4 is a d4 whoever cast it.
+      case 'damage-reduction':
       case 'attack-rider':
       // The ability it may pin is not one of these three: it is an *ability*
       // and not a number, which is `castersAbilityRead`'s question and not

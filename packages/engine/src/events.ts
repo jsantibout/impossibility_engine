@@ -34,6 +34,7 @@ import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
 import type { D20TestResult } from './checks.js';
+import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionWindow } from './reactions.js';
 import type { ActiveBonus, ModeSource } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
@@ -475,6 +476,22 @@ export type GameEvent =
       readonly type: 'sense-granted';
       readonly id: CharacterId;
       readonly modifier: GrantedSense;
+    }
+  /**
+   * An amount a running effect takes off a hit **before** the defences —
+   * SRD Resistance the cantrip, which is not the granted defence of the same
+   * name two events above. Ended by the source it carries, exactly as the
+   * sense and the Speed are: `releaseCasting`, `releaseOnTarget` and the
+   * `grants` timer are the doors, so there is no removal event.
+   *
+   * What it grants is a **notation**, not a number: the die is thrown when a
+   * blow arrives, which is the rule a scheduled hit and a turn payout already
+   * follow, and is why nothing rolled here at the cast.
+   */
+  | {
+      readonly type: 'damage-reduction-granted';
+      readonly id: CharacterId;
+      readonly reduction: GrantedDamageReduction;
     }
 
   /**

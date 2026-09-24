@@ -243,6 +243,14 @@ const cast = (
       ...(definition.choiceStated === undefined
         ? {}
         : { choice: definition.choiceStated.options[0]! }),
+      // And the same for a printed list of damage types, which is the other
+      // fact a casting is refused for leaving unstated — `damage_type_required`
+      // rather than `choice_required`, and the same reading: what this file
+      // claims is that every one of these is cast rather than refused, not
+      // which of the eleven SRD Resistance's caster named.
+      ...(definition.damageTypeStated === undefined
+        ? {}
+        : { damageType: definition.damageTypeStated[0]! }),
       // **An area needs a point, and a directional one a direction**: the two
       // facts `resolveTargets` demands of any spell with a volume. Derived
       // from the definition rather than listed by spell id, so the next
@@ -1528,7 +1536,24 @@ describe('every spell this batch added is cast for real', () => {
     'mirror-image',
     'phantom-steed',
     'plant-growth',
+    // **Resistance leaves with nothing left over**, which is Aid's door rather
+    // than the nine others: the whole of the cantrip is a d4 off a hit of a
+    // chosen type, and `damage-reduction` is the first thing the damage
+    // pipeline ever consulted on the defender's own side that nobody had to
+    // spend a Reaction to reach. The eleven printed types are a
+    // `damageTypeStated` list and the once-per-turn limit is the engine's own
+    // ledger, so the only sentence it hands the table is whether the creature
+    // touched was willing.
+    'resistance',
     'sanctuary',
+    // **Sleep leaves by the repeat save's new failure branch.** The save and
+    // the Incapacitated were always ordinary; what had nowhere to go was "at
+    // which point it must repeat the save. If the target fails the second
+    // save, the target has the Unconscious condition" — a repeat whose
+    // *failure* acts and then stops asking, which `SpellRepeatSave.onFailure`
+    // is. Three clauses of five left its `unmodelled`; the area's filter, the
+    // shake-awake and the automatic successes stay, in `ADJUDICATED` now.
+    'sleep',
     'spike-growth',
     'wind-walk',
     // The last of the tracked spells to be blocked on a *publication* rather

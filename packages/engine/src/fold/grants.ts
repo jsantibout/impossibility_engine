@@ -40,6 +40,7 @@ export const GRANTS_EVENTS = [
   'damage-defense-granted',
   'speed-modifier-granted',
   'sense-granted',
+  'damage-reduction-granted',
   'attack-rider-granted',
   'weapon-rider-granted',
   'condition-immunity-granted',
@@ -196,6 +197,18 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.modifier,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { senseModifiers }, creature);
+    }
+
+    case 'damage-reduction-granted': {
+      const creature = creatureOf(state, event, event.id);
+      // The source alone is the identity, as it is for a sense and a Speed:
+      // SRD Resistance grants one reduction per casting, and a second casting
+      // of it is a second source rather than a second entry under the first.
+      const damageReductions = [
+        ...creature.damageReductions.filter((held) => held.source !== event.reduction.source),
+        event.reduction,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { damageReductions }, creature);
     }
 
     case 'attack-rider-granted': {

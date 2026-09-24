@@ -28,6 +28,7 @@ import { type ResourceState } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageComponent, DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
 import type { D20TestResult } from './checks.js';
+import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionOffer } from './reactions.js';
 import type { ActiveBonus } from './bonuses.js';
 import { type SpellcastingState } from './spellcasting.js';
@@ -514,6 +515,18 @@ export interface CreatureState {
    * released with the source exactly as the Speeds above are.
    */
   readonly senseModifiers: readonly GrantedSense[];
+  /**
+   * Amounts a running effect takes off a hit **before** the defences — SRD
+   * Resistance the cantrip, which is not the defence of the same name.
+   *
+   * The seventh member of the family above, and the first whose reader is the
+   * damage pipeline rather than a sheet: `defenses` and {@link grantedDefenses}
+   * halve, double or refuse a total, and this subtracts a roll from one at the
+   * step before. Linked by the source like every other grant, so
+   * `releaseCasting`, `releaseOnTarget` and a `grants` deadline all end it
+   * through the door that already existed.
+   */
+  readonly damageReductions: readonly GrantedDamageReduction[];
   /**
    * Extra damage a running effect adds to this creature's **later** attacks.
    *

@@ -1437,7 +1437,17 @@ describe('what a shape finishes is two numbers', () => {
     const unread = Object.keys(BLOCKED_ON).filter((id) => !isSentenceComplete(id));
     expect(unread).toEqual(['wish']);
     expect(blockersOf('wish').length).toBeGreaterThan(1);
-    expect(consumersOf('a-reduction-an-effect-applies-to-damage').unblocksUnread).toEqual([]);
+    // **This named `a-reduction-an-effect-applies-to-damage` until that shape
+    // left the spell vocabulary.** Resistance walks through the
+    // `damage-reduction` effect now and Shield's clause is filed under the
+    // window it actually waits on, so the id's last claimant is SRD Ring of
+    // Warmth and it lives in `ITEM_SHAPES` — where what is true of an item and
+    // false of a casting belongs. The example is a different shape and the
+    // claim is the same one: an empty unread column because the population was
+    // read, rather than because nothing is blocked.
+    expect(
+      consumersOf('a-repeat-save-that-does-something-on-a-failure').unblocksUnread,
+    ).toEqual([]);
     expect(consumersOf('an-armor-class-a-spell-floors').unblocks).toEqual([]);
     expect(consumersOf('an-armor-class-a-spell-floors').tracked).toEqual(['barkskin']);
   });
