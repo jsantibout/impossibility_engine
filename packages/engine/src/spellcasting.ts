@@ -54,6 +54,23 @@ export interface GrantedSpell {
    */
   readonly atWill?: true;
   /**
+   * Every die this casting would throw takes its **highest face**.
+   *
+   * SRD Fiendish Vigor: "When you cast the spell with this feature, you don't
+   * roll the die for the Temporary Hit Points; you automatically get the
+   * highest number on the die." A rule about a casting made through *this*
+   * grant and not about the spell, which is why it rides here: the same
+   * Warlock casting False Life off a slot rolls it.
+   *
+   * The reading is `maximisedHealing`'s — SRD Beacon of Hope's "regains the
+   * maximum number of Hit Points possible" — so the die is still thrown, still
+   * recorded, and still says what it showed, and nothing is added to the dice
+   * layer. Its one SRD writer is a Temporary Hit Point roll and that is the
+   * roll it reaches; `checkContent` refuses the flag on a grant whose spell
+   * rolls none rather than letting a feature promise what no resolver honours.
+   */
+  readonly maximisedDice?: true;
+  /**
    * The save DC a **printed** line states, in place of the one the ability
    * derives.
    *

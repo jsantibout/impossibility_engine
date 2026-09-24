@@ -5030,6 +5030,55 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             }
           }
         }
+        // A casting the feature prices at **nothing**, judged by the same two
+        // questions the free casting above is: whether anything will ever read
+        // it, and whether it is priced twice.
+        //
+        // SRD Armor of Shadows and its four siblings are all class features of
+        // a casting class, so an at-will grant written on a class that casts
+        // nothing reaches no gatherer at all — `classFeatureAtWillCastings`
+        // runs per casting class — and would be a route nobody has.
+        if (grant.kind === 'spells' && grant.atWill === true) {
+          if (source.casts !== true) {
+            problems.push({
+              field: `${grantsAt}.atWill`,
+              code: 'free_casting_without_a_caster',
+              reason: `a casting without a slot is made with the granting class's own spellcasting ability, and ${source.where} supplies none, so ${feature.id} would grant a route nobody holds`,
+            });
+          }
+          // **A casting is priced once.** A grant naming both would be a pool
+          // that can never run out wearing a pool's name, and whichever of the
+          // two the compiler read first would silently be the price.
+          if (grant.freeCasting !== undefined) {
+            problems.push({
+              field: `${grantsAt}.atWill`,
+              code: 'casting_priced_twice',
+              reason: `${feature.id} casts its spell at will and out of a pool, and a casting has one price`,
+            });
+          }
+          // At will over nothing is the absence a typo looks like: the spells
+          // this grant hands over are its `fixed` list, and a chosen one is a
+          // sentence no feature in the book writes.
+          if ((grant.fixed ?? []).length === 0) {
+            problems.push({
+              field: `${grantsAt}.atWill`,
+              code: 'at_will_without_a_spell',
+              reason: `${feature.id} casts at will and names no spell, so the licence would hand over nothing`,
+            });
+          }
+        }
+        // And the die rule such a casting may carry — SRD Fiendish Vigor's
+        // "you don't roll the die for the Temporary Hit Points". It is a rule
+        // about a casting made through this grant, so a grant that makes no
+        // casting of its own has no dice to maximise and the flag would be a
+        // promise nothing honours.
+        if (grant.kind === 'spells' && grant.maximisedDice === true && grant.atWill !== true) {
+          problems.push({
+            field: `${grantsAt}.maximisedDice`,
+            code: 'maximised_dice_without_a_casting',
+            reason: `${feature.id} maximises the dice of a casting it does not make: the rule rides an at-will grant's own route, and nothing else reads it`,
+          });
+        }
         // The list a rest's replacement comes from — the half a definition
         // cannot check for itself, because a class is another population.
         // SRD Elven Lineage names the Wizard list; a mark naming a class this

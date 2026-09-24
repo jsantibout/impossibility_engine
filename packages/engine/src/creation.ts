@@ -968,6 +968,14 @@ function choicesGranting(
   const picked: string[] = [];
   for (const [feature, grant] of grantsIn(features)) {
     if (grant.kind !== kind) continue;
+    // **An at-will grant is a route rather than a list entry.** SRD Armor of
+    // Shadows says "you can cast _Mage Armor_ on yourself without expending a
+    // spell slot" and does not say the spell is prepared, so a grant that
+    // handed it to the class's prepared list would also hand over a slot route
+    // the invocation never printed. `classFeatureAtWillCastings` compiles it
+    // instead, into the `GrantedSpell` whose `atWill` already says exactly
+    // this price.
+    if (grant.kind === 'spells' && grant.atWill === true) continue;
     // A fixed grant is the feature's own answer; a choice is the player's.
     if (grant.kind === 'spells' && grant.fixed !== undefined) {
       picked.push(...grantedFixedSpells(choices, feature, grant));
@@ -1032,6 +1040,58 @@ function weaponsAsked(
   const level = classLevelFor(choices, feature.id);
   const column = asked.chooseByLevel;
   return column[Math.max(0, Math.min(level, column.length) - 1)] ?? 0;
+}
+
+/**
+ * How many options a choice asks for, at this character's level in the class
+ * that granted the feature.
+ *
+ * {@link weaponsAsked} one member along, and for the same SRD sentence: "You
+ * gain more invocations at higher levels, **as shown in the Invocations column
+ * of the Warlock Features table**." Read at the granting class's own level,
+ * which is the rule every table-indexed number in this file follows.
+ */
+function optionsAsked(
+  asked: Extract<FeatureChoice, { kind: 'option' }>,
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): number {
+  if (asked.chooseByLevel === undefined) return asked.choose ?? 0;
+  const level = classLevelFor(choices, feature.id);
+  const column = asked.chooseByLevel;
+  return column[Math.max(0, Math.min(level, column.length) - 1)] ?? 0;
+}
+
+/**
+ * Every prerequisite an answer to an option question failed to meet.
+ *
+ * SRD prints the line on the invocation — "**Prerequisite:** Level 5+ Warlock,
+ * Pact of the Blade feature" — so both clauses are read per answer: the level
+ * in the class that granted the feature, and another option of the same
+ * question that this character also took.
+ */
+function unmetPrerequisites(
+  asked: Extract<FeatureChoice, { kind: 'option' }>,
+  made: readonly string[],
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  const level = classLevelFor(choices, feature.id);
+  for (const line of asked.prerequisites ?? []) {
+    if (!made.includes(line.option)) continue;
+    if (line.level !== undefined && level < line.level) {
+      problems.push(
+        problem('prerequisite_not_met', 'featureChoices', `${feature.name} offers ${line.option} at level ${line.level}, and this character is level ${level} in the class that granted it`),
+      );
+    }
+    if (line.requiresOption !== undefined && !made.includes(line.requiresOption)) {
+      problems.push(
+        problem('prerequisite_not_met', 'featureChoices', `${feature.name} offers ${line.option} to a character who has taken ${line.requiresOption}, and this one has not`),
+      );
+    }
+  }
+  return problems;
 }
 
 /**
@@ -1311,7 +1371,12 @@ function checkFeatureChoices(
         continue;
       }
 
-      const wanted = asked.kind === 'weapon' ? (made ?? []).length : asked.choose;
+      const wanted =
+        asked.kind === 'weapon'
+          ? (made ?? []).length
+          : asked.kind === 'option'
+            ? optionsAsked(asked, choices, feature)
+            : asked.choose;
       if (made === undefined || made.length !== wanted) {
         problems.push(
           problem('missing_feature_choice', 'featureChoices', `${answerKey} (${feature.name}) needs ${wanted} choice(s)`),
@@ -1332,6 +1397,10 @@ function checkFeatureChoices(
             problem('duplicate_option', 'featureChoices', `${feature.name} takes ${picked} once`),
           );
         }
+        // And the Prerequisite line the SRD prints over an option rather than
+        // over the feature — a level in the granting class, or another option
+        // of this same question.
+        problems.push(...unmetPrerequisites(asked, made, choices, feature));
         continue;
       }
 
@@ -1461,6 +1530,14 @@ function checkSpellId(
     readonly minLevel?: number;
     readonly maxLevel?: number;
     readonly school?: string;
+    /**
+     * SRD Pact of the Tome: "The spells can be from **any class's spell
+     * list**" — the one sentence that widens the list, and it widens it to the
+     * whole catalogue rather than to a second class.
+     */
+    readonly anyList?: true;
+    /** SRD Pact of the Tome: "two level 1 spells that have the Ritual tag". */
+    readonly ritual?: true;
     readonly what: string;
   },
 ): CreationProblem[] {
@@ -1470,7 +1547,12 @@ function checkSpellId(
   }
 
   const problems: CreationProblem[] = [];
-  if (!spell.classes.includes(classId)) {
+  if (options.ritual === true && !spell.ritual) {
+    problems.push(
+      problem('spell_not_a_ritual', field, `${options.what} takes spells with the Ritual tag; ${spell.name} has none`),
+    );
+  }
+  if (options.anyList !== true && !spell.classes.includes(classId)) {
     problems.push(
       problem('spell_not_on_class_list', field, `${spell.name} is not on the ${classId} spell list`),
     );
@@ -1577,6 +1659,72 @@ function castingClassesOf(content: Content, choices: CharacterChoices): readonly
  */
 function classFeatureSpells(content: Content, choices: CharacterChoices, caster: CasterChoices): readonly string[] {
   return choicesGranting(choices, castingFeaturesOf(content, choices, caster), 'spells');
+}
+
+/**
+ * The spells a class's features write into that class's **book**.
+ *
+ * SRD Pact of the Tome: the conjured book "counts as a spellbook", and the two
+ * Rituals chosen for it are what Ritual Adept's "any spell ... in your
+ * spellbook" then reaches. A spellbook class writes its feature spells into the
+ * book already — that is `fromFeatures` in the compile below — and this is the
+ * field for a class that keeps no book and is handed one by a feature.
+ */
+function classFeatureBookSpells(
+  content: Content,
+  choices: CharacterChoices,
+  caster: CasterChoices,
+): readonly string[] {
+  const written: string[] = [];
+  for (const [feature, grant] of grantsIn(castingFeaturesOf(content, choices, caster))) {
+    if (grant.kind !== 'spells' || grant.intoBook !== true) continue;
+    if (grant.fixed !== undefined) {
+      written.push(...grantedFixedSpells(choices, feature, grant));
+      continue;
+    }
+    const from = grant.choiceFrom;
+    const keyed = from !== undefined && featureOfAnswerKey(from) !== from;
+    written.push(...(choices.featureChoices[keyed ? from : feature.id] ?? []));
+  }
+  return written;
+}
+
+/**
+ * The castings a class's features price at **nothing**.
+ *
+ * SRD Armor of Shadows, Fiendish Vigor, Mask of Many Faces, Misty Visions and
+ * Otherworldly Leap: "You can cast _X_ on yourself without expending a spell
+ * slot", with no count and no pool. {@link classFeatureFreeCastings}'s sibling
+ * on the third price — `GrantedSpell.atWill`, which a stat block's "**At
+ * Will:**" line has produced since it landed — and it brings nothing else with
+ * it: `castOrRelease` writes `slotless`, and there is no resource to spend.
+ *
+ * The ability is the granting class's, for `classFeatureFreeCastings`'s own
+ * reason: a feature belongs to exactly one class, and a multiclassed holder
+ * has more than one spellcasting ability.
+ */
+function classFeatureAtWillCastings(
+  content: Content,
+  choices: CharacterChoices,
+  caster: CasterChoices,
+  ability: Ability,
+): readonly GrantedSpell[] {
+  const granted: GrantedSpell[] = [];
+  for (const [feature, grant] of grantsIn(castingFeaturesOf(content, choices, caster))) {
+    if (grant.kind !== 'spells' || grant.atWill !== true) continue;
+    for (const spellId of grant.fixed ?? []) {
+      granted.push({
+        spellId,
+        source: feature.id,
+        ability,
+        freeCastPool: null,
+        slotCasting: false,
+        atWill: true,
+        ...(grant.maximisedDice === undefined ? {} : { maximisedDice: true }),
+      });
+    }
+  }
+  return granted;
 }
 
 /**
@@ -2007,9 +2155,29 @@ function checkFeatureSpellChoices(
               minLevel: asked.maxLevel === 0 ? 0 : 1,
               ...(asked.maxLevel === undefined ? {} : { maxLevel: asked.maxLevel }),
               ...(asked.school === undefined ? {} : { school: asked.school }),
+              ...(asked.fromAnyList === undefined ? {} : { anyList: true as const }),
+              ...(asked.ritualOnly === undefined ? {} : { ritual: true as const }),
               what: feature.name,
             }),
           );
+        }
+
+        // SRD Pact of the Tome: "they must be spells you **don't already have
+        // prepared**." A feature that takes its spells from any class's list
+        // is the only one that can collide with the class's own choices —
+        // every other one is narrowed to a list the character was choosing
+        // from anyway, where the collision is the point (Divine Order's extra
+        // cantrip is a Cleric cantrip) — so the rule is read off the question
+        // that widens rather than applied to every feature.
+        if (asked.fromAnyList === true) {
+          const held = new Set([...caster.cantrips, ...caster.preparedSpells]);
+          for (const id of picked) {
+            if (held.has(id)) {
+              problems.push(
+                problem('spell_already_known', field, `${feature.name} takes spells this character does not already have prepared, and ${id} is one they do`),
+              );
+            }
+          }
         }
 
         // A spellbook class writes the free spells into the book, so they must
@@ -4018,6 +4186,8 @@ export function planCharacter(
     // which is a price the book never prints. Every other feature that grants
     // spells grants levelled ones and is untouched.
     const granting = classFeatureSpells(content, choices, caster);
+    // And what a feature wrote into this class's book — SRD Pact of the Tome.
+    const intoBook = classFeatureBookSpells(content, choices, caster);
     const fromFeatures = granting.filter((id) => (content.spellEntry(id)?.level ?? 1) > 0);
     const grantedCantrips = granting.filter((id) => content.spellEntry(id)?.level === 0);
     const style = caster.definition.spellcasting?.style ?? 'spellbook';
@@ -4026,6 +4196,9 @@ export function planCharacter(
     // granting class's own ability. A feat's are above; these are the same
     // shape from the other of the two things that grant a spell.
     granted.push(...classFeatureFreeCastings(content, choices, caster, ability));
+    // And the castings its features price at nothing at all — SRD Armor of
+    // Shadows. The third price, beside the pool above and the slot below.
+    granted.push(...classFeatureAtWillCastings(content, choices, caster, ability));
 
     if (style === 'spellbook') {
       // SRD Evocation Savant: the free spells join the book, marked as the
@@ -4061,10 +4234,21 @@ export function planCharacter(
       slotKind: pactMagic(content, caster.definition.id) ? 'pact' : 'spell',
       // The book, for the one feature that reads it — SRD Ritual Adept casts
       // "any spell ... in your spellbook" as a Ritual, prepared or not.
-      ...(style === 'spellbook'
+      //
+      // **A class that keeps none may still be handed one.** SRD Pact of the
+      // Tome conjures a book that "counts as a spellbook", and the two Rituals
+      // written into it are the whole of what a Warlock's book holds — so the
+      // field is present for a class with no book of its own exactly when a
+      // feature wrote something into it, and absent otherwise.
+      ...(style === 'spellbook' || intoBook.length > 0
         ? {
             book: [
-              ...new Set([...caster.spellbook.map((entry) => entry.spellId), ...fromFeatures]),
+              ...new Set([
+                ...(style === 'spellbook'
+                  ? [...caster.spellbook.map((entry) => entry.spellId), ...fromFeatures]
+                  : []),
+                ...intoBook,
+              ]),
             ].sort(),
           }
         : {}),
