@@ -565,15 +565,135 @@ export const GOLIATH: SpeciesDefinition = {
       id: 'goliath:giant-ancestry',
       name: 'Giant Ancestry',
       level: 1,
-      automation: 'manual',
-      note: 'The chosen boon is recorded and none of the six is applied, and for two different reasons. Four of them are mechanisms the engine does not have: a teleport on a Bonus Action, extra damage a feature adds to a hit of the holder own choosing, a Speed reduction until the start of your next turn, and the Prone condition given on a hit. Stone\'s Endurance is not one of those - "take a Reaction to roll 1d12, add your Constitution modifier and reduce the damage by that total" is the shape Uncanny Dodge already answers the damage window with - and it is still not wired: a Reaction grant can say it belongs to one option of six now, and the uses each boon is limited to are a pool the Proficiency Bonus sizes, declared and refilled by a Long Rest, with nothing to buy from it until a boon is the engine’s. Storm\'s Thunder, which deals damage back rather than reducing it, is a mechanism that really is absent.',
-      grants: {
-        kind: 'pool',
-        key: 'goliath:giant-ancestry',
-        label: 'Giant Ancestry',
-        perProficiencyBonus: true,
-        recovers: 'long-rest',
-      },
+      automation: 'engine',
+      note: 'Executed whole: the boon the Goliath chose is the one grant that arrives, and each of the six is now a mechanism the engine has. SRD: "Choose one of the following benefits; you can use it a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest." The pool is that sentence and is declared once for all six. Cloud\'s Jaunt — "As a Bonus Action, you magically teleport up to 30 feet to an unoccupied space you can see" — is a Bonus Action option on that pool carrying a teleport, with the space named at the use; the engine measures the thirty feet and refuses an occupied one, and what the scene answers is whether the Goliath can see where they are going, because sight is declared between creatures rather than ray-cast — a destination measured from a landmark is reported unchecked. Fire\'s Burn — "When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target" — is a rider the swing asks for whose dice ride on the blow itself, so a Critical Hit doubles them and the target\'s Fire Resistance halves them with the rest. Frost\'s Chill is that sentence in Cold with ten feet of the target\'s Speed taken away until the start of the Goliath\'s next turn. Hill\'s Tumble — "When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition" — is a rider whose size clause is asked at the swing, and what the scene answers is how big the target is: a creature nobody has measured is knocked down and the assumption is handed back. Stone\'s Endurance — "When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total" — answers the damage window Uncanny Dodge answers, before the blow lands. Storm\'s Thunder — "When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature" — answers the window Hellish Rebuke is cast into, through the damage funnel, so the attacker\'s Resistance and whatever watches for a creature dropping both apply; what the scene answers is where the two are standing.',
+      grants: [
+        // "you can use it a number of times equal to your Proficiency Bonus,
+        // and you regain all expended uses when you finish a Long Rest" — one
+        // pool for whichever boon was chosen, declared ungated because the
+        // sentence is printed once above all six.
+        {
+          kind: 'pool',
+          key: 'goliath:giant-ancestry',
+          label: 'Giant Ancestry',
+          perProficiencyBonus: true,
+          recovers: 'long-rest',
+        },
+        // "**Cloud's Jaunt.** As a Bonus Action, you magically teleport up to
+        // 30 feet to an unoccupied space you can see."
+        //
+        // A form the pool above takes rather than a pool of its own, which is
+        // the Channel Divinity shape the owner ruled for: one pool, a menu,
+        // and the trait's own choice picks which entry of it this Goliath has.
+        {
+          onlyIfChoice: "Cloud's Jaunt",
+          kind: 'pool-options',
+          feature: 'goliath:giant-ancestry',
+          options: [
+            {
+              id: 'clouds-jaunt',
+              name: "Cloud's Jaunt",
+              action: 'bonus-action',
+              // Aimed at nobody, so it lands on the Goliath themselves — the
+              // one target an option with no reach at all can have.
+              effects: [{ kind: 'teleport', feet: 30, requiresSight: true }],
+            },
+          ],
+        },
+        // "**Fire's Burn.** When you hit a target with an attack roll and deal
+        // damage to it, you can also deal 1d10 Fire damage to that target."
+        //
+        // The dice are `extraDamage` rather than an effect, because the effect
+        // list runs after the blow has landed and an attack holds one damage
+        // roll at a time; this is a component of the blow.
+        {
+          onlyIfChoice: "Fire's Burn",
+          kind: 'on-hit',
+          pool: 'goliath:giant-ancestry',
+          costs: 1,
+          options: [
+            {
+              id: 'fires-burn',
+              name: "Fire's Burn",
+              effects: [],
+              extraDamage: { dice: '1d10', damageType: 'fire' },
+            },
+          ],
+        },
+        // "**Frost's Chill.** When you hit a target with an attack roll and
+        // deal damage to it, you can also deal 1d6 Cold damage to that target
+        // and reduce its Speed by 10 feet until the start of your next turn."
+        {
+          onlyIfChoice: "Frost's Chill",
+          kind: 'on-hit',
+          pool: 'goliath:giant-ancestry',
+          costs: 1,
+          options: [
+            {
+              id: 'frosts-chill',
+              name: "Frost's Chill",
+              // "reduce its Speed by 10 feet" — signed feet on the operation
+              // that adds, which is how a Speed taken away is written.
+              effects: [{ kind: 'speed', change: 'add', feet: -10 }],
+              // "until the start of **your** next turn": the Goliath's, which
+              // is what an omitted anchor already means.
+              lasts: 'start-of-next-turn',
+              extraDamage: { dice: '1d6', damageType: 'cold' },
+            },
+          ],
+        },
+        // "**Hill's Tumble.** When you hit a Large or smaller creature with an
+        // attack roll and deal damage to it, you can give that target the
+        // Prone condition."
+        {
+          onlyIfChoice: "Hill's Tumble",
+          kind: 'on-hit',
+          pool: 'goliath:giant-ancestry',
+          costs: 1,
+          // "a **Large or smaller** creature", asked at the swing so an Ogre
+          // refuses the boon before the Goliath has spent anything.
+          targetNoLargerThan: 'large',
+          options: [
+            {
+              id: 'hills-tumble',
+              name: "Hill's Tumble",
+              // No saving throw: the sentence gives the condition outright.
+              // Prone needs no span, because the creature stands up.
+              effects: [{ kind: 'condition', condition: { name: 'prone' } }],
+            },
+          ],
+        },
+        // "**Stone's Endurance.** When you take damage, you can take a
+        // Reaction to roll 1d12. Add your Constitution modifier to the number
+        // rolled and reduce the damage by that total."
+        //
+        // The window Uncanny Dodge answers — damage rolled and not yet applied
+        // — with dice where that one halves. "When you take damage" and not
+        // "when an attack hits you", so there is no `fromAttackOnly` and a
+        // Fireball is answered too.
+        {
+          onlyIfChoice: "Stone's Endurance",
+          kind: 'reaction',
+          costsReaction: true,
+          reach: { kind: 'self' },
+          pool: 'goliath:giant-ancestry',
+          does: [{ kind: 'reduce-damage', amount: { dice: '1d12', plus: ['con'] } }],
+        },
+        // "**Storm's Thunder.** When you take damage from a creature within 60
+        // feet of you, you can take a Reaction to deal 1d8 Thunder damage to
+        // that creature."
+        //
+        // The settled window Retaliation and Hellish Rebuke both answer, with
+        // dice thrown back where Retaliation swings.
+        {
+          onlyIfChoice: "Storm's Thunder",
+          kind: 'reaction',
+          costsReaction: true,
+          reach: { kind: 'self' },
+          pool: 'goliath:giant-ancestry',
+          does: [{ kind: 'damage-back', dice: '1d8', damageType: 'thunder', within: 60 }],
+        },
+      ],
       choice: {
         kind: 'option',
         choose: 1,
