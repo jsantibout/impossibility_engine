@@ -29,11 +29,13 @@ import {
 } from '@ie/shared';
 import { DODGE, DODGE_ACTION, READY, READY_ACTION } from '../actions.js';
 import {
+  ACTION_TITLES,
   allowedActions,
   allowsPrice,
   dash,
   isStatablePrice,
   disengage,
+  permitsGrantedAction,
   spendAction,
   spendBonusAction,
   spendReaction,
@@ -268,6 +270,8 @@ export function takeDash(
     // actually receive.
     const spend = { rules, as: 'dash' as const };
     const granted = from === 'action' ? options.usingFeature : undefined;
+    const mismatch = refuseGrantMismatch(state, id, granted, 'dash');
+    if (mismatch !== null) return mismatch;
     const spent =
       from === 'bonus-action'
         ? spendBonusAction(state.combat, id, creature.conditions, spend)
@@ -297,6 +301,41 @@ const choiceOf = (options: AllowanceChoice): AllowanceChoice => ({
   ...(options.usingFeature === undefined ? {} : { usingFeature: options.usingFeature }),
   ...(options.alsoTaking === undefined ? {} : { alsoTaking: options.alsoTaking }),
 });
+
+/**
+ * Whether an extra action this turn was handed may be spent on this action —
+ * and the refusal where it may not.
+ *
+ * **It is the command's question and not the reducer's**, and that asymmetry
+ * is the whole reason this function exists. `spendAction` matches a named
+ * grant on its source alone, because `fold/combat.ts` folds `action-spent`
+ * with no idea which action it was; so the narrowing every `GrantedAction`
+ * carries — SRD Action Surge's `except` and SRD Expeditious Retreat's `only` —
+ * is checked exactly where the answer is known, by whoever is taking the
+ * action. One function, because a command that forgot to ask would spend a
+ * Patient Defense's Dodge on a Dash and void the clause it was granted under.
+ *
+ * Null where nothing is named, where there is no combat, and where the
+ * creature holds no such grant at all: the last is `spendAction`'s
+ * `no_such_grant` rather than this one's sentence, so a caller who names a
+ * grant nobody handed them is told that and not this.
+ */
+function refuseGrantMismatch(
+  state: GameState,
+  id: CharacterId,
+  granted: string | undefined,
+  as: NamedAction,
+): Result<never> | null {
+  if (granted === undefined || state.combat === null) return null;
+  const held = (state.combat.budgets[id]?.extraActions ?? []).filter(
+    (extra) => extra.source === granted,
+  );
+  if (held.length === 0 || held.some((extra) => permitsGrantedAction(extra, as))) return null;
+  return err(
+    'action_forbidden',
+    `the extra action ${granted} handed ${id} is not the ${ACTION_TITLES[as]} action`,
+  );
+}
 
 /** Which slot the caller is offering to pay a Disengage out of. */
 export interface DisengageOptions extends AllowanceChoice {
@@ -375,6 +414,8 @@ export function takeDisengage(
 
     const spend = { rules: actionRulesOn(state, id), as: 'disengage' as const };
     const granted = from === 'action' ? options.usingFeature : undefined;
+    const mismatch = refuseGrantMismatch(state, id, granted, 'disengage');
+    if (mismatch !== null) return mismatch;
     const spent =
       from === 'bonus-action'
         ? spendBonusAction(state.combat, id, creature.conditions, spend)
@@ -1196,22 +1237,12 @@ export function takeDodge(
 
     const events: GameEvent[] = [];
     if (state.combat !== null && state.combat.budgets[id] !== undefined) {
-      // A grant named by a caller who holds none is a refusal rather than a
-      // free Dodge, and one whose narrowing does not reach a Dodge is refused
-      // here rather than in the reducer — which folds the spend and cannot
-      // know which action it was.
+      // A grant named by a caller who holds none is `no_such_grant` below;
+      // one whose narrowing does not reach a Dodge is refused here, because
+      // the reducer folds the spend and cannot know which action it was.
       const granted = options.usingFeature;
-      if (granted !== undefined) {
-        const held = state.combat.budgets[id]!.extraActions.filter(
-          (extra) => extra.source === granted,
-        );
-        if (held.length > 0 && !held.some((extra) => (extra.only ?? ['dodge']).includes('dodge'))) {
-          return err(
-            'action_forbidden',
-            `the extra action ${granted} handed ${id} is not the Dodge action`,
-          );
-        }
-      }
+      const mismatch = refuseGrantMismatch(state, id, granted, 'dodge');
+      if (mismatch !== null) return mismatch;
       const spent = spendAction(
         state.combat,
         id,
@@ -1526,15 +1557,19 @@ export function takeHide(
       const events: GameEvent[] = [];
       if (state.combat !== null && state.combat.budgets[id] !== undefined) {
         const spend = { rules, as: 'hide' as const };
+        const granted = from === 'action' ? command.usingFeature : undefined;
+        const mismatch = refuseGrantMismatch(state, id, granted, 'hide');
+        if (mismatch !== null) return mismatch;
         const spent =
           from === 'bonus-action'
             ? spendBonusAction(state.combat, id, creature.conditions, spend)
-            : spendAction(state.combat, id, creature.conditions, spend);
+            : spendAction(state.combat, id, creature.conditions, spend, granted);
         if (!spent.ok) return spent;
-        events.push({
-          type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent',
-          id,
-        });
+        events.push(
+          from === 'bonus-action'
+            ? { type: 'bonus-action-spent', id }
+            : { type: 'action-spent', id, ...(granted === undefined ? {} : { grant: granted }) },
+        );
         events.push(...priced);
       }
 
@@ -1728,14 +1763,19 @@ export function takeUtilize(
     }
 
     const spend = { rules, as: 'utilize' as const };
+    const granted = from === 'action' ? command.usingFeature : undefined;
+    const mismatch = refuseGrantMismatch(state, id, granted, 'utilize');
+    if (mismatch !== null) return mismatch;
     const spent =
       from === 'bonus-action'
         ? spendBonusAction(state.combat, id, creature.conditions, spend)
-        : spendAction(state.combat, id, creature.conditions, spend);
+        : spendAction(state.combat, id, creature.conditions, spend, granted);
     if (!spent.ok) return spent;
 
     return ok([
-      { type: from === 'bonus-action' ? 'bonus-action-spent' : 'action-spent', id },
+      from === 'bonus-action'
+        ? { type: 'bonus-action-spent', id }
+        : { type: 'action-spent', id, ...(granted === undefined ? {} : { grant: granted }) },
       ...priced,
       {
         type: 'utilize-taken',

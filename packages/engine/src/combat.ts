@@ -610,7 +610,14 @@ const SLOT_NAMES: Readonly<Record<ActionSlot, string>> = {
  * the engine's spelling rather than the SRD's. One table, so the sentence and
  * the vocabulary cannot come apart.
  */
-const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
+/**
+ * What a refusal calls each named action, so every door says it the same way.
+ *
+ * Exported for the one caller outside this module: `refuseGrantMismatch` in
+ * `commands/actions.ts` names the action an extra was **not** granted for, and
+ * a second spelling of "the Dodge action" is a second place for it to drift.
+ */
+export const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
   attack: 'Attack',
   dash: 'Dash',
   disengage: 'Disengage',
@@ -1307,6 +1314,18 @@ export function spendAction(
 const permitsExtra = (extra: GrantedAction, as: NamedAction | undefined): boolean =>
   (as === undefined || !(extra.except ?? []).includes(as)) &&
   (extra.only === undefined || (as !== undefined && extra.only.includes(as)));
+
+/**
+ * The same predicate, asked by a **command** about a grant it is naming.
+ *
+ * Exported because that question cannot be asked here: `spendAction` matches a
+ * named grant on its source alone, since the reducer folds `action-spent`
+ * without knowing which action it was. So the narrowing is checked by whoever
+ * knows — see `refuseGrantMismatch` in `commands/actions.ts` — and both ends
+ * read this one predicate rather than two spellings of it.
+ */
+export const permitsGrantedAction = (extra: GrantedAction, as: NamedAction): boolean =>
+  permitsExtra(extra, as);
 
 function spendExtraAction(
   state: CombatState,

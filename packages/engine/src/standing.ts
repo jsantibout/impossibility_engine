@@ -2671,23 +2671,36 @@ export function standingCheckBonuses(
  * — "Sorcerer spells you cast" is a sentence about the class, and a Wand of
  * Fireballs belongs to nobody's.
  *
- * Summed rather than kept per feature, because these are different sentences
- * on different pages rather than two holders of one name: a Robe of the
- * Archmagi and an Innate Sorcery are both true at once, and the "only the most
- * potent applies" rule is about a *name* repeated.
+ * **Whoever the grant reaches, which is not only its holder.** `standingFor`
+ * already answers that question — an aura's effects come back for everybody
+ * standing in it — and this reads what it is given, exactly as
+ * {@link standingBonuses} does with a flat bonus. No SRD sentence raises
+ * somebody *else's* spell save DC, and a homebrew aura that did would be a
+ * grant executed rather than validated and quietly dropped.
+ *
+ * **Summed across features, and the best of any one of them.** A Robe of the
+ * Archmagi and an Innate Sorcery are different sentences on different pages
+ * and both are true at once; two allies radiating one named aura are the SRD's
+ * "when two or more game features have the same name, only the effects of one
+ * of them — the most potent — apply", which is the rule
+ * {@link standingCheckBonuses} already follows for the same reason.
  */
 export function standingSpellSaveDcBonus(
   state: GameState,
   who: CharacterId,
   through: string | null,
 ): number {
-  let total = 0;
-  for (const { from, effect } of standingFor(state, who)) {
-    if (from !== who || effect.grant.kind !== 'spell-save-dc-bonus') continue;
+  const best = new Map<string, number>();
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'spell-save-dc-bonus') continue;
     const only = effect.grant.onlyThroughClass;
     if (only !== undefined && only !== through) continue;
-    total += effect.grant.flat;
+    const flat = effect.grant.flat;
+    const current = best.get(effect.feature);
+    if (current === undefined || current < flat) best.set(effect.feature, flat);
   }
+  let total = 0;
+  for (const flat of best.values()) total += flat;
   return total;
 }
 

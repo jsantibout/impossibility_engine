@@ -122,6 +122,33 @@ describe('and narrowed again to the class the casting was made through', () => {
       rollModifierKey('a feature', throughSorcerer),
     );
   });
+
+  /**
+   * **And every key nothing narrows is byte-identical to what it was**, which
+   * is the property that keeps a persisted order still: `fold/grants.ts` sorts
+   * `CreatureState.rollModifiers` by this key.
+   *
+   * A fixed empty tail appended to every key would *not* have that property,
+   * and the pair below is why: before such a tail, the key whose last segment
+   * is empty ends where the other one carries on and so sorts first; after it,
+   * the comparison lands on `'|'` against a letter and the answer flips. So
+   * the segment is written only by a selector that has one, and no key any log
+   * already holds has moved.
+   */
+  it('leaves a key that narrows nothing exactly as it was', () => {
+    const bare: RollSelector = { roll: 'attack', relation: 'roller' };
+    expect(rollModifierKey('Vex', bare)).toBe('Vex|attack|roller||||||');
+    const keyed: RollSelector = { roll: 'saving-throw', relation: 'roller', condition: 'charmed' };
+    expect(rollModifierKey('Fey Ancestry', keyed)).toBe(
+      'Fey Ancestry|saving-throw|roller||||||charmed',
+    );
+    // The pair whose order a fixed tail would have inverted, in the order the
+    // fold has always put them.
+    const unkeyed: RollSelector = { roll: 'saving-throw', relation: 'roller' };
+    expect(
+      [rollModifierKey('x', keyed), rollModifierKey('x', unkeyed)].sort(),
+    ).toEqual([rollModifierKey('x', unkeyed), rollModifierKey('x', keyed)]);
+  });
 });
 
 describe('what a selector may not say', () => {
@@ -224,6 +251,55 @@ describe('what a spell-save-dc-bonus adds, and to whose casting', () => {
     const state = holding({ kind: 'spell-save-dc-bonus', flat: 2 });
     expect(standingSpellSaveDcBonus(state, CASTER, 'wizard')).toBe(2);
     expect(standingSpellSaveDcBonus(state, CASTER, null)).toBe(2);
+  });
+
+  /**
+   * Two sentences on two pages are two bonuses; one **name** held twice is
+   * one, at its most potent — the rule `standingCheckBonuses` already follows.
+   */
+  it('sums two features and keeps the best of one name', () => {
+    const state = fold('seed', [
+      {
+        type: 'creature-added',
+        id: CASTER,
+        name: 'a caster',
+        sheet: {
+          level: 5,
+          abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 16 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: false, medium: false, heavy: false, shields: false },
+          baseSpeed: 30,
+          spellcastingAbility: 'cha',
+          standing: [
+            {
+              feature: 'a-robe',
+              name: 'A Robe',
+              reach: { kind: 'self' },
+              grant: { kind: 'spell-save-dc-bonus', flat: 2 },
+            },
+            {
+              feature: 'a-feature',
+              name: 'A Feature',
+              reach: { kind: 'self' },
+              grant: { kind: 'spell-save-dc-bonus', flat: 1 },
+            },
+            {
+              feature: 'a-feature',
+              name: 'A Feature',
+              reach: { kind: 'self' },
+              grant: { kind: 'spell-save-dc-bonus', flat: 3 },
+            },
+          ],
+        },
+        maxHp: 30,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+      } as GameEvent,
+    ]);
+    expect(standingSpellSaveDcBonus(state, CASTER, null)).toBe(5);
   });
 });
 

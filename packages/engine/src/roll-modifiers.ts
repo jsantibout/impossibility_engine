@@ -452,10 +452,19 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     // The two narrowings SRD Innate Sorcery prints, kept in the identity for
     // Beacon of Hope's reason: one source that said "your spell attacks" and
     // "your attacks" would be two statements, and a key that could not tell
-    // them apart would evict the first. Appended, so every key already written
-    // gains the same empty tail and the sort order this decides is unmoved.
-    selector.onlySpellAttacks === true ? 'only-spell-attacks' : '',
-    selector.onlyThroughClass ?? '',
+    // them apart would evict the first.
+    //
+    // **Present only when written, which is what keeps the ordering still.**
+    // `fold/grants.ts` sorts `CreatureState.rollModifiers` by this key, so that
+    // order is persisted state and a key that changed shape would reorder it.
+    // Appending a fixed empty tail to *every* key is not safe — two keys of one
+    // source differing only in whether the last segment is empty compare as
+    // "one ends here" before and as `'|'` against a letter after, which is the
+    // opposite answer — so the tail is added only by a selector that writes
+    // one. Every key an existing log holds is therefore byte-identical to what
+    // it was, and the only keys that gained a segment are keys nothing had yet.
+    ...(selector.onlySpellAttacks === true ? ['only-spell-attacks'] : []),
+    ...(selector.onlyThroughClass === undefined ? [] : [selector.onlyThroughClass]),
   ].join('|');
 }
 

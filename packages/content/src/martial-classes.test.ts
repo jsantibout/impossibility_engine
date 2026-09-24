@@ -409,6 +409,28 @@ describe('a Monk spends the Bonus Action, and sometimes a Focus Point with it', 
     expect(isErr(refused) && refused.code).toBe('no_such_grant');
   });
 
+  /**
+   * **And the grant is narrowed to what it bought**, which is the whole job of
+   * `GrantedAction.only`. The spend matches on the source alone — the reducer
+   * folds `action-spent` without knowing which action it was — so every
+   * command that names a grant checks the narrowing itself, and a Monk holding
+   * a Dodge cannot cash it as a free Dash.
+   */
+  it('refuses a Dash that tries to spend the Dodge the pair bought', () => {
+    const bought = step(fighting(), (state) =>
+      takeDisengage(state, SHAN, { commandId: 'out' }, {
+        from: 'bonus-action',
+        alsoTaking: ['dodge'],
+      }),
+    );
+    const state = fold('seed', bought);
+    const refused = takeDash(state, SHAN, { commandId: 'run' }, { usingFeature: 'monk:focus' });
+    expect(isErr(refused) && refused.code).toBe('action_forbidden');
+    // Nothing moved: the Action is still there and so is the Dodge.
+    expect(budgetOf(state).action).toBe(true);
+    expect(budgetOf(state).extraActions).toEqual([{ source: 'monk:focus', only: ['dodge'] }]);
+  });
+
   /** The jump doubling is the one clause still handed over. */
   it('says in its own note that the doubled jump is the table’s', () => {
     const note = MONK.features.find((one) => one.id === 'monk:focus')?.note ?? '';
