@@ -652,13 +652,10 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'recorded because the note used to claim otherwise: Hunter’s Mark is executed and the rider fires only at its target.',
     },
   ],
-  'hunter:hunters-lore': [
-    {
-      clause: 'narration the engine could answer but is not asked',
-      why: 'table',
-      note: 'knowledge rather than a rule, and the one entry in this map whose feature is finished business.',
-    },
-  ],
+  // `hunter:hunters-lore` stood here and said, in this file's own words,
+  // "narration the engine could answer but is not asked". It is asked now: a
+  // `knowledge` grant, `knownDefencesOf` deriving the answer on every read and
+  // the player's `look` publishing it. The line went with the conversion.
   'human:resourceful': [
     {
       clause: 'the reroll of a roll that succeeded',

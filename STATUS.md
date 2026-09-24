@@ -50,13 +50,14 @@ homebrew.
   carry several grants, each gated on one option of its choice; a species may
   grant a spell; a feature may raise the hit point maximum. **The glossary's
   Help, Influence, Search, Study and Utilize are actions a command spends**,
-  the Light property's extra attack is a swing with Nick and Two-Weapon
-  Fighting on it, and Savage Attacker, Luck, Relentless Endurance, Powerful
+  the Light property's extra attack carries Nick and Two-Weapon
+  Fighting, and Savage Attacker, Luck, Relentless Endurance, Powerful
   Build, Tactical Shift, Fast Hands, Naturally Stealthy, Jack of All Trades,
   Slow Fall, Second-Story Work, Adrenaline Rush, Stonecunning, Large Form,
-  Draconic Flight, Wild Companion, Ritual Adept, Paladin's Smite, Defense,
-  Innate Sorcery, Divine Order, Primal Order and the Monk's three options
-  execute; a feature may ask two questions. **Wild Shape executes**: a
+  Draconic Flight, Wild Companion, Ritual Adept, Paladin's Smite,
+  Innate Sorcery, Divine Order and Primal Order
+  execute; a feature may ask two questions, grant a language, or know a
+  marked quarry's defences through `look`. **Wild Shape executes**: a
   Druid wears a learned Beast's stat block for the hours the table prints,
   with the SRD's retained half kept, and comes back by every ending the book
   names.

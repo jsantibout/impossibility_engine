@@ -38,6 +38,7 @@ import type {
   HealingTouch,
   CastingOption,
   HitOption,
+  KnownFact,
   ObjectMaker,
   PoolOption,
   RecoveryFeature,
@@ -3571,6 +3572,21 @@ export function planCharacter(
     });
   }
 
+  // A feature that lets its holder simply know something about a creature —
+  // SRD Hunter's Lore. Nothing about it is read off a class table and nothing
+  // is spent, so the declaration is carried across whole; what varies between
+  // two holders is which creature their casting has marked, which is state.
+  const knows: KnownFact[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'knowledge') continue;
+    knows.push({
+      feature: feature.id,
+      name: feature.name,
+      reveals: grant.reveals,
+      about: grant.about,
+    });
+  }
+
   // A feature whose use is spent to heal its holder. The die is resolved here
   // because one of the two reads it off a class table — "roll your Martial
   // Arts die" is 1d6 at Monk 1 and 1d10 at Monk 11 — and the addend stays
@@ -4293,6 +4309,7 @@ export function planCharacter(
     ...(activated.length === 0 ? {} : { activated }),
     ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
     ...(objectMakers.length === 0 ? {} : { objectMakers }),
+    ...(knows.length === 0 ? {} : { knows }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(onDroppingAHostile.length === 0 ? {} : { onDroppingAHostile }),

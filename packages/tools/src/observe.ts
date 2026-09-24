@@ -31,6 +31,7 @@ import {
   describeRecharge,
   detectedBy,
   distanceBetween,
+  knownDefencesOf,
   movementLeftFor,
   lightAt,
   positionOf,
@@ -280,7 +281,36 @@ export interface ObservedCreature {
    * Paladin is Stunned: `detectedBy` derives the whole list on every read.
    */
   readonly senses: readonly ObservedAwareness[];
+  /**
+   * What this creature **knows** about another creature's defences — SRD
+   * Hunter's Lore.
+   *
+   * `senses`' neighbour, and the same ruling published through the same door:
+   * a feature whose whole effect is a fact nobody publishes is a feature
+   * nobody has. This one costs nothing at all, so a ranger who was told
+   * nothing has not even spent a use to learn it — they simply do not know
+   * what the book says they know.
+   *
+   * **This creature's view of the others, not its own defences.** A creature's
+   * Immunities are deliberately still not on the wire: what is here is what
+   * one creature is entitled to know about another, which is the sentence the
+   * feature prints. Empty for everybody who holds no such feature, and empty
+   * again the moment the mark ends: `knownDefencesOf` derives the whole list
+   * on every read.
+   */
+  readonly knownDefences: readonly ObservedKnownDefences[];
   readonly budget: ObservedBudget | null;
+}
+
+/** One creature's defences, as somebody entitled to know them is told. */
+export interface ObservedKnownDefences {
+  readonly who: string;
+  /** Which feature says so, which is the id `sheet` reports it under. */
+  readonly feature: string;
+  readonly damageImmunities: readonly string[];
+  readonly damageResistances: readonly string[];
+  readonly damageVulnerabilities: readonly string[];
+  readonly conditionImmunities: readonly string[];
 }
 
 /** One awareness a creature has open, and what it has found. */
@@ -593,6 +623,15 @@ export function observe(state: GameState): Observation {
           .filter((one) => one.feature === awareness.feature)
           .map((one) => ({ who: one.id, creatureType: one.creatureType, feet: one.feet })),
       })),
+      // Asked of every other creature, because the licence is about a pair and
+      // there is no cheaper question: `knownDefencesOf` answers null for all
+      // but the marked one, and for everybody on the table who holds no such
+      // feature.
+      knownDefences: ids.flatMap((other) => {
+        if (other === key) return [];
+        const known = knownDefencesOf(state, c.id, asCharacterId(other));
+        return known === null ? [] : [{ who: other, ...known }];
+      }),
       budget:
         budget === undefined
           ? null

@@ -399,6 +399,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'save-proficiency': 'saving throws this character is proficient in, read by every save it rolls',
   language:
     'SRD Druidic and SRD Thieves’ Cant: a tongue written onto the sheet when the character is made, which `sheet` reports beside the two they chose and no caller elects',
+  knowledge:
+    'SRD Hunter’s Lore: a fact the holder knows about a creature their casting has marked, derived by `knownDefencesOf` on every read and published by `look` under `knownDefences`; nothing is elected and nothing is spent',
   'weapon-and-armor-training':
     'weapon categories and armour training added when the character was made, which `proficientWith` and every armour check read',
   initiative: 'a bonus the engine adds when Initiative is rolled, which no caller states',

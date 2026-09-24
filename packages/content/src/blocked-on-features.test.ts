@@ -540,16 +540,24 @@ describe('what a shape finishes is the column a tranche is planned from', () => 
  * The features that are finished business, pinned by name rather than by size.
  *
  * The *fiction* pile on the other book. A feature whose every clause is the
- * table's is not waiting on the engine and is never going to be executed —
- * Thieves' Cant is a language, a Fighting Style is its feat's debt, and
- * Hunter's Lore is knowledge. Pinning them by name means a builder who thinks
- * one of them is buildable has to come here and say so.
+ * table's is not waiting on the engine — and **six of the seven that stood
+ * here have since been built**, which is what makes the pinning worth its
+ * line. Thieves' Cant was "a language with no mechanics attached" and is a
+ * `language` grant and a `language` question; Druidic was the same sentence
+ * and a spell always prepared; a Fighting Style was "its feat's debt" and all
+ * four feats execute; Hunter's Lore was "narration the engine could answer
+ * but is not asked" and is a `knowledge` grant the door publishes.
+ *
+ * So the reading this pile encodes is weaker than it looks: a clause the
+ * table owns is one nobody has found a mechanism for *yet*, and pinning them
+ * by name is what made somebody come here and say so. The one left is a
+ * second Fighting Style feat, which is the Fighter's own feature at another
+ * level and out of a level 1–5 party's reach.
  */
 describe('the features blocked by nothing', () => {
   it('are these, and every clause of each is the table’s', () => {
     expect(featuresTheTableOwns()).toEqual([
       'champion:additional-fighting-style',
-      'hunter:hunters-lore',
     ]);
     for (const id of featuresTheTableOwns()) {
       expect(
