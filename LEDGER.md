@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 103 spells | 70 | 0 | 33 |
+| Spells in reach, not executed | 101 spells | 68 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 18 features | 12 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -53,9 +53,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-choice-made-at-the-casting` | 4 | 2 |
 | `an-area-that-filters-its-catch` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
-| `a-rider-on-a-later-weapon-attack` | 5 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 4 | 1 |
-| `a-repeat-save-that-does-something-on-a-failure` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `a-condition-benefit-an-effect-takes-away` | 2 | 1 |
@@ -79,6 +77,7 @@ hold at all. An executed spell with nothing left is not here.
 | `light-and-obscurement-the-scene-holds` | 1 | 1 |
 | `targeting-rules-that-differ-within-one-casting` | 1 | 1 |
 | `what-ends-attunement-besides-a-command` | 1 | 1 |
+| `a-rider-on-a-later-weapon-attack` | 4 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
@@ -89,6 +88,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-damage-penalty-a-spell-grants` | 2 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
+| `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
@@ -152,26 +152,12 @@ sums to the population.
 - **Warding Bond** (level 2) — tracked — also waits on 1
 - **Tiny Hut** (level 3) — tracked — also waits on 2
 
-#### `a-rider-on-a-later-weapon-attack` — blocks 5, finishes 1
-
-- **True Strike** (level 0) — tracked
-- **Hex** (level 1) — tracked — also waits on 1
-- **Alter Self** (level 2) — tracked — also waits on 1
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Bestow Curse** (level 3) — tracked — also waits on 2
-
 #### `an-action-the-engine-has-no-spender-for` — blocks 4, finishes 1
 
 - **Sleep** (level 1) — executed-partial — also waits on 1
 - **Speak with Animals** (level 1) — tracked
 - **Gaseous Form** (level 3) — executed-partial — also waits on 2
 - **Haste** (level 3) — executed-partial — also waits on 2
-
-#### `a-repeat-save-that-does-something-on-a-failure` — blocks 3, finishes 1
-
-- **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Searing Smite** (level 1) — executed-partial
-- **Bestow Curse** (level 3) — tracked — also waits on 2
 
 #### `a-stat-block-created-mid-fight` — blocks 3, finishes 1
 
@@ -276,6 +262,13 @@ sums to the population.
 
 - **Remove Curse** (level 3) — tracked
 
+#### `a-rider-on-a-later-weapon-attack` — blocks 4, finishes 0
+
+- **Hex** (level 1) — tracked — also waits on 1
+- **Alter Self** (level 2) — tracked — also waits on 1
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+- **Bestow Curse** (level 3) — tracked — also waits on 2
+
 #### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 4, finishes 0
 
 - **Pass without Trace** (level 2) — tracked — also waits on 1
@@ -332,6 +325,11 @@ sums to the population.
 
 - **Hideous Laughter** (level 1) — executed-partial — also waits on 1
 - **Fear** (level 3) — executed-partial — also waits on 1
+
+#### `a-repeat-save-that-does-something-on-a-failure` — blocks 2, finishes 0
+
+- **Ensnaring Strike** (level 1) — tracked — also waits on 2
+- **Bestow Curse** (level 3) — tracked — also waits on 2
 
 #### `a-spells-effects-applied-to-different-targets` — blocks 2, finishes 0
 
