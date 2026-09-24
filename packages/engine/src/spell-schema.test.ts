@@ -599,6 +599,74 @@ describe('each rule refuses something', () => {
     expect(only({ targets: { count: 3, unlimited: true } })).toEqual(['unlimited_with_count']);
   });
 
+  /**
+   * The three clauses that narrow what an **area** catches, each held to a
+   * definition that has one.
+   *
+   * They are read at the seam where an area settles its catch and nowhere
+   * else, so on a spell cast at named targets every one of them is a field
+   * with no reader: written by an author who believed they had said
+   * something, applied by nothing, and invisible until the druid's own
+   * Entangle Restrains the druid. The other two target clauses
+   * (`mustBeType`, `mustBeUnarmored`) need no such guard, because they are
+   * checked wherever a caller *names* somebody and every definition does.
+   */
+  it.each([['notTheCaster'], ['mustSeeTheOrigin'], ['chosenFromTheArea']] as const)(
+    'refuses %s on a spell that fills no area',
+    (clause) => {
+      expect(only({ targets: { count: 1, [clause]: true } })).toEqual(['area_filter_without_area']);
+    },
+  );
+
+  /**
+   * And the second reader that is missing, which is the one worth a guard of
+   * its own: a **persistent** area re-derives its catch off the pinned record
+   * at every boundary it triggers on, and that seam reads `unaffected` and
+   * none of the three. A Web that spared its caster at the cast and
+   * Restrained her when she stepped back in is half a rule, applied silently.
+   */
+  it.each([['notTheCaster'], ['mustSeeTheOrigin'], ['chosenFromTheArea']] as const)(
+    'refuses %s on an area that goes on catching creatures',
+    (clause) => {
+      expect(
+        only({
+          targets: { count: 0, [clause]: true },
+          area: { kind: 'sphere', radius: 20, origin: 'point' },
+          durationSeconds: 60,
+          effects: [],
+          areaTrigger: {
+            at: 'start-of-turn',
+            label: 'Fire Dart (the flames)',
+            effects: [
+              {
+                kind: 'save-damage',
+                ability: 'dex',
+                damage: { dice: '2d6' },
+                damageType: 'fire',
+              },
+            ],
+          },
+        }),
+      ).toEqual(['area_filter_and_a_later_catch']);
+    },
+  );
+
+  /** And each is content the moment there is one catch for it to narrow. */
+  it.each([['notTheCaster'], ['mustSeeTheOrigin'], ['chosenFromTheArea']] as const)(
+    'accepts %s on a spell that fills one',
+    (clause) => {
+      expect(
+        only({
+          targets: { count: 0, [clause]: true },
+          area: { kind: 'sphere', radius: 20, origin: 'point' },
+          effects: [
+            { kind: 'save-damage', ability: 'dex', damage: { dice: '2d6' }, damageType: 'fire' },
+          ],
+        }),
+      ).toEqual([]);
+    },
+  );
+
   it('refuses an activation that measures from two places', () => {
     expect(
       only({

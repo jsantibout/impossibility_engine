@@ -40,6 +40,7 @@ import {
   canBeTargeted,
   coverBetween,
   distanceBetween,
+  distanceToPoint,
   lightAt,
   obscurementAt,
   piercesObscurement,
@@ -48,6 +49,7 @@ import {
   sightBetween,
   SIGHT_SENSES,
   type CreatureSense,
+  type Point,
   type SenseName,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
@@ -3394,6 +3396,73 @@ export function canSee(state: GameState, from: CharacterId, to: CharacterId): bo
   return sightBetween(state.scene, from, to, sensesOf(state, from), {
     obscured: obscuredFrom(state, from, to),
   });
+}
+
+/**
+ * Whether a creature can see a **place** — {@link canSee} asked of a point.
+ *
+ * SRD Hypnotic Pattern: "Each creature in the area **who can see the
+ * pattern**." The pattern is not a creature and stands in no square of its
+ * own; it is at the casting's origin, and that is a coordinate on the
+ * lattice. So the question is the sight question with the far end replaced,
+ * answered by the same things in the same order and three-valued for the same
+ * reason, where null is "ask" and never "no".
+ *
+ * **What a point does not have is a declaration**, and that is the whole of
+ * the difference. Sight and cover are declared *pairwise between creatures* —
+ * `coverKey` takes two ids — so there is no line a table could state about a
+ * patch of air, and nothing here that could outrank the rest. `teleportSight`
+ * met the same wall first and wrote down the same answer: anchored on a bare
+ * point "there is no pairwise declaration to read and nothing it could read
+ * instead". What is left to settle it is the half of the sight model that is
+ * about places rather than pairs:
+ *
+ * | | |
+ * |---|---|
+ * | the lattice over the point | a bank of fog or a dark room the table declared — `obscurementAt`, then {@link piercesObscurement} against this looker's senses |
+ * | a sight sense that reaches | Blindsight or Truesight in range, Darkvision where the dark is not magical |
+ * | anything else | null — nobody has said, and about a point nobody can |
+ *
+ * **It does not read the Blinded condition**, and the silence is deliberate:
+ * {@link canSee} does not read it either, and one of the two answering "a
+ * blind creature cannot see" while the other does not is worse than both
+ * being silent. Blinded is a fact about the *looker* rather than about the
+ * line, so the rule that needs it composes the two — `areaTargets` does
+ * exactly that for the clause above and says so. Reading it only here would
+ * leave one sight question in this engine with a rule none of the others has.
+ *
+ * Null outside a scene and null for a looker nobody has placed, for the
+ * reason {@link canSee} is null outside one: there is no distance for a range
+ * to be measured against, and inventing one is inventing a position.
+ */
+export function canSeePoint(state: GameState, from: CharacterId, space: Point): boolean | null {
+  const scene = state.scene;
+  if (scene === null) return null;
+
+  const apart = distanceToPoint(scene, from, space);
+  if (!apart.ok) return null;
+  const reach = apart.value;
+
+  // The looker's own senses, narrowed to those that are a form of sight and
+  // then to those that reach — the two filters `sightBetween` and
+  // `sensesReaching` make between them, made here because the far end is a
+  // place and `sensesReaching` measures to a creature.
+  const reaching = sensesOf(state, from).filter(
+    (sense) => SIGHT_SENSES.has(sense.sense) && reach <= sense.feet,
+  );
+
+  const darkness = seesThroughOf(state, from).darkness;
+  const pierced = piercesObscurement(
+    obscurementAt(state, space),
+    reaching,
+    darkness !== undefined && reach <= darkness ? [{ feet: darkness }] : [],
+  );
+  // False and never true, which is the ordering `sightBetween` sets out: heavy
+  // obscurement is an impediment, and a looker who defeats it is returned to
+  // the question they would have been asked in a lit room.
+  if (!pierced) return false;
+
+  return reaching.length > 0 ? true : null;
 }
 
 /**

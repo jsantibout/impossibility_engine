@@ -980,23 +980,17 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "If the target drops to 0 Hit Points before this spell ends, you can take a Bonus Action to move the mark to a new creature you can see within range." The vitals are there and nothing reads a threshold on them, which is the whole of this shape; and the second half is a later action that re-aims what the casting already granted, where every registered `SpellActivation` resolves effects at a target instead.',
     },
   ],
-  'hypnotic-pattern': [
-    {
-      clause: 'only a creature that can see the pattern',
-      why: 'an-area-that-filters-its-catch',
-      note: 'An area catches every creature standing in it. SRD affects only those that can see the pattern, so a blindfolded creature in the Cube is Charmed here and is not Charmed in the book.',
-    },
-    // **One clause lighter, and the other half of the same sentence is in the
-    // definition's own notes rather than here.** SRD: "The spell ends for an
-    // affected creature if it takes any damage or if someone else uses an
-    // action to shake the creature out of its stupor." The damage half is
-    // `target-takes-damage`, the cause **any** blow pulls, dealer or no
-    // dealer, releasing the one creature rather than the Cube. The shaking is
-    // one creature spending an action to free another, which nothing spends —
-    // and it trips no `CLAUSE_MARKERS` entry, so it belongs where every
-    // marker-invisible residue belongs: `unmodelled`, handed to the table on
-    // every casting.
-  ],
+  // **Hypnotic Pattern is off this map entirely**, and both of the clauses it
+  // used to carry left by different doors. "Only a creature that can see the
+  // pattern" is `mustSeeTheOrigin`: the pattern is at the casting's origin and
+  // the catch asks each creature whether it can see that point, with a blind
+  // one passed over, a fog bank over the pattern hiding it, and a silence
+  // caught and reported rather than read as a no. The other half of its last
+  // sentence — "someone else uses an action to shake the creature out of its
+  // stupor" — is one creature spending an action to free another, which
+  // nothing spends; it trips no `CLAUSE_MARKERS` entry, so it belongs where
+  // every marker-invisible residue belongs: `unmodelled`, handed to the table
+  // on every casting.
   'ice-storm': [
     {
       clause: 'becomes Difficult Terrain',
@@ -4198,38 +4192,15 @@ export type BlockedEntry = ShapeId | BlockedClause;
  *   than a declared placeholder.
  */
 export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
-  entangle: [
-    {
-      clause: 'Grasping plants sprout from the ground in a 20-foot square within range',
-      why: 'expressible',
-      note: 'A Cube of a fixed size at a point chosen within the spell’s range, which is what every Cube in the catalogue already writes and what `ranged` already checks before a target is looked at.',
-    },
-    {
-      clause: 'these plants turn the ground in the area into Difficult Terrain',
-      why: 'expressible',
-      note: '`SpellDefinition.areaTerrain` says exactly this and four spells are written on it: the casting pins the 20-foot square it resolved and the ground charges the glossary’s rate until the Concentration goes. What still stops the definition being written is the sentence after it — "Each creature (other than you) in the area" — which is `an-area-that-filters-its-catch`, and a definition written without it would Restrain the druid who cast it.',
-    },
-    {
-      clause: 'Each creature (other than you) in the area when you cast the spell',
-      why: 'an-area-that-filters-its-catch',
-      note: 'The area excludes its own caster automatically. `designatesUnaffected` is the one filter an area has and it is an explicit list of ids the caster names at the casting, which is a different sentence: a choice the caster makes rather than a rule the spell states.',
-    },
-    {
-      clause: 'must succeed on a Strength saving throw or have the Restrained condition until the spell ends',
-      why: 'expressible',
-      note: 'A Strength save whose failure branch applies a named condition ended by the casting, which is Hold Person’s shape with a different ability and a different condition.',
-    },
-    {
-      clause: 'A Restrained creature can take an action to make a Strength (Athletics) check against your spell save DC',
-      why: 'expressible',
-      note: '`ConditionRider.check` is a check the affected creature may attempt against the casting’s pinned DC, and Black Tentacles already writes this clause word for word with the same ability and the same skill.',
-    },
-    {
-      clause: 'it frees itself from the grasping plants and is no longer Restrained by them',
-      why: 'expressible',
-      note: 'The success branch releases the condition on the creature that made the check and leaves the casting running for everybody else, which is what `end-on-target` means.',
-    },
-  ],
+  // **Entangle is off this map**, and every one of its five clauses left by a
+  // different door than the one that had been holding them. Four were
+  // `expressible` and always had been — a Cube on a point, a Strength save, a
+  // Restrained condition ended by the casting, Black Tentacles' Athletics
+  // escape word for word — and the fifth, "Each creature (other than you) in
+  // the area", is `notTheCaster`. The Difficult Terrain is `areaTerrain` at
+  // the glossary's rate, on a patch that lapses with the Concentration,
+  // which is "they disappear when the spell ends" said in the vocabulary
+  // Grease, Web and Spike Growth already use. Nothing of it is unmodelled.
   // **Both of IE-035's shapes reached it**, which is what that task was for:
   // the extra 1d6 Necrotic "to the target whenever you hit it with an attack
   // roll" is `attack-rider` word for word, and "level 2 (up to 4 hours), 3–4

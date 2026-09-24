@@ -670,13 +670,13 @@ describe('the shape stops where the SRD stops being expressible', () => {
   // Web left this list when persistent areas landed: its escape check is
   // "no longer Restrained", which is `end-on-target` and always was — what
   // blocked it was the trigger that hands out the Restrained in the first
-  // place, not the check that takes it away.
-  it.each([['maze'], ['phantasmal-force'], ['entangle']])(
-    'has not quietly implemented %s',
-    (spellId) => {
-      expect(SRD_CONTENT.spell(spellId)).toBeNull();
-    },
-  );
+  // place, not the check that takes it away. **Entangle left it the same
+  // way**, and for a reason that was never about the check either: its area
+  // has to spare the caster, and `notTheCaster` is what it was waiting for.
+  // Its Athletics escape is asserted end to end in `filtered-catch.test.ts`.
+  it.each([['maze'], ['phantasmal-force']])('has not quietly implemented %s', (spellId) => {
+    expect(SRD_CONTENT.spell(spellId)).toBeNull();
+  });
 
   /**
    * **Detect Thoughts left that list by being written, not by being built**,

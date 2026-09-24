@@ -383,7 +383,13 @@ const castAt = (
     CASTER,
     {
       spellId,
-      targets: [],
+      // The eighth stated fact, and the only one that is a list of creatures:
+      // SRD Sleep's "each creature **of your choice** in a 5-foot-radius
+      // Sphere" leaves the subset to the caster, and a casting that names
+      // nobody is refused rather than catching everybody. The sweep names the
+      // one creature it has, who is standing five feet away and so inside
+      // every template here.
+      targets: definition.targets.chosenFromTheArea === true ? [TARGET] : [],
       ...(definition.area.origin === 'point' ? { at } : {}),
       ...(directional ? { towards } : {}),
       ...stated,

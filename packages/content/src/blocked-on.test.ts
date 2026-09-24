@@ -160,9 +160,16 @@ describe('the blocked-on map covers the undefined population', () => {
    * happening once already. Every entry that is left is a decision rather than
    * a transcription, so the honest slack is the whole of it: what this still
    * catches is a wrong directory or a filter reading nothing, and nothing else.
+   *
+   * **Moved from 6 to 5 by the area filters**, which wrote Entangle — the
+   * seventh entry, and the last one the map itself called `expressible` but
+   * for a single clause. The floor sat *on* the population for the third
+   * time; it is lowered by one rather than deleted because what it still
+   * catches is an empty map, and an empty map is exactly what a wrong
+   * directory produces.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(6);
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(5);
   });
 
   it('names only shapes the vocabulary has', () => {

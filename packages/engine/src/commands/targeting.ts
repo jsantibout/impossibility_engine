@@ -24,6 +24,7 @@ import {
 } from '@ie/shared';
 import { type AttackResult } from '../attack.js';
 import { type D20TestResult } from '../checks.js';
+import { hasCondition } from '../conditions.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity } from '../idempotency.js';
 import {
@@ -42,7 +43,7 @@ import {
   snapToSpace,
 } from '../positioning.js';
 import { fallWindowOpen } from '../reactions.js';
-import { canSee } from '../standing.js';
+import { canSee, canSeePoint } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
   aimedRollsIn,
@@ -700,6 +701,12 @@ export interface AreaSource {
   readonly anchoring?: PointAnchoring;
   /** SRD's "each Humanoid in the area" — a filter, never a refusal. */
   readonly mustBeType?: string;
+  /** SRD Entangle's "(other than you)" — see {@link TargetRule.notTheCaster}. */
+  readonly notTheCaster?: true;
+  /** SRD Hypnotic Pattern's "who can see the pattern" — see {@link TargetRule.mustSeeTheOrigin}. */
+  readonly mustSeeTheOrigin?: true;
+  /** SRD Sleep's "each creature of your choice" — see {@link TargetRule.chosenFromTheArea}. */
+  readonly chosenFromTheArea?: true;
 }
 
 /** A definition's own answers to {@link AreaSource}, in one place. */
@@ -709,6 +716,15 @@ export const areaSourceOf = (definition: SpellDefinition): AreaSource => ({
   ...(definition.targets.mustBeType === undefined
     ? {}
     : { mustBeType: definition.targets.mustBeType }),
+  ...(definition.targets.notTheCaster === undefined
+    ? {}
+    : { notTheCaster: definition.targets.notTheCaster }),
+  ...(definition.targets.mustSeeTheOrigin === undefined
+    ? {}
+    : { mustSeeTheOrigin: definition.targets.mustSeeTheOrigin }),
+  ...(definition.targets.chosenFromTheArea === undefined
+    ? {}
+    : { chosenFromTheArea: definition.targets.chosenFromTheArea }),
 });
 
 /**
@@ -1147,6 +1163,27 @@ export function placeOrigin(
  * the caller supplied the point and direction the shape needs, whether the
  * point is in range, and which of the creatures caught are ones this spell can
  * actually affect.
+ *
+ * **The casting's catch is settled once, here, and everything the casting
+ * does reads it** — the saves, the damage, the riders, the record. So the
+ * three clauses that narrow it ({@link TargetRule.notTheCaster},
+ * `mustSeeTheOrigin`, `chosenFromTheArea`) are applied at this one seam and
+ * nothing below has to know they exist.
+ *
+ * **What this is not is every catch the spell will ever make.** A persistent
+ * area catches people again at the boundaries it prints, and that later catch
+ * is `creaturesStandingInCastingArea` re-deriving it off the pinned record —
+ * a different seam, reading `unaffected` and none of the three. So a spell
+ * that printed both a filter and an `areaTrigger` would narrow its first
+ * catch and not its later ones, and `checkSpellDefinition` refuses the pair
+ * (`area_filter_and_a_later_catch`) rather than letting half a rule through.
+ *
+ * `unverified` is the caller's list, appended to rather than returned, for the
+ * reason `namedTargets` takes its `needs` that way: a sight question about a
+ * *point* is one nobody can answer — there is no pairwise line to declare — so
+ * it is reported beside the outcome rather than refused. A caller that passes
+ * nothing simply loses the report, which is right for a source that prints no
+ * clause needing one.
  */
 export function areaTargets(
   state: GameState,
@@ -1155,8 +1192,14 @@ export function areaTargets(
   area: SpellArea,
   request: AreaRequest,
   reach: number | null,
+  unverified: string[] = [],
 ): Result<readonly CharacterId[]> {
-  if (request.targets.length > 0) {
+  // SRD "each creature of your choice" is the one sentence that makes a target
+  // list mean something for an area: the geometry still says who *could* be
+  // caught and the caster says which of them are. Every other area catches
+  // whoever is standing in it, and a list there is a caller who has misread
+  // the spell.
+  if (request.targets.length > 0 && source.chosenFromTheArea !== true) {
     return err(
       'area_picks_its_own_targets',
       `${source.name} fills an area and catches whoever is in it; it does not take a target list`,
@@ -1201,6 +1244,20 @@ export function areaTargets(
   const caught = creaturesInArea(state.scene, placement.value.origin, placement.value.shape);
   if (!caught.ok) return caught;
 
+  // Where the area sits, as a space on the lattice, for the one clause that
+  // asks a question *about the place* rather than about a creature. An
+  // intersection-anchored template has none — "a corner is not a space", which
+  // `areaFrame` says in as many words — and neither has a self-origin area
+  // whose carrier nobody has placed. Null is then the unsettled answer rather
+  // than a guessed coordinate, and the clause below reports it.
+  const where = placement.value.origin;
+  const originSpace: Point | null =
+    'creature' in where
+      ? positionOf(state.scene, where.creature)
+      : 'space' in where
+        ? snapToSpace(where.space)
+        : null;
+
   // A creature the spell cannot affect is filtered out, not refused. "Each
   // Humanoid in the area" leaves the ogre standing there unbothered; it does
   // not make the casting illegal, which is the difference between an area and
@@ -1217,6 +1274,35 @@ export function areaTargets(
     if (wanted !== undefined && !isCreatureType(creature.creatureType, wanted)) {
       return false;
     }
+    // SRD Entangle: "Each creature (other than you) in the area". The caster
+    // stands in their own grasping plants and is simply not caught — a filter
+    // like every other one here, so a druid who conjures the square they are
+    // standing in has cast a legal spell rather than a refused one.
+    if (source.notTheCaster === true && who === casterId) return false;
+    // SRD Hypnotic Pattern: "Each creature in the area who can see the
+    // pattern."
+    //
+    // **Two facts, composed here because they live in two places.** Blinded is
+    // the book's own sentence about the looker — "You can't see" — and it is a
+    // condition; the line to the pattern is the sight model's and it is a
+    // question about a place. `canSeePoint` deliberately answers only the
+    // second (its note says why), so the clause that needs both joins them,
+    // and no other rule in the engine has its sight answer changed by this.
+    //
+    // **Unsettled is caught, and reported.** Nobody can declare a line of
+    // sight to a patch of air, so a null here is not homework anybody could
+    // do — it is the ruling SRD Faerie Fire's gate already takes, applied and
+    // then named in the outcome so the table can overrule it.
+    if (source.mustSeeTheOrigin === true) {
+      if (hasCondition(creature.conditions, 'blinded')) return false;
+      const seen = originSpace === null ? null : canSeePoint(state, who, originSpace);
+      if (seen === false) return false;
+      if (seen === null) {
+        unverified.push(
+          `${source.name}: nobody has said whether ${who} can see the point it fills, and it catches only a creature that can; ${who} was caught rather than passed over`,
+        );
+      }
+    }
     // SRD: "A spell's area of effect is blocked by Total Cover." Cover here is
     // declared pairwise from the caster rather than traced through the area,
     // which is the documented approximation the whole cover model makes.
@@ -1224,7 +1310,48 @@ export function areaTargets(
     return true;
   });
 
-  return ok(eligible.slice().sort());
+  const shortlist = eligible.slice().sort();
+  if (source.chosenFromTheArea !== true) return ok(shortlist);
+
+  // SRD Sleep: "Each creature **of your choice** in a 5-foot-radius Sphere."
+  //
+  // The area has said who could be caught; this is the caster saying which of
+  // them are. A name that is not on that shortlist is a refusal rather than a
+  // filter, because unlike a creature type it is not a fact about the world
+  // the spell shrugs at — it is the caster aiming at somebody the spell does
+  // not reach, and quietly dropping them would be the engine casting a
+  // different spell from the one it was asked for.
+  //
+  // **Not `outside_area`, and the two are worth keeping apart.** That one is
+  // `namedTargets`' answer for a `targetsWithin` bound — a template that
+  // merely *fences* a list the caller named, where being outside it is a
+  // matter of geometry alone. This is an area's own catch, which the dead, a
+  // creature type the spell cannot touch and Total Cover have already been
+  // taken out of, so the list a caller is held to here is a different list and
+  // the remedy names different creatures.
+  const outside = request.targets.filter((who) => !shortlist.includes(who));
+  if (outside.length > 0) {
+    return err(
+      'not_in_the_area',
+      `${source.name} catches only creatures inside its area, and ${outside.join(', ')} ${outside.length === 1 ? 'is' : 'are'} not among ${shortlist.length === 0 ? 'the nobody it caught' : shortlist.join(', ')}`,
+    );
+  }
+  if (request.targets.length === 0 && shortlist.length > 0) {
+    // **A choice the spell prints and the caster has not made**, answered the
+    // way `choice_required` and `damage_type_required` answer theirs: the
+    // engine names the options and will not pick between them. A silence read
+    // as "nobody" would be every casting written before this clause quietly
+    // affecting no one, which is the confident wrong answer rather than the
+    // missing one.
+    return err(
+      'area_choice_required',
+      `${source.name} catches each creature of your choice in its area and the engine will not choose between them; name which of ${shortlist.join(', ')} in \`targets\``,
+    );
+  }
+  if (new Set(request.targets).size !== request.targets.length) {
+    return err('duplicate_target', `${source.name} may not take the same target twice`);
+  }
+  return ok(request.targets.slice().sort());
 }
 
 /** The other half: a list of ids somebody chose, each checked as itself. */

@@ -791,6 +791,10 @@ export function castOrRelease(
         definition.area,
         request,
         reach,
+        // SRD Hypnotic Pattern's "who can see the pattern": a sight question
+        // about a *point*, which no declaration can settle, so what the catch
+        // assumed travels back with the outcome rather than being refused.
+        unverified,
       );
       if (!resolved.ok) return resolved;
       targets = resolved.value;

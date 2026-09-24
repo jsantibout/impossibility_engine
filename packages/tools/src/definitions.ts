@@ -2253,12 +2253,16 @@ const ATTACK = tool({
 const CAST_SPELL = tool({
   name: 'cast_spell',
   description:
-    'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration, the range. You name the spell, the targets and the slot. An area spell takes no targets and picks its own — give it `at` for where it is centred, and, for a Cone, Cube or Line, a `towardsCreature`, `towardsLandmark` or `towards` saying which way it points.',
+    'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration, the range. You name the spell, the targets and the slot. An area spell takes no targets and picks its own — give it `at` for where it is centred, and, for a Cone, Cube or Line, a `towardsCreature`, `towardsLandmark` or `towards` saying which way it points. The exception is an area the spell says is "each creature of your choice": there `targets` names which of the creatures standing in it are caught, and the engine says who those are when you leave it out.',
   mutates: true,
   input: z.object({
     caster: creatureId,
     spellId: z.string().min(1).describe('SRD spell id, e.g. fire-bolt, hold-person, magic-missile.'),
-    targets: z.array(creatureId).describe('Creature ids. Empty for an area spell.'),
+    targets: z
+      .array(creatureId)
+      .describe(
+        'Creature ids. Empty for an area spell, which catches whoever is standing in it — except where the spell says "each creature of your choice" in its area, and then this names the subset of them you choose. Naming somebody outside the area is refused, and naming nobody comes back listing who is in it.',
+      ),
     rollsAt: z
       .array(
         z.strictObject({

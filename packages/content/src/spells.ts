@@ -2344,7 +2344,13 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
-  targets: { count: 0 },
+  // "Each creature in the area **who can see the pattern**": the pattern is at
+  // the point the Cube was laid on, so the clause is a sight question about a
+  // place. A creature the book excuses — Blinded, or standing in a fog bank
+  // that swallows the pattern — is filtered out of the catch; a creature
+  // nobody has spoken about is caught, and the casting says whose question it
+  // was, because no table can declare a line of sight to a patch of air.
+  targets: { count: 0, mustSeeTheOrigin: true },
   area: { kind: 'cube', size: 30, origin: 'point' },
   effects: [
     {
@@ -2371,7 +2377,6 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
   // somebody else's action and stays in `unmodelled`.
   endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
   unmodelled: [
-    'only a creature that can see the pattern is affected',
     'the spell ending because "someone else uses an action to shake the creature out of its stupor" is not offered: one creature spending an action to free another is an action nothing spends',
   ],
 };
@@ -6910,6 +6915,75 @@ export const ENLARGE_REDUCE: SpellDefinition = {
 };
 
 /**
+ * SRD Entangle:
+ *
+ * > _Level 1 Conjuration (Druid, Ranger)._ **Casting Time:** Action.
+ * > **Range:** 90 feet. **Duration:** Concentration, up to 1 minute.
+ * > "Grasping plants sprout from the ground in a 20-foot square within range.
+ * > For the duration, these plants turn the ground in the area into Difficult
+ * > Terrain. They disappear when the spell ends."
+ * > "Each creature (other than you) in the area when you cast the spell must
+ * > succeed on a Strength saving throw or have the Restrained condition until
+ * > the spell ends. A Restrained creature can take an action to make a
+ * > Strength (Athletics) check against your spell save DC. On a success, it
+ * > frees itself from the grasping plants and is no longer Restrained by
+ * > them."
+ *
+ * **The spell `notTheCaster` was named for**, and the reason it had no
+ * definition until that field existed: every other sentence here is one this
+ * catalogue already writes — a Cube on a point, a Strength save, a Restrained
+ * condition ended by the casting, Black Tentacles' Athletics escape word for
+ * word, and the glossary's rate on the ground. Written without the
+ * parenthesis it would Restrain the druid who cast it, which is a confident
+ * wrong answer rather than a missing one.
+ *
+ * **A 20-foot Cube, because the templates have no square.** `SpellArea` holds
+ * the SRD's six shapes and a square is not among them; a 20-foot Cube laid on
+ * the ground covers exactly the footprint the spell prints, and the height it
+ * has beyond that catches nobody a square would have missed — every creature
+ * standing on that ground is in both.
+ *
+ * **The Difficult Terrain is `areaTerrain` and not a gap.** The casting pins
+ * the square it resolved, the ground charges the glossary's two feet per foot
+ * while the Concentration holds, and "they disappear when the spell ends" is
+ * the patch lapsing with its casting — all of which Grease, Web and Spike
+ * Growth already do.
+ */
+export const ENTANGLE: SpellDefinition = {
+  id: 'entangle',
+  name: 'Entangle',
+  level: 1,
+  school: 'conjuration',
+  castingTime: 'action',
+  concentration: true,
+  range: { kind: 'ranged', feet: 90 },
+  // "Each creature (other than you) in the area": no count, because the area
+  // names who it catches, and the one clause that narrows it.
+  targets: { count: 0, notTheCaster: true },
+  area: { kind: 'cube', size: 20, origin: 'point' },
+  // "these plants turn the ground in the area into Difficult Terrain ... They
+  // disappear when the spell ends" — the glossary's rate, on a patch that
+  // lapses with the casting because it names it.
+  areaTerrain: { costPerFoot: 2 },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'str',
+      // "or have the Restrained condition until the spell ends": no `lasts`,
+      // so the condition's lifetime is the casting's — the minute, the
+      // Concentration and a dispel all reach it.
+      condition: 'restrained',
+      // "A Restrained creature can take an action to make a Strength
+      // (Athletics) check against your spell save DC. On a success, it frees
+      // itself ... and is no longer Restrained by them." On itself: the
+      // plants go on grasping everybody else, which is `end-on-target`.
+      check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
+    },
+  ],
+  durationSeconds: 60,
+};
+
+/**
  * SRD Tiny Hut:
  *
  * > _Level 3 Evocation (Ritual) (Bard, Wizard)._
@@ -8661,11 +8735,14 @@ export const SLEEP: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 0 },
+  // "**Each creature of your choice** in a 5-foot-radius Sphere": the Sphere
+  // says who could be caught and the caster says which of them are, so the
+  // cast's `targets` names the subset and a casting that names nobody is
+  // refused rather than putting the party to sleep. No count, because the
+  // spell prints none — the Sphere is the only bound there is.
+  targets: { count: 0, chosenFromTheArea: true },
   // "in a 5-foot-radius Sphere centered on a point within range" — a template
-  // the engine already has, on a point the caster names. What it cannot say is
-  // "Each creature of your choice" inside it: an area catches everybody
-  // standing in it, and that filter stays in `unmodelled`.
+  // the engine already has, on a point the caster names.
   area: { kind: 'sphere', radius: 5, origin: 'point' },
   effects: [
     {
@@ -8695,7 +8772,6 @@ export const SLEEP: SpellDefinition = {
   // same sentence and reaches the same cause.
   endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
   unmodelled: [
-    '"Each creature of your choice" inside the Sphere is a filter on what an area catches, and an area catches everybody standing in it — so a casting aimed at a mixed crowd puts the caster’s own allies to sleep',
     'somebody standing beside the sleeper taking an action to shake them out of the spell is not offered: one creature spending an action to free another is an action nothing spends, and the check it would buy is one only the sleeper may attempt',
     'the automatic successes are not granted: creatures that do not sleep, and creatures with Immunity to the Exhaustion condition, are an outcome read off the target’s own defences, and `checks.ts` carries an automatic failure and no automatic success',
   ],
@@ -13997,6 +14073,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   ENHANCE_ABILITY,
   ENLARGE_REDUCE,
   ENSNARING_STRIKE,
+  ENTANGLE,
   ENTHRALL,
   ETHEREALNESS,
   EXPEDITIOUS_RETREAT,
