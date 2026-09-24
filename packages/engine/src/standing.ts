@@ -70,7 +70,7 @@ import {
   type WeaponSelector,
   type WieldingContext,
 } from './attack.js';
-import { treatLowRollsAs, type DieEffect, type RollRule } from './dice.js';
+import { parseNotation, treatLowRollsAs, type DieEffect, type RollRule } from './dice.js';
 import type { Weapon } from '@ie/srd';
 import {
   actionRuleKey,
@@ -2008,6 +2008,48 @@ export interface HitOption {
   readonly pool: string | null;
   /** What one rider costs out of that pool. */
   readonly costs: number;
+  /**
+   * A **sibling feature's extra damage dice**, spent instead of a pool — SRD
+   * Cunning Strike's "the number of Sneak Attack damage dice you must forgo".
+   *
+   * The `on-hit` grant's `forgoesDiceOf`, compiled: the id of the feature
+   * whose `attack-damage` grant pays. Never beside {@link pool}, which the
+   * authoring door holds, because a rider is bought with one currency.
+   *
+   * **Settled in two places, for the reason the pool already is.** What a
+   * *sheet* can answer is answered at the swing — this creature holds no such
+   * grant, or fewer dice than {@link costsDice} — so a refusal arrives before
+   * the die. What only the roll can answer is answered where the dice are
+   * gathered: SRD Sneak Attack qualifies on "Advantage on the roll", and a
+   * blow that turned out not to be one pays for nothing. That rider is
+   * dropped unspent and reported, which is what a pool emptied inside a hold
+   * already gets.
+   */
+  readonly forgoesDiceOf?: string;
+  /** SRD's "(Cost: 1d6)" — how many of those dice one use of this forgoes. */
+  readonly costsDice?: number;
+  /**
+   * A thing the holder must be **carrying** — SRD Cunning Strike's Poison:
+   * "you must have a Poisoner's Kit on your person."
+   *
+   * A catalogue id, read off the inventory at the swing. Beside the pool and
+   * the dice because it is the third thing a rider's sentence may demand
+   * before it happens, and like both of them it is asked where a refusal costs
+   * nothing.
+   */
+  readonly requiresItem?: string;
+  /**
+   * Feet this rider hands the turn — SRD Cunning Strike's Withdraw:
+   * "Immediately after the attack, you move up to half your Speed without
+   * provoking Opportunity Attacks."
+   *
+   * `HitOptionGrant.handsMove` compiled, paid as the `movement-granted` SRD
+   * Tactical Shift already writes. The provoking half is not carried, because
+   * it is not this sentence's to say: `spendMovement` charges a granted move
+   * out of the grant alone and `moveCreature` offers nobody a swing for it, so
+   * every foot a feature hands over already provokes nothing.
+   */
+  readonly handsMove?: { readonly share: 'half-speed' };
   /** SRD: "Once per turn when you hit a creature". */
   readonly oncePerTurn?: boolean;
   readonly weapons?: readonly WeaponSelector[];
@@ -4908,6 +4950,23 @@ export interface AttackContext {
    * "you can", and there is no other moment at which declining could be said.
    */
   readonly featureDamageTypes?: Readonly<Record<string, string>>;
+  /**
+   * Dice a rider on this blow is **paying with** — SRD Cunning Strike: "You
+   * remove the die before rolling."
+   *
+   * The named feature's `attack-damage` grant rolls this many fewer dice on
+   * this blow and no other, and `forgone` reports how many actually came off.
+   * Zero is the answer where the feature did not qualify for this hit at all,
+   * which is the one question the swing could not ask: the price is a Sneak
+   * Attack, and whether a blow is one is a fact about the roll.
+   *
+   * **Here rather than on the rider's own path**, because this is the loop
+   * that decides whether the feature fires. A second reader asking the same
+   * qualifications would be a second place for "if you have Advantage on the
+   * roll" to be got wrong, and the two could disagree about a blow one of them
+   * had already removed a die from.
+   */
+  readonly forgoing?: { readonly feature: string; readonly dice: number };
 }
 
 /**
@@ -5244,11 +5303,21 @@ export function standingAttackDamage(
   readonly spent: readonly string[];
   /** Qualifications the engine could not settle from what it holds. */
   readonly unverified: readonly string[];
+  /**
+   * How many dice {@link AttackContext.forgoing} actually took off this blow.
+   *
+   * Zero where nothing was asked and zero where the named feature did not
+   * qualify for this hit, which are the same answer to the only question the
+   * caller has: was the price paid. A rider whose price went unpaid is dropped
+   * rather than applied — see {@link HitOption.forgoesDiceOf}.
+   */
+  readonly forgone: number;
 } {
   const bonuses: Bonus[] = [];
   const extra: { source: string; type: string; dice?: string; flat?: number }[] = [];
   const spent: string[] = [];
   const unverified: string[] = [];
+  let forgone = 0;
 
   for (const { effect } of standingFor(state, who)) {
     const grant = effect.grant;
@@ -5299,18 +5368,35 @@ export function standingAttackDamage(
       if (context.turn !== null) spent.push(effect.feature);
     }
 
+    // **The price a rider on this blow is paying, taken off here and only
+    // here.** SRD Cunning Strike: "You remove the die before rolling." Last of
+    // the qualifications, so a feature that did not fire is never charged for
+    // a rider it could not have bought — and the count is reported, because
+    // "this feature added nothing to this blow" is the answer the rider's own
+    // path needs and cannot derive.
+    let dice = grant.dice;
+    if (context.forgoing !== undefined && context.forgoing.feature === effect.feature) {
+      forgone = context.forgoing.dice;
+      dice = fewerDice(dice, forgone);
+    }
+
     const type = chosenType ?? grant.damageType;
     if (type === undefined) {
+      // A component with nothing left in it is not written down: a Rogue who
+      // forgoes every die they had adds no slice to the blow, and an empty
+      // notation is not one the dice layer can parse.
+      if (dice === undefined && grant.flat === undefined) continue;
       bonuses.push({
         source: effect.name,
         ...(grant.flat === undefined ? {} : { flat: grant.flat }),
-        ...(grant.dice === undefined ? {} : { dice: grant.dice }),
+        ...(dice === undefined ? {} : { dice }),
       });
     } else {
+      if (dice === undefined && grant.flat === undefined) continue;
       extra.push({
         source: effect.name,
         type,
-        ...(grant.dice === undefined ? {} : { dice: grant.dice }),
+        ...(dice === undefined ? {} : { dice }),
         ...(grant.flat === undefined ? {} : { flat: grant.flat }),
       });
     }
@@ -5336,7 +5422,62 @@ export function standingAttackDamage(
   // the typed components beside it. The attack half is `standingBonuses`.
   bonuses.push(...weaponRiderBonuses(state.creatures[who], context.weapon));
 
-  return { bonuses, extra, spent, unverified };
+  return { bonuses, extra, spent, unverified, forgone };
+}
+
+/**
+ * A notation with a number of its dice taken away — SRD Cunning Strike's
+ * "remove 1d6 from the Sneak Attack's damage before rolling".
+ *
+ * `undefined` where nothing is left to roll, which is what an absent `dice`
+ * already means to every reader of this grant: a component that rolls no dice
+ * and adds no flat number is not a component. Everything else the notation
+ * says is kept — a homebrew `3d6+2` traded down to `2d6+2` keeps the two, and
+ * a kept-highest clause keeps no more dice than are left — and a notation the
+ * dice layer cannot read is left exactly as it was rather than guessed at.
+ */
+function fewerDice(dice: string | undefined, fewer: number): string | undefined {
+  if (dice === undefined || fewer <= 0) return dice;
+  const parsed = parseNotation(dice);
+  if (!parsed.ok) return dice;
+  const left = parsed.value.count - fewer;
+  if (left <= 0) return undefined;
+  const keep = parsed.value.keep;
+  const kept =
+    keep === null ? '' : `k${keep.mode === 'highest' ? 'h' : 'l'}${Math.min(keep.n, left)}`;
+  const modifier =
+    parsed.value.modifier === 0
+      ? ''
+      : `${parsed.value.modifier > 0 ? '+' : '-'}${Math.abs(parsed.value.modifier)}`;
+  return `${left}d${parsed.value.sides}${kept}${modifier}`;
+}
+
+/**
+ * How many dice a named feature's `attack-damage` grant rolls for this
+ * creature, or **null** where it holds no such grant.
+ *
+ * The sheet half of a dice price — SRD Cunning Strike's "the number of Sneak
+ * Attack damage dice you must forgo" — asked at the swing, where a refusal
+ * costs nothing. It deliberately asks nothing about *this* blow: a creature
+ * holds Sneak Attack whether or not this swing will be one, and the
+ * qualifications are {@link standingAttackDamage}'s to settle once, later,
+ * where the dice are actually gathered.
+ *
+ * Null and zero are different answers and both are refusals: null is a feature
+ * nobody granted, and zero is a grant that rolls a flat number instead.
+ */
+export function attackDamageDiceOf(
+  state: GameState,
+  who: CharacterId,
+  feature: string,
+): number | null {
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.feature !== feature || effect.grant.kind !== 'attack-damage') continue;
+    if (effect.grant.dice === undefined) return 0;
+    const parsed = parseNotation(effect.grant.dice);
+    return parsed.ok ? parsed.value.count : 0;
+  }
+  return null;
 }
 
 /**

@@ -235,8 +235,66 @@ export const ROGUE: ClassDefinition = {
       id: 'rogue:cunning-strike',
       name: 'Cunning Strike',
       level: 5,
-      automation: 'manual',
-      note: 'Trading Sneak Attack dice for Poison, Trip or Withdraw is not modelled. Sneak Attack itself is executed — the dice are read off the Rogue table and added to a qualifying hit — and what has no shape is spending some of those dice as a price, and the three things the price buys: a saving throw the feature forces, a condition it imposes, and a move it hands its holder.',
+      automation: 'engine',
+      note: 'SRD: "When you deal Sneak Attack damage, you can add one of the following Cunning Strike effects. Each effect has a die cost, which is the number of Sneak Attack damage dice you must forgo to add the effect. You remove the die before rolling." Executed as a rider on the hit, with the price in the one currency no rider could name before: Sneak Attack’s own dice. The swing names the feature and the option; the damage gather removes the dice before rolling, so a Rogue 5 who adds an effect rolls 2d6 instead of 3d6; and the effect happens once the damage is dealt. A blow that turns out not to be a Sneak Attack — no Advantage, no ally beside the target, the allowance already spent this turn — pays for nothing, so the rider is dropped unspent and said out loud rather than refused after the die. The DC is the feature’s own, "8 plus your Dexterity modifier and Proficiency Bonus". Poison forces a Constitution save, leaves a failure Poisoned for a minute and lets the target repeat the save at the end of each of its turns, and is refused without a Poisoner’s Kit on the Rogue’s person; Trip is a Dexterity save and the Prone condition, gated on a Large or smaller target, which the other two are not; Withdraw hands the turn half the Rogue’s Speed as feet spent out of no Speed at all, which provoke nobody. "One of the following" is the request’s own shape — a swing names one option — and a second Cunning Strike on the same turn has nothing to pay with, because Sneak Attack is once per turn.',
+      grants: {
+        kind: 'on-hit',
+        // "the number of Sneak Attack damage dice you must forgo" — a sibling
+        // feature's dice, named the way Stunning Strike names a sibling
+        // feature's pool.
+        forgoesDiceOf: 'rogue:sneak-attack',
+        // "If a Cunning Strike effect requires a saving throw, the DC equals 8
+        // plus your Dexterity modifier and Proficiency Bonus." A Rogue casts
+        // nothing, so the feature prints its own.
+        saveAbility: 'dex',
+        options: [
+          {
+            id: 'poison',
+            name: 'Poison',
+            // "(Cost: 1d6)"
+            costsDice: 1,
+            // "To use this effect, you must have a Poisoner's Kit on your
+            // person."
+            requiresItem: 'poisoners-kit',
+            // "forcing the target to make a Constitution saving throw. On a
+            // failed save, the target has the Poisoned condition for 1 minute.
+            // At the end of each of its turns, the Poisoned target repeats the
+            // save, ending the effect on itself on a success."
+            effects: [
+              {
+                kind: 'save',
+                ability: 'con',
+                condition: 'poisoned',
+                repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+              },
+            ],
+            durationSeconds: 60,
+          },
+          {
+            id: 'trip',
+            name: 'Trip',
+            costsDice: 1,
+            // "If the target is Large or smaller" — printed on this effect and
+            // on neither of the others, so it is the option's gate rather than
+            // the feature's.
+            targetNoLargerThan: 'large',
+            // "it must succeed on a Dexterity saving throw or have the Prone
+            // condition." Prone ends when the creature stands up, so there is
+            // no span on it.
+            effects: [{ kind: 'save', ability: 'dex', condition: 'prone' }],
+          },
+          {
+            id: 'withdraw',
+            name: 'Withdraw',
+            costsDice: 1,
+            // "Immediately after the attack, you move up to half your Speed
+            // without provoking Opportunity Attacks." The move is the whole of
+            // what the option buys, so there is no effect list at all.
+            effects: [],
+            handsMove: { share: 'half-speed' },
+          },
+        ],
+      },
     },
     {
       id: 'rogue:uncanny-dodge',

@@ -835,6 +835,59 @@ export interface HitOptionGrant {
    * with everything else, under one `damage-rolled`.
    */
   readonly extraDamage?: HitRiderDamage;
+  /**
+   * SRD Cunning Strike: "**(Cost: 1d6)**" — how many of the dice the grant's
+   * {@link FeatureGrant} `on-hit` `forgoesDiceOf` names this option forgoes.
+   *
+   * On the option because the book writes it on the effect — "Each effect has
+   * a die cost" — and Devious Strikes prices six of them differently under one
+   * feature. `checkContent` refuses it where the grant names no feature to
+   * take it from, and refuses a grant that names one where no option pays.
+   */
+  readonly costsDice?: number;
+  /**
+   * SRD Cunning Strike's Poison: "To use this effect, you must have a
+   * **Poisoner's Kit** on your person."
+   *
+   * The catalogue id of a thing the holder must be carrying, read off the
+   * inventory at the swing so the refusal arrives before the die. On the
+   * option rather than on the grant because the SRD prints it on one of the
+   * three: Trip and Withdraw ask for nothing.
+   *
+   * **A fact the engine holds.** A kit is an item like any other, so this is
+   * one more thing content says by id and nothing the engine knows by name;
+   * `checkContent` holds the id to the catalogue the feature was loaded with.
+   */
+  readonly requiresItem?: string;
+  /**
+   * Feet this rider hands the turn — SRD Cunning Strike's Withdraw:
+   * "Immediately after the attack, you move up to half your Speed without
+   * provoking Opportunity Attacks."
+   *
+   * The same `movement-granted` SRD Tactical Shift writes, from the other
+   * trigger: a hit rather than a Bonus Action heal. It carries no
+   * `withFeature`, and that is the difference — Tactical Shift is one
+   * feature's sentence about *another's* use, and this is the option's own, so
+   * the grant is filed under the feature the rider belongs to.
+   *
+   * One share, because the SRD prints one: half a Speed. What it provokes is
+   * not a field: **every** move spent out of a grant provokes nobody, which is
+   * `spendMovement`'s own rule and the whole reason feet a feature hands over
+   * are a counter rather than more allowance.
+   */
+  readonly handsMove?: { readonly share: 'half-speed' };
+  /**
+   * SRD Cunning Strike's Trip: "**If the target is Large or smaller**, it must
+   * succeed on a Dexterity saving throw."
+   *
+   * The `on-hit` grant carries the same field for the feature that writes the
+   * clause in its trigger sentence — SRD Hill's Tumble — and this is the other
+   * place the book prints it: on **one** option of three. A gate written on
+   * the grant would have refused the Poison a Cunning Strike may put in an
+   * Ogre, which the book does not. Where both are written the option's is
+   * read, because it is the narrower sentence.
+   */
+  readonly targetNoLargerThan?: CreatureSize;
 }
 
 /**
@@ -1890,6 +1943,32 @@ export type FeatureGrant =
        * asked for that one.
        */
       readonly targetNoLargerThan?: CreatureSize;
+      /**
+       * A **sibling feature's extra damage dice**, spent as the price of a
+       * rider.
+       *
+       * SRD Cunning Strike: "Each effect has a die cost, which is the number
+       * of Sneak Attack damage dice you must forgo to add the effect. You
+       * remove the die before rolling."
+       *
+       * **Named the way {@link pool} is named, and for the same sentence.**
+       * Stunning Strike spends a *different feature's* pool and says which;
+       * this spends a different feature's dice and says which. The engine
+       * knows no feature by name, so what is written here is the id of the
+       * `standing` grant whose `attack-damage` dice pay — checked by
+       * `checkContent` against the features in scope, exactly as
+       * `recoversSooner.withFeature` is.
+       *
+       * **Never beside {@link pool}.** A rider is bought with one currency:
+       * the book prices each of these sentences once, and a grant that named
+       * both would be two prices for one purchase with nothing to say which
+       * came first.
+       *
+       * The count is on the option rather than here, because the book puts it
+       * there — "**Each effect** has a die cost" — and Devious Strikes prices
+       * its six differently on one feature.
+       */
+      readonly forgoesDiceOf?: string;
       /** What a rider buys, by name. One of them is named at the hit. */
       readonly options: readonly HitOptionGrant[];
     }

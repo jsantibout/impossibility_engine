@@ -2246,11 +2246,18 @@ function featureOptionProblems(
   // declaring one confers something even with an empty list, so it is counted
   // here beside the other two.
   const adds = (option as unknown as { readonly extraDamage?: unknown }).extraDamage;
+  // **And feet the rider hands its holder are the fifth**, which is the whole
+  // of SRD Cunning Strike's Withdraw: "Immediately after the attack, you move
+  // up to half your Speed without provoking Opportunity Attacks" — a move, no
+  // save, nothing hung on the creature that was struck. Counted here for the
+  // reason the shove above it is: an option that buys one buys something.
+  const walks = (option as unknown as { readonly handsMove?: unknown }).handsMove;
   if (
     option.effects.length === 0 &&
     divides === undefined &&
     shoves === undefined &&
-    adds === undefined
+    adds === undefined &&
+    walks === undefined
   ) {
     say('empty_feature_option', 'an option that confers an empty list buys nothing', `${at}.effects`);
   }

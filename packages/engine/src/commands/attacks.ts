@@ -143,6 +143,8 @@ import {
   applyHitRider,
   hitRiderAsked,
   riderDamageOnTheBlow,
+  riderDicePrice,
+  riderPricePaid,
   type HitRiderRequest,
 } from './hit-riders.js';
 import { grapplesOn } from './unarmed.js';
@@ -2549,6 +2551,9 @@ export function resolveAttack(
       printed,
       attack.value.roll.mode,
     );
+
+    // The rider's price in dice, read once — see {@link riderDicePrice}.
+    const price = riderDicePrice(riding);
     // A charge gating a damage clause and nothing else — SRD Goat, SRD Giant
     // Seahorse — owes the table the same sentence a charge gating a condition
     // owes it, and this is the only channel it has.
@@ -2578,8 +2583,22 @@ export function resolveAttack(
       ...(command.featureDamageTypes === undefined
         ? {}
         : { featureDamageTypes: command.featureDamageTypes }),
+      // SRD Cunning Strike: "You remove the die before rolling." The price is
+      // taken inside the gather because the gather is what decides whether the
+      // feature being charged fired on this blow at all.
+      ...(price === undefined ? {} : { forgoing: price }),
     });
     unverified.push(...fromFeatures.unverified);
+
+    // **The rider, once the price has been asked.** A Cunning Strike on a blow
+    // that turned out not to be a Sneak Attack is dropped unspent and said out
+    // loud — the answer a pool emptied inside a hold already gets — and
+    // everything below reads `bought` rather than `riding` so a dropped rider
+    // neither rides the damage, nor goes onto the hold a defender answers in,
+    // nor resolves afterwards.
+    const priced = riderPricePaid(riding, fromFeatures.forgone);
+    const charged = priced.option;
+    unverified.push(...priced.unverified);
 
     const savage = standingWeaponRollRule(state, id, {
       weapon,
@@ -2593,7 +2612,7 @@ export function resolveAttack(
     // The dice the asked-for rider adds to this blow, if it adds any. Read
     // before the roll because that is the whole point of the field: SRD Fire's
     // Burn is a component of the hit rather than a second roll after it.
-    const riderDice = riderDamageOnTheBlow(state, id, riding);
+    const riderDice = riderDamageOnTheBlow(state, id, charged);
 
     const rolled = rollAttackDamage(
       supply.issuer,
@@ -2607,7 +2626,7 @@ export function resolveAttack(
         ...(stated === undefined
           ? {}
           : {
-              statedAttack: statedDamageAfterTheChoice(stated, printedDamage.instead, riding),
+              statedAttack: statedDamageAfterTheChoice(stated, printedDamage.instead, charged),
             }),
         ...(castWithIt === null ? {} : { imposedAbility: castWithIt.ability }),
         ...(style === null ? {} : { strikeStyle: inPlay(style) }),
@@ -2711,9 +2730,9 @@ export function resolveAttack(
         // rides on the hold and resolves with the damage; where it opens none,
         // the field is ignored and the rider fires below exactly as it always
         // has. See {@link PendingDamage.rider}.
-        ...(riding === null
+        ...(charged === null
           ? {}
-          : { rider: { attacker: id, option: coveredByTheRoll(riding, attack.value.roll.mode) } }),
+          : { rider: { attacker: id, option: coveredByTheRoll(charged, attack.value.roll.mode) } }),
       },
     );
     if (!hurt.ok) return hurt;
@@ -2748,7 +2767,7 @@ export function resolveAttack(
     // which is the one ordering the book does fix: the rider went onto the
     // hold above and `settleDamage` resolves it once the defender has spoken.
     const riderEvents: GameEvent[] = [];
-    if (riding !== null && hurt.value.offers.length === 0) {
+    if (charged !== null && hurt.value.offers.length === 0) {
       const bought = applyHitRider(
         [...landed, ...mastered.value.events].reduce(applyEvent, state),
         supply,
@@ -2765,7 +2784,7 @@ export function resolveAttack(
           dealt: hurt.value.amount ?? 0,
           droppedToZero: emptiedBy(state, landed.reduce(applyEvent, state), command.target),
         },
-        coveredByTheRoll(riding, attack.value.roll.mode),
+        coveredByTheRoll(charged, attack.value.roll.mode),
       );
       if (!bought.ok) return bought;
       riderEvents.push(...bought.value.events);
@@ -3036,6 +3055,9 @@ export function resolveAttackDamage(
     const riderDice = riderDamageOnTheBlow(state, id, pending.rider ?? null);
     if (riderDice !== null) extra.push(riderDice);
 
+    // The rider's price in dice, read once — see {@link riderDicePrice}.
+    const heldPrice = riderDicePrice(pending.rider ?? null);
+
     // — the spell cast on the blow ——————————————————————————————————————————
     if (command.smite !== undefined) {
       const smite = castOnHit(state, supply.content, id, attacker, pending.target, command.smite);
@@ -3079,7 +3101,23 @@ export function resolveAttackDamage(
       ...(command.featureDamageTypes === undefined
         ? {}
         : { featureDamageTypes: command.featureDamageTypes }),
+      // The price in dice, taken inside the gather — the unheld swing's own
+      // line, on the half of a held swing that rolls the damage.
+      ...(heldPrice === undefined ? {} : { forgoing: heldPrice }),
     });
+
+    // **The rider, once the price has been asked**, for the unheld swing's
+    // reason. Everything after this reads `bought` rather than `pending.rider`,
+    // so a Cunning Strike on a blow the hold turned out not to have made a
+    // Sneak Attack of neither rides the damage nor resolves after it.
+    const priced = riderPricePaid(pending.rider ?? null, fromFeatures.forgone);
+    const charged = priced.option;
+    // And the dice it had already been let onto the blow with, taken back off.
+    // The component is removed rather than never added, so the order the log
+    // records the rest of them in is the order it has always recorded.
+    if (riderDice !== null && charged === null) {
+      extra.splice(extra.indexOf(riderDice), 1);
+    }
 
     const savage = standingWeaponRollRule(current, id, {
       weapon,
@@ -3189,9 +3227,9 @@ export function resolveAttackDamage(
         // where one opens a window — so a held swing whose damage somebody may
         // answer settles through `settleDamage` exactly as an ordinary one
         // does, and nothing there knows which half of a swing sent it.
-        ...(pending.rider === undefined
+        ...(charged === null
           ? {}
-          : { rider: { attacker: pending.attacker, option: pending.rider } }),
+          : { rider: { attacker: pending.attacker, option: charged } }),
       },
     );
     if (!hurt.ok) return hurt;
@@ -3224,8 +3262,8 @@ export function resolveAttackDamage(
     const bought: GameEvent[] = [];
     // The charge's own sentence, on the half of a held swing that rolls the
     // damage — see the unheld path's copy of this line.
-    const unverified: string[] = [...printedDamage.unverified];
-    if (pending.rider !== undefined && hurt.value.offers.length === 0) {
+    const unverified: string[] = [...printedDamage.unverified, ...priced.unverified];
+    if (charged !== null && hurt.value.offers.length === 0) {
       const paid = applyHitRider(
         [...landed, ...rider.value.events].reduce(applyEvent, state),
         supply,
@@ -3235,7 +3273,7 @@ export function resolveAttackDamage(
           dealt: hurt.value.amount ?? 0,
           droppedToZero: emptiedBy(state, landed.reduce(applyEvent, state), pending.target),
         },
-        pending.rider,
+        charged,
       );
       if (!paid.ok) return paid;
       bought.push(...paid.value.events);
