@@ -542,6 +542,9 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // swings a declared count holds, the re-declaration that replaces it, and
   // the count the fold gives back with no content open.
   'creature-heads-declared',
+  // A summons: the fixtures predate it, and appending a type here is the
+  // acknowledgement this list exists to collect.
+  'creature-summoned',
   // One creature spending an action to shake another out of a sleep — SRD
   // Sleep, SRD Hypnotic Pattern, a dragon's sleep breath, a pseudodragon's
   // sting. Neither log was written when anybody could: `wakeCreature` did not
@@ -554,9 +557,6 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // spend, the blow that does the same thing, and the refusal on a creature
   // holding nothing wakeable.
   'creature-woken',
-  // A summons: the fixtures predate it, and appending a type here is the
-  // acknowledgement this list exists to collect.
-  'creature-summoned',
   'damage-defense-granted',
   // The faces a damage roll showed. Neither log was written when the ordinary
   // damage path recorded them at all — a blow nobody could react to kept its

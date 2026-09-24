@@ -377,14 +377,29 @@ describe('a printed failure that branches on the target’s Hit Points', () => {
     );
     expect(timer?.deadline).toEqual({ kind: 'elapsed', at: 3600 });
 
-    // The two endings the reader carried, handed to the table at the moment
-    // of use with the noun the book's clause hangs on.
-    expect(
-      out.unverified.some((line) =>
-        line.includes('The Unconscious condition ends early: until it takes damage'),
-      ),
-    ).toBe(true);
+    // The two endings the book prints beside the hour are the engine's now —
+    // a blow, and a neighbour's action — so nothing of this line reaches the
+    // table but the clause about who it caught.
+    expect(out.unverified.some((line) => line.includes('ends early'))).toBe(false);
+    expect(out.unverified).toHaveLength(1);
     expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
+
+    // And both of them bite: a blow lifts the hour, and so does an onlooker.
+    const struck = after(
+      state,
+      unwrap(
+        resolveDamage(
+          state,
+          BREN,
+          { amount: 4, source: 'a thrown stone', commandId: 'stone' },
+          supply('stone'),
+        ),
+        'a stone',
+      ).events,
+    );
+    expect(conditionsOn(struck, BREN)).not.toContain('unconscious');
+    const shaken = applyEvent(state, { type: 'creature-woken', id: BREN, by: FOE });
+    expect(conditionsOn(shaken, BREN)).not.toContain('unconscious');
   });
 
   it('deals the Incubus’ 4d8 to a creature over the ceiling', () => {

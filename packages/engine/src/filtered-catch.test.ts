@@ -381,11 +381,13 @@ describe('SRD Hypnotic Pattern: "each creature in the area who can see the patte
     );
   });
 
-  /** Its other clause is still the table's, and still handed over. */
-  it('still hands over the shake-awake and claims nothing about sight', () => {
-    const gaps = SRD_CONTENT.spell('hypnotic-pattern')?.unmodelled ?? [];
-    expect(gaps).toHaveLength(1);
-    expect(gaps[0]).toContain('shake');
+  /**
+   * And its other clause is nobody's to hand over now: "if someone else uses
+   * an action to shake the creature out of its stupor" is `wakeCreature`, so
+   * the spell reads whole and leaves nothing unmodelled at all.
+   */
+  it('leaves nothing unmodelled, shake-awake included', () => {
+    expect(SRD_CONTENT.spell('hypnotic-pattern')?.unmodelled ?? []).toEqual([]);
   });
 });
 
@@ -435,10 +437,12 @@ describe('SRD Sleep: "each creature of your choice in a 5-foot-radius Sphere"', 
     if (isErr(out)) expect(out.code).toBe('duplicate_target');
   });
 
-  it('no longer says the filter is unbuilt', () => {
+  it('no longer says the filter or the shake is unbuilt', () => {
     const gaps = SRD_CONTENT.spell('sleep')?.unmodelled ?? [];
-    expect(gaps).toHaveLength(2);
+    // One line left: the automatic successes creatures that do not sleep get.
+    expect(gaps).toHaveLength(1);
     expect(gaps.some((gap) => gap.includes('of your choice'))).toBe(false);
+    expect(gaps.some((gap) => gap.includes('shake'))).toBe(false);
   });
 });
 
