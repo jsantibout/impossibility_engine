@@ -78,8 +78,8 @@ homebrew.
   its own running copies, ward a fall, or lift a creature a save did not spare;
   a spell may print branches and run the one named, hang a rider on a made
   save, make a creature subtract from its own damage rolls, or pick out D20
-  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a
-  later turn and a slot may drop its Concentration; a tracked spell read to
+  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its
+  Concentration, and a save may be nothing but its verdict; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
@@ -92,9 +92,8 @@ homebrew.
   damage threshold that turns a superficial blow aside. **Hands are a count**, so a Two-Handed weapon and a shield refuse each
   other, and a conjured thing occupies one and carries a record of its own
   while its casting or activation runs.
-- **Content** — `createContent` / `loadContent` validate a catalogue from JSON
-  text; homebrew goes through the same door the SRD does, and content using
-  mechanics the engine has touches no engine file.
+- **Content** — `createContent` / `loadContent` validate a catalogue from
+  JSON text; homebrew goes through the same door the SRD does.
 - **Two doors above the engine** (`@ie/tools`) — the player's and, under `dm/`,
   the DM's, partitioned by **authority** rather than by species of caller: a
   DM's door takes a decision the rules leave open, and neither takes a die face.

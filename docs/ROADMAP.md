@@ -2380,3 +2380,17 @@ Appended after wave seven's first spells track (2026-09-24):
   that the Challenge Rating has landed. `a-condition-that-ends-when-its-holder-leaves-an-area`
   is retired: presence needs no ending, and Web's Restrained is another
   sentence.
+- **Animal Messenger executes.** The coordinator wrote the definition once
+  both its shapes had landed — a Charisma `save` whose whole content is its
+  verdict (`verdictOnly`), spared above Challenge Rating 0
+  (`autoSucceedIf.challengeRatingAbove`), the errand in `dmDecides` in the
+  book's words — and a small track finished the sweeps: the catalogue, tracking
+  and handover fixtures had aimed the new save at creatures nobody had rated,
+  so the engine asked rather than rolled, which was the fixtures' defect and
+  not the rule's; each now casts at the SRD Raven, rated and Tiny, and the
+  handover sweep picks a body off the target rule's own facts instead of
+  always aiming at its Humanoid. Not ticked as verified: nothing drives this
+  definition's verdict end to end (the mark and the rating are each driven
+  over a homebrew), and the report's "untested" line is the honest output —
+  a test that casts the SRD spell and reads the verdict is its own small
+  brief. Fable-built content, reviewed by the track's Opus reviewer.

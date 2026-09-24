@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 48 spells | 48 | 0 | 0 | 32 |
+| Spells in reach, not executed | 47 spells | 47 | 0 | 0 | 32 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -71,11 +71,11 @@ exactly the silently-missing entry this report’s header refuses.
 |---|---|---|
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-fact-only-the-table-can-declare` | 4 | 2 |
-| `a-target-rule-the-format-cannot-state` | 4 | 2 |
 | `difficult-terrain-an-area-creates` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
 | `a-barrier-that-blocks-passage` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
+| `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `movement-modes` | 3 | 1 |
 | `a-casting-dismissed-early` | 2 | 1 |
 | `a-choice-made-at-the-casting` | 2 | 1 |
@@ -141,13 +141,6 @@ sums to the population.
 - **Enthrall** (level 2) — tracked — also waits on 1
 - **Call Lightning** (level 3) — tracked — also waits on 1
 
-#### `a-target-rule-the-format-cannot-state` — blocks 4, finishes 2
-
-- **Thaumaturgy** (level 0) — executed-partial
-- **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Animal Messenger** (level 2) — tracked
-- **Animate Dead** (level 3) — tracked — also waits on 1
-
 #### `difficult-terrain-an-area-creates` — blocks 2, finishes 2
 
 - **Gust of Wind** (level 2) — executed-partial
@@ -171,6 +164,12 @@ sums to the population.
 
 - **Unseen Servant** (level 1) — tracked — also waits on 1
 - **Find Steed** (level 2) — executed-partial
+- **Animate Dead** (level 3) — tracked — also waits on 1
+
+#### `a-target-rule-the-format-cannot-state` — blocks 3, finishes 1
+
+- **Thaumaturgy** (level 0) — executed-partial
+- **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Animate Dead** (level 3) — tracked — also waits on 1
 
 #### `movement-modes` — blocks 3, finishes 1
