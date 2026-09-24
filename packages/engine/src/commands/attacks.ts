@@ -74,7 +74,6 @@ import {
   distanceBetweenPoints,
   positionOf,
   sizeAtMost,
-  sizeOf,
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
 import {
@@ -131,6 +130,7 @@ import { mayAct } from './holds.js';
 import { quantityOf } from './inventory.js';
 import { applyHitRider, hitRiderAsked, type HitRiderRequest } from './hit-riders.js';
 import { grapplesOn } from './unarmed.js';
+import { effectiveSizeOf } from '../size.js';
 import { allyWithinFiveFeetOf, defendingModes, enemyWithinFiveFeet } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 import { answerTheBlow, wardAgainst } from './passive-defenses.js';
@@ -492,13 +492,11 @@ function sizeReaches(
   target: CharacterId,
   limit: CreatureSize,
 ): { readonly reaches: boolean; readonly size: CreatureSize | null } {
-  // **What somebody said before what the map assumed**, which is the reading
-  // `push` takes of the same sentence: a stat block pins a size into
-  // `creature-added` and the map defaults an unplaced creature to Medium, so
-  // asking the map first would answer Medium for a Gargantuan creature nobody
-  // re-stated when they placed it.
-  const size =
-    state.creatures[target]?.size ?? (state.scene === null ? null : sizeOf(state.scene, target));
+  // **The one reader of the three answers**, which is `effectiveSizeOf`: the
+  // size an active feature prints, then the size somebody stated, then the
+  // map's. This used to be the middle two written out here, which is why a
+  // Goliath in Large Form was Large on the map and Medium to a Wolf's Prone.
+  const size = effectiveSizeOf(state, target);
   return { reaches: size === null || sizeAtMost(size, limit), size };
 }
 
