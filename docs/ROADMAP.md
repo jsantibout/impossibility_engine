@@ -1774,3 +1774,22 @@ Appended after wave five's first two tracks (2026-09-24):
   twin of `lapsedGrapples` (a dead attacher leaves its cover standing), and
   neither detach nor `escapeGrapple` has a tool door — a table through
   `@ie/tools` can be attached and cannot detach.
+- **Every road reports, and every road pays the watcher.** `resolveDamage` is
+  the one true funnel (`damage-taken` is emitted in one place, called from
+  one place) and now asks what the fall owed; `commands/drop-rewards.ts`
+  holds the reader so no module cycle forms. Eleven callers of the spell-
+  damage road thread its `unverified`; `TurnResolution` carries one;
+  `roll_improvised_damage` and `end_turn` publish it. Three reachable roads
+  are wired but untested (Sear Undead, Fire Shield, Searing Smite's burn) —
+  a coverage brief; `payCastingDamageCost` still drops its report, said
+  where it happens.
+- **A grant may live as long as one condition instance does**, by being
+  sourced to the instance's id and released at both doors a condition leaves
+  by — no new event, state or deadline kind. The Ravens' Cacophony reads
+  whole. **Ruled, from the track's escalation:** `ActionRule` gains a fifth
+  member, `one-of` over a *list* of slots ("spending any one forecloses the
+  rest"), because SRD Ice Devil couples movement with the action where the
+  Dretch, the Copper Wyrmling and Slow couple the action with the Bonus
+  Action; the spender reads the budget it already holds. In flight as W5-E,
+  which retires `a-rule-that-couples-two-slots-of-a-turn` and carries
+  `speed-halved` with it.

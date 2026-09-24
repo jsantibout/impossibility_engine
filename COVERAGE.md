@@ -1048,7 +1048,7 @@ and a bite whose hit buys a save.
 | A hit whose line says more than the engine applies | 50 | 51 |
 | An effect a hit buys | 40 | 41 |
 | A legendary action’s own economy | 30 | 82 |
-| A save whose line says more than the engine spends | 24 | 24 |
+| A save whose line says more than the engine spends | 23 | 23 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
 | A trait shape nothing spends | 0 | 0 |
