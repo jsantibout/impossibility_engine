@@ -21,7 +21,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';

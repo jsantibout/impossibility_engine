@@ -256,10 +256,12 @@ import {
   conditionSchema,
   creatureId,
   damageTypeSchema,
+  electionOf,
   hitRiderSchema,
   masterySchema,
   placementSchema,
   pointSchema,
+  rollElectionSchema,
   routeSchema,
   sensesFields,
   sizeSchema,
@@ -2190,6 +2192,16 @@ const ATTACK = tool({
       .describe(
         'Buy a feature of the attacker’s with this blow — SRD Stunning Strike is "once per turn when you hit a creature ... you can expend 1 Focus Point". Written "you can", so silence declines it and a swing that names none buys nothing. Name the feature and the option; the price, the save, the DC and how long what it leaves behind lasts are all the engine’s. A feature the attacker has not got, an option it does not offer, a weapon its sentence does not cover and a pool with nothing left are each refused before the attack is rolled, so nothing is spent. `sheet` lists what this character can elect.',
       ),
+    reroll: rollElectionSchema
+      .optional()
+      .describe(
+        'Elect a reroll of **this attack roll** before it is thrown — SRD Heroic Inspiration’s "reroll any die immediately after rolling it, and you must use the new roll". Say `{"pool": "human:heroic-inspiration", "when": "misses"}`, or a face to rethrow at. The engine throws the die, reads what you said against it, and spends the use only if it fired; the first face stays in the log, and the second roll stands whatever it shows.',
+      ),
+    reroll_damage: rollElectionSchema
+      .optional()
+      .describe(
+        'The same, of one of **this swing’s own damage dice** — a face and nothing else, because a damage die has no outcome to read. It is refused beside `hold`, which rolls no damage here, and refused beside `reroll` when the two name one pool: one use cannot buy two rerolls and which of them it buys is yours to say.',
+      ),
     cantrip: cantripSwingSchema
       .optional()
       .describe(
@@ -2225,6 +2237,10 @@ const ATTACK = tool({
                 },
               }),
           ...(args.damageTypes === undefined ? {} : { featureDamageTypes: args.damageTypes }),
+          ...(args.reroll === undefined ? {} : { election: electionOf(args.reroll) }),
+          ...(args.reroll_damage === undefined
+            ? {}
+            : { damageElection: electionOf(args.reroll_damage) }),
           ...identity(context),
         },
         context.campaign.supply(),

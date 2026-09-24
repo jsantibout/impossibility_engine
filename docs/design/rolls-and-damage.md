@@ -65,6 +65,29 @@ one would refuse the second use where the book charges for it — and its damage
 is dealt against no defences at all, which is what "ignores Resistance and
 Immunity" names.
 
+**A second reroll is elected before the die and read against it.** SRD Heroic
+Inspiration — "you can expend it to reroll any die immediately after rolling
+it, and you must use the new roll" — reaches a roll that succeeded, an attack
+roll and a damage die, and none of those lands in a window. A window on every
+die was tried and withdrawn: a table would then settle one before every next
+roll. So the roller states the *condition* on the command that rolls — reroll
+if this misses, if this fails, or if the die shows a named face or lower —
+naming a pool that a `reroll` Reaction of theirs spends. `RollElection` is the
+statement, `electedRethrow` reads it against the roll as it stands, and
+`rethrowCountedD20` is the one rethrow it shares with Halfling Luck, so the
+two can never disagree about which die counted. It is intent from the caller
+and a number from the engine, and it is still a decision made knowing the die,
+because the condition is a function of the face. The pool is spent only where
+the condition was met, the first face rides on `roll-recorded.supersedes`, and
+the second roll stands whatever it shows. **Which rolls an election may reach
+is the feature's own sentence**, read off the `tests` its Reaction declares:
+naming both kinds of D20 Test is how "any die" is already spelled on that
+window, so a reroll naming both is electable on an attack roll and a damage
+die too, and one naming a saving throw alone — Indomitable — is not. The
+window keeps its arm, because Indomitable and Cutting Words share it and a
+player may prefer to look first; what the same pool may not do is buy a second
+reroll of a die an election already threw again.
+
 **A selector may name a family of D20 Tests, and it must then name the ability
 behind them.** `RollFamily`'s sixth member is the glossary's own union of the
 other three — an ability check, an attack roll, a saving throw — and it

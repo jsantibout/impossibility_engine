@@ -273,6 +273,64 @@ export const cantripSwingSchema = z.object({
 });
 
 /**
+ * A reroll stated **before** the die, and the condition it fires on.
+ *
+ * SRD Heroic Inspiration: "you can expend it to reroll any die immediately
+ * after rolling it, and you must use the new roll." The window a failed check
+ * or save opens answers half of that sentence and could never answer the rest
+ * — a roll that succeeded, an attack roll and a damage die land in no window —
+ * and a window on every die would make a table settle one before every next
+ * roll. So this is an **election**: the condition travels on the command that
+ * rolls, and the engine reads it against the die it threw.
+ *
+ * **It carries no number the caller produced.** A face here is the *threshold*
+ * a reroll is bought at and never a result: what the die showed is the
+ * engine's to say, and the pool is spent only where what it showed met the
+ * condition.
+ *
+ * `which_die` is a position in a damage roll and is meaningless on a D20 Test,
+ * where the die thrown again is the one Advantage or Disadvantage counted and
+ * no caller may name another.
+ */
+export const rollElectionSchema = z
+  .strictObject({
+    pool: z
+      .string()
+      .min(1)
+      .describe(
+        'The pool one reroll comes out of, by its key — `human:heroic-inspiration`. It must belong to a feature of this creature’s that rerolls, and that feature’s own sentence decides which rolls it reaches; `sheet` lists what they hold. A pool they have not got, one with nothing left, and one whose sentence does not reach this roll are each refused before a die is thrown.',
+      ),
+    when: z
+      .union([
+        z.enum(['fails', 'misses']),
+        z.strictObject({ faceAtOrBelow: z.number().int().min(1) }),
+      ])
+      .describe(
+        'What would make the reroll happen. `fails` on an ability check or a saving throw, `misses` on an attack roll, or `{ "faceAtOrBelow": 5 }` on any of them — and the face is the only thing a damage die can be elected on, because damage has no outcome to read. The wrong word for the roll is refused rather than guessed at.',
+      ),
+    which_die: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        'Which of the damage dice, by its position in the roll. Only on a damage election; leaving it out rerolls the lowest die that counted, which is the one a single reroll is worth spending on.',
+      ),
+  })
+  .describe(
+    'A reroll elected before the die and read against it — SRD Heroic Inspiration’s "reroll any die immediately after rolling it, and you must use the new roll". Nothing is spent unless the condition was met, and the first face stays in the log beside the second.',
+  );
+
+/** What the engine takes, from what a caller sent. */
+export const electionOf = (
+  election: z.infer<typeof rollElectionSchema>,
+): { pool: string; when: 'fails' | 'misses' | { faceAtOrBelow: number }; die?: number } => ({
+  pool: election.pool,
+  when: election.when,
+  ...(election.which_die === undefined ? {} : { die: election.which_die }),
+});
+
+/**
  * The heading a stat block prints a line under, as the caller types it.
  *
  * **A name and never a line**, which is `add_creature`'s rule and `attack`'s

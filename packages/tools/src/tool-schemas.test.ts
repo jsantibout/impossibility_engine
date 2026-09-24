@@ -196,8 +196,14 @@ describe('toolSchemas', () => {
     // the two a **later action** states — `activate_spell.altitude` and the
     // three spellings of `towards` — by the same 1,611. The tool count is
     // unmoved by either: both are fields on calls that already existed.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(121225);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(145355);
+    // And again for the elected-reroll track: `attack.reroll` and
+    // `attack.reroll_damage` on the player's surface, `ability_check.reroll`
+    // and `saving_throw.reroll` on the DM's. Four fields on three tools that
+    // already existed, so neither count moves — the player's grew by 3,403 and
+    // the DM's by 6,916, because `attack` is published on both doors and the
+    // two checks are the DM's alone.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(124628);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(152271);
   });
 });
 

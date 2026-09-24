@@ -129,8 +129,10 @@ import {
   conditionSchema,
   creatureId,
   damageTypeSchema,
+  electionOf,
   placementSchema,
   printedLineName,
+  rollElectionSchema,
   sensesFields,
   sizeSchema,
   skillSchema,
@@ -278,6 +280,11 @@ const ABILITY_CHECK = tool({
       .min(1)
       .optional()
       .describe('What the check is for, in one phrase: "swinging from the chandelier".'),
+    reroll: rollElectionSchema
+      .optional()
+      .describe(
+        'A reroll the **roller** elected before the die — SRD Heroic Inspiration. It is here rather than on a model’s surface because this is the door the check comes through at all; what it carries is the player’s own condition, relayed. Send `{"pool": "human:heroic-inspiration", "when": "fails"}`, or a face to rethrow at. The use is spent only if the condition was met, and the `test-rolled` window still opens afterwards for whoever else can push the number.',
+      ),
     ...sensesFields,
     ...ADVANTAGE_FIELDS,
   }),
@@ -295,6 +302,7 @@ const ABILITY_CHECK = tool({
           ...(args.skill === undefined ? {} : { skill: args.skill }),
           ...(args.because === undefined ? {} : { label: args.because }),
           ...(modes.length === 0 ? {} : { modes }),
+          ...(args.reroll === undefined ? {} : { election: electionOf(args.reroll) }),
           ...senses(args),
           ...identity(context),
         },
@@ -435,6 +443,11 @@ const SAVING_THROW = tool({
       .min(1)
       .optional()
       .describe('What the save is against, in one phrase: "the pit trap closing".'),
+    reroll: rollElectionSchema
+      .optional()
+      .describe(
+        'A reroll the **roller** elected before the die — SRD Heroic Inspiration, and SRD Indomitable said as a condition rather than as an answer. Send `{"pool": "human:heroic-inspiration", "when": "fails"}`, or a face to rethrow at. The use is spent only if the condition was met, and the `test-rolled` window still opens afterwards — though the same pool may not buy a second reroll of the same die.',
+      ),
     ...ADVANTAGE_FIELDS,
   }),
   run: (context, args) => {
@@ -450,6 +463,7 @@ const SAVING_THROW = tool({
           dc: args.dc,
           ...(args.because === undefined ? {} : { label: args.because }),
           ...(modes.length === 0 ? {} : { modes }),
+          ...(args.reroll === undefined ? {} : { election: electionOf(args.reroll) }),
           ...identity(context),
         },
         context.campaign.supply(),
