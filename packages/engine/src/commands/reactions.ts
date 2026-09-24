@@ -72,6 +72,7 @@ import {
   adjustmentsFor,
   heldDamageTotal,
   reactionContributions,
+  rollsIssuedSince,
   spendReactionCost,
   standingReductionOf,
   statedFrom,
@@ -349,13 +350,7 @@ export function settleDamage(
     // this road has no such loop — `resolveDamage` below counts only its own
     // Undead Fortitude save. A die thrown with no count beside it leaves
     // `rollsIssued` short and the next command reusing a roll id.
-    if (supply.issuer.count > issuedBeforeWard) {
-      events.push({
-        type: 'rolls-issued',
-        count: supply.issuer.count - issuedBeforeWard,
-        rng: supply.rng.snapshot(),
-      });
-    }
+    events.push(...rollsIssuedSince(supply, issuedBeforeWard));
 
     const reduction =
       pending.reductions.reduce((sum, r) => sum + r.amount, 0) + warded.value.amount;

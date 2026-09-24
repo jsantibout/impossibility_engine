@@ -8662,7 +8662,7 @@ export const SLEEP: SpellDefinition = {
   endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
   unmodelled: [
     '"Each creature of your choice" inside the Sphere is a filter on what an area catches, and an area catches everybody standing in it — so a casting aimed at a mixed crowd puts the caster’s own allies to sleep',
-    'somebody within 5 feet taking an action to shake the sleeper awake is not offered: an escape check is the sleeper’s own to attempt, and one creature spending an action to free another is an action nothing spends',
+    'somebody standing beside the sleeper taking an action to shake them out of the spell is not offered: one creature spending an action to free another is an action nothing spends, and the check it would buy is one only the sleeper may attempt',
     'the automatic successes are not granted: creatures that do not sleep, and creatures with Immunity to the Exhaustion condition, are an outcome read off the target’s own defences, and `checks.ts` carries an automatic failure and no automatic success',
   ],
 };

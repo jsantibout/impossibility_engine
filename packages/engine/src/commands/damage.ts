@@ -248,6 +248,30 @@ export function standingReductionOf(
 }
 
 /**
+ * The generator moving, as an event, or nothing where it did not move.
+ *
+ * `rolls-issued` carries a **delta**, and `fold/rolls.ts` accumulates it into
+ * `rollsIssued` — which is what the next command starts its roll ids from. So
+ * a die thrown with no count beside it has the next roll reusing an id the log
+ * already holds, silently. Every command that rolls writes one; this is the
+ * spelling for a command that rolls in the middle of somebody else's work and
+ * has to record its own share narrowly.
+ *
+ * No stamp: a command identifies itself on the event it *always* emits, and
+ * this one is conditional by construction.
+ */
+export const rollsIssuedSince = (supply: Supply, before: number): readonly GameEvent[] =>
+  supply.issuer.count > before
+    ? [
+        {
+          type: 'rolls-issued',
+          count: supply.issuer.count - before,
+          rng: supply.rng.snapshot(),
+        },
+      ]
+    : [];
+
+/**
  * Deal damage, unless somebody may answer it first.
  *
  * The single funnel for the weapon-attack path, and the one decision that

@@ -165,8 +165,8 @@ export const MISSING_SHAPES = {
     'a die whose result an effect overrides or throws again. `docs/design/rolls-and-damage.md` has both halves for damage dice — "Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs`" — and for a D20 Test it had only `rerollTest`, which is a Reaction a feature takes. **The half that is retired is the pipeline reroll**: a `reroll-test-die` grant names a face, `sheetAsItStands` derives it onto the sheet every roller already asks for, and `rollD20Recorded` throws the counted die again and keeps the first throw on `roll-recorded.supersedes` — which reaches every ability check, saving throw, attack roll, Initiative and death save without a roll site having to know, and is SRD Luck whole. What is left under this name is a **spell effect** reaching either half: nothing a definition can write replaces a die or a result, so the reroll above is a feature’s sentence and only a feature’s.',
   'a-die-behaviour-a-spell-asks-for':
     '`docs/design/rolls-and-damage.md`’s "Dice Are Individually Addressable" table: `treatLowRollsAs`, `explodeOnMax` and `rerollDice` are built and tested, and the claim this description used to make — that no definition passes any of them — is **half retired**. `SpellDefinition.dieRule` is the door a spell asks through, `explodeOnMax` is behind its one arm, and Sorcerous Burst is the SRD sentence that walks through it, capped at a modifier the engine derives rather than one the catalogue states. What is left under this id is two different things, and neither of them is the plumbing. **A predicate over a whole roll**: `DieEffect` judges one die at a time — `substitute` and `bonusOn` both take `(rolled, sides)` — and Chromatic Orb’s "If you roll the same number on two or more of the d8s" asks about a pair, which no signature here can be handed; its consequence is a second attack out of one casting in any case, so the trigger alone would fire at nothing. **A reroll the roller chooses**: `rerollDice` takes indices because SRD Empowered Spell lets a player pick which damage dice to throw again, and nothing in the command layer asks a caller which, so the one feature that prints it stays filed here. Savage Attacker used to be filed beside it and never belonged there — it throws the **whole** weapon component a second time and keeps one of two totals rather than naming dice — and it is retired: `RollRule` and `rollUnder` are the roll-level scope `DieEffect` could not be handed, an `attack-roll-rule` grant is how a feature asks for one, and `standingWeaponRollRule` supplies `AttackOptions.weaponRollRule` once a turn. **An attack’s scope rather than a spell’s** is the third thing that used to be filed here, and it is retired: `AttackOptions.damageEffects` is supplied now, by `standingDamageEffects`, off an `attack-die-rule` grant a feat may carry and a `WeaponNarrowing` that says "a Melee weapon that you are holding with two hands". SRD Great Weapon Fighting is the sentence that walks through it. Defense was filed beside it under the same weapon clause and never belonged there — its own is about **armour** — and is blocked on a `StandingRequirement` instead.',
-  'a-reduction-an-effect-applies-to-damage':
-    '`docs/design/rolls-and-damage.md`: "`reduceDamage` takes its amount off the **total**, never off a component", and it is reachable only from `takeDamageReaction` — a Reaction a class feature spends. A standing effect that takes a rolled amount off every hit of a chosen type has no path to it. **And the id names two narrowings, not one**, which is Shield’s clause arriving: SRD Resistance takes a rolled amount off a hit of a **type**, and SRD Shield takes *all* of it off a hit from one named **spell** — "you take no damage from _Magic Missile_". Neither is a granted defence: `damage-defense` names a damage type and grants Resistance, Immunity or Vulnerability over it, so it can say neither "1d4 less" nor "none of that spell’s", and an engine rule naming a spell id is swept out of the engine by name. Both are one absence — nothing a casting hangs on a defender is consulted when a hit is being totalled — and building it has to answer for both, which is why they are filed together rather than under two ids that would each look like one spell’s problem.',
+  'a-reaction-window-that-opens-on-being-targeted':
+    'a Reaction window that opens when a casting **names** a creature, before it resolves on them. `docs/design/rolls-and-damage.md` says what a window is and the archived record behind it says why the list is closed: "The vocabulary is five named windows and it is shared with spells", "a table rather than a framework because every member is a point in a resolution the engine already performs", and "A spell’s saving throws are atomic", so nothing can be pushed inside `resolveSpell`. Being *targeted* is exactly such a point and the engine passes through it without stopping: a casting settles its targets and resolves its effects in one breath. SRD Shield prints it in its Casting Time and hangs a second sentence on the same absent moment — "you take no damage from _Magic Missile_" — which is a benefit with nowhere to be, rather than a second shape.',
   'a-damage-penalty-a-spell-grants':
     '`docs/design/rolls-and-damage.md`: "`BonusApplies` covers attacks, saves and ability checks — all rolls — and now `ac`". Damage is not a member, and a spell that makes a creature subtract from **its own** damage rolls has nowhere to say so; `damageBonuses` is the feature-side twin that exists.',
   'an-action-a-spell-compels-or-forbids':
@@ -1167,8 +1167,15 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       // executed now and Shield is no nearer: what blocks it is two other
       // things entirely, and leaving the old id here would have credited a
       // shape's retirement with finishing a spell it does not touch.
-      why: 'a-reduction-an-effect-applies-to-damage',
-      note: 'SRD: "you take no damage from _Magic Missile_." A standing effect on the defender that takes damage off a hit, which is this shape — narrowed by its **source** rather than by its type, which `damage-defense` refuses to be by construction (a granted defence names a damage type, and an engine rule naming a spell id is swept out). The spell has a second half that is not this shape and is recorded on the definition instead: its printed Casting Time makes being targeted by the Magic Missile spell a trigger for the Reaction, and that is a seventh `ReactionWindow` — a point in a resolution path nothing stops at.',
+      // **Re-filed a second time, because the shape it named was built and
+      // this clause was not what it was about.** `damage-reduction` is a
+      // standing grant on the defender that takes a rolled amount off a hit of
+      // a named type, and SRD Resistance walks through it; nothing about it
+      // brings Shield any nearer, because what Shield is waiting for is a
+      // *moment*. Crediting the reduction's arrival with finishing a spell it
+      // does not touch is the failure this entry has now avoided twice.
+      why: 'a-reaction-window-that-opens-on-being-targeted',
+      note: 'SRD hangs two halves of this spell on one absent moment. The printed Casting Time makes being targeted by the Magic Missile spell a trigger for the Reaction, and the paragraph hangs the benefit on it — "you take no damage from _Magic Missile_". A casting names its targets and resolves its effects in one breath, so there is no point between the two for a defender to answer at, and with no window there is nothing for the benefit to hang on either. The benefit is not a granted defence in any case: `damage-defense` names a damage type, and an engine rule naming a spell id is swept out of the engine by name.',
     },
   ],
   'shining-smite': [
@@ -1181,6 +1188,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'switches off a benefit the condition layer derives',
       why: 'a-condition-benefit-an-effect-takes-away',
       note: 'SRD: "it can\'t benefit from the Invisible condition". The condition stays on the creature and one of the things it confers stops working, which the condition layer derives from the condition\'s presence alone and no spell effect reaches.',
+    },
+  ],
+  sleep: [
+    {
+      clause: 'taking an action to shake them out of the spell',
+      why: 'an-action-the-engine-has-no-spender-for',
+      note: 'SRD: "The spell ends on a target if it takes damage or someone within 5 feet of it takes an action to shake it out of the spell’s effect." The damage half is executed — `target-takes-damage`, on that sleeper alone. The shaking is one creature spending an action to free another, and no command takes such an action, so nothing could be told apart as having taken one. Hypnotic Pattern prints the same clause and hands the table the same sentence.',
+    },
+    {
+      clause: 'the automatic successes are not granted',
+      why: 'an-outcome-that-reads-the-targets-defences',
+      note: 'SRD: "Creatures that don’t sleep, such as elves, or that have Immunity to the Exhaustion condition automatically succeed on saves against this spell." `checks.ts` carries an automatic **failure** and no automatic success, and the fact that decides it is read off the target’s own defences rather than stated by the spell — so the save is rolled here for a creature the book never asks to roll.',
     },
   ],
   slow: [
@@ -2126,14 +2145,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'a flat amount with no dice is expressible now; splitting it across the creatures one casting caught is not, and a casting applies its effects to all of its targets alike \u2014 so writing it would heal everybody in range for seven hundred.',
     },
   ],
-  resistance: [
-    {
-      marker: 'dice',
-      clause: 'the creature reduces the total damage taken by 1d4',
-      why: 'a-reduction-an-effect-applies-to-damage',
-      note: 'the die is ordinary and the subtraction is not: the damage pipeline adjusts a total, halves it for Resistance and doubles it for Vulnerability, and has no step that takes a roll off one. Not the defence of the same name — this cantrip and `defensesOf` are different arithmetic wearing one word.',
-    },
-  ],
   'true-strike': [
     {
       marker: 'dice',
@@ -2160,26 +2171,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'must succeed on a Dexterity saving throw or take 2d6 Cold damage',
       why: 'a-second-roll-sequenced-after-the-first',
       note: 'the burst follows the attack hit or miss, over a Sphere centred on wherever the shard arrived — a second roll sequenced after the first, against a point the casting does not hold.',
-    },
-  ],
-  sleep: [
-    {
-      marker: 'saving-throw',
-      clause: 'must succeed on a Wisdom saving throw or have the Incapacitated condition',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the first save is ordinary and the repeat it schedules is not: the condition lasts until the end of the target’s next turn "at which point it must repeat the save", and a failure there deepens the effect where `RepeatSave` only ever releases one on a success.',
-    },
-    {
-      marker: 'condition',
-      clause: 'the target has the Unconscious condition for the duration',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the Unconscious is an ordinary condition with an ordinary duration, and what puts it there is the failure branch of the repeat above. Nothing writes that branch, so there is no moment at which this sentence could fire.',
-    },
-    {
-      marker: 'defence',
-      clause: 'have Immunity to the Exhaustion condition automatically succeed on saves against this spell',
-      why: 'an-outcome-that-reads-the-targets-defences',
-      note: 'creatures that do not sleep, and creatures immune to Exhaustion, succeed without rolling. `checks.ts` carries an automatic **failure** and no automatic success, and the condition immunity that decides it is read off the target rather than stated by the spell.',
     },
   ],
   'animal-messenger': [
@@ -5226,6 +5217,8 @@ export const ITEM_SHAPES = {
     'damage an item deals without a casting — and the question the last description left open has an answer now: **no, the first residue does not need an id of its own.** Damage that simply lands, with neither an attack roll nor a saving throw to decide it, is one gap wherever it is written, and the spell vocabulary already names it `damage-with-neither-an-attack-roll-nor-a-save`. So Potion of Poison’s 4d6, a talisman that burns whoever touches it, a staff’s explosion on its own wielder and a manual that scorches whoever cannot read it are filed under that id below, and this shape has stopped claiming them. What is left under this name is the **other** residue, which is an item that rolls an **attack of its own**: packages/engine/src/content.ts refuses the kind by name — "`attack` is refused by name, and so is `attack-damage`, which rides on an attack this is not" — and a conferral has no attacker, no printed modifier and no target past arm’s length to point one at. SRD Ring of the Ram writes the whole shape in one sentence, "The ring produces a spectral ram’s head and makes its attack roll with a +7 bonus", and Iron Bands of Binding writes the same roll with no damage on the end of it — which makes the id a slightly narrower thing than its name says, and it is kept rather than renamed so the two entries under it stay findable by it. The save-gated half is built and stays built: a conferral prints its own DC and `save-damage` resolves against it, which is why a horn that blasts and a javelin that forks into lightning left this shape and never came back.',
   'a-range-an-item-names':
     'a distance the item’s own line prints between its user and whatever its use lands on. **A conferral reaches its user, or one creature within five feet.** SRD’s sentence about administering a potion is the whole of that reach — "administer it to another creature within 5 feet of yourself" — and `useItem` asks it through `reachedBy(state, id, target, item.name)` at that function’s own default of five; the grant has no field for a range, and `UseItemCommand` has one target and no second. So a wand whose ray streaks 60 feet, a rope that darts 20 and a talisman that opens a fissure at 120 each have a condition, a saving throw, a DC and a span the vocabulary can write down, and nowhere at all to write down how far any of it goes. **This is the blocker the re-derivation found underneath the two it was sent to check.** Entry after entry named `a-condition-an-item-imposes` for a condition that had been sayable for two batches, and what was actually in the way was the thirty feet between the pipes and the creature that hears them. **Sized here, so that a brief need not re-derive it — and it is two fields rather than one.** All but one of the entries below point at exactly *one creature* the user can see, at a distance their own line prints: a rope at 20 feet; a gem’s beam, a wand’s ray, a ring’s spectral head, an iron sphere and a compelled Elemental at 60; either talisman at 120. That is a reach on a `confers` grant, and **whether more than one creature is caught is a separate gap already filed apart** — an item whose line catches several at once names `an-area-an-item-creates`, which the 2024 rules’ Emanation covers — so a single distance beside the conferral closes that half whole. The **other** half is a `casts` grant, and SRD Necklace of Fireballs is the whole of it: "detach a bead and throw it up to 60 feet away" *narrows* Fireball’s printed Range of 150 at a **point** rather than a creature, and `resolveTargets` enforces the spell’s own Range. So an item may neither reach further than five feet under its own power nor reach less far than the spell it casts, and a brief that sized only the first would leave the necklace exactly where it is. What such a field would *finish* is derived into the report rather than asserted here, and it is the column to read before the blocking one: an entry this shape is the only blocker for is a record somebody writes the day the field lands. The first entry transcribed under this reach writes the same thing down as a note, in packages/content/src/items.ts: "a conferral reaches its user or one creature within 5 feet and has no field for an area".',
+  'a-reduction-an-effect-applies-to-damage':
+    'a rolled amount a worn item takes off a hit before the defences meet it — SRD Ring of Warmth: "If you take Cold damage while wearing this ring, the ring reduces the damage you take by 2d8." **The spell half of this shape is built and the id moved here with what was left**, which is the rule this vocabulary states: what lives over here is only what is true of an **item** and false of a casting. A casting hangs one through the `damage-reduction` effect and SRD Resistance walks through it; an item has no such door. docs/design/content.md is where the refusal is written — an item that confers an effect without casting one is "refused an effect kind a conferral cannot resolve" — and this is one of those kinds: the ring is not concentrating, has no casting to be released with, and its 2d8 is the same arithmetic under a source nothing would ever end.',
   'a-speed-an-item-grants':
     'a Speed a worn item gives its wearer. `ITEM_EFFECT_KINDS` omits `speed` on purpose and packages/engine/src/content.ts records the omission as a gap rather than as a decision — "An item granting a Swim Speed is a real SRD item and a real gap; refusing it by name is how the gap stays visible instead of becoming a transcribed item whose benefit silently never applies." Boots, gloves, rings, horseshoes and slippers all print one.',
   'a-reaction-an-item-grants':

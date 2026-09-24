@@ -1793,6 +1793,12 @@ const FORMAT_TYPES = [
   'AreaTrigger',
   'RiderDuration',
   'SpellCheck',
+  // The repeat save a definition asks for, which was two identical object
+  // literals nested inside `ConditionRider` and the `save` arm until they were
+  // named. Nesting is what kept them out of this list: a member the walk can
+  // only reach through an enclosing arm keeps the plain probe, and naming the
+  // type is what lets the sweep read `onFailure` at all.
+  'SpellRepeatSave',
   'ConditionRider',
   'DelayedDamage',
   // The fourth rider slot's payload, here for `DelayedDamage`'s reason and
@@ -2208,24 +2214,21 @@ describe('every member of the definition format has a user or a written exemptio
       // clause, both written, masking nothing. The `save` arm's flat `check`
       // was the third name in this row and is `SpellEffect[save].check?` now,
       // which is the arm-apart reading doing what it was added for.
-      'SpellDefinition.check? + ConditionRider.check?',
       // **The one that still masks, and the one the instrument cannot reach.**
-      // `SpellEffect.at` here is not an arm's field: it is the `at` inside a
-      // save's nested `repeats: { … }`, which carries no kind of its own and
-      // so keeps the plain probe. Web writes `start-of-turn` as an area
+      // A repeat save's moment against an area's, which are two different
+      // sentences sharing two words. Web writes `start-of-turn` as an area
       // boundary and no definition repeats a save at the start of a turn, so
-      // `repeats.at: 'start-of-turn'` is unwritten and unsayable here.
+      // `SpellRepeatSave.at: 'start-of-turn'` is unwritten and unsayable here.
       // Recorded rather than exempted, because it is a limit of the instrument
-      // and not a decision about the format: closing it means probing a nested
-      // shape by the key that holds it, which is a reader this task did not
-      // write.
-      "SpellEffect.at='end-of-turn' + AreaTrigger.at='end-of-turn' + ConditionRider.at='end-of-turn'",
-      "SpellEffect.at='start-of-turn' + AreaTrigger.at='start-of-turn' + ConditionRider.at='start-of-turn'",
-      // The same nesting, one field over: a repeat save's `onSuccess` against
-      // a rider's and a check's. Different sentences that share two words, and
-      // every value here is written by at least one of them.
-      "SpellEffect.onSuccess='end-casting' + ConditionRider.onSuccess='end-casting'",
-      "SpellEffect.onSuccess='end-on-target' + SpellCheck.onSuccess='end-on-target' + ConditionRider.onSuccess='end-on-target'",
+      // and not a decision about the format: the probe reads a field name and
+      // a value, and two types that spell one word alike collide by
+      // construction.
+      "AreaTrigger.at='end-of-turn' + SpellRepeatSave.at='end-of-turn'",
+      "AreaTrigger.at='start-of-turn' + SpellRepeatSave.at='start-of-turn'",
+      // One field over: a repeat save's `onSuccess` against a check's.
+      // Different sentences that share two words, and both are written.
+      "SpellCheck.onSuccess='end-on-target' + SpellRepeatSave.onSuccess='end-on-target'",
+      'SpellDefinition.check? + ConditionRider.check?',
     ]);
   });
 });
@@ -3616,6 +3619,28 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       kind: 'sense',
       base: { kind: 'sense', sense: 'darkvision', feet: 60 },
       fields: { sense: required(STRING_JUNK), feet: required(NUMBER_JUNK) },
+    },
+    {
+      // An amount taken off later damage: the adjustment half of the printed
+      // line the defence above is the multiplier half of. All three fields are
+      // **required** — a reduction with no notation takes nothing off, a list
+      // with no type never meets a blow it is about, and the once-per-turn
+      // limit is printed in every SRD sentence of this shape, so leaving it
+      // out would be granting a larger rule by omission.
+      kind: 'damage-reduction',
+      base: {
+        kind: 'damage-reduction',
+        reduces: { dice: '1d4' },
+        damageTypes: ['fire'],
+        oncePerTurn: true,
+      },
+      fields: {
+        reduces: required(OBJECT_JUNK),
+        damageTypes: required(ARRAY_JUNK),
+        // `true` is the only legal value, so everything else is junk — `false`
+        // included, which is the one row where a boolean is not a boolean.
+        oncePerTurn: required([null, 'nonsense', 7, false]),
+      },
     },
     {
       kind: 'attack-rider',

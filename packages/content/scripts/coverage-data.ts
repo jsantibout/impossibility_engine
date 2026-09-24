@@ -271,6 +271,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // dice — a payout the casting rolls nothing of would otherwise pass every
   // assertion in the file while being wrong.
   'regenerate',
+  // Driven end to end by `damage-reduction.test.ts`: the d4 off a blow of the
+  // type the caster named, the order that takes it before the halving rather
+  // than after, the once-per-turn limit measured across three rays of one
+  // Scorching Ray, the held road a Reaction opened, the grant going back when
+  // the Concentration does, and the refusal for a casting that names no type.
+  'resistance',
   'sacred-flame',
   // Driven end to end by `several-attack-rolls.test.ts`, and partial as well,
   // which is the pairing `sorcerous-burst` already stands for: three rays
@@ -287,6 +293,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // advances the generator, so the same seed no longer rolls the same sword.
   'shining-smite',
   'shocking-grasp',
+  // Driven end to end by `repeat-save-deepens.test.ts`: the 5-foot Sphere
+  // catching two sleepers and not a third, the Incapacitated, the repeat at
+  // the end of the sleeper's own next turn, a seeded second failure deepening
+  // to Unconscious with no further save raised, a seeded success freeing that
+  // one and leaving the other asleep, and a blow ending the spell on the
+  // creature it landed on and on nobody else.
+  'sleep',
   // Driven end to end by `bare-save.test.ts`, with Faerie Fire above it: both
   // are cast through `resolveSpell` at a placed target, and the grants their
   // failed saves hand out are read back off the folded state — a halved
