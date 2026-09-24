@@ -96,6 +96,23 @@ import type {
 
 type ConditionEffect = Extract<PrintedSaveEffect, { kind: 'condition' }>;
 type RollModeEffect = Extract<PrintedSaveEffect, { kind: 'roll-mode' }>;
+/**
+ * The two clauses that carry a lifetime of **either** kind, and must carry one.
+ *
+ * A span the line printed, or the condition instance the same failure created.
+ * Every other clause here answers the question in its own shape: a `condition`
+ * with no span is a condition for the encounter, a `roll-mode` has no span to
+ * give, a push and a death are over the moment they happen. These two are the
+ * pair the book prints both ways — the Dretch's on a condition, the Copper
+ * Dragon's under a span — and a clause that ended up with neither would be a
+ * rule nothing could ever lift, which the reader refuses whole.
+ */
+type LastingEffect = Extract<PrintedSaveEffect, { kind: 'action-rule' | 'speed-halved' }>;
+const isLasting = (effect: PrintedSaveEffect): effect is LastingEffect =>
+  effect.kind === 'action-rule' || effect.kind === 'speed-halved';
+/** Whether a clause that must name a lifetime has named one. */
+const lifetimed = (effect: LastingEffect): boolean =>
+  effect.lasts !== undefined || effect.whileCondition !== undefined;
 
 /** The engine's damage types, so a word in the damage slot that is not one refuses the line. */
 const DAMAGE_TYPES: ReadonlySet<string> = new Set([
@@ -271,6 +288,77 @@ const WHILE_CONDITION =
 const WHILE_CONDITION_MODE = new RegExp(
   `^While ([A-Z][a-z]+), (?:the target|the creature|it) (?:also )?has (Advantage|Disadvantage) on (${ROLL_WORDS}(?:,? and ${ROLL_WORDS})*)$`,
 );
+/**
+ * The subject the three turn-rule clauses below accept.
+ *
+ * Wider than {@link SUBJECT} by one noun, because the Dretch writes "the
+ * creature" where every clause that predates it writes "the target" or "it" —
+ * and widening the shared constant would widen five older clauses at the same
+ * time, which is a change to sentences nobody is reading.
+ */
+const WHO = '(?:(?:[Tt]he target|[Tt]he creature|[Ii]t) )?';
+/**
+ * SRD Dretch, SRD Copper Dragon Wyrmling: "it can't take Reactions".
+ *
+ * One slot taken away and everything the sentence does not name left alone,
+ * which is the engine's `forbids` word for word.
+ */
+const NO_REACTIONS = new RegExp(`^${WHO}can't take Reactions$`);
+/**
+ * SRD Dretch, SRD Copper Dragon Wyrmling: "it can take either an action or a
+ * Bonus Action on its turn, not both".
+ *
+ * The engine's `one-of`: spending either of the named slots forecloses the
+ * rest of them for that turn. What may ride after it is a second clause, which
+ * is how the Dretch's "and it can't take Reactions" is read — the tail
+ * {@link HAS_CONDITION} and {@link PUSHED} already carry.
+ */
+const COUPLED_SLOTS = new RegExp(
+  `^${WHO}can take either an action or a Bonus Action on its turn, not both(?:,? and (.+))?$`,
+);
+/**
+ * SRD Copper Dragon Wyrmling: "its Speed is halved". SRD Adult Brass Dragon's
+ * Scorching Sands prints the same clause with its own span on the end.
+ *
+ * Not {@link SPEED_CUT}, which takes printed feet away: a halving is an
+ * operation on whatever the Speed turns out to be, and the engine has had the
+ * two apart since SRD Slow was written.
+ */
+const SPEED_HALVED = new RegExp(
+  `^(?:[Tt]he target's|[Ii]ts) Speed is halved(?: (until .+|for \\d+ (?:hour|minute)s?))?$`,
+);
+/**
+ * SRD Copper Dragon Wyrmling: "This effect lasts until the end of its next
+ * turn."
+ *
+ * A span printed **once, underneath a list**, which is the shape the four
+ * Copper Dragons are the only blocks in the corpus to write. It says nothing
+ * of its own: it finishes the clauses above it that named no lifetime, and a
+ * sentence that finishes none of them is one this reader has misread — so it
+ * refuses rather than standing as a clause that does nothing.
+ *
+ * **Only the two clauses whose lifetime may be left unsaid.** A condition with
+ * no span is already a condition for the encounter and reads as one; the rule
+ * about a turn and the halving are the pair that must say when they end, and
+ * they are therefore the pair this can answer for.
+ */
+const LASTS_FOR = /^This effect lasts (until .+|for \d+ (?:hour|minute)s?)$/;
+/**
+ * SRD Dretch: "While Poisoned, the creature can take either an action or a
+ * Bonus Action on its turn, not both, and it can't take Reactions."
+ *
+ * {@link WHILE_CONDITION_MODE}'s sentence over a **rule about a turn**, and
+ * read the same way: the host must be a condition this failure imposed, and
+ * the clause carries that condition's instance as its whole lifetime.
+ *
+ * **Tried after its two narrower siblings and read by recursion**, which is
+ * {@link SIZE_GATED}'s shape: whatever the rest of the sentence turns out to
+ * be is read first, and the host is then stamped onto it. A rest that reads as
+ * anything but a clause which can carry a host — a push, a condition, a
+ * sentence about a clause already read — refuses the sentence, so the
+ * generality of the opening buys nothing it should not.
+ */
+const WHILE_CONDITION_RULE = /^While ([A-Z][a-z]+), (?:the target|the creature|it) (.+)$/;
 /** SRD Lamia: "the target is cursed for 1 hour." */
 const CURSED = /^[Tt]he target is cursed (for \d+ (?:hour|minute)s?)$/;
 /**
@@ -521,6 +609,32 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
   const words = clause.replace(/\.$/, '').trim();
   if (words === '') return true;
 
+  /**
+   * A semicolon list, read one clause at a time.
+   *
+   * SRD Copper Dragon Wyrmling: "The target can't take Reactions; its Speed is
+   * halved; and it can take either an action or a Bonus Action on its turn,
+   * not both." The book uses the semicolon here for the reason it uses "and"
+   * everywhere else — the clauses already contain commas — so it is the same
+   * conjunction and reads the same way.
+   *
+   * **Safe because the reading is transactional.** A semicolon inside a
+   * parenthesis splits too: SRD Giant Spider's "until the web is destroyed (AC
+   * 10; HP 5; …)" comes apart into three fragments, none of which is a clause,
+   * so the whole sentence is refused and handed over exactly as it was before
+   * this existed. That is the property rather than a lucky escape — a piece
+   * this cannot read refuses the list, and `readSection` throws the scratch
+   * away.
+   */
+  if (words.includes(';')) {
+    for (const piece of words.split(';')) {
+      const part = piece.trim().replace(/^and\s+/, '');
+      if (part === '') continue;
+      if (!readClause(part, into, where)) return false;
+    }
+    return true;
+  }
+
   const gated = SIZE_GATED.exec(words);
   if (gated !== null) {
     const size = SIZES[gated[1]!];
@@ -601,6 +715,34 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return true;
   }
 
+  // After both of its narrower siblings, which is what keeps its generality
+  // honest: "While Deafened, … Disadvantage on ability checks" and "While
+  // Poisoned, … the Paralyzed condition" have already had their turn, and what
+  // is left is read by recursion and then stamped with the host it names.
+  const whileRule = WHILE_CONDITION_RULE.exec(words);
+  if (whileRule !== null) {
+    const host = CONDITIONS[whileRule[1]!];
+    if (host === undefined) return false;
+    // The host must be a condition **this failure imposed** — the instance is
+    // the whole of the lifetime, so one named on a condition that is not there
+    // would be a rule nothing ever lifts. `WHILE_CONDITION_MODE`'s answer.
+    if (!into.effects.some((effect) => effect.kind === 'condition' && effect.condition === host)) {
+      return false;
+    }
+    const before = into.effects.length;
+    if (!readClause(whileRule[2]!, into, where)) return false;
+    // A rest that amended a clause already read rather than adding one, or
+    // that added a clause with no room for a host, is a sentence this has
+    // misread: the "While" would be silently dropped. Refused instead.
+    if (into.effects.length === before) return false;
+    for (let i = before; i < into.effects.length; i += 1) {
+      const effect = into.effects[i]!;
+      if (!isLasting(effect) || lifetimed(effect)) return false;
+      into.effects[i] = { ...effect, whileCondition: host };
+    }
+    return true;
+  }
+
   // Before `HAS_CONDITION`, which reads "for 1 hour, until it takes damage, …"
   // as one span, cannot make a span of it and refuses the sentence.
   const ending = CONDITION_WITH_EARLY_ENDINGS.exec(words);
@@ -646,6 +788,36 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return true;
   }
 
+  // The halving, which is a different operation from the cut above rather than
+  // a cut whose feet somebody would have to compute. Its span is optional here
+  // and required by the time the line is finished: the Brass Dragon prints one
+  // inline and the Copper Dragon prints one underneath the list.
+  const halved = SPEED_HALVED.exec(words);
+  if (halved !== null) {
+    if (halved[1] === undefined) {
+      into.effects.push({ kind: 'speed-halved' });
+      return true;
+    }
+    const span = spanOf(halved[1]);
+    if (span === null) return false;
+    into.effects.push({ kind: 'speed-halved', lasts: span });
+    return true;
+  }
+
+  if (NO_REACTIONS.test(words)) {
+    into.effects.push({ kind: 'action-rule', rule: { kind: 'forbids', slots: ['reaction'] } });
+    return true;
+  }
+
+  const coupled = COUPLED_SLOTS.exec(words);
+  if (coupled !== null) {
+    into.effects.push({
+      kind: 'action-rule',
+      rule: { kind: 'one-of', slots: ['action', 'bonus-action'] },
+    });
+    return coupled[1] === undefined ? true : readClause(coupled[1], into, where);
+  }
+
   if (HP_MAX_CUT.test(words)) {
     into.effects.push({ kind: 'hit-point-maximum-decrease', by: 'damage-taken' });
     return true;
@@ -687,6 +859,24 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
       repeats: { at: 'end', of: 'target' },
     }));
   }
+  // A span printed once underneath the clauses it is about, which amends them
+  // rather than standing as a clause of its own — the shape "and repeats the
+  // save…" and "After 1 minute…" below already have. A sentence that finishes
+  // nothing finished nothing, and is refused.
+  const lasting = LASTS_FOR.exec(words);
+  if (lasting !== null) {
+    const span = spanOf(lasting[1]!);
+    if (span === null) return false;
+    let finished = 0;
+    for (let i = 0; i < into.effects.length; i += 1) {
+      const effect = into.effects[i]!;
+      if (!isLasting(effect) || lifetimed(effect)) continue;
+      into.effects[i] = { ...effect, lasts: span };
+      finished += 1;
+    }
+    return finished > 0;
+  }
+
   const capped = CAPPED.exec(words);
   if (capped !== null) {
     return amendLastCondition(into.effects, (last) =>
@@ -1057,6 +1247,19 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   if (gated === null || gatedEither === null || gatedByMargin === null) return null;
   onFailure = gated;
   if (onFailureBy !== null) onFailureBy = { by: onFailureBy.by, effects: gatedByMargin };
+
+  // **A rule about a turn ends, or it is not read.** The two clauses that may
+  // name either kind of lifetime must have ended up with one: a span the line
+  // printed, or the condition instance the same failure created. One with
+  // neither is a Reaction taken away for ever, which is the answer the mode
+  // clause already refuses and the graded failure's second rung refuses too.
+  const ends = (effects: readonly PrintedSaveEffect[]): boolean =>
+    effects.every((effect) =>
+      effect.kind === 'branch'
+        ? ends(effect.then)
+        : !isLasting(effect) || lifetimed(effect),
+    );
+  if (!ends(onFailure) || !ends(gatedEither) || !ends(gatedByMargin)) return null;
 
   // Half of no damage is nothing: a success clause that halves what the line
   // never dealt buys nothing, and saying `half` would be a rule nobody printed.

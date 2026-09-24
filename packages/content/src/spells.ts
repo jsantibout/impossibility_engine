@@ -2400,7 +2400,8 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
  *
  * **The spell `save.condition` was made optional for.** One Wisdom saving
  * throw, and what a failure buys is a list of *grants*: the Speed halved, the
- * penalty to Armour Class, the Reaction taken away. Every one of them is a
+ * penalty to Armour Class, the Reaction taken away, the turn's two slots
+ * coupled. Every one of them is a
  * {@link ModifierRider} the engine already had, and none of them is a
  * condition — so before the flat field became optional this paragraph had no
  * host at all. Written as standalone effects instead, all three would have
@@ -2412,12 +2413,19 @@ export const HYPNOTIC_PATTERN: SpellDefinition = {
  * a 40-foot Cube" is Mass Cure Wounds' sentence with a saving throw on the
  * end, and an `area` would slow every ally standing in it.
  *
- * **What is left is four sentences and each is a different absence.** The
+ * **And the turn's two slots coupled to each other is written too**, which is
+ * `ActionRule`'s fifth member: "it can take either an action or a Bonus
+ * Action, not both" is one rule naming the pair, and the first of them spent
+ * forecloses the other for that turn. It could not be said while every member
+ * judged one slot alone — a `forbids` naming both refuses the turn entirely,
+ * and a `forbids` naming one takes away the choice the sentence offers.
+ *
+ * **What is left is three sentences and each is a different absence.** The
  * −2 reaches Dexterity saving throws as well, and a `bonus` rider carries no
  * narrowing — aimed at `save` it would land on every save the target ever
- * makes, including the one this spell itself calls for. The turn's two slots
- * coupled to each other, and the attacks counted inside the Attack action,
- * are rules `ActionRule` cannot state in either polarity. The 25 percent is a
+ * makes, including the one this spell itself calls for. The attacks counted
+ * inside the Attack action are a thing the economy does not count: it counts
+ * one Attack action and not the swings in it. The 25 percent is a
  * die no `SpellEffect` asks for. And the repeat save is filed on the
  * condition instance a failure created, so a failure that creates none has
  * nothing to hang it on — the one clause this shape does not finish, and the
@@ -2450,13 +2458,16 @@ export const SLOW: SpellDefinition = {
         // "and it can't take Reactions" — one slot taken away, with
         // everything the sentence does not name left alone.
         { kind: 'action', rule: { kind: 'forbids', slots: ['reaction'] } },
+        // "On its turns, it can take either an action or a Bonus Action, not
+        // both" — the two slots coupled, so whichever goes first closes the
+        // other for that turn. A fourth grant off the same saving throw.
+        { kind: 'action', rule: { kind: 'one-of', slots: ['action', 'bonus-action'] } },
       ],
     },
   ],
   durationSeconds: 60,
   unmodelled: [
     'the −2 penalty does not reach Dexterity saving throws: a granted bonus names the families of roll it applies to and cannot be narrowed to one ability’s saves, so aiming it at saving throws would penalise every save the target makes, including the one this spell calls for',
-    '"it can take either an action or a Bonus Action, not both" is not applied: a rule that spends one of the turn’s two slots when the other is used couples two slots, and an action rule forbids a slot or narrows it',
     '"it can make only one attack if it takes the Attack action" is not applied: the economy counts one Attack action and not the attacks inside it',
     'the 25 percent chance a Somatic spell fails is not rolled: it is a percentage no effect asks for, deciding whether another casting happens at all',
     'an affected target "repeats the save at the end of each of its turns, ending the spell on itself on a success" and this one does not: a repeat save is filed on the condition instance the failure created, and this failure creates none',

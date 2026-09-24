@@ -284,7 +284,7 @@ export const SLOTS_WITH_NAMED_ACTIONS: readonly ActionSlot[] = [
  * `releaseOnTarget`, by a dispel, by a broken Concentration and by a `grants`
  * timer, through exactly the doors the other eight already use.
  *
- * ### Four members, because the SRD writes four sentences
+ * ### Five members, because the SRD writes five sentences
  *
  * | | SRD | |
  * |---|---|---|
@@ -292,6 +292,7 @@ export const SLOTS_WITH_NAMED_ACTIONS: readonly ActionSlot[] = [
  * | `permits-only` | Wind Walk: "The only actions a target can take … are the Dash action, the Hide action, and the Search action" | narrows one slot to a named few |
  * | `allows` | Conjure Woodland Beings: "you can take the Disengage action as a Bonus Action" | widens, rather than narrows |
  * | `grants` | Haste: "it gains an additional action on each of its turns" | **creates** one, rather than governing one |
+ * | `one-of` | Slow: "it can take either an action or a Bonus Action, not both" | **couples** slots, so the first spent forecloses the rest |
  *
  * The third has the opposite polarity from the first two and is in the same
  * union because it is the same fact — what this creature's action economy
@@ -465,6 +466,41 @@ export type ActionRule =
        * so a rule naming it would read as enforced and would not be.
        */
       readonly only?: readonly NamedAction[];
+    }
+  /**
+   * SRD Slow, SRD Dretch, SRD Copper Dragon Wyrmling: "it can take either an
+   * action or a Bonus Action on its turn, not both." SRD Ice Devil, the same
+   * sentence over a different pair: "it can move or take one action on its
+   * turn, not both."
+   *
+   * **Spending any one of these forecloses the rest, for that turn.** It is
+   * the one thing the four members above cannot say between them, and not for
+   * want of trying: each of them judges a single slot considered alone, so a
+   * `forbids` naming both slots refuses the turn entirely and a `forbids`
+   * naming one takes away the very choice the book is offering.
+   *
+   * **What it needed was an input the refusal did not have.** {@link Spend}
+   * carries the rules standing on the creature and what the spend is called,
+   * and neither answers "has the other one gone yet". The turn's own
+   * {@link TurnBudget} answers it, and the four spenders have held it all
+   * along — so the question is asked where the budget already is, beside the
+   * "have you got one left" every slot is asked anyway, and `refuseSpend`
+   * keeps its two inputs.
+   *
+   * **A list rather than a pair**, because the Ice Devil prints the rule over
+   * movement and the action. Movement is the slot nothing spends by name, so
+   * it is read off the feet the turn has already been charged — which is why
+   * `spendMovement` asks this too, and why "move or take one action" refuses
+   * the move after the action and the action after the move.
+   *
+   * At least two distinct slots, which `checkActionRule` enforces: one slot
+   * forecloses nothing but itself, and the same slot twice is a rule that
+   * closes the moment it is read.
+   */
+  | {
+      readonly kind: 'one-of';
+      /** The slots coupled to each other; spending any one closes the rest. */
+      readonly slots: readonly ActionSlot[];
     };
 
 /**
@@ -535,6 +571,11 @@ export function actionRuleKey(source: string, rule: ActionRule): string {
     // happen to share an action, and a key that read only the first would have
     // let the second evict it.
     rule.kind === 'allows' ? allowedActions(rule).join(',') : '',
+    // And the coupled slots, for the same reason the narrowed one is here:
+    // "an action or a Bonus Action, not both" and "move or take one action,
+    // not both" are two statements, and one source may print both — SRD Ice
+    // Devil's spear says the second while its Cold damage says nothing.
+    rule.kind === 'one-of' ? rule.slots.join(',') : '',
   ].join('|');
 }
 
@@ -554,6 +595,11 @@ export const allowedActions = (rule: Extract<ActionRule, { kind: 'allows' }>): r
  * `grants` answers no, always, and that is the member rather than an omission:
  * it *creates* an action instead of judging one, so a spend that met it here
  * would be refused by the very sentence that handed it over.
+ *
+ * `one-of` answers no too, and for a different reason: it is not a fact about
+ * the spend at all. Whether it bites depends on what the turn has *already*
+ * spent, which is the budget's answer rather than the rule's — see
+ * {@link refuseForeclosed}, which is where it is asked.
  */
 const governs = (rule: ActionRule, slot: ActionSlot, as: NamedAction | undefined): boolean =>
   rule.kind === 'forbids'
@@ -673,6 +719,82 @@ function refuseSpend(
     return err(
       'action_forbidden',
       `${id} cannot take ${SLOT_NAMES[slot]}: ${held.label} forbids it until ${held.until}`,
+    );
+  }
+  return ok(true);
+}
+
+/** "an action or a Bonus Action", "movement, an action or a Reaction". */
+const listedSlots = (slots: readonly ActionSlot[]): string => {
+  const names = slots.map((slot) => SLOT_NAMES[slot]);
+  if (names.length === 0) return 'nothing at all';
+  if (names.length === 1) return names[0]!;
+  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]!}`;
+};
+
+/**
+ * Whether this turn has already spent a slot, however it was spent.
+ *
+ * Three of the four are a flag the budget keeps; **movement is the one nothing
+ * spends by name**, so it is read off the feet the turn has been charged.
+ * `movementSpent` and not `movementSegments`: a move with no scene records no
+ * segment and is still a move.
+ *
+ * **Feet a feature handed over are asked and do not answer, and that is
+ * deliberate rather than a gap being left.** {@link spendMovement} asks this
+ * question before it reaches the `grantedMoves` branch, so a Tactical Shift
+ * *after* the action is refused under a rule coupling the two — a move is a
+ * move, and the sentence says "move". The other direction cannot be read:
+ * `GrantedMove.feet` holds what is **left** of a grant rather than what has
+ * gone, so a turn that has spent five of fifteen granted feet is
+ * indistinguishable from one handed ten, and a counter that pretended
+ * otherwise would be inventing a fact. No printed sentence reaches the
+ * asymmetry — SRD Ice Devil is the only line that couples movement at all, it
+ * is CR 14, and nothing that hands feet over has ever stood beside it — so
+ * this is written down rather than arranged for, exactly as
+ * `TurnBudget.movementGained`'s open reading is.
+ *
+ * The Reaction is the odd member and says so: a budget refreshes at the start
+ * of the holder's *own* turn, so "has this creature taken a Reaction" is
+ * answered about the Reaction's own life rather than about the turn that is
+ * running. That is the Reaction's lifetime everywhere else in this file, and
+ * no printed sentence couples it to anything — the SRD lines that take the
+ * Reaction away take it away outright, which is `forbids`.
+ */
+const slotSpent = (budget: TurnBudget, slot: ActionSlot): boolean =>
+  slot === 'action'
+    ? !budget.action
+    : slot === 'bonus-action'
+      ? !budget.bonusAction
+      : slot === 'reaction'
+        ? !budget.reaction
+        : budget.movementSpent > 0;
+
+/**
+ * The refusal the coupled slots make — see {@link ActionRule}'s `one-of`.
+ *
+ * **Separate from {@link refuseSpend} because it asks a different question.**
+ * That one is handed the spend and the rules standing on the creature and
+ * answers "may this happen at all"; this one is about what the turn has
+ * *already* done, which only the budget knows. Widening the other's signature
+ * would have put an input in front of four members that never read it.
+ *
+ * The first rule that bites wins, in the order the fold keeps them, exactly as
+ * the neighbouring refusal does.
+ */
+function refuseForeclosed(
+  id: CharacterId,
+  slot: ActionSlot,
+  budget: TurnBudget,
+  spend: Spend | undefined,
+): Result<true> {
+  for (const held of spend?.rules ?? []) {
+    if (held.rule.kind !== 'one-of' || !held.rule.slots.includes(slot)) continue;
+    const gone = held.rule.slots.find((other) => other !== slot && slotSpent(budget, other));
+    if (gone === undefined) continue;
+    return err(
+      'slot_foreclosed',
+      `${id} cannot take ${SLOT_NAMES[slot]}: ${held.label} permits only one of ${listedSlots(held.rule.slots)} on a turn until ${held.until}, and ${id} has already spent ${SLOT_NAMES[gone]}`,
     );
   }
   return ok(true);
@@ -1329,6 +1451,13 @@ export function spendAction(
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
 
+  // Before the extras and before the turn's own action, because a foreclosed
+  // slot is foreclosed however it would have been paid for: a Haste'd creature
+  // under SRD Slow has an extra action and still may not take one after its
+  // Bonus Action has gone.
+  const open = refuseForeclosed(id, 'action', budget.value, spend);
+  if (!open.ok) return open;
+
   if (grant !== undefined) {
     const index = budget.value.extraActions.findIndex((extra) => extra.source === grant);
     if (index === -1) {
@@ -1542,6 +1671,8 @@ export function spendBonusAction(
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+  const open = refuseForeclosed(id, 'bonus-action', budget.value, spend);
+  if (!open.ok) return open;
   if (!budget.value.bonusAction) {
     return err('no_bonus_action', `${id} has already taken a Bonus Action`);
   }
@@ -1571,6 +1702,8 @@ export function spendReaction(
 
   const budget = requireCombatant(state, id);
   if (!budget.ok) return budget;
+  const open = refuseForeclosed(id, 'reaction', budget.value, spend);
+  if (!open.ok) return open;
   if (!budget.value.reaction) {
     return err('no_reaction', `${id} has no Reaction until the start of their next turn`);
   }
@@ -1863,6 +1996,13 @@ export function spendMovement(
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+
+  // SRD Ice Devil: "it can move or take one action on its turn, not both."
+  // The move asks the same question the three slot spenders do, which is what
+  // makes the coupling symmetrical — the action after the move is refused by
+  // `spendAction` and the move after the action is refused here.
+  const open = refuseForeclosed(id, 'movement', budget.value, spend);
+  if (!open.ok) return open;
 
   // **Feet a feature handed over come out of that grant and out of nothing
   // else**, which is the whole of why they are a counter rather than more

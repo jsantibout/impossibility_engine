@@ -120,18 +120,15 @@ describe('the clauses a failure prints besides the damage', () => {
       ],
     });
     // SRD Dretch's Fetid Cloud: "until the end of its next turn" — the
-    // target's own — with the second sentence carried, not applied.
+    // target's own. What the second sentence says is read now, and is the
+    // subject of its own describe block below; here only the anchor matters.
     const cloud = lineOf('dretch', 'Fetid Cloud').save;
-    expect(cloud?.onFailure).toEqual([
-      {
-        kind: 'condition',
-        condition: 'poisoned',
-        lasts: { kind: 'turn', moment: 'end', of: 'target' },
-      },
-    ]);
-    expect(cloud?.handedOver).toEqual([
-      "While Poisoned, the creature can take either an action or a Bonus Action on its turn, not both, and it can't take Reactions.",
-    ]);
+    expect(cloud?.onFailure?.[0]).toEqual({
+      kind: 'condition',
+      condition: 'poisoned',
+      lasts: { kind: 'turn', moment: 'end', of: 'target' },
+    });
+    expect(cloud?.handedOver).toBeUndefined();
   });
 
   it('reads damage and a condition riding on it, and a Speed cut for a turn', () => {
@@ -576,11 +573,168 @@ describe('a failure that branches on the target’s Hit Points', () => {
   });
 });
 
+/**
+ * "It can take either an action or a Bonus Action on its turn, not both."
+ *
+ * A rule about what the target's turn may hold, printed in two dressings: the
+ * Dretch hangs it on the condition the same failure imposed, and the Copper
+ * Dragons print a list of clauses separated by semicolons with one span
+ * underneath them all. Both need the same two things the reader did not have —
+ * a clause that carries a rule about a turn, and a lifetime that may be either
+ * a printed span or a condition instance.
+ */
+describe('a failure that changes what a turn may hold', () => {
+  it('reads the Dretch’s cloud whole, hung on the Poisoned it imposed', () => {
+    // SRD Dretch: "The target has the Poisoned condition until the end of its
+    // next turn. While Poisoned, the creature can take either an action or a
+    // Bonus Action on its turn, not both, and it can't take Reactions."
+    // The second sentence names no span: its lifetime is the Poisoned's, the
+    // same thing `roll-mode`'s `whileCondition` says about the Ravens'.
+    expect(lineOf('dretch', 'Fetid Cloud').save).toEqual({
+      ability: 'con',
+      dc: 11,
+      targets: 'each creature in a 10-foot Emanation originating from the dretch',
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'poisoned',
+          lasts: { kind: 'turn', moment: 'end', of: 'target' },
+        },
+        {
+          kind: 'action-rule',
+          rule: { kind: 'one-of', slots: ['action', 'bonus-action'] },
+          whileCondition: 'poisoned',
+        },
+        {
+          kind: 'action-rule',
+          rule: { kind: 'forbids', slots: ['reaction'] },
+          whileCondition: 'poisoned',
+        },
+      ],
+    });
+  });
+
+  it('reads the Copper Dragon’s breath whole: three clauses under one span', () => {
+    // SRD Copper Dragon Wyrmling: "The target can't take Reactions; its Speed
+    // is halved; and it can take either an action or a Bonus Action on its
+    // turn, not both. This effect lasts until the end of its next turn."
+    // A semicolon list, and a span printed once for everything above it.
+    const lasts = { kind: 'turn', moment: 'end', of: 'target' };
+    expect(lineOf('copper-dragon-wyrmling', 'Slowing Breath').save).toEqual({
+      ability: 'con',
+      dc: 11,
+      targets: 'each creature in a 15-foot Cone',
+      onSuccess: 'none',
+      onFailure: [
+        { kind: 'action-rule', rule: { kind: 'forbids', slots: ['reaction'] }, lasts },
+        { kind: 'speed-halved', lasts },
+        { kind: 'action-rule', rule: { kind: 'one-of', slots: ['action', 'bonus-action'] }, lasts },
+      ],
+    });
+  });
+
+  it('reads the same sentence on every Copper Dragon the book prints it on', () => {
+    for (const id of [
+      'young-copper-dragon',
+      'adult-copper-dragon',
+      'ancient-copper-dragon',
+    ]) {
+      const breath = lineOf(id, 'Slowing Breath').save;
+      expect(breath?.onFailure?.map((effect) => effect.kind), id).toEqual([
+        'action-rule',
+        'speed-halved',
+        'action-rule',
+      ]);
+      expect(breath?.handedOver, id).toBeUndefined();
+    }
+  });
+
+  it('refuses a rule with no lifetime at all', () => {
+    // The Copper Dragon's sentence with the span taken off it. A rule about a
+    // turn that ends at no moment and hangs on no condition is one nothing
+    // would ever lift, which is the answer the mode clause already gives.
+    expect(
+      parseSaveLine(
+        "_Constitution Saving Throw:_ DC 11, each creature in a 15-foot Cone. _Failure:_ The target can't take Reactions; its Speed is halved; and it can take either an action or a Bonus Action on its turn, not both.",
+      ),
+    ).toBeNull();
+  });
+
+  it('hands over a rule said about a condition the line did not impose', () => {
+    // The Dretch's sentence with the host changed: a "While Frightened" on a
+    // line that imposed no Frightened names a lifetime that is not there.
+    const read = parseSaveLine(
+      "_Constitution Saving Throw:_ DC 11, each creature in a 10-foot Emanation originating from the dretch. _Failure:_ The target has the Poisoned condition until the end of its next turn. While Frightened, the creature can take either an action or a Bonus Action on its turn, not both, and it can't take Reactions.",
+    );
+    expect(read?.onFailure).toEqual([
+      {
+        kind: 'condition',
+        condition: 'poisoned',
+        lasts: { kind: 'turn', moment: 'end', of: 'target' },
+      },
+    ]);
+    expect(read?.handedOver).toEqual([
+      "While Frightened, the creature can take either an action or a Bonus Action on its turn, not both, and it can't take Reactions.",
+    ]);
+  });
+
+  it('refuses a semicolon list one of whose clauses it cannot read', () => {
+    // The transaction the whole reader is written under, over the new split:
+    // a list is read whole or handed over whole, never half-applied. Nothing
+    // of it reaches a caller, which is what null says here — the two clauses
+    // it *could* read are discarded with the one it could not.
+    const read = parseSaveLine(
+      "_Constitution Saving Throw:_ DC 11, each creature in a 15-foot Cone. _Failure:_ The target can't take Reactions; its Speed is halved; and it is sad. This effect lasts until the end of its next turn.",
+    );
+    expect(read).toBeNull();
+  });
+
+  /**
+   * SRD Adult Brass Dragon, Scorching Sands: "27 (6d8) Fire damage, and the
+   * target's Speed is halved **until the end of its next turn**."
+   *
+   * The halving with a span of its own, which is the other way the corpus
+   * prints the clause and the arm no Copper Dragon exercises — theirs is
+   * printed once underneath a list. A reader that dropped an inline span would
+   * leave this line with a halving that ends at no moment, and the lifetime
+   * gate would then refuse the whole line: the DC, the targets and the 6d8
+   * would all stop being read, not merely the halving.
+   *
+   * Read off the line's text rather than off its `save`, because a legendary
+   * action is not a line this pipeline spends and so carries none — the
+   * economy is what holds that block back, not the grammar.
+   */
+  it('reads a halving with a span of its own, on a line the economy still holds back', () => {
+    for (const [id, dc, dice, average] of [
+      ['adult-brass-dragon', 16, '6d8', 27],
+      ['ancient-brass-dragon', 20, '8d8', 36],
+    ] as const) {
+      const sands = lineOf(id, 'Scorching Sands');
+      expect(sands.save, id).toBeUndefined();
+      expect(parseSaveLine(sands.text), id).toEqual({
+        ability: 'dex',
+        dc,
+        targets: 'one creature the dragon can see within 120 feet',
+        damage: { dice, flat: 0, type: 'fire', average },
+        onSuccess: 'none',
+        onFailure: [
+          { kind: 'speed-halved', lasts: { kind: 'turn', moment: 'end', of: 'target' } },
+        ],
+        handedOver: [
+          "_Failure or Success:_ The dragon can't take this action again until the start of its next turn.",
+        ],
+      });
+    }
+  });
+});
+
 describe('the lines the reader does not reach', () => {
   it('refuses a clause it cannot start on, rather than rolling a save for nothing', () => {
-    // SRD Copper Dragon Wyrmling's Slowing Breath. SRD Sea Hag's Death Glare
-    // used to stand here too; it is read now, one describe block up.
-    expect(lineOf('copper-dragon-wyrmling', 'Slowing Breath').save).toBeUndefined();
+    // SRD Ghost's Possession. SRD Sea Hag's Death Glare used to stand here,
+    // and so did SRD Copper Dragon Wyrmling's Slowing Breath; both are read
+    // now, one describe block up apiece.
+    expect(lineOf('ghost', 'Possession').save).toBeUndefined();
   });
 
   /**

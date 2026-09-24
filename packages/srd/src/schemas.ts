@@ -394,6 +394,10 @@ export type PrintedSpan = z.infer<typeof PrintedSpanSchema>;
  * - `roll-mode`: "While Deafened, the target also has Disadvantage on ability
  *   checks and attack rolls" — a mode whose lifetime is the condition instance
  *   the same failure imposed.
+ * - `action-rule`: "it can take either an action or a Bonus Action on its
+ *   turn, not both", "it can't take Reactions" — a rule about what the
+ *   target's own turn may hold.
+ * - `speed-halved`: "its Speed is halved".
  */
 /** The conditions a printed clause may name, by the engine's own keys. */
 export const PrintedConditionSchema = z.enum([
@@ -413,6 +417,45 @@ export const PrintedConditionSchema = z.enum([
   'stunned',
   'unconscious',
 ]);
+
+/**
+ * The slots of a turn a printed rule may name, by the engine's own keys.
+ *
+ * The same two-vocabulary seam {@link PrintedConditionSchema} is: this package
+ * knows nothing of the engine's `ActionSlot` and may not import it, so the
+ * four words are written out here and the executor is where the two meet. A
+ * word added on one side and not the other is a compile error at that seam,
+ * which is the guard — see `printed-save-clauses.ts`.
+ */
+export const PrintedSlotSchema = z.enum(['action', 'bonus-action', 'reaction', 'movement']);
+
+/**
+ * A rule a printed line puts on the target's turn.
+ *
+ * **Two members, because the corpus prints two sentences here.** The engine's
+ * own `ActionRule` says five things — a slot or a named action taken away, one
+ * slot narrowed to a named few, a named action re-priced, an extra action
+ * handed over, and slots coupled to one another — and a stat block's failure
+ * clause prints only the first and the last. The other three arrive with the
+ * line that prints one, which is the rule `NAMED_ACTIONS` in the engine is kept
+ * by: a member here is a promise that some sentence in the book asks for it.
+ *
+ * - `forbids`: SRD Dretch, SRD Copper Dragon Wyrmling — "it can't take
+ *   Reactions".
+ * - `one-of`: SRD Dretch, SRD Copper Dragon Wyrmling — "it can take either an
+ *   action or a Bonus Action on its turn, not both". The list is the slots
+ *   coupled to each other, and it is a list rather than a pair because SRD Ice
+ *   Devil prints the same rule over movement and the action: "it can move or
+ *   take one action on its turn, not both".
+ *
+ * No named actions, for the same reason: no printed save names one. A block
+ * that did would say so in a member with a vocabulary of its own.
+ */
+export const PrintedActionRuleSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('forbids'), slots: z.array(PrintedSlotSchema).min(1) }),
+  z.object({ kind: z.literal('one-of'), slots: z.array(PrintedSlotSchema).min(2) }),
+]);
+export type PrintedActionRule = z.infer<typeof PrintedActionRuleSchema>;
 
 /**
  * Every clause but the branch, which is the one member that holds others.
@@ -540,6 +583,55 @@ const PRINTED_SAVE_CLAUSES = [
      * an immune target has no instance to hang it on.
      */
     whileCondition: PrintedConditionSchema,
+  }),
+  /**
+   * SRD Dretch: "While Poisoned, the creature can take either an action or a
+   * Bonus Action on its turn, not both, and it can't take Reactions." SRD
+   * Copper Dragon Wyrmling: "The target can't take Reactions; its Speed is
+   * halved; and it can take either an action or a Bonus Action on its turn,
+   * not both. This effect lasts until the end of its next turn."
+   *
+   * **A rule about a turn, with a lifetime that may be either kind.** The two
+   * blocks print one rule in two dressings, and it is the dressing rather than
+   * the rule that differs: the Dretch hangs it on the condition the same
+   * failure imposed, exactly as the Ravens' `roll-mode` above is hung, and the
+   * Copper Dragon prints a span once underneath a list of clauses. So this
+   * carries both fields where `roll-mode` carries only the host and
+   * `speed-decrease` only the span — not because a clause may say both, but
+   * because the corpus prints one of each.
+   *
+   * **Exactly one of them, which `parsePrintedSave` enforces and this schema
+   * does not.** The `dies` clause below sets the precedent and gives the
+   * reason: a discriminated union's member may not carry a refinement, so the
+   * field is optional here and required by the reader. A clause reaching the
+   * executor with neither is a rule nothing would ever lift, and the executor
+   * hands it to the table rather than hanging it.
+   */
+  z.object({
+    kind: z.literal('action-rule'),
+    rule: PrintedActionRuleSchema,
+    /** The span the line prints, where it prints one. */
+    lasts: PrintedSpanSchema.optional(),
+    /** The condition in the **same failure** whose instance this lives on. */
+    whileCondition: PrintedConditionSchema.optional(),
+  }),
+  /**
+   * SRD Copper Dragon Wyrmling: "its Speed is halved". SRD Adult Brass
+   * Dragon's Scorching Sands prints the same clause with a span of its own.
+   *
+   * **Not `speed-decrease` with a number**, and the difference is the whole of
+   * why it is a member: a decrease takes printed feet away and a halving is an
+   * operation on whatever the Speed turns out to be. The engine has had both
+   * since Slow was written — `SpeedChange` names `add`, `halve` and `zero` —
+   * and `halve` is presence rather than count, so two halvings are one.
+   *
+   * Its lifetime reads exactly as the clause above it: one of the two, and the
+   * reader is what insists on it.
+   */
+  z.object({
+    kind: z.literal('speed-halved'),
+    lasts: PrintedSpanSchema.optional(),
+    whileCondition: PrintedConditionSchema.optional(),
   }),
   /**
    * SRD Will-o'-Wisp: "_Failure:_ The target dies, and the wisp regains 10
