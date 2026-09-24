@@ -13,6 +13,19 @@
  * read comes back in `unverified` at the moment of use, and an immune target
  * is reported rather than silently skipped.
  *
+ * And the four the third reader added: a condition another one **carries**
+ * for exactly its own lifetime (the Chuul's Paralyzed under its Poisoned, the
+ * Couatl's Restrained under its grapple), a curse that is only conditions
+ * (the Lamia's hour), a failure the line **grades** (the Gorgon's Restrained,
+ * repeated once, deepening to Petrified), and one graded by the **margin** the
+ * engine already has from the roll it made (the Pseudodragon's Unconscious).
+ *
+ * And the one failure that kills: the Will-o'-Wisp consumes a creature already
+ * at 0 Hit Points and regains the dice its block prints. The ceiling on who it
+ * may be forced on is read off the targeting clause and enforced here, which
+ * is the one part of that clause the reader takes — a sentence that kills
+ * outright is the last one to take a caller's word for.
+ *
  * Both branches of every save are exercised by running each line under a
  * handful of seeds and asserting the *rule* on whichever way the die fell —
  * a failure lands the clause, a success does not — and that both were seen.
@@ -26,9 +39,12 @@ import {
   addSceneLandmark,
   beginCombat,
   declareCreatureSide,
+  damageCreature,
   escapeGrapple,
   forcePrintedSave,
+  liftConditionFrom,
   placeCreatureInScene,
+  resolveTurn,
   setScene,
 } from './commands.js';
 import { createRng, type Rng } from './dice.js';
@@ -43,6 +59,7 @@ const BREN = id('bren');
 const FOE = id('foe');
 const OGRE = id('ogre');
 const ZOMBIE = id('zombie');
+const GRISH = id('grish');
 
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
@@ -362,6 +379,268 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
     const { out } = forced('mummy', 'Dreadful Glare', 'a');
     expect(out.unverified.some((line) => line.includes("immune to this mummy's Dreadful Glare for 24 hours"))).toBe(true);
     expect(out.unverified.some((line) => line.includes('one creature the mummy can see within 60 feet'))).toBe(true);
+  });
+});
+
+describe('a condition the line says another one carries', () => {
+  it("leaves the Chuul's target Poisoned and Paralyzed, and a cure for the Poisoned lifts both", () => {
+    for (const seed of SEEDS) {
+      const { out, state } = forced('chuul', 'Paralyzing Tentacles', seed);
+      if (out.outcomes[0]!.save.success) continue;
+      expect(has(state, BREN, 'poisoned')).toBe(true);
+      // "While Poisoned, the target has the Paralyzed condition": one
+      // lifetime, so the Paralyzed is filed as implied by the Poisoned.
+      expect(has(state, BREN, 'paralyzed')).toBe(true);
+      const held = state.creatures[BREN]!.conditions.instances;
+      const poison = held.find((one) => one.condition === 'poisoned')!;
+      expect(held.find((one) => one.condition === 'paralyzed')?.impliedBy).toBe(poison.id);
+
+      // SRD Lesser Restoration names the condition and says nothing about the
+      // cause, and what it carried goes with it.
+      const cured = after(state, unwrap(liftConditionFrom(state, BREN, 'poisoned'), 'cure'));
+      expect(has(cured, BREN, 'poisoned')).toBe(false);
+      expect(has(cured, BREN, 'paralyzed')).toBe(false);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it("leaves the Couatl's target Grappled and Restrained, and the escape lifts both", () => {
+    for (const seed of SEEDS) {
+      const { out, state } = forced('couatl', 'Constrict', seed);
+      if (out.outcomes[0]!.save.success) continue;
+      expect(has(state, BREN, 'grappled')).toBe(true);
+      expect(has(state, BREN, 'restrained')).toBe(true);
+      // Through the door every grapple is escaped through, at the block's DC.
+      // One attempt a turn, because it costs the Action.
+      let world = applyEvent(state, { type: 'turn-advanced' });
+      for (const attempt of SEEDS) {
+        const escape = escapeGrapple(world, BREN, { ability: 'str' }, supply(`${seed}-${attempt}`));
+        if (!escape.ok) throw new Error(`${escape.code}: ${escape.reason}`);
+        world = after(world, escape.value.events);
+        if (!has(world, BREN, 'grappled')) {
+          expect(has(world, BREN, 'restrained')).toBe(false);
+          return;
+        }
+        world = applyEvent(applyEvent(world, { type: 'turn-advanced' }), {
+          type: 'turn-advanced',
+        });
+      }
+      throw new Error('never escaped');
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it("reads the Lamia's curse as the two conditions it carries, for the hour", () => {
+    for (const seed of SEEDS) {
+      const { before, out, state } = forced('lamia', 'Corrupting Touch', seed);
+      if (out.outcomes[0]!.save.success) continue;
+      expect(out.outcomes[0]!.conditions).toEqual(['charmed', 'poisoned']);
+      expect(has(state, BREN, 'charmed')).toBe(true);
+      expect(has(state, BREN, 'poisoned')).toBe(true);
+      for (const timer of timersOn(state, BREN)) {
+        expect(timer.deadline).toEqual({ kind: 'elapsed', at: before.elapsed + 3600 });
+      }
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+});
+
+describe('a failure that kills', () => {
+  /**
+   * The wisp, a goblin already down, and the line forced on it.
+   *
+   * SRD Will-o'-Wisp: "one living creature the wisp can see within 5 feet
+   * **that has 0 Hit Points**." The ceiling is the line's own, so the fixture
+   * has to put somebody under it before the save is thrown.
+   */
+  function overTheDying(seed: string, hitPoints: number, who: CharacterId = BREN) {
+    const table = inTheWoods('will-o-wisp', [{ id: GRISH, monster: 'goblin-warrior' }]);
+    let state = table.state;
+    const standing = state.creatures[who]!.vitals.hp;
+    if (hitPoints < standing) {
+      state = after(
+        state,
+        unwrap(
+          damageCreature(state, who, { amount: standing - hitPoints, source: 'a falling rock' }),
+          `downing ${who}`,
+        ),
+      );
+    }
+    const out = unwrap(
+      forcePrintedSave(
+        state,
+        FOE,
+        { line: 'Consume Life', targets: [who], commandId: `wisp-${seed}` },
+        supply(seed),
+      ),
+      'Consume Life',
+    );
+    return { before: state, out, state: after(state, out.events) };
+  }
+
+  it("kills the Will-o'-Wisp's target outright and heals the wisp by the dice it rolled", () => {
+    for (const seed of SEEDS) {
+      const { before, out, state } = overTheDying(seed, 0);
+      if (out.outcomes[0]!.save.success) continue;
+      // Death rather than damage: the target does not drop to 0, it dies, and
+      // the outcome says so rather than leaving a caller to read a nought.
+      expect(out.outcomes[0]!.damage).toBe(0);
+      expect(out.outcomes[0]!.died).toBe(true);
+      expect(state.creatures[BREN]!.vitals.dead).toBe(true);
+      expect(out.events.some((e) => e.type === 'creature-died')).toBe(true);
+      expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
+
+      // "and the wisp regains 10 (3d6) Hit Points" — the block's dice, thrown
+      // by the engine, in the range 3d6 can reach and no further.
+      const healed = out.events.find((e) => e.type === 'healed');
+      expect(healed, 'the wisp regained nothing').toBeDefined();
+      const amount = (healed as { amount: number }).amount;
+      expect(amount).toBeGreaterThanOrEqual(3);
+      expect(amount).toBeLessThanOrEqual(18);
+      // Capped at its own maximum, which is `heal`'s rule and not this one's.
+      expect(state.creatures[FOE]!.vitals.hp).toBe(
+        Math.min(
+          before.creatures[FOE]!.vitals.hpMax,
+          before.creatures[FOE]!.vitals.hp + amount,
+        ),
+      );
+      // And the generator's position is written back, once, for everything
+      // this command threw — the save and the healing dice alike.
+      expect(out.events.filter((e) => e.type === 'rolls-issued')).toHaveLength(1);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it('kills nobody above the ceiling the line prints, and says so', () => {
+    for (const seed of SEEDS) {
+      const { before, out, state } = overTheDying(seed, 3);
+      if (out.outcomes[0]!.save.success) continue;
+      // The save was thrown and failed, and the line still reached nobody it
+      // could kill: a DC 10 Constitution save does not kill a creature with
+      // hit points left, however the die fell.
+      expect(state.creatures[BREN]!.vitals.dead).toBe(false);
+      expect(out.outcomes[0]!.died).toBeUndefined();
+      expect(out.events.some((e) => e.type === 'creature-died')).toBe(false);
+      // And the wisp regained nothing, because nothing died.
+      expect(state.creatures[FOE]!.vitals.hp).toBe(before.creatures[FOE]!.vitals.hp);
+      expect(
+        out.unverified.some((line) => line.includes('0 Hit Points or fewer')),
+        JSON.stringify(out.unverified),
+      ).toBe(true);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it('does not make a corpse deader, and buys the wisp nothing for it', () => {
+    // A Goblin Warrior brought to 0 is a Goblin Warrior dead: a monster does
+    // not lie there making death saves. Forcing the line over the body is the
+    // reading `declareCreatureDead` already takes of the same event —
+    // nothing is written, and nothing is regained for it.
+    let saw = false;
+    for (const seed of SEEDS) {
+      const { before, out, state } = overTheDying(seed, 0, GRISH);
+      expect(before.creatures[GRISH]!.vitals.dead).toBe(true);
+      if (out.outcomes[0]!.save.success) continue;
+      expect(out.outcomes[0]!.died).toBeUndefined();
+      expect(out.events.some((e) => e.type === 'creature-died')).toBe(false);
+      expect(out.events.some((e) => e.type === 'healed')).toBe(false);
+      expect(state.creatures[FOE]!.vitals.hp).toBe(before.creatures[FOE]!.vitals.hp);
+      saw = true;
+    }
+    expect(saw, 'no seed failed the save').toBe(true);
+  });
+});
+
+describe('a failure the line grades', () => {
+  /** End turns until the boundary has raised and rolled whatever it owes. */
+  const turn = (state: GameState, seed: string): GameState => {
+    const out = unwrap(resolveTurn(state, supply(seed), { commandId: `turn-${seed}` }), 'turn');
+    return after(state, out.events);
+  };
+
+  it("Restrains the Gorgon's target, repeats the save once, and Petrifies a second failure", () => {
+    let petrified = false;
+    let freed = false;
+    for (const seed of SEEDS) {
+      const { out, state } = forced('gorgon', 'Petrifying Breath (Recharge 5–6)', seed);
+      if (out.outcomes[0]!.save.success) continue;
+      expect(has(state, BREN, 'restrained')).toBe(true);
+      expect(has(state, BREN, 'petrified')).toBe(false);
+      // The repeat the first rung scheduled, and what its failure leaves.
+      const [timer] = timersOn(state, BREN);
+      expect(timer?.repeatSave).toMatchObject({
+        at: 'end-of-turn',
+        of: BREN,
+        ability: 'con',
+        dc: 15,
+        onSuccess: 'end-on-target',
+        onFailure: { condition: 'petrified' },
+      });
+
+      // Round the order to the end of Bren's own turn, which is when the
+      // boundary owes the save.
+      let world = state;
+      for (let guard = 0; guard < 4 && has(world, BREN, 'restrained'); guard += 1) {
+        world = turn(world, `${seed}-${guard}`);
+      }
+      if (has(world, BREN, 'petrified')) {
+        // The deeper condition under the same cause, the shallow one gone,
+        // and nothing left to ask: the book's "second" failure is the last.
+        expect(has(world, BREN, 'restrained')).toBe(false);
+        expect(timersOn(world, BREN)).toEqual([]);
+        expect(Object.keys(world.pendingSaves)).toEqual([]);
+        petrified = true;
+      } else {
+        expect(has(world, BREN, 'restrained')).toBe(false);
+        freed = true;
+      }
+    }
+    expect(petrified, 'no seed ever failed the repeat').toBe(true);
+    expect(freed, 'no seed ever made the repeat').toBe(true);
+  });
+});
+
+describe('a failure graded by how far the save missed', () => {
+  it("adds the Pseudodragon's Unconscious only where the save missed by five", () => {
+    let deep = false;
+    let shallow = false;
+    // A Goblin Warrior rather than Bren: a first-level Fighter's Constitution
+    // save is proficient and misses a DC 12 by five about one roll in twenty,
+    // which is a fixture that proves one branch and asserts the other by luck.
+    for (const seed of SEEDS) {
+      const { out, state } = forced('pseudodragon', 'Sting', seed, [GRISH], [
+        { id: GRISH, monster: 'goblin-warrior' },
+      ]);
+      const [one] = out.outcomes;
+      if (one!.save.success) continue;
+      expect(has(state, GRISH, 'poisoned')).toBe(true);
+      // The margin is the engine's own: it rolled the save and the block
+      // printed the DC, so nothing is asked of a caller.
+      if (12 - one!.save.total >= 5) {
+        expect(has(state, GRISH, 'unconscious')).toBe(true);
+        const held = state.creatures[GRISH]!.conditions.instances;
+        const poison = held.find((instance) => instance.condition === 'poisoned')!;
+        expect(held.find((instance) => instance.condition === 'unconscious')?.impliedBy).toBe(
+          poison.id,
+        );
+        deep = true;
+      } else {
+        expect(has(state, GRISH, 'unconscious')).toBe(false);
+        shallow = true;
+      }
+      // Either way the rule the engine does not execute is said out loud.
+      expect(
+        out.unverified.some((line) =>
+          line.includes('The Unconscious condition, which ends early if'),
+        ),
+      ).toBe(true);
+    }
+    expect(deep, 'no seed missed by five').toBe(true);
+    expect(shallow, 'no seed missed by less than five').toBe(true);
   });
 });
 

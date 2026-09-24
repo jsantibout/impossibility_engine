@@ -812,6 +812,14 @@ export interface PrintedSaveOnACreature {
   readonly immuneTo?: readonly ConditionName[];
   /** The feet the line pushed the target, where it pushed. */
   readonly pushedFeet?: number;
+  /**
+   * Whether the line killed the target outright.
+   *
+   * SRD Will-o'-Wisp's Consume Life is the one that does, and it is not
+   * damage: the target dies rather than dropping to 0, so a caller reading
+   * `damage` alone would see a nought and narrate a miss.
+   */
+  readonly died?: true;
 }
 
 export interface PrintedSaveOutcome {
@@ -1120,11 +1128,25 @@ export function forcePrintedSave(
           concentration = hurt.value.concentration;
         }
 
+        // **How far the save missed**, where the line grades its failure by
+        // that and not by a second roll. SRD Pseudodragon: "_Failure by 5 or
+        // More:_ While Poisoned, the target also has the Unconscious
+        // condition." The margin is the engine's own — it threw the save and
+        // the block printed the DC — so the deeper list is chosen here and
+        // nothing is asked of a caller. It *replaces* the failure's list
+        // rather than adding to it, which is what the reader wrote: a rung is
+        // the whole failure said again with one more thing in it.
+        const missedBy = printed.dc - save.value.total;
+        const failure =
+          printed.onFailureBy !== undefined && missedBy >= printed.onFailureBy.by
+            ? printed.onFailureBy.effects
+            : (printed.onFailure ?? []);
+
         // What the line does besides the damage: its failure clauses on a
         // failure, and its `_Failure or Success:_` coda either way — each
         // through the primitive the casting path uses for the same sentence.
         const clauses = [
-          ...(save.value.success ? [] : (printed.onFailure ?? [])),
+          ...(save.value.success ? [] : failure),
           ...(printed.either ?? []),
         ];
         const landed = applyPrintedClauses(
@@ -1136,6 +1158,7 @@ export function forcePrintedSave(
           clauses,
           dealt,
           supply.issuer.count,
+          supply,
         );
         if (!landed.ok) return landed;
         events.push(...landed.value.events);
@@ -1150,6 +1173,7 @@ export function forcePrintedSave(
           ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
           ...(landed.value.immuneTo.length === 0 ? {} : { immuneTo: landed.value.immuneTo }),
           ...(landed.value.pushedFeet === null ? {} : { pushedFeet: landed.value.pushedFeet }),
+          ...(landed.value.died ? { died: true as const } : {}),
         });
       }
 
