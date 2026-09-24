@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 103 spells | 70 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 21 features | 15 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 18 features | 12 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 213 items | on 125 of 244 blocks | 0 | 119 blocks already clean |
@@ -517,7 +517,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 21, 15 are class or subclass features printed at level 5 or below, 5 are species or background traits and 1 are feats.
+Of the 18, 13 are class or subclass features printed at level 5 or below, 5 are species or background traits and 0 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -526,10 +526,7 @@ comes from.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-feature-that-changes-what-a-casting-costs` | 2 | 1 |
-| `a-resource-traded-for-another` | 2 | 1 |
-| `a-bonus-to-spell-attack-rolls` | 1 | 1 |
 | `a-declared-fact-a-feature-sets` | 1 | 1 |
-| `a-requirement-on-the-armour-its-holder-is-wearing` | 1 | 1 |
 | `a-reroll-outside-the-test-window` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
@@ -541,6 +538,7 @@ comes from.
 | `a-feature-that-changes-who-a-casting-catches` | 1 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
 | `a-reaction-effect-the-vocabulary-lacks` | 1 | 0 |
+| `a-resource-traded-for-another` | 1 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 |
 | `a-speed-a-feature-reduces` | 1 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 |
@@ -559,22 +557,9 @@ sums to the population.
 - `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual)
 - `sorcerer:metamagic` — Metamagic (level 2, class, manual) — also waits on 3
 
-#### `a-resource-traded-for-another` — blocks 2, finishes 1
-
-- `monk:focus` — Monk's Focus (level 2, class, engine)
-- `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
-
-#### `a-bonus-to-spell-attack-rolls` — blocks 1, finishes 1
-
-- `sorcerer:innate-sorcery` — Innate Sorcery (level 1, class, manual)
-
 #### `a-declared-fact-a-feature-sets` — blocks 1, finishes 1
 
 - `paladin:channel-divinity` — Channel Divinity (level 3, class, engine)
-
-#### `a-requirement-on-the-armour-its-holder-is-wearing` — blocks 1, finishes 1
-
-- `defense` — Defense (level 1, feat, fighting-style)
 
 #### `a-reroll-outside-the-test-window` — blocks 1, finishes 1
 
@@ -622,6 +607,10 @@ sums to the population.
 #### `a-reaction-effect-the-vocabulary-lacks` — blocks 1, finishes 0
 
 - `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
+
+#### `a-resource-traded-for-another` — blocks 1, finishes 0
+
+- `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 1, finishes 0
 
