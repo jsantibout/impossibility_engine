@@ -60,12 +60,14 @@ import {
  * book reads it afterwards.
  *
  * **Not one shape id below is new.** Each is already in {@link MISSING_SHAPES}
- * with a citation, and two of them name the very spell filed against them —
- * `a-creature-fact-an-effect-overrides` names Arcanist's Magic Aura and
- * `a-cap-on-how-many-castings-run-at-once` names the sentence Prestidigitation
- * prints with a number in it. A third did: `a-rider-on-a-later-weapon-attack`
- * named Magic Weapon, that shape's flat-bonus half is built, and the spell has
- * moved to {@link EXECUTES}.
+ * with a citation, and three of them named the very spell filed against them —
+ * `a-creature-fact-an-effect-overrides` named Arcanist's Magic Aura,
+ * `a-cap-on-how-many-castings-run-at-once` named the sentence Prestidigitation
+ * prints with a number in it, and `a-rider-on-a-later-weapon-attack` named
+ * Magic Weapon. All three shapes have since been built and all three spells
+ * have moved to {@link EXECUTES}, which is the list working rather than the
+ * claim weakening: a shape whose own description names one spell is a shape a
+ * batch can finish.
  */
 
 /**
@@ -77,7 +79,6 @@ import {
  */
 const FILED: Readonly<Record<string, readonly string[]>> = {
   'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
-  'arcanists-magic-aura': ['a-creature-fact-an-effect-overrides'],
   knock: ['an-effect-that-suppresses-other-magic'],
   nondetection: ['an-effect-that-suppresses-other-magic'],
   'pass-without-trace': [
@@ -212,6 +213,9 @@ const LIGHT_EXECUTED: readonly string[] = [
 // counted — its debt was owed and is now paid, which is the outcome this list
 // was always going to have to hold more of.
 const EXECUTES: readonly string[] = [
+  // The day a sourced grant could put a creature type over another creature's
+  // own, and `typeMagicSees` could say which readers believe it.
+  'arcanists-magic-aura',
   'darkvision',
   'expeditious-retreat',
   'magic-weapon',

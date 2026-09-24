@@ -43,6 +43,7 @@ import {
   snapToSpace,
 } from '../positioning.js';
 import { fallWindowOpen } from '../reactions.js';
+import { typeMagicSees } from '../creature-type.js';
 import { effectiveSizeOf } from '../size.js';
 import { canSee, canSeePoint } from '../standing.js';
 import { type SlotKind } from '../resources.js';
@@ -1528,10 +1529,16 @@ export function areaCatch(
     // spelled alike: an undeclared type is not a match here, and an area
     // *filters* rather than asking, because "each Humanoid in the area" leaves
     // the ogre standing there unbothered.
-    if (wanted !== undefined && !isCreatureType(creature.creatureType, wanted)) {
+    // **What magic sees**, which is the mask where one is standing and the
+    // creature's own type otherwise — SRD Arcanist's Magic Aura: "Spells and
+    // other magical effects treat the target as if it were a creature of the
+    // chosen type." An area a casting filled and a Channel Divinity option's
+    // emanation are both magical effects, and both come through here.
+    const magicSees = typeMagicSees(creature);
+    if (wanted !== undefined && !isCreatureType(magicSees, wanted)) {
       return out(
         who,
-        `${source.name} touches only a ${wanted}, and ${who} is ${creature.creatureType ?? 'a creature nobody has said the kind of'}`,
+        `${source.name} touches only a ${wanted}, and ${who} is ${magicSees ?? 'a creature nobody has said the kind of'}`,
       );
     }
     // SRD Entangle: "Each creature (other than you) in the area". The caster
@@ -1729,7 +1736,10 @@ export function namedTargets(
     // for rather than waved through.
     const wanted = definition.targets.mustBeType;
     if (wanted !== undefined) {
-      const actual = state.creatures[target]?.creatureType ?? null;
+      // The mask where one is standing — see `typeMagicSees`, and the area
+      // filter above, which asks the same question of the same reader.
+      const creature = state.creatures[target];
+      const actual = creature === undefined ? null : typeMagicSees(creature);
       if (actual === null) {
         needs.push({
           kind: 'creature-type',
@@ -2102,7 +2112,9 @@ export function eligibleTargets(
 
     const wanted = definition.targets.mustBeType;
     if (wanted !== undefined) {
-      const actual = target.creatureType;
+      // The mask, so the shortlist and the cast agree about who a spell could
+      // be aimed at — see `typeMagicSees`.
+      const actual = typeMagicSees(target);
       if (actual === null) {
         needsContext.push({
           kind: 'creature-type',

@@ -128,6 +128,7 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             attackRiders: [],
             weaponRiders: [],
             grantedConditionImmunities: [],
+            creatureTypeMasks: [],
             lineImmunities: [],
             payouts: [],
             attachments: [],

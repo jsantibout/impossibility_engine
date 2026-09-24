@@ -33,6 +33,7 @@ import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
 import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
+import type { GrantedCreatureType } from './creature-type.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionWindow } from './reactions.js';
@@ -559,6 +560,56 @@ export type GameEvent =
    * there is no removal event: `releaseCasting`, `releaseOnTarget` and the
    * `grants` timer are the doors.
    */
+  /**
+   * A creature type one running effect has put over another's own.
+   *
+   * SRD Arcanist's Magic Aura, _Mask (Creature)_: "Choose a creature type
+   * other than the target's actual type. Spells and other magical effects
+   * treat the target as if it were a creature of the chosen type."
+   *
+   * **Not `creature-type-declared`**, which is its neighbour and a different
+   * event with a different lifetime: that one states what a creature **is**,
+   * carries no source, is refused a second time because what a creature is
+   * cannot be argued with, and nothing ever takes it back. This one is a
+   * sourced grant in the family `grantsOf` enumerates — hung, released by
+   * `releaseCasting`, by a dispel, by a broken Concentration and by a `grants`
+   * deadline, through exactly the doors the other eighteen already use.
+   *
+   * The type is pinned from the caster's stated choice at the casting, which
+   * is CLAUDE.md's rule 5: the fold opens no catalogue to find out which
+   * fourteen the book prints.
+   */
+  | {
+      readonly type: 'creature-type-masked';
+      readonly id: CharacterId;
+      readonly mask: GrantedCreatureType;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A creature type one running effect has put over another's own.
+   *
+   * SRD Arcanist's Magic Aura, _Mask (Creature)_: "Choose a creature type
+   * other than the target's actual type. Spells and other magical effects
+   * treat the target as if it were a creature of the chosen type."
+   *
+   * **Not `creature-type-declared`**, which is its neighbour and a different
+   * event with a different lifetime: that one states what a creature **is**,
+   * carries no source, is refused a second time because what a creature is
+   * cannot be argued with, and nothing ever takes it back. This one is a
+   * sourced grant in the family `grantsOf` enumerates — hung, released by
+   * `releaseCasting`, by a dispel, by a broken Concentration and by a `grants`
+   * deadline, through exactly the doors the other eighteen already use.
+   *
+   * The type is pinned from the caster's stated choice at the casting, which
+   * is CLAUDE.md's rule 5: the fold opens no catalogue to find out which
+   * fourteen the book prints.
+   */
+  | {
+      readonly type: 'creature-type-masked';
+      readonly id: CharacterId;
+      readonly mask: GrantedCreatureType;
+      readonly command?: CommandStamp;
+    }
   | {
       readonly type: 'condition-immunity-granted';
       readonly id: CharacterId;

@@ -103,6 +103,7 @@ const grantsOf = (creature: CreatureState): HeldGrants => ({
   attackRiders: creature.attackRiders,
   weaponRiders: creature.weaponRiders,
   grantedConditionImmunities: creature.grantedConditionImmunities,
+  creatureTypeMasks: creature.creatureTypeMasks,
   lineImmunities: creature.lineImmunities,
   payouts: creature.payouts,
   actionRules: creature.actionRules,

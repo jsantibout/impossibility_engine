@@ -2548,6 +2548,24 @@ function checkEffect(
       return;
 
     /*
+     * A mask names one of the fourteen, held to the same list `mustBeType` and
+     * `againstType.types` are held to and for the same reason: a value outside
+     * the vocabulary is a type nothing matches. SRD 5.2.1 prints a Goblin
+     * Warrior as "Small Fey (Goblinoid)", so a mask of Goblinoid would make
+     * every reader believe a thing no rule has anything to say about.
+     */
+    case 'creature-type-override': {
+      if (!CREATURE_TYPES.includes(effect.creatureType)) {
+        found.push({
+          field: `${path}.creatureType`,
+          code: 'unknown_creature_type',
+          reason: `"${String(effect.creatureType)}" is not one of the SRD's fourteen creature types; a subtype tag such as Goblinoid is not a type and has no rules of its own`,
+        });
+      }
+      return;
+    }
+
+    /*
      * A revival: how far back it reaches, and what the creature comes back at.
      *
      * Both are whole numbers with a floor of one, and both floors are a
@@ -3843,6 +3861,14 @@ function grantCarried(effect: SpellEffect): string | null {
       return 'a rule standing in front of healing';
     case 'hit-point-maximum':
       return 'a hit point maximum held up';
+    // The nineteenth sourced grant, and it carries no deadline of its own for
+    // the reason the fifth through eleventh do not: SRD Arcanist's Magic Aura
+    // runs for the twenty-four hours the spell prints, so the casting is the
+    // only thing that could give the creature its own type back — and an
+    // Instantaneous casting would leave a goblin looking like a Humanoid to
+    // every spell ever cast at it.
+    case 'creature-type-override':
+      return 'a creature type put over the target’s own';
     default: {
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
@@ -6109,6 +6135,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'end-condition',
   'dispel',
   'end-attunement',
+  'creature-type-override',
   'interrupt-casting',
   'armor-class',
   'roll-mode',

@@ -18,6 +18,7 @@
  * throw.
  */
 
+import { typeMagicSees } from '../creature-type.js';
 import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
 import {
   type AttackResult,
@@ -837,7 +838,7 @@ export function resolveSaveDamageEffect(
   const singled =
     effect.againstType !== undefined &&
     effect.againstType.types.some((named) =>
-      isCreatureType(victim.creatureType, named),
+      isCreatureType(typeMagicSees(victim), named),
     )
       ? effect.againstType.outcome
       : null;

@@ -14,6 +14,7 @@
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { type Content } from '../content.js';
 import { applyEvent, type GameState } from '../events.js';
+import { isCreatureType } from '../spell-definitions.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /**
@@ -182,4 +183,77 @@ export function resolveEndAttunementEffect(
   events.push(ended);
   outcomes.push({ target, affected: true });
   return ok(applyEvent(world, ended));
+}
+
+/**
+ * Why this creature may not be masked as that type, or null where it may.
+ *
+ * SRD Arcanist's Magic Aura: "Choose a creature type **other than the target's
+ * actual type**." The clause is a refusal rather than a substitution — the
+ * spell does nothing at all if the chosen type is the one the creature already
+ * is, and quietly hanging an inert grant would be a slot spent on a casting
+ * that changed nothing.
+ *
+ * **Asked of the creature's own type rather than of what magic sees**, which
+ * is the distinction the mask exists to make: a goblin already wearing a
+ * Humanoid mask is still a Fey, and the book's "actual type" names exactly
+ * that field. A second casting choosing Humanoid over the first is therefore
+ * legal, and the two masks are two sources.
+ *
+ * A creature nobody has typed is not refused here: `creatureTypeNeeds` has
+ * already raised the request for it before anything was spent, so reaching
+ * this with a null type means the caller answered it.
+ *
+ * Written once and asked twice, for {@link reviveProblem}'s reason.
+ */
+export function maskProblem(
+  state: GameState,
+  target: CharacterId,
+  chosen: string,
+  name: string,
+): Result<true> {
+  const victim = state.creatures[target];
+  // A creature the casting cannot find is targeting's refusal, not this one.
+  if (victim === undefined) return ok(true);
+
+  if (isCreatureType(victim.creatureType, chosen)) {
+    return err(
+      'same_creature_type',
+      `${name} masks a creature as a type other than its actual one, and ${target} is already ${chosen}`,
+    );
+  }
+  return ok(true);
+}
+
+/**
+ * A creature type put over the target's own, for what magic believes.
+ *
+ * SRD Arcanist's Magic Aura, _Mask (Creature)_: "Spells and other magical
+ * effects treat the target as if it were a creature of the chosen type."
+ *
+ * The nineteenth sourced grant, hung under the casting's own source, so every
+ * door that ends a grant — a dispel, a broken Concentration, the deadline, the
+ * caster leaving — gives the creature its own type back without anybody having
+ * to remember to. `typeMagicSees` is the reader and its docstring is where the
+ * line between a magical asker and a mundane one is drawn.
+ */
+export function resolveCreatureTypeOverrideEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'creature-type-override'>,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { name, source, events, outcomes } = ctx;
+
+  const allowed = maskProblem(world, target, effect.creatureType, name);
+  if (!allowed.ok) return allowed;
+
+  const masked = {
+    type: 'creature-type-masked' as const,
+    id: target,
+    mask: { source, creatureType: effect.creatureType },
+  };
+  events.push(masked);
+  outcomes.push({ target, affected: true });
+  return ok(applyEvent(world, masked));
 }

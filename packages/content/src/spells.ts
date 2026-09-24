@@ -9,6 +9,7 @@
  * transcribed from is quoted above it, because that text is the provenance
  * the conformance tests check against.
  */
+import { CREATURE_TYPES } from '@ie/engine';
 import type { ModifierRider, SpellDefinition } from '@ie/engine';
 
 /**
@@ -8927,6 +8928,19 @@ export const AID: SpellDefinition = {
  * this hangs a second answer over the top of it for a day. Not one sentence
  * of the paragraph trips a marker, which is the floor working as a floor:
  * what makes this a blocker is reading it.
+ *
+ * **The fact is not written over and that is the design.** The Mask is the
+ * nineteenth sourced grant, hung under the casting, so the goblin is a Fey
+ * again when the day is up or the spell is dispelled and nothing had to
+ * remember to undo anything. Which readers believe it is the SRD's own
+ * sentence — *spells and other magical effects* — and `typeMagicSees` in the
+ * engine is where that line is drawn: a spell's target rule, an area's filter
+ * and an outcome that varies by type all read the mask, and a creature reading
+ * a creature does not.
+ *
+ * The chosen type is `choiceStated`, because the book says *choose*, and the
+ * engine refuses the one choice the book forbids: the type the creature
+ * already is.
  */
 export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   id: 'arcanists-magic-aura',
@@ -8937,10 +8951,14 @@ export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  // The Mask, with the fourteen the book gives a caster to choose from. The
+  // printed value is a default the casting replaces, exactly as
+  // Blindness/Deafness prints Blinded: `statedChoice` substitutes what the
+  // caster named, and `same_creature_type` refuses the one the book excludes.
+  effects: [{ kind: 'creature-type-override', creatureType: 'Humanoid' }],
+  choiceStated: { of: 'creature-type', options: [...CREATURE_TYPES] },
   durationSeconds: 86_400,
   unmodelled: [
-    'the Mask is not applied: "Spells and other magical effects treat the target as if it were a creature of the chosen type" overrides a creature fact the engine holds and every target rule reads, and nothing writes over one for a duration',
     'the False Aura is the DM’s: objects are not modelled, and what an aura looks like to a Detect Magic that itself resolves nothing is narration twice over',
     'the thirty consecutive castings that make the illusion permanent are the DM’s; the engine holds no such history',
   ],

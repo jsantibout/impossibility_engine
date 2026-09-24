@@ -2191,6 +2191,39 @@ export type SpellEffect =
    */
   | { readonly kind: 'end-attunement' }
   /**
+   * A creature type put over the target's own, for what magic believes.
+   *
+   * SRD Arcanist's Magic Aura, _Mask (Creature)_: "Choose a creature type
+   * other than the target's actual type. **Spells and other magical effects
+   * treat the target as if it were a creature of the chosen type.**"
+   *
+   * **It does not write the fact and that is the whole design.**
+   * `CreatureState.creatureType` is what the creature *is*, is the one fact in
+   * the engine whose re-declaration is refused outright, and nothing gives it
+   * back. This is the nineteenth sourced grant instead — hung on the creature,
+   * released by `releaseCasting`, by a dispel, by a broken Concentration and
+   * by a `grants` deadline — so the goblin is a goblin again when the day is
+   * up, without anybody having had to remember to undo anything.
+   *
+   * **The readers are the sentence's own**, and `typeMagicSees` in
+   * `creature-type.ts` is where the line is drawn and argued: a spell's target
+   * rule, an area's filter and an outcome that varies by type all read the
+   * mask; a creature reading a creature — SRD Ghoul's claw excepting "a
+   * non-Undead creature" — reads the fact.
+   *
+   * **The type printed here is a default the casting replaces.**
+   * `SpellDefinition.choiceStated` with `of: 'creature-type'` is how the
+   * caster answers "choose a creature type", and `statedChoice` substitutes it
+   * here exactly as it does into a `summon`. The definition still carries a
+   * value so the shape is well formed and a reader of it alone sees a whole
+   * spell.
+   */
+  | {
+      readonly kind: 'creature-type-override';
+      /** One of the SRD's fourteen; what the casting states replaces it. */
+      readonly creatureType: string;
+    }
+  /**
    * A **base** Armour Class the spell supplies, in place of the one the target
    * would otherwise calculate.
    *
@@ -4759,6 +4792,13 @@ export function statedChoice(
       if (effect.kind === 'summon' && effect.creatureType !== undefined) {
         return { ...effect, creatureType: chosen };
       }
+      // SRD Arcanist's Magic Aura: "Choose a creature type other than the
+      // target's actual type." The second host of the same choice, and the
+      // reason the member is not a one-writer field: what the caster names
+      // lands on the mask exactly as it lands on a summons.
+      if (effect.kind === 'creature-type-override') {
+        return { ...effect, creatureType: chosen };
+      }
       return effect;
     }
     const key = of === 'ability' ? 'ability' : 'skill';
@@ -5287,6 +5327,13 @@ export function creatureTypesRead(effect: SpellEffect): readonly string[] {
     case 'save-damage':
     case 'attack-damage':
       return effect.againstType?.types ?? [];
+    // SRD Arcanist's Magic Aura: "Choose a creature type **other than the
+    // target's actual type**." The clause is about the type the creature
+    // already is, so resolving the mask has to know it — and a creature nobody
+    // has typed is asked about rather than masked on a guess, which is the
+    // same three-valued discipline the two hosts above keep.
+    case 'creature-type-override':
+      return [effect.creatureType];
     default:
       return [];
   }
@@ -5479,6 +5526,9 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // is the caster's own choice, stated at the casting, and no number about
       // them decides anything.
       case 'end-attunement':
+      // A mask reads nothing of the caster either: which type is the caster's
+      // own choice, stated at the casting, and no number about them decides it.
+      case 'creature-type-override':
       case 'teleport':
       case 'summon':
         break;

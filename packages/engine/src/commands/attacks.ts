@@ -151,6 +151,7 @@ import {
 } from './hit-riders.js';
 import { grapplesOn } from './unarmed.js';
 import { effectiveSizeOf } from '../size.js';
+import { typeMagicSees } from '../creature-type.js';
 import { allyWithinFiveFeetOf, defendingModes, enemyWithinFiveFeet } from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 import { answerTheBlow, wardAgainst } from './passive-defenses.js';
@@ -3584,7 +3585,9 @@ function castOnHit(
   // pool, and a Critical Hit doubles both.
   const singled =
     varies !== undefined &&
-    varies.types.some((named) => isCreatureType(victim?.creatureType, named));
+    varies.types.some((named) =>
+      isCreatureType(victim === undefined ? null : typeMagicSees(victim), named),
+    );
 
   const dice = scaledDiceFor(
     effect.damage,

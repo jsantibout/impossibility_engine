@@ -660,6 +660,10 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * exemptions are safe.
    */
   const CLEAN_AND_EXECUTED: readonly string[] = [
+    // The Mask, whose paragraph names no mechanic any marker knows: a creature
+    // type is a fact rather than a die, a condition or a bonus, and the word
+    // the sentence turns on is "treat".
+    'arcanists-magic-aura',
     // The light the sight track carried out of the tracked bucket: Light and
     // Continual Flame shed from what their bearer holds, Dancing Lights from a
     // point its Bonus Action moves, and Darkvision confers the sense.
@@ -672,7 +676,7 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'fog-cloud',
     'light',
     'magic-weapon',
-    // And the two the casting track carried out. Every one of
+    // And the three the casting track carried out. Every one of
     // Prestidigitation's six wonders is fiction, and the sentence over them —
     // three of its non-instantaneous effects at a time — is a rule the engine
     // applies at the cast. Remove Curse reads clean for the neighbouring
@@ -1596,6 +1600,16 @@ describe('every spell this batch added is cast for real', () => {
    */
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
+    // **Arcanist's Magic Aura leaves by the one spell in the book that lies to
+    // another spell.** A creature's type is a fact the engine holds
+    // authoritatively and refuses to contradict, so the Mask does not write
+    // it: `creature-type-override` is the nineteenth sourced grant, hung under
+    // the casting, and `typeMagicSees` is where the sentence's own line —
+    // *spells and other magical effects* — is drawn between the readers that
+    // believe it and the creature reading a creature that does not. The False
+    // Aura and the thirty days are the two sentences left, and both are about
+    // an object.
+    'arcanists-magic-aura',
     'augury',
     // **Barkskin leaves by the second arm of `armor-class`.** The spell is one
     // sentence and the whole of it was the arm that did not exist: a base

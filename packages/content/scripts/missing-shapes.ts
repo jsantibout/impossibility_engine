@@ -3639,14 +3639,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'and the bonus itself is narrowed to one skill. `ActiveBonus` carries a `BonusApplies` list and nothing else, so a bonus stored against `ability-check` would land on every ability check the beneficiary ever made — which is why this shape exists rather than the spell simply being written.',
     },
   ],
-  'arcanists-magic-aura': [
-    {
-      marker: null,
-      clause: 'Spells and other magical effects treat the target as if it were a creature of the chosen type',
-      why: 'a-creature-fact-an-effect-overrides',
-      note: 'the sentence this shape was named for, quoted in its own description. A creature’s type is a fact the engine holds authoritatively and `mustBeType` reads it on every casting; nothing writes over one for a duration, so the Mask changes what no rule believes.',
-    },
-  ],
   'speak-with-plants': [
     {
       marker: null,

@@ -3924,6 +3924,11 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { within: required(NUMBER_JUNK), hitPoints: required(NUMBER_JUNK) },
     },
     {
+      kind: 'creature-type-override',
+      base: { kind: 'creature-type-override', creatureType: 'Humanoid' },
+      fields: { creatureType: required(STRING_JUNK) },
+    },
+    {
       kind: 'temp-hp',
       base: { kind: 'temp-hp', amount: { dice: '1d4' } },
       fields: { amount: required(OBJECT_JUNK) },

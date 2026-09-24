@@ -145,6 +145,8 @@ import { payCastingDamageCost } from './damage.js';
 import { replacedCastings } from './ongoing.js';
 import {
   attunementProblem,
+  maskProblem,
+  resolveCreatureTypeOverrideEffect,
   resolveEndAttunementEffect,
   resolveReviveEffect,
   reviveProblem,
@@ -1075,6 +1077,25 @@ export function castOrRelease(
       for (const target of targets) {
         const raisable = reviveProblem(state, target, effect.within, definition.name);
         if (!raisable.ok) return raisable;
+      }
+    }
+
+    // And whether the mask this casting lays is a mask at all. SRD Arcanist's
+    // Magic Aura: "Choose a creature type **other than the target's actual
+    // type**" — a casting that chose the type the creature already is would
+    // hang a grant that changes nothing, and the slot would be gone. The
+    // stated choice has already been substituted into `running`, so this reads
+    // the type the casting will actually lay.
+    const masking = statedChoice(
+      definition.effects,
+      definition.choiceStated?.of,
+      request.choice ?? fixedChoiceOf(route),
+    );
+    for (const effect of masking) {
+      if (effect.kind !== 'creature-type-override') continue;
+      for (const target of targets) {
+        const maskable = maskProblem(state, target, effect.creatureType, definition.name);
+        if (!maskable.ok) return maskable;
       }
     }
 
@@ -2447,6 +2468,8 @@ function resolveOneEffect(
       return resolveDispelEffect(ctx, target, world);
     case 'end-attunement':
       return resolveEndAttunementEffect(ctx, effect, target, world);
+    case 'creature-type-override':
+      return resolveCreatureTypeOverrideEffect(ctx, effect, target, world);
     case 'interrupt-casting':
       return resolveInterruptCastingEffect(ctx, effect, target, victim, world);
     // One of the two kinds whose subject is not the target — `summon` below is
