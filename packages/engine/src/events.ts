@@ -619,16 +619,47 @@ export type GameEvent =
    * other number a casting reads out of a definition, so a slot's worth of
    * extra hit points does not change when the book does.
    *
-   * There is no event that takes it away, for the reason the other eleven have
+   * The ordinary ending takes no event, for the reason the other eleven have
    * none: the grant is ended by a source match, and `settleHitPointMaximum` in
    * the fold's derived pass is what brings `Vitals.hpMax` back down after it.
-   * That is deliberately *not* {@link GameEvent} `hit-point-maximum-raised`,
+   * The one below is the ending no source match and no deadline reaches.
+   * Both are deliberately *not* {@link GameEvent} `hit-point-maximum-raised`,
    * which is advancement's and permanent and carries no source at all.
    */
   | {
       readonly type: 'hit-point-maximum-adjusted';
       readonly id: CharacterId;
       readonly adjustment: GrantedHitPointMaximum;
+    }
+
+  /**
+   * A reduction to a Hit Point maximum, let go of.
+   *
+   * SRD rules glossary, Long Rest, *Regain All HP*: "You regain all lost Hit
+   * Points and all spent Hit Point Dice. **If your Hit Point maximum was
+   * reduced, it returns to normal.**"
+   *
+   * **An event rather than a derived pass**, for `roll-modifier-consumed`'s
+   * reason one family along: every other ending of a grant is the thing that
+   * made it ending, or a deadline arriving, and a Specter's Life Drain is
+   * neither — it names no casting and hangs no timer, so nothing in the fold
+   * would ever come for it. A release nothing in the log records is a state
+   * two replays of one log would disagree about.
+   *
+   * **Only downwards.** A raise belongs to the casting that made it and keeps
+   * that casting's lifetime — SRD Aid runs its eight hours through the night
+   * — so the rest names the sources it is releasing rather than clearing the
+   * list, and `endRest` is where the choosing happens.
+   *
+   * `source` is the bare source the grant carries, and exactly one grant goes:
+   * unlike `roll-modifier-consumed`, this is *not* `releaseGrants`. A printed
+   * line that lowered a maximum may have hung something else under the same
+   * source, and a night's sleep is a sentence about the maximum alone.
+   */
+  | {
+      readonly type: 'hit-point-maximum-restored';
+      readonly id: CharacterId;
+      readonly source: string;
     }
 
   /**

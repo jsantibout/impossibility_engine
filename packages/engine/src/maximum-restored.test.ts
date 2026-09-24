@@ -36,6 +36,7 @@ import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
+import { castingSource } from './spells.js';
 import { declaredCasting } from './spellcasting.js';
 import { hours, HOUR } from './time.js';
 import { beginRest, endRest } from './rest.js';
@@ -409,5 +410,98 @@ describe('a Hit Point maximum a Long Rest leaves alone', () => {
     expect(hp(woken, ALLY)).toBe(ordinary + 5);
     expect(maxima(woken, ALLY)).toHaveLength(1);
     expect(releases(table.log)).toEqual([]);
+  });
+
+  /**
+   * **The sign, and not the spell.** SRD Aid reaches the rest with a casting
+   * id in its source and would be left alone for that reason alone, so the
+   * rule "a raise is never released" needs a raise **no casting made** to be
+   * stated at all — the shape a homebrew feature that raises a maximum takes.
+   * The rest gives back what was taken; it does not take back what was given.
+   */
+  it('keeps a raise no casting is holding up', () => {
+    const table = new Table([
+      ...CHAPEL,
+      { type: 'hit-point-maximum-adjusted', id: ALLY, adjustment: { source: 'a gift', amount: 7 } },
+    ]);
+    const raised = hpMax(table.state, ALLY);
+
+    const woken = sleep(table, ALLY, 'long', hours(4));
+
+    expect(hpMax(woken, ALLY)).toBe(raised);
+    expect(maxima(woken, ALLY)).toEqual([{ source: 'a gift', amount: 7 }]);
+    expect(releases(table.log)).toEqual([]);
+  });
+
+  /**
+   * **A lowering with a lifetime of its own is the deadline's.** Two owners of
+   * one ending is how a grant comes to be released twice, so a reduction a
+   * `grants` timer already stands over is left where it is — and the timer
+   * takes it off at the moment it was written for, through the door every
+   * other expiry uses.
+   */
+  it('leaves a lowering its own deadline is coming for', () => {
+    const table = new Table([
+      ...CHAPEL,
+      { type: 'hit-point-maximum-adjusted', id: ALLY, adjustment: { source: 'a curse', amount: -9 } },
+      {
+        type: 'effect-scheduled',
+        target: { kind: 'grants', on: ALLY, source: 'a curse' },
+        deadline: { kind: 'elapsed', at: hours(100) },
+      },
+    ]);
+    const cursed = hpMax(table.state, ALLY);
+
+    const woken = sleep(table, ALLY, 'long', hours(4));
+    expect(hpMax(woken, ALLY)).toBe(cursed);
+    expect(releases(table.log)).toEqual([]);
+
+    // And the deadline it was left to arrives and does the work.
+    const later = table.raw(clock(hours(100), 'a hundred hours'));
+    expect(hpMax(later, ALLY)).toBe(cursed + 9);
+    expect(maxima(later, ALLY)).toEqual([]);
+  });
+
+  /**
+   * **And a lowering a casting is holding is the casting's**, for the reason
+   * the deadline's is the deadline's: `releaseCasting` is already coming for
+   * it, and a rest that took it first would leave that ending holding nothing.
+   *
+   * **The lowering here is written by hand, because no printed spell can make
+   * one.** `checkSpellDefinition` refuses a `hit-point-maximum` effect whose
+   * amount is not positive, so the only castings that move a maximum today
+   * move it up. What is under test is the rule and not a spell: a source with
+   * a casting inside it has an owner, whichever direction it points, and the
+   * casting here is a real one with a real record behind it.
+   */
+  it('leaves a lowering a running casting is holding up', () => {
+    const table = new Table([...CHAPEL]);
+    table.did('the cleric casts Aid', (s) =>
+      resolveSpell(s, CLERIC, { spellId: 'aid', targets: [ALLY], slotLevel: 2 }, supply('aid')),
+    );
+    const cast = table.log.find((e) => e.type === 'spell-cast');
+    if (cast === undefined || cast.type !== 'spell-cast') throw new Error('nothing was cast');
+    const source = castingSource('aid', cast.castingId);
+
+    const ordinary = hpMax(table.state, CLERIC);
+    table.raw({
+      type: 'hit-point-maximum-adjusted',
+      id: CLERIC,
+      adjustment: { source, amount: -6 },
+    });
+    expect(hpMax(table.state, CLERIC)).toBe(ordinary - 6);
+
+    const woken = sleep(table, CLERIC, 'long', hours(4));
+    expect(hpMax(woken, CLERIC)).toBe(ordinary - 6);
+    expect(releases(table.log)).toEqual([]);
+
+    // The owner it was left to, doing what it was left to do.
+    const ended = table.raw({
+      type: 'spell-ended',
+      castingId: cast.castingId,
+      on: null,
+      reason: 'dispelled',
+    });
+    expect(hpMax(ended, CLERIC)).toBe(ordinary);
   });
 });

@@ -543,6 +543,29 @@ export function releaseGrants(creature: CreatureState, source: string): Creature
 }
 
 /**
+ * One source's hold on a **Hit Point maximum**, taken off and nothing else.
+ *
+ * The one narrow release in this module, and deliberately not
+ * {@link releaseGrants}. Every other ending here answers "is this source still
+ * doing anything to this creature" and takes the whole answer, because a
+ * casting that ends ends in every family at once. SRD's Long Rest asks a
+ * narrower question — "If your Hit Point maximum was reduced, it returns to
+ * normal" — about one number and no other, and a printed line that lowered a
+ * maximum is free to have hung a condition or a Speed cut under the same
+ * source. A night's sleep is not a dispel.
+ *
+ * **The creature itself comes back when nothing matched**, by reference, for
+ * {@link withoutGrants}'s reason: the fold compares identity to decide whether
+ * anything moved.
+ */
+export function releaseHitPointMaximum(creature: CreatureState, source: string): CreatureState {
+  const kept = creature.hitPointMaxima.filter((held) => held.source !== source);
+  return kept.length === creature.hitPointMaxima.length
+    ? creature
+    : { ...creature, hitPointMaxima: kept };
+}
+
+/**
  * A timed condition ending, **however its moment arrived**.
  *
  * One door, and for the reason {@link releaseCasting} is one: a condition on a
