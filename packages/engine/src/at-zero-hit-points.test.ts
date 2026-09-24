@@ -75,7 +75,7 @@ const kael = (): CharacterChoices => ({
   subclassId: 'fiend-patron',
   cantrips: ['eldritch-blast', 'chill-touch'],
   spellbook: [],
-  preparedSpells: ['hex', 'charm-person', 'hold-person', 'mind-spike'],
+  preparedSpells: ['hex', 'hellish-rebuke', 'hold-person', 'mind-spike'],
   classEquipment: 'A',
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
@@ -866,6 +866,52 @@ describe('what the engine could not check reaches the caller on every road', () 
       return;
     }
     throw new Error('no seed dropped the goblin with Sacred Flame');
+  });
+
+  /**
+   * **The same resolver reached through the Reaction door** — SRD Hellish
+   * Rebuke, which Kael casts in answer to being hit rather than on a turn of
+   * their own. It is `resolveSaveDamageEffect`'s road again, and that is the
+   * claim: a Reaction is a casting, so the report comes home the same way.
+   */
+  it('reports it on a Reaction spell’s casting', () => {
+    // "a creature within 60 feet of you that you can see" — sight again, and
+    // a fact the table declares rather than one the engine derives.
+    const state = after(unsided(ADJACENT), [
+      { type: 'sight-declared', from: WARLOCK, to: ADJACENT, seen: true },
+    ]);
+    const struck = after(
+      state,
+      unwrap(
+        resolveDamage(
+          state,
+          WARLOCK,
+          { amount: 4, source: 'a scimitar', by: ADJACENT, commandId: 'the-scimitar' },
+          supply('scimitar'),
+        ),
+        'the scimitar',
+      ).events,
+    );
+
+    const out = unwrap(
+      resolveSpell(
+        struck,
+        WARLOCK,
+        {
+          spellId: 'hellish-rebuke',
+          targets: [ADJACENT],
+          // A Warlock 3's Pact Magic slots are level 2, and Hellish Rebuke
+          // upcast is Hellish Rebuke: there is no smaller slot to spend.
+          slotKind: 'pact',
+          slotLevel: 2,
+          commandId: 'the-rebuke',
+        },
+        supply('rebuke'),
+      ),
+      'Hellish Rebuke',
+    );
+    expect(after(struck, out.events).creatures[ADJACENT]!.vitals.hp).toBe(0);
+    expect(watcherSaid(out.unverified, ADJACENT)).toBe(true);
   });
 
   /**
