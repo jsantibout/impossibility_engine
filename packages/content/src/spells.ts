@@ -1196,11 +1196,20 @@ export const MIND_SPIKE: SpellDefinition = {
       damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
       damageType: 'psychic',
       onSuccess: 'half',
+      modifiers: [
+        // "if it has the Invisible condition, it gains no benefit from that
+        // condition **against you**" — the `benefit` rider narrowed to the
+        // caster, which is what separates this from Starry Wisp's blanket
+        // denial: the spiked creature is still Invisible to everybody else,
+        // and still rolls Initiative with the Advantage the condition
+        // confers, because that roll is against nobody.
+        { kind: 'benefit', denies: 'invisible', against: 'caster' },
+      ],
     },
   ],
   durationSeconds: 3600,
   unmodelled: [
-    'knowing the target\u2019s location for the duration, and its losing the benefit of being hidden or Invisible against you',
+    'knowing the target’s location for the duration is the DM’s, and so is "the target can’t become hidden from you": the engine holds no knowledge model and sight is a declaration, so a DM who declares the sight has said the whole of both',
   ],
 };
 

@@ -5843,7 +5843,22 @@ export function suppressedConditions(
  * through `creature.conditions`, which is the record of what is on them. The
  * two differ exactly where a feature says a condition has no effect.
  */
-export function effectiveConditions(state: GameState, who: CharacterId): ConditionState {
+export function effectiveConditions(
+  state: GameState,
+  who: CharacterId,
+  /**
+   * The creature on the other side of whatever is about to be asked, where
+   * there is one — an attacker, or the creature being attacked.
+   *
+   * **Only a narrowed denial reads it**, and absent is the answer for every
+   * question with no second participant: an Initiative roll, a boundary save,
+   * a Hide check. SRD Mind Spike's "against you" is the one sentence in the
+   * condition layer that has ever needed it, and handing it in here rather
+   * than at each reader is what keeps `benefitsFrom` a question about a
+   * `ConditionState` — the whole reason there is one gatherer.
+   */
+  against?: CharacterId,
+): ConditionState {
   const creature = state.creatures[who];
   if (creature === undefined) return conditionState([]);
 
@@ -5855,6 +5870,6 @@ export function effectiveConditions(state: GameState, who: CharacterId): Conditi
   // are meant to notice. This is the door every one of those readers already
   // goes through, so a new one asks the question by construction rather than
   // by remembering to; `benefitsFrom` is what they ask.
-  const denied = deniedBenefitsOf(creature.deniedBenefits);
+  const denied = deniedBenefitsOf(creature.deniedBenefits, against);
   return denied.length === 0 ? effective : { ...effective, withoutBenefit: denied };
 }

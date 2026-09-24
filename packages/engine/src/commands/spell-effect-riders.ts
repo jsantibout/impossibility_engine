@@ -453,7 +453,16 @@ export function applyRiders(
                   // so what is hung is the denial, under the casting's own
                   // source, and the deadline below is what hands the benefit
                   // back on a cantrip that never becomes an ongoing.
-                  denial: { source, condition: modifier.denies },
+                  // **And the creature it holds against, where the sentence
+                  // narrows it.** SRD Mind Spike's "against you" is the
+                  // caster, bound to an id here for the reason the `mode`
+                  // rider's `counterpart` is bound here: a definition names
+                  // the role and the fold opens no catalogue.
+                  denial: {
+                    source,
+                    condition: modifier.denies,
+                    ...(modifier.against === undefined ? {} : { against: casterId }),
+                  },
                 }
             : {
                 type: 'speed-modifier-granted',

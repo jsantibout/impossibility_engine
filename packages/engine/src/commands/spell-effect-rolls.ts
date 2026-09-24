@@ -320,7 +320,9 @@ function resolveOneAttackRoll(
     // A condition a feature has suppressed gives an attacker nothing:
     // SRD Aura of Courage says the condition "has no effect on that ally
     // while there", and being easier to hit is an effect.
-    targetConditions: effectiveConditions(current, target),
+    // Asked about the caster, because a spell attack has two ends too — see
+    // `effectiveConditions`, and SRD Mind Spike's "against you".
+    targetConditions: effectiveConditions(current, target, casterId),
     // Prone reads the distance, and a spell attack is measured the same
     // way a weapon's is — **from where the attack comes from**, which
     // for a casting that holds a point is that point rather than the

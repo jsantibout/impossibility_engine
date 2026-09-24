@@ -1707,6 +1707,17 @@ function checkModifierRider(
     // Starry Wisp and Lesser Restoration are refused in one wording for one
     // mistake.
     checkCondition(String(rider.denies), `${path}.denies`, found);
+    // SRD Mind Spike's "against you": the caster, and the only role the
+    // sentence can name — see the member's own note, where the other role is
+    // argued to be a denial against nobody.
+    if (rider.against !== undefined && rider.against !== 'caster') {
+      found.push({
+        field: `${path}.against`,
+        code: 'bad_denial_target',
+        reason:
+          'a denial narrowed to one creature names the caster; "against you" is the only such sentence the book writes, and a denial against the creature it is hung on is a denial against nobody',
+      });
+    }
     // The fifth rider that may carry a deadline of its own, and its only
     // writer is a cantrip too: SRD Starry Wisp denies the benefit "until the
     // end of your next turn" off an Instantaneous host, and without the

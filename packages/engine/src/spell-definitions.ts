@@ -922,6 +922,30 @@ export type ModifierRider =
       readonly kind: 'benefit';
       /** The condition whose benefits the outcome withholds. */
       readonly denies: ConditionName;
+      /**
+       * The denial holds against the **caster** and nobody else.
+       *
+       * SRD Mind Spike: "if it has the Invisible condition, it gains no
+       * benefit from that condition **against you**." SRD Starry Wisp and SRD
+       * Faerie Fire write the same clause with no such words, and absent is
+       * that blanket denial.
+       *
+       * **`'caster'` is the only value, because it is the only role the
+       * sentence can name.** `CounterpartRole`'s other member is the creature
+       * the rider is hung on, and a benefit denied against *itself* is a
+       * denial against nobody — so this is a one-member union rather than a
+       * reuse of that type with a value the validator would have to refuse.
+       *
+       * A role rather than an id, for the reason `ModifierRider.counterpart`
+       * carries one: the resolver binds it, because the fold opens no
+       * catalogue and "you" is not a fact a book can hold.
+       *
+       * **What it does not reach is the point of it.** Invisible's Advantage
+       * on Initiative is a roll against nobody, so a narrowed denial leaves it
+       * standing — which is what the SRD sentence says and what a blanket one
+       * would get wrong.
+       */
+      readonly against?: 'caster';
       /** A deadline of the rider's own, shorter than the casting's. */
       readonly lasts?: RiderDuration;
     };
