@@ -9931,16 +9931,23 @@ export const MAJOR_IMAGE: SpellDefinition = {
   targets: { count: 0 },
   effects: [],
   durationSeconds: 600,
+  // _Using a Higher-Level Spell Slot._ "The spell lasts until dispelled,
+  // **without requiring Concentration**, if cast with a level 4+ spell slot."
+  // One sentence, two facts the SRD moves independently, so two fields: the
+  // deadline goes away and the Concentration goes with it. Both bands are the
+  // same level here and are still written apart, because Bestow Curse prints
+  // the second without the first.
+  untilDispelledAtSlot: 4,
+  concentrationEndsAtSlot: 4,
   check: { ability: 'int', skill: 'investigation', onSuccess: 'none' },
   // **Everything but the slot is handed over**, and the slot is the reason this
   // spell did not leave the ledger with Silent Image. What the image is, the
   // Cube it fits in, its sounds and smells, and the Magic action that moves a
   // thing standing in no square are the DM's; the Investigation check is
-  // `check` and is rolled. The level 4+ sentence is a **debt** and
-  // `a-duration-the-slot-changes` names this spell as the one in the book that
-  // prints it — a slot that changes what *kind* of duration the casting has,
-  // which `durationAtSlot`'s table of seconds cannot say, and Concentration is
-  // a rule the engine really does hold.
+  // `check` and is rolled. The level 4+ sentence is the arithmetic, and it is
+  // written now: `untilDispelledAtSlot` is the ending the slot changes and
+  // `concentrationEndsAtSlot` is the hold it drops, the two halves
+  // `durationAtSlot`'s table of seconds could say neither of.
   dmDecides: [
     'You create the image of an object, a creature, or some other visible phenomenon that is no larger than a 20-foot Cube.',
     "It seems real, including sounds, smells, and temperature appropriate to the thing depicted, but it can't deal damage or cause conditions.",
@@ -9950,9 +9957,6 @@ export const MAJOR_IMAGE: SpellDefinition = {
     'Similarly, you can cause the illusion to make different sounds at different times, even making it carry on a conversation, for example.',
     'Physical interaction with the image reveals it to be an illusion, for things can pass through it.',
     'If a creature discerns the illusion for what it is, the creature can see through the image, and its other sensory qualities become faint to the creature.',
-  ],
-  unmodelled: [
-    'a level 4+ slot is not honoured: "The spell lasts until dispelled, without requiring Concentration" changes what kind of duration the spell has rather than how long it runs, which is the one sentence the slot-banded duration table declines to express',
   ],
 };
 

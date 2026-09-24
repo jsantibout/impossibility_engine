@@ -49,6 +49,7 @@ import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
+  ABILITY_NAMES,
   type CharacterId,
   type ContextRequest,
   contextRequestsOf,
@@ -88,6 +89,7 @@ import {
   handedOver,
   onCaster,
   persists,
+  untilDispelledAt,
   riderDuration,
   anchoredOnTarget,
   riderDurations,
@@ -937,6 +939,18 @@ export function castOrRelease(
       // was told about.
       ...(route.kind === 'granted' && route.grant.handOver !== undefined
         ? [handedOver(definition.name, route.grant.handOver)]
+        : []),
+      // **A check that had nowhere to hang, said out loud.** `SpellCheck`
+      // rides on the casting's own timer — which is why the validator refuses
+      // one on an Instantaneous spell — and a slot that makes this casting run
+      // until dispelled leaves no timer to ride. It is a fact about *this*
+      // casting rather than about the spell, so it is said here rather than in
+      // an `unmodelled` line that would also reach the castings where the
+      // check is offered.
+      ...(definition.check !== undefined && untilDispelledAt(definition, castLevel)
+        ? [
+            `${definition.name}: cast at level ${castLevel} it lasts until dispelled, and the ${ABILITY_NAMES[definition.check.ability]}${definition.check.skill === undefined ? '' : ` (${definition.check.skill})`} check against it rides on a deadline this casting has none of — a creature examining it is the table's`,
+          ]
         : []),
     ];
     const needs: ContextRequest[] = [];
@@ -2518,7 +2532,16 @@ function resolveOnTargets(
       // 3–4 (up to 8 hours) or 5+ (up to 24 hours)." `durationSecondsAt` is
       // the one reader, so this and the readied-spell path cannot disagree
       // about which band a slot reaches.
-      ...(definition.durationSeconds !== undefined
+      //
+      // **And a slot may take the deadline away rather than move it.** SRD
+      // Major Image: "The spell lasts until dispelled … if cast with a level
+      // 4+ spell slot" — which is the absence of a moment to schedule, so the
+      // casting writes no duration at all and `schedule` is never reached.
+      // Read through `untilDispelledAt`, beside the `concentrationAt` five
+      // lines above that reads the other half of the same sentence.
+      ...(untilDispelledAt(definition, castLevel)
+        ? {}
+        : definition.durationSeconds !== undefined
         ? {
             // The band this casting's level falls in, as the elected options
             // leave it — SRD Extended Spell doubles what the band printed.

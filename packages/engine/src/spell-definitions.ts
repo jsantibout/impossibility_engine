@@ -4856,6 +4856,32 @@ export interface SpellDefinition {
    */
   readonly concentrationEndsAtSlot?: number;
   /**
+   * The slot from which the casting **stops having a deadline at all**.
+   *
+   * > SRD Major Image: "The spell lasts **until dispelled**, without requiring
+   * > Concentration, if cast with a level 4+ spell slot."
+   *
+   * The third field of the sentence {@link durationAtSlot} and
+   * {@link concentrationEndsAtSlot} share, and the one that docstring named as
+   * the thing a table of seconds deliberately cannot say: those two move *how
+   * long* and *who holds it*, and this moves **what kind of ending the casting
+   * has**. A span and its absence are not two numbers, so there was nothing to
+   * put in the table.
+   *
+   * **A band at this level or above**, read by {@link untilDispelledAt}, which
+   * is the reading its two neighbours already take of their own keys — and the
+   * same three refusals: a whole slot level, strictly above the spell's own,
+   * and not on a definition that already runs {@link untilDispelled} (there is
+   * no deadline for a higher slot to take away) or Instantaneous (there is no
+   * casting for it to leave running).
+   *
+   * **Written beside `concentrationEndsAtSlot` rather than instead of it.**
+   * One SRD sentence prints both halves at one slot, and they are still two
+   * facts: Bestow Curse drops the Concentration at level 5 and keeps a
+   * deadline, so a field that meant both would have made that spell wrong.
+   */
+  readonly untilDispelledAtSlot?: number;
+  /**
    * Parts of the printed spell this definition does **not** do.
    *
    * Most SRD spells are one clean mechanic plus a rider — Ray of Frost slows
@@ -5512,6 +5538,29 @@ export function concentrationAt(definition: SpellDefinition, castLevel: number):
   if (!definition.concentration) return false;
   const drops = definition.concentrationEndsAtSlot;
   return drops === undefined || castLevel < drops;
+}
+
+/**
+ * Whether a casting of this spell at this slot runs **until dispelled**.
+ *
+ * The third of the family {@link durationSecondsAt} and {@link concentrationAt}
+ * make, and the one reader of {@link SpellDefinition.untilDispelledAtSlot} —
+ * so the place that decides whether to schedule a deadline and any later
+ * reader of the same question cannot come to disagree about which band a slot
+ * falls in.
+ *
+ * SRD Major Image: "The spell lasts until dispelled … if cast with a level 4+
+ * spell slot." So the answer is the definition's own flag until the band is
+ * reached and true from there up — "at this level or above", which is the
+ * reading its two neighbours take of their own keys.
+ *
+ * Identity for every spell that prints no such clause, which is all but one of
+ * them.
+ */
+export function untilDispelledAt(definition: SpellDefinition, castLevel: number): boolean {
+  if (definition.untilDispelled === true) return true;
+  const from = definition.untilDispelledAtSlot;
+  return from !== undefined && castLevel >= from;
 }
 
 /**

@@ -5607,6 +5607,46 @@ export function checkSpellDefinition(
     }
   }
 
+  // **And the third half of the same sentence.** SRD Major Image's level 4+
+  // slot takes the deadline away altogether, which is neither a longer span
+  // nor a Concentration dropped — so it is held to the two rules its
+  // neighbours are held to, a *higher* slot than the spell's own level and one
+  // of the nine, plus the two reachability rules that are its own: a spell
+  // that already runs until dispelled has no deadline for a higher slot to
+  // take, and an Instantaneous one leaves no casting for a higher slot to
+  // leave running.
+  if (definition.untilDispelledAtSlot !== undefined) {
+    const from = definition.untilDispelledAtSlot;
+    if (!Number.isInteger(from) || from < 1 || from > 9) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'bad_slot_level',
+        reason: `"${String(from)}" is not one of the nine spell slot levels`,
+      });
+    } else if (from <= definition.level) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'bad_slot_level',
+        reason: `a band at level ${from} is not a *higher* slot than this level ${definition.level} spell`,
+      });
+    }
+    if (definition.untilDispelled === true) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'already_until_dispelled',
+        reason:
+          'this spell already lasts until dispelled at every slot, so there is no deadline for a higher one to take away',
+      });
+    } else if (definition.durationSeconds === undefined && definition.durationUntil === undefined) {
+      found.push({
+        field: 'untilDispelledAtSlot',
+        code: 'ending_without_duration',
+        reason:
+          'an Instantaneous casting leaves nothing running, so a higher slot has no ending to change',
+      });
+    }
+  }
+
   // **A band lengthens a printed duration; it does not supply one.** Every SRD
   // spell that writes this clause prints a Duration of its own first — "up to
   // 1 hour", then "level 3–4 (up to 8 hours)" — and `durationSecondsAt` falls
