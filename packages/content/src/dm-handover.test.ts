@@ -583,13 +583,25 @@ describe('the sweep re-filed lines and retired no debt', () => {
 });
 
 /**
- * What a slot pool should hold after one casting of this definition.
+ * The slot this casting spent, asserted over **every** pool rather than one.
  *
- * Two of the spells read to the end are cantrips, and a cantrip spends
- * nothing: asking `spellSlotKey(0)` would be asking after a pool the fixture
- * never declared and the book never prints.
+ * Six of the spells read to the end are cantrips, and a cantrip spends
+ * nothing: `spellSlotKey(0)` throws, because the book prints no such pool. So
+ * the claim is made across the whole table instead — the definition's own
+ * level is down by one and the other eight are untouched — which says what the
+ * single lookup said and also says the casting did not reach for a
+ * neighbouring slot.
  */
-const slotLeft = (level: number) => (level === 0 ? undefined : 1);
+const spentItsSlot = (
+  resources: Parameters<typeof remaining>[0],
+  definition: (typeof SPELL_DEFINITIONS)[number],
+): void => {
+  for (const level of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+    expect(remaining(resources, spellSlotKey(level)), `level ${level}`).toBe(
+      level === definition.level ? 1 : 2,
+    );
+  }
+};
 
 /** Whether a casting of this definition is still standing when it settles. */
 const standsAfterwards = (definition: (typeof SPELL_DEFINITIONS)[number]): boolean =>
@@ -640,9 +652,7 @@ describe('each of the forty-six is cast, and hands its own text to the table', (
     const definition = SRD_CONTENT.spell(spellId)!;
     const out = driven(spellId);
     const after = fold('seed', out.log);
-    expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(
-      slotLeft(definition.level),
-    );
+    spentItsSlot(after.creatures.cleric!.resources, definition);
     expect(Object.keys(after.ongoing)).toEqual(standsAfterwards(definition) ? [out.castingId] : []);
     // **Nothing landed on anybody**, which was ten of these spells and is now
     // ten of eleven: every one is a rite whose whole content is the text it
@@ -659,9 +669,7 @@ describe('each of the forty-six is cast, and hands its own text to the table', (
     const definition = SRD_CONTENT.spell(spellId)!;
     const out = atomic(spellId);
     const after = fold('seed', out.log);
-    expect(remaining(after.creatures.cleric!.resources, spellSlotKey(definition.level))).toBe(
-      slotLeft(definition.level),
-    );
+    spentItsSlot(after.creatures.cleric!.resources, definition);
     expect(out.cast.outcomes).toEqual([]);
   });
 

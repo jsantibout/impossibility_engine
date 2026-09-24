@@ -117,10 +117,28 @@ and a decision only the DM can make; say so rather than forcing it into one.
 
 Two guards keep the reading checkable rather than a matter of taste: a
 handed-over sentence must trip none of the mechanical markers, and must not be
-a sentence the tracked map already anchors a debt to. A handover reaches the
+a sentence the tracked map already anchors a **debt** to — a `'table'` entry is
+not one, because that entry *is* the record of this reading. The marker rule
+has one way past it and it is a reading rather than an exemption: a marked
+sentence may be handed over where the tracked map anchors a `'table'` entry to
+it, so the argument lives in the map with a note somebody can re-run. Four SRD
+sentences take that door — Meld into Stone's three, and See Invisibility's
+sight of the Invisible condition — where the marker fires on a real word and
+what makes the sentence the table's is the fact underneath it.
+
+A handover reaches the
 log for a long casting, which pins it on `spell-declared`; for an **atomic**
 casting it reaches the caller and not the log, which is a known limit recorded
 in the `dmDecides` doc comment.
+
+**A tracked definition is finished when its whole text is here.** A spell the
+engine resolves nothing of is honest while it says what it leaves the table,
+and *which list it says it in* is the claim: `unmodelled` puts the spell on the
+road to zero and `dmDecides` takes it off. So a spell read to the end carries
+its printed text here and prints no `unmodelled` line at all, and `LEDGER.md`
+counts it apart from the population it ranks. What that reading may not do is
+stop at the paragraph: Gentle Repose looks like fiction about a corpse and one
+of its sentences widens the window `revive` measures, so it stays a debt.
 
 ## Adding content
 

@@ -136,7 +136,11 @@ describe('the gate an item’s casting has to pass is a definition, not an effec
     expect(detect?.effects, 'Detect Magic resolves nothing').toEqual([]);
     expect(detect?.activation).toBeUndefined();
     expect(detect?.areaTrigger).toBeUndefined();
-    expect(detect?.unmodelled ?? []).not.toEqual([]);
+    // And it says what the table is left with. That was its `unmodelled` until
+    // P3-S6 read the spell to the end and moved the text to the list that is
+    // not a debt; what makes the spell *tracked* is the empty `effects` above,
+    // and what makes it honest is that one of the two lists is not empty.
+    expect([...(detect?.unmodelled ?? []), ...(detect?.dmDecides ?? [])]).not.toEqual([]);
   });
 
   it('accepts an item that casts a tracked definition', () => {
