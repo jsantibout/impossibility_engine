@@ -2,20 +2,24 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  parseAcAddendLine,
   parseCastLine,
   parseMonsters,
+  parseReactionUseLine,
   parseRollAddendLine,
   parseTeleportLine,
 } from './monsters.js';
 import type { Monster } from '../schemas.js';
 
 /**
- * Three sentences the parser could not start on, each a use whose economy the
+ * Five sentences the parser could not start on, each a use whose economy the
  * engine already spends.
  *
  * A line that **casts** a named spell, a line that **teleports** its creature,
- * and a Reaction that **adds** a flat number to somebody else's D20 Test. All
- * three are anchored end to end like every other reader in this parser: a
+ * a Reaction that **adds** a flat number to somebody else's D20 Test, one that
+ * adds a number to its own **Armour Class** against the attack that triggered
+ * it, and one whose whole response is another **line of the same block**. All
+ * five are anchored end to end like every other reader in this parser: a
  * clause the grammar does not cover, or one character left unconsumed, leaves
  * the whole line prose, because half a sentence read is a creature doing
  * something nobody printed.
@@ -223,7 +227,7 @@ describe('a Reaction that adds to a roll', () => {
     });
   });
 
-  it('refuses the nine Parry lines, which add to an Armour Class', () => {
+  it('refuses the seven Parry lines, which add to an Armour Class', () => {
     expect(
       parseRollAddendLine(
         '_Trigger:_ The bandit is hit by a melee attack roll while holding a weapon. _Response:_ The bandit adds 2 to its AC against that attack, possibly causing it to miss.',
@@ -245,6 +249,88 @@ describe('a Reaction that adds to a roll', () => {
       tests: ['ability-check', 'saving-throw'],
     });
     expect(line.perDay).toBe(2);
+  });
+});
+
+describe('a Reaction that adds to an Armour Class', () => {
+  it('reads the number and both clauses of the trigger', () => {
+    expect(
+      parseAcAddendLine(
+        '_Trigger:_ The knight is hit by a melee attack roll while holding a weapon. _Response:_ The knight adds 2 to its AC against that attack, possibly causing it to miss.',
+      ),
+    ).toEqual({ addend: 2, meleeOnly: true, requiresWeapon: true });
+  });
+
+  /**
+   * The three lines that add a number to an Armour Class and then say
+   * something else. Each is refused whole rather than read down to the part
+   * that fits: a Riposte read as a Parry would be a stat block that stopped
+   * swinging back.
+   */
+  it('refuses the three lines that say more than this shape holds', () => {
+    expect(
+      parseAcAddendLine(
+        '_Trigger:_ The pirate is hit by a melee attack roll while holding a weapon. _Response:_ The pirate adds 3 to its AC against that attack, possibly causing it to miss. On a miss, the pirate makes one Rapier attack against the triggering creature if within range.',
+      ),
+    ).toBeNull();
+    expect(
+      parseAcAddendLine(
+        '_Trigger:_ The mummy is hit by an attack roll. _Response:_ The mummy adds 2 to its AC against the attack, possibly causing the attack to miss, and the mummy teleports up to 60 feet to an unoccupied space it can see.',
+      ),
+    ).toBeNull();
+    expect(
+      parseAcAddendLine(
+        '_Trigger:_ An attack roll hits the wearer of the guardian’s amulet while the wearer is within 5 feet of the guardian. _Response:_ The wearer gains a +5 bonus to AC, including against the triggering attack and possibly causing it to miss, until the start of the guardian’s next turn.',
+      ),
+    ).toBeNull();
+    // And the sentence the sibling reader takes, which is about a roll rather
+    // than about an Armour Class.
+    expect(
+      parseAcAddendLine(
+        '_Trigger:_ The sphinx or another creature within 30 feet makes an ability check or a saving throw. _Response:_ The sphinx adds 2 to the roll.',
+      ),
+    ).toBeNull();
+  });
+
+  it('is carried onto the Knight at the number its own block prints', () => {
+    expect(lineOf('knight', 'Parry').addsToAc).toEqual({
+      addend: 2,
+      meleeOnly: true,
+      requiresWeapon: true,
+    });
+    // The number is the block's and not the shape's: three blocks print three.
+    expect(lineOf('gladiator', 'Parry').addsToAc).toEqual({
+      addend: 3,
+      meleeOnly: true,
+      requiresWeapon: true,
+    });
+  });
+});
+
+describe('a Reaction whose response is another line of the block', () => {
+  it('reads the name the response performs', () => {
+    expect(
+      parseReactionUseLine(
+        '_Trigger:_ An attack roll hits the rust monster. _Response:_ The rust monster uses Antennae.',
+      ),
+    ).toBe('Antennae');
+  });
+
+  /**
+   * The Nalfeshnee's Pursuit uses a printed line too, and says two more things
+   * about it — a different trigger, and where the teleport may land. Read down
+   * to the name it would be a demon that teleports whenever anybody moves.
+   */
+  it('refuses a use whose sentence says more than the name', () => {
+    expect(
+      parseReactionUseLine(
+        'Trigger: Another creature the nalfeshnee can see ends its move within 120 feet of the nalfeshnee. Response: The nalfeshnee uses Teleport, but its destination space must be within 10 feet of the triggering creature.',
+      ),
+    ).toBeNull();
+  });
+
+  it('is carried onto the Rust Monster', () => {
+    expect(lineOf('rust-monster', 'Reflexive Antennae').usesLine).toBe('Antennae');
   });
 });
 
@@ -305,12 +391,71 @@ describe('the corpus', () => {
     expect(casting.every((line) => line.save === undefined)).toBe(true);
   });
 
-  it('never reads two of the three shapes out of one sentence', () => {
+  it('never reads two of the five shapes out of one sentence', () => {
     for (const line of lines) {
-      const read = [line.casts, line.teleports, line.addsToRoll].filter(
-        (shape) => shape !== undefined,
-      );
+      const read = [
+        line.casts,
+        line.teleports,
+        line.addsToRoll,
+        line.addsToAc,
+        line.usesLine,
+      ].filter((shape) => shape !== undefined);
       expect(read.length).toBeLessThan(2);
     }
+  });
+
+  /**
+   * The membership of the two new readers, pinned by name over the whole
+   * corpus for the cast line's stated reason: a sentence one of them started
+   * matching, or stopped, shows up here as a block nobody put in the list.
+   */
+  it('reads exactly the Parry lines and the one line that uses another', () => {
+    const named = (has: (line: Monster['traits'][number]) => boolean): readonly string[] =>
+      bestiary
+        .flatMap((monster) =>
+          [
+            ...monster.traits,
+            ...monster.actions,
+            ...monster.bonusActions,
+            ...monster.reactions,
+            ...monster.legendaryActions,
+          ]
+            .filter(has)
+            .map((line) => `${monster.id}/${line.name}`),
+        )
+        .sort();
+
+    expect(named((line) => line.addsToAc !== undefined)).toEqual([
+      'bandit-captain/Parry',
+      'erinyes/Parry',
+      'gladiator/Parry',
+      'knight/Parry',
+      'marilith/Parry',
+      'noble/Parry',
+      'warrior-veteran/Parry',
+    ]);
+    expect(named((line) => line.usesLine !== undefined)).toEqual([
+      'rust-monster/Reflexive Antennae',
+    ]);
+  });
+
+  /**
+   * And the three Reactions read as **traits**: two sentences nothing spends
+   * and one the table narrates. They are on the record as kinds so that the
+   * ledger stops calling them unread, and none of them has a reader — see
+   * `TRAIT_KINDS_WITH_A_READER` and `HANDOVER_TRAIT_KINDS`.
+   */
+  it('reads the three Reactions whose sentences are kinds rather than rules', () => {
+    const kinds = bestiary.flatMap((monster) =>
+      monster.reactions
+        .filter((line) => line.trait !== undefined)
+        .map((line) => `${monster.id}/${line.name}/${line.trait!.kind}`),
+    );
+    expect(kinds.sort()).toEqual([
+      'black-pudding/Split/splits-into-two-creatures',
+      'goblin-boss/Redirect Attack/swaps-places-with-an-ally-to-take-an-attack',
+      'ochre-jelly/Split/splits-into-two-creatures',
+      'shrieker-fungus/Shriek/makes-a-noise',
+    ]);
   });
 });

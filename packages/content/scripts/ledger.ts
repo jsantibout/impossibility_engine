@@ -70,6 +70,8 @@ import {
   RIDER_HANDOVER_SHAPE,
   CAST_LINE_SHAPE,
   hasUnspentCastLine,
+  REACTION_USE_SHAPE,
+  hasHandedOverResponse,
   RIDER_SHAPE,
   SAVE_HANDOVER_SHAPE,
   TRACKED_IDS,
@@ -482,6 +484,11 @@ const OVER_READ_LINES: ReadonlySet<string> = new Set([
   // nothing spends one — so the gate below would hide a debt that the shape's
   // own note says is still owed.
   CAST_LINE_SHAPE,
+  // A Reaction whose response is another line of the same block. Read — the
+  // trigger is a window the engine holds and the response is a name on the
+  // sheet — and not paid, because the engine offers the Reaction and hands the
+  // response over rather than performing it.
+  REACTION_USE_SHAPE,
 ]);
 
 /** Whether a shape accounts for a line. */
@@ -511,7 +518,8 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     hasHandedOverRider(line) ||
     hasUnexecutedTrait(line) ||
     hasHandedOverSave(line) ||
-    hasUnspentCastLine(line);
+    hasUnspentCastLine(line) ||
+    hasHandedOverResponse(line);
   for (const monster of low) {
     const lines = statBlockLines(monster);
     printed += lines.length;

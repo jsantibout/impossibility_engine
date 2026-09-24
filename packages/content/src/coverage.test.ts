@@ -22,7 +22,6 @@ import {
   statBlockLines,
   HANDOVER_TRAIT_KINDS,
   TRAIT_KINDS_WITH_A_READER,
-  UNEXECUTED_TRAIT_SHAPE,
 } from '../scripts/coverage-data.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
 import { bestiaryRow, bestiarySummary, renderReport } from '../scripts/coverage.js';
@@ -513,6 +512,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     }
 
     expect([...keys].sort()).toEqual([
+      // What SRD Parry adds to its own Armour Class, and the name of the line
+      // SRD Reflexive Antennae's response performs: the Reactions section's
+      // other two templates, each read out of the sentence like the rest.
+      'addsToAc',
       'addsToRoll',
       'attack',
       'casts',
@@ -525,6 +528,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'teleports',
       'text',
       'trait',
+      'usesLine',
     ]);
   });
 
@@ -559,20 +563,23 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     // A handed-over kind is on neither side of this question — it is read and
     // finished — so it is excluded from the search for an unspent one.
     //
-    // **And there is no longer a real one to find.** Every kind the schema
-    // admits is now either spent or handed over, which is the column going to
-    // zero rather than the machinery going away: the predicate still has to
-    // answer `true`, because the next kind the parser learns will arrive with
-    // no reader and has to be counted. So the `true` branch is asked of a name
-    // on neither list — which is exactly what such a kind would be on the day
-    // it lands — and the sweep below still holds the two lists to the schema
-    // and to the engine's sources.
+    // **And there are two real ones to find again**, which is the column
+    // coming back off zero exactly as the note that emptied it said it would:
+    // the day the parser learns a shape nothing reads, this rises and the
+    // guard is the same. Both are Reactions the bestiary prints and the engine
+    // has no seam for — an ooze that becomes two oozes mid-fight, and a goblin
+    // that swaps places with an ally and re-aims the attack — and both are
+    // *named* here rather than counted, so a kind that quietly joined or left
+    // them is a diff. `HANDOVER_TRAIT_KINDS` holds the seam each waits on.
     const spent = TRAIT_KINDS_WITH_A_READER[0]!;
-    const inert = kinds.find(
+    const inert = kinds.filter(
       (kind) =>
         !TRAIT_KINDS_WITH_A_READER.includes(kind) && !Object.hasOwn(HANDOVER_TRAIT_KINDS, kind),
     );
-    expect(inert).toBeUndefined();
+    expect([...inert].sort()).toEqual([
+      'splits-into-two-creatures',
+      'swaps-places-with-an-ally-to-take-an-attack',
+    ]);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y' })).toBe(false);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: spent } })).toBe(false);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: UNREAD_KIND } })).toBe(true);
@@ -747,16 +754,13 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
    * because the brief the table answers asked for a ranking and an unsorted
    * list quietly stops being one.
    *
-   * **One shape finds nothing, and it is named.** Every row here used to be
-   * required to match at least one block, which is a guard against a predicate
-   * going quiet; `A trait shape nothing spends` is at zero because every kind
-   * the parser reads now has a reader or is a handover, which is the row
-   * *finishing* rather than the predicate breaking. So it is exempted **by
-   * name** and every other row still has to find something — a blanket "some
-   * of them are non-zero" would let the next one go silently to zero too. The
-   * row stays in the table so that its return to a number is a diff, and the
-   * test above holds the two lists that emptied it against the schema and
-   * against the engine's own sources.
+   * **Every row finds something again.** `A trait shape nothing spends` spent
+   * a while at zero — every kind the parser read had a reader or was a
+   * handover — and was exempted by name so that its return to a number would
+   * be a diff rather than a silence. It has returned: the two oozes that split
+   * and the Goblin Boss's Redirect Attack are read as kinds with no seam
+   * behind them. So the exemption is gone and the guard is the plain one it
+   * was before — a predicate that goes quiet fails here.
    */
   it('ranks what the unread lines would need, and the report carries the ranking', () => {
     const report = readFileSync(
@@ -766,11 +770,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
 
     expect(bestiary.shapes.length).toBeGreaterThan(3);
     for (const shape of bestiary.shapes) {
-      if (shape.shape !== UNEXECUTED_TRAIT_SHAPE) {
-        expect(shape.blocks, shape.shape).toBeGreaterThan(0);
-      } else {
-        expect(shape.blocks, shape.shape).toBe(0);
-      }
+      expect(shape.blocks, shape.shape).toBeGreaterThan(0);
       expect(shape.blocks, shape.shape).toBeLessThan(bestiary.carried);
       expect(shape.lines, shape.shape).toBeGreaterThanOrEqual(shape.blocks);
       expect(report).toContain(`| ${shape.shape} | ${shape.blocks} | ${shape.lines} |`);

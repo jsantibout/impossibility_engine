@@ -1315,6 +1315,41 @@ export const MonsterRollAddendSchema = z.object({
 export type MonsterRollAddend = z.infer<typeof MonsterRollAddendSchema>;
 
 /**
+ * One Reaction line that raises its creature's Armour Class against the attack
+ * that triggered it.
+ *
+ * SRD Parry, on five CR ≤ 5 blocks and seven in all: "_Trigger:_ The knight is
+ * hit by a melee attack roll while holding a weapon. _Response:_ The knight
+ * adds 2 to its AC against that attack, possibly causing it to miss."
+ *
+ * **The same instant SRD *Shield* answers**, which is why it can be read at
+ * all: `hit-by-attack` is a window the engine holds, the roll is known and the
+ * damage is not, and a number added to an Armour Class re-decides a hit that
+ * has not been settled. What is different from *Shield* is the span — "against
+ * that attack" and no longer — so nothing here is a standing bonus.
+ *
+ * **Both clauses of the trigger are literals**, for {@link MonsterTeleportSchema}'s
+ * stated reason: every line in the book prints both, and a homebrew line that
+ * omitted one must not be read as though it had said it.
+ *
+ * **The three lines this shape refuses are the point of anchoring it.** The
+ * Pirate Captain's Riposte adds the same number and then swings back; the
+ * Mummy Lord's Whirlwind of Sand adds it against *any* attack roll and then
+ * teleports and blinds; the Shield Guardian's Protection raises somebody
+ * else's Armour Class and holds it there until its next turn. Each says
+ * something this shape has no field for.
+ */
+export const MonsterAcAddendSchema = z.object({
+  /** "adds 2 to its AC". */
+  addend: z.number().int().min(1),
+  /** "hit by a **melee** attack roll". */
+  meleeOnly: z.literal(true),
+  /** "**while holding a weapon**". */
+  requiresWeapon: z.literal(true),
+});
+export type MonsterAcAddend = z.infer<typeof MonsterAcAddendSchema>;
+
+/**
  * A trait whose sentence the parser recognised as a mechanic the engine has.
  *
  * Every member is named for what it *does* rather than for the trait that
@@ -1877,6 +1912,48 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('a-heading-over-the-lines-that-follow'),
   }),
+  z.object({
+    /**
+     * SRD Goblin Boss, Redirect Attack: "_Trigger:_ A creature the goblin can
+     * see makes an attack roll against it. _Response:_ The goblin chooses a
+     * Small or Medium ally within 5 feet of itself. The goblin and that ally
+     * swap places, and the ally becomes the target of the attack instead."
+     *
+     * **Read into a kind and no further**, because two of the three things it
+     * says are rules the engine does not have. The window is *before* the roll
+     * is decided — every other Reaction to a swing answers a hit — and the
+     * response retargets an attack that has already been aimed, which nothing
+     * in the attack path can be told to do. The swap of two creatures' spaces
+     * is the one third of it that is built.
+     */
+    kind: z.literal('swaps-places-with-an-ally-to-take-an-attack'),
+  }),
+  z.object({
+    /**
+     * SRD Black Pudding and SRD Ochre Jelly, Split: "The pudding splits into
+     * two new **Black Puddings**. Each new pudding is one size smaller than
+     * the original pudding and acts on its Initiative."
+     *
+     * A stat block created mid-fight, which is the shape the catalogue already
+     * names for the summoning spells: two creatures that did not exist a
+     * moment ago, in the Initiative order, with the original's Hit Points
+     * divided between them. Read into a kind so the sentence is on the record;
+     * nothing spends it.
+     */
+    kind: z.literal('splits-into-two-creatures'),
+  }),
+  z.object({
+    /**
+     * SRD Shrieker Fungus, Shriek: "The shrieker emits a shriek audible within
+     * 300 feet of itself for 1 minute or until the shrieker dies."
+     *
+     * A noise. Nothing in the engine hears anything — there is no sound in
+     * state, nothing that reads one and no check waiting on it — so what the
+     * sentence says is what the table narrates, and it is a handover for the
+     * reason the breathing traits are.
+     */
+    kind: z.literal('makes-a-noise'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 
@@ -1997,6 +2074,36 @@ export const FeatureSchema = z.object({
    * the heading it is under, and the heading is read where every other cost is.
    */
   addsToRoll: MonsterRollAddendSchema.optional(),
+  /**
+   * What this Reaction line adds to its creature's Armour Class against the
+   * attack that triggered it — see {@link MonsterAcAddendSchema}.
+   *
+   * Read on every section for `addsToRoll`'s reason, and the heading is what
+   * says a Reaction is spent on it.
+   */
+  addsToAc: MonsterAcAddendSchema.optional(),
+  /**
+   * The printed line this Reaction's response performs, by its heading.
+   *
+   * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
+   * rust monster. _Response:_ The rust monster uses Antennae." The whole of
+   * the response is a *second line of the same block*, which is a thing no
+   * other reader here has had to say: the trigger is a window the engine
+   * holds and the response is whatever that other line turns out to be.
+   *
+   * **A name and not a resolved line**, on the rule `AttackCommand.action`
+   * already keeps: the line is read back off the creature's own sheet when it
+   * is used, so a block whose Antennae is still prose hands its response to
+   * the table rather than performing half of it.
+   *
+   * **No field says which window**, because the shape is anchored to one
+   * sentence: "an attack roll hits the *creature*" is the trigger every line
+   * of this shape prints, and the Nalfeshnee's Pursuit — "The nalfeshnee uses
+   * Teleport, but its destination space must be within 10 feet" — writes a
+   * different trigger *and* a clause about the response, so it is refused
+   * whole rather than read down to the name.
+   */
+  usesLine: z.string().min(1).optional(),
 });
 export type Feature = z.infer<typeof FeatureSchema>;
 
