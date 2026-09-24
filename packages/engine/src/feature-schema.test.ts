@@ -130,6 +130,57 @@ const spellcastingFeatureIds = (): readonly string[] =>
     .filter((definition) => definition.spellcasting !== undefined)
     .map((definition) => `${definition.id}:${definition.spellcasting?.feature ?? 'spellcasting'}`);
 
+/**
+ * The two `casting-*` members a feature of the **caster** writes about one
+ * named spell, and the three things each can say that would compile onto a
+ * sheet and change nothing.
+ *
+ * SRD Eldritch Spear lengthens a range by "30 times your Warlock level" and
+ * SRD Repelling Blast hangs a shove on one cantrip's hit; both promise a
+ * benefit, and a grant that promised one and handed over nothing is the
+ * failure this validator exists for.
+ */
+describe('a feature that reaches into a casting it does not make', () => {
+  const standing = (effects: readonly unknown[]): FeatureDefinition => ({
+    ...sound,
+    automation: 'engine',
+    grants: { kind: 'standing', reach: 'self', effects } as never,
+  });
+
+  it('refuses a range that lengthens by no feet at all', () => {
+    expect(
+      codes(standing([{ kind: 'casting-range', when: { dealsDamage: true }, perClassLevel: 0 }])),
+    ).toContain('bad_casting_range');
+    expect(
+      codes(standing([{ kind: 'casting-range', when: { dealsDamage: true }, perClassLevel: 30 }])),
+    ).not.toContain('bad_casting_range');
+  });
+
+  /** The level is the character's, and no catalogue knows one. */
+  it('refuses content that pins a class level itself', () => {
+    expect(
+      codes(
+        standing([
+          { kind: 'casting-range', when: {}, perClassLevel: 30, classLevel: 5 },
+        ]),
+      ),
+    ).toContain('level_pinned_by_content');
+  });
+
+  it('refuses a rider that fills no slot', () => {
+    expect(codes(standing([{ kind: 'casting-rider', when: {}, rides: {} }]))).toContain(
+      'empty_casting_rider',
+    );
+    expect(
+      codes(
+        standing([
+          { kind: 'casting-rider', when: {}, rides: { movement: { feet: 10, kind: 'push' } } },
+        ]),
+      ),
+    ).not.toContain('empty_casting_rider');
+  });
+});
+
 describe('the readers are found at all', () => {
   it('reads three reader modules and the declarations', () => {
     expect(READERS).toHaveLength(3);
@@ -792,6 +843,24 @@ describe('rule 8b — a feature may ask more than one question', () => {
           },
         }),
       ).toContain('prerequisite_not_offered');
+    });
+
+    /**
+     * `#` is how `repeatAnswerKey` numbers a repeated question's later copies,
+     * so a key carrying one could spell the same answer key two ways.
+     */
+    it('refuses a question key that could be a repeat number', () => {
+      expect(
+        codes({
+          ...sound,
+          id: 'wizard:invocations',
+          level: 1,
+          choices: [
+            { kind: 'option', chooseByLevel: column, from: ['One'] },
+            { key: 'a#2', kind: 'skill', choose: 1, onlyIfChoice: 'One' },
+          ],
+        }),
+      ).toContain('bad_choice_key');
     });
 
     /**

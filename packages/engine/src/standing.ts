@@ -1334,9 +1334,13 @@ export type StandingGrant =
    * **It reaches an attack's hit and nothing else.** Every rider is hung on an
    * affirmative outcome, and the only affirmative outcome a caster's feature
    * can name without knowing the spell is the hit — "when you **hit** ... with
-   * the chosen cantrip". A save a spell forces is the target's branch and a
-   * grant that rode it would be a feature deciding what somebody else's failure
-   * costs; `checkContent` refuses a rider this vocabulary has no landing for.
+   * the chosen cantrip". A save a spell forces is the target's branch, and a
+   * grant that rode it would be a feature deciding what somebody else's
+   * failure costs. A spell that makes no attack roll is simply not reached,
+   * which is the narrowing's own business rather than a refusal;
+   * `checkContent` refuses the one thing that cannot be anything else — a
+   * rider with no slot filled at all, which is a grant promising something and
+   * hanging nothing.
    */
   | {
       readonly kind: 'casting-rider';
@@ -3027,6 +3031,53 @@ export function requirementsHold(
     }
   }
   return true;
+}
+
+/** A requirement nobody can answer yet, and which fact is missing. */
+export interface UnsaidRequirement {
+  readonly requirement: StandingRequirement;
+  /** Nobody has placed the creature, or nobody has lit the space. */
+  readonly missing: 'position' | 'light';
+}
+
+/**
+ * The requirements in this list that are unmet because **nobody has said**,
+ * rather than because the answer is no.
+ *
+ * {@link requirementsHold} collapses the two, and it is right to: a shadow in
+ * a room nobody has described does not get its Bonus Action by default, and
+ * the answer an unlit room gives is the answer it has always given — the "no
+ * default ambient" ruling, which `doors.test.ts` keeps from the other end by
+ * refusing `declareLight` a `ContextRequest` kind at all. **So this does not
+ * turn a refusal into a `needs-context`**, and nothing here should: what it is
+ * for is the *wording*. A caster told no by a brightly lit room and a caster
+ * told no by a room nobody has lit have two different problems, and only one
+ * of them is repaired by saying something — so the seam that refuses says
+ * which it met and names the command that would settle it.
+ *
+ * Only the two clauses that read the *world* can be unsaid. Every other member
+ * is derived from the creature's own record, which is never absent for a
+ * creature that exists — an unarmoured creature is unarmoured, and a creature
+ * attuned to nothing is attuned to nothing.
+ */
+export function unsaidRequirements(
+  state: GameState,
+  who: CharacterId,
+  requires: readonly StandingRequirement[] | undefined,
+): readonly UnsaidRequirement[] {
+  const found: UnsaidRequirement[] = [];
+  for (const requirement of requires ?? []) {
+    if (requirement.kind !== 'in-sunlight' && requirement.kind !== 'in-dim-light-or-darkness') {
+      continue;
+    }
+    const where = state.scene === null ? null : positionOf(state.scene, who);
+    if (where === null) {
+      found.push({ requirement, missing: 'position' });
+      continue;
+    }
+    if (lightAt(state, where).level === null) found.push({ requirement, missing: 'light' });
+  }
+  return found;
 }
 
 /**
@@ -5853,7 +5904,13 @@ export function castingRangeBonus(
     const grant = effect.grant;
     if (grant.kind !== 'casting-range') continue;
     if (!castingReached(grant.when, query)) continue;
-    const feet = grant.perClassLevel * (grant.classLevel ?? 0);
+    // Creation pins the **granting class's** level onto a feature's grant. An
+    // item's carries none — an item belongs to no class — so it falls back to
+    // the holder's own level, which is `fall-damage-reduction`'s reading of
+    // the same absence and what keeps a rod that lengthened its bearer's
+    // Eldritch Blast from quietly adding nothing.
+    const level = grant.classLevel ?? state.creatures[who]?.sheet.level ?? 0;
+    const feet = grant.perClassLevel * level;
     if (feet === 0) continue;
     found.push({ source: effect.name, flat: feet });
   }

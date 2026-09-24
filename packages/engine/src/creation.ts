@@ -1445,9 +1445,15 @@ function checkFeatureChoices(
 
       // Ability points are answered one ability per point and may be answered
       // with a feat instead, so neither the length rule below nor the "one
-      // answer, in one place" assumption behind it holds.
+      // answer, in one place" assumption behind it holds. **Once, whatever the
+      // copy**: `checkAbilityChoice` finds its own key, so a repeated question
+      // asking for points would otherwise report the first copy's answer once
+      // per copy. No SRD feature writes that pairing; this is what keeps it
+      // from becoming two identical problems if one ever does.
       if (asked.kind === 'ability-score') {
-        problems.push(...checkAbilityChoice(choices, feature, asked));
+        if (answerKey === choiceAnswerKey(feature.id, asked.key)) {
+          problems.push(...checkAbilityChoice(choices, feature, asked));
+        }
         continue;
       }
 

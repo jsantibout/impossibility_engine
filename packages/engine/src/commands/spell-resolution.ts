@@ -112,6 +112,7 @@ import {
   castingRangeBonus,
   castingRiders,
   requirementsHold,
+  unsaidRequirements,
   type CastingDamageFeature,
   sheetAsItStands,
   ritualsFromBookOn,
@@ -737,11 +738,33 @@ export function castOrRelease(
     // they cast, which no sheet can hold — so it is read here, off the world,
     // before a slot, an action or a die. Refused rather than quietly sent to a
     // spell slot: the route the caller named is the route they meant.
+    //
+    // **A refusal and not a `needs-context`, and the ruling is written down.**
+    // `doors.test.ts` keeps `declareLight` among the commands that settle no
+    // `ContextRequest` kind, with the reason spelled out: "no command stops
+    // because nobody has said how bright it is. That *is* the 'no default
+    // ambient' ruling read from this end — an undeclared room answers exactly
+    // as it always did." So an unlit room answers this clause the way it
+    // answers every other reader of the light, and the caster is told no.
+    //
+    // What the refusal owes them is the **difference**, because the two
+    // silences are not the same mistake: a room nobody has lit is repaired by
+    // a declaration and a room that is brightly lit is not. So the reason
+    // names the fact and the command that would supply it, which is the
+    // `satisfyWith` discipline said in prose where the kind vocabulary has
+    // nothing to carry it.
     if (route.kind === 'granted' && (route.grant.requires ?? []).length > 0) {
       if (!requirementsHold(state, casterId, route.grant.requires, route.grant.source)) {
+        const unsaid = unsaidRequirements(state, casterId, route.grant.requires);
+        const silence =
+          unsaid.length === 0
+            ? ''
+            : unsaid.some((one) => one.missing === 'position')
+              ? ` — and nobody has said where ${casterId} is standing, which a placeCreatureInScene command would settle`
+              : ` — and nobody has said how bright it is where ${casterId} is standing, which a declareLight command would settle`;
         return err(
           'route_not_open',
-          `${route.grant.source} casts ${definition.name} only while its own clause holds, and it does not right now`,
+          `${route.grant.source} casts ${definition.name} only while its own clause holds, and it does not right now${silence}`,
         );
       }
     }

@@ -994,6 +994,28 @@ describe('One with Shadows', () => {
     expect(bright.ok).toBe(false);
     expect(bright.ok ? null : bright.code).toBe('route_not_open');
   });
+
+  /**
+   * A room nobody has lit refuses too — the "no default ambient" ruling, which
+   * is why `declareLight` settles no `ContextRequest` kind — but it is a
+   * different problem from a brightly lit one, and only this one is repaired
+   * by saying something. So the refusal says which it met.
+   */
+  it('refuses in a room nobody has lit, and names what would settle it', () => {
+    const unlit = resolveSpell(
+      fold('seed', table(warlock(SHADOWS))),
+      WHO,
+      { spellId: 'invisibility', targets: [WHO] },
+      supply('unlit'),
+    );
+    expect(unlit.ok).toBe(false);
+    expect(unlit.ok ? null : unlit.code).toBe('route_not_open');
+    expect(unlit.ok ? '' : unlit.reason).toContain('declareLight');
+
+    // And the lit room's refusal does not, because nothing was left unsaid.
+    const bright = castIt('bright');
+    expect(bright.ok ? '' : bright.reason).not.toContain('declareLight');
+  });
 });
 
 // ─── the invocations a Warlock may take more than once ──────────────────────
