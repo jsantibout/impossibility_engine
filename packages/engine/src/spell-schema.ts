@@ -1475,6 +1475,46 @@ function checkConditionRider(
  * kept, not that a condition was imposed, so a `repeats` or a `lasts` beside
  * it still has no condition instance to hang on.
  */
+/**
+ * A save that says its whole content is its verdict, held to "whole".
+ *
+ * The other half of the lift beside it: `save_imposes_nothing` stops refusing
+ * a bare save the moment `verdictOnly` is set, so this is what keeps the mark
+ * from being a licence. A failure that imposed a condition, hung a rider,
+ * pushed somebody, emptied a hand, broke Concentration or kept its answer on
+ * the running casting **decided something besides its own answer**, and a
+ * definition claiming otherwise is describing a different sentence.
+ *
+ * Asked of every save rather than only of the ones with no condition, which is
+ * where it differs from its neighbour and is the whole reason it is a function
+ * of its own: the interesting case is precisely a save that imposes something.
+ */
+function checkVerdictIsWhole(
+  effect: Extract<SpellEffect, { kind: 'save' }>,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if ((effect as { readonly verdictOnly?: unknown }).verdictOnly !== true) return;
+
+  const decided =
+    effect.condition !== undefined ||
+    (Array.isArray(effect.conditions) ? effect.conditions.length > 0 : false) ||
+    (effect.modifiers ?? []).length > 0 ||
+    effect.light !== undefined ||
+    effect.movement !== undefined ||
+    effect.breaksConcentration === true ||
+    effect.drops !== undefined ||
+    effect.recordsOutcome === true;
+
+  if (!decided) return;
+  found.push({
+    field: `${path}.verdictOnly`,
+    code: 'verdict_is_not_the_whole_content',
+    reason:
+      'this save decided something besides its own answer — a condition, a rider or a record kept on the casting — so its whole content is not its verdict; drop the mark, or drop what the failure does',
+  });
+}
+
 function checkSaveWithoutCondition(
   effect: Extract<SpellEffect, { kind: 'save' }>,
   path: string,
@@ -1502,12 +1542,21 @@ function checkSaveWithoutCondition(
     // nothing.
     effect.drops !== undefined;
 
-  if (!hangs && effect.recordsOutcome !== true) {
+  // **The fourth way out, and it is the only one that needs no record.** SRD
+  // Animal Messenger's failure imposes nothing and there is nowhere to keep
+  // the answer either, because the casting need not leave anything running —
+  // so `verdictOnly` says the verdict *is* the content, and the die, the
+  // result and the log entry are the whole of the publication. See
+  // `SpellEffect`'s `save.verdictOnly`, and the two refusals below it, which
+  // are what keep this from being a licence to throw a die for nothing.
+  const verdict = (effect as { readonly verdictOnly?: unknown }).verdictOnly === true;
+
+  if (!hangs && effect.recordsOutcome !== true && !verdict) {
     found.push({
       field: `${path}.condition`,
       code: 'save_imposes_nothing',
       reason:
-        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer',
+        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer, or set verdictOnly where the verdict is the whole of it',
     });
   }
 
@@ -2924,6 +2973,12 @@ function checkEffect(
         }
       }
       const source = withReadableRiders(effect);
+      // **Asked of every save, and the branch below is why it is here.** A
+      // save that imposes a condition never reaches
+      // {@link checkSaveWithoutCondition} at all, and that is exactly the save
+      // a `verdictOnly` must be refused on — the mark says the verdict is the
+      // *whole* content, so anything the failure also did contradicts it.
+      checkVerdictIsWhole(effect, path, found);
       if (effect.condition === undefined) checkSaveWithoutCondition(effect, path, found);
       else {
         checkConditionRider(
@@ -6079,6 +6134,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkFoughtClause(effect as object, entry.kind, where, at, found);
       checkUnwillingSave(effect as object, entry.kind, where, at, found);
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
+      checkVerdictOnly(effect as object, entry.kind, where, at, found);
       checkAreaBoundLifetime(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
       checkAltitudePlacement(entry.kind, where, at, found);
@@ -6551,6 +6607,66 @@ function checkRecordedVerdict(
       field: `${path}.recordsOutcome`,
       code: 'malformed_field',
       reason: 'a spell either keeps the answer or does not; the only value is true',
+    });
+  }
+}
+
+/**
+ * Where a save may say its whole content is its verdict.
+ *
+ * {@link checkRecordedVerdict}'s mirror, and the two lists are exactly
+ * swapped. That one keeps the answer on the running casting, so it is refused
+ * in the casting's own list — the list resolves before `spell-ongoing` is
+ * pushed and the record does not exist yet. This one wants no record at all,
+ * so it is refused **wherever one already exists**: an `areaTrigger` or an
+ * `activation` list fires off a casting the cast has already written, and a
+ * verdict thrown away there when there is somewhere to keep it would be the
+ * answer reaching nobody a turn later. Between them every list has exactly one
+ * door, which is what keeps one sentence from being said two ways.
+ *
+ * On a host that rolls a saving throw, for the reason that one gives: a `heal`
+ * has no verdict, and a field quietly ignored is an author who thinks they
+ * said something. The value is `true` and nothing else, because absence is how
+ * a definition says the verdict is not the whole of it.
+ *
+ * What the mark *lifts* is `save_imposes_nothing`, and the refusal that keeps
+ * that honest is beside it in {@link checkSaveWithoutCondition}: a save
+ * carrying a rider, a condition or a record has not got a verdict for its
+ * whole content.
+ */
+function checkVerdictOnly(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const stated = (effect as { verdictOnly?: unknown }).verdictOnly;
+  if (stated === undefined) return;
+
+  if (kind !== 'save') {
+    found.push({
+      field: `${path}.verdictOnly`,
+      code: 'verdict_without_save',
+      reason:
+        'a verdict is the answer to a saving throw, and this effect rolls none; a save-damage effect reports its own damage instead',
+    });
+    return;
+  }
+  if (where !== 'effects' && !isBranchList(where)) {
+    found.push({
+      field: `${path}.verdictOnly`,
+      code: 'verdict_after_the_record',
+      reason:
+        'this list fires off a casting the cast has already written, so the answer has somewhere to be kept; set recordsOutcome, which writes it onto the running casting where a later reader can find it',
+    });
+    return;
+  }
+  if (stated !== true) {
+    found.push({
+      field: `${path}.verdictOnly`,
+      code: 'malformed_field',
+      reason: 'a save either is the whole of its own verdict or is not; the only value is true',
     });
   }
 }

@@ -2243,6 +2243,37 @@ export type SpellEffect =
        */
       readonly recordsOutcome?: true;
       /**
+       * This save's **whole content is its verdict**.
+       *
+       * SRD Animal Messenger: "A Tiny Beast of your choice that you can see
+       * within range **must succeed on a Charisma saving throw**, or it
+       * attempts to deliver a message for you." The failure imposes no
+       * condition, hangs no rider and moves nobody: what it decides is whether
+       * the beast goes, which is an errand only the table can run.
+       *
+       * **The fourth thing a save may do, and the one that needs no record.**
+       * {@link save.recordsOutcome} above keeps the answer on the running
+       * casting, which is why it is refused in the casting's own list — that
+       * list resolves before `spell-ongoing` is pushed, so the record it would
+       * write onto does not exist yet, and a definition that validated clean
+       * would take the campaign down on `CorruptLogError`. This mark wants no
+       * record at all: the die is rolled, the answer is published through the
+       * casting's result as `SpellTargetOutcome.save`, and it stands in the
+       * log as the D20 Test it was. A casting that leaves nothing running
+       * still answered its question.
+       *
+       * So it lifts `save_imposes_nothing` for the definition that claims it,
+       * and it is **refused beside every rider and beside `recordsOutcome`**:
+       * a save that also halved a Speed, pushed somebody or kept its answer on
+       * a record is not a save whose whole content is its verdict, and two
+       * ways to say one thing is how a rule comes to be applied twice.
+       *
+       * And it is refused where a record *does* exist — an `areaTrigger` or an
+       * `activation` list fires off a casting the cast has already written, and
+       * `recordsOutcome` is the field that keeps an answer there.
+       */
+      readonly verdictOnly?: true;
+      /**
        * The condition the failure imposes, where it imposes one.
        *
        * **Optional, and the docstring it replaces said exactly why it could
