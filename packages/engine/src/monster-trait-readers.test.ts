@@ -39,9 +39,11 @@ import {
   declareLight,
   declareObject,
   placeCreatureInScene,
+  resolveAttack,
   resolveMove,
   resolveTurn,
   setScene,
+  settleDamage,
   takeDash,
   takeDisengage,
   takeHide,
@@ -49,10 +51,13 @@ import {
 } from './commands.js';
 import { dealSpellDamage } from './commands/damage.js';
 import { allowedActions } from './combat.js';
+import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster } from './monster.js';
+import { rowAt, slotsAt } from './progression.js';
 import { createRollIssuer } from './rolls.js';
+import { spellsForClass } from '@ie/srd';
 import { actionRulesOn, rollModesFor, speedOf } from './standing.js';
 
 const id = (s: string) => asCharacterId(s);
@@ -1286,5 +1291,303 @@ describe('SRD Beast of Burden: SRD Powerful Build on a stat block', () => {
     const pony = at(field('pony', id('pony')));
     const ponyStrength = pony.creatures[id('pony')]!.sheet.abilities.str;
     expect(carryingCapacity(pony, id('pony')).carry).toBe(ponyStrength * 15);
+  });
+});
+
+/**
+ * The same two sentences, on the road a Reaction held open.
+ *
+ * `siegeDoubling` and `printedTypeTriggers` were written into
+ * `dealSpellDamage`, which is one road of two: the other is a blow somebody
+ * may answer, which `landDamage` holds open at the `damage-rolled` window and
+ * `settleDamage` closes. And the window is not offered off the *target's* own
+ * Reactions — `offersForDamage` walks every creature — so a Bard sixty feet
+ * away holding Cutting Words was enough to cost an Earth Elemental its
+ * doubling and a Flesh Golem its absorption.
+ *
+ * So the Bard is the whole fixture. She answers nothing and is asked nothing;
+ * her being in the room is what opens the window, and what these tests claim
+ * is that a printed sentence reads the same on either road.
+ */
+describe('a printed sentence on the road a Reaction held open', () => {
+  const GOLEM = id('golem');
+  const WISP = id('wisp');
+  const ELEMENTAL = id('elemental');
+  const DOOR = id('the oak door');
+  const ILVA = id('ilva');
+
+  /**
+   * A College of Lore Bard at 3rd level, the level Cutting Words is printed
+   * at. Her cantrips and prepared spells are read off the class's own table
+   * rather than transcribed, so the fixture does not break the day a row is
+   * corrected.
+   */
+  const bard = (): CharacterChoices => {
+    const definition = SRD_CONTENT.classes.find((c) => c.id === 'bard')!;
+    const row = unwrap(rowAt(definition, 3), 'the bard’s third row');
+    const cap = Math.max(...Object.keys(slotsAt(definition, 3)).map(Number));
+    const list = spellsForClass('bard');
+    const named = (from: number, to: number, howMany: number): string[] =>
+      list
+        .filter((sp) => sp.level >= from && sp.level <= to)
+        .map((sp) => sp.id)
+        .sort()
+        .slice(0, howMany);
+
+    return {
+      name: 'Ilva',
+      classId: 'bard',
+      level: 3,
+      subclassId: 'college-of-lore',
+      speciesId: 'human',
+      backgroundId: 'sage',
+      abilities: {
+        method: 'manual',
+        assignment: { str: 8, dex: 14, con: 13, int: 10, wis: 12, cha: 15 },
+      },
+      abilityIncreases: { con: 2, int: 1 },
+      classSkills: ['persuasion', 'performance', 'deception'],
+      languages: ['Dwarvish', 'Orc'],
+      alignment: 'Neutral',
+      cantrips: named(0, 0, row.cantripsKnown ?? 0),
+      spellbook: [],
+      preparedSpells: named(1, cap, row.preparedSpells ?? 0),
+      classEquipment: 'A',
+      backgroundEquipment: 'A',
+      equipped: [],
+      hitPoints: { method: 'fixed' },
+      featureChoices: {
+        'human:skillful': ['perception'],
+        'college-of-lore:bonus-proficiencies': ['arcana', 'history', 'insight'],
+        'bard:expertise': ['persuasion', 'performance'],
+      },
+      feats: {
+        'sage:magic-initiate-wizard': {
+          featId: 'magic-initiate',
+          spellList: 'wizard',
+          spellcastingAbility: 'int',
+          cantrips: ['mage-hand', 'light'],
+          levelOneSpell: 'ray-of-sickness',
+        },
+        'human:versatile': { featId: 'alert' },
+      },
+      dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+    };
+  };
+
+  /**
+   * The holder, what it is about to hit, and — where the test asks for her — a
+   * Bard thirty feet away, all in one fight.
+   *
+   * The Bard is in the order because Cutting Words costs a Reaction and a
+   * creature outside the order has no budget to spend one from: a window
+   * nobody can afford is a window that never opens, which is what makes the
+   * unheld control of each pair a control rather than a coincidence.
+   */
+  const room = (
+    holder: CharacterId,
+    block: string,
+    victim: CharacterId,
+    options: { readonly bard?: boolean; readonly object?: boolean } = {},
+  ): GameEvent[] => {
+    const log: GameEvent[] = [];
+    const state = (): GameState => fold(SEED, log);
+    const step = (what: string, produce: () => ReturnType<typeof declareCreatureSide>): void => {
+      log.push(...unwrap(produce(), what));
+    };
+
+    log.push(...unwrap(addCreature(state(), SRD_CONTENT, holder, block), block).events);
+    if (options.object === true) {
+      step('the door', () =>
+        declareObject(state(), SRD_CONTENT, victim, {
+          name: 'the oak door',
+          material: 'wood',
+          size: 'medium',
+          build: 'resilient',
+        }),
+      );
+    } else {
+      log.push(
+        ...unwrap(addCreature(state(), SRD_CONTENT, victim, 'flesh-golem'), 'the golem').events,
+      );
+      step('the victim’s side', () => declareCreatureSide(state(), victim, 'party'));
+    }
+    if (options.bard === true) {
+      step('Ilva arrives', () => createCharacter(SRD_CONTENT, bard(), ILVA));
+    }
+
+    step('the holder takes a side', () => declareCreatureSide(state(), holder, 'monsters'));
+    step('the field', () => setScene(state(), { width: 400, depth: 400, height: 200 }));
+    step('a stone on it', () => addSceneLandmark(state(), 'the stone', { x: 100, y: 100, z: 0 }));
+    step('the holder on the stone', () =>
+      placeCreatureInScene(state(), holder, { from: { landmark: 'the stone' }, feet: 0 }),
+    );
+    // Inside the reach the line prints, and — where the holder is Large and
+    // its own space is ten feet across — outside the space it is standing in.
+    step('the victim beside it', () =>
+      placeCreatureInScene(state(), victim, {
+        from: { landmark: 'the stone' },
+        feet: options.object === true ? 10 : 5,
+        bearing: 90,
+      }),
+    );
+    if (options.bard === true) {
+      step('Ilva’s side', () => declareCreatureSide(state(), ILVA, 'party'));
+      step('Ilva across the room', () =>
+        placeCreatureInScene(state(), ILVA, {
+          from: { landmark: 'the stone' },
+          feet: 30,
+          bearing: 270,
+        }),
+      );
+    }
+
+    log.push({
+      type: 'combat-started',
+      combatants: [
+        { id: holder, initiative: 20, speed: 30 },
+        ...(options.object === true ? [] : [{ id: victim, initiative: 10, speed: 30 }]),
+        ...(options.bard === true ? [{ id: ILVA, initiative: 5, speed: 30 }] : []),
+      ],
+    });
+    return log;
+  };
+
+  /** Seeds enough that one of them lands the printed swing. */
+  const SEEDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+  interface Blow {
+    readonly before: GameState;
+    readonly after: GameState;
+    /** Whether somebody was offered the window, which is the road taken. */
+    readonly held: boolean;
+    /** What the blow rolled of each type, before anybody's defences. */
+    readonly rolled: Readonly<Record<string, number>>;
+    /**
+     * What the blow dealt, off the event that recorded it.
+     *
+     * Read here rather than as a difference of Hit Points, because an object
+     * with eighteen of them stops at nought: a door that took thirty-six is
+     * eighteen points of Hit Points and a `damage-taken` of thirty-six, and it
+     * is the second of those the doubling is a claim about.
+     */
+    readonly dealt: number;
+  }
+
+  /**
+   * Swing a printed line until it connects, settle whatever window it opened,
+   * and hand back the world on the far side of the blow.
+   *
+   * Both roads come out of here, which is the point: what the caller does
+   * differs by one command and what the sentence is worth must not differ at
+   * all.
+   */
+  const strike = (
+    log: readonly GameEvent[],
+    attacker: CharacterId,
+    victim: CharacterId,
+    line: string,
+  ): Blow => {
+    for (const seed of SEEDS) {
+      const before = at(log);
+      const swung = unwrap(
+        resolveAttack(
+          before,
+          attacker,
+          { target: victim, weapon: null, action: line, commandId: `swing-${seed}` },
+          supply(seed),
+        ),
+        'the swing',
+      );
+      if (swung.attack?.hit !== true) continue;
+
+      const world = fold(SEED, [...log, ...swung.events]);
+      const pending = world.pendingDamage;
+      // What the blow rolled, before anybody's defences: off the hold where
+      // one was written, and off the dice the unheld road records otherwise.
+      // The two are the same components by construction — see `landDamage`.
+      const faces = swung.events.find((event) => event.type === 'damage-dice-recorded');
+      const components =
+        pending?.components ??
+        (faces === undefined
+          ? []
+          : (faces as { readonly components: readonly { type: string; total: number }[] })
+              .components);
+      const rolled: Record<string, number> = {};
+      for (const component of components) {
+        rolled[component.type] = (rolled[component.type] ?? 0) + component.total;
+      }
+      const dealtIn = (events: readonly GameEvent[]): number =>
+        events
+          .filter((event) => event.type === 'damage-taken' && event.id === victim)
+          .reduce((sum, event) => sum + (event as { readonly amount: number }).amount, 0);
+
+      if (pending === null) {
+        return { before, after: world, held: false, rolled, dealt: dealtIn(swung.events) };
+      }
+
+      const settled = unwrap(settleDamage(world, supply(`settle-${seed}`)), 'the settlement');
+      return {
+        before,
+        after: fold(SEED, [...log, ...swung.events, ...settled.events]),
+        held: true,
+        rolled,
+        dealt: dealtIn(settled.events),
+      };
+    }
+    throw new Error(`no seed landed ${line}`);
+  };
+
+  const hp = (state: GameState, who: CharacterId): number => state.creatures[who]!.vitals.hp;
+
+  /**
+   * SRD Lightning Absorption on the held road. A Will-o'-Wisp's Shock is
+   * Lightning and nothing else, and the golem is immune to it — so what the
+   * sentence is worth is the whole of what the blow rolled, and a road that
+   * skipped it would leave the golem exactly where it was.
+   */
+  it('heals the golem the lightning a blow the Bard held open rolled', () => {
+    const hurt = [
+      ...room(WISP, 'will-o-wisp', GOLEM, { bard: true }),
+      { type: 'damage-taken' as const, id: GOLEM, amount: 30 },
+    ];
+    const struck = strike(hurt, WISP, GOLEM, 'Shock');
+
+    // The Bard is what makes this the held road, and the claim below is
+    // worthless without it.
+    expect(struck.held).toBe(true);
+    expect(struck.rolled['lightning']).toBeGreaterThan(0);
+    expect(hp(struck.after, GOLEM)).toBe(hp(struck.before, GOLEM) + struck.rolled['lightning']!);
+  });
+
+  /** And the two roads agree: the same blow with nobody there to answer it. */
+  it('heals the same lightning where nobody could hold the blow open', () => {
+    const hurt = [
+      ...room(WISP, 'will-o-wisp', GOLEM),
+      { type: 'damage-taken' as const, id: GOLEM, amount: 30 },
+    ];
+    const struck = strike(hurt, WISP, GOLEM, 'Shock');
+    expect(struck.held).toBe(false);
+    expect(hp(struck.after, GOLEM)).toBe(hp(struck.before, GOLEM) + struck.rolled['lightning']!);
+  });
+
+  /**
+   * SRD Siege Monster on the same road: "The elemental deals double damage to
+   * objects and structures", which is an adjustment in SRD's own order and
+   * therefore has to be made where the damage is applied — on either road.
+   */
+  it('doubles what the elemental deals a door through a window the Bard opened', () => {
+    const log = room(ELEMENTAL, 'earth-elemental', DOOR, { bard: true, object: true });
+    const struck = strike(log, ELEMENTAL, DOOR, 'Slam');
+    expect(struck.held).toBe(true);
+    expect(struck.dealt).toBe(struck.rolled['bludgeoning']! * 2);
+  });
+
+  /** And the unheld road, which has doubled it since the sentence was read. */
+  it('doubles the same slam where nobody could hold it open', () => {
+    const log = room(ELEMENTAL, 'earth-elemental', DOOR, { object: true });
+    const struck = strike(log, ELEMENTAL, DOOR, 'Slam');
+    expect(struck.held).toBe(false);
+    expect(struck.dealt).toBe(struck.rolled['bludgeoning']! * 2);
   });
 });

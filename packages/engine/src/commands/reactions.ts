@@ -74,8 +74,10 @@ import {
   adjustmentsFor,
   dealSpellDamage,
   heldDamageTotal,
+  printedTypeTriggers,
   reactionContributions,
   rollsIssuedSince,
+  siegeDoubling,
   spendReactionCost,
   standingReductionOf,
   statedFrom,
@@ -359,6 +361,17 @@ export function settleDamage(
     const reduction =
       pending.reductions.reduce((sum, r) => sum + r.amount, 0) + warded.value.amount;
     const adjustments = adjustmentsFor(pending.components, reduction);
+    // **And SRD Siege Monster's multiplier, which belongs to the blow rather
+    // than to the road it took.** `dealSpellDamage` adds it to the same record
+    // at the same step — the book's order is "multipliers are applied first;
+    // Resistance is applied second" — and this road did not, so a Bard sixty
+    // feet away holding Cutting Words cost an Earth Elemental its doubling
+    // against a door. One function, asked twice.
+    for (const [type, extra] of Object.entries(
+      siegeDoubling(state, pending.target, pending.by ?? undefined, pending.components),
+    )) {
+      adjustments[type] = (adjustments[type] ?? 0) + extra;
+    }
     const applied = applyDamage(pending.components, defensesOf(state, pending.target), adjustments);
 
     const dealt = resolveDamage(
@@ -379,13 +392,28 @@ export function settleDamage(
     );
     if (!dealt.ok) return dealt;
 
-    const all = [...events, ...dealt.value.events];
+    // **And what the blow's own type set off on the creature it landed on.**
+    // SRD Lightning Absorption, SRD Aversion to Fire and SRD Freeze are read
+    // by `printedTypeTriggers` on the unheld road; a blow a Reaction held open
+    // is the same blow, and a golem struck by lightning a Bard was watching
+    // absorbed nothing until this call. After the damage, for the reason that
+    // road gives: both sentences are about it having landed, and a `healed`
+    // written before the `damage-taken` it answers is a log nobody could
+    // narrate in order.
+    const triggered = printedTypeTriggers(
+      state,
+      pending.target,
+      pending.components,
+      applied.byType,
+    );
+
+    const all = [...events, ...dealt.value.events, ...triggered.events];
 
     // **What the funnel could not settle, on its way through.** SRD Dark One's
     // Blessing is paid inside `resolveDamage` now — this road used to ask for
     // itself, one call of three — and what it could not check comes back the
     // same way, beside an Undead Fortitude thrown against a blow with no type.
-    const unverified: string[] = [...dealt.value.unverified];
+    const unverified: string[] = [...dealt.value.unverified, ...triggered.unverified];
 
     // **What the blow still owed, now that the defender has answered.** The
     // rider was held here rather than resolved at the swing precisely so that
