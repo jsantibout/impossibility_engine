@@ -17,6 +17,7 @@ import { type CommandIdentity, once } from '../idempotency.js';
 import {
   ABILITY_NAMES,
   type Ability,
+  asCharacterId,
   type CharacterId,
   type ContextRequest,
   err,
@@ -46,6 +47,8 @@ import {
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type StatedAction, type StatedBonusAction } from '../character.js';
 import { formNamed, wrongFormFor } from '../forms.js';
+import { grapplesOn } from './unarmed.js';
+import { pullToward } from './spell-effect-movement.js';
 import type { CreatureSize } from '@ie/srd';
 import { rollAbilityCheck, type D20TestResult } from '../checks.js';
 import { isDown } from '../vitals.js';
@@ -1710,6 +1713,176 @@ export function takePrintedForm(
         unverified: printed.handedOver.map((gap) => `${line.name}: ${gap}`),
         duplicate: false,
       });
+    },
+  );
+}
+
+export interface PrintedPullCommand extends CommandIdentity {
+  readonly line: string;
+}
+
+export interface PrintedPullOutcome {
+  readonly events: readonly GameEvent[];
+  /** Who was dragged, in the order the roster names them. */
+  readonly pulled: readonly CharacterId[];
+  /** What the geometry could not answer — an unplaced creature, a scene nobody set. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Drag toward a creature everything its printed line says it is holding.
+ *
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it." Both halves are rules the engine already holds — the
+ * grapple is the one `escapeGrapple` answers, and `pullToward` is the
+ * primitive SRD Merrow's rider goes through — so the line is the same
+ * mechanism at the heading's price, and until this door existed the only thing
+ * a caller could do with it was spend the Action and read it out.
+ *
+ * **The fifth door on one printed line**, and it refuses `line_pulls_nothing`
+ * for a line whose sentence says something else. The Ettercap prints the same
+ * heading over a different hold — "Restrained by its Web Strand" — and the
+ * parser reads nothing out of it, so it lands on that refusal rather than
+ * dragging somebody by a web the engine has no record of.
+ *
+ * **Every creature, in roster order, and nothing is rolled.** The book says
+ * "each creature", so there is no choice for a caller to make and none is
+ * taken; `pullToward` caps each at the gap, because a pull has only the space
+ * between the two to travel into. A creature the geometry cannot answer for
+ * comes back in `unverified` rather than refusing the whole line, which is the
+ * reading the primitive's own note takes of a rider that has already landed.
+ */
+export function takePrintedPull(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedPullCommand,
+): Result<PrintedPullOutcome> {
+  return once(
+    state,
+    `printed-pull:${id}`,
+    command,
+    () => ({ events: [], pulled: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      // **The same hold `relocateCreature` refuses**, because this is the same
+      // authoritative position change: a held attack was measured against
+      // where its target is standing.
+      if (state.pendingMove !== null) {
+        return err('move_pending', `${state.pendingMove.mover} is already mid-move; settle it first`);
+      }
+      if (state.pendingAttack !== null) {
+        return err('attack_pending', 'a hit is waiting for its damage; settle it first');
+      }
+
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+
+      const action = statedActionOf(creature.sheet, command.line);
+      const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
+      const line: StatedAction | StatedBonusAction | null = action ?? bonus;
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions; a printed attack is taken by the command that swings it, and a heading printed under another section by the command that owns that one`,
+        );
+      }
+
+      const printed = line.pulls;
+      if (printed === undefined) {
+        return err(
+          'line_pulls_nothing',
+          `${line.name} states no pull this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      const wrongForm = wrongFormFor(creature, line);
+      if (wrongForm !== null) return err('wrong_form', wrongForm);
+
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
+      const spent =
+        action !== null
+          ? spendAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            })
+          : spendBonusAction(state.combat, id, creature.conditions, {
+              rules: actionRulesOn(state, id),
+            });
+      if (!spent.ok) return spent;
+
+      const events: GameEvent[] = [
+        action !== null
+          ? { type: 'action-spent', id }
+          : { type: 'bonus-action-spent' as const, id },
+        ...(recharge === null
+          ? []
+          : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+        ...(perDay === null
+          ? []
+          : [
+              {
+                type: 'resource-spent' as const,
+                id,
+                key: perDayTallyKey(line.name),
+                amount: 1,
+                tally: 'dawn' as const,
+              },
+            ]),
+        action !== null
+          ? { type: 'stated-action-taken' as const, id, line: line.name, ...(stamp === null ? {} : { command: stamp }) }
+          : {
+              type: 'stated-bonus-action-taken' as const,
+              id,
+              line: line.name,
+              turn: state.combat.turnsTaken,
+              ...(stamp === null ? {} : { command: stamp }),
+            },
+      ];
+
+      // **Sorted, and each pull measured over the world the last one left.**
+      // Two creatures dragged toward one roper end up in different spaces
+      // depending on the order they are dragged in, so the order is the
+      // roster's rather than whatever `Object.keys` happened to give — the
+      // same reason `settleSizes` walks a sorted list.
+      const held = Object.keys(state.creatures)
+        .sort()
+        .map((key) => asCharacterId(key))
+        .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id));
+
+      const unverified: string[] = [];
+      const pulled: CharacterId[] = [];
+      let world = events.reduce(applyEvent, state);
+      for (const who of held) {
+        const drag = pullToward(world, who, id, { feet: printed.feet }, line.name);
+        if (drag.events.length > 0) pulled.push(who);
+        events.push(...drag.events);
+        unverified.push(...drag.unverified);
+        world = drag.events.reduce(applyEvent, world);
+      }
+
+      return ok({ events, pulled, unverified, duplicate: false });
     },
   );
 }

@@ -140,6 +140,7 @@ import {
   forcePrintedSave,
   castPrintedLine,
   takePrintedForm,
+  takePrintedPull,
   takePrintedTeleport,
   takeStatedAction,
   takeStatedBonusAction,
@@ -539,6 +540,22 @@ const SHIFTING_LINE: StatedAction = {
 const SHIFTING: readonly GameEvent[] = SETUP.map((event) =>
   event.type === 'creature-added' && event.id === A
     ? { ...event, sheet: sheet({ stated: { unreadActions: [SHIFTING_LINE] } }) }
+    : event,
+);
+
+/**
+ * The same invented line with the book's pull template read off it.
+ *
+ * A retry that was not guarded would spend a second Action and drag every
+ * creature the puller holds a second time, which is the most visible kind of
+ * double landing there is: they end up twice as close.
+ */
+const PULLING_LINE: StatedAction = { ...PRINTED_LINE, pulls: { feet: 30, of: 'grappled' } };
+
+/** The same world again, with that line under Actions. */
+const PULLING: readonly GameEvent[] = SETUP.map((event) =>
+  event.type === 'creature-added' && event.id === A
+    ? { ...event, sheet: sheet({ stated: { unreadActions: [PULLING_LINE] } }) }
     : event,
 );
 
@@ -2071,7 +2088,17 @@ const GUARDED: readonly Guarded[] = [
       takePrintedForm(s, A, { line: SHIFTING_LINE.name, form: 'wolf', commandId }),
   },
   /**
-   * And the fifth, which is the most expensive retry of the five: a second
+   * And the fifth. Nothing is held in this fixture, so the pull moves nobody
+   * and the guard is about the *slot*: a retry that was not guarded would
+   * spend a second Action for the same line.
+   */
+  {
+    name: 'takePrintedPull',
+    log: PULLING,
+    run: (s, commandId) => takePrintedPull(s, A, { line: PULLING_LINE.name, commandId }),
+  },
+  /**
+   * And the sixth, which is the most expensive retry of them: a second
    * run under one id would be a second casting with a second id, a second
    * Concentration and a second day's use gone.
    */
@@ -3688,9 +3715,18 @@ const SPENDERS: readonly Spender[] = [
     run: (s) => takePrintedForm(s, B, { line: 'A Printed Line', form: 'wolf' }),
   },
   /**
-   * And the fifth door on one line, which spends the same slot through the
+   * And the fifth door on one line, which spends the same slot to drag what
+   * the creature is holding — refused for the same debt before the line or
+   * anybody's grapple is looked at, like its siblings.
+   */
+  {
+    name: 'takePrintedPull',
+    run: (s) => takePrintedPull(s, B, { line: 'A Printed Line' }),
+  },
+  /**
+   * And the sixth door on one line, which spends the same slot through the
    * casting the route opens — and is refused for the same debt before the
-   * line, the menu or the targets are looked at, like its four siblings.
+   * line, the menu or the targets are looked at, like its siblings.
    */
   {
     name: 'castPrintedLine',

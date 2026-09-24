@@ -2195,6 +2195,8 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       // read out of, and what the structure buys is a door that executes it
       // rather than quotes it.
       ...(line.forms === undefined ? {} : { forms: line.forms }),
+      // And what it pulls, which the Roper prints and no other block does.
+      ...(line.pulls === undefined ? {} : { pulls: line.pulls }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
     }));
@@ -2230,6 +2232,9 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // And the forms it offers — eleven of the book's thirteen Shape-Shift
     // lines are printed here, which is a heading saying what the use costs.
     ...(line.forms === undefined ? {} : { forms: line.forms }),
+    // And what it pulls, on both sections because a heading says what a use
+    // costs rather than what it does.
+    ...(line.pulls === undefined ? {} : { pulls: line.pulls }),
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.
     ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),

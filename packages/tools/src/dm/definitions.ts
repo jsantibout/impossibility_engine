@@ -107,6 +107,7 @@ import {
   takeInfluence,
   takeSearch,
   takePrintedForm,
+  takePrintedPull,
   takePrintedTeleport,
   takeStatedAction,
   takeStatedBonusAction,
@@ -1851,6 +1852,48 @@ const SHAPE_SHIFT_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Drag toward a creature everything its printed line says it is holding.
+ *
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it."
+ *
+ * **It is here and not on the model's surface**, by the rule its four
+ * siblings follow — though this one takes no decision at all: the book says
+ * "each creature", so there is nothing off a menu to choose and the call is a
+ * heading and a creature. It sits on the DM's door because playing a monster
+ * is the DM's job, which is the same reason `take_printed_action` does.
+ */
+const PULL_PRINTED_LINE = tool({
+  name: 'pull_printed_line',
+  description:
+    'Have the engine take the pull a creature’s stat block prints — the Roper’s Reel. Name the heading as the block prints it; the engine reads the distance off the block, drags every creature that creature is Grappling straight toward it, stops each at the gap rather than through it, and spends whichever slot the heading names along with any recharge or daily limit. You state no distance and choose nobody: the line says "each creature". Only some printed lines can be taken this way: `look` says which, under `pulls` on `printed.actions[]` and `printed.bonusActions[]` alike. The Ettercap’s line under the same heading pulls by a web rather than a grapple and is refused here — take it with `take_printed_action` and rule it yourself.',
+  mutates: true,
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is taking the line.'),
+    line: printedLineName,
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedPull(context.campaign.state(), who(args.who), {
+        line: args.line,
+        ...identity(context),
+      }),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(
+          context,
+          ['stated-action-taken', 'stated-bonus-action-taken'],
+          value.duplicate,
+          args.who,
+        ),
+        pulled: value.pulled,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   CAST_PRINTED_LINE,
@@ -1863,6 +1906,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   FORCE_PRINTED_SAVE,
   IMPROVISED_DAMAGE,
   LOSE_ITEMS,
+  PULL_PRINTED_LINE,
   RESOLVE_FALL,
   ROLL_IMPROVISED_DAMAGE,
   RULE_CONDITION,

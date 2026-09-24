@@ -1129,6 +1129,8 @@ export interface StatBlockLine {
   readonly teleports?: unknown;
   /** The forms a line puts its creature into — SRD Shape-Shift. */
   readonly forms?: unknown;
+  /** What a line drags toward its creature — SRD Roper's Reel. */
+  readonly pulls?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
   readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
   /** What a Reaction line adds to its own Armour Class against one attack. */
@@ -1163,6 +1165,7 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.casts !== undefined ||
   line.teleports !== undefined ||
   line.forms !== undefined ||
+  line.pulls !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined;
@@ -1563,6 +1566,10 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // the engine doing nothing: "Its game statistics, other than its size, are
   // the same in each form", and the equipment untransformed.
   line.forms !== undefined ||
+  // **A line that pulls is spent** — `takePrintedPull` drags every creature
+  // the Roper is holding toward it, through the primitive a Merrow's rider
+  // already goes through, at the heading's price.
+  line.pulls !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -1697,6 +1704,63 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
     (line) => /^Spellcasting/.test(line.name) && line.spellcasting === undefined,
   ],
 ];
+
+/**
+ * The Action and Bonus Action lines at CR ≤ 5 that no enumerated shape names,
+ * with the one seam each waits on.
+ *
+ * **The ledger lists them and cannot say why**, because a residue line is by
+ * definition one no predicate reaches: `LEDGER.md`'s "Handed-over lines
+ * matching no enumerated shape" is a list of headings with nothing beside
+ * them, and a heading with nothing beside it looks like a heading nobody read.
+ * `HANDOVER_TRAIT_KINDS` and `RIDER_HANDOVER_SHAPE` each solved that for their
+ * own half by writing the reason out family by family; this is the same thing
+ * for the third half, and `coverage.test.ts` holds it to the catalogue so an
+ * entry that has been built, renamed or retired fails rather than rotting.
+ *
+ * **Read against the book, not against a summary.** Four of the entries below
+ * correct a claim that had been made about them from a heading alone: the
+ * Ettercap's Reel pulls by a **web** and not by a grapple, the Magmin's block
+ * prints no `sheds-light` trait for its Bonus Action to toggle, the Wisp's
+ * Vanish is Concentration on something that is not a spell, and the Succubus's
+ * Charm is a **cast** line at a fixed level rather than a save.
+ *
+ * Keyed `<block id>/<heading>`, because two blocks print one heading over two
+ * rules and the pair is what a reader needs.
+ *
+ * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
+ * own note — Coven Magic, the Swarm's healing rule, Regeneration, Berserk and
+ * the rest — and keeping the two apart is what stops one sentence being
+ * answered for twice in two places that could come to disagree.
+ */
+export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
+  'ettercap/Reel':
+    'a-condition-an-object-holds. The Roper\'s Reel under the same heading is executed now, and this one is not the same sentence: it pulls "one creature within 30 feet of itself that is Restrained by its Web Strand", and the web is a thing the engine has no record of. Reading it as a grapple would have been a rule nobody printed. It lands the day the Web Strand save creates an object the Restrained is held by.',
+  'magmin/Ignited Illumination':
+    'a light a use turns on and off. `sheds-light` exists and `carriedLight` derives a patch that moves with its holder — but the magmin\'s block prints no such trait: the radii are printed on this Bonus Action and nowhere else, so what is missing is a *toggle*, a light patch a use hangs and a second use takes away, rather than a reader for a trait the block does not have.',
+  'will-o-wisp/Vanish':
+    'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
+  'succubus/Charm':
+    'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states.',
+  'wraith/Create Specter':
+    'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
+  'bulette/Leap':
+    'a jump allowance with a lifetime. "Jumps up to 30 feet by spending 10 feet of movement" is SRD *Jump*\'s sentence word for word, and `GrantedJump` already carries both numbers — but a spell\'s allowance ends when its casting does, and a Bonus Action that buys one has no casting to end it. A grant a printed line hangs needs the deadline the mastery riders file, or the jump is free on every later turn. The Half-Dragon\'s and the Lamia\'s print the same sentence.',
+  'troll/Charge':
+    'nothing, and that is the answer. "The troll moves up to half its Speed straight toward an enemy it can see" is a move the DM makes with the move command, and the engine already refuses one that is too far or blocked; what the line adds over `move_creature` is a *restriction* on the DM rather than a rule the engine owes. The Xorn\'s and the Sahuagin\'s Aquatic Charge are the same sentence over a different Speed.',
+  'seahorse/Bubble Dash':
+    'a move that provokes nothing. "While underwater, the seahorse moves up to its Swim Speed without provoking Opportunity Attacks" — one field on a move, and `provokedBy` already reads the mover\'s mode for SRD Flyby and SRD Agile. What it waits on is a *declared* exemption on one move rather than a standing one on a creature, which is a field `MoveCommand` does not have. The Giant Seahorse prints it too.',
+  'giant-frog/Swallow':
+    'a-second-place-to-put-a-creature: a creature inside another one, with its own escape, its own damage at the swallower\'s turn boundary, and a way out when the swallower dies. The Giant Toad, the Gelatinous Cube\'s Engulf and the Shambling Mound\'s are the same want.',
+  'roper/Tentacle':
+    'the same second place, reached the other way: the tendril the Reel pulls on is an object with its own Armour Class and Hit Points that a creature may attack, which is `declareObject` given to a creature as part of its body.',
+  'ghost/Etherealness':
+    'a second **plane**, which the scene has no address for. The Nightmare\'s Ethereal Stride and the Phase Spider\'s Ethereal Jaunt are the same sentence, and the Dryad\'s Tree Stride is its cousin with a tree in place of a plane. Filed together under `a-second-place-to-put-a-creature` because what they need is one thing: somewhere a creature can be that is not a space on this map.',
+  'sea-hag/Illusory Appearance':
+    'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
+  'unicorn/Shimmering Shield':
+    'the legendary economy, which is its own row on both reports and belongs to the *block* rather than to any line. The Charging Horn beside it is the same debt.',
+};
 
 /** The economy a legendary block owes, which is the block's rather than a line's. */
 export const LEGENDARY_ECONOMY = 'A legendary action’s own economy';

@@ -1337,6 +1337,26 @@ export const MonsterFormsSchema = z.object({
 export type MonsterForms = z.infer<typeof MonsterFormsSchema>;
 
 /**
+ * A line that drags toward itself whatever it is already holding.
+ *
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it."
+ *
+ * **`of` is a field rather than an assumption**, because the book prints the
+ * same heading over a different hold: the Ettercap's Reel pulls a creature
+ * "Restrained by its Web Strand", which is a condition held by an object the
+ * engine has no record of. A shape that read only the distance would have
+ * turned that web into a grapple.
+ */
+export const MonsterPullSchema = z.object({
+  /** "up to 30 feet", measured toward the puller and capped at the gap. */
+  feet: z.number().int().min(5),
+  /** What the line pulls. One member today, and the field exists to keep it one. */
+  of: z.literal('grappled'),
+});
+export type MonsterPull = z.infer<typeof MonsterPullSchema>;
+
+/**
  * One Reaction line that adds a flat number to somebody's D20 Test.
  *
  * SRD Sphinx of Wonder, Burst of Ingenuity (2/Day): "_Trigger:_ The sphinx or
@@ -2283,6 +2303,13 @@ export const FeatureSchema = z.object({
    * which is a heading saying what the use *costs*.
    */
   forms: MonsterFormsSchema.optional(),
+  /**
+   * What this line drags toward its creature — see {@link MonsterPullSchema}.
+   *
+   * Read on every section like everything else here; SRD prints the one line
+   * that reaches this shape under Actions.
+   */
+  pulls: MonsterPullSchema.optional(),
   /**
    * The forms this line may be used in, where its **heading** says so.
    *

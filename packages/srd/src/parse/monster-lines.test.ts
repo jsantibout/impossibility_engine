@@ -5,6 +5,7 @@ import {
   parseAcAddendLine,
   parseCastLine,
   parseMonsters,
+  parsePullLine,
   parseReactionUseLine,
   parseRollAddendLine,
   parseTeleportLine,
@@ -528,6 +529,45 @@ describe('the corpus', () => {
       'ochre-jelly/Split/splits-into-two-creatures',
       'shrieker-fungus/Shriek/makes-a-noise',
     ]);
+  });
+});
+
+/**
+ * A line that **pulls** what it is already holding.
+ *
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it." Every clause of that is a rule the engine holds —
+ * `pullToward` is what SRD Merrow's rider already goes through, and the
+ * grapple is the one `escapeGrapple` answers — so the sentence is the same
+ * mechanism at a heading's price.
+ *
+ * Anchored end to end, which is what refuses the Ettercap's line under the
+ * same heading: it pulls "one creature within 30 feet of itself that is
+ * **Restrained by its Web Strand**", and a web is neither a grapple nor
+ * anything else this engine holds.
+ */
+describe('a line that pulls what it is holding', () => {
+  it('reads the roper’s distance and what it pulls', () => {
+    expect(lineOf('roper', 'Reel').pulls).toEqual({ feet: 30, of: 'grappled' });
+  });
+
+  it('refuses the ettercap’s, whose hold is a web rather than a grapple', () => {
+    expect(lineOf('ettercap', 'Reel').pulls).toBeUndefined();
+  });
+
+  it('refuses a sentence that moves any of its clauses', () => {
+    const printed = 'The roper pulls each creature Grappled by it up to 30 feet straight toward it.';
+    expect(parsePullLine(printed)).toEqual({ feet: 30, of: 'grappled' });
+    expect(parsePullLine(printed.replace('Grappled by it', 'Restrained by it'))).toBeNull();
+    expect(parsePullLine(printed.replace('each creature', 'one creature'))).toBeNull();
+    expect(parsePullLine(printed.replace(' straight toward it', ''))).toBeNull();
+  });
+
+  it('is the only line in the bestiary that prints it', () => {
+    const printed = bestiary.flatMap((block) =>
+      [...block.actions, ...block.bonusActions].filter((line) => line.pulls !== undefined),
+    );
+    expect(printed.length).toBe(1);
   });
 });
 

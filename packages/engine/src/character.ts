@@ -28,6 +28,7 @@ import type {
   MonsterCastLine,
   MonsterForms,
   MonsterMultiattack,
+  MonsterPull,
   MonsterRecharge,
   MonsterSave,
   MonsterTeleport,
@@ -198,6 +199,14 @@ export interface StatedBonusAction {
    */
   readonly onlyInForms?: readonly string[];
   /**
+   * What this line drags toward its creature — see {@link StatedAction.pulls},
+   * which this is the same field as. No SRD Bonus Action reaches the shape;
+   * it is here because the heading is what says what a use costs, and a
+   * homebrew block printing the sentence under this one is printing the same
+   * rule at another price.
+   */
+  readonly pulls?: MonsterPull;
+  /**
    * The spells this line casts — see {@link StatedAction.casts}, which this is
    * the same field as and for the same reason.
    *
@@ -321,6 +330,17 @@ export interface StatedAction {
    * same words the block's own Shape-Shift prints its forms under.
    */
   readonly onlyInForms?: readonly string[];
+  /**
+   * What this line drags toward its creature, where its sentence is the
+   * book's pull template — see `MonsterPullSchema`.
+   *
+   * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30
+   * feet straight toward it." Both halves are rules the engine already holds
+   * — `pullToward` is what SRD Merrow's rider goes through, and the grapple is
+   * the one `escapeGrapple` answers — so the line is the same mechanism at the
+   * heading's price.
+   */
+  readonly pulls?: MonsterPull;
 }
 
 /**

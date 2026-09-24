@@ -7,6 +7,7 @@ import {
   MonsterSaveSchema,
   MonsterSchema,
   MonsterFormsSchema,
+  MonsterPullSchema,
   MonsterSpellcastingSchema,
   MonsterTeleportSchema,
   slugify,
@@ -19,6 +20,7 @@ import {
   type MonsterForm,
   type MonsterForms,
   type MonsterMultiattack,
+  type MonsterPull,
   type MonsterMultiattackEntry,
   type MonsterRecharge,
   type MonsterRollAddend,
@@ -1719,6 +1721,27 @@ export function parseTeleportLine(text: string): MonsterTeleport | null {
 }
 
 /**
+ * SRD Roper, Reel: "The roper pulls each creature Grappled by it up to 30 feet
+ * straight toward it."
+ *
+ * Anchored end to end, which is what refuses the Ettercap's line under the
+ * same heading — "pulls one creature within 30 feet of itself that is
+ * Restrained by its Web Strand" — and the Shambling Mound's, whose pull is a
+ * clause of a hit rather than a line of its own.
+ */
+const PULL_LINE = new RegExp(
+  `^The ${SUBJECT} pulls each creature Grappled by it up to (\\d+) feet straight toward it\\.$`,
+);
+
+/** What this line drags toward its creature, or null for every other line. */
+export function parsePullLine(text: string): MonsterPull | null {
+  const matched = PULL_LINE.exec(text.replace(/\s+/g, ' ').trim());
+  if (matched === null) return null;
+  const checked = MonsterPullSchema.safeParse({ feet: Number(matched[1]!), of: 'grappled' });
+  return checked.success ? checked.data : null;
+}
+
+/**
  * SRD Shape-Shift's first sentence, in the two openings the book writes it in:
  * "The werewolf shape-shifts **into** a Large wolf-humanoid hybrid or a Medium
  * wolf, or it returns to its true humanoid form" and "The imp shape-shifts
@@ -2518,6 +2541,9 @@ function parseFeatures(
       // the reason the recharge and the day's count are.
       const forms = parseFormLine(text);
       const onlyInForms = parseFormQualification(current.name);
+      // And the sixth: a line that drags toward itself what it is already
+      // holding, which is `pullToward` at a heading's price.
+      const pulls = parsePullLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
       // the reason every detector here is: SRD Parry's number goes on an
@@ -2539,6 +2565,7 @@ function parseFeatures(
         ...(teleports === null ? {} : { teleports }),
         ...(forms === null ? {} : { forms }),
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),
+        ...(pulls === null ? {} : { pulls }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),
         ...(usesLine === null ? {} : { usesLine }),

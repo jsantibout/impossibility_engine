@@ -21,6 +21,7 @@ import {
   hasUnexecutedTrait,
   statBlockLines,
   HANDOVER_TRAIT_KINDS,
+  LINE_RESIDUE_SEAMS,
   TRAIT_KINDS_WITH_A_READER,
 } from '../scripts/coverage-data.js';
 import { TRACKED_ADJUDICATED } from '../scripts/missing-shapes.js';
@@ -568,6 +569,9 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'name',
       'onlyInForms',
       'perDay',
+      // What SRD Roper's Reel drags toward it, read out of the sentence.
+      'pulls',
+
       'recharge',
       'save',
       'spellcasting',
@@ -734,6 +738,40 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     expect([isHandoverTrait(line(spent)), hasUnexecutedTrait(line(spent))]).toEqual([false, false]);
     expect([isHandoverTrait(line(inert)), hasUnexecutedTrait(line(inert))]).toEqual([false, true]);
     expect(isHandoverTrait({ name: 'x', text: 'y' })).toBe(false);
+  });
+
+  /**
+   * The third half of the residue, named with the seam each entry waits on.
+   *
+   * `LINE_RESIDUE_SEAMS` is prose and would rot silently, so it is held to the
+   * catalogue in both directions the two trait lists are: every key names a
+   * line some CR ≤ 5 block really prints, and every one of them is really
+   * still unread. The day somebody builds one, this fails and the entry comes
+   * out in the same commit — which is what stopped `HANDOVER_TRAIT_KINDS` from
+   * turning into a list of things that used to be true.
+   */
+  it('names a line the bestiary prints, and no line that has been built', () => {
+    expect(Object.keys(LINE_RESIDUE_SEAMS).length).toBeGreaterThan(5);
+    const missing: string[] = [];
+    const built: string[] = [];
+    for (const [key, seam] of Object.entries(LINE_RESIDUE_SEAMS)) {
+      // A seam is a sentence somebody has to be able to act on, which is the
+      // same bar `HANDOVER_TRAIT_KINDS` sets for its reasons.
+      expect(seam.length, key).toBeGreaterThan(80);
+      const [id, heading] = key.split('/') as [string, string];
+      const block = SRD_CONTENT.monsters.find((monster) => monster.id === id);
+      if (block === undefined || block.cr > 5) {
+        missing.push(key);
+        continue;
+      }
+      const line = [...block.actions, ...block.bonusActions, ...block.legendaryActions].find(
+        (one) => one.name === heading,
+      );
+      if (line === undefined) missing.push(key);
+      else if (isReadLine(line)) built.push(key);
+    }
+    expect(missing).toEqual([]);
+    expect(built).toEqual([]);
   });
 
   /**
