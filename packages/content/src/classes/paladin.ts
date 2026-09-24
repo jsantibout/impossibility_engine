@@ -368,7 +368,7 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
       name: 'Sacred Weapon',
       level: 3,
       automation: 'manual',
-      note: 'Most of it is applied, which is why this is not marked as executed. SRD: "When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1)" — the use out of the Channel Divinity pool, the ten minutes on the clock and the Charisma bonus with its printed floor are the engine’s now, read off the Paladin’s own score as it stands and named in the roll rather than passed in by the caller; "You can end this effect early (no action required)" is `end_feature`. Five clauses are the table’s or are unbuilt. The imbuing reaches every Melee weapon the Paladin swings for the ten minutes rather than the one object they imbued, because a standing grant is hung on a creature and names a kind of weapon — only a casting keys a benefit to one weapon’s id. "each time you hit with it, you cause it to deal its normal damage type or Radiant damage" is a damage type the holder chooses on each hit, which no grant states. The Bright Light in a 20-foot radius is fiction the engine holds no light for. And "This effect also ends if you aren’t carrying the weapon" needs a fact about whose hand an object is in and an event that says it changed, which is the clause Shillelagh leaves for the same reason. The Attack action the SRD attaches the imbuing to is not a cost this vocabulary can name either, so it is switched on for nothing, as the same sentence’s "no action required" ending is.',
+      note: 'Most of it is applied, which is why this is not marked as executed. SRD: "When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1)" — the use out of the Channel Divinity pool, the ten minutes on the clock and the Charisma bonus with its printed floor are the engine’s now, read off the Paladin’s own score as it stands and named in the roll rather than passed in by the caller; "You can end this effect early (no action required)" is `end_feature`. "each time you hit with it, you cause it to deal its normal damage type or Radiant damage" is the type the holder names at each swing out of the pair the grant offers, in place of the weapon’s own and never beside it — the door SRD Shillelagh’s identical sentence already comes through, answered under this feature’s own id. "The weapon also emits Bright Light in a 20-foot radius and Dim Light for an additional 20 feet" is light the Paladin carries, derived on every read beside the glow a stat block’s Illumination sheds: it moves when they move, nothing is written down for the move, and it is out the read after the activation is, by whichever of the half-dozen doors the activation ended through. Three clauses are the table’s or are unbuilt. The imbuing reaches every Melee weapon the Paladin swings for the ten minutes rather than the one object they imbued, because a standing grant is hung on a creature and names a kind of weapon — only a casting keys a benefit to one weapon’s id. And "This effect also ends if you aren’t carrying the weapon" needs a fact about whose hand an object is in that the fold can read without opening a catalogue, and an equipped line pins an armour record and no weapon record, which is the clause Shillelagh leaves for the same reason. The Attack action the SRD attaches the imbuing to is not a cost this vocabulary can name either, so it is switched on for nothing, as the same sentence’s "no action required" ending is.',
       grants: {
         kind: 'activated',
         // SRD: "When you take the Attack action ... (no action required)" to
@@ -394,6 +394,27 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
             // "one **Melee** weapon that you are holding" — the kind, which is
             // as near as a standing grant reaches to one object.
             onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
+          },
+          {
+            // "each time you hit with it, you cause it to deal its normal
+            // damage type or Radiant damage" — the weapon's own type restated
+            // at each hit rather than a die added beside it, so naming nothing
+            // leaves the Longsword slashing and the total never moves.
+            kind: 'weapon-damage-type',
+            damageTypes: ['radiant'],
+            // The same narrowing the bonus carries, and the same sentence it
+            // comes out of: a Paladin's Shortbow was never imbued.
+            onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
+          },
+          {
+            // "The weapon also emits Bright Light in a 20-foot radius and Dim
+            // Light for an additional 20 feet." Carried by the Paladin, because
+            // the engine holds no object to hang it on and the SRD's weapon is
+            // in their hand — the reading SRD Light's own patch already takes.
+            kind: 'light',
+            level: 'bright',
+            radius: 20,
+            dimBeyond: 20,
           },
         ],
       },

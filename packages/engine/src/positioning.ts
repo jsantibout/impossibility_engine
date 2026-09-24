@@ -12,7 +12,7 @@ import { itemInstanceNumber } from './item-instance.js';
 // SRD Illumination, read off a sheet — see {@link carriedLight}. A value edge,
 // and a safe one: `character.ts` imports nothing but `@ie/shared` at value
 // level, so this pulls in one module and not the engine behind it.
-import { printedLight } from './character.js';
+import { activatedLight, printedLight } from './character.js';
 import type { ResourcePool } from './resources.js';
 
 /**
@@ -2349,6 +2349,15 @@ export function lightAt(state: GameState, space: Point): LightHere {
  * table says the room is dark, a casting pins the dark it made — and nobody
  * declares that a beetle is glowing, because the beetle walks.
  *
+ * **And the light a running feature sheds**, which is the same sentence
+ * printed on a class table: SRD Sacred Weapon's "the weapon also emits Bright
+ * Light in a 20-foot radius and Dim Light for an additional 20 feet". A
+ * Paladin walks exactly as the beetle does, and the activation ends by half a
+ * dozen doors — a deadline, an explicit ending, a lost condition — none of
+ * which knows anything about light, so deriving it is what makes every one of
+ * them put the light out. See {@link activatedLight} for why the gathering is
+ * `character.ts`'s and not `standing.ts`'s.
+ *
  * **Derived on every read, and stored nowhere.** A creature that moves moves
  * its light, and there is no event a removal could hang on; that is the same
  * answer `livePatchesOf` gives a Web whose casting has ended and `standing.ts`
@@ -2383,25 +2392,57 @@ function carriedLight(state: GameState): readonly (readonly [string, LightPatch]
     const creature = state.creatures[who];
     if (creature === undefined) continue;
     const light = printedLight(creature.sheet);
-    if (light === null) continue;
+    const fromFeatures = activatedLight(creature.sheet, creature.activeFeatures);
+    if (light === null && fromFeatures.length === 0) continue;
     if (positionOf(scene, creature.id) === null) continue;
 
     const origin = { creature: creature.id } as const;
-    const dimRadius = light.brightRadiusFeet + light.dimBeyondFeet;
-    if (dimRadius > 0) {
-      shed.push([
-        `dim light shed by ${who}`,
-        { region: { origin, shape: { kind: 'sphere', radius: dimRadius } }, level: 'dim' },
-      ]);
+    if (light !== null) {
+      const dimRadius = light.brightRadiusFeet + light.dimBeyondFeet;
+      if (dimRadius > 0) {
+        shed.push([
+          `dim light shed by ${who}`,
+          { region: { origin, shape: { kind: 'sphere', radius: dimRadius } }, level: 'dim' },
+        ]);
+      }
+      if (light.brightRadiusFeet > 0) {
+        shed.push([
+          `light shed by ${who}`,
+          {
+            region: { origin, shape: { kind: 'sphere', radius: light.brightRadiusFeet } },
+            level: 'bright',
+          },
+        ]);
+      }
     }
-    if (light.brightRadiusFeet > 0) {
-      shed.push([
-        `light shed by ${who}`,
-        {
-          region: { origin, shape: { kind: 'sphere', radius: light.brightRadiusFeet } },
-          level: 'bright',
-        },
-      ]);
+    // The feature's own name in the patch, because a report saying which
+    // squares are lit is the whole use of the list and "Sacred Weapon" is the
+    // answer a table wants — the block's own glow has only the creature to
+    // name it by. The dim sphere is the whole of it rather than a ring, for
+    // the reason above: light adds, and the bright core wins where they
+    // overlap.
+    for (const feature of fromFeatures) {
+      if (feature.dimBeyond !== undefined && feature.radius + feature.dimBeyond > 0) {
+        shed.push([
+          `dim light shed by ${feature.name} on ${who}`,
+          {
+            region: {
+              origin,
+              shape: { kind: 'sphere', radius: feature.radius + feature.dimBeyond },
+            },
+            level: 'dim',
+          },
+        ]);
+      }
+      if (feature.radius > 0) {
+        shed.push([
+          `light shed by ${feature.name} on ${who}`,
+          {
+            region: { origin, shape: { kind: 'sphere', radius: feature.radius } },
+            level: feature.level,
+          },
+        ]);
+      }
     }
   }
   return shed;

@@ -51,6 +51,7 @@ import {
   sightBetween,
   SIGHT_SENSES,
   type CreatureSense,
+  type LightLevel,
   type Point,
   type PositionState,
   type SenseName,
@@ -556,6 +557,78 @@ export type StandingGrant =
        * including a spell's and a fist's.
        */
       readonly onlyWithWeapon?: WeaponNarrowing;
+    }
+  /**
+   * SRD Sacred Weapon: "each time you hit with it, you cause it to deal its
+   * normal damage type or Radiant damage."
+   *
+   * **The weapon's own type restated, not a component added beside it** — and
+   * that is the whole distinction from `attack-damage.damageTypeChoices` one
+   * member along. Divine Strike's "an extra 1d8 Necrotic or Radiant damage
+   * (your choice)" types a die of its own; this types the blade, so a hit
+   * deals one type where it used to deal the other and the total does not
+   * move. A feature written the other way would have added a die the book
+   * does not print.
+   *
+   * **The feature-side twin of a casting's offer**, which is the sentence SRD
+   * Shillelagh prints — "it can be Force damage **or** the weapon's normal
+   * damage type (your choice)" — and which only a casting could say, because
+   * `GrantedWeaponRider` is written by a casting and by nothing else.
+   * {@link weaponRiderDamageType} reads both, so the check at the door and the
+   * reader at the damage roll cannot come to disagree about what was on offer,
+   * and a swing that answered two offers at once is refused where it always
+   * was.
+   *
+   * **Answered per hit and declined by silence.** The types here are what the
+   * holder may name in `AttackCommand.featureDamageTypes` under this feature's
+   * id; naming none leaves the weapon's printed type alone, which is the only
+   * moment at which "you cause it to" could be answered either way. A type the
+   * feature does not offer is refused before the action is spent.
+   */
+  | {
+      readonly kind: 'weapon-damage-type';
+      /** The types offered in place of the weapon's own. Never empty. */
+      readonly damageTypes: readonly string[];
+      /**
+       * The weapons the sentence reaches — SRD Sacred Weapon's "one **Melee**
+       * weapon that you are holding". Absent reaches every weapon the holder
+       * swings, and an Unarmed Strike with them.
+       */
+      readonly onlyWithWeapon?: WeaponNarrowing;
+    }
+  /**
+   * SRD Sacred Weapon: "The weapon also emits Bright Light in a 20-foot radius
+   * and Dim Light for an additional 20 feet."
+   *
+   * The `light` {@link SpellEffect}'s own three fields, on the other side of
+   * the fence: a level, a radius, and the book's "for an additional" measured
+   * **beyond** the first. What the spell side lays as a patch sourced to its
+   * casting, this one is *derived* — `carriedLight` inside `lightAt` reads it
+   * off the sheet on every question, beside a beetle's own Illumination and
+   * never among the declared patches. So the light moves with its holder, no
+   * event says that it did, and it is gone the read after the feature is, by
+   * whichever door the feature left through.
+   *
+   * **Nonmagical, and that is the absence of a field rather than a decision
+   * taken here.** The one rule that reads the flag compares spell *levels* —
+   * SRD Darkness and SRD Daylight putting each other out — and a feature has
+   * no level to compare with. So a feature's light loses to a magical darkness
+   * exactly as a torch does, which is Darkness's own sentence.
+   *
+   * **Withheld from an item**, for `speed`'s reason rather than
+   * `attack-bonus`'s: the reader is inside `lightAt`, which sits below
+   * `standing.ts` in the import graph and cannot gather what a worn item
+   * grants — and it must not, because `requirementsHold` calls `lightAt` and a
+   * reader that went back through it would be asking a question of its own
+   * answer. See `ITEM_EFFECT_KINDS`.
+   */
+  | {
+      readonly kind: 'light';
+      readonly level: LightLevel;
+      /** SRD's "in a 20-foot radius", measured from the holder's own space. */
+      readonly radius: number;
+      /** SRD "Dim Light for an additional N feet": a dim sphere N wider. */
+      readonly dimBeyond?: number;
     }
   /**
    * A flat number added to something, with the item or feature's name on it.
@@ -5315,12 +5388,19 @@ export interface AttackContext {
  * Everything offering this swing a choice of damage type, by the name the
  * choice is made under.
  *
- * Two offerers and one map. A feature's own `attack-damage` grant is keyed by
- * its feature id — SRD Divine Strike's Necrotic or Radiant — and a casting
- * that imbued the weapon in hand is keyed by the **spell's** name, which is
- * what `spellOfSource` reports a weapon rider as everywhere else. One
- * gatherer, so the check at the door and the reader at the damage roll cannot
- * come to disagree about what was on offer.
+ * Three offerers and one map. A feature's own `attack-damage` grant is keyed
+ * by its feature id — SRD Divine Strike's Necrotic or Radiant — a
+ * `weapon-damage-type` grant beside it by the same id, and a casting that
+ * imbued the weapon in hand by the **spell's** name, which is what
+ * `spellOfSource` reports a weapon rider as everywhere else. One gatherer, so
+ * the check at the door and the reader at the damage roll cannot come to
+ * disagree about what was on offer.
+ *
+ * `weapon` narrows two of the three. A casting's offer belongs to the object
+ * it imbued; a `weapon-damage-type` grant's belongs to the *kind* of weapon
+ * its sentence names — SRD Sacred Weapon's "one **Melee** weapon" — so a
+ * Paladin's Shortbow is offered nothing and naming the feature on that swing
+ * is a choice nobody made.
  */
 function damageTypesOffered(
   state: GameState,
@@ -5332,6 +5412,9 @@ function damageTypesOffered(
     if (effect.grant.kind === 'attack-damage' && effect.grant.damageTypeChoices !== undefined) {
       offered.set(effect.feature, effect.grant.damageTypeChoices);
     }
+    if (effect.grant.kind === 'weapon-damage-type' && weaponOfferHolds(effect.grant, weapon)) {
+      offered.set(effect.feature, effect.grant.damageTypes);
+    }
   }
   for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
     if (rider.damageTypes !== undefined) offered.set(spellOfSource(rider.source), rider.damageTypes);
@@ -5340,14 +5423,38 @@ function damageTypesOffered(
 }
 
 /**
- * The type a casting's offer puts on the weapon's own damage, or null where
+ * Whether the weapon in this swing is one a `weapon-damage-type` offer covers.
+ *
+ * Its own line because the offer is read twice — gathered for the check at the
+ * door and read again at the damage roll — and a narrowing honoured in one of
+ * the two places is a Paladin who is refused Radiant on a Shortbow and given
+ * it anyway, or the other way about.
+ */
+function weaponOfferHolds(
+  grant: { readonly onlyWithWeapon?: WeaponNarrowing },
+  weapon: Weapon | null,
+): boolean {
+  return (
+    grant.onlyWithWeapon === undefined || weaponNarrowingHolds(grant.onlyWithWeapon, { weapon })
+  );
+}
+
+/**
+ * The type an offer on this weapon puts on its own damage, or null where
  * nobody took one.
  *
  * SRD Shillelagh: "it can be Force damage **or** the weapon's normal damage
- * type (your choice)" — one type or the other, so what comes back *replaces*
- * the weapon's rather than joining it. Naming none is how the offer is
- * declined, which is the reading `featureDamageTypes` already takes of an
- * absent key.
+ * type (your choice)". SRD Sacred Weapon prints the same sentence from the
+ * other side of the fence: "each time you hit with it, you cause it to deal
+ * its normal damage type or Radiant damage." One type or the other, so what
+ * comes back *replaces* the weapon's rather than joining it. Naming none is
+ * how the offer is declined, which is the reading `featureDamageTypes` already
+ * takes of an absent key.
+ *
+ * **Both offerers, read in one place**, because a swing takes at most one of
+ * them: the door refuses a blow that answered two, and a blow with two types
+ * is one the book gives one. A casting's is keyed by the spell's name and a
+ * feature's by its own id, so the two can never be mistaken for each other.
  *
  * The first offer that was answered wins, and no SRD weapon can carry two:
  * Shillelagh replaces its own prior casting and Magic Weapon offers no type at
@@ -5364,6 +5471,12 @@ export function weaponRiderDamageType(
     if (rider.damageTypes === undefined) continue;
     const named = chosen[spellOfSource(rider.source)];
     if (named !== undefined && rider.damageTypes.includes(named)) return named;
+  }
+  for (const { effect } of standingFor(state, who)) {
+    if (effect.grant.kind !== 'weapon-damage-type') continue;
+    if (!weaponOfferHolds(effect.grant, weapon)) continue;
+    const named = chosen[effect.feature];
+    if (named !== undefined && effect.grant.damageTypes.includes(named)) return named;
   }
   return null;
 }

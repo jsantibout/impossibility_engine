@@ -11,7 +11,10 @@ import {
   checkFeatureDefinition,
   duplicateFeatureIds,
   parseFeatureDefinition,
+  shedLightHostProblems,
+  shedLightProblems,
   speedGrantProblems,
+  weaponDamageTypeProblems,
   weaponSelectorProblems,
   type FeatureContext,
   poolKeysIn,
@@ -319,6 +322,20 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
  * Charisma to every swing they made with anything, which is a benefit
  * misapplied rather than one never applied: strictly worse than the refusal.
  * The day an item prints the sentence, the field comes with it.
+ *
+ * **`weapon-damage-type` is the third, on `attack-bonus`'s reason exactly**:
+ * it narrows by a kind of weapon and has no `onlyWithItem`, so a blade
+ * admitted here would offer its type on every swing its wielder made with
+ * anything. No SRD item prints the sentence — a Flame Tongue adds a die, which
+ * is `attack-damage` — so the refusal costs the catalogue nothing.
+ *
+ * **`light` is the fourth, and on `speed`'s**: what reads it is `carriedLight`
+ * inside `lightAt`, which gathers from the sheet alone. It cannot gather a
+ * worn item's grants, because `lightAt` sits below `standing.ts` in the import
+ * graph, and it must not, because `requirementsHold` calls `lightAt` and a
+ * reader that went back through it would be asking a question of its own
+ * answer. A magic lantern is a real gap and refusing it by name is how the gap
+ * stays visible.
  */
 export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'roll-mode',
@@ -424,11 +441,17 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
  * for the narrowing an item's sentence would need and this one has not got,
  * and belongs here because a feat's is its holder's own and reaches every
  * swing the weapon clause admits, which is exactly what it says.
+ * `weapon-damage-type` is withheld from an item for `attack-bonus`'s reason
+ * and belongs here for `attack-bonus`'s reason; `light` is withheld for
+ * `speed`'s and belongs here for `speed`'s — a feat's grants are compiled onto
+ * the sheet, which is the one place `carriedLight` reads.
  */
 export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([
   ...ITEM_EFFECT_KINDS,
   'speed',
   'attack-bonus',
+  'weapon-damage-type',
+  'light',
 ]);
 
 /**
@@ -777,6 +800,15 @@ function ownedStandingEffectProblems(
   }
   if (effect.kind === 'attack-bonus') {
     found.push(...attackBonusProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'weapon-damage-type') {
+    found.push(...weaponDamageTypeProblems(effect as unknown as Record<string, unknown>, at));
+    if (effect.onlyWithWeapon !== undefined) {
+      found.push(...weaponNarrowingProblems(effect.onlyWithWeapon, `${at}.onlyWithWeapon`));
+    }
+  }
+  if (effect.kind === 'light') {
+    found.push(...shedLightProblems(effect as unknown as Record<string, unknown>, at));
   }
   if (effect.kind === 'casting-healing') {
     found.push(...castingHealingProblems(effect as unknown as Record<string, unknown>, at));
@@ -4085,6 +4117,15 @@ function featStandingProblems(
     return problems;
   }
 
+  // The grant around a light, at the third door, with the reach question off:
+  // `feat_grant_not_read` above already refuses a feat's aura, and creation
+  // compiles a feat's grant to the holder's own reach whatever it says, so
+  // asking again here would report one mistake twice. The requirements are
+  // nobody else's question — see `shedLightHostProblems`.
+  for (const problem of shedLightHostProblems(grant, where, false)) {
+    problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+  }
+
   effects.forEach((effect, position) => {
     const kind = (effect as { readonly kind?: unknown }).kind;
     if (effect === null || typeof effect !== 'object' || !isString(kind)) {
@@ -4456,6 +4497,14 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
           }
         });
         if (grant.kind === 'standing') {
+          // The grant *around* a light, which is where the two clauses nobody
+          // could gather are written — see `shedLightHostProblems`. Asked once
+          // per grant rather than once per effect, because both fields are the
+          // grant's, and with the reach question on, because a feature's reach
+          // is its own and an unwritten one is compiled as an aura.
+          for (const problem of shedLightHostProblems(grant, grantsAt, true)) {
+            problems.push({ field: problem.field, code: problem.code, reason: problem.reason });
+          }
           (grant.effects ?? []).forEach((effect, position) => {
             // **`checkFeatureDefinition` above already held this one**, at this
             // very path, and a problem reported twice is a problem an author
