@@ -145,7 +145,7 @@ const applyAll = (state: GameState, events: readonly GameEvent[]): GameState =>
   events.reduce(applyEvent, state);
 
 const aim = (log: readonly GameEvent[] = SETUP) =>
-  unwrap(activateFeature(fold('seed', log), ROGUE, { feature: STEADY_AIM }), 'steady aim');
+  unwrap(activateFeature(fold('seed', log), ROGUE, { feature: STEADY_AIM }, SRD_CONTENT), 'steady aim');
 
 /** A fist, free of the Attack action, so two swings fit in one turn. */
 const swing = (state: GameState) =>
@@ -228,7 +228,7 @@ describe('SRD Steady Aim: a Bonus Action that hangs a one-shot Advantage', () =>
     const after = fold('seed', [...SETUP, ...moved.events]);
     expect(after.combat?.budgets[ROGUE]?.movementSpent).toBe(10);
 
-    const refused = activateFeature(after, ROGUE, { feature: STEADY_AIM });
+    const refused = activateFeature(after, ROGUE, { feature: STEADY_AIM }, SRD_CONTENT);
     expect(isErr(refused) && refused.code).toBe('already_moved');
     // Nothing was spent by a refusal.
     expect(after.combat?.budgets[ROGUE]?.bonusAction).toBe(true);
@@ -276,7 +276,7 @@ describe('SRD Steady Aim: a Bonus Action that hangs a one-shot Advantage', () =>
    */
   it('is refused where there are no turns to end', () => {
     const outside = SETUP.filter((event) => event.type !== 'combat-started');
-    const refused = activateFeature(fold('seed', outside), ROGUE, { feature: STEADY_AIM });
+    const refused = activateFeature(fold('seed', outside), ROGUE, { feature: STEADY_AIM }, SRD_CONTENT);
     expect(refused.ok).toBe(false);
   });
 
@@ -332,7 +332,7 @@ describe('SRD Steady Aim: a Bonus Action that hangs a one-shot Advantage', () =>
     ] as readonly GameEvent[];
 
     const events = unwrap(
-      activateFeature(fold('seed', marked), MARKSMAN, { feature: 'homebrew:mark' }),
+      activateFeature(fold('seed', marked), MARKSMAN, { feature: 'homebrew:mark' }, SRD_CONTENT),
       'mark',
     );
     let log: readonly GameEvent[] = [...marked, ...events];
@@ -351,7 +351,7 @@ describe('SRD Steady Aim: a Bonus Action that hangs a one-shot Advantage', () =>
   it('is idempotent under a repeated command id', () => {
     const state = fold('seed', SETUP);
     const first = unwrap(
-      activateFeature(state, ROGUE, { commandId: 'c1', feature: STEADY_AIM }),
+      activateFeature(state, ROGUE, { commandId: 'c1', feature: STEADY_AIM }, SRD_CONTENT),
       'first',
     );
     expect(first.length).toBeGreaterThan(0);
@@ -360,7 +360,7 @@ describe('SRD Steady Aim: a Bonus Action that hangs a one-shot Advantage', () =>
       activateFeature(fold('seed', [...SETUP, ...first]), ROGUE, {
         commandId: 'c1',
         feature: STEADY_AIM,
-      }),
+      }, SRD_CONTENT),
       'again',
     );
     expect(again).toEqual([]);

@@ -3335,6 +3335,11 @@ export function planCharacter(
       // what a use hangs is a grant the command emits, not a class table to be
       // resolved at a level — see `HungGrant`.
       ...(grant.hangs === undefined ? {} : { hangs: grant.hangs }),
+      // The same, for what a use hangs on an **object**: SRD Sacred Weapon's
+      // ability is named by its own sentence and its floor is printed beside
+      // it, so there is no column to read here — `activateFeature` names the
+      // weapon and pins the rider.
+      ...(grant.imbuesWeapon === undefined ? {} : { imbuesWeapon: grant.imbuesWeapon }),
     });
 
     for (const declared of grant.whileActive ?? []) {

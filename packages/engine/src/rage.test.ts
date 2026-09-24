@@ -94,7 +94,7 @@ const RAGE = 'barbarian:rage';
 /** Turn it on, and hand back the longer log. */
 const raging = (log: readonly GameEvent[] = made()): readonly GameEvent[] => [
   ...log,
-  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RAGE }), 'rage'),
+  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RAGE }, SRD_CONTENT), 'rage'),
 ];
 
 const supply = () => ({ issuer: createRollIssuer('r'), rng: createRng('turn') as Rng, content: SRD_CONTENT });
@@ -117,7 +117,7 @@ describe('turning it on costs what the SRD says it costs', () => {
       ...made(),
       { type: 'resource-spent', id: GRUM, key: 'rage', amount: 3 },
     ];
-    const out = activateFeature(fold('seed', spent), GRUM, { feature: RAGE });
+    const out = activateFeature(fold('seed', spent), GRUM, { feature: RAGE }, SRD_CONTENT);
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('exhausted');
   });
@@ -129,13 +129,13 @@ describe('turning it on costs what the SRD says it costs', () => {
       { type: 'items-gained', id: GRUM, items: [{ id: 'ring-mail', quantity: 1 }], source: 'loot' },
       { type: 'item-equipped', id: GRUM, item: 'ring-mail', armor: SRD_CONTENT.item('ring-mail')?.armor ?? null },
     ];
-    const out = activateFeature(fold('seed', armoured), GRUM, { feature: RAGE });
+    const out = activateFeature(fold('seed', armoured), GRUM, { feature: RAGE }, SRD_CONTENT);
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('heavy_armor');
   });
 
   it('refuses to start twice', () => {
-    const out = activateFeature(fold('seed', raging()), GRUM, { feature: RAGE });
+    const out = activateFeature(fold('seed', raging()), GRUM, { feature: RAGE }, SRD_CONTENT);
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('already_active');
   });
@@ -160,24 +160,24 @@ describe('turning it on costs what the SRD says it costs', () => {
         ],
       },
     ];
-    const first = unwrap(activateFeature(fold('seed', fighting), GRUM, { feature: RAGE }), 'rage');
+    const first = unwrap(activateFeature(fold('seed', fighting), GRUM, { feature: RAGE }, SRD_CONTENT), 'rage');
     const after = [...fighting, ...first];
     expect(fold('seed', after).combat?.budgets.grum?.bonusAction).toBe(false);
 
     const ended = unwrap(endFeature(fold('seed', after), GRUM, { feature: RAGE }), 'end');
-    const out = activateFeature(fold('seed', [...after, ...ended]), GRUM, { feature: RAGE });
+    const out = activateFeature(fold('seed', [...after, ...ended]), GRUM, { feature: RAGE }, SRD_CONTENT);
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('no_bonus_action');
   });
 
   it('is a no-op on a retried command id', () => {
     const first = unwrap(
-      activateFeature(base(), GRUM, { feature: RAGE, commandId: 'r1' }),
+      activateFeature(base(), GRUM, { feature: RAGE, commandId: 'r1' }, SRD_CONTENT),
       'first',
     );
     const log = [...made(), ...first];
     const retry = unwrap(
-      activateFeature(fold('seed', log), GRUM, { feature: RAGE, commandId: 'r1' }),
+      activateFeature(fold('seed', log), GRUM, { feature: RAGE, commandId: 'r1' }, SRD_CONTENT),
       'retry',
     );
     expect(retry).toEqual([]);
@@ -531,7 +531,7 @@ describe('the deadline, and pushing it', () => {
 
       current = [
         ...current,
-        ...unwrap(activateFeature(fold('seed', current), GRUM, { feature: RAGE }), 'again'),
+        ...unwrap(activateFeature(fold('seed', current), GRUM, { feature: RAGE }, SRD_CONTENT), 'again'),
       ];
       const now = fold('seed', current).elapsed;
       expect(now).toBeGreaterThan(0);

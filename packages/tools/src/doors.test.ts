@@ -841,11 +841,15 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
       'use_pool_option.teleportTo',
     ],
   },
-  // The sixth stated fact, and the same two casting callers. SRD Shillelagh's
-  // "A Club or Quarterstaff you are holding" and Magic Weapon's "You touch a
-  // nonmagical weapon" name one object out of what the target is carrying, and
-  // a Druid holding both has two answers the engine will not pick between.
-  weapon_required: { fields: ['cast_spell.weapon', 'take_ready.response.weapon'] },
+  // The sixth stated fact, and the only one a **feature** asks as well as a
+  // casting. SRD Shillelagh's "A Club or Quarterstaff you are holding", SRD
+  // Magic Weapon's "You touch a nonmagical weapon" and SRD Sacred Weapon's
+  // "one Melee weapon that you are holding" each name one object out of what
+  // the holder is carrying, and a Paladin holding two Longswords has two
+  // answers the engine will not pick between.
+  weapon_required: {
+    fields: ['activate_feature.weapon', 'cast_spell.weapon', 'take_ready.response.weapon'],
+  },
   // The seventh stated fact, and one caller: SRD Find Familiar's "an animal
   // form you choose" names the stat block the summons raises, and the engine
   // refuses to pick one. A readied casting does not carry it — nothing in the

@@ -683,7 +683,7 @@ run(
 
 // — the Barbarian rages, which is a pool, an activation and a deadline ———————
 until(GRIM, 'to-grim');
-act('grim rages', activateFeature(state(), GRIM, { feature: 'barbarian:rage', commandId: 'rage-1' }));
+act('grim rages', activateFeature(state(), GRIM, { feature: 'barbarian:rage', commandId: 'rage-1' }, SRD_CONTENT));
 act('grim dodges', takeDodge(state(), GRIM, { commandId: 'grim-dodge' }));
 act('grim stops dodging', endFeature(state(), GRIM, { feature: 'action:dodge', commandId: 'grim-undodge' }));
 

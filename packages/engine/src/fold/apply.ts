@@ -30,8 +30,10 @@ import { INITIATIVE_LABEL } from '../combat.js';
 import type { GameEvent } from '../events.js';
 import type { CreatureState, GameState } from '../state.js';
 import { initialState } from '../state.js';
+import { castingIdOf } from '../spells.js';
+import { featureOfSource } from '../progression.js';
 import { type Applying, unhandledEvent } from './common.js';
-import { releaseCasting } from './release.js';
+import { releaseCasting, releaseGrants } from './release.js';
 import { dropOrphanedAreaEffects } from './areas.js';
 import { openTurnStart, reachStartOfTurn } from './turns.js';
 import { dropOrphanedSaves, dropStrandedDamage, expireEffects } from './expiry.js';
@@ -301,6 +303,13 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
         dropStrandedDamage(
           dropOrphanedSaves(
             dropLapsedReady(
+              // **Outside the two passes that end an activation, and inside
+              // the four that clean up after a release.** What this reads is
+              // an activation that has already gone — a deadline that
+              // arrived, a lost condition — and what it may do is end a
+              // casting, which the `drop*` passes above are the safety net
+              // for.
+              settleWeaponRiders(
               expireEffects(
                 endLostFeatures(
                   // Between the two passes that already end a casting nobody
@@ -335,6 +344,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
                     event,
                   ),
                 ),
+              ),
               ),
             ),
           ),
@@ -523,6 +533,113 @@ function endLostFeatures(state: GameState): GameState {
   }
 
   return { ...state, creatures, timers };
+}
+
+/**
+ * An imbuing that has outlived what it was hung on, or what it was hung *to*.
+ *
+ * Two clauses of one rule, and the rule is that a benefit keyed to an object
+ * lives only as long as the object is in its holder's hands and the thing that
+ * imbued it is still running.
+ *
+ * - **A feature's rider ends with its activation.** SRD Sacred Weapon imbues
+ *   one weapon "for 10 minutes or until you use this feature again", and the
+ *   activation ends by half a dozen doors — the span, a dismissal, a second
+ *   use, a lost condition — not one of which knows that a weapon was imbued.
+ *   A `grants` deadline of its own would have covered the first door and none
+ *   of the others, so the rider is derived off `activeFeatures` instead: the
+ *   moment the feature is gone, so is it.
+ * - **A rider that says so ends when its weapon is no longer carried.** SRD
+ *   Sacred Weapon: "This effect also ends if you aren't carrying the weapon."
+ *   SRD Shillelagh: "the spell ends early ... if you let go of the weapon."
+ *   And what ends is what hung it — the whole activation for the first, which
+ *   takes the light it shed with it, and the whole casting for the second,
+ *   which is what "the spell ends" says.
+ *
+ * **Declared, not assumed of every rider**, because the book does not say it
+ * of every rider: SRD Magic Weapon enchants a weapon for an hour and prints no
+ * such clause, so a Mace put down under it is still a magic Mace when it is
+ * picked up. `GrantedWeaponRider.endsWhenLetGo` is the sentence; a rider
+ * without it is untouched by this clause.
+ *
+ * **The fold opens no catalogue, and this is why it does not have to.** The
+ * rider pins the weapon's catalogue id at the moment of the use, and an
+ * inventory line carries the same id, so the question is `id === id` over a
+ * list the creature already holds — the same comparison `endLostAttunements`
+ * makes one pass along, and the reason "you are holding" is read as *carrying*
+ * throughout: an inventory says what a creature has, `equipped` is per kind of
+ * thing rather than per hand, and `resolveAttack` gates a swing on the same
+ * list. What no pass could do is ask whether the thing in hand is a *Melee*
+ * weapon, which is why that question is asked once, at the door, by a command
+ * that may read a book.
+ */
+function settleWeaponRiders(state: GameState): GameState {
+  // Nobody is carrying an imbued weapon, which is almost every state.
+  if (!anyCreature(state, (c) => c.weaponRiders.length > 0)) return state;
+
+  let current = state;
+  const ended: { id: CharacterId; feature: string }[] = [];
+
+  for (const key of Object.keys(state.creatures).sort()) {
+    for (const rider of state.creatures[key]?.weaponRiders ?? []) {
+      const creature = current.creatures[key];
+      if (creature === undefined) continue;
+      if (!creature.weaponRiders.some((held) => held.source === rider.source)) continue;
+
+      const feature = featureOfSource(rider.source);
+      const carried = creature.inventory.some(
+        (line) => line.id === rider.weapon && line.quantity > 0,
+      );
+      // The activation is over by some other door and the rider is what it
+      // left behind; nothing else about the creature moves.
+      const orphaned = feature !== null && !creature.activeFeatures.includes(feature);
+      const letGo = rider.endsWhenLetGo === true && !carried;
+      if (!orphaned && !letGo) continue;
+
+      if (feature !== null) {
+        if (letGo) ended.push({ id: creature.id, feature });
+        current = {
+          ...current,
+          creatures: {
+            ...current.creatures,
+            [key]: {
+              ...releaseGrants(creature, rider.source),
+              ...(letGo
+                ? { activeFeatures: creature.activeFeatures.filter((f) => f !== feature) }
+                : {}),
+            },
+          },
+        };
+        continue;
+      }
+
+      // A casting's, and the sentence is about the spell rather than about one
+      // of its effects: `releaseCasting` takes the rider with everything else
+      // that casting is holding up, wherever it landed.
+      const castingId = castingIdOf(rider.source);
+      current =
+        castingId === null
+          ? {
+              ...current,
+              creatures: { ...current.creatures, [key]: releaseGrants(creature, rider.source) },
+            }
+          : releaseCasting(current, creature.id, castingId);
+    }
+  }
+
+  if (ended.length === 0) return current;
+
+  // The deadline goes with the activation, for `endLostFeatures`' reason: a
+  // stale one would sit waiting to cut the **next** imbuing short.
+  const timers: Record<string, TimedEffect> = {};
+  for (const [key, timer] of Object.entries(current.timers)) {
+    const target = timer.target;
+    const doomed =
+      target.kind === 'feature' &&
+      ended.some((one) => one.id === target.on && one.feature === target.feature);
+    if (!doomed) timers[key] = timer;
+  }
+  return { ...current, timers };
 }
 
 /**

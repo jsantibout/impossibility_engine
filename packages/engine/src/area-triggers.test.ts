@@ -1704,7 +1704,7 @@ describe('a creature owing a mandatory effect may take no action at all', () => 
       takeReady(owingAtStart().state, MOVER, { trigger: 'when it moves', response: { kind: 'action' } }, SRD_CONTENT),
     ));
   it('refuses activating a feature', () =>
-    refuses(activateFeature(owingAtStart().state, MOVER, { feature: 'test:stance' })));
+    refuses(activateFeature(owingAtStart().state, MOVER, { feature: 'test:stance' }, SRD_CONTENT)));
 
   /**
    * **After the duplicate check, never before it.** A retry arrives at the
@@ -1946,7 +1946,7 @@ describe('every guarded command checks the duplicate first', () => {
     },
     {
       name: 'activateFeature',
-      run: (g, commandId) => activateFeature(g.state, MOVER, { feature: 'test:stance', commandId }),
+      run: (g, commandId) => activateFeature(g.state, MOVER, { feature: 'test:stance', commandId }, SRD_CONTENT),
     },
   ];
 
@@ -2161,7 +2161,7 @@ describe('no ordinary voluntary action crosses an outstanding area effect', () =
     },
     {
       name: 'activateFeature',
-      run: (state) => activateFeature(state, MOVER, { feature: 'test:stance' }),
+      run: (state) => activateFeature(state, MOVER, { feature: 'test:stance' }, SRD_CONTENT),
     },
     {
       name: 'useHealingTouch',

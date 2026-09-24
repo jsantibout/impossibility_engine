@@ -440,7 +440,7 @@ describe('a homebrew class goes through the same door as the book', () => {
     const log = unwrap(createCharacter(content, bloodhunter(), WHO), 'create');
     const state = fold('seed', log);
     const on = unwrap(
-      activateFeature(state, WHO, { feature: 'bloodhunter:crimson-rite' }),
+      activateFeature(state, WHO, { feature: 'bloodhunter:crimson-rite' }, content),
       'activate',
     );
     const after = fold('seed', [...log, ...on]);
@@ -1184,8 +1184,8 @@ describe('what an item may grant is derived from the union, not recalled', () =>
   });
 
   /**
-   * And every standing grant but the four deliberately withheld, which are two
-   * of each of the two reasons.
+   * And every standing grant but the three deliberately withheld, which are
+   * two of one reason and one of another.
    *
    * **A reader that does not reach an item's grants.** `speedOf` gathers Speed
    * from the sheet alone, because it is the function a `has-speed` requirement
@@ -1196,17 +1196,14 @@ describe('what an item may grant is derived from the union, not recalled', () =>
    * name rather than accepted and never read.
    *
    * **A narrowing the item's own sentence would need.** An ability-sized
-   * `attack-bonus` and a `weapon-damage-type` offer both narrow by a kind of
-   * weapon and have no `onlyWithItem`, so an item's would reach every swing
-   * its wearer made with anything — a benefit **misapplied** rather than one
-   * never applied, which is the worse of the two.
+   * `attack-bonus` narrows by a kind of weapon and has no `onlyWithItem`, so an
+   * item's would reach every swing its wearer made with anything — a benefit
+   * **misapplied** rather than one never applied, which is the worse of the
+   * two. `weapon-damage-type` stood beside it for exactly that reason and is
+   * gone from the union altogether: the sentence it carried is keyed to one
+   * object now, on `ImbuedWeapon`, where the narrowing is the object itself.
    */
-  const WITHHELD_FROM_AN_ITEM: readonly string[] = [
-    'speed',
-    'attack-bonus',
-    'weapon-damage-type',
-    'light',
-  ];
+  const WITHHELD_FROM_AN_ITEM: readonly string[] = ['speed', 'attack-bonus', 'light'];
 
   it('carries every standing grant but the withheld, and invents none', () => {
     for (const kind of WITHHELD_FROM_AN_ITEM) expect(unionKinds('StandingGrant')).toContain(kind);

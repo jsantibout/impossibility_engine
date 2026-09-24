@@ -113,6 +113,17 @@ export interface FeatureDefinitionProblem {
 }
 
 /**
+ * An object and not a list, which is what every untyped clause below has to
+ * establish before it reads a field off one.
+ *
+ * `content.ts`'s twin, because the other door onto these checks is JSON text
+ * and a `TypeError` thrown at a malformed blob is a refusal that stopped being
+ * a value.
+ */
+const isShape = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
  * The Speed a feature grants, held to the pairing a spell's is.
  *
  * SRD prints four features of this shape and they split two ways: three add
@@ -262,6 +273,156 @@ export function weaponDamageTypeProblems(
     ];
   }
   return [];
+}
+
+/**
+ * Everything wrong with a weapon narrowing, wherever one is written.
+ *
+ * `WeaponNarrowing` is a *description* of a weapon rather than a list of ids,
+ * which is what keeps rule 4 — and the cost of a description is that one
+ * naming a category nobody prints matches no weapon at all and says nothing
+ * about it. That is the quiet failure this whole validator exists to turn into
+ * a refusal at authoring, and the reason `weaponSelectorProblems` is reused
+ * rather than restated: a `strike-style` and an `on-hit` rider already hold
+ * their selectors to the same three closed sets.
+ *
+ * Its own function because four doors write the clause — an item's grant, a
+ * class feature's, a feat's, and the weapon an activation imbues — and a rule
+ * enforced at three of four is a rule with a hole in it. It lives here rather
+ * than in `content.ts` for {@link speedGrantProblems}' reason, the other way
+ * about: the fourth door is an `activated` grant, which this file validates.
+ */
+export function weaponNarrowingProblems(
+  narrowing: unknown,
+  at: string,
+): readonly FeatureDefinitionProblem[] {
+  const found: FeatureDefinitionProblem[] = [];
+  if (!isShape(narrowing)) {
+    return [
+      {
+        code: 'bad_weapon_narrowing',
+        reason: 'a weapon narrowing is an object naming the weapons it covers, how they are held, or both',
+        field: at,
+      },
+    ];
+  }
+  const weapons = narrowing['weapons'];
+  if (weapons !== undefined) {
+    if (!Array.isArray(weapons) || weapons.length === 0) {
+      found.push({
+        code: 'bad_weapon_narrowing',
+        reason: 'the weapons a narrowing covers are a non-empty list of selectors; one that asks nothing of the weapon omits the field',
+        field: `${at}.weapons`,
+      });
+    } else {
+      weapons.forEach((selector, index) => {
+        found.push(
+          ...weaponSelectorProblems(
+            selector as Parameters<typeof weaponSelectorProblems>[0],
+            `${at}.weapons[${index}]`,
+          ),
+        );
+      });
+    }
+  }
+  const held = narrowing['heldInTwoHands'];
+  if (held !== undefined && held !== true) {
+    found.push({
+      code: 'bad_weapon_narrowing',
+      reason: 'SRD\'s "holding it with two hands" is asked or not asked; `false` is a clause that says nothing, so the field is omitted instead',
+      field: `${at}.heldInTwoHands`,
+    });
+  }
+  if (weapons === undefined && held === undefined) {
+    found.push({
+      code: 'bad_weapon_narrowing',
+      reason: 'a narrowing that narrows nothing withholds a benefit from nobody; omit the field rather than writing an empty one',
+      field: at,
+    });
+  }
+  return found;
+}
+
+
+/**
+ * Everything wrong with the weapon an activation imbues.
+ *
+ * SRD Sacred Weapon: "imbue one **Melee** weapon that you are holding ... you
+ * add your Charisma modifier to attack rolls you make with that weapon
+ * (minimum bonus of +1) ... you cause it to deal its normal damage type or
+ * Radiant damage."
+ *
+ * Three clauses and three questions, each of them one nothing downstream could
+ * recover from. A narrowing naming a category nobody prints reaches no weapon,
+ * so the feature could never be used at all. A bonus sized by something that
+ * is not an ability, or floored at something that is not points, is arithmetic
+ * `standingBonuses` cannot do. And an offer of no types is a choice with
+ * nothing in it — {@link weaponDamageTypeProblems}, which is where that
+ * sentence has always been judged, now reached through this host instead of
+ * through a standing grant.
+ */
+export function imbuedWeaponProblems(
+  imbues: unknown,
+  at: string,
+): readonly FeatureDefinitionProblem[] {
+  if (!isShape(imbues)) {
+    return [
+      {
+        field: at,
+        code: 'bad_imbued_weapon',
+        reason:
+          'the weapon an activation imbues is an object naming the weapons it may be, what it adds to their attack rolls, and the damage types it offers',
+      },
+    ];
+  }
+  const found: FeatureDefinitionProblem[] = [];
+  const weapons = imbues['weapons'];
+  if (weapons !== undefined) found.push(...weaponNarrowingProblems(weapons, `${at}.weapons`));
+
+  const sized = imbues['attackBonusFrom'];
+  if (sized !== undefined) {
+    if (!isShape(sized)) {
+      found.push({
+        field: `${at}.attackBonusFrom`,
+        code: 'bad_imbued_weapon',
+        reason: "SRD's \"your Charisma modifier ... (minimum bonus of +1)\" is an ability and a floor",
+      });
+    } else {
+      const ability = sized['ability'];
+      if (typeof ability !== 'string' || !(ABILITIES as readonly string[]).includes(ability)) {
+        found.push({
+          field: `${at}.attackBonusFrom.ability`,
+          code: 'bad_imbued_weapon',
+          reason: `"${String(ability)}" is not one of the six abilities`,
+        });
+      }
+      const minimum = sized['minimum'];
+      if (!Number.isInteger(minimum) || (minimum as number) < 0) {
+        found.push({
+          field: `${at}.attackBonusFrom.minimum`,
+          code: 'bad_imbued_weapon',
+          reason: `SRD's "(minimum bonus of +1)" is a floor of a whole number of points, not ${JSON.stringify(minimum)}`,
+        });
+      }
+    }
+  }
+
+  if (imbues['damageTypes'] !== undefined) {
+    found.push(...weaponDamageTypeProblems(imbues as { readonly damageTypes?: unknown }, at));
+  }
+
+  // The clause is printed or it is not; `false` is a sentence that says
+  // nothing, which is the reading `heldInTwoHands` above already takes.
+  const letGo = imbues['endsWhenLetGo'];
+  if (letGo !== undefined && letGo !== true) {
+    found.push({
+      field: `${at}.endsWhenLetGo`,
+      code: 'bad_imbued_weapon',
+      reason:
+        'SRD\'s "this effect also ends if you aren\'t carrying the weapon" is printed or it is not; `false` is a clause that says nothing, so the field is omitted instead',
+    });
+  }
+  return found;
 }
 
 /**
@@ -1363,6 +1524,11 @@ function grantProblems(
   // kind would therefore share a source, and the roll that spent the first
   // would silently end the second.
   if (grant.kind === 'activated') {
+    // Rule 6a. The object a use imbues, where it imbues one — SRD Sacred
+    // Weapon's "one Melee weapon that you are holding".
+    if (grant.imbuesWeapon !== undefined) {
+      found.push(...imbuedWeaponProblems(grant.imbuesWeapon, 'grants.imbuesWeapon'));
+    }
     // Rule 6b. One lifetime, in one of two spellings: a turn anchor (SRD Rage,
     // pushed round by round) or a printed span (SRD Innate Sorcery's minute).
     // Both is two deadlines for one activation; neither is a feature that
@@ -1544,16 +1710,12 @@ function grantProblems(
       if (effect.kind === 'speed') {
         found.push(...speedGrantProblems(effect, `${at}[${index}]`));
       }
-      // **The two members SRD Sacred Weapon prints, on the spelling it prints
-      // them in.** An offer of no damage types and a light of no radius are
-      // each a benefit that compiles onto the sheet and is matched by no
-      // reader. The `standing` spelling one line up reaches
-      // `ownedStandingEffectProblems`, which asks the same two questions of a
-      // feat's grant and of a `standing` feature's, so asking them here as
+      // **The light SRD Sacred Weapon prints, on the spelling it prints it
+      // in.** A light of no radius is a benefit that compiles onto the sheet
+      // and is matched by no reader. The `standing` spelling one line up
+      // reaches `ownedStandingEffectProblems`, which asks the same question of
+      // a feat's grant and of a `standing` feature's, so asking it here as
       // well would report one mistake twice.
-      if (at === 'grants.whileActive' && effect.kind === 'weapon-damage-type') {
-        found.push(...weaponDamageTypeProblems(effect, `${at}[${index}]`));
-      }
       if (at === 'grants.whileActive' && effect.kind === 'light') {
         found.push(...shedLightProblems(effect, `${at}[${index}]`));
       }

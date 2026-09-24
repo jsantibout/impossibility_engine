@@ -130,7 +130,7 @@ const DIVINE_SENSE = 'paladin:channel-divinity';
 
 const opened = (log: readonly GameEvent[] = field()): GameState => {
   const before = fold('seed', log);
-  const events = unwrap(activateFeature(before, ARDAN, { feature: DIVINE_SENSE }), 'open');
+  const events = unwrap(activateFeature(before, ARDAN, { feature: DIVINE_SENSE }, SRD_CONTENT), 'open');
   return fold('seed', [...log, ...events]);
 };
 
@@ -197,7 +197,7 @@ describe('SRD Divine Sense: what a Channel Divinity use buys the Paladin', () =>
   it('closes when the ten minutes are up', () => {
     const state = fold('seed', [
       ...field(),
-      ...unwrap(activateFeature(fold('seed', field()), ARDAN, { feature: DIVINE_SENSE }), 'open'),
+      ...unwrap(activateFeature(fold('seed', field()), ARDAN, { feature: DIVINE_SENSE }, SRD_CONTENT), 'open'),
       { type: 'time-advanced', seconds: 600, reason: 'the watch changes' },
     ]);
     expect(state.creatures[ARDAN]?.activeFeatures).not.toContain(DIVINE_SENSE);
@@ -207,7 +207,7 @@ describe('SRD Divine Sense: what a Channel Divinity use buys the Paladin', () =>
   it('closes the moment the Paladin is Incapacitated', () => {
     const log = [
       ...field(),
-      ...unwrap(activateFeature(fold('seed', field()), ARDAN, { feature: DIVINE_SENSE }), 'open'),
+      ...unwrap(activateFeature(fold('seed', field()), ARDAN, { feature: DIVINE_SENSE }, SRD_CONTENT), 'open'),
     ];
     const stunned = fold('seed', [
       ...log,
@@ -223,7 +223,7 @@ describe('SRD Divine Sense: what a Channel Divinity use buys the Paladin', () =>
   });
 
   it('refuses a second opening while the first is running', () => {
-    const refused = activateFeature(opened(), ARDAN, { feature: DIVINE_SENSE });
+    const refused = activateFeature(opened(), ARDAN, { feature: DIVINE_SENSE }, SRD_CONTENT);
     expect(isErr(refused)).toBe(true);
   });
 });

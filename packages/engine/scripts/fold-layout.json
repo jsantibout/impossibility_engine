@@ -228,6 +228,7 @@
     "recordCommand",
     "interruptedRests",
     "endLostFeatures",
+    "settleWeaponRiders",
     "dropLapsedReady",
     "sustains",
     "wearsHeavyArmor",

@@ -8261,10 +8261,16 @@ export const RESISTANCE: SpellDefinition = {
  * it deals the staff's Bludgeoning, which is the second half of the book's
  * "or".
  *
- * One clause is left: "if you let go of the weapon" is a cause `endsEarly` has
- * no member for; the casting now knows *which* weapon, which is half of what
- * that clause needed, and what is still missing is a fact about whose hand it
- * is in and an event that says it changed.
+ * One clause is left, and what it waits on has moved. "If you let go of the
+ * weapon" is **built** as a rule: `GrantedWeaponRider.endsWhenLetGo` says a
+ * rider ends when its weapon is no longer carried, and `settleWeaponRiders` in
+ * the fold ends the casting with it — the id the casting pinned against the
+ * ids in the holder's inventory, which needs no catalogue. SRD Sacred Weapon's
+ * "This effect also ends if you aren't carrying the weapon" comes through it.
+ * What is missing is only the **declaration**: a `weapon-rider` effect has no
+ * field to print the clause with, and it must be declared rather than assumed,
+ * because SRD Magic Weapon prints no such sentence and a weapon put down under
+ * it is still a magic weapon when it is picked up.
  */
 export const SHILLELAGH: SpellDefinition = {
   id: 'shillelagh',
@@ -8299,7 +8305,7 @@ export const SHILLELAGH: SpellDefinition = {
   // SRD: "The spell ends early if you cast it again."
   replacesPriorCasting: true,
   unmodelled: [
-    'the spell does not end when you let go of the weapon: which weapon was imbued is now held, and whose hand it is in is not — an inventory says what a creature has and no event says what it dropped',
+    'the spell does not end when you let go of the weapon: the rule is built — a rider that says it ends when its weapon leaves the holder’s inventory ends the casting with it — and a `weapon-rider` effect has no field to say so with, which Magic Weapon is the reason it may not simply be assumed of every rider',
   ],
 };
 

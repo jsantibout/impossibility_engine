@@ -62,7 +62,10 @@ import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from 
 import type { SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import { tallied, type Recovery } from './resources.js';
-import type { TradedAmount } from './progression.js';
+// `featureOfSource` is a runtime import and no cycle: everything `progression.ts`
+// takes from this file is type-only and erased, so at run time it reaches only
+// `spells.ts`.
+import { featureOfSource, type ImbuedWeapon, type TradedAmount } from './progression.js';
 import {
   weaponInSet,
   weaponNarrowingHolds,
@@ -539,13 +542,14 @@ export type StandingGrant =
    * three sentences the book has never written as one, and the narrowing each
    * carries is different — a skill list there, a kind of weapon here.
    *
-   * **The narrowing is a kind of weapon and not an object.** SRD says "that
-   * weapon", one particular thing imbued at the moment the feature was
-   * switched on, and a standing grant is hung on a creature rather than on an
-   * object — `GrantedWeaponRider` is the one record keyed on a weapon's id and
-   * only a casting writes one. So the sentence reaches the weapons the feature
-   * names, and a holder swinging a second Melee weapon during the minute gets
-   * the bonus the book gave the first. The feature's own note says so.
+   * **The narrowing is a kind of weapon and not an object**, which is what
+   * makes this the *standing* spelling of the sentence. A standing grant is
+   * hung on a creature, so it reaches every weapon the narrowing admits — the
+   * right reading for a feature that says "with a Melee weapon" and the wrong
+   * one for a feature that says "**that** weapon". The second is
+   * `ImbuedWeapon.attackBonusFrom`, hung on one object by an activation that
+   * names it; SRD Sacred Weapon comes through that door and no longer through
+   * this one.
    */
   | {
       readonly kind: 'attack-bonus';
@@ -556,44 +560,6 @@ export type StandingGrant =
        * The weapons the sentence reaches — SRD Sacred Weapon's "one **Melee**
        * weapon that you are holding". Absent reaches every attack roll,
        * including a spell's and a fist's.
-       */
-      readonly onlyWithWeapon?: WeaponNarrowing;
-    }
-  /**
-   * SRD Sacred Weapon: "each time you hit with it, you cause it to deal its
-   * normal damage type or Radiant damage."
-   *
-   * **The weapon's own type restated, not a component added beside it** — and
-   * that is the whole distinction from `attack-damage.damageTypeChoices` one
-   * member along. Divine Strike's "an extra 1d8 Necrotic or Radiant damage
-   * (your choice)" types a die of its own; this types the blade, so a hit
-   * deals one type where it used to deal the other and the total does not
-   * move. A feature written the other way would have added a die the book
-   * does not print.
-   *
-   * **The feature-side twin of a casting's offer**, which is the sentence SRD
-   * Shillelagh prints — "it can be Force damage **or** the weapon's normal
-   * damage type (your choice)" — and which only a casting could say, because
-   * `GrantedWeaponRider` is written by a casting and by nothing else.
-   * {@link weaponRiderDamageType} reads both, so the check at the door and the
-   * reader at the damage roll cannot come to disagree about what was on offer,
-   * and a swing that answered two offers at once is refused where it always
-   * was.
-   *
-   * **Answered per hit and declined by silence.** The types here are what the
-   * holder may name in `AttackCommand.featureDamageTypes` under this feature's
-   * id; naming none leaves the weapon's printed type alone, which is the only
-   * moment at which "you cause it to" could be answered either way. A type the
-   * feature does not offer is refused before the action is spent.
-   */
-  | {
-      readonly kind: 'weapon-damage-type';
-      /** The types offered in place of the weapon's own. Never empty. */
-      readonly damageTypes: readonly string[];
-      /**
-       * The weapons the sentence reaches — SRD Sacred Weapon's "one **Melee**
-       * weapon that you are holding". Absent reaches every weapon the holder
-       * swings, and an Unarmed Strike with them.
        */
       readonly onlyWithWeapon?: WeaponNarrowing;
     }
@@ -1696,6 +1662,17 @@ export interface ActivatedFeature {
   readonly onlyIfUnmoved?: boolean;
   /** What a use of it hangs on its holder — see {@link HungGrant}. */
   readonly hangs?: readonly HungGrant[];
+  /**
+   * What a use of it hangs on one **object** — see `ImbuedWeapon`.
+   *
+   * SRD Sacred Weapon's "imbue one Melee weapon that you are holding". The use
+   * names the weapon, and `activateFeature` refuses one the holder is not
+   * carrying or one the narrowing does not reach before anything is spent.
+   * Carried across whole from the grant, because none of it is a column of any
+   * class table: the ability is named by the sentence and the floor is printed
+   * beside it.
+   */
+  readonly imbuesWeapon?: ImbuedWeapon;
   /**
    * SRD Large Form: the size the holder is while it runs. Derived onto the
    * map by the fold's `settleSizes`, which reads it off whichever size-printing
@@ -3461,6 +3438,22 @@ export function standingBonuses(
         best.set(bonus.source, bonus);
       }
     }
+    // **And the ability-sized plus on an imbued weapon**, which is SRD Sacred
+    // Weapon's sentence keyed to the object the book keys it to. The same
+    // derivation the `attack-bonus` grant above makes — the *holder's*
+    // modifier as it stands, floored at the number the feature prints — with
+    // the narrowing coming off the rider's own weapon id rather than off a
+    // kind of weapon, which is the whole of what "that weapon" asked for.
+    for (const rider of weaponRidersFor(state.creatures[who], context.weapon ?? null)) {
+      const sized = rider.attackBonusFrom;
+      if (sized === undefined) continue;
+      const flat = Math.max(sized.minimum, abilityModifier(abilityScoresOf(state, who)[sized.ability]));
+      const label = riderLabel(rider);
+      const current = best.get(label);
+      if (current === undefined || (current.flat ?? 0) < flat) {
+        best.set(label, { source: label, flat });
+      }
+    }
   }
 
   return [...best.values()];
@@ -3475,9 +3468,9 @@ export function standingBonuses(
  * applies and what is it worth" is how the two would come to disagree about a
  * thrown Dagger.
  *
- * `spellOfSource` gives the readable half back, so the log says "Magic Weapon"
- * rather than `Magic Weapon#cast:3`; the casting id stays in the grant, which
- * is what ends it.
+ * {@link riderLabel} gives the readable half back, so the log says "Magic
+ * Weapon" rather than `Magic Weapon#cast:3`; the casting id stays in the
+ * grant, which is what ends it.
  */
 function weaponRiderBonuses(
   creature: CreatureState | undefined,
@@ -3485,8 +3478,35 @@ function weaponRiderBonuses(
 ): readonly Bonus[] {
   return weaponRidersFor(creature, weapon)
     .filter((rider) => rider.bonus !== undefined)
-    .map((rider) => ({ source: spellOfSource(rider.source), flat: rider.bonus as number }));
+    .map((rider) => ({ source: riderLabel(rider), flat: rider.bonus as number }));
 }
+
+/**
+ * How a log names what imbued a weapon.
+ *
+ * The pinned name where the writer was a feature and the spell's name where it
+ * was a casting — one function, because a rider's two writers both reach every
+ * gatherer below and a second spelling is how "Sacred Weapon" and
+ * `feature:oath-of-devotion:sacred-weapon` would come to name one grant in two
+ * places. Falls back to the source itself, which is what `spellOfSource` has
+ * always done with anything that is not a casting.
+ */
+const riderLabel = (rider: GrantedWeaponRider): string =>
+  rider.name ?? spellOfSource(rider.source);
+
+/**
+ * The key a swing answers a rider's offer under.
+ *
+ * A feature's own id where a feature imbued the weapon, and the spell's name
+ * where a casting did — the two spellings `AttackCommand.featureDamageTypes`
+ * already holds, because a feature's damage-type choice has always been keyed
+ * by its id and a casting's by the spell. One function for
+ * {@link damageTypesOffered} and {@link weaponRiderDamageType} to share, so
+ * the check at the door and the reader at the damage roll cannot disagree
+ * about what a blow was allowed to name.
+ */
+const riderChoiceKey = (rider: GrantedWeaponRider): string =>
+  featureOfSource(rider.source) ?? spellOfSource(rider.source);
 
 /**
  * Every per-die rule this creature's standing effects state about a swing.
@@ -4923,14 +4943,76 @@ export function grantedAttackRiders(
  * the deadline all reach it through the door that already existed.
  */
 export interface GrantedWeaponRider {
-  /** The casting (`Shillelagh#cast:1`) that imbued it. */
+  /**
+   * What imbued it: a casting (`Shillelagh#cast:1`) or a feature
+   * (`feature:oath-of-devotion:sacred-weapon`).
+   *
+   * **Two writers now, and the record did not have to change to take the
+   * second.** SRD Sacred Weapon imbues "one Melee weapon that you are
+   * holding" and every other way of saying that reaches a *kind* of weapon;
+   * this is the one record keyed to an object, so an activation files under
+   * `featureSource` exactly as a casting files under `castingSource`, and the
+   * three readers below cannot tell — nor need to — which of them wrote it.
+   *
+   * What the two ends differ in is the **key a swing answers under** and the
+   * **name a log prints**: `featureOfSource` reads a feature's own id back out
+   * for the first, and {@link name} carries the second.
+   */
   readonly source: string;
-  /** The weapon, by catalogue id: the one the casting was aimed at. */
+  /** The weapon, by catalogue id: the one the casting or the use was aimed at. */
   readonly weapon: string;
+  /**
+   * How a log names what imbued this weapon, where the source is not a spell.
+   *
+   * A casting's source carries the spell's name and `spellOfSource` gives it
+   * back; `feature:oath-of-devotion:sacred-weapon` is an id, and a bonus on an
+   * attack roll reads "Sacred Weapon" to whoever is at the table. Pinned at
+   * the use, off the sheet the activation read, so the log never depends on a
+   * catalogue being opened again.
+   */
+  readonly name?: string;
   /** SRD Shillelagh's "the attack and damage rolls of **melee** attacks". */
   readonly meleeOnly?: true;
   /** SRD Magic Weapon's plus, pinned at the slot it was cast with. */
   readonly bonus?: number;
+  /**
+   * SRD Sacred Weapon: "you add your Charisma modifier to attack rolls you
+   * make with that weapon (minimum bonus of +1)."
+   *
+   * **Not {@link bonus}, and the difference is which rolls it reaches.** Magic
+   * Weapon's plus is "a +1 bonus to attack rolls **and** damage rolls" and is
+   * read by both gatherers; this sentence names the attack roll alone, so it
+   * is gathered only by {@link standingBonuses} and a swing under it deals the
+   * damage the weapon deals.
+   *
+   * **The ability rather than the number**, because the SRD says "your
+   * Charisma modifier" and means the modifier the holder has when the blow is
+   * struck — the reading the `attack-bonus` standing grant takes of the same
+   * sentence, and the reason pinning the arithmetic here would be wrong where
+   * pinning Magic Weapon's band table is right: a band is a fact about the
+   * casting, and this is a fact about the swinger.
+   */
+  readonly attackBonusFrom?: { readonly ability: Ability; readonly minimum: number };
+  /**
+   * SRD Sacred Weapon: "This effect also ends if you aren't carrying the
+   * weapon." SRD Shillelagh: "the spell ends early ... if you let go of the
+   * weapon."
+   *
+   * **Declared rather than assumed of every rider**, because the book does not
+   * say it of every rider: SRD Magic Weapon enchants a weapon for an hour and
+   * prints no such clause, so a weapon put down under it is still a magic
+   * weapon when it is picked up. One sentence, two spellings, and only the
+   * riders whose own text carries one.
+   *
+   * What ends is what hung it. A feature's activation goes with the rider —
+   * "this **effect** also ends" is the whole imbuing, its light included — and
+   * a casting's whole casting goes, which is what "the spell ends early"
+   * says. `settleWeaponRiders` in `fold/apply.ts` is the one pass, and it
+   * compares an item id against the ids in the holder's inventory, which is
+   * the reading `resolveSpell` already takes of "you are holding": an
+   * inventory says what a creature has, and nothing says which hand it is in.
+   */
+  readonly endsWhenLetGo?: true;
   /** SRD Shillelagh's die, pinned at the caster's level. */
   readonly die?: string;
   /** SRD Shillelagh's offered ability, resolved to the caster's own. */
@@ -4939,10 +5021,17 @@ export interface GrantedWeaponRider {
    * SRD Shillelagh's "it can be Force damage or the weapon's normal damage
    * type (your choice)" — the types offered *instead of* the weapon's own.
    *
-   * The one field on this record that is not settled here: the other four are
-   * facts about the casting, and this is an offer the swing answers. Which of
-   * them a blow takes is named on the attack command under the spell's own
-   * name, and naming none deals what the weapon deals.
+   * SRD Sacred Weapon prints the same sentence from the other side of the
+   * fence — "each time you hit with it, you cause it to deal its normal damage
+   * type or Radiant damage" — which is one reason the record takes a feature's
+   * source as readily as a casting's.
+   *
+   * The one field on this record that is not settled here: the others are
+   * facts about the casting or the use, and this is an offer the swing
+   * answers. Which of them a blow takes is named on the attack command under
+   * the spell's name or the feature's own id — `featureOfSource` and
+   * `spellOfSource`, one key per writer — and naming none deals what the
+   * weapon deals.
    */
   readonly damageTypes?: readonly string[];
 }
@@ -5396,19 +5485,23 @@ export interface AttackContext {
  * Everything offering this swing a choice of damage type, by the name the
  * choice is made under.
  *
- * Three offerers and one map. A feature's own `attack-damage` grant is keyed
- * by its feature id — SRD Divine Strike's Necrotic or Radiant — a
- * `weapon-damage-type` grant beside it by the same id, and a casting that
- * imbued the weapon in hand by the **spell's** name, which is what
- * `spellOfSource` reports a weapon rider as everywhere else. One gatherer, so
+ * Two offerers and one map. A feature's own `attack-damage` grant is keyed by
+ * its feature id — SRD Divine Strike's Necrotic or Radiant — and a weapon
+ * rider by {@link riderChoiceKey}, which is the spell's name where a casting
+ * imbued the weapon and the feature's own id where a use did. One gatherer, so
  * the check at the door and the reader at the damage roll cannot come to
  * disagree about what was on offer.
  *
- * `weapon` narrows two of the three. A casting's offer belongs to the object
- * it imbued; a `weapon-damage-type` grant's belongs to the *kind* of weapon
- * its sentence names — SRD Sacred Weapon's "one **Melee** weapon" — so a
- * Paladin's Shortbow is offered nothing and naming the feature on that swing
- * is a choice nobody made.
+ * `weapon` narrows the second. An imbuing's offer belongs to the object it was
+ * aimed at — SRD Sacred Weapon's "one Melee weapon that you are holding", SRD
+ * Shillelagh's "that weapon" — so a Paladin's Shortbow is offered nothing and
+ * naming the feature on that swing is a choice nobody made.
+ *
+ * **There were three, and the third was this sentence written about a *kind*
+ * of weapon**: a `weapon-damage-type` standing grant, which is as near as a
+ * feature reached before it could name an object. It is gone, and nothing went
+ * with it — what it carried is `ImbuedWeapon.damageTypes`, keyed to the one
+ * weapon the book keys it to.
  */
 function damageTypesOffered(
   state: GameState,
@@ -5420,31 +5513,11 @@ function damageTypesOffered(
     if (effect.grant.kind === 'attack-damage' && effect.grant.damageTypeChoices !== undefined) {
       offered.set(effect.feature, effect.grant.damageTypeChoices);
     }
-    if (effect.grant.kind === 'weapon-damage-type' && weaponOfferHolds(effect.grant, weapon)) {
-      offered.set(effect.feature, effect.grant.damageTypes);
-    }
   }
   for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
-    if (rider.damageTypes !== undefined) offered.set(spellOfSource(rider.source), rider.damageTypes);
+    if (rider.damageTypes !== undefined) offered.set(riderChoiceKey(rider), rider.damageTypes);
   }
   return offered;
-}
-
-/**
- * Whether the weapon in this swing is one a `weapon-damage-type` offer covers.
- *
- * Its own line because the offer is read twice — gathered for the check at the
- * door and read again at the damage roll — and a narrowing honoured in one of
- * the two places is a Paladin who is refused Radiant on a Shortbow and given
- * it anyway, or the other way about.
- */
-function weaponOfferHolds(
-  grant: { readonly onlyWithWeapon?: WeaponNarrowing },
-  weapon: Weapon | null,
-): boolean {
-  return (
-    grant.onlyWithWeapon === undefined || weaponNarrowingHolds(grant.onlyWithWeapon, { weapon })
-  );
 }
 
 /**
@@ -5459,14 +5532,16 @@ function weaponOfferHolds(
  * how the offer is declined, which is the reading `featureDamageTypes` already
  * takes of an absent key.
  *
- * **Both offerers, read in one place**, because a swing takes at most one of
- * them: the door refuses a blow that answered two, and a blow with two types
- * is one the book gives one. A casting's is keyed by the spell's name and a
- * feature's by its own id, so the two can never be mistaken for each other.
+ * **Both writers, read in one walk**, because a swing takes at most one type:
+ * the door refuses a blow that answered two, and a blow with two types is one
+ * the book gives one. A casting's offer is keyed by the spell's name and a
+ * feature's by its own id — {@link riderChoiceKey}, the same key the check at
+ * the door gathered under — so the two can never be mistaken for each other.
  *
- * The first offer that was answered wins, and no SRD weapon can carry two:
- * Shillelagh replaces its own prior casting and Magic Weapon offers no type at
- * all. A second would be a sentence the book does not print.
+ * The first offer that was answered wins, and no SRD weapon can carry two: an
+ * imbuing replaces its own predecessor at the same source, Shillelagh ends a
+ * prior casting of itself, and Magic Weapon offers no type at all. A second
+ * would be a sentence the book does not print.
  */
 export function weaponRiderDamageType(
   state: GameState,
@@ -5477,14 +5552,8 @@ export function weaponRiderDamageType(
   if (chosen === undefined) return null;
   for (const rider of weaponRidersFor(state.creatures[who], weapon)) {
     if (rider.damageTypes === undefined) continue;
-    const named = chosen[spellOfSource(rider.source)];
+    const named = chosen[riderChoiceKey(rider)];
     if (named !== undefined && rider.damageTypes.includes(named)) return named;
-  }
-  for (const { effect } of standingFor(state, who)) {
-    if (effect.grant.kind !== 'weapon-damage-type') continue;
-    if (!weaponOfferHolds(effect.grant, weapon)) continue;
-    const named = chosen[effect.feature];
-    if (named !== undefined && effect.grant.damageTypes.includes(named)) return named;
   }
   return null;
 }

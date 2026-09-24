@@ -277,7 +277,7 @@ describe('a benefit that runs for a printed span', () => {
     const state = fold('seed', yard(fighter('dwarf', 1)));
     expect(sensesOf(state, HERO).map((s) => s.sense)).not.toContain('tremorsense');
 
-    const out = unwrap(activateFeature(state, HERO, { feature: 'dwarf:stonecunning' }), 'activate');
+    const out = unwrap(activateFeature(state, HERO, { feature: 'dwarf:stonecunning' }, SRD_CONTENT), 'activate');
     expect(types(out)).toContain('resource-spent');
     expect(types(out)).toContain('feature-activated');
     // No Bonus Action outside a fight: there is no economy to spend it from.
@@ -298,7 +298,7 @@ describe('a benefit that runs for a printed span', () => {
 
   it('Innate Sorcery: a minute on the clock inside a fight, and it is not maintained', () => {
     const state = fold('seed', fight(sorcerer()));
-    const out = unwrap(activateFeature(state, HERO, { feature: 'sorcerer:innate-sorcery' }), 'activate');
+    const out = unwrap(activateFeature(state, HERO, { feature: 'sorcerer:innate-sorcery' }, SRD_CONTENT), 'activate');
     expect(types(out)).toContain('bonus-action-spent');
     expect(out).toContainEqual({ type: 'resource-spent', id: HERO, key: 'innate-sorcery', amount: 1 });
 
@@ -326,7 +326,7 @@ describe('SRD Large Form', () => {
     expect(state.scene?.sizes[HERO]).toBe('medium');
     const walk = speedOf(state, HERO);
 
-    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'goliath:large-form' }), 'activate'));
+    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'goliath:large-form' }, SRD_CONTENT), 'activate'));
     expect(on.scene?.sizes[HERO]).toBe('large');
     expect(speedOf(on, HERO)).toBe(walk + 10);
     expect(remaining(on.creatures[HERO]!.resources, 'goliath:large-form')).toBe(0);
@@ -382,14 +382,14 @@ describe('SRD Large Form', () => {
     expect(medium.ok).toBe(false);
     if (!medium.ok) expect(medium.code).toBe('too_large');
 
-    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'goliath:large-form' }), 'activate'));
+    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'goliath:large-form' }, SRD_CONTENT), 'activate'));
     const large = grappleTarget(on, HERO, { target: OGRE, save: 'str' }, supply('grapple'));
     expect(large.ok).toBe(true);
   });
 
   it('puts the size back when the Goliath ends it early', () => {
     const state = goliath();
-    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'goliath:large-form' }), 'activate'));
+    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'goliath:large-form' }, SRD_CONTENT), 'activate'));
     const off = run(on, unwrap(endFeature(on, HERO, { feature: 'goliath:large-form' }), 'end'));
     expect(active(off)).not.toContain('goliath:large-form');
     expect(off.scene?.sizes[HERO]).toBe('medium');
@@ -403,7 +403,7 @@ describe('SRD Draconic Flight', () => {
     const state = fold('seed', yard(fighter('dragonborn', 5)));
     expect(speedOf(state, HERO, 'fly')).toBe(0);
 
-    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'dragonborn:draconic-flight' }), 'activate'));
+    const on = run(state, unwrap(activateFeature(state, HERO, { feature: 'dragonborn:draconic-flight' }, SRD_CONTENT), 'activate'));
     expect(speedOf(on, HERO, 'fly')).toBe(speedOf(on, HERO));
     expect(timerOf(on, 'dragonborn:draconic-flight')?.deadline).toEqual({ kind: 'elapsed', at: 600 });
 
