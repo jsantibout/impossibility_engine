@@ -440,7 +440,7 @@ describe('a homebrew class goes through the same door as the book', () => {
     const log = unwrap(createCharacter(content, bloodhunter(), WHO), 'create');
     const state = fold('seed', log);
     const on = unwrap(
-      activateFeature(state, WHO, { feature: 'bloodhunter:crimson-rite' }),
+      activateFeature(state, WHO, { feature: 'bloodhunter:crimson-rite' }, content),
       'activate',
     );
     const after = fold('seed', [...log, ...on]);

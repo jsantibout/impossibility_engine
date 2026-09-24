@@ -165,8 +165,10 @@ const field = (): readonly GameEvent[] => [
   {
     type: 'items-gained',
     id: TEMPLAR,
+    // No second Longsword: the Templar's starting equipment already holds one,
+    // and two of a kind are one id to every reader there is — which is its own
+    // test below rather than an accident of the fixture.
     items: [
-      { id: 'longsword', quantity: 1 },
       { id: 'dagger', quantity: 1 },
       { id: 'longbow', quantity: 1 },
       { id: 'arrow', quantity: 20 },
@@ -255,7 +257,7 @@ const ridersOn = (log: readonly GameEvent[]): readonly { weapon: string }[] =>
 const drop = (log: readonly GameEvent[], item: string): readonly GameEvent[] => [
   ...log,
   ...unwrap(
-    dropItem(at(log), content, TEMPLAR, { items: [{ id: item, quantity: 1 }] }),
+    dropItem(at(log), content, TEMPLAR, { item, quantity: 1 }),
     `dropping the ${item}`,
   ),
 ];
@@ -404,6 +406,26 @@ describe('a rider ends when its weapon is no longer carried', () => {
     expect(lightAt(lit, here).level).toBe('bright');
     expect(lightAt(at(drop(imbued(), 'longsword')), here).level).toBeNull();
   });
+
+  /**
+   * **What the id can and cannot tell apart**, asserted rather than left to be
+   * discovered. `GrantedWeaponRider` is keyed by the weapon's catalogue id and
+   * an inventory counts by the same id, so a Templar carrying two Longswords
+   * who puts one down is still carrying "the" weapon as far as anything in the
+   * engine can say — and the imbuing ends when the last one goes. Nothing here
+   * can say otherwise today: an attack names its weapon by catalogue id too,
+   * and `InventoryLine.instance` never reaches the swing.
+   */
+  it('counts by the id, so the second of a kind keeps the imbuing alive', () => {
+    const two = [
+      ...field(),
+      { type: 'items-gained', id: TEMPLAR, items: [{ id: 'longsword', quantity: 1 }], source: 'the armoury' } as GameEvent,
+    ];
+    const lit = [...two, ...imbue(two, 'longsword')];
+    const once = drop(lit, 'longsword');
+    expect(ridersOn(once).map((rider) => rider.weapon)).toEqual(['longsword']);
+    expect(ridersOn(drop(once, 'longsword'))).toEqual([]);
+  });
 });
 
 // — the other half: a casting's rider ——————————————————————————————————————
@@ -520,7 +542,7 @@ const castImbuing = (spellId: string, weapon: string, letGo: boolean): readonly 
 const putDown = (log: readonly GameEvent[], item: string): readonly GameEvent[] => [
   ...log,
   ...unwrap(
-    dropItem(grown(log), SRD_CONTENT, DRUID, { items: [{ id: item, quantity: 1 }] }),
+    dropItem(grown(log), SRD_CONTENT, DRUID, { item, quantity: 1 }),
     `dropping the ${item}`,
   ),
 ];

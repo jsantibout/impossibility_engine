@@ -367,8 +367,8 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
       id: 'oath-of-devotion:sacred-weapon',
       name: 'Sacred Weapon',
       level: 3,
-      automation: 'manual',
-      note: 'Most of it is applied, which is why this is not marked as executed. SRD: "When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1)" — the use out of the Channel Divinity pool, the ten minutes on the clock and the Charisma bonus with its printed floor are the engine’s now, read off the Paladin’s own score as it stands and named in the roll rather than passed in by the caller; "You can end this effect early (no action required)" is `end_feature`. "each time you hit with it, you cause it to deal its normal damage type or Radiant damage" is the type the holder names at each swing out of the pair the grant offers, in place of the weapon’s own and never beside it — the door SRD Shillelagh’s identical sentence already comes through, answered under this feature’s own id. "The weapon also emits Bright Light in a 20-foot radius and Dim Light for an additional 20 feet" is light the Paladin carries, derived on every read beside the glow a stat block’s Illumination sheds: it moves when they move, nothing is written down for the move, and it is out the read after the activation is, by whichever of the half-dozen doors the activation ended through. Three clauses are the table’s or are unbuilt. The imbuing reaches every Melee weapon the Paladin swings for the ten minutes rather than the one object they imbued, because a standing grant is hung on a creature and names a kind of weapon — only a casting keys a benefit to one weapon’s id. And "This effect also ends if you aren’t carrying the weapon" needs a fact about whose hand an object is in that the fold can read without opening a catalogue, and an equipped line pins an armour record and no weapon record, which is the clause Shillelagh leaves for the same reason. The Attack action the SRD attaches the imbuing to is not a cost this vocabulary can name either, so it is switched on for nothing, as the same sentence’s "no action required" ending is.',
+      automation: 'engine',
+      note: 'SRD: "When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1), and each time you hit with it, you cause it to deal its normal damage type or Radiant damage. The weapon also emits Bright Light in a 20-foot radius and Dim Light for an additional 20 feet. You can end this effect early (no action required). This effect also ends if you aren’t carrying the weapon." Every clause of that is the engine’s. The use comes out of the Channel Divinity pool the class declares; the activation names the weapon and is refused if it is not a Melee weapon the Paladin is carrying, before the use is spent; the Charisma bonus is read off their score as it stands, with the printed floor, and reaches that weapon and no other; the Radiant is named at each swing in place of the blade’s own type, or declined by saying nothing; the light is carried by the Paladin and worked out on every read, so it moves when they move and is gone the read after the imbuing is; the ten minutes run on the clock; "until you use this feature again" ends the first imbuing where the second begins; "no action required" is `end_feature`; and "if you aren’t carrying the weapon" is the fold comparing the item id the rider pinned against the Paladin’s inventory. One clause is left, and it is the first: "When you take the Attack action" is a price this vocabulary cannot name — an activation costs an Action, a Bonus Action or nothing, and the book attaches this one to an action its holder is already taking. `none` is the nearest of the three, so the Paladin may imbue at a moment the book does not.',
       grants: {
         kind: 'activated',
         // SRD: "When you take the Attack action ... (no action required)" to
@@ -384,28 +384,20 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
         spendsOnly: true,
         // "For 10 minutes."
         lastsSeconds: 600,
+        // "imbue **one** Melee weapon that you are holding" — one object, named
+        // at the use, which is the only narrowing that says what the book says.
+        imbuesWeapon: {
+          weapons: { weapons: [{ kind: 'melee' }] },
+          // "you add your Charisma modifier to attack rolls you make with that
+          // weapon (minimum bonus of +1)".
+          attackBonusFrom: { ability: 'cha', minimum: 1 },
+          // "each time you hit with it, you cause it to deal its normal damage
+          // type or Radiant damage" — the blade's own type restated at each
+          // hit rather than a die added beside it, so naming nothing leaves the
+          // Longsword slashing and the total never moves.
+          damageTypes: ['radiant'],
+        },
         whileActive: [
-          {
-            // "you add your Charisma modifier to attack rolls you make with
-            // that weapon (minimum bonus of +1)".
-            kind: 'attack-bonus',
-            fromAbility: 'cha',
-            minimum: 1,
-            // "one **Melee** weapon that you are holding" — the kind, which is
-            // as near as a standing grant reaches to one object.
-            onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
-          },
-          {
-            // "each time you hit with it, you cause it to deal its normal
-            // damage type or Radiant damage" — the weapon's own type restated
-            // at each hit rather than a die added beside it, so naming nothing
-            // leaves the Longsword slashing and the total never moves.
-            kind: 'weapon-damage-type',
-            damageTypes: ['radiant'],
-            // The same narrowing the bonus carries, and the same sentence it
-            // comes out of: a Paladin's Shortbow was never imbued.
-            onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
-          },
           {
             // "The weapon also emits Bright Light in a 20-foot radius and Dim
             // Light for an additional 20 feet." Carried by the Paladin, because

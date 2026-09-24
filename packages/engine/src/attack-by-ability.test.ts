@@ -137,12 +137,12 @@ const supply = (seed = 'hit') => ({
 
 const reckless = (log: readonly GameEvent[]): readonly GameEvent[] => [
   ...log,
-  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RECKLESS }), 'reckless'),
+  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RECKLESS }, SRD_CONTENT), 'reckless'),
 ];
 
 const raging = (log: readonly GameEvent[]): readonly GameEvent[] => [
   ...log,
-  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RAGE }), 'rage'),
+  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RAGE }, SRD_CONTENT), 'rage'),
 ];
 
 /** Swing, with the roll forced to land where the question is about a rider. */
@@ -521,7 +521,7 @@ describe('a homebrew feature says it with no engine change', () => {
     const log = scene();
     const stanced: readonly GameEvent[] = [
       ...log,
-      ...unwrap(activateFeature(fold('seed', log), WHO, { feature: 'duellist:flourish' }), 'stance'),
+      ...unwrap(activateFeature(fold('seed', log), WHO, { feature: 'duellist:flourish' }, SRD_CONTENT), 'stance'),
     ];
     const out = (weapon: string | null, ability?: 'str' | 'dex') =>
       unwrap(

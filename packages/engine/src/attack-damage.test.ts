@@ -121,7 +121,7 @@ const supply = (seed = 'hit') => ({ issuer: createRollIssuer('r'), rng: createRn
 
 const raging = (log: readonly GameEvent[]): readonly GameEvent[] => [
   ...log,
-  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RAGE }), 'rage'),
+  ...unwrap(activateFeature(fold('seed', log), GRUM, { feature: RAGE }, SRD_CONTENT), 'rage'),
 ];
 
 /** Swing, and hand back what landed. */

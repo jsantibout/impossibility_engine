@@ -169,7 +169,7 @@ const imbued = (ghoulFeet = 5): readonly GameEvent[] => {
   const before = fold(SEED, field(ghoulFeet));
   return [
     ...field(ghoulFeet),
-    ...unwrap(activateFeature(before, ARDAN, { feature: SACRED_WEAPON }), 'activate'),
+    ...unwrap(activateFeature(before, ARDAN, { feature: SACRED_WEAPON }, SRD_CONTENT), 'activate'),
   ];
 };
 

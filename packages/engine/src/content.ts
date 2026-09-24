@@ -14,7 +14,7 @@ import {
   shedLightHostProblems,
   shedLightProblems,
   speedGrantProblems,
-  weaponDamageTypeProblems,
+  weaponNarrowingProblems,
   weaponSelectorProblems,
   type FeatureContext,
   poolKeysIn,
@@ -441,16 +441,14 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
  * for the narrowing an item's sentence would need and this one has not got,
  * and belongs here because a feat's is its holder's own and reaches every
  * swing the weapon clause admits, which is exactly what it says.
- * `weapon-damage-type` is withheld from an item for `attack-bonus`'s reason
- * and belongs here for `attack-bonus`'s reason; `light` is withheld for
- * `speed`'s and belongs here for `speed`'s — a feat's grants are compiled onto
- * the sheet, which is the one place `carriedLight` reads.
+ * `light` is withheld for `speed`'s reason and belongs here for `speed`'s — a
+ * feat's grants are compiled onto the sheet, which is the one place
+ * `carriedLight` reads.
  */
 export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([
   ...ITEM_EFFECT_KINDS,
   'speed',
   'attack-bonus',
-  'weapon-damage-type',
   'light',
 ]);
 
@@ -801,12 +799,6 @@ function ownedStandingEffectProblems(
   if (effect.kind === 'attack-bonus') {
     found.push(...attackBonusProblems(effect as unknown as Record<string, unknown>, at));
   }
-  if (effect.kind === 'weapon-damage-type') {
-    found.push(...weaponDamageTypeProblems(effect as unknown as Record<string, unknown>, at));
-    if (effect.onlyWithWeapon !== undefined) {
-      found.push(...weaponNarrowingProblems(effect.onlyWithWeapon, `${at}.onlyWithWeapon`));
-    }
-  }
   if (effect.kind === 'light') {
     found.push(...shedLightProblems(effect as unknown as Record<string, unknown>, at));
   }
@@ -826,72 +818,6 @@ function ownedStandingEffectProblems(
   // through the third holder rather than the first two.
   if (effect.kind === 'speed') {
     found.push(...speedGrantProblems(effect as unknown as Record<string, unknown>, at));
-  }
-  return found;
-}
-
-/**
- * Everything wrong with a weapon narrowing, wherever one is written.
- *
- * `WeaponNarrowing` is a *description* of a weapon rather than a list of ids,
- * which is what keeps rule 4 — and the cost of a description is that one
- * naming a category nobody prints matches no weapon at all and says nothing
- * about it. That is the quiet failure this whole validator exists to turn into
- * a refusal at authoring, and the reason `weaponSelectorProblems` is reused
- * rather than restated: a `strike-style` and an `on-hit` rider already hold
- * their selectors to the same three closed sets.
- *
- * Its own function because three doors write the clause — an item's grant, a
- * class feature's, and now a feat's — and a rule enforced at two of three is a
- * rule with a hole in it.
- */
-function weaponNarrowingProblems(
-  narrowing: unknown,
-  at: string,
-): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
-  const found: { code: string; reason: string; field: string }[] = [];
-  if (!isShape(narrowing)) {
-    return [
-      {
-        code: 'bad_weapon_narrowing',
-        reason: 'a weapon narrowing is an object naming the weapons it covers, how they are held, or both',
-        field: at,
-      },
-    ];
-  }
-  const weapons = narrowing['weapons'];
-  if (weapons !== undefined) {
-    if (!Array.isArray(weapons) || weapons.length === 0) {
-      found.push({
-        code: 'bad_weapon_narrowing',
-        reason: 'the weapons a narrowing covers are a non-empty list of selectors; one that asks nothing of the weapon omits the field',
-        field: `${at}.weapons`,
-      });
-    } else {
-      weapons.forEach((selector, index) => {
-        for (const problem of weaponSelectorProblems(
-          selector as Parameters<typeof weaponSelectorProblems>[0],
-          `${at}.weapons[${index}]`,
-        )) {
-          found.push({ code: problem.code, reason: problem.reason, field: problem.field });
-        }
-      });
-    }
-  }
-  const held = narrowing['heldInTwoHands'];
-  if (held !== undefined && held !== true) {
-    found.push({
-      code: 'bad_weapon_narrowing',
-      reason: 'SRD\'s "holding it with two hands" is asked or not asked; `false` is a clause that says nothing, so the field is omitted instead',
-      field: `${at}.heldInTwoHands`,
-    });
-  }
-  if (weapons === undefined && held === undefined) {
-    found.push({
-      code: 'bad_weapon_narrowing',
-      reason: 'a narrowing that narrows nothing withholds a benefit from nobody; omit the field rather than writing an empty one',
-      field: at,
-    });
   }
   return found;
 }

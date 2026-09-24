@@ -62,7 +62,10 @@ import {
   sheetAsItStands,
   speedOf,
 } from '../standing.js';
+import { weaponNarrowingHolds } from '../attack.js';
+import { type Content } from '../content.js';
 import { type Supply } from './casting.js';
+import { quantityOf } from './inventory.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
@@ -75,6 +78,17 @@ import { teleportTo } from './teleport.js';
 
 export interface ActivateFeatureCommand extends CommandIdentity {
   readonly feature: string;
+  /**
+   * The object this use imbues — SRD Sacred Weapon's "one Melee weapon that
+   * you are holding", by catalogue id.
+   *
+   * Required for a feature whose record carries an `imbuesWeapon` and refused
+   * for one that does not, which is the symmetry `CastSpellRequest.weapon`
+   * already keeps: the engine will not choose between two Longswords a
+   * character is carrying, and a feature that does nothing to a weapon is not
+   * asking which one.
+   */
+  readonly weapon?: string;
 }
 
 /**
@@ -89,11 +103,22 @@ export interface ActivateFeatureCommand extends CommandIdentity {
  * The benefits are not here and should not be: they are standing effects that
  * require the feature to be active, so turning it on grants nothing directly
  * and turning it off takes nothing away directly. Neither can go stale.
+ *
+ * **Except what a use hangs on an object.** SRD Sacred Weapon imbues "one
+ * Melee weapon that you are holding", and one object is the thing no derived
+ * benefit can name: a standing grant is read off its holder and narrows by a
+ * *kind* of weapon. So an activation with an `imbuesWeapon` on its record
+ * names the weapon, and this is the reason the command takes `content` — the
+ * kind a weapon is lives in the catalogue, `equipped` pins an armour record
+ * and no weapon record, and a command may read a catalogue where the fold may
+ * not. What it hangs is pinned into the event, so the fold still opens
+ * nothing.
  */
 export function activateFeature(
   state: GameState,
   id: CharacterId,
   command: ActivateFeatureCommand,
+  content: Content,
 ): Result<GameEvent[]> {
   return once(state, `activate:${id}`, command, () => [], (stamp) => {
     // A mandatory effect this creature has been caught by, or a turn whose start
@@ -109,9 +134,23 @@ export function activateFeature(
       return err('no_such_feature', `${id} has no feature called ${command.feature}`);
     }
 
-    if (creature.activeFeatures.includes(command.feature)) {
+    // **A feature that imbues an object may be used again while it runs**, and
+    // that is the book rather than an exception carved for one subclass: SRD
+    // Sacred Weapon runs "for 10 minutes **or until you use this feature
+    // again**", which is the same sentence SRD Wild Shape prints and
+    // `assumeShape` already obeys. Every other activation is a state its
+    // holder is in, and entering it twice is a use nobody would get anything
+    // for. The prior imbuing ends below, before this one begins.
+    const reused = creature.activeFeatures.includes(command.feature);
+    if (reused && definition.imbuesWeapon === undefined) {
       return err('already_active', `${id} is already in ${definition.name}`);
     }
+
+    // The object this use is aimed at, checked against the catalogue and
+    // against what the holder is carrying **before anything is spent** — so a
+    // Paladin who names their Longbow keeps the Channel Divinity.
+    const imbuing = imbuedWeapon(state, id, definition, command.weapon, content);
+    if (!imbuing.ok) return imbuing;
 
     // SRD Rage: "if you aren't wearing Heavy armor". The same clause that ends
     // it is the one that stops it starting, so it is read from one list.
@@ -157,12 +196,44 @@ export function activateFeature(
       events.push({ type: 'resource-spent', id, key: definition.pool, amount: 1 });
     }
 
+    // "or until you use this feature again". The same `feature-ended` a
+    // deadline would have written, so the fold's one route out of an
+    // activation is the route taken and the derived pass below it takes the
+    // old rider away before the new one is hung.
+    if (reused) {
+      events.push({ type: 'feature-ended', id, feature: command.feature, reason: 'dismissed' });
+    }
+
     events.push({
       type: 'feature-activated',
       id,
       feature: command.feature,
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    if (imbuing.value !== null) {
+      events.push({
+        type: 'weapon-rider-granted',
+        id,
+        rider: {
+          source: featureSource(definition.feature),
+          // The feature's own name rather than its id, because this is what a
+          // bonus on an attack roll is printed as; read off the sheet the
+          // activation is already holding and pinned, so the log never needs
+          // the book opened again.
+          name: definition.name,
+          weapon: imbuing.value,
+          // "This effect also ends if you aren't carrying the weapon."
+          endsWhenLetGo: true,
+          ...(definition.imbuesWeapon?.attackBonusFrom === undefined
+            ? {}
+            : { attackBonusFrom: definition.imbuesWeapon.attackBonusFrom }),
+          ...(definition.imbuesWeapon?.damageTypes === undefined
+            ? {}
+            : { damageTypes: definition.imbuesWeapon.damageTypes }),
+        },
+      });
+    }
 
     const hung = hangGrants(state, id, definition);
     if (!hung.ok) return hung;
@@ -911,6 +982,67 @@ const hungSpan = (lasts: HungSpan, holder: CharacterId): Duration =>
  * activation, which is right: nothing is spent, and a grant nothing could end
  * would run for ever.
  */
+/**
+ * The object this use imbues, or null where the feature imbues none.
+ *
+ * SRD Sacred Weapon: "imbue **one Melee weapon that you are holding**". Four
+ * questions and the book asks all four — does this feature imbue anything, is
+ * the thing named a weapon, is it of the kind the sentence names, and is the
+ * holder carrying it — and every one of them is answered **before** the
+ * Channel Divinity, the action or the deadline, which is the same
+ * validate-before-spending discipline `resolveSpell` keeps for the identical
+ * clause on Shillelagh and Magic Weapon.
+ *
+ * **"Holding" is carrying, which is as close as this engine gets.** An
+ * inventory says what a creature has; nothing says which hand a thing is in,
+ * `equipped` is per kind of thing rather than per hand, and `resolveAttack`
+ * gates a swing on the same question. So the check here and the fold's ending
+ * below read the same list, and a feature cannot be imbued onto something its
+ * holder could not swing.
+ *
+ * The refusals are the three `resolveSpell` already writes for the same
+ * sentence, plus one the narrowing needs: a spell names its weapons by id and
+ * refuses `weapon_not_named`, and a feature names a *kind* of weapon, which is
+ * `weapon_not_of_kind`.
+ */
+function imbuedWeapon(
+  state: GameState,
+  id: CharacterId,
+  definition: ActivatedFeature,
+  named: string | undefined,
+  content: Content,
+): Result<string | null> {
+  const imbues = definition.imbuesWeapon;
+  if (imbues === undefined) {
+    if (named === undefined) return ok(null);
+    return err(
+      'no_weapon_clause',
+      `${definition.name} does nothing to a weapon; which one is not a fact it asks for`,
+    );
+  }
+  if (named === undefined) {
+    return err(
+      'weapon_required',
+      `${definition.name} imbues one weapon and the engine will not choose which; name it`,
+    );
+  }
+
+  const weapon = content.item(named)?.weapon;
+  if (weapon === undefined || weapon === null) {
+    return err('unknown_weapon', `${named} is not a weapon the SRD lists`);
+  }
+  if (imbues.weapons !== undefined && !weaponNarrowingHolds(imbues.weapons, { weapon })) {
+    return err(
+      'weapon_not_of_kind',
+      `${definition.name} does not imbue a ${weapon.name}`,
+    );
+  }
+  if (quantityOf(state, id, named) < 1) {
+    return err('weapon_not_held', `${id} has no ${weapon.name} for ${definition.name} to imbue`);
+  }
+  return ok(named);
+}
+
 function hangGrants(
   state: GameState,
   id: CharacterId,

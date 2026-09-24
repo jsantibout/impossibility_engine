@@ -7,7 +7,7 @@ import {
   type Skill,
 } from '@ie/shared';
 import type { CreatureSize, WeaponMastery } from '@ie/srd';
-import type { WeaponSelector } from './attack.js';
+import type { WeaponNarrowing, WeaponSelector } from './attack.js';
 import type { NamedAction } from './combat.js';
 import type { ArmorTraining } from './character.js';
 import type { TurnAnchor } from './time.js';
@@ -491,6 +491,31 @@ export interface HealGrant {
  * over what a feature hung by construction rather than by being told about it.
  */
 export const featureSource = (featureId: string): string => `feature:${featureId}`;
+
+/** The spelling {@link featureSource} writes, read back by {@link featureOfSource}. */
+const FEATURE_PREFIX = 'feature:';
+
+/**
+ * The feature inside a source, or null where a feature did not write it.
+ *
+ * {@link castingIdOf}'s twin on the other family, and written for the same
+ * reason: a grant filed under a feature is **named** by that feature
+ * everywhere a caller answers it — `AttackCommand.featureDamageTypes` is keyed
+ * by a feature's own id — while a casting's is named by the spell.
+ * `spellOfSource` hands a feature's source back unchanged, which is right for
+ * a log line and wrong for a key, so the two questions are asked by two
+ * functions.
+ *
+ * **The bare form only.** {@link conferredSource} puts a giver after an `@`
+ * and {@link hungSource} a clause after the casting mark, and both come back
+ * here with that tail still attached — deliberately, because the id they
+ * carry is not the identity either of them ends on. Nothing asks this of
+ * either: a weapon rider a feature hangs is filed under the bare source,
+ * because one activation imbues one weapon and there is no second clause to
+ * tell apart.
+ */
+export const featureOfSource = (source: string): string | null =>
+  source.startsWith(FEATURE_PREFIX) ? source.slice(FEATURE_PREFIX.length) : null;
 
 /**
  * How the log names a feature **somebody else's holder** is carrying.
@@ -1048,6 +1073,68 @@ export const rechosenSpellKey = (featureId: string, granted: string): string =>
   choiceAnswerKey(featureId, granted);
 
 /**
+ * What one use of a feature does to **one object** — SRD Sacred Weapon's
+ * "imbue one Melee weapon that you are holding".
+ *
+ * **A third place a use puts something, beside the two an activation already
+ * has.** `whileActive` is derived from the holder's state on every read and
+ * `hangs` is stored on the holder; both are facts about a *creature*, and a
+ * standing grant narrowed by a {@link WeaponNarrowing} reaches a **kind** of
+ * weapon, so a Paladin carrying two Longswords had both imbued and a Paladin
+ * who drew a third during the minute had that one imbued too. The SRD writes
+ * "**that** weapon", and the one record in the engine keyed to a particular
+ * object is `GrantedWeaponRider` — which, until this, only a casting wrote.
+ *
+ * So the activation **names the weapon**: `activateFeature` takes an item id,
+ * reads the catalogue as any command may, refuses one the holder is not
+ * carrying or one of the wrong kind before the use is spent, and hangs a
+ * feature-sourced weapon rider on that id. The fold reads the rider and never
+ * this record, so what a swing gets is pinned at the moment of use.
+ *
+ * **The two clauses here are the two the SRD prints beside the naming**, and
+ * they are exactly what a `whileActive` grant would otherwise have said about
+ * a kind of weapon: an attack bonus the holder's own modifier sizes, and a
+ * damage type the holder may name at each hit. Both are optional because an
+ * imbuing that only *marks* an object — a light, a sentence the table narrates
+ * — is a feature the vocabulary should be able to write without inventing a
+ * bonus for it.
+ */
+export interface ImbuedWeapon {
+  /**
+   * The weapons the sentence reaches — SRD Sacred Weapon's "one **Melee**
+   * weapon". Absent admits any weapon the holder is carrying, which is SRD
+   * Magic Weapon's "a weapon" said by a feature.
+   */
+  readonly weapons?: WeaponNarrowing;
+  /**
+   * SRD Sacred Weapon: "you add your Charisma modifier to attack rolls you
+   * make with that weapon (minimum bonus of +1)."
+   *
+   * The ability is the **holder's**, read off their scores as they stand
+   * rather than pinned at the use, which is the reading every other
+   * ability-sized bonus in the engine takes: a Paladin wearing something that
+   * moves their Charisma swings at the score they have. `minimum` is the
+   * printed floor under the modifier, not a default.
+   *
+   * **The attack roll and not the damage roll.** `GrantedWeaponRider.bonus`
+   * one field along is SRD Magic Weapon's, which the book sends to both; this
+   * sentence names one of them, and a rider that sent it to both would hand
+   * out damage the book does not print.
+   */
+  readonly attackBonusFrom?: { readonly ability: Ability; readonly minimum: number };
+  /**
+   * SRD Sacred Weapon: "each time you hit with it, you cause it to deal its
+   * normal damage type or Radiant damage."
+   *
+   * The types offered **in place of** the weapon's own, answered per hit under
+   * this feature's id in `AttackCommand.featureDamageTypes` and declined by
+   * saying nothing — which is the same offer SRD Shillelagh's second sentence
+   * makes from the casting's side, read by the same reader.
+   */
+  readonly damageTypes?: readonly string[];
+}
+
+/**
  * The mechanical shapes a feature's choice can take.
  *
  * Deliberately few. A feature whose effect does not fit one of these is
@@ -1496,6 +1583,16 @@ export type FeatureGrant =
        * `consumedRollModifiers` reads stored state. See {@link HungGrant}.
        */
       readonly hangs?: readonly HungGrant[];
+      /**
+       * SRD Sacred Weapon: "you can expend one use of your Channel Divinity to
+       * **imbue one Melee weapon that you are holding**".
+       *
+       * The third thing an activation can do, beside what it derives
+       * (`whileActive`) and what it hangs on its holder (`hangs`): it hangs a
+       * benefit on an **object**. See {@link ImbuedWeapon} for why that is a
+       * different kind of thing from either.
+       */
+      readonly imbuesWeapon?: ImbuedWeapon;
       readonly whileActive?: readonly StandingGrant[];
       /**
        * The flat amount a `whileActive` damage grant adds, by class level.

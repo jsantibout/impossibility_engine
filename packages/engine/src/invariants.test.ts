@@ -1975,7 +1975,7 @@ const GUARDED: readonly Guarded[] = [
   {
     name: 'activateFeature',
     log: SETUP,
-    run: (s, commandId) => activateFeature(s, A, { feature: 'test:stance', commandId }),
+    run: (s, commandId) => activateFeature(s, A, { feature: 'test:stance', commandId }, SRD_CONTENT),
   },
   {
     name: 'resolveDamage',
@@ -3298,7 +3298,7 @@ const SPENDERS: readonly Spender[] = [
     name: 'activateSpell',
     run: (s) => activateSpell(s, B, { castingId: 'cast:1', targets: [A] }, supply()),
   },
-  { name: 'activateFeature', run: (s) => activateFeature(s, B, { feature: 'test:stance' }) },
+  { name: 'activateFeature', run: (s) => activateFeature(s, B, { feature: 'test:stance' }, SRD_CONTENT) },
   // `createDevice` is deliberately absent: it charges no action at all — the
   // clock is its whole price and it is refused inside a fight — so the derived
   // sweep does not find it and an entry here would be inventing a spender.

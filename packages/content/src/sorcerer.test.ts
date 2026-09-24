@@ -315,7 +315,7 @@ describe('SRD Innate Sorcery: "for 1 minute … the spell save DC … increases 
 
   /** The minute switched on, out of the pool the feature declares. */
   const unleashed = (log: readonly GameEvent[]): readonly GameEvent[] =>
-    run(log, (state) => activateFeature(state, VESKA, { feature: 'sorcerer:innate-sorcery' }));
+    run(log, (state) => activateFeature(state, VESKA, { feature: 'sorcerer:innate-sorcery' }, SRD_CONTENT));
 
   /** And the minute over, which is the control every benefit is measured against. */
   const later = (log: readonly GameEvent[]): readonly GameEvent[] =>

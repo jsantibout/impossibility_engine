@@ -137,7 +137,7 @@ const contributionsOf = (events: readonly GameEvent[]): Record<string, number> =
 const imbued = (who: CharacterId, dim = false): GameState => {
   const before = fold('seed', field(who, dim));
   const events = unwrap(
-    activateFeature(before, who, { feature: 'oath-of-devotion:sacred-weapon' }),
+    activateFeature(before, who, { feature: 'oath-of-devotion:sacred-weapon' }, SRD_CONTENT),
     'activate',
   );
   return fold('seed', [...field(who, dim), ...events]);

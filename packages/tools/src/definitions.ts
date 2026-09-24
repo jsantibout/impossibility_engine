@@ -2827,19 +2827,32 @@ const SHEET = tool({
 const ACTIVATE_FEATURE = tool({
   name: 'activate_feature',
   description:
-    'Switch on a feature the character can enter — Rage is the one the SRD writes this way. The engine charges whatever the feature’s own record says it costs: the Action or Bonus Action it names, where a fight is running and there is an economy to spend from, a use out of its pool, and the deadline it runs to. What it does while it runs is applied by itself for as long as it runs. Use `sheet` to see which features can be switched on, what each one costs and what is left of its pool.',
+    'Switch on a feature the character can enter — Rage is the one the SRD writes this way. The engine charges whatever the feature’s own record says it costs: the Action or Bonus Action it names, where a fight is running and there is an economy to spend from, a use out of its pool, and the deadline it runs to. What it does while it runs is applied by itself for as long as it runs. A feature that imbues a weapon — Sacred Weapon is the one the SRD writes this way — needs `weapon` as well: name the one it is aimed at, and the engine refuses one the character is not carrying or one of a kind the feature does not reach, before anything is spent. The imbuing ends if that weapon is put down, and using the feature again moves it to a new one. Use `sheet` to see which features can be switched on, what each one costs and what is left of its pool.',
   mutates: true,
   input: z.object({
     who: creatureId,
     feature: z.string().min(1).describe('The feature id, from `sheet`, e.g. barbarian:rage.'),
+    weapon: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'The weapon this use imbues, by item id — required for a feature that imbues one, such as oath-of-devotion:sacred-weapon, and refused for one that does not.',
+      ),
   }),
   run: (context, args) =>
     settleEvents(
       context,
-      activateFeature(context.campaign.state(), who(args.who), {
-        feature: args.feature,
-        ...identity(context),
-      }),
+      activateFeature(
+        context.campaign.state(),
+        who(args.who),
+        {
+          feature: args.feature,
+          ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
+          ...identity(context),
+        },
+        context.campaign.content,
+      ),
       { activated: args.feature },
     ),
 });
