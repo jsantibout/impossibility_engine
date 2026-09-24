@@ -156,12 +156,18 @@ describe('toolSchemas', () => {
     // choosing which damage its own monster deals would be writing the
     // encounter. Two pins on the DM surface and one on the player's, and they
     // sum with whatever the other tracks of this batch moved.
-    // Six tracks moved these pins on one night; each move is recorded above
+    // Re-pinned 2026-09-24 for the imbued-weapon track, which published one
+    // field and one longer sentence: `activate_feature` gained `weapon` — the
+    // object a use is aimed at, SRD Sacred Weapon's "one Melee weapon that you
+    // are holding" — and its description says what the engine refuses and what
+    // ends the imbuing. No tool count moves, and both lengths move by the same
+    // 574 bytes, because `activate_feature` is published on both doors.
+    // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(83);
     expect(toolSchemas(dm())).toHaveLength(101);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(115883);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(138190);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(116457);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(138764);
   });
 });
 

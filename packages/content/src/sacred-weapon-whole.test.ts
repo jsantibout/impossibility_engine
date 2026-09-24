@@ -165,11 +165,14 @@ const supply = (state: GameState, d20 = 18) => ({
   content: SRD_CONTENT,
 });
 
-const imbued = (ghoulFeet = 5): readonly GameEvent[] => {
+const imbued = (ghoulFeet = 5, weapon = 'longsword'): readonly GameEvent[] => {
   const before = fold(SEED, field(ghoulFeet));
   return [
     ...field(ghoulFeet),
-    ...unwrap(activateFeature(before, ARDAN, { feature: SACRED_WEAPON }, SRD_CONTENT), 'activate'),
+    ...unwrap(
+      activateFeature(before, ARDAN, { feature: SACRED_WEAPON, weapon }, SRD_CONTENT),
+      'activate',
+    ),
   ];
 };
 
@@ -196,6 +199,10 @@ const grantOf = (): Record<string, unknown> => {
 
 const whileActive = (): readonly Record<string, unknown>[] =>
   (grantOf()['whileActive'] as readonly Record<string, unknown>[]) ?? [];
+
+/** What the use hangs on the object it imbued, as against on its holder. */
+const imbuesWeapon = (): Record<string, unknown> =>
+  (grantOf()['imbuesWeapon'] as Record<string, unknown>) ?? {};
 
 describe('SRD Sacred Weapon: "The weapon also emits Bright Light in a 20-foot radius"', () => {
   it('declares the light on the grant, both radii', () => {
@@ -311,12 +318,9 @@ describe('SRD Sacred Weapon: "it deals its normal damage type or Radiant damage"
     );
   };
 
-  it('declares the offer on the grant, narrowed to a Melee weapon', () => {
-    expect(whileActive()).toContainEqual({
-      kind: 'weapon-damage-type',
-      damageTypes: ['radiant'],
-      onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
-    });
+  it('declares the offer on the weapon the use imbues, not on a kind of weapon', () => {
+    expect(imbuesWeapon()['damageTypes']).toEqual(['radiant']);
+    expect(imbuesWeapon()['weapons']).toEqual({ weapons: [{ kind: 'melee' }] });
   });
 
   it('deals the weapon’s own type where the swing names none', () => {
@@ -369,7 +373,7 @@ describe('SRD Sacred Weapon: "it deals its normal damage type or Radiant damage"
     expect(typesOf(settled.events)).toEqual(['radiant']);
   });
 
-  /** "one **Melee** weapon": the Shortbow is not one, so it is offered nothing. */
+  /** "**that** weapon": the Shortbow is not what was imbued, nor could it be. */
   it('offers nothing on a ranged weapon', () => {
     const refused = swing(imbued(), 'shortbow', { [SACRED_WEAPON]: 'radiant' });
     expect(isErr(refused)).toBe(true);
@@ -414,8 +418,52 @@ describe('the two clauses are refused at the door where they say nothing', () =>
   });
 
   it('refuses an offer of no damage types, which could never be answered', () => {
-    expect(rewritten([{ kind: 'weapon-damage-type', damageTypes: [] }])).toContain(
-      `offers_no_damage_type @ ${at}.damageTypes`,
+    const oath = JSON.parse(
+      JSON.stringify(SRD_CONTENT.subclasses.find((one) => one.id === 'oath-of-devotion')),
+    ) as { features: { id: string; grants: Record<string, unknown> }[] };
+    const feature = oath.features.find((one) => one.id === SACRED_WEAPON)!;
+    feature.grants = {
+      ...feature.grants,
+      imbuesWeapon: { ...(feature.grants['imbuesWeapon'] as object), damageTypes: [] },
+    };
+    expect(
+      checkContent({ subclasses: [oath as never] }).map(
+        (problem) => `${problem.code} @ ${problem.field}`,
+      ),
+    ).toContain(
+      'offers_no_damage_type @ subclasses[oath-of-devotion].features[1].grants.imbuesWeapon.damageTypes',
+    );
+  });
+
+  /**
+   * And the rest of what an imbuing can say that nothing downstream could
+   * recover from: a narrowing naming a category nobody prints reaches no
+   * weapon at all, so the feature could never be used, and a bonus sized by
+   * something that is not an ability is arithmetic no reader can do.
+   */
+  it('refuses an imbuing nothing could ever be aimed at, and a bonus nothing could size', () => {
+    const rewrittenImbuing = (over: Record<string, unknown>): readonly string[] => {
+      const oath = JSON.parse(
+        JSON.stringify(SRD_CONTENT.subclasses.find((one) => one.id === 'oath-of-devotion')),
+      ) as { features: { id: string; grants: Record<string, unknown> }[] };
+      const feature = oath.features.find((one) => one.id === SACRED_WEAPON)!;
+      feature.grants = {
+        ...feature.grants,
+        imbuesWeapon: { ...(feature.grants['imbuesWeapon'] as object), ...over },
+      };
+      return checkContent({ subclasses: [oath as never] }).map(
+        (problem) => `${problem.code} @ ${problem.field}`,
+      );
+    };
+    const imbuedAt = 'subclasses[oath-of-devotion].features[1].grants.imbuesWeapon';
+    expect(rewrittenImbuing({ weapons: { weapons: [{ kind: 'siege' }] } })).toContain(
+      `unknown_weapon_kind @ ${imbuedAt}.weapons.weapons[0].kind`,
+    );
+    expect(rewrittenImbuing({ attackBonusFrom: { ability: 'luck', minimum: 1 } })).toContain(
+      `bad_imbued_weapon @ ${imbuedAt}.attackBonusFrom.ability`,
+    );
+    expect(rewrittenImbuing({ attackBonusFrom: { ability: 'cha', minimum: 'one' } })).toContain(
+      `bad_imbued_weapon @ ${imbuedAt}.attackBonusFrom.minimum`,
     );
   });
 
@@ -500,7 +548,7 @@ describe('the two clauses are refused at the door where they say nothing', () =>
    * weapon and has no "made with this item", so it would put Radiant on every
    * swing its wearer made with anything.
    */
-  it('refuses both from an item, which reads neither', () => {
+  it('refuses a light from an item, which reads none', () => {
     const codesOf = (effect: unknown): readonly string[] =>
       checkContent({
         items: [
@@ -520,8 +568,5 @@ describe('the two clauses are refused at the door where they say nothing', () =>
       }).map((problem) => problem.code);
 
     expect(codesOf({ kind: 'light', level: 'bright', radius: 20 })).toContain('bad_item_effect');
-    expect(codesOf({ kind: 'weapon-damage-type', damageTypes: ['radiant'] })).toContain(
-      'bad_item_effect',
-    );
   });
 });

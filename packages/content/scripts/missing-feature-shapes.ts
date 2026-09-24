@@ -593,23 +593,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'one of move, an action, or a Bonus Action is a rule that couples three slots, and `forbids` and `permits-only` between them cannot state it — the other thing that description names as left, derived there from Slow. It keeps the spell id for that reason rather than for the door: a Channel Divinity option is the one feature-side effect list there is, and there would be nothing writable to put in it.',
     },
   ],
-  'oath-of-devotion:sacred-weapon': [
-    {
-      clause: 'reaches every Melee weapon the Paladin swings for the ten minutes rather than the one object they imbued',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'SRD: "imbue **one** Melee weapon that you are holding". The ability-sized number lands now and lands more widely than the book prints it: a standing grant is hung on a creature and narrows by a *kind* of weapon, and the one record in the engine keyed to a particular object is `GrantedWeaponRider` — which only a casting writes. The same gap that shape is named for, arriving at a feature instead of at a spell.',
-    },
-    {
-      clause: 'The Attack action the SRD attaches the imbuing to is not a cost this vocabulary can name',
-      why: 'an-attack-the-class-redefines',
-      note: 'SRD: "**When you take the Attack action**, you can expend one use of your Channel Divinity." An activation costs an action, a Bonus Action or nothing, and this one is attached to an action its holder is already taking — the action-economy half of that shape, beside the breath weapon put in an Attack action’s place. `none` is the nearest of the three and it lets the Paladin imbue at a moment the book does not.',
-    },
-    {
-      clause: 'needs a fact about whose hand an object is in',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'SRD: "This effect also ends if you aren’t carrying the weapon." That shape’s own description names letting go of an object among the causes with no member, and names Shillelagh for it; this is the same sentence on a feature’s activation, where the vocabulary is `ActivationEnd` rather than `endsEarly`. What it is short of is not a member but a fact: the ending is derived by the fold after every event, an `item-equipped` line pins an armour record and no weapon record, and a `WeaponNarrowing` is a description of a kind of weapon — so no pass over `equipped` or `inventory` can tell a Longsword from a torch without opening a catalogue, which rule 5 forbids the fold.',
-    },
-  ],
   'oath-of-devotion:smite-of-protection': [
     {
       clause: 'cover is declared rather than derived, and nothing declares it from a spell',

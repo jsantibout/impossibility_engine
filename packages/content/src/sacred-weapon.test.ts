@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
+import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
   activateFeature,
   checkContent,
@@ -134,10 +134,15 @@ const contributionsOf = (events: readonly GameEvent[]): Record<string, number> =
   return Object.fromEntries(record.contributions.map((c) => [c.source, c.amount]));
 };
 
-const imbued = (who: CharacterId, dim = false): GameState => {
+const imbued = (who: CharacterId, dim = false, weapon = 'longsword'): GameState => {
   const before = fold('seed', field(who, dim));
   const events = unwrap(
-    activateFeature(before, who, { feature: 'oath-of-devotion:sacred-weapon' }, SRD_CONTENT),
+    activateFeature(
+      before,
+      who,
+      { feature: 'oath-of-devotion:sacred-weapon', weapon },
+      SRD_CONTENT,
+    ),
     'activate',
   );
   return fold('seed', [...field(who, dim), ...events]);
@@ -159,12 +164,65 @@ describe('SRD Sacred Weapon: "you add your Charisma modifier to attack rolls"', 
     // SRD's "For 10 minutes", and the use out of the pool the class declares.
     expect(grant.pool).toBe('channel-divinity');
     expect(grant.lastsSeconds).toBe(600);
-    expect(grant.whileActive?.[0]).toMatchObject({
-      kind: 'attack-bonus',
-      fromAbility: 'cha',
-      minimum: 1,
-      onlyWithWeapon: { weapons: [{ kind: 'melee' }] },
+    // "imbue **one** Melee weapon that you are holding", and the two sentences
+    // the book hangs on it. Not a `whileActive` grant: a standing effect is
+    // hung on a creature and narrows by a *kind* of weapon, which is the
+    // Paladin's whole pack rather than the thing they imbued.
+    expect(grant.imbuesWeapon).toEqual({
+      weapons: { weapons: [{ kind: 'melee' }] },
+      attackBonusFrom: { ability: 'cha', minimum: 1 },
+      damageTypes: ['radiant'],
     });
+  });
+
+  /**
+   * And the clause that makes it one object rather than a kind: the use names
+   * the weapon, and a weapon the Paladin is not carrying or that the sentence
+   * does not reach is refused before the Channel Divinity is spent.
+   */
+  it('names the weapon it imbues, and refuses the ones the sentence does not reach', () => {
+    const before = fold('seed', field(ARDAN, false));
+    const use = (weapon?: string) =>
+      activateFeature(
+        before,
+        ARDAN,
+        { feature: 'oath-of-devotion:sacred-weapon', ...(weapon === undefined ? {} : { weapon }) },
+        SRD_CONTENT,
+      );
+    const left = remaining(before.creatures[ARDAN]!.resources, 'channel-divinity');
+
+    for (const [weapon, code] of [
+      [undefined, 'weapon_required'],
+      ['shortbow', 'weapon_not_of_kind'],
+      ['greatsword', 'weapon_not_held'],
+    ] as const) {
+      const out = use(weapon);
+      expect(isErr(out)).toBe(true);
+      if (isErr(out)) expect(out.code).toBe(code);
+    }
+    // Nothing was spent by any of them.
+    expect(remaining(fold('seed', field(ARDAN, false)).creatures[ARDAN]!.resources, 'channel-divinity')).toBe(left);
+  });
+
+  /**
+   * SRD: "imbue **one** Melee weapon." The Paladin carries a Longsword and
+   * nothing else in melee here, so the clause is asserted the other way about
+   * in `weapon-rider-lifetime.test.ts`, where a second Melee weapon is in the
+   * pack; what this one holds is that the bonus is on the rider rather than on
+   * the sheet.
+   */
+  it('hangs the bonus on the weapon it imbued rather than on the Paladin', () => {
+    const riders = imbued(ARDAN).creatures[ARDAN]?.weaponRiders ?? [];
+    expect(riders).toEqual([
+      {
+        source: 'feature:oath-of-devotion:sacred-weapon',
+        name: 'Sacred Weapon',
+        weapon: 'longsword',
+        endsWhenLetGo: true,
+        attackBonusFrom: { ability: 'cha', minimum: 1 },
+        damageTypes: ['radiant'],
+      },
+    ]);
   });
 
   it('adds nothing until the Paladin spends the Channel Divinity', () => {
@@ -183,7 +241,7 @@ describe('SRD Sacred Weapon: "you add your Charisma modifier to attack rolls"', 
     expect(contributionsOf(out)['Sacred Weapon']).toBe(1);
   });
 
-  /** "one **Melee** weapon": the Shortbow is not one. */
+  /** "that weapon": the Shortbow was never the one imbued, and is not Melee. */
   it('is withheld from a ranged weapon', () => {
     const out = swing(imbued(ARDAN), ARDAN, 'shortbow');
     expect(contributionsOf(out)['Sacred Weapon']).toBeUndefined();

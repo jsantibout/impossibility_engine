@@ -157,14 +157,13 @@ describe('a paladin made from choices radiates a real aura', () => {
       // Armour Class, a standing grant a *feat* carries, gated on the armour
       // its holder is wearing rather than on anything being switched on.
       'defense',
-      // The last three are not auras and are not on until the feature is
-      // switched on: SRD Sacred Weapon's Charisma bonus, the damage type each
-      // hit restates and the light the weapon emits are three standing effects
+      // The last is not an aura and is not on until the feature is switched
+      // on: the light SRD Sacred Weapon's weapon emits is a standing effect
       // requiring the feature to be active, which is what every `whileActive`
-      // grant becomes — one per sentence, in the order the feature declares
-      // them.
-      'oath-of-devotion:sacred-weapon',
-      'oath-of-devotion:sacred-weapon',
+      // grant becomes. Its other two sentences are **not** here and used to be
+      // — the Charisma bonus and the damage type are keyed to the one weapon
+      // the use imbues now, which is a `GrantedWeaponRider` rather than
+      // anything on the sheet.
       'oath-of-devotion:sacred-weapon',
     ]);
     expect(standing[0]?.reach).toEqual({ kind: 'aura', feet: 10 });
@@ -369,8 +368,6 @@ describe('a multiclassed paladin still radiates, and a junior one does not', () 
     expect(standing.filter((one) => one.reach.kind === 'aura')).toEqual([]);
     expect(standing.map((one) => one.feature)).toEqual([
       'defense',
-      'oath-of-devotion:sacred-weapon',
-      'oath-of-devotion:sacred-weapon',
       'oath-of-devotion:sacred-weapon',
     ]);
   });
