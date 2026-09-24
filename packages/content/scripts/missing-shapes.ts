@@ -251,8 +251,6 @@ export const MISSING_SHAPES = {
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
     '**built for the spell vocabulary, and this is what is left of it.** PROGRESS.md ranked it at 19 open spells and Magic Missile was the one it named; the `auto-damage` effect is that sentence — typed damage with a flat addend and nothing rolled to decide whether it lands, dealt as a pool of separate hits among the creatures the caster named, with the count and the split an `attack` already carried. Magic Missile is executed off it, Heat Metal’s opening 2d8 is expressible by it and waits on the two clauses beside it, and Shield’s clause has left this id for the shape that actually blocks it. What is left is the **item** half, which is a different door: `packages/engine/src/content.ts` admits fourteen effect kinds to a conferral and this is not one of them, so a Potion of Poison’s 4d6, a talisman that burns whoever touches it and a manual that scorches whoever cannot read it are still filed here. A conferral has no casting, no slot and no caster level for a `DiceScaling` to read, which is what admitting the kind has to answer for rather than assume.',
-  'an-armor-class-a-spell-floors':
-    'PROGRESS.md ranks it: "An Armour Class a spell **sets** (**built** — Mage Armor) or **floors** (~3 left: Barkskin’s “if its AC is lower”)". `docs/design/spell-definitions.md` says why the built half does not cover it: "Barkskin is deliberately *not* included: “an Armor Class of 17 if its AC is lower than that” is a floor on the **total**, a different rule, and one spell is not evidence for building it."',
   'the-effects-source-as-a-participant':
     '`docs/design/rolls-and-damage.md` lists it among what the roll-modifier vocabulary deliberately does not reach: "The effect’s *source* as a participant — “against **you**”, meaning the caster | Bestow Curse". `relation` is one bit wide — `roller` or `against-holder` — and the caster of the spell is a third participant no selector can name.',
   'an-area-moved-by-the-casters-own-movement':
@@ -1802,14 +1800,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'deals 5d8 Fire damage to each creature that ends its turn within 10 feet of that side',
       why: 'damage-with-neither-an-attack-roll-nor-a-save',
       note: 'damage that lands with no attack roll and no saving throw at all, on a turn boundary `AreaTrigger` can already name. Every damage-bearing effect kind the format has hangs off a roll, so this one has nothing to be written as even once the wall exists.',
-    },
-  ],
-  barkskin: [
-    {
-      marker: 'armor-class',
-      clause: 'the target has an Armor Class of 17 if its AC is lower than that',
-      why: 'an-armor-class-a-spell-floors',
-      note: 'a floor rather than a calculation: the `armor-class` effect supplies a base the engine then picks between, and 17 written that way would either beat a plate-armoured 18 down or be discarded, depending which way the comparison ran. Neither is the sentence.',
     },
   ],
   'death-ward': [

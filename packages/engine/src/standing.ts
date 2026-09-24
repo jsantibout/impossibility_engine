@@ -33,6 +33,7 @@ import {
   abilityModifier,
   proficiencyBonus,
   armorClass,
+  armorClassFloor,
   hasSpeedInMode,
   speedInMode,
   type CharacterSheet,
@@ -4583,7 +4584,14 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   // anything having to remember to. No item is used to *gain* an Armour Class,
   // so there is nothing for a narrowing to match and none may be declared.
   for (const bonus of standingBonuses(state, who, 'ac')) total += bonus.flat ?? 0;
-  return total;
+  // And last of all, the floor — SRD Barkskin's "an Armor Class of 17 **if its
+  // AC is lower than that**". Last because "its AC" in that sentence is the
+  // finished number: the calculation, the Shield, every flat bonus and
+  // whatever the ring is granting have all had their say, and what this does
+  // is refuse the answer if it came out too low. See `GrantedArmorClassFloor`,
+  // where the two arms of the family are held apart.
+  const floor = armorClassFloor(creature.armorClasses);
+  return floor === null ? total : Math.max(total, floor);
 }
 
 /**

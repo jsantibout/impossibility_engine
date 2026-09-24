@@ -1545,6 +1545,12 @@ describe('every spell this batch added is cast for real', () => {
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
     'augury',
+    // **Barkskin leaves by the second arm of `armor-class`.** The spell is one
+    // sentence and the whole of it was the arm that did not exist: a base
+    // calculation competes to *be* the Armour Class and a floor refuses the
+    // finished total if it came out under seventeen, which is read last and
+    // through plate. Nothing is left but willingness and the bark.
+    'barkskin',
     'darkness',
     'daylight',
     'enhance-ability',

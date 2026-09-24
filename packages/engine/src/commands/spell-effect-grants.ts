@@ -230,9 +230,14 @@ export function resolvePassiveDefenseEffect(
 
 /**
  * A base Armour Class the spell supplies, in place of the one the
- * target would otherwise calculate. Nothing is rolled and nothing is
- * resisted: SRD Mage Armor asks for no save and touches a willing
- * creature.
+ * target would otherwise calculate — or a floor under whatever the
+ * target arrives at. Nothing is rolled and nothing is resisted in
+ * either arm: SRD Mage Armor and SRD Barkskin both ask for no save and
+ * touch a willing creature.
+ *
+ * The two arms differ only in what is pinned onto the event; which of
+ * the two numbers the fold is holding is what `armorClassOf` reads to
+ * decide where in the sum it belongs.
  */
 export function resolveArmorClassEffect(
   ctx: EffectContext,
@@ -247,12 +252,15 @@ export function resolveArmorClassEffect(
   events.push({
     type: 'armor-class-granted',
     id: target,
-    armorClass: {
-      source,
-      base: effect.base,
-      plusAbility: effect.plusAbility,
-      shieldAllowed: effect.shieldAllowed,
-    },
+    armorClass:
+      effect.minimum === undefined
+        ? {
+            source,
+            base: effect.base,
+            plusAbility: effect.plusAbility,
+            shieldAllowed: effect.shieldAllowed,
+          }
+        : { source, minimum: effect.minimum },
   });
   current = events.slice(-1).reduce(applyEvent, current);
   // Reported after the grant, because the number is the comparison’s

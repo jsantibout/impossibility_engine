@@ -2769,8 +2769,33 @@ function checkEffect(
       return;
     }
 
-    case 'armor-class':
-      if (!Number.isInteger(effect.base) || effect.base < 1) {
+    // Two arms, and the pair is the rule: a spell either supplies a base the
+    // calculation competes over (Mage Armor) or a floor under the finished
+    // total (Barkskin), and never both — the two are read at different points
+    // of one sum, so an effect claiming both would be two rules in one field.
+    case 'armor-class': {
+      const minimum = (effect as { readonly minimum?: unknown }).minimum;
+      const base = (effect as { readonly base?: unknown }).base;
+      if (minimum !== undefined && base !== undefined) {
+        found.push({
+          field: path,
+          code: 'armor_class_base_and_floor',
+          reason:
+            'an Armour Class a spell supplies is either a base the calculation competes over or a floor under the finished total, never both',
+        });
+        return;
+      }
+      if (minimum !== undefined) {
+        if (!Number.isInteger(minimum) || (minimum as number) < 1) {
+          found.push({
+            field: `${path}.minimum`,
+            code: 'bad_armor_class',
+            reason: 'a floor under an Armour Class is a whole number of at least 1',
+          });
+        }
+        return;
+      }
+      if (!Number.isInteger(base) || (base as number) < 1) {
         found.push({
           field: `${path}.base`,
           code: 'bad_armor_class',
@@ -2778,6 +2803,7 @@ function checkEffect(
         });
       }
       return;
+    }
 
     // A granted defence names types and says one thing about all of them, so
     // the only things to be wrong about are the list and the answer.

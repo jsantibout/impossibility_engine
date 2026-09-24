@@ -1925,9 +1925,11 @@ export type SpellEffect =
    * What a spell *does* need to say is that it may not be **cast** on an
    * armoured creature, and that is {@link TargetRule.mustBeUnarmored}.
    *
-   * Deliberately not Barkskin: "an Armor Class of 17 if its AC is lower than
-   * that" is a floor on the *total*, a different rule, and one spell is not
-   * evidence for building it.
+   * **Barkskin is the second arm below**, and it stayed out of this one for
+   * as long as it did because it is genuinely a different rule: "an Armor
+   * Class of 17 if its AC is lower than that" is a floor on the *total*, read
+   * after everything, and written as a base it would be wrong in both
+   * directions at once.
    */
   | {
       readonly kind: 'armor-class';
@@ -1949,6 +1951,36 @@ export type SpellEffect =
        * same shape says no, which is why this is stated rather than assumed.
        */
       readonly shieldAllowed: boolean;
+      /** Absent, which is what tells the two arms apart. */
+      readonly minimum?: undefined;
+    }
+  /**
+   * A **floor** under the Armour Class the target arrives at by whatever means.
+   *
+   * SRD Barkskin, the whole rule: "the target has an Armor Class of 17 **if
+   * its AC is lower than that**."
+   *
+   * **The same `kind` and a different arm**, because it is the same sentence
+   * of the book — what a spell says your Armour Class is — asked at a
+   * different point in the arithmetic. The arm above competes for the *base*,
+   * before a Shield and before every flat bonus, and is consulted only while
+   * the target is unarmoured; this one is read last, after the calculation,
+   * after the bonuses and after whatever a worn item is granting, and is read
+   * through plate as readily as through nothing. So `base` written as 17 would
+   * beat a plate-armoured 18 down or be discarded under the armour depending
+   * which way the comparison ran, and neither is the sentence.
+   *
+   * It carries no `shieldAllowed` and no `plusAbility` for the same reason: a
+   * Shield's +2 is part of the total this is a floor *under*, so there is
+   * nothing for it to permit, and a floor adds no ability to anything.
+   *
+   * See {@link GrantedArmorClass}, where the two arms are held apart on the
+   * creature, and `armorClassOf`, which is the only reader of this one.
+   */
+  | {
+      readonly kind: 'armor-class';
+      /** SRD Barkskin's "17": the number the total may not fall below. */
+      readonly minimum: number;
     }
   /**
    * Resistance, Immunity or Vulnerability the spell hands its target.

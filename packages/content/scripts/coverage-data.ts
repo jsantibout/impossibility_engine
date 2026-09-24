@@ -166,6 +166,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'augury',
   'bane',
   'banishment',
+  // `armor-class-floor.test.ts` (engine): a scout at 12 read 17, a knight in
+  // plate left at 18, a +2 swallowed by the floor and a +6 clearing it.
+  'barkskin',
   'beacon-of-hope',
   'black-tentacles',
   'bless',

@@ -8884,7 +8884,9 @@ export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
  * whole spell. Mage Armor supplies a *calculation* — 13 plus Dexterity — and
  * the engine picks the best calculation a creature has. This supplies a
  * finished number and only when it beats whatever the creature already has,
- * which is neither an `armor-class` effect nor a bonus.
+ * which is the second arm of `armor-class`: read after the calculation, after
+ * a Shield and after every flat bonus, because "its AC" in that sentence is
+ * the total rather than the base.
  */
 export const BARKSKIN: SpellDefinition = {
   id: 'barkskin',
@@ -8895,10 +8897,12 @@ export const BARKSKIN: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  // "the target has an Armor Class of 17 if its AC is lower than that" — the
+  // whole rule, and the `if` is the arm rather than a condition anybody has
+  // to write down.
+  effects: [{ kind: 'armor-class', minimum: 17 }],
   durationSeconds: 3600,
   unmodelled: [
-    'the Armour Class is not floored: "the target has an Armor Class of 17 if its AC is lower than that" is a minimum applied to whatever the creature already has, and the `armor-class` effect supplies a base calculation instead — 17 written as one would beat a plate-armoured Paladin’s 18 down, or be ignored, depending on which way the comparison ran',
     'whether the creature touched is willing is not modelled; willingness is fiction',
     'the bark-like appearance is narration',
   ],
