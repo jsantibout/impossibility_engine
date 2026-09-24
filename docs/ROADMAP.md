@@ -2060,3 +2060,21 @@ Appended after wave seven's first spells track (2026-09-24):
   deliberately absent — a choice of *which effects run*. Halt, Drop and Grovel
   are each writable alone now and none can say "only if this word was spoken";
   that arm is its own brief (Command, Thaumaturgy, Enlarge/Reduce's shell).
+- **Six features waiting on nothing, read.** Three Fighting Style features
+  were `manual` with notes a batch stale: all four feats execute (Archery's
+  narrowed bonus, Great Weapon Fighting's die rule, Defense behind
+  `wearing-armor`, Two-Weapon Fighting's extra-attack damage), so the
+  features declare `engine` and point at the feats. A feature may now put a
+  **language** on the sheet (`language` grant, `known`) and ask for one
+  (`language` question, validated against the catalogue and against the word
+  *other*) — Druidic also fixes Speak with Animals prepared, Thieves' Cant
+  asks its one tongue; an unanswered language question **warns** rather than
+  refuses, because refusing broke every Rogue in the corpus and a corpus
+  migration is its own brief. A feature may hold **knowledge**: `knowledge`
+  grant, `knowledge.ts`, read by the player door's `look` as `knownDefences`
+  when a casting of the knower's marks the creature (Hunter's Lore) — the
+  gate is mechanical (`marksTarget` is what writes the mark), no spell id
+  reaches the engine. Features waiting on a shape: two (Eldritch Invocations'
+  second half, in flight; Resourceful's window). Follow-ups:
+  `champion:additional-fighting-style` (level 7, out of reach) is one line;
+  `STATUS.md` sits at its cap and the coordinator trims it.

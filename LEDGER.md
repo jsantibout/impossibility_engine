@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 84 spells | 49 | 0 | 35 |
-| Features manual, or a pool with nothing to buy | 8 features | 2 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 2 features | 2 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 180 items | on 115 of 244 blocks | 0 | 129 blocks already clean |
@@ -433,7 +433,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 8, 7 are class or subclass features printed at level 5 or below, 1 are species or background traits and 0 are feats.
+Of the 2, 1 are class or subclass features printed at level 5 or below, 1 are species or background traits and 0 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -489,14 +489,8 @@ reading, or one the existing kinds already say and nobody has written — and
 both are work, which is why they are no longer printed as finished business.
 
 
-#### Waiting on no shape — 6
+#### Waiting on no shape — 0
 
-- `druid:druidic` — Druidic (level 1, class, manual)
-- `fighter:fighting-style` — Fighting Style (level 1, class, manual)
-- `rogue:thieves-cant` — Thieves' Cant (level 1, class, manual)
-- `paladin:fighting-style` — Fighting Style (level 2, class, manual)
-- `ranger:fighting-style` — Fighting Style (level 2, class, manual)
-- `hunter:hunters-lore` — Hunter's Lore (level 3, subclass, manual)
 
 Listed by level, then id.
 

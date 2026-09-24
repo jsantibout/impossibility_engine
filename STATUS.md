@@ -42,7 +42,8 @@ homebrew.
   the Hydra's declared head count. **A printed saving throw is an effect
   list**: the DM's door rolls it, the engine applies the failure's damage,
   condition, grapple, push, Speed cut or lowered maximum, and hands over each
-  sentence it could not read.
+  sentence it could not read; a printed teleport is spent at its distance, and
+  a printed Reaction adds to an ally's roll.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
@@ -65,7 +66,9 @@ homebrew.
   identities, Concentration, ongoing spells, the effect and rider kinds, dice
   that behave the way their spell says, printed sentences handed to the DM
   marked as theirs, and **passive defences** the attack path consults while
-  the defender elects nothing.
+  the defender elects nothing. A casting may revive the dead, break an
+  attunement, mask a type for magic alone, heat an object out of a hand, cap
+  its own running copies, ward a fall, or lift a creature a save did not spare.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
 - **Items and objects** — grants live while worn or wielded, attunement,
@@ -95,12 +98,10 @@ homebrew.
   engine still has no idea a language model exists, which is the point.
 - **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed,
   timed, effect left to the table. `LEDGER.md` names each and its shape.
-- **Most class, species and background features past the common shapes are
-  `manual`** with a note saying what is missing.
-- **One pool counts and refills truthfully and buys nothing**: Paladin's
-  Channel Divinity. Font of Magic and Arcane Recovery buy spell slots and Wild
-  Shape buys a form. `reachability.test.ts`'s `NOTHING_TO_BUY` is checked in
-  both directions, so a pool that opens deletes its line in the same commit.
+- **Two features in a level 5 character's reach are still `manual`** —
+  Eldritch Invocations' second half and Resourceful's reroll window — and the
+  Champion's second Fighting Style at level 7. Every pool buys something;
+  `reachability.test.ts`'s `NOTHING_TO_BUY` is checked in both directions.
 - **A Druid's known forms are the ones it was made with.** SRD lets one be
   replaced when a Long Rest ends and no rest offers that yet; the form's limbs
   decide nothing about what can be held; the block's senses are not carried;
@@ -111,23 +112,16 @@ homebrew.
   and type, and seats it after its rider; what no field can hold is a printed
   line whose numbers are the summoner's — the Otherworldly Steed's attack and
   Bonus Actions — and a creature stowed somewhere that is not the scene.
-- **No window opens on a fall.** Slow Fall is elected on the landing; Feather
-  Fall waits on `FeatureReactionWindow` gaining `creature-falling`.
-- **Movement modes are built, and jumping is half.** The four Speeds are on
-  the sheet and off a stat block, a move names its mode, going without the
-  Speed costs double, a stopped flier falls, and a spell or feature can grant
-  one. A Thief's running jump lengthens by the Dexterity modifier.
-- **Light a casting sheds is carried** by the creature holding the object
-  (Light, Continual Flame) or moved by its Bonus Action (Dancing Lights);
-  Darkvision the spell confers the sense.
+- **Jumping is half.** A Thief's running jump lengthens by the Dexterity
+  modifier; Slow Fall is elected on the landing rather than in a window.
 - **A printed hit is read clause by clause**: the charge, a push or pull, a
   Speed cut, a lowered maximum, a one-roll mode, a grapple that implies
   Restrained and extra damage execute; what nothing read is handed back and
   the ledger keeps the block. A repeat save may deepen its condition and stop
   asking, and Resistance's d4 comes off the total before defences.
 - **Nothing brings a jumper down.** A High Jump leaves the creature at the
-  elevation it reached and no rule ends that. Narrower than it was — elevation
-  was wholly unguarded until `cannot_rise` — but still open.
+  elevation it reached and no rule ends that; a lifted one is set down when
+  its casting ends.
 - No ammunition spent. **An object cannot make an ability check** — a door
   asked for one rolls at −5 and can succeed, where it should refuse; and
   nothing stops a caller putting an object in the turn order, which would
