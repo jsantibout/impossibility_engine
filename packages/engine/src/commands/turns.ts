@@ -143,7 +143,7 @@ export function dueDamageOf(state: GameState): readonly (ScheduledDamage & { rea
 function collectDueDamage(
   state: GameState,
   supply: Supply,
-): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+): Result<BoundarySettlement> {
   const due = dueDamageOf(state);
   if (due.length === 0) return ok({ events: [], unverified: [] });
 
@@ -197,16 +197,16 @@ function collectDueDamage(
 }
 
 /**
- * What a boundary's payouts wrote, and what they could not check.
+ * What one part of a boundary wrote, and what it could not check.
  *
  * `{ events, unverified }` rather than a bare list, which is the shape every
- * other settlement in the engine already has: a payout of damage goes through
- * the same funnel a Fire Bolt does, and the funnel reports the facts a feature
- * watching the fall was missing. A caller with nowhere to put that report says
- * so — `beginCombat` returns events alone and drops it, which is a gap named
- * rather than one hidden.
+ * other settlement in the engine already has: a scheduled hit, a payout of
+ * damage and a repeat save's own fire each go through the funnel a Fire Bolt
+ * does, and the funnel reports the facts a feature watching the fall was
+ * missing. A caller with nowhere to put that report says so — `beginCombat`
+ * returns events alone and drops it, which is a gap named rather than hidden.
  */
-export interface BoundaryPayment {
+export interface BoundarySettlement {
   readonly events: readonly GameEvent[];
   readonly unverified: readonly string[];
 }
@@ -293,7 +293,7 @@ function settleTurnPayouts(
   state: GameState,
   supply: Supply,
   due: readonly DuePayout[],
-): Result<BoundaryPayment> {
+): Result<BoundarySettlement> {
   const events: GameEvent[] = [];
   const unverified: string[] = [];
   let current = state;
@@ -415,7 +415,7 @@ export function settleBoundaryPayouts(
   supply: Supply | undefined,
   ended: CharacterId | undefined,
   begun: CharacterId | undefined,
-): Result<BoundaryPayment> {
+): Result<BoundarySettlement> {
   const due = payoutsDue(state, ended, begun);
   if (due.length === 0) return ok({ events: [], unverified: [] });
 
@@ -1122,7 +1122,7 @@ function burnBeforeTheSave(
   state: GameState,
   pending: PendingSave,
   supply: Supply,
-): Result<BoundaryPayment> {
+): Result<BoundarySettlement> {
   const payout = state.timers[pending.effectKey]?.repeatSave?.beforeTheSave;
   if (payout === undefined) return ok({ events: [], unverified: [] });
 
