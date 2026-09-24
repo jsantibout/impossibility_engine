@@ -69,7 +69,7 @@ import { type Supply } from './casting.js';
 import { featureConjuredLine, freeHands, quantityOf } from './inventory.js';
 import { resolveAttack } from './attacks.js';
 import { reactionSwing } from './movement.js';
-import { attacksInAction } from '../monster.js';
+import { attacksInAction, statedBonusActionsUsed } from '../monster.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { endConditionsOn, schedule } from './conditions.js';
 import { healCreature } from './creatures.js';
@@ -1292,8 +1292,8 @@ export interface SummonsAttackCommand extends CommandIdentity {
  * of its own with its Reaction."
  *
  * **Two economies, and the command's whole job is to charge both of them
- * before anybody swings.** The holder gives up one attack of an Attack action
- * they have already taken — {@link spendOneAttack}, the price SRD Breath Weapon
+ * before anybody swings.** The holder gives up one attack of the Attack action
+ * they are taking — {@link spendOneAttack}, the price SRD Breath Weapon
  * prints — and the summons gives up its Reaction. Either refusal leaves both
  * unspent, which is the validate-before-rolling rule this file keeps
  * everywhere.
@@ -1359,16 +1359,18 @@ export function orderSummonsAttack(
       // spends. Each refusal leaves the other unspent.
       //
       // **"When you take the Attack action" is read as the taking**, which is
-      // `spendAttack`'s own two branches and is why this does not go through
-      // `spendOneAttack` beside it. A holder who has already swung spends one
-      // of what the action has left; a holder who has not spends the Action
+      // `spendAttack`'s own two branches. A holder who has already swung spends
+      // one of what the action has left; a holder who has not spends the Action
       // and the first of its attacks. The second branch is the one that
       // matters here and it is the book: a Warlock 5 makes **one** attack in
       // an Attack action, so a rule that asked for an attack left over after
       // the action was taken would be a sentence no Warlock could ever use.
-      // SRD Breath Weapon prints the same price and `spendOneAttack` reads it
-      // the stricter way; the two are recorded as disagreeing rather than
-      // quietly reconciled here, because that reading is another feature's.
+      // SRD Breath Weapon prints the same price and {@link spendOneAttack}
+      // walks the same road for the same reason about a Dragonborn 1 — the two
+      // features read one printed sentence one way. This still does not go
+      // through it, because that one refuses out of combat in the words of the
+      // option a pool prints and there is no option here; what they share is
+      // `spendAttack`, which is where the reading lives.
       const combat = state.combat;
       if (combat === null) {
         return err(
@@ -2104,14 +2106,29 @@ function spendOptionCost(
 }
 
 /**
- * One swing of an Attack action already taken, spent on something that is not
- * a swing.
+ * One attack of the Attack action, spent on something that is not a swing.
  *
  * SRD Breath Weapon: "When you take the Attack action on your turn, you can
- * **replace one of your attacks** with an exhalation of magical energy." Two
- * facts the sentence turns on and each is a refusal here: the Attack action
- * must have been taken — `attacksRemaining` is null until it is, which is what
- * that null *means* — and one of its attacks must be left.
+ * **replace one of your attacks** with an exhalation of magical energy."
+ *
+ * **"When you take the Attack action" is read as the taking**, which is
+ * `spendAttack`'s own two branches: a holder who has already swung spends one
+ * of what the action has left, and a holder who has not spends the Action and
+ * the first of its attacks. The second branch is the one the book is about at
+ * the level this trait is printed at — a Dragonborn makes **one** attack in an
+ * Attack action until Extra Attack arrives, so a rule that asked for an attack
+ * left over after the action was taken would be a sentence no Dragonborn could
+ * say before level 5, which is most Dragonborn. So a Dragonborn 1 exhales
+ * instead of swinging, a Dragonborn 5 swings once and exhales once in either
+ * order, and a holder whose action is spent to its last attack is refused
+ * `no_attacks_left` — `spendAttack`'s own refusal, out of its own arithmetic.
+ *
+ * **Two features now read one printed sentence one way.** SRD Pact of the
+ * Chain prints the same clause — "when you take the Attack action, you can
+ * forgo one of your own attacks" — and `orderSummonsAttack` has always read it
+ * as the taking, for the same reason about the same Warlock. The two readings
+ * were recorded here as disagreeing until the question was asked of the book;
+ * they no longer do.
  *
  * **The event is the swing's own**, and that is the whole of why no new one
  * was minted: `attack-made` is what the budget arithmetic hangs on, the fold
@@ -2122,15 +2139,10 @@ function spendOptionCost(
  * are skipped by a swing that is not one, in the command and in the fold
  * alike.
  *
- * **The stricter of two readings of one printed price**, and it is written
- * down here rather than argued each time somebody meets it. SRD Pact of the
- * Chain prints the same clause — "when you take the Attack action, you can
- * forgo one of your own attacks" — and `orderSummonsAttack` reads it as the
- * *taking*, because a Warlock makes one attack in an Attack action and a rule
- * that asked for one left over would be a sentence no Warlock could ever use.
- * The same is true of a Dragonborn with no Extra Attack and this feature; that
- * is a question about Breath Weapon rather than about the Pact, so it is filed
- * rather than settled here.
+ * The one thing that is still a refusal here rather than a waiver is a fight
+ * nobody is in: there is no Attack action to take outside combat, and a
+ * Dragonborn who could exhale there would breathe once a round for ever
+ * between fights. See {@link spendOptionCost}.
  */
 function spendOneAttack(
   state: GameState,
@@ -2144,25 +2156,23 @@ function spendOneAttack(
       `${option.name} replaces one of the attacks of an Attack action, and there is no action economy outside combat to have taken one in`,
     );
   }
-  const budget = combat.budgets[id];
-  if (budget === undefined || budget.attacksRemaining === null) {
-    return err(
-      'no_attack_action',
-      `${option.name} replaces one of the attacks of the Attack action, and ${id} has not taken that action this turn`,
-    );
-  }
-  if (budget.attacksRemaining < 1) {
-    return err(
-      'no_attacks_left',
-      `${id} has used every attack of their Attack action, and ${option.name} replaces one of them`,
-    );
-  }
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
 
   const spent = spendAttack(
     combat,
     id,
-    0,
-    creatureOf(state, id)?.conditions,
+    // **The same question with the same inputs the reducer uses**, which is
+    // `strikeSpend`'s rule and for its reason: what this call returns is a
+    // gate and the budget the game runs on is written by the fold when it
+    // reduces the `attack-made` below, so a count measured differently here
+    // would be a fork rather than a guard.
+    attacksInAction(
+      creature.sheet,
+      creature.heads,
+      statedBonusActionsUsed(combat.budgets[id]?.featureUsedOnTurn ?? {}, combat.turnsTaken),
+    ),
+    creature.conditions,
     { rules: actionRulesOn(state, id) },
   );
   if (!spent.ok) return spent;
