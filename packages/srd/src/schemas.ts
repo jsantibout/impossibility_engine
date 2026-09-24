@@ -701,13 +701,17 @@ const PRINTED_SAVE_CLAUSES = [
    * lifting takes it, whether the printed span ran out or a cure lifted it
    * early.
    *
-   * **No `lasts` beside it**, and the absence is the rule rather than a field
-   * nobody needed yet. A mode with a span of its own and a mode with a host
-   * are two different sentences, and the corpus prints only the second in this
-   * position: the other lines that put Disadvantage on a save's failure narrow
-   * it to something no selector holds — SRD Gold Dragon Wyrmling's
-   * "Strength-based D20 Tests", the Adult Green Dragon's saves "to maintain
-   * Concentration" — and stay prose whole.
+   * **And now a lifetime of its own, where the line prints one.** SRD Gold
+   * Dragon Wyrmling's Weakening Breath: "The target has Disadvantage on
+   * Strength-based D20 Tests and subtracts 2 (1d4) from its damage rolls. It
+   * repeats the save at the end of each of its turns, ending the effect on
+   * itself on a success. After 1 minute, it succeeds automatically." The
+   * failure imposes no condition, so there is no instance for the mode to
+   * live on; what it prints instead is a repeat save and a cap, which is the
+   * same pair a `condition` clause carries in {@link repeats}. So a mode may
+   * carry {@link whileCondition}, {@link lasts} or {@link repeats}, and the
+   * reader insists on exactly one — a mode with none would be a Disadvantage
+   * nothing ever lifts, which is the refusal it has always made.
    */
   z.object({
     kind: z.literal('roll-mode'),
@@ -733,18 +737,71 @@ const PRINTED_SAVE_CLAUSES = [
      * corpus prints here says what the *target* has Disadvantage on; a line
      * that gave attackers Advantage against it would be the other relation and
      * would need a field to say so.
+     *
+     * **`d20-test` is the glossary's own union of the other three** — "D20
+     * Tests encompass the three main d20 rolls of the game" — and it arrives
+     * with the sentence that needs it: SRD Gold Dragon Wyrmling's
+     * "Disadvantage on Strength-based D20 Tests". It is one word in the book
+     * and one member here, and the engine's `RollFamily` has the same member
+     * for the same reason. A `d20-test` must be narrowed by {@link ability},
+     * which the reader enforces: a bare one would reach every roll its holder
+     * ever made, and the engine's own selector validator refuses exactly that.
      */
-    rolls: z.array(z.enum(['ability-check', 'attack-roll', 'saving-throw'])).min(1),
+    rolls: z.array(z.enum(['ability-check', 'attack-roll', 'saving-throw', 'd20-test'])).min(1),
+    /**
+     * The ability the family is narrowed by — SRD's "**Strength**-based D20
+     * Tests". Present exactly where `rolls` names `d20-test`, and the reader is
+     * what insists on the pairing.
+     */
+    ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']).optional(),
     /**
      * The condition in the **same failure** whose instance this lives on.
      *
-     * Required, because it is the whole of the lifetime: a mode with no host
-     * and no span would be a Disadvantage nothing ever lifts. The reader
-     * refuses the sentence where the clause names a condition this failure did
-     * not impose, and so does the executor where the condition did not land —
-     * an immune target has no instance to hang it on.
+     * One of the three lifetimes, and the one every line before the Weakening
+     * Breath printed. The reader refuses the sentence where the clause names a
+     * condition this failure did not impose, and so does the executor where
+     * the condition did not land — an immune target has no instance to hang it
+     * on.
      */
-    whileCondition: PrintedConditionSchema,
+    whileCondition: PrintedConditionSchema.optional(),
+    /** The span the line prints, where it prints one — the second lifetime. */
+    lasts: PrintedSpanSchema.optional(),
+    /**
+     * The save the target repeats to end the effect, with its cap — the third
+     * lifetime, and the Weakening Breath's. The same record a `condition`
+     * clause carries, because it is the same sentence: "It repeats the save at
+     * the end of each of its turns, ending the effect on itself on a success.
+     * After 1 minute, it succeeds automatically."
+     */
+    repeats: z.object(PRINTED_REPEAT).optional(),
+  }),
+  /**
+   * SRD Gold Dragon Wyrmling's Weakening Breath: "subtracts 2 (1d4) from its
+   * damage rolls."
+   *
+   * **A penalty on the target's own damage rolls**, which is the engine's
+   * `damage-penalty` grant — the mirror of a damage reduction, standing on
+   * whoever *swung* rather than on whoever was hit, built for SRD Ray of
+   * Enfeeblement's "subtracts 1d8 from all its damage rolls". The dice are the
+   * block's and are thrown where the damage is rolled, never here.
+   *
+   * Its lifetime reads exactly as `roll-mode`'s: one of the three, and the
+   * reader is what insists on it. The Weakening Breath prints the mode and
+   * the penalty under one repeat save, so the executor files both under one
+   * source and one timer — one save ends both, which is what "ending the
+   * effect on itself" says.
+   */
+  z.object({
+    kind: z.literal('damage-penalty'),
+    /** The notation the book prints inside the parenthesis — "1d4". */
+    dice: z.string().regex(/^\d+d\d+$/),
+    /** A flat addend beside the dice, where the book prints one; 0 otherwise. */
+    flat: z.number().int(),
+    /** The average the book prints beside the dice, for narration. */
+    average: z.number().int().min(1),
+    whileCondition: PrintedConditionSchema.optional(),
+    lasts: PrintedSpanSchema.optional(),
+    repeats: z.object(PRINTED_REPEAT).optional(),
   }),
   /**
    * SRD Dretch: "While Poisoned, the creature can take either an action or a
@@ -1019,6 +1076,18 @@ export const MonsterSaveSchema = z.object({
    * about rather than spared.
    */
   onlyIfTargetType: z.array(z.string().min(1)).min(1).optional(),
+  /**
+   * SRD Gold Dragon Wyrmling's Weakening Breath: "each creature **that isn't
+   * currently affected by this breath** in a 15-foot Cone."
+   *
+   * A third fact a targeting clause gives up, beside the Hit Point ceiling
+   * and the conditions, and for the same reason: it is about **who the line
+   * may be forced on** and the engine already holds the answer — whether this
+   * line's own source is still hung on the creature. A creature under the
+   * breath is not asked to save again; it is named to the caller as one the
+   * line did not reach, exactly as an immune target is.
+   */
+  onlyIfNotAffected: z.literal(true).optional(),
   /**
    * What a failure costs in damage, where the line prints damage at all. The
    * same four fields a printed attack's damage has. Absent on a line whose

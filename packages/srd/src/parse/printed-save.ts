@@ -133,22 +133,39 @@ import type {
 type ConditionEffect = Extract<PrintedSaveEffect, { kind: 'condition' }>;
 type RollModeEffect = Extract<PrintedSaveEffect, { kind: 'roll-mode' }>;
 /**
- * The two clauses that carry a lifetime of **either** kind, and must carry one.
+ * The clauses that carry a lifetime of **some** kind, and must carry one.
  *
- * A span the line printed, or the condition instance the same failure created.
- * Every other clause here answers the question in its own shape: a `condition`
- * with no span is a condition for the encounter, a `roll-mode` has no span to
- * give, a push and a death are over the moment they happen. These two are the
- * pair the book prints both ways — the Dretch's on a condition, the Copper
- * Dragon's under a span — and a clause that ended up with neither would be a
- * rule nothing could ever lift, which the reader refuses whole.
+ * A span the line printed, the condition instance the same failure created,
+ * or — for the two clauses a save may hang on the target's own rolls — a save
+ * the target repeats to end it. Every other clause here answers the question
+ * in its own shape: a `condition` with no span is a condition for the
+ * encounter, a push and a death are over the moment they happen. These four
+ * are the ones the book prints more than one way — the Dretch's rule on a
+ * condition, the Copper Dragon's under a span, the Gold Dragon Wyrmling's mode
+ * and penalty under a repeat save — and a clause that ended up with none would
+ * be a rule nothing could ever lift, which the reader refuses whole.
  */
-type LastingEffect = Extract<PrintedSaveEffect, { kind: 'action-rule' | 'speed-halved' }>;
+type LastingEffect = Extract<
+  PrintedSaveEffect,
+  { kind: 'action-rule' | 'speed-halved' | 'roll-mode' | 'damage-penalty' }
+>;
 const isLasting = (effect: PrintedSaveEffect): effect is LastingEffect =>
-  effect.kind === 'action-rule' || effect.kind === 'speed-halved';
+  effect.kind === 'action-rule' ||
+  effect.kind === 'speed-halved' ||
+  effect.kind === 'roll-mode' ||
+  effect.kind === 'damage-penalty';
 /** Whether a clause that must name a lifetime has named one. */
 const lifetimed = (effect: LastingEffect): boolean =>
-  effect.lasts !== undefined || effect.whileCondition !== undefined;
+  effect.lasts !== undefined ||
+  effect.whileCondition !== undefined ||
+  ('repeats' in effect && effect.repeats !== undefined);
+/**
+ * The two clauses a repeat save may end where the failure imposed no
+ * condition to carry it — see {@link amendRepeatable}.
+ */
+type RepeatableEffect = Extract<PrintedSaveEffect, { kind: 'roll-mode' | 'damage-penalty' }>;
+const isRepeatable = (effect: PrintedSaveEffect): effect is RepeatableEffect =>
+  effect.kind === 'roll-mode' || effect.kind === 'damage-penalty';
 
 /** The engine's damage types, so a word in the damage slot that is not one refuses the line. */
 const DAMAGE_TYPES: ReadonlySet<string> = new Set([
@@ -210,6 +227,9 @@ const ROLLS: Readonly<Record<string, RollModeEffect['rolls'][number]>> = {
 
 /** The alternation {@link WHILE_CONDITION_MODE} matches one roll noun with. */
 const ROLL_WORDS = `(?:${Object.keys(ROLLS).join('|')})`;
+
+/** The book's six ability words, captured, as {@link HAS_MODE_ON_FAMILY} reads one. */
+const ABILITY_WORD = `(${Object.keys(ABILITY_KEYS).join('|')})`;
 
 const SIZES: Readonly<Record<string, NonNullable<ConditionEffect['ifNoLargerThan']>>> = {
   Tiny: 'tiny',
@@ -412,6 +432,35 @@ const WHILE_CONDITION_MODE = new RegExp(
  * time, which is a change to sentences nobody is reading.
  */
 const WHO = '(?:(?:[Tt]he target|[Tt]he creature|[Ii]t) )?';
+/**
+ * SRD Gold Dragon Wyrmling's Weakening Breath: "The target has Disadvantage on
+ * Strength-based D20 Tests".
+ *
+ * The glossary's own union of the three rolls {@link ROLLS} names, narrowed by
+ * an ability — one sentence over three families, which the engine's
+ * `d20-test` family was built to hold for SRD Ray of Enfeeblement. The ability
+ * is required by the shape of the sentence: "D20 Tests" with no ability in
+ * front of it is a mode on every roll the target ever makes, and the corpus
+ * prints no such clause on a save.
+ *
+ * What may ride after it is a second clause, which is how the same line's
+ * "and subtracts 2 (1d4) from its damage rolls" is read — the tail
+ * {@link HAS_CONDITION} and {@link PUSHED} already carry.
+ */
+const HAS_MODE_ON_FAMILY = new RegExp(
+  `^${WHO}has (Advantage|Disadvantage) on ${ABILITY_WORD}-based D20 Tests(?:,? and (.+))?$`,
+);
+/**
+ * SRD Gold Dragon Wyrmling's Weakening Breath: "subtracts 2 (1d4) from its
+ * damage rolls". SRD Adult Gold Dragon prints the same clause over 1d6.
+ *
+ * The engine's `damage-penalty` grant, read the way its damage is read
+ * everywhere in this file: the average outside the parenthesis, the notation
+ * inside it, and an addend where the book prints one.
+ */
+const SUBTRACTS_FROM_DAMAGE = new RegExp(
+  `^${WHO}subtracts (\\d+) \\((\\d+)d(\\d+)(?:\\s*([+−–-])\\s*(\\d+))?\\) from (?:all )?its damage rolls(?:,? and (.+))?$`,
+);
 /**
  * SRD Dretch, SRD Copper Dragon Wyrmling: "it can't take Reactions".
  *
@@ -661,10 +710,12 @@ const TARGET_CONDITIONS =
  * as a continuation of the sentence before it ("…, and repeats the save…") and
  * with its own pronoun: SRD Silver Dragon Wyrmling's second rung is "The
  * target has the Paralyzed condition, **and it** repeats the save at the end
- * of each of its turns".
+ * of each of its turns" — and SRD Gold Dragon Wyrmling's Weakening Breath
+ * starts a sentence with it: "**It** repeats the save at the end of each of
+ * its turns".
  */
 const REPEATS_AFTER =
-  /^(?:and )?(?:it )?repeats the save at the end of each of its turns, ending the effect on itself on a success$/;
+  /^(?:and )?(?:[Ii]t )?repeats the save at the end of each of its turns, ending the effect on itself on a success$/;
 /**
  * SRD Gorgon: "and repeats the save at the end of **its next** turn if it is
  * still Restrained, ending the effect on itself on a success."
@@ -743,6 +794,17 @@ const DIES =
  * that kills outright is the last one to take on trust.
  */
 const TARGET_HIT_POINTS = /\bthat has (\d+) Hit Points?\b(?! or more)/;
+
+/**
+ * SRD Gold Dragon Wyrmling's targeting clause: "each creature **that isn't
+ * currently affected by this breath** in a 15-foot Cone."
+ *
+ * The third fact a targeting clause gives up, and taken for the reason the
+ * other two are: it is about one creature somebody has already named, and the
+ * engine holds the answer — whether this line's own source is still hung on
+ * them. The noun is the block's own word for the line and is not read.
+ */
+const NOT_ALREADY_AFFECTED = /\bthat isn't currently affected by this [a-z][a-z -]*\b/;
 
 /**
  * SRD Sea Hag: "If the target has 20 Hit Points or fewer, it drops to 0 Hit
@@ -855,6 +917,52 @@ function amendLastCondition(
 ): boolean {
   return amendCondition(into, () => true, amend);
 }
+
+/**
+ * Amend what a repeat save is **about**: the last condition where the failure
+ * imposed one, and otherwise every mode and penalty the failure hung with no
+ * lifetime yet.
+ *
+ * SRD Gold Dragon Wyrmling's Weakening Breath: "The target has Disadvantage on
+ * Strength-based D20 Tests and subtracts 2 (1d4) from its damage rolls. It
+ * repeats the save at the end of each of its turns, ending the effect on
+ * itself on a success." No condition is imposed, so "the effect" the save ends
+ * is the pair of clauses above it — **both of them**, because the book prints
+ * one save and "ending the effect" is one ending. The executor files them
+ * under one source for the same reason.
+ *
+ * The condition wins where there is one, which is every line the reader took
+ * before this: a repeat printed after "the target has the Restrained condition"
+ * is about the Restrained, and a mode riding beside it on the same instance
+ * already has that instance as its lifetime.
+ *
+ * `accepts` narrows which of the two clauses the sentence may amend — a repeat
+ * lands on one with no lifetime yet, a cap on one that already repeats — so a
+ * cap printed under a mode that never repeats is refused rather than pinned on
+ * nothing.
+ */
+function amendRepeatable(
+  into: PrintedSaveEffect[],
+  amendCondition: (last: ConditionEffect) => ConditionEffect | null,
+  accepts: (effect: RepeatableEffect) => boolean,
+  amendLasting: (effect: RepeatableEffect) => RepeatableEffect,
+): boolean {
+  if (into.some((effect) => effect.kind === 'condition')) {
+    return amendLastCondition(into, amendCondition);
+  }
+  let amended = 0;
+  for (let i = 0; i < into.length; i += 1) {
+    const effect = into[i]!;
+    if (!isRepeatable(effect) || !accepts(effect)) continue;
+    into[i] = amendLasting(effect);
+    amended += 1;
+  }
+  return amended > 0;
+}
+
+/** Whether a mode or a penalty has named no lifetime at all yet. */
+const unlifetimed = (effect: RepeatableEffect): boolean =>
+  effect.whileCondition === undefined && effect.lasts === undefined && effect.repeats === undefined;
 
 /**
  * Replace the last condition the predicate accepts, or fail where there is
@@ -1255,6 +1363,39 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return true;
   }
 
+  // SRD Gold Dragon Wyrmling: "The target has Disadvantage on Strength-based
+  // D20 Tests and subtracts 2 (1d4) from its damage rolls." The family the
+  // glossary names, narrowed by the ability the sentence prints; its lifetime
+  // is whatever the sentences after it say — a repeat save, a span, or a host
+  // condition stamped on by `WHILE_CONDITION_RULE` — and a clause left with
+  // none refuses the line at the end, as every lasting clause does.
+  const family = HAS_MODE_ON_FAMILY.exec(words);
+  if (family !== null) {
+    const ability = ABILITY_KEYS[family[2]!];
+    if (ability === undefined) return false;
+    into.effects.push({
+      kind: 'roll-mode',
+      mode: family[1] === 'Advantage' ? 'advantage' : 'disadvantage',
+      rolls: ['d20-test'],
+      ability,
+    });
+    return family[3] === undefined ? true : readClause(family[3], into, where);
+  }
+
+  // The same line's second half: a penalty on the target's own damage rolls,
+  // read as damage is read everywhere here and thrown where the damage is.
+  const subtracts = SUBTRACTS_FROM_DAMAGE.exec(words);
+  if (subtracts !== null) {
+    const sign = subtracts[4] === undefined ? 1 : subtracts[4] === '+' ? 1 : -1;
+    into.effects.push({
+      kind: 'damage-penalty',
+      dice: `${subtracts[2]}d${subtracts[3]}`,
+      flat: subtracts[5] === undefined ? 0 : sign * Number(subtracts[5]),
+      average: Number(subtracts[1]),
+    });
+    return subtracts[6] === undefined ? true : readClause(subtracts[6], into, where);
+  }
+
   // The halving, which is a different operation from the cut above rather than
   // a cut whose feet somebody would have to compute. Its span is optional here
   // and required by the time the line is finished: the Brass Dragon prints one
@@ -1337,10 +1478,14 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
   }
 
   if (REPEATS_AFTER.test(words) || REPEATS_BEFORE.test(words)) {
-    return amendLastCondition(into.effects, (last) => ({
-      ...last,
-      repeats: { at: 'end', of: 'target' },
-    }));
+    // Onto the condition where there is one, and otherwise onto every mode and
+    // penalty the failure hung with no lifetime yet — see `amendRepeatable`.
+    return amendRepeatable(
+      into.effects,
+      (last) => ({ ...last, repeats: { at: 'end', of: 'target' } }),
+      unlifetimed,
+      (effect) => ({ ...effect, repeats: { at: 'end', of: 'target' } }),
+    );
   }
   if (graded && REPEATS_NEXT_TURN.test(words)) {
     return amendLastCondition(into.effects, (last) => ({
@@ -1368,10 +1513,15 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
 
   const capped = CAPPED.exec(words);
   if (capped !== null) {
-    return amendLastCondition(into.effects, (last) =>
-      last.repeats === undefined
-        ? null
-        : { ...last, repeats: { ...last.repeats, capSeconds: Number(capped[1]) * 60 } },
+    const seconds = Number(capped[1]) * 60;
+    return amendRepeatable(
+      into.effects,
+      (last) =>
+        last.repeats === undefined
+          ? null
+          : { ...last, repeats: { ...last.repeats, capSeconds: seconds } },
+      (effect) => effect.repeats !== undefined && effect.repeats.capSeconds === undefined,
+      (effect) => ({ ...effect, repeats: { ...effect.repeats!, capSeconds: seconds } }),
     );
   }
 
@@ -2043,6 +2193,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     targets: head.targets,
     ...(trigger === null ? {} : { trigger }),
     ...(aura === null || aura.types.length === 0 ? {} : { onlyIfTargetType: [...aura.types] }),
+    ...(NOT_ALREADY_AFFECTED.test(head.targets) ? { onlyIfNotAffected: true as const } : {}),
     ...(read.damage === null ? {} : { damage: read.damage }),
     ...(read.plus === null ? {} : { plus: read.plus }),
     onSuccess,

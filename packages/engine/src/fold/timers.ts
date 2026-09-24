@@ -17,7 +17,13 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
-import { casterOf, endTimedCondition, releaseCasting, releaseOnTarget } from './release.js';
+import {
+  casterOf,
+  endTimedCondition,
+  releaseCasting,
+  releaseGrants,
+  releaseOnTarget,
+} from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const TIMERS_EVENTS = [
@@ -163,6 +169,30 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
           );
         }
         const timer = state.timers[event.effectKey];
+        // **A printed line's grants, held under one source with the repeat on
+        // the timer.** SRD Gold Dragon Wyrmling's Weakening Breath hangs a mode
+        // and a penalty and prints one save that ends "the effect"; the
+        // failure imposes no condition, so the timer's target is the grants
+        // themselves. A success releases what that source granted and drops
+        // the timer — the same release a `grants` deadline performs in
+        // `fold/expiry.ts` when the minute's cap arrives instead.
+        if (timer !== undefined && timer.target.kind === 'grants') {
+          const timers = { ...cleared.timers };
+          delete timers[event.effectKey];
+          const creature = cleared.creatures[timer.target.on];
+          return {
+            ...cleared,
+            timers,
+            ...(creature === undefined
+              ? {}
+              : {
+                  creatures: {
+                    ...cleared.creatures,
+                    [timer.target.on]: releaseGrants(creature, timer.target.source),
+                  },
+                }),
+          };
+        }
         if (timer === undefined || timer.target.kind !== 'condition') {
           throw new CorruptLogError(
             event,

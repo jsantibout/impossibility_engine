@@ -92,12 +92,18 @@ export interface PrintedClausesLanded {
  * are families of this engine's rather than members of the book's list, so
  * they are not here — the cost that file records, unchanged.
  */
-const PRINTED_ROLL: Readonly<Record<'ability-check' | 'attack-roll' | 'saving-throw', RollFamily>> =
-  {
-    'ability-check': 'ability-check',
-    'attack-roll': 'attack',
-    'saving-throw': 'saving-throw',
-  };
+const PRINTED_ROLL: Readonly<
+  Record<'ability-check' | 'attack-roll' | 'saving-throw' | 'd20-test', RollFamily>
+> = {
+  'ability-check': 'ability-check',
+  'attack-roll': 'attack',
+  'saving-throw': 'saving-throw',
+  // The glossary's union of the three, which both vocabularies spell the same
+  // way because both read it off the same sentence. Narrowed by an ability on
+  // both sides: the reader insists on one and `rollSelectorProblems` refuses a
+  // selector without one.
+  'd20-test': 'd20-test',
+};
 
 /** How a condition reads in a sentence handed to a table: the book's own word. */
 const conditionTitle = (condition: ConditionName): string =>
@@ -184,6 +190,25 @@ function durationOf(
 /** Every clause that carries a lifetime of either kind — see {@link hangTo}. */
 type LastingClause = Extract<PrintedSaveEffect, { kind: 'action-rule' | 'speed-halved' }>;
 
+/**
+ * The two clauses a save may hang on the target's **own rolls**, and the third
+ * lifetime they may carry — see {@link hangRepeatable}.
+ */
+type RepeatableClause = Extract<PrintedSaveEffect, { kind: 'roll-mode' | 'damage-penalty' }>;
+
+/**
+ * The one source every clause a printed line's **repeat save** ends is filed
+ * under.
+ *
+ * SRD Gold Dragon Wyrmling's Weakening Breath hangs a mode and a penalty and
+ * prints one save that ends "the effect" — so both go under one source, one
+ * `grants` timer carries the repeat, and a success releases both at once. Two
+ * sources would be two timers and two saves a turn, which is a rule nobody
+ * printed. The suffix keeps it apart from `line-immunity`, which files under
+ * the bare line source on the same creature with a deadline of its own.
+ */
+const repeatSource = (lineSource: string): string => `${lineSource}:lasting`;
+
 /** Where a clause's grant is filed, and how a refusal finishes its sentence. */
 interface Hung {
   /** A condition instance's id, or a key of the line's own that a timer ends. */
@@ -246,6 +271,51 @@ function hangTo(
   // first to the second under one key. `speed-decrease` is the neighbour that
   // already takes `:speed`.
   return { source: `${lineSource}:${clause.kind}`, deadline: clause.lasts, until: spanWords(clause.lasts) };
+}
+
+/**
+ * Where a mode's or a penalty's grant goes, and what timer it needs.
+ *
+ * **Three lifetimes and the corpus prints all three.** SRD Swarm of Ravens'
+ * mode lives on the Deafened the same failure imposed (`whileCondition`,
+ * {@link hangTo}'s first arm); a homebrew line may print a span
+ * (`lasts`, its second); and SRD Gold Dragon Wyrmling's Weakening Breath
+ * prints a **repeat save** — so the grant goes under {@link repeatSource} and
+ * the timer over it carries the repeat, with the minute's cap as its deadline
+ * and no deadline at all where the line prints none. The fold's
+ * `effect-save-resolved` releases the source when the save is made, exactly as
+ * the `grants` deadline releases it when the clock runs out.
+ *
+ * Null where the clause found nothing to hang on: a host condition that did
+ * not land, or no lifetime at all.
+ */
+function hangRepeatable(
+  clause: RepeatableClause,
+  lineSource: string,
+  landed: ReadonlyMap<ConditionName, string>,
+  repeat: RepeatSave,
+): { readonly source: string; readonly timer?: { readonly duration: Duration; readonly repeat?: RepeatSave } } | null {
+  if (clause.whileCondition !== undefined) {
+    const instance = landed.get(clause.whileCondition);
+    return instance === undefined ? null : { source: instance };
+  }
+  if (clause.repeats !== undefined) {
+    const cap = clause.repeats.capSeconds;
+    return {
+      source: repeatSource(lineSource),
+      timer: {
+        duration: cap === undefined ? { kind: 'indefinite' } : { kind: 'seconds', seconds: cap },
+        repeat,
+      },
+    };
+  }
+  if (clause.lasts !== undefined) {
+    return {
+      source: `${lineSource}:${clause.kind}`,
+      timer: { duration: durationOf(clause.lasts, undefined, repeat.of, repeat.of)! },
+    };
+  }
+  return null;
 }
 
 /** What the caller is told about a clause that found nothing to hang on. */
@@ -541,41 +611,105 @@ export function applyPrintedClauses(
         break;
       }
 
-      case 'roll-mode': {
+      case 'roll-mode':
+      case 'damage-penalty': {
         // SRD Swarm of Ravens: "While Deafened, the target also has
-        // Disadvantage on ability checks and attack rolls." The mode is the
-        // same grant every other door hangs; what is new is the **lifetime**,
-        // and the sentence names no span at all. It names a condition — the
-        // one *this failure* just imposed — so the grant is sourced to that
-        // instance's id, and the instance lifting is the whole of its ending:
-        // the printed span running out, a cure, a repeat save succeeded.
+        // Disadvantage on ability checks and attack rolls." SRD Gold Dragon
+        // Wyrmling: "The target has Disadvantage on Strength-based D20 Tests
+        // and subtracts 2 (1d4) from its damage rolls. It repeats the save at
+        // the end of each of its turns, ending the effect on itself on a
+        // success. After 1 minute, it succeeds automatically."
         //
-        // **And therefore no `grants` timer beside it.** The instance is the
-        // deadline, and a second one could only come to disagree with it — see
-        // `releaseInstanceGrants` in `fold/release.ts`, where the release is.
-        const instance = landedInstances.get(clause.whileCondition);
-        if (instance === undefined) {
-          // The condition is not there, so there is nothing for the mode to
+        // The grants are the ones every other door hangs — a mode, and the
+        // penalty SRD Ray of Enfeeblement hangs on whoever swings — and what
+        // is the line's own is the **lifetime**. The Ravens' names a condition
+        // *this failure* just imposed, so the grant is sourced to that
+        // instance's id and needs no timer: the instance is the deadline, and
+        // a second one could only disagree with it (see `releaseInstanceGrants`
+        // in `fold/release.ts`). The Wyrmling's names a repeat save and a cap,
+        // and imposes no condition to carry them — so its clauses share one
+        // source under one `grants` timer that carries the repeat, and a made
+        // save releases both at once, which is what "ending the effect" says.
+        const hung = hangRepeatable(
+          clause,
+          lineSource,
+          landedInstances,
+          // The host's own ability and DC, ending what the source hung on the
+          // target: the same record a condition's repeat carries, and the one
+          // pair the reader produces.
+          {
+            at: 'end-of-turn',
+            of: target,
+            ability: save.ability,
+            dc: save.dc,
+            onSuccess: 'end-on-target',
+            label: `${ABILITY_NAMES[save.ability]} save vs ${line}`,
+          },
+        );
+        if (hung === null) {
+          // The condition is not there, so there is nothing for the clause to
           // live on — an immune target, which is the one way a clause the
-          // reader gated can still find no host. A grant sourced to an
+          // reader gated can still find no host — or it reached here with no
+          // lifetime at all, which `parsePrintedSave` refuses and a pinned
+          // record from some other door might not. A grant sourced to an
           // instance nobody created would be a Disadvantage nothing could ever
           // lift, so it is not written and the caller is told, exactly as
           // `immuneTo` tells them about the condition itself.
+          const what =
+            clause.kind === 'roll-mode' ? `${clause.mode}` : `a ${clause.dice} off its damage rolls`;
           unverified.push(
-            `${line} gives ${target} ${clause.mode} while ${conditionTitle(clause.whileCondition)}, and the ${conditionTitle(clause.whileCondition)} condition did not land on them — nothing was hung`,
+            clause.whileCondition === undefined
+              ? `${line} gives ${target} ${what} and says no span, no repeat save and no condition to end it — nothing was hung`
+              : `${line} gives ${target} ${what} while ${conditionTitle(clause.whileCondition)}, and the ${conditionTitle(clause.whileCondition)} condition did not land on them — nothing was hung`,
           );
           break;
         }
+        if (hung.timer !== undefined && !scheduled.has(hung.source)) {
+          const timer = schedule(
+            current,
+            { kind: 'grants', on: target, source: hung.source },
+            hung.timer.duration,
+            hung.timer.repeat,
+          );
+          if (!timer.ok) return timer;
+          scheduled.add(hung.source);
+          land([timer.value]);
+        }
+        if (clause.kind === 'damage-penalty') {
+          land([
+            {
+              type: 'damage-penalty-granted',
+              id: target,
+              penalty: {
+                source: hung.source,
+                // What the log calls the die when the blow throws it.
+                label: line,
+                dice: clause.dice,
+                ...(clause.flat === 0 ? {} : { flat: clause.flat }),
+              },
+            },
+          ]);
+          break;
+        }
         // One grant per roll the sentence names, because a `RollModifier`
-        // carries one selector — `printedSunlight` reads the same two nouns
-        // the same way. They share a source, so one ending takes both.
+        // carries one selector — `printedSunlight` reads the same nouns the
+        // same way. They share a source, so one ending takes them all; and a
+        // `d20-test` carries the ability the sentence narrowed it by, which
+        // the engine's own validator would refuse it without.
         land(
           clause.rolls.map((roll) => ({
             type: 'roll-modifier-granted',
             id: target,
             modifier: {
-              source: instance,
-              modifier: { mode: clause.mode, selector: { roll: PRINTED_ROLL[roll], relation: 'roller' } },
+              source: hung.source,
+              modifier: {
+                mode: clause.mode,
+                selector: {
+                  roll: PRINTED_ROLL[roll],
+                  relation: 'roller',
+                  ...(clause.ability === undefined ? {} : { ability: clause.ability }),
+                },
+              },
             },
           })),
         );

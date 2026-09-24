@@ -88,6 +88,7 @@ import {
 } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
 import {
+  affectedByPrintedLine,
   describePerDay,
   describeRecharge,
   perDayTallyKey,
@@ -1056,14 +1057,26 @@ export function forcePrintedSave(
       // either, and a homebrew one that did would be spending on a room that
       // had already learned to look away, which is what the book describes.
       const shielded = printedLineSource(id, line.name);
+      const immune = targets.filter((target) =>
+        (state.creatures[target]?.lineImmunities ?? []).some((held) => held.source === shielded),
+      );
+      // **And a creature the line is still holding**, where the targeting
+      // clause says so. SRD Gold Dragon Wyrmling's Weakening Breath: "each
+      // creature that isn't currently affected by this breath". The fact is
+      // the engine's — whether this line's own source is still hung on them —
+      // so they are not asked to save again, and are named below rather than
+      // silently dropped, the honesty an immune target already gets.
+      const alreadyAffected =
+        printed.onlyIfNotAffected === true
+          ? targets.filter(
+              (target) => !immune.includes(target) && affectedByPrintedLine(state, target, shielded),
+            )
+          : [];
       const caught = targets.filter(
-        (target) =>
-          !(state.creatures[target]?.lineImmunities ?? []).some(
-            (held) => held.source === shielded,
-          ),
+        (target) => !immune.includes(target) && !alreadyAffected.includes(target),
       );
       /** Those the line did not reach at all, said out loud below. */
-      const immuneToTheLine = targets.filter((target) => !caught.includes(target));
+      const immuneToTheLine = immune;
 
       // **A line already used and not yet back**, and **a line whose day's
       // worth is gone** — both before the economy, because a refusal after
@@ -1195,6 +1208,12 @@ export function forcePrintedSave(
           ...immuneToTheLine.map(
             (target) =>
               `${target} is immune to ${id}'s ${line.name} for the rest of the day and was not asked to save`,
+          ),
+          // And one the line is still holding, which its own targeting clause
+          // leaves out: "each creature that isn't currently affected".
+          ...alreadyAffected.map(
+            (target) =>
+              `${target} is already under ${id}'s ${line.name} and the line reaches only creatures that are not — they were not asked to save again`,
           ),
           // The sentences the reader carried and did not read, handed over at
           // the moment of use exactly as a spell's unmodelled lines are: the

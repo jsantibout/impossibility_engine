@@ -32,6 +32,7 @@ import {
 } from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import { saveModifier, skillModifier } from './character.js';
+import type { GameState } from './state.js';
 import type { ShapeShiftRow } from './progression.js';
 import { isCreatureType } from './spell-definitions.js';
 import type { HazardName } from './hazards.js';
@@ -707,6 +708,39 @@ export function statedActionOf(sheet: CharacterSheet, name: string): StatedActio
  */
 export const printedLineSource = (who: CharacterId, line: string): string =>
   `printed:${who}:${line}`;
+
+/**
+ * Whether one printed line is **still holding something** on a creature.
+ *
+ * SRD Gold Dragon Wyrmling's Weakening Breath: "each creature that isn't
+ * currently affected by this breath". A fact the engine holds rather than a
+ * question for the table, because everything a line hangs is filed under its
+ * own source: a condition's instance carries it, and every grant the line hung
+ * under a span or a repeat save has a `grants` timer over it whose source is
+ * the line's own or a key beneath it (`…:lasting`, `…:speed`). So the question
+ * is answered off the two records the fold already keeps, and opens no family
+ * list of its own — the grants are found through the timer that will end
+ * them, which is the one thing every lasting grant of a line has.
+ *
+ * A line whose only effect was damage, a push or a death holds nothing
+ * afterwards and reads as not affecting anybody, which is the book's reading:
+ * a creature the breath merely hurt may be breathed on again.
+ */
+export function affectedByPrintedLine(
+  state: GameState,
+  who: CharacterId,
+  lineSource: string,
+): boolean {
+  const creature = state.creatures[who];
+  if (creature === undefined) return false;
+  const ofTheLine = (source: string): boolean =>
+    source === lineSource || source.startsWith(`${lineSource}:`);
+  if (creature.conditions.instances.some((instance) => ofTheLine(instance.source))) return true;
+  return Object.values(state.timers).some(
+    (timer) =>
+      timer.target.kind === 'grants' && timer.target.on === who && ofTheLine(timer.target.source),
+  );
+}
 
 /** One printed line that forces a save, under the heading the block prints. */
 export interface PrintedSaveLine {
