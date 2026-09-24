@@ -955,6 +955,17 @@ function choiceProblems(
         reason: `${feature.id} asks two questions under the key "${question.key}", and one answer cannot be both`,
       });
     }
+    // And the one character a key may not contain. `repeatAnswerKey` suffixes
+    // a repeated question's later copies with `#2`, `#3`, so a key with a `#`
+    // in it could spell the same answer key two ways and `answersAcrossCopies`
+    // would gather somebody else's answer into this grant.
+    if (question.key?.includes('#') === true) {
+      found.push({
+        field: `${at}.key`,
+        code: 'bad_choice_key',
+        reason: `"${question.key}" contains a #, which is how a repeated question numbers its later copies`,
+      });
+    }
     if (question.key !== undefined) keys.add(question.key);
 
     // A Weapon Mastery choice is sized by a printed number or by a column of
@@ -1037,6 +1048,19 @@ function choiceProblems(
           code: 'bad_option_choice',
           reason: `a feature offers a whole number of options, not ${String(counts[bad])}`,
         });
+      }
+
+      // A licence to take an option twice is printed over an option the
+      // question offers, for the reason a Prerequisite is: a permission over
+      // an option nobody is offered would permit nothing.
+      for (const repeated of question.repeatable ?? []) {
+        if (!question.from.includes(repeated)) {
+          found.push({
+            field: `${at}.repeatable`,
+            code: 'repeatable_not_offered',
+            reason: `${feature.id} says ${repeated} may be taken more than once and offers ${question.from.join(', ')}, so the licence would permit nothing`,
+          });
+        }
       }
 
       // A Prerequisite is printed over an option the question offers, and it

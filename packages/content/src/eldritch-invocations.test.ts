@@ -16,6 +16,7 @@ import {
   resolveSpell,
   resolveTest,
   routesFor,
+  speedOf,
   type CharacterChoices,
   type GameEvent,
   type GameState,
@@ -723,5 +724,467 @@ describe('replacing an invocation on a level-up', () => {
     expect(after.creatures[WHO]?.sheet.level).toBe(4);
     expect(spellsOf(after)).toContain('silent-image');
     expect(spellsOf(after)).not.toContain('mage-armor');
+  });
+});
+
+// ─── Eldritch Spear ─────────────────────────────────────────────────────────
+
+/**
+ * "When you cast the chosen cantrip, its range increases by a number of feet
+ * equal to 30 times your Warlock level."
+ *
+ * A Warlock 5 adds 150 feet, so Eldritch Blast reaches 270 and not 275 — and
+ * Fire Bolt, which prints the same 120, reaches exactly what it printed.
+ */
+describe('Eldritch Spear', () => {
+  const SPEAR = [
+    'Eldritch Spear',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const WITHOUT = [
+    'Misty Visions',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const SPEAR_AT = { [`${FIEND}:eldritch-spear`]: ['eldritch-blast'] };
+
+  const DISTANT = asCharacterId('the-far-ogre');
+
+  /** The table above with a second ogre standing a long way off. */
+  const farTable = (choices: CharacterChoices, feet: number): GameEvent[] => [
+    ...table(choices),
+    {
+      type: 'creature-added',
+      id: DISTANT,
+      name: 'a distant ogre',
+      maxHp: 200,
+      diesAtZero: true,
+      creatureType: 'Giant',
+      sheet: {
+        level: 1,
+        abilities: { str: 19, dex: 8, con: 16, int: 5, wis: 7, cha: 7 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: false, medium: false, heavy: false, shields: false },
+        baseSpeed: 40,
+        spellcastingAbility: null,
+        stated: { armorClass: 11, proficiencyBonus: 2, initiative: -1 },
+      },
+    },
+    {
+      type: 'creature-placed',
+      id: DISTANT,
+      placement: { from: { creature: WHO }, feet, bearing: 90 },
+    },
+    { type: 'sight-declared', from: WHO, to: DISTANT, seen: true },
+  ];
+
+  const castAt = (
+    invocations: readonly string[],
+    answers: Record<string, readonly string[]>,
+    spellId: string,
+    feet: number,
+  ) =>
+    resolveSpell(
+      fold('seed', farTable(warlock(invocations, answers), feet)),
+      WHO,
+      { spellId, targets: [DISTANT] },
+      supply('spear'),
+    );
+
+  it('reaches 270 feet with the cantrip it named, and 275 is still too far', () => {
+    expect(castAt(SPEAR, SPEAR_AT, 'eldritch-blast', 270).ok).toBe(true);
+
+    const beyond = castAt(SPEAR, SPEAR_AT, 'eldritch-blast', 275);
+    expect(beyond.ok).toBe(false);
+    expect(beyond.ok ? null : beyond.code).toBe('out_of_range');
+  });
+
+  it('leaves a cantrip it did not name at its printed range', () => {
+    const bolt = castAt(SPEAR, SPEAR_AT, 'fire-bolt', 270);
+    expect(bolt.ok).toBe(false);
+    expect(bolt.ok ? null : bolt.code).toBe('out_of_range');
+    expect(castAt(SPEAR, SPEAR_AT, 'fire-bolt', 120).ok).toBe(true);
+  });
+
+  it('does nothing at all for a Warlock who did not take it', () => {
+    const blast = castAt(WITHOUT, {}, 'eldritch-blast', 270);
+    expect(blast.ok).toBe(false);
+    expect(blast.ok ? null : blast.code).toBe('out_of_range');
+  });
+});
+
+// ─── Repelling Blast ────────────────────────────────────────────────────────
+
+/**
+ * "When you hit a Large or smaller creature with the chosen cantrip, you can
+ * push the creature up to 10 feet straight away from you."
+ *
+ * The shove `applyRiders` already performs, hung on the caster's side: the
+ * definition of Eldritch Blast says nothing about pushing anybody, and the
+ * sentence is printed on the Warlock.
+ */
+describe('Repelling Blast', () => {
+  const REPEL = [
+    'Repelling Blast',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const WITHOUT = [
+    'Misty Visions',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const REPEL_AT = { [`${FIEND}:repelling-blast`]: ['eldritch-blast'] };
+
+  const MOB = asCharacterId('the-mob');
+
+  /** The table above with one more creature of a stated size standing near. */
+  const sized = (choices: CharacterChoices, size: 'medium' | 'huge'): GameEvent[] => [
+    ...table(choices),
+    {
+      type: 'creature-added',
+      id: MOB,
+      name: `a ${size} thing`,
+      maxHp: 200,
+      diesAtZero: true,
+      creatureType: 'Humanoid',
+      size,
+      sheet: {
+        level: 1,
+        abilities: { str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: false, medium: false, heavy: false, shields: false },
+        baseSpeed: 30,
+        spellcastingAbility: null,
+        stated: { armorClass: 10, proficiencyBonus: 2, initiative: 2 },
+      },
+    },
+    {
+      type: 'creature-placed',
+      id: MOB,
+      placement: { from: { creature: WHO }, feet: 40, bearing: 90 },
+    },
+    { type: 'sight-declared', from: WHO, to: MOB, seen: true },
+  ];
+
+  const blastAt = (
+    invocations: readonly string[],
+    answers: Record<string, readonly string[]>,
+    size: 'medium' | 'huge',
+  ) =>
+    unwrap(
+      resolveSpell(
+        fold('seed', sized(warlock(invocations, answers), size)),
+        WHO,
+        { spellId: 'eldritch-blast', targets: [MOB] },
+        // The bonus makes every beam hit, so what is asserted is the rider
+        // rather than the die.
+        supply('repel', 50),
+      ),
+      'blast',
+    );
+
+  /** Every forced move this casting made the thing take. */
+  const shoves = (events: readonly GameEvent[]) =>
+    events.filter(
+      (event) => event.type === 'creature-moved' && event.id === MOB && event.forced === true,
+    );
+
+  it('pushes a Medium creature ten feet for each beam that hits', () => {
+    // A Warlock 5's Eldritch Blast throws two beams, and each hit shoves.
+    expect(shoves(blastAt(REPEL, REPEL_AT, 'medium').events)).toHaveLength(2);
+  });
+
+  it('leaves a Huge creature standing, and says why', () => {
+    const huge = blastAt(REPEL, REPEL_AT, 'huge');
+    expect(shoves(huge.events)).toHaveLength(0);
+    expect(huge.unverified.join(' ')).toContain('Large or smaller');
+  });
+
+  it('shoves nobody for a Warlock who did not take it', () => {
+    expect(shoves(blastAt(WITHOUT, {}, 'medium').events)).toHaveLength(0);
+  });
+});
+
+// ─── Gift of the Depths and One with Shadows ────────────────────────────────
+
+describe('Gift of the Depths', () => {
+  const GIFT = [
+    'Gift of the Depths',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+
+  /** "You gain a Swim Speed equal to your Speed." */
+  it('swims at the Speed it walks at', () => {
+    const state = fold('seed', table(warlock(GIFT)));
+    expect(speedOf(state, WHO, 'swim')).toBe(speedOf(state, WHO, 'walk'));
+    expect(speedOf(state, WHO, 'swim')).toBeGreaterThan(0);
+
+    const without = fold('seed', table(warlock(['Misty Visions', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor'])));
+    expect(speedOf(without, WHO, 'swim')).toBe(0);
+  });
+
+  /** "You can also cast Water Breathing once without expending a spell slot." */
+  it('casts Water Breathing out of a pool of one that a Long Rest refills', () => {
+    const granted = plan(warlock(GIFT)).spellcasting.granted.find(
+      (one) => one.spellId === 'water-breathing',
+    );
+    expect(granted?.freeCastPool).toBe('warlock:gift-of-the-depths');
+    // The feature's route is the free one, and no slot route beside it.
+    expect(granted?.slotCasting).toBe(false);
+
+    // One use, standing on the sheet as a pool the Long Rest already refills.
+    const state = fold('seed', table(warlock(GIFT)));
+    expect(remaining(state.creatures[WHO]!.resources, 'warlock:gift-of-the-depths')).toBe(1);
+  });
+});
+
+describe('One with Shadows', () => {
+  const SHADOWS = [
+    'One with Shadows',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+
+  /** The table above, lit the way the argument is about. */
+  const lit = (level: 'bright' | 'dim'): GameEvent[] => [
+    ...table(warlock(SHADOWS)),
+    {
+      type: 'light-declared',
+      patch: 'where the Warlock stands',
+      region: { origin: { creature: WHO }, shape: { kind: 'sphere', radius: 5 } },
+      level,
+    },
+  ];
+
+  const castIt = (level: 'bright' | 'dim') =>
+    resolveSpell(
+      fold('seed', lit(level)),
+      WHO,
+      { spellId: 'invisibility', targets: [WHO] },
+      supply('shadows'),
+    );
+
+  it('casts Invisibility for nothing in Dim Light', () => {
+    expect(castIt('dim').ok).toBe(true);
+  });
+
+  it('is refused in Bright Light', () => {
+    const bright = castIt('bright');
+    expect(bright.ok).toBe(false);
+    expect(bright.ok ? null : bright.code).toBe('route_not_open');
+  });
+
+  /**
+   * A room nobody has lit refuses too — the "no default ambient" ruling, which
+   * is why `declareLight` settles no `ContextRequest` kind — but it is a
+   * different problem from a brightly lit one, and only this one is repaired
+   * by saying something. So the refusal says which it met.
+   */
+  it('refuses in a room nobody has lit, and names what would settle it', () => {
+    const unlit = resolveSpell(
+      fold('seed', table(warlock(SHADOWS))),
+      WHO,
+      { spellId: 'invisibility', targets: [WHO] },
+      supply('unlit'),
+    );
+    expect(unlit.ok).toBe(false);
+    expect(unlit.ok ? null : unlit.code).toBe('route_not_open');
+    expect(unlit.ok ? '' : unlit.reason).toContain('declareLight');
+
+    // And the lit room's refusal does not, because nothing was left unsaid.
+    const bright = castIt('bright');
+    expect(bright.ok ? '' : bright.reason).not.toContain('declareLight');
+  });
+
+  /**
+   * A room and a creature standing in it are ordinary missing facts, and both
+   * have a `ContextRequest` kind and a door — so those two ask rather than
+   * refuse. Only the light is the ruling.
+   */
+  it('asks for a room, and for somewhere to stand in it', () => {
+    const creation = unwrap(
+      createCharacter(SRD_CONTENT, warlock(SHADOWS), WHO),
+      'creation',
+    ) as GameEvent[];
+    const cast = (log: readonly GameEvent[]) =>
+      resolveSpell(
+        fold('seed', log),
+        WHO,
+        { spellId: 'invisibility', targets: [WHO] },
+        supply('nowhere'),
+      );
+
+    const roomless = cast(creation);
+    expect(roomless.ok ? null : roomless.kind).toBe('needs-context');
+    expect(roomless.ok ? [] : (roomless.requests ?? []).map((one) => one.kind)).toEqual(['scene']);
+
+    const unplaced = cast([
+      ...creation,
+      { type: 'scene-set', extent: { width: 100, depth: 100, height: 20 } },
+    ]);
+    expect(unplaced.ok ? null : unplaced.kind).toBe('needs-context');
+    expect(unplaced.ok ? [] : (unplaced.requests ?? []).map((one) => one.kind)).toEqual([
+      'position',
+    ]);
+    expect(unplaced.ok ? '' : (unplaced.requests ?? [])[0]?.satisfyWith).toContain(
+      'placeCreatureInScene',
+    );
+  });
+});
+
+// ─── the invocations a Warlock may take more than once ──────────────────────
+
+/**
+ * "You can't pick the same invocation more than once unless its description
+ * says otherwise." Four say otherwise, and each says the same second sentence:
+ * "Each time you do so, choose a different qualifying cantrip."
+ */
+describe('a Repeatable invocation', () => {
+  const TWICE = [
+    'Agonizing Blast',
+    'Agonizing Blast',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+  ];
+
+  it('is taken twice and names a different cantrip each time', () => {
+    expect(
+      codes(
+        warlock(TWICE, {
+          [`${FIEND}:agonizing-blast`]: ['eldritch-blast'],
+          [`${FIEND}:agonizing-blast#2`]: ['chill-touch'],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses the same cantrip twice', () => {
+    expect(
+      codes(
+        warlock(TWICE, {
+          [`${FIEND}:agonizing-blast`]: ['eldritch-blast'],
+          [`${FIEND}:agonizing-blast#2`]: ['eldritch-blast'],
+        }),
+      ),
+    ).toContain('repeat_names_the_same');
+  });
+
+  it('wants an answer for the second copy as well as the first', () => {
+    expect(
+      codes(warlock(TWICE, { [`${FIEND}:agonizing-blast`]: ['eldritch-blast'] })),
+    ).toContain('missing_feature_choice');
+  });
+
+  /** Both grants reach the sheet, so both cantrips carry the modifier. */
+  it('adds Charisma to each of the two cantrips it named', () => {
+    const log = table(
+      warlock(TWICE, {
+        [`${FIEND}:agonizing-blast`]: ['eldritch-blast'],
+        [`${FIEND}:agonizing-blast#2`]: ['poison-spray'],
+      }),
+    );
+    const without = table(
+      warlock(['Misty Visions', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor']),
+    );
+
+    const cast = (world: readonly GameEvent[], spellId: string, seed: string) =>
+      unwrap(
+        resolveSpell(fold('seed', world), WHO, { spellId, targets: [TARGET] }, supply(seed, 50)),
+        spellId,
+      );
+
+    // Two beams at level 5, so Eldritch Blast gains 2 × +2; Poison Spray is
+    // one roll and gains +2.
+    expect(dealt(cast(log, 'eldritch-blast', 'a').events) - dealt(cast(without, 'eldritch-blast', 'a').events)).toBe(4);
+    expect(dealt(cast(log, 'poison-spray', 'b').events) - dealt(cast(without, 'poison-spray', 'b').events)).toBe(2);
+  });
+
+  it('still refuses a second copy of an invocation whose description says nothing', () => {
+    expect(
+      codes(
+        warlock([
+          'Armor of Shadows',
+          'Armor of Shadows',
+          'Eldritch Mind',
+          "Devil's Sight",
+          'Fiendish Vigor',
+        ]),
+      ),
+    ).toContain('duplicate_option');
+  });
+
+  /** Lessons of the First Ones is the one whose repeat is a feat. */
+  it('grants a second Origin feat when Lessons of the First Ones is taken twice', () => {
+    const choices = warlock(
+      [
+        'Lessons of the First Ones',
+        'Lessons of the First Ones',
+        'Armor of Shadows',
+        'Eldritch Mind',
+        "Devil's Sight",
+      ],
+      {},
+      {
+        feats: {
+          ...base().feats,
+          // The Improvement takes the feat of its own name, so the two the
+          // SRD prints under Origin that nothing else here holds are free.
+          'warlock:ability-score-improvement': {
+            featId: 'ability-score-improvement',
+            abilities: ['cha', 'con'],
+          },
+          [`${FIEND}:lessons`]: { featId: 'skilled', proficiencies: ['athletics', 'acrobatics', 'stealth'] },
+          [`${FIEND}:lessons#2`]: { featId: 'savage-attacker' },
+        },
+      },
+    );
+    expect(codes(choices)).toEqual([]);
+    expect(plan(choices).feats.filter((one) => one.includes(`${FIEND}:lessons`))).toHaveLength(2);
+  });
+
+  it('refuses the same feat twice', () => {
+    expect(
+      codes(
+        warlock(
+          [
+            'Lessons of the First Ones',
+            'Lessons of the First Ones',
+            'Armor of Shadows',
+            'Eldritch Mind',
+            "Devil's Sight",
+          ],
+          {},
+          {
+            feats: {
+              ...base().feats,
+              [`${FIEND}:lessons`]: { featId: 'skilled', proficiencies: ['athletics', 'acrobatics', 'stealth'] },
+              [`${FIEND}:lessons#2`]: { featId: 'skilled', proficiencies: ['arcana', 'history', 'insight'] },
+            },
+          },
+        ),
+      ),
+    ).toContain('repeat_names_the_same');
   });
 });

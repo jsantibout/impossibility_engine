@@ -128,7 +128,7 @@ export const WARLOCK: ClassDefinition = {
       name: 'Eldritch Invocations',
       level: 1,
       automation: 'manual',
-      note: 'SRD: "You gain one invocation of your choice ... You gain more invocations at higher levels, as shown in the Invocations column of the Warlock Features table." The count is that column and the invocations offered are executed: Agonizing Blast adds Charisma to every damage roll of the one cantrip its holder named, Armor of Shadows, Ascendant Step, Fiendish Vigor, Mask of Many Faces, Master of Myriad Forms, Misty Visions and Otherworldly Leap each cast their spell for nothing as often as asked, Fiendish Vigor takes the highest face of the die rather than rolling it, Devil’s Sight sees through Darkness magical and nonmagical to 120 feet, Eldritch Mind gives Advantage on the Constitution save that maintains Concentration, Lessons of the First Ones grants the Origin feat its holder names, and Pact of the Tome prepares three cantrips and two Ritual-tagged level 1 spells from any class’s list, as Warlock spells. Each grant is gated on the invocation chosen, so a Warlock holds what they took and nothing else, and a Prerequisite the book prints over an option is checked at creation. What is left is the rest of the list and four clauses. The invocations not offered are refused outright rather than handed over as options that do nothing: Eldritch Spear and Repelling Blast change what a casting costs or catches, the three Pacts and what hangs off them are a conjured weapon, a familiar’s extra forms and a book of names, Gaze of Two Minds and One with Shadows are a perception and a light gate the engine has no reader for, and Gift of the Depths wants a Swim Speed equal to a Speed. Those whose Prerequisite is a Warlock level above 5 are out of this ledger’s reach and are not offered either. Pact of the Tome conjures a book at the end of a rest that disappears if you conjure another or if you die, and the book is a Spellcasting Focus: the first is fiction and the second is the component rules, and this engine models neither. Four invocations are Repeatable and this refuses a second copy, because an option is taken once and nothing on the question says which of them says otherwise. And "a Warlock cantrip that deals damage" is checked as a Warlock cantrip and not as one that deals damage, so a cantrip that deals none simply reaches nothing.',
+      note: 'SRD: "You gain one invocation of your choice ... You gain more invocations at higher levels, as shown in the Invocations column of the Warlock Features table." The count is that column and the invocations offered are executed: Agonizing Blast adds Charisma to every damage roll of the one cantrip its holder named, Eldritch Spear lengthens that cantrip’s range by thirty feet for each Warlock level, Repelling Blast shoves a Large or smaller creature ten feet straight away on every beam that hits it, Armor of Shadows, Ascendant Step, Fiendish Vigor, Mask of Many Faces, Master of Myriad Forms, Misty Visions and Otherworldly Leap each cast their spell for nothing as often as asked, Fiendish Vigor takes the highest face of the die rather than rolling it, Devil’s Sight sees through Darkness magical and nonmagical to 120 feet, Eldritch Mind gives Advantage on the Constitution save that maintains Concentration, Gift of the Depths swims at its holder’s own Speed and casts Water Breathing once until a Long Rest, One with Shadows casts Invisibility for nothing while its caster stands in Dim Light or Darkness and is refused in Bright Light, Lessons of the First Ones grants the Origin feat its holder names, and Pact of the Tome prepares three cantrips and two Ritual-tagged level 1 spells from any class’s list, as Warlock spells. Each grant is gated on the invocation chosen, so a Warlock holds what they took and nothing else, a Prerequisite the book prints over an option is checked at creation, and the four the book prints as Repeatable may be taken more than once, each copy naming a different cantrip or feat and a copy that repeats an earlier answer refused. What is left is two Pacts and three clauses. The invocations not offered are refused outright rather than handed over as options that do nothing: Pact of the Blade is a conjured weapon its holder attacks with using Charisma, Pact of the Chain casts Find Familiar as a Magic action and gives a familiar with eight extra forms and an attack forgone to buy the familiar one of its own, and Gaze of Two Minds borrows the senses of a willing creature. Those whose Prerequisite is a Warlock level above 5 are out of this ledger’s reach and are not offered either. Pact of the Tome conjures a book at the end of a rest that disappears if you conjure another or if you die, and the book is a Spellcasting Focus: the first is fiction and the second is the component rules, and this engine models neither. Gift of the Depths also says you can breathe underwater, and nothing here drowns anybody, so breathing underwater is left to the table. And "a Warlock cantrip that deals damage" is checked as a Warlock cantrip and not as one that deals damage, so a cantrip that deals none simply reaches nothing.',
       choices: [
         // "as shown in the Invocations column of the Warlock Features table" —
         // the column itself, the way Weapon Mastery reads the Fighter's.
@@ -141,13 +141,28 @@ export const WARLOCK: ClassDefinition = {
             'Ascendant Step',
             "Devil's Sight",
             'Eldritch Mind',
+            'Eldritch Spear',
             'Fiendish Vigor',
+            'Gift of the Depths',
             'Lessons of the First Ones',
             'Mask of Many Faces',
             'Master of Myriad Forms',
             'Misty Visions',
+            'One with Shadows',
             'Otherworldly Leap',
             'Pact of the Tome',
+            'Repelling Blast',
+          ],
+          // "You can't pick the same invocation more than once unless its
+          // description says otherwise." Four descriptions say otherwise, each
+          // in the same words: "You can gain this invocation more than once.
+          // Each time you do so, choose a different qualifying cantrip" — or,
+          // for Lessons of the First Ones, a different feat.
+          repeatable: [
+            'Agonizing Blast',
+            'Eldritch Spear',
+            'Lessons of the First Ones',
+            'Repelling Blast',
           ],
           // "If an invocation has a prerequisite, you must meet it to learn
           // that invocation." Every line the SRD prints over an offered
@@ -156,12 +171,16 @@ export const WARLOCK: ClassDefinition = {
             { option: 'Agonizing Blast', level: 2 },
             { option: 'Ascendant Step', level: 5 },
             { option: "Devil's Sight", level: 2 },
+            { option: 'Eldritch Spear', level: 2 },
             { option: 'Fiendish Vigor', level: 2 },
+            { option: 'Gift of the Depths', level: 5 },
+            { option: 'One with Shadows', level: 5 },
             { option: 'Lessons of the First Ones', level: 2 },
             { option: 'Mask of Many Faces', level: 2 },
             { option: 'Master of Myriad Forms', level: 5 },
             { option: 'Misty Visions', level: 2 },
             { option: 'Otherworldly Leap', level: 2 },
+            { option: 'Repelling Blast', level: 2 },
           ],
         },
         // "Choose one of your known Warlock cantrips that deals damage" — the
@@ -172,6 +191,26 @@ export const WARLOCK: ClassDefinition = {
           choose: 1,
           maxLevel: 0,
           onlyIfChoice: 'Agonizing Blast',
+        },
+        // Eldritch Spear: "Choose one of your known Warlock cantrips that deals
+        // damage" — the same sentence Agonizing Blast prints, over a different
+        // number, so it is the same question asked of whoever took it.
+        {
+          key: 'eldritch-spear',
+          kind: 'spell',
+          choose: 1,
+          maxLevel: 0,
+          onlyIfChoice: 'Eldritch Spear',
+        },
+        // Repelling Blast: "Choose one of your known Warlock cantrips that
+        // deals damage with an attack roll" — the third feature of the caster
+        // written over one named cantrip, and the third asking of one question.
+        {
+          key: 'repelling-blast',
+          kind: 'spell',
+          choose: 1,
+          maxLevel: 0,
+          onlyIfChoice: 'Repelling Blast',
         },
         // "You have received knowledge from an elder entity of the multiverse,
         // allowing you to gain one Origin feat of your choice."
@@ -221,6 +260,78 @@ export const WARLOCK: ClassDefinition = {
               alters: { kind: 'ability-modifier', ability: 'cha', everyRoll: true },
             },
           ],
+        },
+        // Eldritch Spear: "When you cast the chosen cantrip, its range
+        // increases by a number of feet equal to 30 times your Warlock level."
+        // The spell is the answer to the question above; the level is the
+        // Warlock's own, pinned by creation.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Eldritch Spear',
+          choiceFrom: 'warlock:eldritch-invocations:eldritch-spear',
+          spellFromChoice: true,
+          effects: [
+            {
+              kind: 'casting-range',
+              when: { dealsDamage: true },
+              perClassLevel: 30,
+            },
+          ],
+        },
+        // Repelling Blast: "When you hit a Large or smaller creature with the
+        // chosen cantrip, you can push the creature up to 10 feet straight away
+        // from you." The shove a spell's own rider already performs, hung on
+        // the caster's side because the sentence is printed on the Warlock.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Repelling Blast',
+          choiceFrom: 'warlock:eldritch-invocations:repelling-blast',
+          spellFromChoice: true,
+          effects: [
+            {
+              kind: 'casting-rider',
+              when: { dealsDamage: true },
+              rides: { movement: { feet: 10, kind: 'push', targetNoLargerThan: 'large' } },
+            },
+          ],
+        },
+        // Gift of the Depths: "You can breathe underwater, and you gain a Swim
+        // Speed equal to your Speed." The Swim Speed is the derivation
+        // `match-walk` already writes for SRD Second-Story Work's Climb Speed;
+        // breathing underwater is the table's, and the note says so.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Gift of the Depths',
+          effects: [{ kind: 'speed', change: 'match-walk', mode: 'swim' }],
+        },
+        // "You can also cast Water Breathing once without expending a spell
+        // slot. You regain the ability to cast it in this way when you finish a
+        // Long Rest." A pool of one, which is what a sizing naming nothing but
+        // its floor comes to — SRD Faithful Steed's shape on another spell.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Gift of the Depths',
+          fixed: ['water-breathing'],
+          freeCasting: {
+            spell: 'water-breathing',
+            pool: 'warlock:gift-of-the-depths',
+            poolLabel: 'Gift of the Depths',
+            declares: { minimum: 1, recovers: 'long-rest' },
+          },
+        },
+        // One with Shadows: "While you're in an area of Dim Light or Darkness,
+        // you can cast Invisibility on yourself without expending a spell
+        // slot." The route is at will and the clause is where its caster is
+        // standing, read off the world at the moment of the cast.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'One with Shadows',
+          fixed: ['invisibility'],
+          atWill: true,
+          requires: [{ kind: 'in-dim-light-or-darkness' }],
         },
         // "You can cast Mage Armor on yourself without expending a spell slot."
         // No count, no pool, nothing that runs out.

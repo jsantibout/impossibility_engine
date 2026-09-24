@@ -54,8 +54,8 @@ import type { ActionRule } from './combat.js';
 import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import type { ObjectMaterial, ObjectSize } from './objects.js';
-import { CREATURE_TYPES } from './spell-definitions.js';
-import type { SpellDefinition } from './spell-definitions.js';
+import { CREATURE_TYPES, hasOutcomeRiders } from './spell-definitions.js';
+import type { OutcomeRiders, SpellDefinition } from './spell-definitions.js';
 import {
   checkActionRule,
   checkEffectValue,
@@ -424,6 +424,13 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // and read by the same gatherer: `castingHealingBonus` walks `standingFor`,
   // which a worn item's grants are already part of.
   'casting-healing',
+  // The reach and the rider, on the same test as the two above:
+  // `castingRangeBonus` and `castingRiders` walk `standingFor`, so a rod that
+  // lengthened its bearer's Eldritch Blast, or a glove that made it shove,
+  // would be executed rather than transcribed and ignored. No SRD item prints
+  // either sentence today.
+  'casting-range',
+  'casting-rider',
   // A rule about the action economy, on the same test as the two above: the
   // gatherer is `actionRulesOn`, which reads `standingFor`, so a pair of boots
   // whose wearer may Dash out of a Bonus Action would be executed rather than
@@ -808,6 +815,12 @@ function ownedStandingEffectProblems(
   if (effect.kind === 'casting-healing') {
     found.push(...castingHealingProblems(effect as unknown as Record<string, unknown>, at));
   }
+  if (effect.kind === 'casting-range') {
+    found.push(...castingRangeProblems(effect as unknown as Record<string, unknown>, at));
+  }
+  if (effect.kind === 'casting-rider') {
+    found.push(...castingRiderProblems(effect as unknown as Record<string, unknown>, at));
+  }
   if (effect.kind === 'ability-score-set') {
     found.push(...abilitySetProblems(effect as unknown as Record<string, unknown>, at));
   }
@@ -1061,6 +1074,65 @@ function fallReductionProblems(
     });
   }
   return found;
+}
+
+/**
+ * Everything wrong with a `casting-range` grant, which is
+ * {@link fallReductionProblems}' pair of rules on the same arithmetic.
+ *
+ * SRD Eldritch Spear lengthens a range by "30 times your Warlock level": a
+ * rate of nothing is a feature that claims to lengthen a range and does not,
+ * and a class level written by content is a catalogue stating a *character's*
+ * number — the level is pinned by creation from the character, and an item,
+ * which belongs to no class, has the holder's own read for it instead.
+ */
+function castingRangeProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const per = effect['perClassLevel'];
+  if (!Number.isInteger(per) || (per as number) < 1) {
+    found.push({
+      code: 'bad_casting_range',
+      reason: `a range is lengthened by a whole number of feet for each class level, above none; ${JSON.stringify(per)} lengthens nothing`,
+      field: `${at}.perClassLevel`,
+    });
+  }
+  if (effect['classLevel'] !== undefined) {
+    found.push({
+      code: 'bad_casting_range',
+      reason: 'the class level is pinned by creation from the character, never written by content',
+      field: `${at}.classLevel`,
+    });
+  }
+  return found;
+}
+
+/**
+ * Everything wrong with a `casting-rider` grant: one thing, and it is the
+ * whole of what the member can say that means nothing.
+ *
+ * SRD Repelling Blast hangs a shove on one cantrip's hit. Which *slots* a
+ * rider fills is the rider vocabulary's business and every one of them lands
+ * on the outcome this grant reaches; a rider that fills none hangs nothing at
+ * all, which is a grant promising a benefit no reader could ever apply.
+ */
+function castingRiderProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const rides = effect['rides'];
+  if (rides !== null && typeof rides === 'object' && hasOutcomeRiders(rides as OutcomeRiders)) {
+    return [];
+  }
+  return [
+    {
+      code: 'empty_casting_rider',
+      reason: 'a rider that fills no slot hangs nothing on the outcome it rides, so the grant promises a benefit no reader could apply',
+      field: `${at}.rides`,
+    },
+  ];
 }
 
 /**
@@ -3725,6 +3797,28 @@ function itemGrantProblems(
       }
       if (effect.kind === 'casting-healing') {
         for (const problem of castingHealingProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      // The reach and the rider a worn thing may confer, held to the same two
+      // rules the feature path holds them to — and the class level especially:
+      // an item belongs to no class, so one written here would be honoured as
+      // a number nobody could have known.
+      if (effect.kind === 'casting-range') {
+        for (const problem of castingRangeProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
+      if (effect.kind === 'casting-rider') {
+        for (const problem of castingRiderProblems(
           effect as unknown as Record<string, unknown>,
           on,
         )) {

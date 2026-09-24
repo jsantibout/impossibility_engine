@@ -834,29 +834,29 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   // — Warlock —
   'warlock:eldritch-invocations': [
     {
-      clause: 'Eldritch Spear and Repelling Blast change what a casting costs or catches',
-      why: 'a-feature-that-changes-what-a-casting-costs',
-      note: 'a range one feature lengthens and a push another hangs on one cantrip’s hit: both are the caster’s own trick riding on a casting the definition already settled.',
-    },
-    {
-      clause: 'the three Pacts and what hangs off them are a conjured weapon',
+      clause: 'Pact of the Blade is a conjured weapon its holder attacks with using Charisma',
       why: 'an-attack-the-class-redefines',
-      note: 'Pact of the Blade’s weapon attacks with Charisma and changes its damage type, which is the shape Monk’s Martial Arts waits on; Thirsting Blade and Eldritch Smite are printed on top of it.',
+      note: 'Charisma **in place of** Strength or Dexterity on the attack and the damage, which is not a bonus and is the half `imbuesWeapon` has no field for; the type offer beside it is written already, and the weapon conjured into an empty hand is a feature doing what only a casting’s `conjures` does today. Thirsting Blade and Eldritch Smite are printed on top of it.',
     },
     {
-      clause: 'a familiar’s extra forms',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'Pact of the Chain and Investment of the Chain Master, on the same missing summons Find Familiar and Arcane Hand wait on.',
+      clause: 'Pact of the Chain casts Find Familiar as a Magic action',
+      why: 'a-feature-that-changes-what-a-casting-costs',
+      note: 'the summons is built and the price is not: the book gives Find Familiar an hour and this route gives it an action, which is a casting time the definition pinned and no grant can rewrite. The slot it does not spend is `atWill`, which is written.',
     },
     {
-      clause: 'Gaze of Two Minds and One with Shadows are a perception and a light gate',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'One with Shadows casts only "while you’re in an area of Dim Light or Darkness", and the engine holds no Bright, Dim or Darkness for a feature to read; Gaze of Two Minds borrows another creature’s senses, which is the same absence one seat along.',
+      clause: 'a familiar with eight extra forms',
+      why: 'a-choice-made-at-the-casting',
+      note: 'the form is a `choiceStated` answered off the definition’s own printed list, and a granted route may fix that answer — SRD Wild Companion’s Fey — but not widen the list it is checked against.',
     },
     {
-      clause: 'Gift of the Depths wants a Swim Speed equal to a Speed',
-      why: 'movement-modes',
-      note: 'the same missing derivation Acrobatic Movement and Dragon Wings wait on; the Water Breathing beside it is a free casting the vocabulary already writes, so this clause is the whole of what blocks the invocation.',
+      clause: 'an attack forgone to buy the familiar one of its own',
+      why: 'an-attack-the-class-redefines',
+      note: 'the second half of the shape’s own sentence, "an attack traded for something else", with the thing bought standing on somebody else’s Reaction.',
+    },
+    {
+      clause: 'Gaze of Two Minds borrows the senses of a willing creature',
+      why: 'senses-beyond-declared-sight',
+      note: 'the spell map’s own id, whose description already names this sentence — "one creature **borrowing** another’s (Find Familiar)" — and nothing here has state for a creature to see out of another’s eyes.',
     },
     {
       clause: 'the first is fiction and the second is the component rules, and this engine models neither',
@@ -864,9 +864,9 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
       note: 'Pact of the Tome’s book appearing after a rest and vanishing with its maker, and its use as a Spellcasting Focus. Components are declared nowhere in this engine, so the focus is a rule the table keeps rather than a shape anybody is waiting on.',
     },
     {
-      clause: 'Four invocations are Repeatable and this refuses a second copy',
-      why: 'an-option-re-chosen-on-a-rest',
-      note: 'SRD: "You can’t pick the same invocation more than once unless its description says otherwise." An option question takes each answer once and has no word for the exception, which is the same missing word an option a rest re-asks wants.',
+      clause: 'nothing here drowns anybody, so breathing underwater is left to the table',
+      why: 'table',
+      note: 'Gift of the Depths’ first clause. Suffocation is a rule the engine holds none of, so a creature that can breathe underwater is indistinguishable from one that cannot, and there is no shape anybody is waiting on.',
     },
     {
       clause: 'checked as a Warlock cantrip and not as one that deals damage',

@@ -170,6 +170,32 @@ export type FeatureQuestion =
        * entry asks nothing, which is every option the SRD prints bare.
        */
       readonly prerequisites?: readonly OptionPrerequisite[];
+      /**
+       * The options this question may be answered with **more than once**.
+       *
+       * SRD Eldritch Invocations: "You can't pick the same invocation more
+       * than once **unless its description says otherwise**", and four
+       * descriptions say otherwise — Agonizing Blast, Eldritch Spear, Lessons
+       * of the First Ones and Repelling Blast each print "You can gain this
+       * invocation more than once. Each time you do so, choose a different
+       * qualifying cantrip" (or feat).
+       *
+       * **A list on the question rather than a flag on the feature**, because
+       * the exception is printed per option: a Warlock may take Agonizing
+       * Blast twice and Armor of Shadows once, and a feature-wide flag would
+       * permit both or neither. Every id here must be one the question offers,
+       * which `checkFeatureDefinition` holds it to — a licence over an option
+       * nobody is offered would permit nothing.
+       *
+       * **What a repeat costs is a second answer to every question the option
+       * gates.** The book's second sentence is the whole reason the exception
+       * exists — "each time you do so, choose a *different* qualifying
+       * cantrip" — so a question written `onlyIfChoice: 'Agonizing Blast'` is
+       * asked once per copy taken, and the copies after the first are answered
+       * under {@link repeatAnswerKey}. A repeat that named nothing new would
+       * be an invocation spent on what its holder already had.
+       */
+      readonly repeatable?: readonly string[];
     }
   | { readonly kind: 'subclass'; readonly choose: 1 }
   | { readonly kind: 'feat'; readonly choose: number; readonly category?: string }
@@ -348,6 +374,30 @@ export const choiceAnswerKey = (featureId: string, key: string | undefined): str
  */
 export const featureOfAnswerKey = (answerKey: string): string =>
   answerKey.split(':').slice(0, 2).join(':');
+
+/**
+ * Where the *n*th copy of a repeated question's answer lives.
+ *
+ * SRD prints the exception on four Eldritch Invocations — "You can gain this
+ * invocation more than once. Each time you do so, choose a different
+ * qualifying cantrip" — so an option taken twice asks its gated question
+ * twice, and the two answers need two places to be.
+ *
+ * **The first copy keeps the key it always had.** `repeat` is zero-based and
+ * zero is {@link choiceAnswerKey} exactly, so every answer ever written stays
+ * where it was and a question nobody repeats is untouched; a later copy is
+ * suffixed `#2`, `#3`, and so on, which is a separator no feature id and no
+ * question key may contain. `featureOfAnswerKey` splits on colons and is
+ * therefore unaffected: the feature a repeat belongs to is still the feature.
+ */
+export const repeatAnswerKey = (
+  featureId: string,
+  key: string | undefined,
+  repeat: number,
+): string =>
+  repeat === 0
+    ? choiceAnswerKey(featureId, key)
+    : `${choiceAnswerKey(featureId, key)}#${repeat + 1}`;
 
 /**
  * Every question one feature asks, however it wrote them.
@@ -1254,6 +1304,25 @@ export type FeatureGrant =
        * can never run out wearing a pool's name.
        */
       readonly atWill?: true;
+      /**
+       * What must be true of the caster for this route to be open at all.
+       *
+       * SRD One with Shadows: "**While you're in an area of Dim Light or
+       * Darkness**, you can cast _Invisibility_ on yourself without expending
+       * a spell slot." The clause is about where the caster is standing when
+       * they cast rather than about the spell, so it cannot live on the
+       * definition and it cannot be settled at creation — the same three-line
+       * argument `standing.ts` makes for deriving every conditional benefit on
+       * every read, arriving at the one grant that hands out a *route*.
+       *
+       * The vocabulary is the standing one, and the reader is the same:
+       * `requirementsHold`. Checked where the route is settled, before a slot,
+       * an action or a die, so a Warlock standing in Bright Light is refused
+       * while refusing is still free — and refused rather than quietly sent to
+       * a spell slot, because the route the caller named is the route they
+       * meant.
+       */
+      readonly requires?: readonly StandingRequirement[];
       /**
        * SRD Fiendish Vigor: "When you cast the spell with this feature, you
        * don't roll the die for the Temporary Hit Points; you automatically get

@@ -16,12 +16,12 @@ import type { PassiveDefense } from './passive-defenses.js';
 import type { AreaStanding, SpeedChange } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
-import type { CreatureSize } from '@ie/srd/schemas';
 import type { LightLevel, ObscurementDegree, PointAnchoring, SenseName } from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
 import type { Recovery } from './resources.js';
+import type { CreatureSize } from '@ie/srd';
 
 /**
  * Spells the engine can actually execute.
@@ -682,6 +682,22 @@ export interface ForcedMovement {
    * is refused on a host with no casting to keep it.
    */
   readonly kind?: 'push' | 'lift';
+  /**
+   * The largest creature this movement moves — SRD Repelling Blast: "When you
+   * hit a **Large or smaller** creature".
+   *
+   * `HitOptionGrant.targetNoLargerThan` and SRD Push's own ceiling, on the
+   * third host that prints the clause, and read exactly as those two are:
+   * `effectiveSizeOf` answers, a creature nobody has sized is taken for what
+   * the map assumes, and a creature too big simply stands where it was with
+   * the reason on the casting's `unverified`. It is a gap rather than a
+   * refusal because by the time a rider runs the slot is spent and the damage
+   * has landed.
+   *
+   * Absent asks nothing, which is every rider written before it: SRD
+   * Thunderwave pushes a Gargantuan creature exactly as it pushes a Gnome.
+   */
+  readonly targetNoLargerThan?: CreatureSize;
 }
 
 /**

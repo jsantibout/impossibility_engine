@@ -794,6 +794,54 @@ describe('rule 8b — a feature may ask more than one question', () => {
       ).toContain('prerequisite_not_offered');
     });
 
+    /**
+     * `#` is how `repeatAnswerKey` numbers a repeated question's later copies,
+     * so a key carrying one could spell the same answer key two ways.
+     */
+    it('refuses a question key that could be a repeat number', () => {
+      expect(
+        codes({
+          ...sound,
+          id: 'wizard:invocations',
+          level: 1,
+          choices: [
+            { kind: 'option', chooseByLevel: column, from: ['One'] },
+            { key: 'a#2', kind: 'skill', choose: 1, onlyIfChoice: 'One' },
+          ],
+        }),
+      ).toContain('bad_choice_key');
+    });
+
+    /**
+     * "You can't pick the same invocation more than once unless its
+     * description says otherwise." A licence over an option nobody is offered
+     * permits nothing, which is the prerequisite line's rule one field along.
+     */
+    it('refuses a repeat licence over an option the question does not offer', () => {
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            repeatable: ['Three'],
+          },
+        }),
+      ).toContain('repeatable_not_offered');
+      expect(
+        codes({
+          ...invocations,
+          choice: {
+            kind: 'option',
+            chooseByLevel: column,
+            from: ['One', 'Two'],
+            repeatable: ['One'],
+          },
+        }),
+      ).not.toContain('repeatable_not_offered');
+    });
+
     it('refuses a prerequisite that demands nothing', () => {
       expect(
         codes({

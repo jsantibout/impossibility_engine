@@ -5,7 +5,9 @@ import {
   damageTypesDealt,
   durationSecondsAt,
   ranged,
+  type OutcomeRiders,
   type SpellDefinition,
+  type SpellEffect,
 } from '../spell-definitions.js';
 import type { CastingTime } from '../spells.js';
 
@@ -74,6 +76,65 @@ const ROLLS_DAMAGE: ReadonlySet<string> = new Set(['attack', 'save-damage', 'aut
 
 /** The effect kinds that make a creature roll a saving throw. */
 const FORCES_A_SAVE: ReadonlySet<string> = new Set(['save', 'save-damage']);
+
+/**
+ * A caster's own riders, folded into the effect list this casting is running.
+ *
+ * SRD Repelling Blast: the sentence is printed on the Warlock and the shove
+ * belongs to Eldritch Blast's hit, so the rider has to reach the effect list
+ * before a resolver walks it. Composed here, beside the other two
+ * substitutions a casting makes to what the definition printed — the stated
+ * damage type and the stated choice — because it is the same kind of thing:
+ * the list as *this* casting runs it.
+ *
+ * **Only an `attack`, and only a slot the definition left empty.** Every rider
+ * hangs on an affirmative outcome and the one a caster's feature can name
+ * without reading the spell is the hit. And a definition that already prints a
+ * rider of that kind keeps it: SRD prints no sentence anywhere that shoves a
+ * creature twice on one hit, so the composition is *fill*, never overwrite —
+ * a feature that promised what the spell already does would double a number
+ * the book states once.
+ *
+ * Identity when no feature reaches this casting, which is every casting in the
+ * book.
+ */
+export function withCastingRiders(
+  effects: readonly SpellEffect[],
+  riders: readonly OutcomeRiders[],
+): readonly SpellEffect[] {
+  if (riders.length === 0) return effects;
+  return effects.map((effect) => {
+    if (effect.kind !== 'attack') return effect;
+    let carried = effect;
+    for (const rider of riders) {
+      // Every slot `OutcomeRiders` declares, written out rather than walked:
+      // the union is closed, a new member is a decision somebody takes on
+      // purpose, and a loop over keys would carry one silently.
+      if (rider.conditions !== undefined && carried.conditions === undefined) {
+        carried = { ...carried, conditions: rider.conditions };
+      }
+      if (rider.modifiers !== undefined && carried.modifiers === undefined) {
+        carried = { ...carried, modifiers: rider.modifiers };
+      }
+      if (rider.delayed !== undefined && carried.delayed === undefined) {
+        carried = { ...carried, delayed: rider.delayed };
+      }
+      if (rider.movement !== undefined && carried.movement === undefined) {
+        carried = { ...carried, movement: rider.movement };
+      }
+      if (rider.spends !== undefined && carried.spends === undefined) {
+        carried = { ...carried, spends: rider.spends };
+      }
+      if (rider.light !== undefined && carried.light === undefined) {
+        carried = { ...carried, light: rider.light };
+      }
+      if (rider.breaksConcentration === true && carried.breaksConcentration === undefined) {
+        carried = { ...carried, breaksConcentration: true };
+      }
+    }
+    return carried;
+  });
+}
 
 /** What an elected option costs, in the pool its feature named. */
 export interface CastingOptionCost {
