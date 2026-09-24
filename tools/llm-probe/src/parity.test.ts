@@ -145,6 +145,9 @@ const AUDIT: readonly {
       choice: because(
         'the one value a spell asks its caster to pick — Blindness/Deafness’ Blinded or Deafened, Lesser Restoration’s one condition of four, Enhance Ability’s five abilities, Guidance’s eighteen skills. The engine refuses a casting of one of those that names none, so this is required rather than optional the day any of them is castable here; no benchmark character has one prepared',
       ),
+      option: because(
+        'which of the branches a spell prints this casting runs — SRD Command’s five words, Thaumaturgy’s six wonders, Enlarge/Reduce’s two halves. `choice` above names a value substituted into the effects a spell already has; this names which effects run at all, and the engine refuses a casting of one of those that speaks no word — so it is required rather than optional the day any of them is castable here. No benchmark character prepares one, and the answer is one of the branch names the refusal itself lists. `packages/tools` publishes it as `cast_spell.option`',
+      ),
       fought: because(
         'SRD Charm Person: "It does so with Advantage if you or your allies are fighting it." Five spells print the clause, the engine refuses a casting of one that does not answer it, and the answer is a list because an upcast casting names several targets — so this is required rather than optional the day any of them is castable here, and no benchmark character has one prepared',
       ),

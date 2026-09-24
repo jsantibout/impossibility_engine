@@ -189,6 +189,14 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'chill-touch',
   'chromatic-orb',
   'circle-of-death',
+  // Driven end to end by `spell-options.test.ts` (engine): the word refused
+  // when none was spoken and when a sixth was, Halt forbidding the move, the
+  // action and the Bonus Action to the end of the target's next turn, Drop
+  // emptying both hands, Grovel knocking it Prone, a made save doing none of
+  // the three, Approach handing its sentence over and moving nobody, and no
+  // word running another word's branch. Partial as well as verified: every
+  // one of the five is obeyed inside a turn the engine does not direct.
+  'command',
   'compulsion',
   'cone-of-cold',
   'conjure-fey',
@@ -392,6 +400,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'stinking-cloud',
   'stoneskin',
   'sunburst',
+  // Driven end to end by `spell-options.test.ts` (engine): the wonder named
+  // at the casting, its own sentence handed to the table and the other five
+  // withheld, and a fourth casting ending the first of the three the book
+  // lets run at once. Partial as well as verified: Booming Voice's Advantage
+  // is a mode with no creature to land on.
+  'thaumaturgy',
   'thunderwave',
   // Driven end to end by `cantrip-with-the-swing.test.ts` (engine): the cantrip
   // named on the attack command, the Action spent as the casting's and no

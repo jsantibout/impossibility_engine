@@ -350,6 +350,41 @@ describe('the validator holds a branch to saying what it is', () => {
     ).toEqual([]);
   });
 
+  /**
+   * The casting sizes its target list, measures a swing and demands a stated
+   * weapon off the spell's **own** effects, before it knows which branch it is
+   * running — so a roll written inside a branch is one nobody made room for.
+   */
+  it('refuses an effect the casting settles before it reads the branch', () => {
+    expect(
+      codes(
+        definition({
+          halt: HALT,
+          hurl: {
+            label: 'Hurl',
+            effects: [
+              { kind: 'attack', attack: 'ranged', damage: { dice: '1d8' }, damageType: 'force' },
+            ],
+          },
+        }),
+      ),
+    ).toContain('option_effect_settled_early');
+  });
+
+  it('refuses a drop that is neither the casting’s object nor all of them', () => {
+    expect(
+      codes(
+        definition({
+          halt: HALT,
+          shake: {
+            label: 'Shake',
+            effects: [{ kind: 'save', ability: 'wis', drops: { all: 'yes' } }],
+          },
+        }),
+      ),
+    ).toContain('malformed_field');
+  });
+
   it('checks a branch’s effects like any other', () => {
     expect(
       codes(
