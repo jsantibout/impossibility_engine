@@ -1638,11 +1638,17 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
       // here and not among the attacks; what the save adds is a second thing
       // a caller may do with it besides quote it.
       ...(line.save === undefined ? {} : { save: line.save }),
-      // And the spells it casts, and where it teleports, where the sentence is
-      // one of the book's two other templates. Both arrive for the same reason
-      // the save did: the line is one no attack could be read out of, and what
-      // the structure buys is a door that executes it rather than quotes it.
-      ...(line.casts === undefined ? {} : { casts: line.casts }),
+      // And where it teleports, where the sentence is the book's teleport
+      // template. It arrives for the same reason the save did: the line is one
+      // no attack could be read out of, and what the structure buys is a door
+      // that executes it rather than quotes it.
+      //
+      // **A line that *casts* is read and is deliberately not pinned here.**
+      // `Feature.casts` is structure the catalogue carries and the ledger
+      // counts, and nothing in the engine spends one yet — so a field on the
+      // sheet would be a sentence that validates, loads, lands on a creature
+      // and does nothing, which is the failure this repository finds most
+      // often. It arrives with the door that reads it.
       ...(line.teleports === undefined ? {} : { teleports: line.teleports }),
     }));
 
@@ -1667,12 +1673,9 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // Trample lines write it under this heading, and a heading says what a
     // line costs rather than what it does.
     ...(line.save === undefined ? {} : { save: line.save }),
-    // And the spells it casts, and where it teleports. **Most of the book's
-    // cast lines are printed here** — SRD Divine Aid on three blocks at CR 5
-    // or below and the Cultist Fanatic's Spiritual Weapon on a fourth — which
-    // is the whole reason the field is on both sections: what the heading
-    // changes is what the use costs.
-    ...(line.casts === undefined ? {} : { casts: line.casts }),
+    // And where it teleports, which is on both sections for the reason the
+    // save is: what a heading changes is what the use costs. A line that
+    // *casts* is not pinned here — see the note beside the Actions section.
     ...(line.teleports === undefined ? {} : { teleports: line.teleports }),
   }));
 
