@@ -230,6 +230,16 @@ const REPEATS_NEXT_TURN =
 const REPEATS_BEFORE =
   /^At the end of each of its turns, the target repeats the save, ending the effect on itself on a success$/;
 const CAPPED = /^After (\d+) minutes?, it succeeds automatically$/;
+/**
+ * SRD Will-o'-Wisp: "The target dies, and the wisp regains 10 (3d6) Hit
+ * Points."
+ *
+ * The only failure in the corpus that kills outright, and the regain is part
+ * of the same sentence rather than a clause of its own — see
+ * `PrintedSaveEffectSchema`'s `dies`.
+ */
+const DIES =
+  /^The target dies(?:, and the [a-z' -]+ regains (\d+) \((\d+)d(\d+)(?:\s*([+−–-])\s*(\d+))?\) Hit Points)?$/;
 
 /**
  * Read one span, or null where the words are not a span this reader knows.
@@ -420,6 +430,24 @@ function readClause(clause: string, into: Scratch, graded: boolean): boolean {
 
   if (HP_MAX_CUT.test(words)) {
     into.effects.push({ kind: 'hit-point-maximum-decrease', by: 'damage-taken' });
+    return true;
+  }
+
+  const dies = DIES.exec(words);
+  if (dies !== null) {
+    const sign = dies[4] === undefined ? 1 : dies[4] === '+' ? 1 : -1;
+    into.effects.push({
+      kind: 'dies',
+      ...(dies[1] === undefined
+        ? {}
+        : {
+            sourceRegains: {
+              dice: `${dies[2]}d${dies[3]}`,
+              flat: dies[5] === undefined ? 0 : sign * Number(dies[5]),
+              average: Number(dies[1]),
+            },
+          }),
+    });
     return true;
   }
 

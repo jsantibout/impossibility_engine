@@ -310,6 +310,22 @@ describe('the clauses a failure prints besides the damage', () => {
     });
   });
 
+  it('reads the one line whose failure kills, and what it buys the creature that forced it', () => {
+    // SRD Will-o'-Wisp: "_Failure:_ The target dies, and the wisp regains 10
+    // (3d6) Hit Points." Who it may be forced on is already the targeting
+    // clause's — "one living creature … that has 0 Hit Points" — so the
+    // threshold is the table's answer and the failure is one sentence.
+    expect(lineOf('will-o-wisp', 'Consume Life').save).toEqual({
+      ability: 'con',
+      dc: 10,
+      targets: 'one living creature the wisp can see within 5 feet that has 0 Hit Points',
+      onSuccess: 'none',
+      onFailure: [
+        { kind: 'dies', sourceRegains: { dice: '3d6', flat: 0, average: 10 } },
+      ],
+    });
+  });
+
   it('reads a curse that is only conditions as those conditions, for the curse’s span', () => {
     // SRD Lamia: "the target is cursed for 1 hour. Until the curse ends, the
     // target has the Charmed and Poisoned conditions." Two sentences and one

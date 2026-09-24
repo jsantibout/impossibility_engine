@@ -1150,8 +1150,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Bugbear Stalker's Quick Grapple among them — read under this heading
       // because a Bonus Action is a line a creature spends. And one more with
       // the graded failure: the Basilisk's Petrifying Gaze is a Bonus Action,
-      // where the Gorgon's identical sentence is an Action.
-      bonusActions: { printed: 75, read: 19 },
+      // where the Gorgon's identical sentence is an Action. And one more with
+      // the only failure in the book that kills outright — the Will-o'-Wisp's
+      // Consume Life, a Bonus Action too.
+      bonusActions: { printed: 75, read: 20 },
       reactions: { printed: 24, read: 0 },
       legendaryActions: { printed: 82, read: 0 },
     });

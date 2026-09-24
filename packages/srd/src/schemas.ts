@@ -471,6 +471,33 @@ export const PrintedSaveEffectSchema = z.discriminatedUnion('kind', [
     lasts: PrintedSpanSchema,
   }),
   z.object({ kind: z.literal('hit-point-maximum-decrease'), by: z.literal('damage-taken') }),
+  /**
+   * SRD Will-o'-Wisp: "_Failure:_ The target dies, and the wisp regains 10
+   * (3d6) Hit Points."
+   *
+   * **Death that is not damage**, which is the engine's own distinction:
+   * `creature-died` exists because "a healthy creature taking exactly its
+   * maximum in damage drops to 0, it does not die". Who the line may be forced
+   * on is the targeting clause's — "one living creature … that has 0 Hit
+   * Points" — so the threshold is the table's answer and nothing here reads a
+   * number off the victim.
+   *
+   * **One effect rather than two**, because the book joins them with "and" and
+   * the second half has no other sentence in the corpus: a `source-heals`
+   * clause standing alone would be a shape with no line asking for it.
+   */
+  z.object({
+    kind: z.literal('dies'),
+    /** What the creature that forced the save regains by it, where it does. */
+    sourceRegains: z
+      .object({
+        dice: z.string().regex(/^\d+d\d+$/),
+        flat: z.number().int(),
+        /** The average the book prints beside the dice, for narration. */
+        average: z.number().int().min(1),
+      })
+      .optional(),
+  }),
 ]);
 export type PrintedSaveEffect = z.infer<typeof PrintedSaveEffectSchema>;
 

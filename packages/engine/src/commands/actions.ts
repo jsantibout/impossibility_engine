@@ -812,6 +812,14 @@ export interface PrintedSaveOnACreature {
   readonly immuneTo?: readonly ConditionName[];
   /** The feet the line pushed the target, where it pushed. */
   readonly pushedFeet?: number;
+  /**
+   * Whether the line killed the target outright.
+   *
+   * SRD Will-o'-Wisp's Consume Life is the one that does, and it is not
+   * damage: the target dies rather than dropping to 0, so a caller reading
+   * `damage` alone would see a nought and narrate a miss.
+   */
+  readonly died?: true;
 }
 
 export interface PrintedSaveOutcome {
@@ -1150,6 +1158,7 @@ export function forcePrintedSave(
           clauses,
           dealt,
           supply.issuer.count,
+          supply,
         );
         if (!landed.ok) return landed;
         events.push(...landed.value.events);
@@ -1164,6 +1173,7 @@ export function forcePrintedSave(
           ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
           ...(landed.value.immuneTo.length === 0 ? {} : { immuneTo: landed.value.immuneTo }),
           ...(landed.value.pushedFeet === null ? {} : { pushedFeet: landed.value.pushedFeet }),
+          ...(landed.value.died ? { died: true as const } : {}),
         });
       }
 

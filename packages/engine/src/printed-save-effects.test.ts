@@ -440,6 +440,44 @@ describe('a condition the line says another one carries', () => {
   });
 });
 
+describe('a failure that kills', () => {
+  it("kills the Will-o'-Wisp's target outright and heals the wisp by the dice it rolled", () => {
+    for (const seed of SEEDS) {
+      const { before, out, state } = forced('will-o-wisp', 'Consume Life', seed, [GRISH], [
+        { id: GRISH, monster: 'goblin-warrior' },
+      ]);
+      if (out.outcomes[0]!.save.success) continue;
+      // Death rather than damage: the target does not drop to 0, it dies, and
+      // the outcome says so rather than leaving a caller to read a nought.
+      expect(out.outcomes[0]!.damage).toBe(0);
+      expect(out.outcomes[0]!.died).toBe(true);
+      expect(state.creatures[GRISH]!.vitals.dead).toBe(true);
+      expect(out.events.some((e) => e.type === 'creature-died')).toBe(true);
+      expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
+
+      // "and the wisp regains 10 (3d6) Hit Points" — the block's dice, thrown
+      // by the engine, in the range 3d6 can reach and no further.
+      const healed = out.events.find((e) => e.type === 'healed');
+      expect(healed, 'the wisp regained nothing').toBeDefined();
+      const amount = (healed as { amount: number }).amount;
+      expect(amount).toBeGreaterThanOrEqual(3);
+      expect(amount).toBeLessThanOrEqual(18);
+      // Capped at its own maximum, which is `heal`'s rule and not this one's.
+      expect(state.creatures[FOE]!.vitals.hp).toBe(
+        Math.min(
+          before.creatures[FOE]!.vitals.hpMax,
+          before.creatures[FOE]!.vitals.hp + amount,
+        ),
+      );
+      // And the generator's position is written back, once, for everything
+      // this command threw — the save and the healing dice alike.
+      expect(out.events.filter((e) => e.type === 'rolls-issued')).toHaveLength(1);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+});
+
 describe('a failure the line grades', () => {
   /** End turns until the boundary has raised and rolled whatever it owes. */
   const turn = (state: GameState, seed: string): GameState => {
