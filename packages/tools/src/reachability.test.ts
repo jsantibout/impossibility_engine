@@ -352,6 +352,8 @@ const AT_CREATION: Readonly<Record<string, string>> = {
   'weapon-and-armor-training':
     'weapon categories and armour training added when the character was made, which `proficientWith` and every armour check read',
   initiative: 'a bonus the engine adds when Initiative is rolled, which no caller states',
+  'on-dropping-a-hostile':
+    'SRD Dark Oneâs Blessing: Temporary Hit Points the engine pays the moment an enemy reaches 0 Hit Points, on the sheet from creation and stated by no caller',
   'lifts-conditions': 'conditions a feature ends, lifted by the engine at the moment it names',
   'long-rest-length':
     'how long a Long Rest takes this creature, written onto the sheet at creation and read by `end_rest`',

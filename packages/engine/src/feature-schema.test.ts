@@ -768,6 +768,69 @@ describe('the training a feature grants', () => {
   });
 });
 
+describe('what a feature pays when an enemy falls', () => {
+  /** SRD Dark One's Blessing, which is the one line in the book of this shape. */
+  const blessing: FeatureDefinition = {
+    ...sound,
+    id: 'wizard:grim-harvest',
+    level: 3,
+    automation: 'engine',
+    grants: {
+      kind: 'on-dropping-a-hostile',
+      temporaryHitPoints: { ability: 'cha', plusClassLevel: true, minimum: 1 },
+      within: 10,
+    },
+  };
+
+  it('accepts the printed sentence, and the half of it without a distance', () => {
+    expect(codes(blessing)).toEqual([]);
+    const own = {
+      ...blessing,
+      grants: {
+        kind: 'on-dropping-a-hostile',
+        temporaryHitPoints: { ability: 'con', minimum: 0 },
+      },
+    } as FeatureDefinition;
+    expect(codes(own)).toEqual([]);
+  });
+
+  it('reports an ability no sheet holds', () => {
+    const bad = {
+      ...blessing,
+      grants: {
+        kind: 'on-dropping-a-hostile',
+        temporaryHitPoints: { ability: 'luck', minimum: 1 },
+      },
+    } as never as FeatureDefinition;
+    expect(codes(bad)).toContain('bad_drop_reward');
+  });
+
+  it('reports a minimum that is not a whole number of none or more', () => {
+    for (const minimum of [-1, 1.5, 'one']) {
+      const bad = {
+        ...blessing,
+        grants: {
+          kind: 'on-dropping-a-hostile',
+          temporaryHitPoints: { ability: 'cha', minimum },
+        },
+      } as never as FeatureDefinition;
+      expect(codes(bad), String(minimum)).toContain('bad_drop_reward');
+    }
+  });
+
+  it('reports a reach the scene could not answer, and says to leave it out instead', () => {
+    for (const within of [0, -5, 7.5]) {
+      const bad = { ...blessing, grants: { ...blessing.grants, within } } as never as FeatureDefinition;
+      expect(codes(bad), String(within)).toContain('bad_drop_reward');
+    }
+  });
+
+  it('reports a grant that says nothing about how much', () => {
+    const bad = { ...blessing, grants: { kind: 'on-dropping-a-hostile' } } as never as FeatureDefinition;
+    expect(codes(bad)).toContain('bad_drop_reward');
+  });
+});
+
 describe('rule 7 — no FeatureGrant member sits unwritten', () => {
   /**
    * Every writer of the vocabulary, which is no longer only the class tables.

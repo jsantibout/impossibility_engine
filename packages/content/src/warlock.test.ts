@@ -251,6 +251,50 @@ describe('a Warlock knows its spells, from the Warlock list', () => {
   });
 });
 
+/**
+ * SRD Dark One's Blessing: "When you reduce an enemy to 0 Hit Points, you gain
+ * Temporary Hit Points equal to your Charisma modifier plus your Warlock level
+ * (minimum of 1 Temporary Hit Point). You also gain this benefit if someone
+ * else reduces an enemy within 10 feet of you to 0 Hit Points."
+ *
+ * The catalogue's half of it: the grant the engine reads, and a note that says
+ * what the scene answers. The engine's half â which enemy, whose enemy, and
+ * both roads to 0 â is `at-zero-hit-points.test.ts`.
+ */
+describe("the Fiend's blessing is declared rather than left to a table", () => {
+  const blessing = FIEND_PATRON.features.find(
+    (feature) => feature.id === 'fiend-patron:dark-ones-blessing',
+  )!;
+
+  it('declares both sentences as one grant the engine executes', () => {
+    expect(blessing.automation).toBe('engine');
+    expect(blessing.grants).toEqual({
+      kind: 'on-dropping-a-hostile',
+      temporaryHitPoints: { ability: 'cha', plusClassLevel: true, minimum: 1 },
+      within: 10,
+    });
+  });
+
+  it('says what the scene answers and what the table answers', () => {
+    expect(blessing.note).toContain('scene');
+    expect(blessing.note).toContain('sides');
+  });
+
+  it('reaches the sheet at the Warlockâs own class level', () => {
+    const state = built();
+    expect(state.creatures[KAEL]!.sheet.onDroppingAHostile).toEqual([
+      {
+        feature: 'fiend-patron:dark-ones-blessing',
+        name: "Dark One's Blessing",
+        ability: 'cha',
+        classLevel: 5,
+        minimum: 1,
+        within: 10,
+      },
+    ]);
+  });
+});
+
 describe('a Warlock is a creature the rest of the engine accepts', () => {
   it('explains every feature it does not execute', () => {
     for (const feature of [...WARLOCK.features, ...FIEND_PATRON.features]) {
