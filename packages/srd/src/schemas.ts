@@ -1281,10 +1281,14 @@ export type MonsterTeleport = z.infer<typeof MonsterTeleportSchema>;
  * **The first Reaction line this parser reads at all**, and it is read because
  * the engine already holds the window it names: `test-rolled` is the instant
  * Dark One's Own Luck and Indomitable answer, and "adds 2 to the roll" is the
- * `intervene` effect with a flat addend. The other nine `_Trigger:_` lines in
- * the SRD add to an **Armour Class** against one attack — SRD Parry — which is
- * a different window and a rule the engine does not have, so they stay prose
- * and stay on the ledger.
+ * `intervene` effect with a flat addend. It is one of twenty `_Trigger:_`
+ * lines the SRD prints and the only one of that shape: nine add to an **Armour
+ * Class** against one attack (SRD Parry, SRD Riposte, the Mummy's Whirlwind of
+ * Sand), and the other ten are ten different sentences — an ooze that splits,
+ * an octopus's ink, a goblin redirecting a swing onto an ally, a rust monster
+ * that eats the weapon that hit it. Every one of them wants a window or a rule
+ * the engine does not have, so all nineteen stay prose and stay on the
+ * ledger.
  *
  * **The trigger's reach is part of the shape**, for {@link MonsterTraitSchema}'s
  * stated reason: a feet-less kind would give every holder whatever range the

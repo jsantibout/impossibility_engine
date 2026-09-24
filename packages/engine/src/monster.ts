@@ -1460,11 +1460,12 @@ function printedRollAddendReaction(
  * they come out of.
  *
  * **The Reactions section reaches the sheet for the first time here**, and
- * only one shape of it does. The SRD writes ten `_Trigger:_` lines and nine of
- * them add to an **Armour Class** against one attack — SRD Parry, SRD Riposte,
- * the Mummy's Whirlwind of Sand — which is a window the engine does not hold
- * and a rule it cannot apply. Those stay prose and stay on the ledger, named
- * there rather than argued about here.
+ * only one shape of it does. The SRD writes twenty `_Trigger:_` lines: nine
+ * add to an **Armour Class** against one attack — SRD Parry, SRD Riposte, the
+ * Mummy's Whirlwind of Sand — which is a window the engine does not hold, and
+ * the other ten are ten different sentences, from an ooze that splits to an
+ * octopus's ink. All nineteen stay prose and stay on the ledger, named there
+ * rather than argued about here.
  */
 function printedReactions(monster: Monster): {
   readonly reactions: readonly ReactionFeature[];

@@ -118,7 +118,12 @@ describe('a line that casts', () => {
     ).toBeNull();
   });
 
-  it('is carried onto the six CR 5 and below lines that print it', () => {
+  it('is carried onto the seven CR 5 and below lines that print it', () => {
+    expect(lineOf('doppelganger', 'Read Thoughts').casts).toEqual({
+      spells: ['detect-thoughts'],
+      ability: 'cha',
+      saveDc: 12,
+    });
     expect(lineOf('priest-acolyte', 'Divine Aid (1/Day)').casts).toEqual({
       spells: ['bless', 'healing-word', 'sanctuary'],
       ability: 'spellcasting',
@@ -252,17 +257,50 @@ describe('the corpus', () => {
     ...monster.legendaryActions,
   ]);
 
-  it('reads exactly the cast lines the book prints in this shape', () => {
+  it('reads exactly the cast lines the book prints in this shape, and no others', () => {
+    // The membership, pinned by name over the whole corpus rather than
+    // counted: a sentence this reader started matching, or stopped, shows up
+    // here as a block nobody put in the list rather than as a number nobody
+    // looks at.
+    const casting = lines.filter((line) => line.casts !== undefined);
+    expect(
+      bestiary
+        .flatMap((monster) =>
+          [
+            ...monster.traits,
+            ...monster.actions,
+            ...monster.bonusActions,
+            ...monster.reactions,
+            ...monster.legendaryActions,
+          ]
+            .filter((line) => line.casts !== undefined)
+            .map((line) => `${monster.id}/${line.name}`),
+        )
+        .sort(),
+    ).toEqual([
+      'archmage/Misty Step (3/Day)',
+      'cloud-giant/Misty Step',
+      'couatl/Divine Aid (2/Day)',
+      'cultist-fanatic/Spiritual Weapon (2/Day)',
+      'deva/Divine Aid (2/Day)',
+      'doppelganger/Read Thoughts',
+      'drider/Magic of the Spider Queen (Recharge 5–6)',
+      'dust-mephit/Sleep (1/Day)',
+      'ice-mephit/Fog Cloud (1/Day)',
+      'mage/Misty Step (3/Day)',
+      'planetar/Divine Aid (2/Day)',
+      'priest-acolyte/Divine Aid (1/Day)',
+      'priest/Divine Aid (3/Day)',
+      'stone-golem/Slow (Recharge 5–6)',
+    ]);
+
     // Asserted over the corpus rather than assumed, which is how every other
     // claim about "no SRD line does X" in this parser is held down. Every cast
     // line is a heading a creature spends: none of them declares a spell list
     // as well, because the two are different sentences and the second is
-    // `parseSpellcastingLine`'s.
-    const casting = lines.filter((line) => line.casts !== undefined);
-    expect(casting.length).toBeGreaterThan(0);
+    // `parseSpellcastingLine`'s. And none prints an attack roll or the save
+    // template, which is what keeps the four openings one apiece.
     expect(casting.every((line) => line.spellcasting === undefined)).toBe(true);
-    // And no cast line prints an attack roll or the save template, which is
-    // what keeps the four openings one apiece.
     expect(casting.every((line) => line.attack === undefined)).toBe(true);
     expect(casting.every((line) => line.save === undefined)).toBe(true);
   });

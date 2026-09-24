@@ -1044,7 +1044,7 @@ export interface StatBlockLine {
   /** Where a line teleports its creature. */
   readonly teleports?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
-  readonly addsToRoll?: unknown;
+  readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
 }
 
 /** Every line of every section of one block, which is what the shapes count over. */
@@ -1290,7 +1290,15 @@ export const hasHandedOverSave = (line: StatBlockLine): boolean =>
  * debt of executing it, which is the discipline this whole table keeps.
  */
 export const isExecutedLine = (line: StatBlockLine): boolean =>
-  line.teleports !== undefined || line.addsToRoll !== undefined;
+  line.teleports !== undefined ||
+  // **The addend, narrowed the way the adapter narrows it.** `test-rolled` is
+  // the instant a check or a save has landed and an attack roll is not one of
+  // them, so `triggeringTests` in `monster.ts` compiles nothing for a trigger
+  // that names one — and a row that counted such a line as executed would be
+  // claiming a Reaction no sheet carries. No SRD line reaches it today, which
+  // is exactly why the two readings have to be written down together rather
+  // than left to agree by luck.
+  (line.addsToRoll !== undefined && !line.addsToRoll.tests.includes('attack-roll'));
 
 /**
  * A line that casts, read and with nothing yet spending it.
