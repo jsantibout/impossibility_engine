@@ -612,7 +612,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // until `resolveFall` existed to charge for one, and the creature record had
   // no `fallWards` list at all — so both fixtures fold to exactly the states
   // they always folded to with that list empty on every creature.
-  // `feather-fall.test.ts` casts the spell in the falling window through the
+  // `falling.test.ts` casts the spell in the falling window through the
   // public API and drives it end to end: the sixty-foot fall that costs
   // nothing, the lander left standing, the casting ending on that one creature
   // and running on for the other, and an unwarded faller taking the dice.

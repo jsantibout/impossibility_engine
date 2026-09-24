@@ -1175,6 +1175,17 @@ function placeArea(
     origin = areaPointAt(request.at, anchoring);
   }
 
+  // **And a path belongs to the one template that is drawn.** A Sphere stated
+  // with a path is a caller who believes they have shaped something, and a
+  // stated fact nobody reads is exactly the silence `not_directional` below
+  // refuses on the other side of the same question.
+  if (request.path !== undefined) {
+    return err(
+      'area_is_not_drawn',
+      `a ${area.kind} is the shape its own dimensions make; only a wall is drawn space by space`,
+    );
+  }
+
   // A Cone, Cube or Line has to be pointed somewhere.
   const towards = request.towards;
   if (DIRECTIONAL_AREAS.has(area.kind) && towards === undefined) {
@@ -1252,6 +1263,13 @@ function placeWall(
   const scene = state.scene;
   if (scene === null) {
     return err('no_scene', `${source.name} needs a scene for its wall to stand in`);
+  }
+
+  // A wall is drawn rather than aimed, so a direction stated beside one is a
+  // fact nothing reads — the mirror of `not_directional`, which refuses an aim
+  // at a shape that has no direction to point.
+  if (request.towards !== undefined) {
+    return err('not_directional', `a wall is drawn along its own path and has no direction to point`);
   }
 
   const drawn = request.path ?? [];

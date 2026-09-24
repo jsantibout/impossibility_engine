@@ -861,7 +861,7 @@ function checkJump(
     return feet > reach
       ? err(
           'jump_too_far',
-          `${id}'s ${leap === null ? (running ? 'running' : 'standing') : 'printed'} Long Jump covers ${own} feet, and this one is ${feet}`,
+          `${id}'s ${leap === null ? (running ? 'running' : 'standing') : 'printed'} Long Jump covers ${own} feet, and this one is ${feet}${boughtJumpNote(state, id, feet)}`,
         )
       : ok({ unverified, bought });
   }
@@ -888,6 +888,32 @@ interface JumpOutcome {
   readonly unverified: readonly string[];
   /** The allowance this jump is being made on, or null for the creature's own legs. */
   readonly bought: GrantedJump | null;
+}
+
+/**
+ * Why the jump somebody bought this creature did not cover this one.
+ *
+ * **A refusal that names only the creature's own legs is a refusal that hides
+ * the spell.** A Wizard under SRD *Jump* who declares forty feet is told their
+ * standing Long Jump covers four, and the thirty the spell bought them — or
+ * the fact that they have already taken it this turn — is the half they needed
+ * to hear. The code is untouched: this is the reason, which is what a DM reads.
+ *
+ * Empty for a creature nobody has bought a jump for, which is every creature
+ * in the game but one.
+ */
+function boughtJumpNote(state: GameState, who: CharacterId, feet: number): string {
+  const turn = state.combat?.turnsTaken ?? null;
+  const held = state.creatures[who]?.jumpAllowances ?? [];
+  if (held.length === 0) return '';
+
+  const longest = Math.max(...held.map((allowance) => allowance.feet));
+  const spent =
+    turn !== null &&
+    held.every((allowance) => allowance.feet < feet || allowance.takenOnTurn === turn);
+  return longest >= feet && spent
+    ? `; the jump bought for them reaches ${longest} feet and has already been taken this turn`
+    : `; the jump bought for them reaches ${longest} feet`;
 }
 
 /**
@@ -2061,29 +2087,26 @@ export function resolveFall(
           },
         ];
 
-    const count = fallDamageDice(feet);
-    // SRD ties the two halves together in one word: "**unless** you avoid
-    // taking damage from the fall ... You **then** have the Prone condition."
-    // A drop too short to cost a die is a drop nobody lands badly from, so
-    // there is nothing to record and a retry recomputes the same nothing —
-    // except that a flier who came down from four feet is on the ground now,
-    // and the descent says so.
-    if (count === 0) {
-      return ok({ ...nothing(false), events: descent, unverified: dropped.value.unverified });
-    }
-
-    // SRD *Feather Fall*: "If a creature lands before the spell ends, the
+    // SRD *Feather Fall*: "If a creature **lands** before the spell ends, the
     // creature takes **no damage** from the fall, and the spell ends for that
     // creature."
     //
-    // **The same word decides both halves.** "Unless you avoid taking damage
-    // from the fall" is what makes a warded creature land on its feet, so this
-    // branch is above the dice rather than a subtraction after them: nothing
-    // is thrown, because "no damage" is not a roll that came to nothing, and
-    // the generator does not move for a landing that cost nothing.
+    // **The landing is what ends it, not the damage**, which is why this is
+    // the first branch and not the second: a warded creature that comes down
+    // four feet has landed, and a ward left standing there would be a spell
+    // that goes on paying for every later fall of a minute it has already
+    // spent. The clause the engine can see is the landing, and the engine sees
+    // one here whatever the height came to.
     //
-    // And the spell ends **on that creature**, through the door a repeat save
-    // already uses — the other four the casting caught are still falling, and
+    // **And nothing is thrown**, because "no damage" is not a roll that came
+    // to nothing: the branch is above the dice rather than a subtraction after
+    // them, so the generator does not move for a landing that cost nothing.
+    // The lander is left standing for the other half of SRD's own sentence —
+    // "**unless** you avoid taking damage from the fall ... You **then** have
+    // the Prone condition."
+    //
+    // The spell ends **on that creature**, through the door a repeat save
+    // already uses: the other four the casting caught are still falling, and
     // it is still holding them.
     const warded = wardsAgainstFalling(state, id);
     if (warded.length > 0) {
@@ -2111,6 +2134,17 @@ export function resolveFall(
         events: [...descent, ...ended],
         unverified: dropped.value.unverified,
       });
+    }
+
+    const count = fallDamageDice(feet);
+    // SRD ties the two halves together in one word: "**unless** you avoid
+    // taking damage from the fall ... You **then** have the Prone condition."
+    // A drop too short to cost a die is a drop nobody lands badly from, so
+    // there is nothing to record and a retry recomputes the same nothing —
+    // except that a flier who came down from four feet is on the ground now,
+    // and the descent says so.
+    if (count === 0) {
+      return ok({ ...nothing(false), events: descent, unverified: dropped.value.unverified });
     }
 
     const dice = `${count}d6`;

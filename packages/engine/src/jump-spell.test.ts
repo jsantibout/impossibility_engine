@@ -267,8 +267,11 @@ describe('the distance the spell bounds', () => {
     );
     expect(g.leap(BARBARIAN, at(BARBARIAN_AT + 30), { running: true }).ok).toBe(true);
     // And the allowance is untouched: a jump the creature could make on its
-    // own must not quietly spend the once a turn the spell bought.
+    // own must not quietly spend the once a turn the spell bought. Asserted
+    // against a list that is *there* — `takenOnTurn` on an empty list is
+    // undefined too, and would have passed for the wrong reason.
     g.leapt(BARBARIAN, at(BARBARIAN_AT + 30), { running: true });
+    expect(g.allowances(BARBARIAN)).toHaveLength(1);
     expect(g.allowances(BARBARIAN)[0]?.takenOnTurn).toBeUndefined();
   });
 });
@@ -317,13 +320,19 @@ describe('the ten feet the jump costs', () => {
 // — the cap ———————————————————————————————————————————————————————————————————
 
 describe('once on each of its turns', () => {
-  it('refuses a second bought jump on the same turn', () => {
+  it('refuses a second bought jump on the same turn, and says why', () => {
     const g = new Game();
     g.cast();
     g.fight().to(WIZARD);
     g.leapt(WIZARD, at(WIZARD_AT - 30));
     const refused = g.leap(WIZARD, at(WIZARD_AT - 60));
     expect(isErr(refused) ? refused.code : 'ok').toBe('jump_too_far');
+    // **The reason names the spell, not only the legs.** A refusal that said
+    // nothing but "your standing Long Jump covers 4 feet" would hide the thirty
+    // the caster paid a slot for, and the once a turn they have just spent.
+    expect(isErr(refused) ? refused.reason : '').toContain(
+      'reaches 30 feet and has already been taken this turn',
+    );
   });
 
   it('records which turn it was taken on', () => {

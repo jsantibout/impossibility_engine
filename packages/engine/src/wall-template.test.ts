@@ -260,6 +260,38 @@ describe('a path the spell does not permit', () => {
     expect(isErr(out) ? out.code : 'ok').toBe('no_wall_path');
   });
 
+  /**
+   * A wall has no direction to point, and every other template has no path to
+   * be drawn along. Both are stated facts nothing would read, which is the
+   * defect `not_directional` already refuses from the other side.
+   */
+  it('refuses a direction stated beside a wall', () => {
+    const out = resolveSpell(
+      state(),
+      DRUID,
+      { spellId: 'wind-wall', targets: [], path: CORNER, towards: at(300, 200), slotLevel: 3 },
+      supply(),
+    );
+    expect(isErr(out) ? out.code : 'ok').toBe('not_directional');
+  });
+
+  it('refuses a path stated for a template that is not drawn', () => {
+    const out = resolveSpell(
+      fold('s', [
+        ...TABLE,
+        {
+          type: 'spellcasting-declared',
+          id: DRUID,
+          spellcasting: declaredCasting({ ability: 'wis', prepared: ['wind-wall', 'fireball'] }),
+        },
+      ]),
+      DRUID,
+      { spellId: 'fireball', targets: [], at: at(260, 200), path: CORNER, slotLevel: 3 },
+      supply(),
+    );
+    expect(isErr(out) ? out.code : 'ok').toBe('area_is_not_drawn');
+  });
+
   /** Every refusal is free: a wall nobody could draw costs no slot. */
   it('spends nothing on a path it refuses', () => {
     const before = state();

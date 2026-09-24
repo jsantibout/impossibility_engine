@@ -376,6 +376,38 @@ describe('a warded creature pays nothing for landing', () => {
     expect(spellOn(after, record!)).toEqual([THUG]);
   });
 
+  /**
+   * **A short landing is still a landing**, which is the clause the ending
+   * hangs on: SRD ends the spell "if a creature **lands** before the spell
+   * ends", and says nothing about how far it fell. A drop of five feet costs
+   * nothing whoever takes it, so the only observable half is the ending — and
+   * a ward left standing there would be a spell going on paying for every
+   * later fall of a minute it had already spent.
+   */
+  it('ends the spell for a creature that lands from a drop too short to hurt', () => {
+    const log = warded();
+    const landed = unwrap(
+      resolveFall(fold('s', log), CLIMBER, { feet: 5 }, supply()),
+      'a short landing',
+    );
+    expect(landed.damage).toBe(0);
+    expect(
+      landed.events.filter((event) => event.type === 'spell-ended' && event.on === CLIMBER),
+    ).toHaveLength(1);
+    expect(fold('s', [...log, ...landed.events]).creatures[CLIMBER]?.fallWards).toEqual([]);
+  });
+
+  /** And an unwarded short landing still ends nothing and costs nothing. */
+  it('leaves a short landing alone where no ward was hung', () => {
+    const log = falls(FIGHTING);
+    const landed = unwrap(
+      resolveFall(fold('s', log), CLIMBER, { feet: 5 }, supply()),
+      'a short landing',
+    );
+    expect(landed.damage).toBe(0);
+    expect(landed.events.filter((event) => event.type === 'spell-ended')).toEqual([]);
+  });
+
   /** The control: a faller nobody warded pays the book's price. */
   it('leaves an unwarded faller paying the dice', () => {
     const landed = land(falls(FIGHTING));
