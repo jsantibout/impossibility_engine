@@ -35,6 +35,7 @@ import {
   lightAt,
   positionOf,
   resolveAttack,
+  resolveAttackDamage,
   resolveMove,
   type CharacterChoices,
   type CharacterSheet,
@@ -337,6 +338,35 @@ describe('SRD Sacred Weapon: "it deals its normal damage type or Radiant damage"
     const refused = swing(field(), 'longsword', { [SACRED_WEAPON]: 'radiant' });
     expect(isErr(refused)).toBe(true);
     if (isErr(refused)) expect(refused.code).toBe('no_such_feature_choice');
+  });
+
+  /**
+   * **And on the far side of a hold**, which is where the choice belongs for a
+   * held blow: the type is named when the damage is rolled rather than when it
+   * landed, so a Shield the ghoul answered with never reaches the question.
+   */
+  it('takes the type at the settlement of a held hit', () => {
+    const log = [...imbued()];
+    const held = unwrap(
+      resolveAttack(
+        fold(SEED, log),
+        ARDAN,
+        { target: GHOUL, weapon: 'longsword', free: true, hold: true },
+        supply(fold(SEED, log)),
+      ),
+      'a held swing',
+    );
+    const landed = [...log, ...held.events];
+    const settled = unwrap(
+      resolveAttackDamage(
+        fold(SEED, landed),
+        ARDAN,
+        { featureDamageTypes: { [SACRED_WEAPON]: 'radiant' } },
+        supply(fold(SEED, landed)),
+      ),
+      'settling the hold',
+    );
+    expect(typesOf(settled.events)).toEqual(['radiant']);
   });
 
   /** "one **Melee** weapon": the Shortbow is not one, so it is offered nothing. */
