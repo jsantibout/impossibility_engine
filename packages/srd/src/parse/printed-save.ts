@@ -62,6 +62,17 @@
  * effect that would never end is refused; one that ends later than the book
  * says is applied and the difference is handed to the table.
  *
+ * **A sentence may name a lifetime that is another clause's**, and two of them
+ * do. "While Poisoned, the target has the Paralyzed condition" is read onto
+ * the clause it is about, because a condition carried by a cause is exactly
+ * what `ConditionInstance.impliedBy` means. "While Deafened, the target also
+ * has Disadvantage on ability checks and attack rolls" cannot be — a mode is
+ * not something a condition implies — so it is a clause of its own that
+ * *names* its host, and the executor sources the grant to that condition's
+ * instance. Either way the host must be a condition **this failure imposed**:
+ * one that is not there is a lifetime that is not there, and the sentence is
+ * handed over whole.
+ *
  * **A failure may also branch on the target's Hit Points**, which is the one
  * shape here whose two sentences are one rule: "If the target has 20 Hit
  * Points or fewer, it drops to 0 Hit Points. Otherwise, the target takes 13
@@ -84,6 +95,7 @@ import type {
 } from '../schemas.js';
 
 type ConditionEffect = Extract<PrintedSaveEffect, { kind: 'condition' }>;
+type RollModeEffect = Extract<PrintedSaveEffect, { kind: 'roll-mode' }>;
 
 /** The engine's damage types, so a word in the damage slot that is not one refuses the line. */
 const DAMAGE_TYPES: ReadonlySet<string> = new Set([
@@ -129,6 +141,22 @@ const CONDITIONS: Readonly<Record<string, ConditionEffect['condition']>> = {
   Stunned: 'stunned',
   Unconscious: 'unconscious',
 };
+
+/**
+ * The rolls a mode clause may name, by the book's own nouns.
+ *
+ * The glossary's three, which is what `disadvantage-in-sunlight` reads out of
+ * the same words one section up — "D20 Tests encompass the three main d20
+ * rolls of the game: ability checks, attack rolls, and saving throws."
+ */
+const ROLLS: Readonly<Record<string, RollModeEffect['rolls'][number]>> = {
+  'ability checks': 'ability-check',
+  'attack rolls': 'attack-roll',
+  'saving throws': 'saving-throw',
+};
+
+/** The alternation {@link WHILE_CONDITION_MODE} matches one roll noun with. */
+const ROLL_WORDS = `(?:${Object.keys(ROLLS).join('|')})`;
 
 const SIZES: Readonly<Record<string, NonNullable<ConditionEffect['ifNoLargerThan']>>> = {
   Tiny: 'tiny',
@@ -225,6 +253,24 @@ const UNTIL_GRAPPLE_ENDS = new RegExp(
  */
 const WHILE_CONDITION =
   /^While ([A-Z][a-z]+), (?:the target|the creature|it) (?:also )?has the ([A-Z][a-z]+) condition(?:, (.+))?$/;
+/**
+ * SRD Swarm of Ravens: "While Deafened, the target also has Disadvantage on
+ * ability checks and attack rolls."
+ *
+ * The same sentence as {@link WHILE_CONDITION} over a **mode** instead of a
+ * condition, and it names its lifetime the same way — the condition this
+ * failure already imposed. So it is read the same way too: the host must be
+ * found among the clauses read so far, and a sentence about a condition the
+ * line did not impose is handed over rather than left hanging on nothing.
+ *
+ * It does not amend the host clause, because a mode is not something a
+ * condition *implies*: `ConditionInstance.impliedBy` carries conditions, and
+ * what this needs is a grant sourced to the instance. That is a clause of its
+ * own, naming its host.
+ */
+const WHILE_CONDITION_MODE = new RegExp(
+  `^While ([A-Z][a-z]+), (?:the target|the creature|it) (?:also )?has (Advantage|Disadvantage) on (${ROLL_WORDS}(?:,? and ${ROLL_WORDS})*)$`,
+);
 /** SRD Lamia: "the target is cursed for 1 hour." */
 const CURSED = /^[Tt]he target is cursed (for \d+ (?:hour|minute)s?)$/;
 /**
@@ -501,6 +547,35 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
       (effect) => effect.escapeDc !== undefined,
       (last) => alsoImplies(last, name),
     );
+  }
+
+  // Before `WHILE_CONDITION`, which would fail to find "the … condition" in
+  // this sentence and refuse it. Two readings of one opening, told apart by
+  // what follows the verb.
+  const whileMode = WHILE_CONDITION_MODE.exec(words);
+  if (whileMode !== null) {
+    const host = CONDITIONS[whileMode[1]!];
+    if (host === undefined) return false;
+    // The host must be a condition **this failure imposed**: the instance is
+    // the whole of the mode's lifetime, so one named on a condition that is
+    // not there would be a Disadvantage nothing ever lifts. The same answer
+    // `WHILE_CONDITION` gives, one clause down.
+    if (!into.effects.some((effect) => effect.kind === 'condition' && effect.condition === host)) {
+      return false;
+    }
+    const rolls: RollModeEffect['rolls'][number][] = [];
+    for (const word of whileMode[3]!.split(/,? and /)) {
+      const roll = ROLLS[word];
+      if (roll === undefined) return false;
+      if (!rolls.includes(roll)) rolls.push(roll);
+    }
+    into.effects.push({
+      kind: 'roll-mode',
+      mode: whileMode[2] === 'Advantage' ? 'advantage' : 'disadvantage',
+      rolls,
+      whileCondition: host,
+    });
+    return true;
   }
 
   const whileSo = WHILE_CONDITION.exec(words);

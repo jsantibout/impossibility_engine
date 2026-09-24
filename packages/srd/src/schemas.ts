@@ -391,6 +391,9 @@ export type PrintedSpan = z.infer<typeof PrintedSpanSchema>;
  * - `speed-decrease`: "the target's Speed decreases by 10 feet until…".
  * - `hit-point-maximum-decrease`: "the target's Hit Point maximum decreases
  *   by an amount equal to the damage taken".
+ * - `roll-mode`: "While Deafened, the target also has Disadvantage on ability
+ *   checks and attack rolls" — a mode whose lifetime is the condition instance
+ *   the same failure imposed.
  */
 /** The conditions a printed clause may name, by the engine's own keys. */
 export const PrintedConditionSchema = z.enum([
@@ -479,6 +482,65 @@ const PRINTED_SAVE_CLAUSES = [
     lasts: PrintedSpanSchema,
   }),
   z.object({ kind: z.literal('hit-point-maximum-decrease'), by: z.literal('damage-taken') }),
+  /**
+   * SRD Swarm of Ravens: "The target has the Deafened condition until the
+   * start of the swarm's next turn. **While Deafened, the target also has
+   * Disadvantage on ability checks and attack rolls.**"
+   *
+   * A mode hung on the creature, and the one thing about it that is not the
+   * mode every other door grants is **how long it lasts**: the sentence names
+   * no span at all. What it names is a condition, and not the condition in
+   * general — the one *this failure* just imposed. So the lifetime is that
+   * condition instance's, and {@link whileCondition} is how the clause says
+   * which: the executor sources the grant to the instance id, and the instance
+   * lifting takes it, whether the printed span ran out or a cure lifted it
+   * early.
+   *
+   * **No `lasts` beside it**, and the absence is the rule rather than a field
+   * nobody needed yet. A mode with a span of its own and a mode with a host
+   * are two different sentences, and the corpus prints only the second in this
+   * position: the other lines that put Disadvantage on a save's failure narrow
+   * it to something no selector holds — SRD Gold Dragon Wyrmling's
+   * "Strength-based D20 Tests", the Adult Green Dragon's saves "to maintain
+   * Concentration" — and stay prose whole.
+   */
+  z.object({
+    kind: z.literal('roll-mode'),
+    /**
+     * Advantage or Disadvantage, as the sentence prints it.
+     *
+     * Both, although the corpus prints only Disadvantage in this position:
+     * the two words are one grammar and {@link PrintedConditionSchema} sets
+     * the precedent of typing the closed vocabulary rather than only the
+     * members some line happens to use.
+     */
+    mode: z.enum(['advantage', 'disadvantage']),
+    /**
+     * Which of the holder's own rolls the sentence names, in the order it
+     * prints them.
+     *
+     * The book's three nouns, exactly as `disadvantage-in-sunlight` above
+     * spells them and for the same reason: this package knows nothing of the
+     * engine's `RollFamily`, and the executor is where the two vocabularies
+     * meet.
+     *
+     * **The holder's rolls and not rolls against them.** Every sentence the
+     * corpus prints here says what the *target* has Disadvantage on; a line
+     * that gave attackers Advantage against it would be the other relation and
+     * would need a field to say so.
+     */
+    rolls: z.array(z.enum(['ability-check', 'attack-roll', 'saving-throw'])).min(1),
+    /**
+     * The condition in the **same failure** whose instance this lives on.
+     *
+     * Required, because it is the whole of the lifetime: a mode with no host
+     * and no span would be a Disadvantage nothing ever lifts. The reader
+     * refuses the sentence where the clause names a condition this failure did
+     * not impose, and so does the executor where the condition did not land —
+     * an immune target has no instance to hang it on.
+     */
+    whileCondition: PrintedConditionSchema,
+  }),
   /**
    * SRD Will-o'-Wisp: "_Failure:_ The target dies, and the wisp regains 10
    * (3d6) Hit Points."
