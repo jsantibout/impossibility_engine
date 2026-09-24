@@ -65,6 +65,7 @@ const added = (
   who: CharacterId,
   creatureType = 'Humanoid',
   size?: CreatureSize,
+  cr?: number,
 ): GameEvent => ({
   type: 'creature-added',
   id: who,
@@ -74,6 +75,11 @@ const added = (
   diesAtZero: false,
   creatureType,
   ...(size === undefined ? {} : { size }),
+  // **And a Challenge Rating where the spell reads one.** A creature nobody
+  // has rated is *asked* about rather than read as a zero, which is the
+  // engine working — so the rating is stated here for the same reason the
+  // type and the size are, and only for the spells that read one.
+  ...(cr === undefined ? {} : { cr }),
 });
 
 /** Every slot level, so any spell in the catalogue can actually be paid for. */
@@ -97,11 +103,22 @@ const slots: GameEvent[] = Array.from({ length: 9 }, (_, i) => ({
  * force: SRD Animal Messenger takes "a Tiny Beast", the refusal of a Wolf is
  * the behaviour rather than an obstacle, and a fixture that could not be Tiny
  * would have excused the spell from a rule it prints.
+ *
+ * **And whatever Challenge Rating it reads.** The same spell spares "a target
+ * whose Challenge Rating isn't 0" and the engine asks about a creature nobody
+ * has rated rather than calling it a 0 — so a fixture aiming a spell that
+ * reads a rating states one, and the rating it states is the SRD Raven's 0,
+ * which is the Tiny Beast the sentence is written about and the only rating
+ * that leaves the die anything to decide.
  */
-const setupWith = (targetType: string, targetSize?: CreatureSize): readonly GameEvent[] => [
+const setupWith = (
+  targetType: string,
+  targetSize?: CreatureSize,
+  targetCr?: number,
+): readonly GameEvent[] => [
   added(CASTER),
-  added(TARGET, targetType, targetSize),
-  added(BYSTANDER, targetType, targetSize),
+  added(TARGET, targetType, targetSize, targetCr),
+  added(BYSTANDER, targetType, targetSize, targetCr),
   ...slots,
   // A Club and a Quarterstaff apiece, for the spells that imbue **one weapon**
   // and are refused until the caster names one the target has got. Those two
@@ -175,11 +192,24 @@ const logFor = (spellId: string): readonly GameEvent[] => {
   const definition = SRD_CONTENT.spell(spellId);
   const wanted = definition?.targets.mustBeType;
   const sized = definition?.targets.mustBeSize;
+  // **And a rating, where a save of this spell's spares a creature by one.**
+  // Derived from the effect rather than listed by spell id, as the corpse, the
+  // Attunement and the object below are: the next definition whose own effect
+  // list reads a Challenge Rating needs no line here. A branch's list is not
+  // read, and that is the stated limit rather than an oversight — no
+  // definition prints this clause under a `SpellOption`, and the day one does
+  // it fails here rather than being quietly excused.
+  const rated = (definition?.effects ?? []).some(
+    (effect) =>
+      effect.kind === 'save' &&
+      effect.autoSucceedIf !== undefined &&
+      'challengeRatingAbove' in effect.autoSucceedIf,
+  );
 
   const typed: readonly GameEvent[] =
-    wanted === undefined && sized === undefined
+    wanted === undefined && sized === undefined && !rated
       ? SETUP
-      : setupWith(wanted ?? 'Humanoid', sized);
+      : setupWith(wanted ?? 'Humanoid', sized, rated ? 0 : undefined);
 
   // **And a target who has died**, where the spell raises one. SRD Revivify
   // touches "a creature that has died within the last minute" and refuses a

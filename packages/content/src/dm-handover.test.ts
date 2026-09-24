@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
+import type { CreatureSize } from '@ie/srd/schemas';
 import {
   advanceTime,
   createRng,
@@ -134,6 +135,7 @@ const ATOMIC: readonly string[] = HANDING_OVER.filter(
 const id = (s: string) => asCharacterId(s);
 const CLERIC = id('cleric');
 const SLEEPER = id('sleeper');
+const RAVEN = id('raven');
 
 const sheet = (): CharacterSheet => ({
   level: 13,
@@ -147,7 +149,24 @@ const sheet = (): CharacterSheet => ({
   spellcastingAbility: 'wis',
 });
 
-const added = (who: CharacterId): GameEvent => ({
+/**
+ * A creature this table can aim a spell at.
+ *
+ * The type, the size and the Challenge Rating are all stated rather than left
+ * out, for the reason `spell-catalogue.test.ts` and `spell-tracking.test.ts`
+ * state them: a target rule that checks one of the three is the spell working,
+ * and a fixture that could not satisfy it would have excused the spell from a
+ * rule it prints. A creature nobody has rated is *asked* about rather than
+ * read as a 0, so a rating is a fact a fixture says out loud.
+ */
+const added = (
+  who: CharacterId,
+  over: {
+    readonly creatureType?: string;
+    readonly size?: CreatureSize;
+    readonly cr?: number;
+  } = {},
+): GameEvent => ({
   type: 'creature-added',
   id: who,
   name: who,
@@ -155,11 +174,18 @@ const added = (who: CharacterId): GameEvent => ({
   maxHp: 60,
   diesAtZero: false,
   creatureType: 'Humanoid',
+  ...over,
 });
 
 const SETUP: readonly GameEvent[] = [
   added(CLERIC),
   added(SLEEPER),
+  // **The SRD Raven**, which is what a Tiny Beast is: Beast, Tiny, and rated
+  // at nothing. SRD Animal Messenger takes "a Tiny Beast of your choice" and
+  // spares one whose Challenge Rating is not 0, so the three facts its target
+  // rule and its save read are all here — and 0 is the one rating that leaves
+  // the die something to decide.
+  added(RAVEN, { creatureType: 'Beast', size: 'tiny', cr: 0 }),
   // Every level the handed-over spells are cast at. The sweep widened the
   // population from three level-5-and-7 rites to eleven spells between level 2
   // and level 9; P3-S6 widened it again, to every tracked spell in level-5
@@ -187,7 +213,13 @@ const SETUP: readonly GameEvent[] = [
     id: SLEEPER,
     placement: { from: { creature: CLERIC }, feet: 5, bearing: 0 },
   },
+  {
+    type: 'creature-placed',
+    id: RAVEN,
+    placement: { from: { creature: CLERIC }, feet: 5, bearing: 90 },
+  },
   { type: 'sight-declared', from: CLERIC, to: SLEEPER, seen: true },
+  { type: 'sight-declared', from: CLERIC, to: RAVEN, seen: true },
   {
     type: 'spellcasting-declared',
     id: CLERIC,
@@ -203,6 +235,39 @@ const SETUP: readonly GameEvent[] = [
 ];
 
 /**
+ * Which body a target rule accepts, where it names one.
+ *
+ * Every spell here but one takes whoever is standing there; SRD Animal
+ * Messenger takes "a Tiny Beast of your choice", and the refusal of the
+ * Humanoid is the target rule working rather than an obstacle — so the fixture
+ * aims at the creature the rule accepts rather than the spell being excused
+ * the check. Keyed by the facts the rule states, the type and the type and
+ * size together, exactly as `spell-tracking.test.ts` keys the same choice; and
+ * the lookup throws for a pair nobody added, because a fixture quietly aiming
+ * at the wrong creature is how a refusal becomes the fixture's rather than the
+ * spell's.
+ */
+const TYPED: Readonly<Record<string, CharacterId>> = { Humanoid: SLEEPER, Beast: RAVEN };
+const SIZED: Readonly<Record<string, CharacterId>> = { 'Beast/tiny': RAVEN };
+
+const bodyFor = (definition: (typeof SPELL_DEFINITIONS)[number]): CharacterId => {
+  const wanted = definition.targets.mustBeType;
+  const sized = definition.targets.mustBeSize;
+  const at =
+    sized !== undefined
+      ? SIZED[`${wanted ?? 'Humanoid'}/${sized}`]
+      : wanted === undefined
+        ? SLEEPER
+        : TYPED[wanted];
+  if (at === undefined) {
+    throw new Error(
+      `${definition.id} wants a ${sized === undefined ? '' : `${sized} `}${wanted ?? 'creature'} and this table has none`,
+    );
+  }
+  return at;
+};
+
+/**
  * What one casting of a handing-over definition is aimed at.
  *
  * Derived from the definition rather than listed by spell id, for the reason
@@ -212,12 +277,15 @@ const SETUP: readonly GameEvent[] = [
  *
  * Four facts and no more, because no definition in this population prints a
  * stated choice or a printed branch: whether it aims at anybody, which body it
- * aims at, whether it asks about consent, and — since SRD Silence joined the
- * population — where a volume the caster places goes.
+ * aims at — {@link bodyFor}, since a target rule here names a type and a size
+ * — whether it asks about consent, and, since SRD Silence joined the
+ * population, where a volume the caster places goes.
  */
 const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
   const targets =
-    definition.targets.count === 0 ? [] : [definition.targets.self === true ? CLERIC : SLEEPER];
+    definition.targets.count === 0
+      ? []
+      : [definition.targets.self === true ? CLERIC : bodyFor(definition)];
   return {
     targets,
     // **An area the caster puts somewhere needs the point.** A `self` origin
@@ -291,6 +359,16 @@ describe('the catalogue hands over exactly the text it means to', () => {
   it('is the three the ruling named, the eight the sweep found and P3-S6’s reading', () => {
     expect([...HANDING_OVER].sort()).toEqual([
       'alarm',
+      // **The forty-seventh, and the second that is not a spell the engine
+      // merely records.** SRD Animal Messenger's one mechanical sentence is
+      // executed — a Charisma saving throw whose whole content is its verdict,
+      // with a Beast the book rates above 0 spared before the die is read —
+      // and everything else it prints is the errand: the place, the recipient
+      // "who matches a general description", the twenty-five words, the miles
+      // a day, and the Beast coming home with the message lost. None of that
+      // is a mechanism the engine is missing; it is the table's, and it goes
+      // out of every casting in the book's own words.
+      'animal-messenger',
       'arcane-lock',
       'augury',
       'clairvoyance',
@@ -620,7 +698,7 @@ const spentItsSlot = (
 const standsAfterwards = (definition: (typeof SPELL_DEFINITIONS)[number]): boolean =>
   definition.durationSeconds !== undefined || definition.untilDispelled === true;
 
-describe('each of the forty-six is cast, and hands its own text to the table', () => {
+describe('each of the forty-seven is cast, and hands its own text to the table', () => {
   it.each(LONG.map((s) => [s] as const))(
     'carries every printed sentence of %s out of the casting',
     (spellId) => {
@@ -683,7 +761,21 @@ describe('each of the forty-six is cast, and hands its own text to the table', (
     const out = atomic(spellId);
     const after = fold('seed', out.log);
     spentItsSlot(after.creatures.cleric!.resources, definition);
-    expect(out.cast.outcomes).toEqual([]);
+    // **Nothing landed on anybody**, which was every one of these while an
+    // atomic handover was a casting whose whole content was the text it hands
+    // over. Animal Messenger is the exception and is the honest kind: its one
+    // effect is a save whose whole content is its verdict, so the die is
+    // rolled, the answer about the Beast comes back in the casting's own
+    // outcomes, and nothing is written anywhere for it to be read off later.
+    // The verdict itself is not pinned here — what this file is about is that
+    // the spell casts and hands its text over — and `verdict-only-save.test.ts`
+    // is where the mark's own behaviour is driven.
+    if (definition.effects.length === 0) {
+      expect(out.cast.outcomes).toEqual([]);
+      return;
+    }
+    expect(out.cast.outcomes.map((one) => one.target)).toEqual([bodyFor(definition)]);
+    expect(out.cast.outcomes[0]?.save?.roll).toBeDefined();
   });
 
   /**
