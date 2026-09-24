@@ -691,7 +691,7 @@ overlap: one sentence can force a save and recharge.
 | A save a line forces | 23 | 23 | Brass Dragon Wyrmling (CR 1) / Sleep Breath; Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6) |
 | An effect a hit buys | 20 | 20 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Black Pudding (CR 4) / Dissolving Pseudopod |
 | A use the block limits per day | 16 | 15 | Couatl (CR 4) / Divine Aid (2/Day); Cultist Fanatic (CR 2) / Spiritual Weapon (2/Day); Darkmantle (CR 0.5) / Darkness Aura (1/Day) |
-| A save whose line says more than the engine spends | 11 | 11 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Dretch (CR 0.25) / Fetid Cloud (1/Day); Ghost (CR 4) / Horrific Visage |
+| A save whose line says more than the engine spends | 10 | 10 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Dretch (CR 0.25) / Fetid Cloud (1/Day); Ghost (CR 4) / Horrific Visage |
 | A recharge | 6 | 6 | Blink Dog (CR 0.25) / Teleport (Recharge 4–6); Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ettercap (CR 2) / Web Strand (Recharge 5–6) |
 | A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |

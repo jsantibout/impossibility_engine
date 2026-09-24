@@ -70,10 +70,8 @@ import {
 import { creatureOf, unknownCreature } from './command.js';
 import {
   adjustmentsFor,
-  droppedToZeroBy,
   heldDamageTotal,
   reactionContributions,
-  rewardsForDropping,
   rollsIssuedSince,
   spendReactionCost,
   standingReductionOf,
@@ -379,6 +377,12 @@ export function settleDamage(
 
     const all = [...events, ...dealt.value.events];
 
+    // **What the funnel could not settle, on its way through.** SRD Dark One's
+    // Blessing is paid inside `resolveDamage` now — this road used to ask for
+    // itself, one call of three — and what it could not check comes back the
+    // same way, beside an Undead Fortitude thrown against a blow with no type.
+    const unverified: string[] = [...dealt.value.unverified];
+
     // **What the blow still owed, now that the defender has answered.** The
     // rider was held here rather than resolved at the swing precisely so that
     // a Stunning Strike could not close the window it had just opened — and it
@@ -396,7 +400,6 @@ export function settleDamage(
     // The refusal above it is a different thing and stays: `resolveDamage` is
     // the damage itself, and a settlement that could not deal the damage has
     // not settled anything to close the window over.
-    const unverified: string[] = [];
     const riderEvents: GameEvent[] = [];
     if (pending.rider !== undefined) {
       const bought = applyHitRider(
@@ -431,19 +434,20 @@ export function settleDamage(
       }
     }
 
-    // **And what the blow bought whoever was watching it.** SRD Dark One's
-    // Blessing reads the outcome rather than the swing, so it is asked here
-    // too: `dealSpellDamage` is the other road to a creature reaching 0, and a
-    // reader wired into one of them would be a rule that stops working the
-    // moment somebody answers with a Reaction. It fires after the rider, on
-    // the world the whole settlement has already made.
-    const world = [...all, ...riderEvents].reduce(applyEvent, state);
-    const spoils = droppedToZeroBy(state, world, pending.target)
-      ? rewardsForDropping(world, pending.target, pending.by)
-      : { events: [], unverified: [] };
-    unverified.push(...spoils.unverified);
-
-    const settled = [...all, ...riderEvents, ...spoils.events];
+    // **And what the blow bought whoever was watching it is already in `all`.**
+    // SRD Dark One's Blessing reads the outcome rather than the swing, and this
+    // road used to ask for itself; it is asked at `resolveDamage` now, which is
+    // the funnel a spell's damage and a DM's adjudicated amount share with this
+    // one.
+    //
+    // **So the spoils arrive with the damage rather than after the rider, and
+    // that is the more faithful reading rather than a consequence to live
+    // with.** "Within 10 feet of you" is measured at the moment the enemy is
+    // reduced to 0 Hit Points, and a rider can move somebody afterwards — a
+    // hit's `shove` rider pushes a creature across the floor — so asking after
+    // the rider was asking about a room the sentence had already finished
+    // with. The question is now put at the instant the sentence names.
+    const settled = [...all, ...riderEvents];
 
     return ok({
       // A move that was waiting on an Opportunity Attack whose damage was held

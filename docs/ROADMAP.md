@@ -1738,10 +1738,14 @@ Appended after wave five's first two tracks (2026-09-24):
   is the question, refused `area_choice_required` like every other
   `*_required` — reading silence as "nobody" would have made every Sleep
   written before the clause affect no one. Entangle is whole (its Difficult
-  Terrain is `areaTerrain`, as Web's is). **Ruled and in flight (W5-B):**
+  Terrain is `areaTerrain`, as Web's is). **Ruled and merged (W5-B):**
   Blinded answers no to every sight question as the looker, Blindsight in
-  range excepted, and the condition outranks a declared line; `eligibleTargets`
-  learns an area's catch.
+  range excepted, and the condition outranks a declared line — the one place a
+  declaration loses, because a declaration is for what the engine cannot
+  know; a creature still sees itself. `eligibleTargets` answers an area
+  through the catch itself and, where it cannot place the template, asks for
+  the fields that would place *that* one (`eligible_targets` publishes
+  `at` / `towards`).
 - **At 0 Hit Points**: `hit-points-dropped-to-zero` is a drop that is not
   damage (Temporary Hit Points untouched, no damage reader fires — the Sea
   Hag's glare), a printed failure may **branch** on the target's Hit Points
@@ -1770,3 +1774,22 @@ Appended after wave five's first two tracks (2026-09-24):
   twin of `lapsedGrapples` (a dead attacher leaves its cover standing), and
   neither detach nor `escapeGrapple` has a tool door — a table through
   `@ie/tools` can be attached and cannot detach.
+- **Every road reports, and every road pays the watcher.** `resolveDamage` is
+  the one true funnel (`damage-taken` is emitted in one place, called from
+  one place) and now asks what the fall owed; `commands/drop-rewards.ts`
+  holds the reader so no module cycle forms. Eleven callers of the spell-
+  damage road thread its `unverified`; `TurnResolution` carries one;
+  `roll_improvised_damage` and `end_turn` publish it. Three reachable roads
+  are wired but untested (Sear Undead, Fire Shield, Searing Smite's burn) —
+  a coverage brief; `payCastingDamageCost` still drops its report, said
+  where it happens.
+- **A grant may live as long as one condition instance does**, by being
+  sourced to the instance's id and released at both doors a condition leaves
+  by — no new event, state or deadline kind. The Ravens' Cacophony reads
+  whole. **Ruled, from the track's escalation:** `ActionRule` gains a fifth
+  member, `one-of` over a *list* of slots ("spending any one forecloses the
+  rest"), because SRD Ice Devil couples movement with the action where the
+  Dretch, the Copper Wyrmling and Slow couple the action with the Bonus
+  Action; the spender reads the budget it already holds. In flight as W5-E,
+  which retires `a-rule-that-couples-two-slots-of-a-turn` and carries
+  `speed-halved` with it.

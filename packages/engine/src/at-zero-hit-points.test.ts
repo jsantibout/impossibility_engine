@@ -37,7 +37,9 @@ import {
   resolveAttack,
   resolveDamage,
   resolveSpell,
+  resolveTurn,
   setScene,
+  settleDamage,
 } from './commands.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
@@ -53,6 +55,7 @@ const ALLY = id('rook');
 const ADJACENT = id('grish');
 const NEAR = id('snik');
 const FAR = id('pip');
+const THIEF = id('nyx');
 
 /** A Warlock 3 of the Fiend with Charisma 16: the modifier is +3 and the level is 3. */
 const kael = (): CharacterChoices => ({
@@ -74,7 +77,7 @@ const kael = (): CharacterChoices => ({
   subclassId: 'fiend-patron',
   cantrips: ['eldritch-blast', 'chill-touch'],
   spellbook: [],
-  preparedSpells: ['hex', 'charm-person', 'hold-person', 'mind-spike'],
+  preparedSpells: ['hex', 'hellish-rebuke', 'hold-person', 'mind-spike'],
   classEquipment: 'A',
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
@@ -89,6 +92,51 @@ const kael = (): CharacterChoices => ({
       levelOneSpell: 'bless',
     },
     'human:versatile': { featId: 'alert' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+});
+
+/**
+ * A Rogue 5, who is here for one sentence: SRD Uncanny Dodge holds a blow open
+ * while its target decides. Nothing else in this file opens a damage window,
+ * and the held road is the one whose event order this file is about.
+ */
+const nyx = (): CharacterChoices => ({
+  name: 'Nyx',
+  classId: 'rogue',
+  level: 5,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 8, dex: 15, con: 13, int: 14, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { con: 2, int: 1 },
+  classSkills: ['stealth', 'sleight-of-hand', 'acrobatics', 'investigation'],
+  languages: ['Dwarvish', 'Orc'],
+  alignment: 'Neutral',
+  subclassId: 'thief',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: [],
+  hitPoints: { method: 'fixed' },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'rogue:expertise': ['stealth', 'sleight-of-hand'],
+  },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'light'],
+      levelOneSpell: 'find-familiar',
+    },
+    'human:versatile': { featId: 'alert' },
+    'rogue:ability-score-improvement': { featId: 'savage-attacker' },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
 });
@@ -439,6 +487,29 @@ function swing(state: GameState, target: CharacterId, tag: string) {
   throw new Error(`no seed dropped ${target}`);
 }
 
+/**
+ * The Warlock's own cantrip, on the first seed whose beam connects.
+ *
+ * A spell's damage rather than a weapon's: the same fall, reached down the
+ * road a casting takes, which is the other half of "every road" and the one a
+ * Fireball would take if a Warlock 3 had one.
+ */
+function zap(state: GameState, target: CharacterId, tag: string) {
+  for (const seed of SEEDS) {
+    const out = unwrap(
+      resolveSpell(
+        state,
+        WARLOCK,
+        { spellId: 'eldritch-blast', targets: [target], commandId: `${tag}-${seed}` },
+        supply(`${tag}-${seed}`),
+      ),
+      'a beam',
+    );
+    if (after(state, out.events).creatures[target]!.vitals.hp === 0) return out;
+  }
+  throw new Error(`no seed dropped ${target} with a beam`);
+}
+
 /** Round the initiative order until the hag is up, so she may spend her Action. */
 function untilTheHag(state: GameState): GameState {
   let current = state;
@@ -472,6 +543,229 @@ function glare(before: GameState, target: CharacterId) {
 
 const temporaryHp = (state: GameState, who: CharacterId): number =>
   state.creatures[who]!.vitals.temporaryHp;
+
+/**
+ * Rook puts SRD Spirit Guardians up: a 15-foot Emanation on themselves, whose
+ * damage falls due at the end of somebody else's turn rather than at the cast.
+ *
+ * Declared rather than created, because what the fixture needs is a caster
+ * with one spell and a slot to spend on it — the same shape `facing` uses for
+ * Bren's Shield of Faith.
+ */
+function guardians(from: GameState): GameState {
+  let state = after(from, [
+    {
+      type: 'spellcasting-declared',
+      id: ALLY,
+      spellcasting: declaredCasting({ ability: 'wis', classId: 'cleric', prepared: ['spirit-guardians'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: ALLY,
+      pool: { key: 'spell-slot:3', label: 'level 3', max: 2, recovers: 'long-rest' },
+    },
+  ]);
+
+  // Kael is up first; the spirits are Rook's, so the turn moves to them.
+  state = after(state, unwrap(resolveTurn(state, supply('to-rook'), { commandId: 'to-rook' }), 'to Rook').events);
+
+  const cast = unwrap(
+    resolveSpell(
+      state,
+      ALLY,
+      {
+        spellId: 'spirit-guardians',
+        targets: [],
+        slotLevel: 3,
+        // "Radiant (if you are good or neutral) or Necrotic (if you are evil)"
+        // — an alignment the engine does not hold, so the caster states it.
+        damageType: 'radiant',
+        // Kael is inside the Emanation and this fixture is not about a Warlock
+        // taking Radiant damage from their own ally.
+        unaffected: [WARLOCK],
+        commandId: 'the-spirits',
+      },
+      supply('the-spirits'),
+    ),
+    'Spirit Guardians',
+  );
+  return after(state, cast.events);
+}
+
+/**
+ * Kael, and a Rogue on one Hit Point whose Uncanny Dodge holds the blow open.
+ *
+ * The **held** road: `landDamage` sees an eligible reactor and writes
+ * `damage-rolled` instead of dealing the damage, and `settleDamage` is the one
+ * door out. Nobody answers here — an unanswered offer settles as a pass — so
+ * what the fixture is about is the settlement and not the Reaction.
+ */
+function theRogueOnHerLastLeg(options: { readonly side?: string } = {}): GameState {
+  const table = theWarlock();
+  // The fight is reopened with the Rogue in the order, because Uncanny Dodge
+  // costs a Reaction and a creature outside the order has no budget to spend
+  // one from — a window nobody can afford is a window that never opens.
+  let state = fold(
+    'the-blessing',
+    table.log.filter((event) => event.type !== 'combat-started'),
+  );
+  const step = (result: Result<readonly GameEvent[]>, label: string): void => {
+    state = after(state, unwrap(result, label));
+  };
+
+  step(createCharacter(SRD_CONTENT, nyx(), THIEF), 'Nyx');
+  step(
+    placeCreatureInScene(state, THIEF, { from: { creature: WARLOCK }, feet: 5, bearing: 45 }),
+    'Nyx stands',
+  );
+  if (options.side !== undefined) {
+    step(declareCreatureSide(state, THIEF, options.side), 'Nyx’s side');
+  }
+
+  // Down to one Hit Point, so any blow that lands at all is the blow that
+  // drops her. Dealt by nobody, so this whittling pays no watcher.
+  const hp = state.creatures[THIEF]!.vitals.hp;
+  state = after(
+    state,
+    unwrap(
+      resolveDamage(
+        state,
+        THIEF,
+        { amount: hp - 1, source: 'the road here', commandId: 'the-road' },
+        supply('the-road'),
+      ),
+      'the road here',
+    ).events,
+  );
+
+  step(
+    beginCombat(state, [
+      { id: WARLOCK, initiative: 20, speed: 30 },
+      { id: ALLY, initiative: 15, speed: 30 },
+      { id: THIEF, initiative: 12, speed: 30 },
+      { id: FOE, initiative: 10, speed: 30 },
+      { id: ADJACENT, initiative: 7, speed: 30 },
+      { id: NEAR, initiative: 5, speed: 30 },
+      { id: FAR, initiative: 1, speed: 30 },
+    ]),
+    'combat',
+  );
+  return state;
+}
+
+/** Swing at the Rogue until a blow connects, and settle the window it opened. */
+function heldThenSettled(from: GameState) {
+  for (const seed of SEEDS) {
+    const swung = unwrap(
+      resolveAttack(
+        from,
+        WARLOCK,
+        { target: THIEF, weapon: null, commandId: `held-${seed}` },
+        supply(`held-${seed}`),
+      ),
+      'a swing',
+    );
+    if (!swung.events.some((event) => event.type === 'damage-rolled')) continue;
+    const held = after(from, swung.events);
+    const out = unwrap(settleDamage(held, supply(`settle-${seed}`)), 'the settlement');
+    return { out, state: after(held, out.events) };
+  }
+  throw new Error('no seed held a blow open against the Rogue');
+}
+
+/**
+ * Rook puts SRD Acid Arrow into a goblin: a hit now and "2d4 Acid damage at
+ * the end of its next turn", which is a debt in state that falls due at a
+ * boundary and is collected by `resolveTurn` rather than by any casting.
+ *
+ * The goblin's Hit Point maximum is raised first so the arrow itself does not
+ * finish it — the whole point is the hit that arrives a turn later.
+ */
+function acidArrowInto(from: GameState, target: CharacterId) {
+  const armed = after(from, [
+    { type: 'hit-point-maximum-raised', id: target, amount: 40 },
+    {
+      type: 'spellcasting-declared',
+      id: ALLY,
+      spellcasting: declaredCasting({ ability: 'int', classId: 'wizard', prepared: ['acid-arrow'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: ALLY,
+      pool: { key: 'spell-slot:2', label: 'level 2', max: 2, recovers: 'long-rest' },
+    },
+  ]);
+
+  // Rook is second in the order, so the turn moves to them before they cast.
+  const rooksTurn = after(
+    armed,
+    unwrap(resolveTurn(armed, supply('to-rook'), { commandId: 'to-rook' }), 'to Rook').events,
+  );
+
+  for (const seed of SEEDS) {
+    const cast = unwrap(
+      resolveSpell(
+        rooksTurn,
+        ALLY,
+        { spellId: 'acid-arrow', targets: [target], slotLevel: 2, commandId: `arrow-${seed}` },
+        supply(`arrow-${seed}`),
+      ),
+      'Acid Arrow',
+    );
+    const struck = after(rooksTurn, cast.events);
+    // A miss splashes for half and schedules nothing, and a hit that finished
+    // the goblin leaves no later hit to fall due either.
+    if (!cast.events.some((event) => event.type === 'damage-scheduled')) continue;
+    if (struck.creatures[target]!.vitals.hp === 0) continue;
+    // And down to one Hit Point, so the 2d4 a turn from now is the blow that
+    // drops them rather than a scratch. Dealt by nobody, so this pays no
+    // watcher of its own.
+    const left = struck.creatures[target]!.vitals.hp;
+    return after(
+      struck,
+      unwrap(
+        resolveDamage(
+          struck,
+          target,
+          { amount: left - 1, source: 'a long day', commandId: 'a-long-day' },
+          supply('a-long-day'),
+        ),
+        'a long day',
+      ).events,
+    );
+  }
+  throw new Error(`no seed put an Acid Arrow into ${target}`);
+}
+
+/** Advance the order until a scheduled hit has fallen due. */
+function untilTheAcidBites(from: GameState) {
+  let state = from;
+  for (let step = 0; step < 14; step += 1) {
+    const out = unwrap(
+      resolveTurn(state, supply(`acid-${step}`), { commandId: `acid-${step}` }),
+      'the boundary',
+    );
+    state = after(state, out.events);
+    if (out.events.some((event) => event.type === 'scheduled-damage-collected')) {
+      return { out, state };
+    }
+  }
+  throw new Error('the acid never fell due');
+}
+
+/** Advance the order until the boundary's own areas have dropped the goblin. */
+function untilTheGoblinFalls(from: GameState) {
+  let state = from;
+  for (let step = 0; step < 12; step += 1) {
+    const out = unwrap(
+      resolveTurn(state, supply(`boundary-${step}`), { commandId: `boundary-${step}` }),
+      'the boundary',
+    );
+    state = after(state, out.events);
+    if (state.creatures[NEAR]!.vitals.hp === 0) return { out, state };
+  }
+  throw new Error('the spirits never reached the goblin');
+}
 
 describe('the feature that watches an enemy fall', () => {
   it('pays a Warlock 3 with Charisma 16 six Temporary Hit Points for their own kill', () => {
@@ -625,5 +919,270 @@ describe('the feature that watches an enemy fall', () => {
     expect(
       out.unverified.some((line) => line.includes(`nobody has said whose side ${NEAR} is on`)),
     ).toBe(true);
+  });
+});
+
+/**
+ * **Every road to the same moment, and the same answer on each of them.**
+ *
+ * A creature reaches 0 Hit Points by more roads than the two the blocks above
+ * walk: a sentence that drops it, a spell's damage, a weapon's damage somebody
+ * was offered a Reaction against, and an amount a DM adjudicated for a falling
+ * chandelier. Dark One's Blessing is written about the *outcome* — "when you
+ * reduce an enemy to 0 Hit Points" — so a reader wired into some of the roads
+ * is a rule that stops working on the rest.
+ *
+ * `resolveDamage` is the one funnel every road that deals damage passes
+ * through, so that is where the watcher is paid. The printed clause that drops
+ * a creature without damage asks separately, because it never gets here.
+ */
+describe('the watcher is paid on every road that drops a hostile', () => {
+  /** The blow a DM adjudicated: no spell, no attack, no dice the engine threw. */
+  const improvised = (state: GameState, target: CharacterId, by: CharacterId) =>
+    unwrap(
+      resolveDamage(
+        state,
+        target,
+        { amount: 20, source: 'a falling chandelier', by, commandId: 'the-chandelier' },
+        supply('chandelier'),
+      ),
+      'the chandelier',
+    );
+
+  const blessing = (events: readonly GameEvent[]): readonly GameEvent[] =>
+    events.filter((event) => event.type === 'temporary-hp-granted');
+
+  const paid = {
+    type: 'temporary-hp-granted',
+    id: WARLOCK,
+    amount: 6,
+    source: "Dark One's Blessing",
+  };
+
+  it('pays the Warlock for an ally’s improvised blow ten feet away', () => {
+    const table = theWarlock();
+    const out = improvised(table.state, NEAR, ALLY);
+    const landed = after(table.state, out.events);
+    expect(landed.creatures[NEAR]!.vitals.hp).toBe(0);
+    expect(temporaryHp(landed, WARLOCK)).toBe(6);
+    expect(out.unverified).toEqual([]);
+  });
+
+  /**
+   * **And the held road, where a blow waits for the defender to answer.**
+   *
+   * `settleDamage` asked `rewardsForDropping` for itself until now, and it was
+   * the one road whose *event order* this change moves: the spoils used to be
+   * appended after the hit's rider resolved and now ride with the damage.
+   * "Within 10 feet of you" is measured at the reduction, which is before the
+   * rider — a rider can push somebody across the floor — so this is the
+   * instant the sentence names.
+   */
+  it('pays the Warlock on the road where the blow was held open', () => {
+    const settled = heldThenSettled(theRogueOnHerLastLeg({ side: 'goblins' }));
+    expect(settled.state.creatures[THIEF]!.vitals.hp).toBe(0);
+    expect(temporaryHp(settled.state, WARLOCK)).toBe(6);
+    expect(blessing(settled.out.events)).toEqual([paid]);
+
+    // And it rides with the damage rather than trailing the settlement: what
+    // the creature was paid for is the blow, and the blow is where it sits.
+    const order = settled.out.events.map((event) => event.type);
+    expect(order.indexOf('temporary-hp-granted')).toBeGreaterThan(
+      order.indexOf('damage-taken'),
+    );
+  });
+
+  it('gives a chandelier, a swing and a spell the same log shape', () => {
+    const table = theWarlock();
+    expect(blessing(improvised(table.state, ADJACENT, ALLY).events)).toEqual([paid]);
+    expect(blessing(swing(table.state, ADJACENT, 'kael-swings-for-shape').out.events)).toEqual([
+      paid,
+    ]);
+    expect(blessing(zap(table.state, ADJACENT, 'kael-zaps-for-shape').events)).toEqual([paid]);
+  });
+
+  /**
+   * And the report reaches the caller on the improvised road too: the amount
+   * a DM states carries no map, so the second half of the sentence — "within
+   * 10 feet of you" — is a question only a scene answers.
+   */
+  it('reports the missing scene on the improvised road', () => {
+    const table = theWarlock({ scene: false });
+    const out = improvised(table.state, NEAR, ALLY);
+    expect(temporaryHp(after(table.state, out.events), WARLOCK)).toBe(0);
+    expect(
+      out.unverified.some(
+        (line) =>
+          line.includes('nobody has laid out a scene') && line.includes("Dark One's Blessing"),
+      ),
+    ).toBe(true);
+  });
+});
+
+/**
+ * **And the report reaches whoever called, on every road that deals damage.**
+ *
+ * `dealSpellDamage` has reported what a watching feature could not settle
+ * since the Resistance cantrip needed a sentence for it, and eleven commands
+ * call it. One of them threaded the report into the accumulator it already
+ * returns and ten dropped it on the floor — so the engine knew a side had not
+ * been declared, said so to itself, and handed the caller a clean outcome.
+ *
+ * A side is fiction and re-declarable, so a table that has not said is a real
+ * state rather than a broken fixture, and it is the missing fact every one of
+ * these fixtures is built on: it needs no scene, no distance and no second
+ * creature, so what each test discriminates is the road rather than the rule.
+ */
+describe('what the engine could not check reaches the caller on every road', () => {
+  /** The same table, with one goblin's side never declared. */
+  const unsided = (who: CharacterId, options: { readonly scene?: boolean } = {}): GameState =>
+    fold(
+      'the-blessing',
+      theWarlock(options).log.filter(
+        (event) => !(event.type === 'creature-side-declared' && event.id === who),
+      ),
+    );
+
+  /**
+   * The watcher's own sentence, and not merely a line naming the same gap.
+   *
+   * A missing side is reported by more than one rule — a ranged attack's
+   * Disadvantage asks it too — so the tail is matched as well as the head, or
+   * this whole block would pass on a road that still drops the report.
+   */
+  const watcherSaid = (lines: readonly string[], who: CharacterId): boolean =>
+    lines.some(
+      (line) =>
+        line.includes(`nobody has said whose side ${who} is on`) &&
+        line.includes("Dark One's Blessing") &&
+        line.includes('reaching 0 Hit Points was an enemy falling'),
+    );
+
+  /**
+   * A spell attack that drops its target — SRD Eldritch Blast.
+   *
+   * `resolveAttackEffect`'s road, which is `dealSpellDamage`'s caller for
+   * every spell that rolls to hit.
+   */
+  it('reports it on a spell attack’s casting', () => {
+    const state = unsided(ADJACENT);
+    const out = zap(state, ADJACENT, 'kael-zaps-a-stranger');
+    expect(after(state, out.events).creatures[ADJACENT]!.vitals.hp).toBe(0);
+    expect(temporaryHp(after(state, out.events), WARLOCK)).toBe(0);
+    expect(watcherSaid(out.unverified, ADJACENT)).toBe(true);
+  });
+
+  /**
+   * A spell whose damage a saving throw halves — SRD Sacred Flame, which Kael
+   * holds through Magic Initiate. `resolveSaveDamageEffect`'s road, and the
+   * one a Fireball and a Hellish Rebuke both take.
+   */
+  it('reports it on a save-damage casting', () => {
+    // Sacred Flame's target must be one the caster can see, and sight is a
+    // fact the table declares rather than one the engine derives.
+    const state = after(unsided(NEAR), [
+      { type: 'sight-declared', from: WARLOCK, to: NEAR, seen: true },
+    ]);
+    for (const seed of SEEDS) {
+      const out = unwrap(
+        resolveSpell(
+          state,
+          WARLOCK,
+          { spellId: 'sacred-flame', targets: [NEAR], commandId: `flame-${seed}` },
+          supply(`flame-${seed}`),
+        ),
+        'sacred flame',
+      );
+      if (after(state, out.events).creatures[NEAR]!.vitals.hp > 0) continue;
+      expect(watcherSaid(out.unverified, NEAR)).toBe(true);
+      return;
+    }
+    throw new Error('no seed dropped the goblin with Sacred Flame');
+  });
+
+  /**
+   * **The same resolver reached through the Reaction door** — SRD Hellish
+   * Rebuke, which Kael casts in answer to being hit rather than on a turn of
+   * their own. It is `resolveSaveDamageEffect`'s road again, and that is the
+   * claim: a Reaction is a casting, so the report comes home the same way.
+   */
+  it('reports it on a Reaction spell’s casting', () => {
+    // "a creature within 60 feet of you that you can see" — sight again, and
+    // a fact the table declares rather than one the engine derives.
+    const state = after(unsided(ADJACENT), [
+      { type: 'sight-declared', from: WARLOCK, to: ADJACENT, seen: true },
+    ]);
+    const struck = after(
+      state,
+      unwrap(
+        resolveDamage(
+          state,
+          WARLOCK,
+          { amount: 4, source: 'a scimitar', by: ADJACENT, commandId: 'the-scimitar' },
+          supply('scimitar'),
+        ),
+        'the scimitar',
+      ).events,
+    );
+
+    const out = unwrap(
+      resolveSpell(
+        struck,
+        WARLOCK,
+        {
+          spellId: 'hellish-rebuke',
+          targets: [ADJACENT],
+          // A Warlock 3's Pact Magic slots are level 2, and Hellish Rebuke
+          // upcast is Hellish Rebuke: there is no smaller slot to spend.
+          slotKind: 'pact',
+          slotLevel: 2,
+          commandId: 'the-rebuke',
+        },
+        supply('rebuke'),
+      ),
+      'Hellish Rebuke',
+    );
+    expect(after(struck, out.events).creatures[ADJACENT]!.vitals.hp).toBe(0);
+    expect(watcherSaid(out.unverified, ADJACENT)).toBe(true);
+  });
+
+  /**
+   * And the same road reports the same missing fact: `settleDamage` was
+   * dropping `resolveDamage`'s whole report, the watcher's half included.
+   */
+  it('reports it on the road where the blow was held open', () => {
+    const settled = heldThenSettled(theRogueOnHerLastLeg());
+    expect(settled.state.creatures[THIEF]!.vitals.hp).toBe(0);
+    expect(temporaryHp(settled.state, WARLOCK)).toBe(0);
+    expect(watcherSaid(settled.out.unverified, THIEF)).toBe(true);
+  });
+
+  /**
+   * **A hit the last turn promised**, collected at a boundary by
+   * `collectDueDamage` — SRD Acid Arrow's "2d4 Acid damage at the end of its
+   * next turn". No casting is running when it lands and its caster need not
+   * even be alive, which is why it is its own road.
+   */
+  it('reports it on a scheduled hit falling due', () => {
+    const state = acidArrowInto(unsided(NEAR), NEAR);
+    const bite = untilTheAcidBites(state);
+    expect(bite.state.creatures[NEAR]!.vitals.hp).toBe(0);
+    expect(watcherSaid(bite.out.unverified, NEAR)).toBe(true);
+  });
+
+  /**
+   * **A persistent area settling at a turn boundary**, which reaches the same
+   * resolver by a road no casting command is on: SRD Spirit Guardians is a
+   * clause on the spell — "ends its turn there" — and what settles it is
+   * `resolveTurn`, a round after anybody cast anything.
+   *
+   * `settleAreaEffects` has gathered the report since it was written; the
+   * boundary that calls it was throwing it away.
+   */
+  it('reports it on a persistent area settling at a turn boundary', () => {
+    const state = guardians(unsided(NEAR));
+    const boundary = untilTheGoblinFalls(state);
+    expect(boundary.state.creatures[NEAR]!.vitals.hp).toBe(0);
+    expect(watcherSaid(boundary.out.unverified, NEAR)).toBe(true);
   });
 });

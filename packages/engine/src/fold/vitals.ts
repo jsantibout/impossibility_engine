@@ -36,6 +36,7 @@ import {
   unhandledEvent,
   type Applying,
 } from './common.js';
+import { instancesLifted, releaseInstanceGrants } from './release.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const VITALS_EVENTS = [
@@ -320,7 +321,26 @@ export function applyVitals({ state, next }: Applying, event: VitalsEvent): Game
       // lifts the Incapacitated it brought — while leaving any other reason
       // for the same condition standing, and leaving Prone behind.
       const conditions = removeCondition(creature.conditions, event.condition, event.source);
-      const lifted = withCreature(next, event.id, { conditions }, creature);
+      const gone = instancesLifted(creature.conditions.instances, conditions.instances);
+      // **And what was sourced to the instance goes with it.** A grant may name
+      // a condition *instance* as its whole lifetime — SRD Swarm of Ravens'
+      // "While Deafened, the target also has Disadvantage on ability checks and
+      // attack rolls", which names no span at all — and
+      // `conditionInstanceId(condition, source)` is how the clause says which.
+      // The instance is the deadline, so a grant so sourced needs no timer and
+      // must not have one; what ends it is exactly this, at both doors a
+      // condition leaves by. See {@link releaseInstanceGrants}, which argues
+      // why that is a source string rather than a new `EffectTarget` member.
+      //
+      // Derived from the removal for `withoutTimersFor`'s reason, and from the
+      // same population: an implied instance that carried a grant of its own
+      // goes with the cause that carried it.
+      const lifted = withCreature(
+        next,
+        event.id,
+        { ...releaseInstanceGrants(creature, gone), conditions },
+        creature,
+      );
 
       // **And the deadline goes with the instance it was hung on.**
       // `applyConditionTo` files an `effect-scheduled` against the condition

@@ -12,6 +12,16 @@
  * `hit-point-maximum-adjusted` Aid raises with — lowered, for the first time,
  * because a Wight's is the sentence that lowers one.
  *
+ * **One clause has a lifetime none of the others do**, and it is the reason
+ * `roll-mode` is here rather than folded into the condition beside it. SRD
+ * Swarm of Ravens: "While Deafened, the target also has Disadvantage on
+ * ability checks and attack rolls." The sentence names no span; it names the
+ * condition instance the same failure just created. So the grant is sourced to
+ * `conditionInstanceId(condition, source)` and carries no deadline of its own
+ * — the instance *is* the deadline, and the fold takes the grant off at both
+ * doors a condition leaves by. See `releaseInstanceGrants` in
+ * `fold/release.ts`.
+ *
  * **Nothing here reads the block.** The clauses arrive already pinned on the
  * sheet (`StatedAction.save`), which is what `creature-added` pinned when the
  * block was read; the fold opens no catalogue and this opens no block.
@@ -25,14 +35,15 @@ import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } 
 import type { MonsterDamage, MonsterSave, PrintedSaveEffect, PrintedSpan } from '@ie/srd';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { sizeAtMost, sizeOf } from '../positioning.js';
+import type { RollFamily } from '../roll-modifiers.js';
 import type { Duration } from '../time.js';
 import type { RepeatSave } from '../timers.js';
-import { hasCondition } from '../conditions.js';
+import { conditionInstanceId, hasCondition } from '../conditions.js';
 import { dropToZero } from '../vitals.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { ZERO_HIT_POINTS } from './command.js';
 import { healCreature } from './creatures.js';
-import { rewardsForDropping } from './damage.js';
+import { rewardsForDropping } from './drop-rewards.js';
 import type { Supply } from './casting.js';
 import { rollSpellDice } from './rolls.js';
 import { shoveAwayFrom } from './spell-effect-movement.js';
@@ -55,6 +66,27 @@ export interface PrintedClausesLanded {
 
 /** The source a printed line's clauses are hung on: the creature and the heading. */
 export const printedLineSource = (who: CharacterId, line: string): string => `printed:${who}:${line}`;
+
+/**
+ * The book's three roll nouns in the engine's five families.
+ *
+ * The same two-vocabulary seam `monster.ts`'s `SUNLIT_ROLL` is, reading the
+ * same three words out of the same glossary sentence: `@ie/srd` types a
+ * sentence in the nouns the book prints and `RollFamily` is the engine's own,
+ * and neither package may import the other's. Initiative and the death save
+ * are families of this engine's rather than members of the book's list, so
+ * they are not here — the cost that file records, unchanged.
+ */
+const PRINTED_ROLL: Readonly<Record<'ability-check' | 'attack-roll' | 'saving-throw', RollFamily>> =
+  {
+    'ability-check': 'ability-check',
+    'attack-roll': 'attack',
+    'saving-throw': 'saving-throw',
+  };
+
+/** How a condition reads in a sentence handed to a table: the book's own word. */
+const conditionTitle = (condition: ConditionName): string =>
+  condition.charAt(0).toUpperCase() + condition.slice(1);
 
 /** Which arm of a printed branch the target's Hit Points chose, and what is left to do. */
 export interface BranchesTaken {
@@ -162,6 +194,16 @@ export function applyPrintedClauses(
   let pushedFeet: number | null = null;
   const died: CharacterId[] = [];
   const lineSource = printedLineSource(source, line);
+  /**
+   * The instance id each condition **this line** imposed actually landed
+   * under, so a clause naming one as its lifetime can be sourced to it.
+   *
+   * Recorded as the conditions land rather than looked up afterwards, because
+   * the two facts a later clause needs are both moments in this loop: whether
+   * the condition landed at all — an immune target has no instance — and which
+   * source it went on, the line's or the grapple's.
+   */
+  const landedInstances = new Map<ConditionName, string>();
 
   const land = (more: readonly GameEvent[]): void => {
     events.push(...more);
@@ -193,6 +235,7 @@ export function applyPrintedClauses(
         // A grapple is the grapple every other door makes: sourced to the
         // grappler, escaped at the printed DC through `escapeGrapple`.
         const grapple = clause.escapeDc !== undefined;
+        const conditionSource = grapple ? grappleSource(source) : lineSource;
         const repeat: RepeatSave | undefined =
           clause.repeats === undefined
             ? undefined
@@ -221,7 +264,7 @@ export function applyPrintedClauses(
             current,
             target,
             clause.condition,
-            grapple ? grappleSource(source) : lineSource,
+            conditionSource,
             [],
             durationOf(clause.lasts, clause.repeats?.capSeconds, source, target),
             repeat,
@@ -242,6 +285,7 @@ export function applyPrintedClauses(
           break;
         }
         land(landed.value.events);
+        landedInstances.set(clause.condition, conditionInstanceId(clause.condition, conditionSource));
         // What the **line** said, which is this clause and whatever it said
         // the clause carries. The implications a condition always has are not
         // here and should not be: those are what the condition means, and a
@@ -276,6 +320,47 @@ export function applyPrintedClauses(
           },
           timer.value,
         ]);
+        break;
+      }
+
+      case 'roll-mode': {
+        // SRD Swarm of Ravens: "While Deafened, the target also has
+        // Disadvantage on ability checks and attack rolls." The mode is the
+        // same grant every other door hangs; what is new is the **lifetime**,
+        // and the sentence names no span at all. It names a condition — the
+        // one *this failure* just imposed — so the grant is sourced to that
+        // instance's id, and the instance lifting is the whole of its ending:
+        // the printed span running out, a cure, a repeat save succeeded.
+        //
+        // **And therefore no `grants` timer beside it.** The instance is the
+        // deadline, and a second one could only come to disagree with it — see
+        // `releaseInstanceGrants` in `fold/release.ts`, where the release is.
+        const instance = landedInstances.get(clause.whileCondition);
+        if (instance === undefined) {
+          // The condition is not there, so there is nothing for the mode to
+          // live on — an immune target, which is the one way a clause the
+          // reader gated can still find no host. A grant sourced to an
+          // instance nobody created would be a Disadvantage nothing could ever
+          // lift, so it is not written and the caller is told, exactly as
+          // `immuneTo` tells them about the condition itself.
+          unverified.push(
+            `${line} gives ${target} ${clause.mode} while ${conditionTitle(clause.whileCondition)}, and the ${conditionTitle(clause.whileCondition)} condition did not land on them — nothing was hung`,
+          );
+          break;
+        }
+        // One grant per roll the sentence names, because a `RollModifier`
+        // carries one selector — `printedSunlight` reads the same two nouns
+        // the same way. They share a source, so one ending takes both.
+        land(
+          clause.rolls.map((roll) => ({
+            type: 'roll-modifier-granted',
+            id: target,
+            modifier: {
+              source: instance,
+              modifier: { mode: clause.mode, selector: { roll: PRINTED_ROLL[roll], relation: 'roller' } },
+            },
+          })),
+        );
         break;
       }
 

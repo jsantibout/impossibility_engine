@@ -2058,7 +2058,14 @@ export function resolveFall(
       damage: hurt.value.amount,
       prone: floored.ok,
       ...(reduction === 0 ? {} : { reduced: reduction }),
-      unverified: [...dropped.value.unverified, ...(floored.ok ? [] : [floored.reason])],
+      // And what the landing itself could not check: the funnel reports an
+      // Undead Fortitude thrown against a blow it could not measure, and a
+      // feature watching whoever the fall killed.
+      unverified: [
+        ...dropped.value.unverified,
+        ...hurt.value.unverified,
+        ...(floored.ok ? [] : [floored.reason]),
+      ],
       concentration: hurt.value.concentration,
       duplicate: false,
     });

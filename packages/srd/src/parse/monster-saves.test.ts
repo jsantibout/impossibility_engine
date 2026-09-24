@@ -310,6 +310,54 @@ describe('the clauses a failure prints besides the damage', () => {
     });
   });
 
+  it('reads a mode a condition this line imposed carries', () => {
+    // SRD Swarm of Ravens: "The target has the Deafened condition until the
+    // start of the swarm's next turn. While Deafened, the target also has
+    // Disadvantage on ability checks and attack rolls." The second sentence
+    // names no span of its own: its lifetime is the Deafened's, which is what
+    // `whileCondition` says — and the Deafened is the one the first sentence
+    // imposed, so nothing here is a mode with no end.
+    expect(lineOf('swarm-of-ravens', 'Cacophony').save).toEqual({
+      ability: 'wis',
+      dc: 10,
+      targets: "one creature in the swarm's space",
+      onSuccess: 'none',
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'deafened',
+          lasts: { kind: 'turn', moment: 'start', of: 'source' },
+        },
+        {
+          kind: 'roll-mode',
+          mode: 'disadvantage',
+          rolls: ['ability-check', 'attack-roll'],
+          whileCondition: 'deafened',
+        },
+      ],
+    });
+  });
+
+  it('hands over a mode said about a condition the line did not impose', () => {
+    // The same sentence with the host changed: a "While Frightened" on a line
+    // that imposed no Frightened names a lifetime that is not there, so there
+    // is nothing for the mode to live on and the sentence is carried. The same
+    // answer `WHILE_CONDITION` already gives a condition it cannot find.
+    const read = parseSaveLine(
+      "_Wisdom Saving Throw:_ DC 10, one creature in the swarm's space. _Failure:_ The target has the Deafened condition until the start of the swarm's next turn. While Frightened, the target also has Disadvantage on ability checks and attack rolls.",
+    );
+    expect(read?.onFailure).toEqual([
+      {
+        kind: 'condition',
+        condition: 'deafened',
+        lasts: { kind: 'turn', moment: 'start', of: 'source' },
+      },
+    ]);
+    expect(read?.handedOver).toEqual([
+      'While Frightened, the target also has Disadvantage on ability checks and attack rolls.',
+    ]);
+  });
+
   it('reads the one line whose failure kills, and what it buys the creature that forced it', () => {
     // SRD Will-o'-Wisp: "_Failure:_ The target dies, and the wisp regains 10
     // (3d6) Hit Points." The one part of a targeting clause this reader takes

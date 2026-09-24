@@ -1285,7 +1285,7 @@ export function usePoolOption(
     // **And it ends nothing**: "This damage doesn't end the turn effect" needs
     // no clause, because the conditions the failure imposed are already
     // standing and nothing here takes one away.
-    const burned = burnFailures(resolved.value, id, option, sheet, supply, events);
+    const burned = burnFailures(resolved.value, id, option, sheet, supply, events, unverified);
     if (!burned.ok) return burned;
     const outcomes = burned.value;
 
@@ -1320,6 +1320,14 @@ function burnFailures(
   sheet: CharacterSheet,
   supply: Supply,
   events: GameEvent[],
+  /**
+   * What the damage could not settle, collected the way `events` is.
+   *
+   * The caller already returns one of these and this road was dropping the
+   * funnel's share: a Warlock standing beside an Undead the Cleric burned down
+   * is owed the same sentence about a side nobody declared.
+   */
+  unverified: string[],
 ): Result<readonly SpellTargetOutcome[]> {
   const burning = option.damagesFailures;
   if (burning === undefined) return ok(resolved.outcomes);
@@ -1339,6 +1347,7 @@ function burnFailures(
     if (!hurt.ok) return hurt;
     events.push(...hurt.value.events);
     current = hurt.value.events.reduce(applyEvent, current);
+    unverified.push(...hurt.value.unverified);
     dealt.set(outcome.target, hurt.value.amount);
   }
 
