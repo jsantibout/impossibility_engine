@@ -244,6 +244,7 @@ import type { ArgumentIssue, ContextRequestKind, ToolOutcome } from './outcome.j
 import { fromErr, invalid, okOutcome, refused } from './outcome.js';
 import {
   abilitySchema,
+  cantripSwingSchema,
   characterChoicesSchema,
   conditionDurationSchema,
   conditionSchema,
@@ -2165,6 +2166,11 @@ const ATTACK = tool({
       .describe(
         'Buy a feature of the attacker’s with this blow — SRD Stunning Strike is "once per turn when you hit a creature ... you can expend 1 Focus Point". Written "you can", so silence declines it and a swing that names none buys nothing. Name the feature and the option; the price, the save, the DC and how long what it leaves behind lasts are all the engine’s. A feature the attacker has not got, an option it does not offer, a weapon its sentence does not cover and a pool with nothing left are each refused before the attack is rolled, so nothing is spent. `sheet` lists what this character can elect.',
       ),
+    cantrip: cantripSwingSchema
+      .optional()
+      .describe(
+        'Cast a cantrip **with** this swing — SRD True Strike, whose whole text is one attack made through a casting: "you make one attack with the weapon used in the spell’s casting. The attack uses your spellcasting ability for the attack and damage rolls instead of using Strength or Dexterity." Name the spell by its catalogue id, and `damageType` where its sentence offers the blow a choice of one — True Strike’s is Radiant, and naming none deals the weapon’s own type. The **Action** it costs is the casting’s, so this is not the Attack action and it cannot be sent beside anything that says something else paid for the swing. A spell this creature cannot cast, a spell that is not cast this way, a weapon they have no proficiency with, and an Unarmed Strike are each refused before the Action is spent and before a die is thrown.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -2183,6 +2189,16 @@ const ATTACK = tool({
           ...(args.mastery === undefined ? {} : { mastery: masteryOf(args.mastery) }),
           ...(args.light_attack === undefined ? {} : { lightAttack: args.light_attack }),
           ...(args.onHit === undefined ? {} : { onHit: args.onHit }),
+          ...(args.cantrip === undefined
+            ? {}
+            : {
+                cantrip: {
+                  spellId: args.cantrip.spell,
+                  ...(args.cantrip.damageType === undefined
+                    ? {}
+                    : { damageType: args.cantrip.damageType }),
+                },
+              }),
           ...(args.damageTypes === undefined ? {} : { featureDamageTypes: args.damageTypes }),
           ...identity(context),
         },

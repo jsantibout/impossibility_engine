@@ -1584,7 +1584,9 @@ function itemCastsProblems(
  * - **A casting id.** `dispel` and `interrupt-casting` read a casting from
  *   both ends, and `teleport`'s destination is stated at a casting.
  * - **An attack modifier nobody printed.** `attack` is refused by name, and so
- *   is `attack-damage`, which rides on an attack this is not.
+ *   is `attack-damage`, which rides on an attack this is not — and so is
+ *   `weapon-attack`, which *is* an attack, made by the attack command out of a
+ *   cantrip somebody cast: an item that confers nothing has nobody swinging.
  *
  * **A saving throw is not on that list any more.** SRD writes the DC as the
  * *item's* own clause — Wand of Fireballs' "(save DC 15)" — so `saveDc` on the

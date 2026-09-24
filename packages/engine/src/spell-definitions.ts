@@ -444,6 +444,53 @@ export interface SpellRepeatSave {
   /** Which boundary it fires on, on the turns of whoever it landed on. */
   readonly at: TurnMoment;
   /**
+   * The ability the repeat is made with, **where the host rolled no save of
+   * its own**.
+   *
+   * The paragraph above says the ability is deliberately absent, and it is —
+   * for every host that rolls a save, because SRD writes "the target repeats
+   * **the** save" and a definition naming a second one would be a second place
+   * for one sentence to be got wrong. The exception is the host that rolls no
+   * save at all: SRD Searing Smite hangs its repeat on a **hit**, and "then
+   * makes a Constitution saving throw" is the only place that ability is
+   * printed.
+   *
+   * So it is required exactly where the host has none to repeat and refused
+   * exactly where it has — `checkEffect` keeps both halves, which is what
+   * stops this becoming the second answer the paragraph above warns about.
+   *
+   * The DC is still nobody's to write: it is the caster's own spell save DC,
+   * pinned onto the timer at the casting like every other number a casting
+   * leaves behind.
+   */
+  readonly ability?: Ability;
+  /**
+   * Damage the target takes **before** the save is rolled, where the sentence
+   * deals some.
+   *
+   * SRD Searing Smite: "the target takes 1d6 Fire damage **and then** makes a
+   * Constitution saving throw." One sentence, in that order, and the order is
+   * the rule: the fire is dealt whether or not the save is made, so a spell
+   * that ends on a success still burns on the turn it ends.
+   *
+   * **Its own amount, scaled like the hit's.** "All the damage increases by
+   * 1d6 for each spell slot level above 1" is one sentence about both, and
+   * they are still two amounts: a spell that grew one and not the other is a
+   * sentence the book could print tomorrow, and a shared field could not say
+   * it. What the casting pins is this amount at the slot it was cast with, so
+   * the boundary reads a notation rather than a catalogue.
+   *
+   * **Only on a host with no condition of its own**, which is the same fork
+   * {@link ability} takes: the payout is dealt to the creature whose boundary
+   * raised the save, and a condition rider's repeat is raised from the
+   * condition rather than from the casting. `checkConditionRider` refuses one
+   * there rather than letting a definition promise damage nothing collects.
+   */
+  readonly beforeTheSave?: {
+    readonly damage: DiceScaling;
+    readonly damageType: string;
+  };
+  /**
    * What a success does — see `RepeatSave.onSuccess`, which is where the
    * difference between ending the casting and ending it on one target is
    * argued and where the three doors that refuse the first are named.
@@ -1497,6 +1544,31 @@ export type SpellEffect =
        * d20 of its own — the attack it joins has already hit.
        */
       readonly againstType?: TypedExtraDamage;
+      /**
+       * A save the **casting** retakes at a turn boundary, for as long as it
+       * runs.
+       *
+       * SRD Searing Smite: "At the start of each of its turns until the spell
+       * ends, the target takes 1d6 Fire damage and then makes a Constitution
+       * saving throw. On a failed save, the spell continues. On a successful
+       * save, the spell ends."
+       *
+       * **Hosted by the casting rather than by a condition**, which is what
+       * makes this the one place a `repeats` sits directly on an effect. Every
+       * other repeat in the book is filed on the condition instance a failed
+       * save created, and this spell imposes no condition at all: what the
+       * boundary is asking about is whether the *spell* is still burning, so
+       * the hook rides on the casting's own timer and a success ends the
+       * casting. `onSuccess: 'end-on-target'` would have nothing to release,
+       * and `onFailure` would have no condition to deepen; the validator
+       * refuses both here rather than letting a definition promise either.
+       *
+       * **It presupposes a duration**, for the reason a grant does: the timer
+       * that carries the hook is the casting's own deadline, and an
+       * Instantaneous casting has none — so the repeat would be raised by
+       * nothing, for ever.
+       */
+      readonly repeats?: SpellRepeatSave;
     }
   /**
    * A condition the spell simply imposes, with **no saving throw**.
@@ -2296,6 +2368,94 @@ export type SpellEffect =
        * components.
        */
       readonly damageTypes?: readonly string[];
+    }
+  /**
+   * The weapon attack the casting **itself** makes.
+   *
+   * SRD True Strike: "you make one attack with the weapon used in the spell's
+   * casting. The attack uses your spellcasting ability for the attack and
+   * damage rolls instead of using Strength or Dexterity. If the attack deals
+   * damage, it can be Radiant damage or the weapon's normal damage type (your
+   * choice)" — and a Cantrip Upgrade that adds Radiant dice at levels 5, 11
+   * and 17.
+   *
+   * **The neighbour above is the shape this is most easily confused with, and
+   * the difference is which command makes the swing.** A `weapon-rider` is
+   * hung on a weapon at the casting and read again at every *later* attack
+   * somebody makes with it; there is no later attack here. The casting and the
+   * swing are one moment — one Action, one target, nothing granted and nothing
+   * left standing — so an effect of this kind is resolved by the **attack**
+   * command, which names the cantrip beside the weapon, and `resolveSpell`
+   * refuses a definition carrying one outright: the door is wrong, and no fact
+   * is missing that would make it right.
+   *
+   * **It is the mirror of `attack-damage`, one command earlier.** That kind is
+   * a spell cast on a swing that has already hit and adds to its damage; this
+   * one is a spell cast *as* the swing, and it changes how the swing is rolled.
+   * Both are effects no `resolveSpell` can run, for the same reason — the
+   * attack is the thing they need — which is why they are two members of this
+   * union and not two commands.
+   *
+   * The validator holds it to the shape the sentence has: a cantrip, Range:
+   * Self, and nothing else on the definition, because a spell that makes a
+   * weapon attack and also does something to somebody else is a sentence the
+   * book does not print and an effect list this resolver never runs.
+   */
+  | {
+      readonly kind: 'weapon-attack';
+      /**
+       * Which ability the attack and damage rolls are made with instead of the
+       * weapon's own.
+       *
+       * **Imposed rather than offered**, which is the whole difference from
+       * `weapon-rider.castingAbility` beside it: SRD Shillelagh says "you
+       * **can** use your spellcasting ability", and this says "the attack
+       * **uses** your spellcasting ability ... instead of using Strength or
+       * Dexterity". So nothing weighs it against the weapon's own modifier and
+       * a caller cannot decline it.
+       *
+       * A union of one, for the reason {@link DieRule} is one: the SRD writes
+       * this substitution once and names the caster's own ability every time.
+       * A second spelling — a fixed ability, a choice of two — arrives beside
+       * this one rather than instead of it.
+       */
+      readonly ability: 'spellcasting';
+      /**
+       * The types the spell offers **instead of** the weapon's own, chosen at
+       * the swing.
+       *
+       * The same offer `weapon-rider.damageTypes` makes and the same reading:
+       * one type or the other, so a Radiant-immune target takes nothing from a
+       * mace swung as Radiant rather than half of two components, and naming
+       * none is how the offer is declined.
+       *
+       * Answered on the attack command's own `cantrip` request rather than in
+       * the map a standing rider's offer is answered through: that map is
+       * keyed by name because several imbued weapons could be in hand at once
+       * and the swing has to say which offer it is taking. This offer arrives
+       * in the same breath as the spell that makes it, so it is answered in
+       * the same object.
+       */
+      readonly damageTypes?: readonly string[];
+      /**
+       * SRD True Strike's Cantrip Upgrade: "the attack deals extra Radiant
+       * damage when you reach levels 5 (1d6), 11 (2d6), and 17 (3d6)."
+       *
+       * **A band table keyed by the lowest character level of the band, with
+       * no base**, which is `weapon-rider.dieAtLevel`'s shape read by the same
+       * `bandAt` — and deliberately not `DiceScaling.cantripUpgradesAt`. That
+       * field *adds* a die to a base notation, and this sentence has no base:
+       * below level 5 the spell adds no dice at all, which a `DiceScaling`
+       * could say only by writing a notation that rolls none — `0d6`, which
+       * `parseNotation` refuses and which every reader of a notation would
+       * then have to special-case. A table with no entry at or below the
+       * caster's level is an honest nothing.
+       */
+      readonly extraDamage?: {
+        readonly damageType: string;
+        /** Keyed by the lowest character level of the band: `{ 5: '1d6', … }`. */
+        readonly diceAtLevel: Readonly<Record<number, string>>;
+      };
     }
   | {
       readonly kind: 'interrupt-casting';
@@ -3955,6 +4115,21 @@ export const weaponRiderDieAt = (
 /** The one arm of the effect union the two readers above are about. */
 type EffectOfWeaponRider = Extract<SpellEffect, { kind: 'weapon-rider' }>;
 
+/**
+ * The extra dice a casting's own swing adds at the caster's level, or
+ * undefined below every band.
+ *
+ * `bandAt` again, with **no base**: SRD True Strike's upgrade starts at level
+ * 5 and a caster below it adds nothing. Undefined rather than a notation that
+ * rolls no dice, for the reason the field's own docstring gives — `0d6` is not
+ * notation this engine accepts anywhere else, and inventing it here would put
+ * it in front of every reader of a damage component.
+ */
+export const swungExtraDiceAt = (
+  bands: Readonly<Record<number, string>>,
+  casterLevel: number,
+): string | undefined => bandAt<string | undefined>(bands, casterLevel, undefined);
+
 /** How far a range reaches in feet, or null where it is not a distance at all. */
 export const ranged = (range: SpellRange): number | null =>
   range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
@@ -4767,6 +4942,12 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // this one — the same split that keeps `EffectContext.ability` out of
       // `CastingNumbers`.
       case 'weapon-rider':
+      // And the swing the casting makes itself pins nothing either, for a
+      // sharper reason than the rider above it: there is no *later* moment for
+      // a pinned number to be read at. The attack roll happens in the same
+      // command as the casting, off the sheet as it stands, so an attack
+      // modifier written down here would be a copy nobody would ever read.
+      case 'weapon-attack':
       case 'heal':
       case 'turn-payout':
       case 'action-rule':

@@ -3560,10 +3560,17 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     {
       kind: 'attack-damage',
       base: { kind: 'attack-damage', damage: { dice: '2d8' }, damageType: 'radiant' },
+      // `repeats` is the hook a casting hosts — SRD Searing Smite's minute of
+      // burning — and it is optional: Divine Smite prints none. What a wrong
+      // *value* would be is anything but an object, which is what this row
+      // sends; the pairing rules it is held to once it reads as one are
+      // asserted by name in `burning-smite.test.ts`, because they refuse wrong
+      // combinations rather than wrong types.
       fields: {
         damage: required(OBJECT_JUNK),
         damageType: required(STRING_JUNK),
         againstType: OBJECT_JUNK,
+        repeats: OBJECT_JUNK,
       },
     },
     {
@@ -3715,6 +3722,26 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       // by name in `weapon-rider.test.ts` rather than swept as junk. The die
       // is the one field a wrong *value* can be wrong about.
       fields: { die: STRING_JUNK },
+    },
+    {
+      kind: 'weapon-attack',
+      base: { kind: 'weapon-attack', ability: 'spellcasting' },
+      // **The substitution is required and the other two are not**: SRD True
+      // Strike writes all three and a definition that wrote only the first is
+      // a swing made with the caster's own ability and nothing else, which is
+      // a sentence the format can hold. What a *wrong* substitution would be
+      // is an ability nobody named, so the field is swept as junk as well as
+      // required.
+      //
+      // The host is the three facts `checkWeaponAttack` holds the definition
+      // to — a cantrip, Range: Self, and this effect alone — asserted by name
+      // in `cantrip-with-the-swing.test.ts` rather than swept here.
+      fields: {
+        ability: required(STRING_JUNK),
+        damageTypes: ARRAY_JUNK,
+        extraDamage: OBJECT_JUNK,
+      },
+      host: { level: 0, range: { kind: 'self' } },
     },
     {
       kind: 'turn-payout',

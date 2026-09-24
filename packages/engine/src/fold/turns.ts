@@ -19,7 +19,9 @@
  * `openTurnStart` is the boundary a fight *opens* on, which is the same moment
  * arriving by a different door — see its own docstring.
  */
+import type { CharacterId } from '@ie/shared';
 import { sourceOfInstance } from '../conditions.js';
+import { castingSource } from '../spells.js';
 import { isDue } from '../time.js';
 import { pendingSaveKey, type PendingSave } from '../timers.js';
 import { type CombatState } from '../combat.js';
@@ -63,21 +65,41 @@ export function raiseTurnSaves(
     const timer = state.timers[key];
     const hook = timer?.repeatSave;
     if (timer === undefined || hook === undefined) continue;
-    if (timer.target.kind !== 'condition') continue;
+    if (timer.target.kind !== 'condition' && timer.target.kind !== 'casting') continue;
 
     const fires =
       hook.at === 'end-of-turn' ? hook.of === ended : hook.of === begun;
     if (!fires) continue;
 
-    // **What put the condition there, whatever that was.** This asked
+    // **What put the effect there, whatever that was.** This asked
     // `castingIdOf` for a casting id and `continue`d on null, so a repeat save
     // under any other source — a potion's, a caller's own — was an obligation
     // the boundary dropped in silence. The debt is about the *effect*, and the
     // source is what a success later has to end.
+    //
+    // **And a casting can host one directly**, which is the second kind of
+    // target this raises from. SRD Searing Smite asks nothing about a
+    // condition — it imposes none — so what is repeating is a question about
+    // whether the *spell* is still burning: the hook rides on the casting's
+    // own deadline, the source is the casting's own mark, and the creature
+    // that rolls is the one whose boundary raised it, because the SRD sentence
+    // names one creature twice ("at the start of each of **its** turns ...
+    // **it** takes ... and then makes"). `hook.of` is that creature for both
+    // kinds; for a condition it is also the creature the condition sits on.
+    const host =
+      timer.target.kind === 'condition'
+        ? { target: timer.target.on, source: sourceOfInstance(timer.target.instance) }
+        : sourceOfCasting(state, timer.target.castingId, hook.of);
+    // A casting with no record is a log this engine did not write: the one
+    // command that hangs a repeat on a casting writes the record in the same
+    // batch, and without the record there is no spell name for the mark a
+    // success would be looked up by.
+    if (host === null) continue;
+
     raised[pendingSaveKey(key, after.turnsTaken)] = {
       effectKey: key,
-      target: timer.target.on,
-      source: sourceOfInstance(timer.target.instance),
+      target: host.target,
+      source: host.source,
       ability: hook.ability,
       dc: hook.dc,
       onSuccess: hook.onSuccess,
@@ -88,6 +110,30 @@ export function raiseTurnSaves(
 
   if (Object.keys(raised).length === 0) return state;
   return { ...state, pendingSaves: sortedRecord({ ...state.pendingSaves, ...raised }) };
+}
+
+/**
+ * The mark a casting's own repeat save is filed under, and who rolls it.
+ *
+ * `PendingSave.source` is "what put the effect there", and for a casting-hosted
+ * repeat that is the casting itself — `Searing Smite#cast:3`, the same string
+ * every effect a casting creates already carries, so `castingIdOf` reads the
+ * casting back and `end-casting` ends exactly this one. The spell's name comes
+ * off the record the casting left, which is where every other reader of a
+ * running spell's name gets it.
+ *
+ * Null where no record is running under that id, which no log this engine
+ * writes can produce: the command that hangs the hook writes the record beside
+ * it, in one batch.
+ */
+function sourceOfCasting(
+  state: GameState,
+  castingId: string,
+  of: CharacterId,
+): { readonly target: CharacterId; readonly source: string } | null {
+  const record = state.ongoing[castingId];
+  if (record === undefined) return null;
+  return { target: of, source: castingSource(record.spell, castingId) };
 }
 
 /**

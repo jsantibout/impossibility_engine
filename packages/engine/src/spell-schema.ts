@@ -35,6 +35,7 @@ import type {
   SpellCheck,
   SpellDefinition,
   SpellEffect,
+  SpellRepeatSave,
   SpentBudget,
   StatedChoiceOf,
   SummonedNumber,
@@ -967,6 +968,88 @@ function checkSpeedMode(
  * goes for the check, which `save` writes at `effects[0].check` and every
  * other carrier at `effects[0].condition.check`.
  */
+/**
+ * A repeat save the **casting** hosts, rather than a condition.
+ *
+ * SRD Searing Smite: "At the start of each of its turns until the spell ends,
+ * the target takes 1d6 Fire damage and then makes a Constitution saving throw.
+ * On a failed save, the spell continues. On a successful save, the spell
+ * ends." The spell imposes no condition, so there is no instance for the
+ * repeat to be filed on and the hook rides on the casting's own deadline —
+ * which decides every rule below.
+ *
+ * - **The ability is required**, because the host rolled no save for this one
+ *   to repeat. It is the one place the book prints it, and it is refused on
+ *   every rider whose host *did* roll one: see {@link SpellRepeatSave.ability}.
+ * - **A success ends the casting**, because there is nothing else it could
+ *   end. `end-on-target` releases what a casting hung on one creature, and
+ *   this casting has hung nothing.
+ * - **A failure deepens nothing**, for the same reason: `onFailure` applies a
+ *   condition "under the same source" as the one it replaces, and there is no
+ *   first condition here. SRD writes "on a failed save, the spell continues",
+ *   which is what a repeat with no failure branch already does.
+ * - **And the damage it deals before the die** is an amount like any other.
+ */
+function checkCastingRepeat(
+  repeats: SpellRepeatSave | undefined,
+  level: number,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (repeats === undefined) return;
+  if (!readsAsObject(repeats, path, 'a repeat save is an object naming when it fires', found)) {
+    return;
+  }
+
+  if (!TURN_MOMENT_NAMES.has(repeats.at as unknown as string)) {
+    found.push({
+      field: `${path}.at`,
+      code: 'bad_moment',
+      reason: `"${String(repeats.at)}" is not a moment in a turn`,
+    });
+  }
+
+  if (repeats.ability === undefined || !ABILITY_NAMES_SET.has(repeats.ability)) {
+    found.push({
+      field: `${path}.ability`,
+      code: 'repeat_without_an_ability',
+      reason: `"${String(repeats.ability)}" is not an ability, and a repeat on an effect that rolled no save of its own has none to repeat — the book prints this one`,
+    });
+  }
+
+  if (repeats.onSuccess !== 'end-casting') {
+    found.push({
+      field: `${path}.onSuccess`,
+      code: 'casting_repeat_ends_the_casting',
+      reason:
+        'a repeat save hosted by the casting has nothing on a target to release, so a success ends the casting; "end-on-target" would find nothing',
+    });
+  }
+
+  if (repeats.onFailure !== undefined) {
+    found.push({
+      field: `${path}.onFailure`,
+      code: 'deepening_without_a_condition',
+      reason:
+        'a failure deepens the condition the first save imposed, and an effect that imposes none has nothing to deepen; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
+    });
+  }
+
+  const burns = repeats.beforeTheSave;
+  if (
+    burns !== undefined &&
+    readsAsObject(
+      burns,
+      `${path}.beforeTheSave`,
+      'damage dealt before the save is an object naming its dice and their type',
+      found,
+    )
+  ) {
+    checkScaling(burns.damage, level, `${path}.beforeTheSave.damage`, found);
+    checkDamageType(burns.damageType, `${path}.beforeTheSave.damageType`, found);
+  }
+}
+
 function checkConditionRider(
   rider: ConditionRider | undefined,
   namePath: string,
@@ -996,6 +1079,34 @@ function checkConditionRider(
       field: `${riderPath}.repeats`,
       code: 'repeats_without_save',
       reason: `a repeat save repeats the one its host rolled, and a "${host.kind}" effect rolls none`,
+    });
+  }
+
+  // **And a rider's repeat names neither an ability nor damage**, which are
+  // the two fields the *casting*-hosted repeat one kind away carries and this
+  // one may not.
+  //
+  // The ability, because SRD writes "the target repeats **the** save" — the
+  // one the host already rolled — so a second one here would be a second
+  // answer to one sentence, which is the argument `SpellRepeatSave` makes in
+  // the field itself. The damage, because a rider's repeat is raised from the
+  // condition instance and the payout is collected from the *casting*'s own
+  // hook: nothing carries it across, so a definition writing one here would be
+  // promising damage no boundary would ever deal.
+  if (rider?.repeats?.ability !== undefined) {
+    found.push({
+      field: `${riderPath}.repeats.ability`,
+      code: 'repeat_states_an_ability',
+      reason:
+        'SRD writes "the target repeats the save" — the one this effect already rolled — so a repeat on a rider names no ability of its own',
+    });
+  }
+  if (rider?.repeats?.beforeTheSave !== undefined) {
+    found.push({
+      field: `${riderPath}.repeats.beforeTheSave`,
+      code: 'repeat_deals_no_damage',
+      reason:
+        'damage before a repeat save is collected from the casting’s own hook, and a rider’s repeat is raised from the condition it landed on; written here it would be dealt by nothing',
     });
   }
 
@@ -2062,6 +2173,7 @@ function checkEffect(
     case 'attack-damage':
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
+      checkCastingRepeat(effect.repeats, level, `${path}.repeats`, found);
       // SRD Divine Smite: "The damage increases by 1d8 if the target is a
       // Fiend or an Undead." A bare notation rather than a `DiceScaling`, so
       // `checkScaling`'s cantrip and slot rules have nothing to say about it —
@@ -2910,6 +3022,92 @@ function checkEffect(
             });
           }
         });
+      }
+      return;
+    }
+
+    // The swing the casting makes itself. Three things to judge and the
+    // definition-level rule is `checkWeaponAttack`'s: what is here is the
+    // substitution, the offer and the band table, held to exactly the rules
+    // the neighbouring `weapon-rider` holds its own offer and its own table
+    // to — one reader for both, so a Cantrip Upgrade keyed by character level
+    // cannot come to be validated two ways.
+    case 'weapon-attack': {
+      // Read back off an untyped shape, for the reason `againstType.outcome`
+      // is: the field is a union of one, so the compiler narrows it to
+      // `never` inside the branch that judges it — and what arrives here from
+      // JSON is whatever the author wrote.
+      const substituted = (effect as { readonly ability?: unknown }).ability;
+      if (substituted !== 'spellcasting') {
+        found.push({
+          field: `${path}.ability`,
+          code: 'bad_substitution',
+          reason: `"${String(substituted)}" is not an ability a casting substitutes into its own swing; the SRD names the caster's spellcasting ability`,
+        });
+      }
+      if (effect.damageTypes !== undefined && !Array.isArray(effect.damageTypes)) {
+        found.push({
+          field: `${path}.damageTypes`,
+          code: MALFORMED,
+          reason: `a list of damage types, and this is ${nameOf(effect.damageTypes)}`,
+        });
+      } else if (effect.damageTypes !== undefined) {
+        if (effect.damageTypes.length === 0) {
+          found.push({
+            field: `${path}.damageTypes`,
+            code: 'empty_damage_type_offer',
+            reason:
+              'a swing that offers no type at all writes no list; an empty one is a choice with nothing on it',
+          });
+        }
+        effect.damageTypes.forEach((type, i) => {
+          if (typeof type !== 'string' || !DAMAGE.has(type)) {
+            found.push({
+              field: `${path}.damageTypes[${i}]`,
+              code: 'bad_damage_type',
+              reason: `"${String(type)}" is not a damage type this engine knows`,
+            });
+          }
+        });
+      }
+      const extra = effect.extraDamage;
+      if (
+        extra !== undefined &&
+        readsAsObject(
+          extra,
+          `${path}.extraDamage`,
+          'extra damage on the swing is an object naming its type and the levels its dice arrive at',
+          found,
+        )
+      ) {
+        checkDamageType(extra.damageType, `${path}.extraDamage.damageType`, found);
+        const bands = readableBand(
+          extra.diceAtLevel,
+          `${path}.extraDamage.diceAtLevel`,
+          found,
+        );
+        checkBandKeys(bands, `${path}.extraDamage.diceAtLevel`, found);
+        // **A table with nothing in it adds nothing at every level**, which is
+        // the `rider_does_nothing` reading one member up: a definition that
+        // says it deals extra damage and names no level to deal it at is a
+        // sentence the reader would silently answer "none" to for ever.
+        if (bands !== undefined && Object.keys(bands).length === 0) {
+          found.push({
+            field: `${path}.extraDamage.diceAtLevel`,
+            code: 'empty_band_table',
+            reason:
+              'a band table with no band in it adds dice at no level at all; a swing that adds none writes no extra damage',
+          });
+        }
+        for (const [level, dice] of Object.entries(bands ?? {})) {
+          if (typeof dice !== 'string' || !parseNotation(dice).ok) {
+            found.push({
+              field: `${path}.extraDamage.diceAtLevel.${level}`,
+              code: 'bad_dice',
+              reason: `"${String(dice)}" is not dice notation`,
+            });
+          }
+        }
       }
       return;
     }
@@ -4207,6 +4405,8 @@ export function checkSpellDefinition(
   checkSummonTargets(definition, found);
   checkKeptBesideADuration(definition, found);
   checkChanceTargets(definition, found);
+  checkWeaponAttack(definition, found);
+  checkCastingRepeatLifetime(definition, found);
 
   const activation = definition.activation;
   if (
@@ -5091,6 +5291,90 @@ function checkChanceTargets(
 }
 
 /**
+ * The shape a casting that makes its own weapon attack has to have.
+ *
+ * Three rules, and every one of them is a fact about the **definition** rather
+ * than about the effect, which is why they are here and not in `checkEffect`.
+ *
+ * - **A cantrip.** The dice this kind adds are a Cantrip Upgrade read off the
+ *   caster's level, and there is no slot in the request an attack command
+ *   sends: a levelled spell written this way would be cast for nothing.
+ * - **Range: Self.** The spell puts nothing anywhere; the *weapon* reaches
+ *   whatever the weapon reaches, and the attack command has always measured
+ *   that. A range in feet beside it would be a second reach nobody checks,
+ *   because `resolveSpell` never sees this casting.
+ * - **Nothing else on the effect list.** `resolveSpell` refuses a definition
+ *   carrying this kind outright, so any other effect beside it is an effect
+ *   that could never run — a sentence the catalogue promises and no command
+ *   keeps. The attack command resolves the swing and nothing else.
+ *
+ * Refused separately, so an author is told which of the three is wrong.
+ */
+function checkWeaponAttack(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!definition.effects.some((effect) => effect.kind === 'weapon-attack')) return;
+
+  if (definition.level !== 0) {
+    found.push({
+      field: 'level',
+      code: 'swing_not_a_cantrip',
+      reason:
+        'a casting that makes its own weapon attack scales off the caster’s level and spends no slot, so it is a cantrip',
+    });
+  }
+  if (definition.range.kind !== 'self') {
+    found.push({
+      field: 'range',
+      code: 'swing_not_on_its_caster',
+      reason:
+        'the spell reaches nobody: the weapon does, and the attack command measures that — so its Range is Self',
+    });
+  }
+  if (definition.effects.length > 1) {
+    found.push({
+      field: 'effects',
+      code: 'swing_beside_another_effect',
+      reason:
+        'the swing is resolved by the attack command and `resolveSpell` refuses the definition, so anything written beside it is an effect nothing would ever run',
+    });
+  }
+}
+
+/**
+ * A casting-hosted repeat save needs a casting that lasts.
+ *
+ * The hook rides on the casting's own deadline — that is what "hosted by the
+ * casting" means — so an Instantaneous smite carrying one would hang it on
+ * nothing: no timer, no boundary, and a paragraph of the spell that silently
+ * never happens. SRD Searing Smite prints "Duration: 1 minute", which is
+ * exactly the field this asks for.
+ *
+ * **A span, and not a moment in the turn order.** `durationUntil` is a rider's
+ * kind of deadline and the casting a hit makes takes its own from
+ * `durationSecondsAt`, so a definition writing the other one would be writing
+ * a duration the command that casts it cannot read.
+ */
+function checkCastingRepeatLifetime(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  const hosted = definition.effects.some(
+    (effect) => effect.kind === 'attack-damage' && effect.repeats !== undefined,
+  );
+  if (!hosted) return;
+  if (definition.durationSeconds !== undefined || definition.durationAtSlot !== undefined) return;
+
+  found.push({
+    field: 'durationSeconds',
+    code: 'casting_repeat_without_a_duration',
+    reason:
+      'a repeat save hosted by the casting rides on the casting’s own deadline, and a spell that prints no span in seconds has none for it to ride on',
+  });
+}
+
+/**
  * A kept creature on a casting that also leaves a record running.
  *
  * Two lifetimes: the summoner's, which `kept` declares, and the casting's,
@@ -5366,6 +5650,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'damage-reduction',
   'attack-rider',
   'weapon-rider',
+  'weapon-attack',
   'teleport',
   'summon',
   'turn-payout',

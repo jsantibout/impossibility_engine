@@ -84,6 +84,7 @@
   ],
   "fold/turns.ts": [
     "raiseTurnSaves",
+    "sourceOfCasting",
     "failUnsustainedCastings",
     "forgetSustainedTurns",
     "raiseTurnEnd",

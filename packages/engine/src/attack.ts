@@ -526,6 +526,21 @@ export interface AttackOptions {
    * thing would be two answers to one question.
    */
   readonly finesseAbility?: 'str' | 'dex';
+  /**
+   * The ability this attack is made with **whatever the weapon says**.
+   *
+   * SRD True Strike: "The attack uses your spellcasting ability for the attack
+   * and damage rolls **instead of** using Strength or Dexterity." That is not
+   * {@link finesseAbility} beside it and not a style's offer either: both of
+   * those are choices, weighed against the weapon's own and settled by taking
+   * the better one. This is a substitution the caster cannot decline, so
+   * nothing is weighed and nothing may override it.
+   *
+   * Absent for every swing nothing has substituted, which is every swing that
+   * is not a casting — the arithmetic below is then exactly what it always
+   * was.
+   */
+  readonly imposedAbility?: Ability;
   /** Situational advantage or disadvantage from the fiction. */
   readonly modes?: readonly (RollMode | ModeSource)[];
   /**
@@ -646,6 +661,13 @@ export function attackAbility(sheet: CharacterSheet, options: AttackOptions): Ab
 
   const spell = options.spellAttack;
   if (spell !== undefined && spell.ability !== null) return spell.ability;
+
+  // **A substitution, before every choice below it.** SRD True Strike says the
+  // attack *uses* the caster's spellcasting ability instead of Strength or
+  // Dexterity, so there is nothing here to weigh: Finesse's "your choice", a
+  // style's offer and the attacker's own answer are all choices about which of
+  // two modifiers to add, and this sentence has already answered.
+  if (options.imposedAbility !== undefined) return options.imposedAbility;
 
   const chosen = options.finesseAbility;
   const better = (one: Ability, other: Ability): Ability =>

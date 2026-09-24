@@ -462,7 +462,22 @@ const castFully = (spellId: string, bonus = -40, seed = 'cast') => {
 const ON_HIT = SPELL_DEFINITIONS.filter((d) =>
   d.effects.some((effect) => effect.kind === 'attack-damage'),
 );
-const CASTABLE = SPELL_DEFINITIONS.filter((d) => !ON_HIT.includes(d));
+
+/**
+ * And a spell cast **as** a weapon attack, refused by the same command a line
+ * later and for the same reason one line earlier.
+ *
+ * SRD True Strike: "you make one attack with the weapon used in the spell's
+ * casting." The casting and the swing are one moment, so the swing names the
+ * cantrip — `resolveAttack` — and this command, which makes no attack, cannot
+ * be handed one. Driven by `cantrip-with-the-swing.test.ts`.
+ */
+const WITH_A_SWING = SPELL_DEFINITIONS.filter((d) =>
+  d.effects.some((effect) => effect.kind === 'weapon-attack'),
+);
+const CASTABLE = SPELL_DEFINITIONS.filter(
+  (d) => !ON_HIT.includes(d) && !WITH_A_SWING.includes(d),
+);
 
 describe('a spell cast on a hit is refused by the ordinary casting command', () => {
   it('has some, so the rule below is not vacuous', () => {
@@ -473,6 +488,18 @@ describe('a spell cast on a hit is refused by the ordinary casting command', () 
     const out = castAt(fold('seed', logFor(spellId)), spellId, -40);
     expect(isErr(out)).toBe(true);
     if (isErr(out)) expect(out.code).toBe('cast_on_a_hit');
+  });
+});
+
+describe('a spell cast as a hit is refused by the same command', () => {
+  it('has some, so the rule below is not vacuous', () => {
+    expect(WITH_A_SWING.length).toBeGreaterThan(0);
+  });
+
+  it.each(WITH_A_SWING.map((d) => [d.id] as const))('refuses %s, and says why', (spellId) => {
+    const out = castAt(fold('seed', logFor(spellId)), spellId, -40);
+    expect(isErr(out)).toBe(true);
+    if (isErr(out)) expect(out.code).toBe('cast_with_a_swing');
   });
 });
 

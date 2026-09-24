@@ -1328,6 +1328,27 @@ const ADDED: readonly string[] = [
   ...ADDED_SEVENTH,
 ].sort();
 
+/**
+ * The spells whose door is **not** the casting command.
+ *
+ * SRD Divine Smite and SRD Searing Smite are cast on an attack that has hit,
+ * and SRD True Strike is cast *as* one: `resolveSpell` refuses all three,
+ * because the attack is the thing they need and that command has none to give.
+ * Every sweep below that *casts* takes this out of its population, and the
+ * refusal is asserted rather than the spell being quietly dropped — the reading
+ * `spell-catalogue.test.ts` already takes of the same two effect kinds.
+ *
+ * Derived from the effect kinds rather than listed by spell id, so the next
+ * definition written this way needs no line here.
+ */
+const castOnASwing = (spellId: string): boolean =>
+  (SRD_CONTENT.spell(spellId)?.effects ?? []).some(
+    (effect) => effect.kind === 'attack-damage' || effect.kind === 'weapon-attack',
+  );
+
+/** The passes above, less the spells this command cannot cast at all. */
+const DRIVEN_HERE: readonly string[] = ADDED.filter((spellId) => !castOnASwing(spellId));
+
 describe('every spell this batch added is cast for real', () => {
   it('names them in an order two branches can both append to', () => {
     expect(ADDED_FIRST).toEqual([...ADDED_FIRST].sort());
@@ -1555,6 +1576,14 @@ describe('every spell this batch added is cast for real', () => {
     // shake-awake and the automatic successes stay, in `ADJUDICATED` now.
     'sleep',
     'spike-growth',
+    // **True Strike leaves by a door no effect kind opened.** Its swing *is*
+    // the casting — "you make one attack with the weapon used in the spell's
+    // casting" — so `weapon-attack` is resolved by the attack command, which
+    // takes the cantrip beside the weapon, substitutes the spellcasting
+    // ability into both rolls and adds the Cantrip Upgrade's Radiant die.
+    // Nothing is granted and nothing outlives the swing, which is why this is
+    // the one entry here that the casting sweeps below cannot drive.
+    'true-strike',
     'wind-walk',
     // The last of the tracked spells to be blocked on a *publication* rather
     // than on a mechanic. The Charisma save was always ordinary and both
@@ -1584,8 +1613,26 @@ describe('every spell this batch added is cast for real', () => {
     expect(TRACKED, spellId).toContain(spellId);
   });
 
+  /**
+   * And the spells this command cannot cast say so, rather than being quietly
+   * left out of the sweeps that cast.
+   */
+  it('takes only the spells this command can cast into the sweeps that cast', () => {
+    expect(ADDED.filter(castOnASwing)).toEqual(['true-strike']);
+    expect(DRIVEN_HERE).toEqual(ADDED.filter((s) => s !== 'true-strike'));
+  });
+
+  it.each(ADDED.filter(castOnASwing).map((s) => [s] as const))(
+    'refuses %s at the ordinary casting command, which makes no attack',
+    (spellId) => {
+      const out = cast(spellId);
+      expect(isErr(out), spellId).toBe(true);
+      if (isErr(out)) expect(out.code).toBe('cast_with_a_swing');
+    },
+  );
+
   /** A levelled casting spends exactly one slot of its own level. */
-  it.each(ADDED.filter((s) => (SRD_CONTENT.spell(s)?.level ?? 0) > 0).map((s) => [s] as const))(
+  it.each(DRIVEN_HERE.filter((s) => (SRD_CONTENT.spell(s)?.level ?? 0) > 0).map((s) => [s] as const))(
     'spends one slot for %s',
     (spellId) => {
       const level = SRD_CONTENT.spell(spellId)!.level;
@@ -1596,7 +1643,7 @@ describe('every spell this batch added is cast for real', () => {
   );
 
   /** And the action the book prints, out of the turn that has one to spend. */
-  it.each(ADDED.map((s) => [s] as const))('takes the action the book prints for %s', (spellId) => {
+  it.each(DRIVEN_HERE.map((s) => [s] as const))('takes the action the book prints for %s', (spellId) => {
     const inCombat: readonly GameEvent[] = [
       ...SETUP,
       {
@@ -1619,7 +1666,7 @@ describe('every spell this batch added is cast for real', () => {
   });
 
   /** Concentration exactly where the printed Duration says so, and nowhere else. */
-  it.each(ADDED.map((s) => [s] as const))('concentrates on %s only if the book does', (spellId) => {
+  it.each(DRIVEN_HERE.map((s) => [s] as const))('concentrates on %s only if the book does', (spellId) => {
     const out = driven(spellId);
     const after = fold('seed', [...SETUP, ...out.events]);
     expect(after.creatures.wizard!.concentration !== null, spellId).toBe(
@@ -1632,7 +1679,7 @@ describe('every spell this batch added is cast for real', () => {
    * schedules nothing. Driven a second short of the deadline as well as past
    * it, because a timer that expired early would still leave zero behind.
    */
-  it.each(ADDED.map((s) => [s] as const))('runs %s’s duration on the clock', (spellId) => {
+  it.each(DRIVEN_HERE.map((s) => [s] as const))('runs %s’s duration on the clock', (spellId) => {
     const seconds = SRD_CONTENT.spell(spellId)!.durationSeconds;
     const log = [...SETUP, ...driven(spellId).events];
     if (seconds === undefined) {
@@ -1760,7 +1807,7 @@ describe('every spell this batch added is cast for real', () => {
   );
 
   it.each(
-    ADDED.filter(
+    DRIVEN_HERE.filter(
       (s) => !FINISHED_OUTRIGHT.includes(s) && !FINISHED_BUT_HANDS_OVER.includes(s),
     ).map((s) => [s] as const),
   )(

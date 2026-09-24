@@ -104,7 +104,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-counted-to-a-tally':
     'a repeat save carrying a running count of successes and failures — the death-save shape rather than the repeat-save one, and CLAUDE.md records that `rollDeathSave` is its own thing for exactly that reason. `RepeatSave` holds no tally. The second of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-repeat-save-that-does-something-on-a-failure':
-    'a repeat save whose **failure** branch acts. `RepeatSave.onSuccess` releases an effect and the failure does nothing at all, so a boundary save that deals damage or deepens a condition has nowhere to put it. The audit names the damage half — "damage on a failure (Phantasmal Killer, Weird)" — as the third of the four mechanisms bundled under `a-repeat-save-beyond-the-turn-hook`; PROGRESS.md names it for Ensnaring Strike.',
+    'a repeat save whose **failure** branch acts. `RepeatSave.onSuccess` released an effect and the failure did nothing at all, so a boundary save that deals damage or deepens a condition had nowhere to put it. **Two of the three arms are built now.** `RepeatSave.onFailure` is the deepening — SRD Sleep’s second save applies the Unconscious under the same source and ends the timer with it, which is what finished that spell. And `RepeatSave.beforeTheSave` is the damage a boundary deals **before** the die: SRD Searing Smite’s "the target takes 1d6 Fire damage and then makes a Constitution saving throw", collected through `dealSpellDamage` so defences, Concentration and the log’s dice all apply, on a repeat the **casting** hosts rather than a condition — which is what finished that one. What is left is damage keyed to the *failure itself* — "damage on a failure (Phantasmal Killer, Weird)", the third of the four mechanisms the audit bundled under `a-repeat-save-beyond-the-turn-hook` — and any of it on a repeat raised from a condition rider, where the payout would have to travel with the condition rather than with the casting. PROGRESS.md names the id for Ensnaring Strike.',
   'a-repeat-save-raised-by-a-trigger':
     'a repeat save raised by something that happened — taking damage, having moved, coming within a distance, another effect trying to cure it. The turn hook is the only thing that raises one, which `docs/design/time-and-turns.md` states outright: "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes". The fourth of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-casting-ended-by-a-trigger':
@@ -194,7 +194,7 @@ export const MISSING_SHAPES = {
   'a-spells-effects-applied-to-different-targets':
     '`docs/design/spell-definitions.md`: "**A spell has one effect list applied to every target**, so nothing yet expresses “each creature takes damage *and* is knocked Prone” with different outcomes per target beyond the save each one rolls." A casting that chooses per creature, or divides a pool among them, is the same gap.',
   'a-rider-on-a-later-weapon-attack':
-    '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. **And the weapon half is built too**: a casting now names the particular weapon it was aimed at (`CastSpellRequest.weapon`), the `weapon-rider` grant hangs on whoever holds it keyed by that weapon’s id, and what it may change is the **substituted ability**, the **replaced damage die** and a **flat** plus of the weapon’s own type reaching the attack roll and the damage roll alike — with a band table apiece, off the slot and off the caster’s level. Shillelagh and Magic Weapon are what that finished. **And the type a swing chooses is built too**: `weapon-rider.damageTypes` is the offer Shillelagh’s second sentence makes, answered on the attack command under the spell’s own name rather than pinned at the casting, and it replaces the weapon’s own type where it is taken. What is left is every rider that is neither of those builds: a damage type chosen at the moment of the attack on a rider that is **not** keyed to one weapon (Conjure Minor Elementals), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse), a substitution on an **Unarmed Strike**, which is not a weapon and so is not a thing a casting can name (Alter Self), and a casting that *makes* the attack it rides (True Strike), which is a door no effect kind opens.',
+    '`PROGRESS.md`, on what the drained shapes left: "a rider on every weapon attack (Divine Favor, Hex, Hunter’s Mark)"; PROGRESS.md ranks it as "Extra damage on the target’s later attacks | 3 / 10 | `damageBonuses` / `extraDamage`, Rage Damage, Radiant Strikes". **IE-035 built the extra-damage half** — the `attack-rider` grant hangs a notation and a damage type on the caster, optionally narrowed to weapon attacks or to a marked target, and Divine Favor, Hunter’s Mark and Hex’s first sentence are all expressible by it. **And the weapon half is built too**: a casting now names the particular weapon it was aimed at (`CastSpellRequest.weapon`), the `weapon-rider` grant hangs on whoever holds it keyed by that weapon’s id, and what it may change is the **substituted ability**, the **replaced damage die** and a **flat** plus of the weapon’s own type reaching the attack roll and the damage roll alike — with a band table apiece, off the slot and off the caster’s level. Shillelagh and Magic Weapon are what that finished. **And the type a swing chooses is built too**: `weapon-rider.damageTypes` is the offer Shillelagh’s second sentence makes, answered on the attack command under the spell’s own name rather than pinned at the casting, and it replaces the weapon’s own type where it is taken. What is left is every rider that is neither of those builds: a damage type chosen at the moment of the attack on a rider that is **not** keyed to one weapon (Conjure Minor Elementals), extra damage with **no type** and so the weapon’s own (Enlarge/Reduce), a rider that fires on damage from **a spell** rather than an attack roll (Bestow Curse), and a substitution on an **Unarmed Strike**, which is not a weapon and so is not a thing a casting can name (Alter Self). **And the casting that *makes* the attack it rides is built**: `weapon-attack` is the door no effect kind opened — the attack command takes the cantrip beside the weapon, spends the Action as the casting’s, substitutes the spellcasting ability into the attack and damage rolls, adds the Cantrip Upgrade’s dice off a band table keyed by character level and offers the type the sentence prints, with nothing granted and nothing left standing. True Strike is what that finished.',
   'a-range-that-scales-with-caster-level':
     '`SpellDefinition.range` in spell-definitions.ts is one fixed `SpellRange`, and `ranged(definition.range)` is checked on every casting — tracked or executed, before a target is looked at. `docs/design/spell-definitions.md` keeps the two scaling axes apart on purpose — "**Cantrips scale by caster level and levelled spells by slot**, and they are separate fields rather than one overloaded number" — and both of them reach *dice*. Exactly one spell in the book prints a range that grows with the caster, and the engine would refuse the casting the SRD allows.',
   'a-cap-on-how-many-castings-run-at-once':
@@ -1143,18 +1143,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'costs no Attack action',
       why: 'table',
       note: 'SRD ends this spell "if the warded creature makes an attack roll", and an attack roll changes no state by rule — `roll-recorded` is an audit line — so the ending hangs on the swing that spends something or on the blow that lands. An Opportunity Attack that misses, or any swing outside combat, leaves the ward standing where the book would end it.',
-    },
-  ],
-  'searing-smite': [
-    {
-      clause: 'a repeat save whose failure branch acts',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the burning deals 1d6 Fire damage at the start of each of the target’s turns and then asks for a Constitution save. `RepeatSave.onSuccess` releases an effect and the failure branch does nothing at all, which is the wrong way round for every sentence of this paragraph.',
-    },
-    {
-      clause: 'the spell continuing on a failed save, and ending on a successful one',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the two branches the save chooses between, and the second is the one the existing mechanism could express. Recorded separately because the damage above it is the half that has no branch to sit in, and a single entry would have hidden which of the two is missing.',
     },
   ],
   shield: [
@@ -2143,20 +2131,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'You restore up to 700 Hit Points, divided as you choose',
       why: 'a-spells-effects-applied-to-different-targets',
       note: 'a flat amount with no dice is expressible now; splitting it across the creatures one casting caught is not, and a casting applies its effects to all of its targets alike \u2014 so writing it would heal everybody in range for seven hundred.',
-    },
-  ],
-  'true-strike': [
-    {
-      marker: 'dice',
-      clause: 'when you reach levels 5 (1d6), 11 (2d6), and 17 (3d6)',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the cantrip upgrade adds dice to a weapon attack the casting itself is supposed to make, and a casting reaches `resolveAttack` through no door at all — an attack command is how a swing happens.',
-    },
-    {
-      marker: 'extra-damage',
-      clause: 'the attack deals extra Radiant damage',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'extra damage of a stated type on somebody’s weapon swing is the attack-rider grant, which hangs a notation and a damage type together and which no spell definition can write. The same sentence, and the other mechanic in it.',
     },
   ],
   'ice-knife': [
