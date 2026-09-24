@@ -560,6 +560,11 @@ export type GameEvent =
    * there is no removal event: `releaseCasting`, `releaseOnTarget` and the
    * `grants` timer are the doors.
    */
+  | {
+      readonly type: 'condition-immunity-granted';
+      readonly id: CharacterId;
+      readonly immunity: GrantedConditionImmunity;
+    }
   /**
    * A creature type one running effect has put over another's own.
    *
@@ -584,11 +589,6 @@ export type GameEvent =
       readonly id: CharacterId;
       readonly mask: GrantedCreatureType;
       readonly command?: CommandStamp;
-    }
-  | {
-      readonly type: 'condition-immunity-granted';
-      readonly id: CharacterId;
-      readonly immunity: GrantedConditionImmunity;
     }
 
   /**

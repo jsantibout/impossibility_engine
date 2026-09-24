@@ -254,23 +254,41 @@ describe('Heat Metal', () => {
    * creature for keeping a thing lying at its feet.
    */
   it('refuses a later Bonus Action against a creature that has dropped it', () => {
-    const started = fold('seed', FIGHTING);
-    const first = unwrap(cast(started, THUG, MACE, FAILS), 'the heat');
-    const log = [...FIGHTING, ...first.events];
-    const state = fold('seed', log);
-    expect(state.creatures[THUG]!.equipped.map((worn) => worn.id)).not.toContain(MACE);
+    /** The thug, heated and then acted through again on a later turn. */
+    const roundTwo = (bonus: number) => {
+      const log = [
+        ...FIGHTING,
+        ...unwrap(cast(fold('seed', FIGHTING), THUG, MACE, bonus), 'the heat').events,
+      ];
+      const state = fold('seed', log);
+      const record = Object.values(state.ongoing).find((one) => one.spellId === 'heat-metal')!;
+      return {
+        state,
+        again: activateSpell(
+          state,
+          DRUID,
+          { castingId: record.castingId, targets: [THUG] },
+          supply(SAVES, 'again'),
+        ),
+      };
+    };
 
-    const record = Object.values(state.ongoing).find((one) => one.spellId === 'heat-metal')!;
-    const again = activateSpell(
-      state,
-      DRUID,
-      { castingId: record.castingId, targets: [THUG] },
-      supply(SAVES, 'again'),
-    );
-    expect(isErr(again) && again.code).toBe('not_equipped');
-    expect(state.creatures[THUG]!.vitals.hp).toBe(
-      fold('seed', log).creatures[THUG]!.vitals.hp,
-    );
+    // **The control, so the assertions below could have moved.** A thug who
+    // made his save is still holding the mace, so the Bonus Action reaches
+    // him: the dice land and the slot goes.
+    const kept = roundTwo(SAVES);
+    expect(kept.state.creatures[THUG]!.equipped.map((worn) => worn.id)).toContain(MACE);
+    const struck = unwrap(kept.again, 'the control').events.reduce(applyEvent, kept.state);
+    expect(struck.creatures[THUG]!.vitals.hp).toBeLessThan(kept.state.creatures[THUG]!.vitals.hp);
+    expect(struck.combat?.budgets[DRUID]?.bonusAction).toBe(false);
+
+    // And the thug who failed and let it fall is touching nothing, so the
+    // Bonus Action refuses — before the dice and before the slot, which is
+    // what the control proves both of.
+    const dropped = roundTwo(FAILS);
+    expect(dropped.state.creatures[THUG]!.equipped.map((worn) => worn.id)).not.toContain(MACE);
+    expect(isErr(dropped.again) && dropped.again.code).toBe('not_equipped');
+    expect(dropped.state.combat?.budgets[DRUID]?.bonusAction).toBe(true);
   });
 
   /** And the casting itself is refused for the same reason, before a slot. */
