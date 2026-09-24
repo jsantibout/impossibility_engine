@@ -2025,7 +2025,8 @@ const MOVEMENT_KINDS: ReadonlySet<string> = new Set(['push', 'lift']);
  *
  * Everything that *is* allowed is then held to the ordinary rules by
  * {@link checkRiders}, so a mode on a success is judged exactly as a mode on a
- * failure is.
+ * failure is — and {@link grantOnASuccess} is the other half of that, which
+ * is where the lifetime rule reaches this branch.
  */
 function checkSuccessRiders(
   riders: OutcomeRiders,
@@ -3988,11 +3989,21 @@ function checkLiftAgainstDeadlines(
       // Read off the same slot `grantCarried` reads, and with the same
       // tolerance for input nobody can walk: a `modifiers` that is not a list
       // schedules nothing, and what is wrong with it is `checkRiders`' to say.
-      const modifiers = (effect as { readonly modifiers?: unknown }).modifiers;
-      if (!Array.isArray(modifiers)) return;
-      for (const rider of modifiers) {
-        if (typeof rider !== 'object' || rider === null) continue;
-        if ((rider as { readonly lasts?: unknown }).lasts !== undefined) deadlines += 1;
+      //
+      // **Both branches**, because the timer is keyed by the casting's source
+      // and the creature and knows nothing about which branch hung it: a
+      // deadline written on `onSuccessRiders` releases the lift on the same
+      // key a deadline written on the failure would.
+      for (const slot of [
+        (effect as { readonly modifiers?: unknown }).modifiers,
+        (effect as { readonly onSuccessRiders?: { readonly modifiers?: unknown } })
+          .onSuccessRiders?.modifiers,
+      ]) {
+        if (!Array.isArray(slot)) continue;
+        for (const rider of slot) {
+          if (typeof rider !== 'object' || rider === null) continue;
+          if ((rider as { readonly lasts?: unknown }).lasts !== undefined) deadlines += 1;
+        }
       }
     });
   }
@@ -4379,9 +4390,87 @@ function grantCarried(effect: SpellEffect): string | null {
       if ((effect as { readonly light?: unknown }).light !== undefined) {
         return 'light the target sheds';
       }
-      return null;
+      // **And the slot a success fills, which leaves the same things
+      // standing.** `modifierRidersOf` and `conditionRiderOf` read the flat
+      // `modifiers` and the flat condition, because they are the vocabulary
+      // the *failure* is written in; `save.onSuccessRiders` is a second
+      // `OutcomeRiders` on the other branch, and a grant hung there is welded
+      // to the casting exactly as one hung on the failure is. Without this the
+      // lifetime rule stopped at the failure slot, and an Instantaneous spell
+      // could hang a permanent Poisoned or a permanent damage penalty off a
+      // creature that had made its save — the silent failure this whole
+      // function exists to refuse, reached by the one branch it was not
+      // looking at.
+      return grantOnASuccess(effect);
     }
   }
+}
+
+/**
+ * What a `save`'s success slot leaves standing, or null if it leaves nothing.
+ *
+ * {@link grantCarried}'s walk over the four slots `checkSuccessRiders` admits,
+ * asked of the branch the flat fields do not describe. `spends` is not among
+ * them and never could be: a slot of a turn used up is over the moment it is
+ * spent, which is the reading `delayed` and a push already get one branch
+ * along.
+ *
+ * Read through `?.` and `Array.isArray` like every other reader in this file,
+ * because it meets untyped input: a slot nobody can walk carries no lifetime
+ * worth reporting, and what is wrong with it is {@link checkSuccessRiders}' to
+ * say.
+ */
+function grantOnASuccess(effect: SpellEffect): string | null {
+  if (effect.kind !== 'save') return null;
+  const riders = effect.onSuccessRiders;
+  if (typeof riders !== 'object' || riders === null) return null;
+
+  if (Array.isArray(riders.conditions)) {
+    for (const rider of riders.conditions) {
+      if (typeof rider !== 'object' || rider === null || Array.isArray(rider)) continue;
+      if (rider.lasts !== undefined || rider.outlivesCasting === true) continue;
+      return `the ${String(rider.name)} condition`;
+    }
+  }
+
+  if (Array.isArray(riders.modifiers)) {
+    for (const rider of riders.modifiers) {
+      switch (rider?.kind) {
+        case 'bonus':
+          return 'a bonus';
+        case 'damage-penalty':
+          return 'an amount taken off the damage the target deals';
+        case 'mode':
+          if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
+          break;
+        case 'speed-change':
+          if (rider.lasts === undefined) return 'a changed Speed';
+          break;
+        case 'action':
+          if (rider.lasts === undefined) return 'a rule about what a turn may be spent on';
+          break;
+        case 'healing':
+          if (rider.lasts === undefined) return 'a rule standing in front of healing';
+          break;
+        case 'benefit':
+          if (rider.lasts === undefined) return 'a benefit taken off a condition';
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  // A lift is held for the casting's duration and set down when it ends, so an
+  // Instantaneous host would leave the creature in the air with nothing that
+  // could bring it down — the same debt the failure branch's lift carries,
+  // and a push carries none because a shove is over the instant it lands.
+  const moved = riders.movement;
+  if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
+    return 'a creature this casting is holding in the air';
+  }
+
+  return null;
 }
 
 /**

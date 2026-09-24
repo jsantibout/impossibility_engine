@@ -315,8 +315,13 @@ export function damagePenaltyOf(
   const raw = rawDamageTotal(components);
   if (raw === 0) return ok(nothing);
 
-  const events: GameEvent[] = [];
-  const entries: { source: string; roll: DamageReduction['roll']; amount: number }[] = [];
+  const entries: {
+    source: string;
+    roll: DamageReduction['roll'];
+    notation: string;
+    rolled: number;
+    amount: number;
+  }[] = [];
   let floor = 0;
 
   for (const penalty of standing) {
@@ -328,16 +333,12 @@ export function damagePenaltyOf(
     }
     const amount = (rolled?.total ?? 0) + (penalty.flat ?? 0);
     if (penalty.floor !== undefined) floor = Math.max(floor, penalty.floor);
-    entries.push({ source: penalty.label, roll: rolled, amount });
-
-    events.push({
-      type: 'roll-recorded',
-      who: dealer,
-      label: penalty.label,
-      natural: amount,
-      total: amount,
-      contributions: [{ source: penalty.dice ?? String(penalty.flat ?? 0), amount }],
-      outcome: `${amount} subtracted from the damage`,
+    entries.push({
+      source: penalty.label,
+      roll: rolled,
+      notation: penalty.dice ?? String(penalty.flat ?? 0),
+      rolled: amount,
+      amount,
     });
   }
 
@@ -352,7 +353,27 @@ export function damagePenaltyOf(
     total -= off;
   }
 
-  return ok({ events, reductions: entries, amount: total });
+  // **The log is written after the trimming, not during it**, which is the
+  // whole reason the loop above writes no event. The die showed what it
+  // showed — `natural` and `total` are the face, and a reader can see the
+  // d8 — but what the blow actually lost is the trimmed amount, and an
+  // outcome line naming the throw would tell a table five where three came
+  // off. SRD Enlarge/Reduce is the sentence that makes the two differ.
+  const events: GameEvent[] = entries.map((entry) => ({
+    type: 'roll-recorded',
+    who: dealer,
+    label: entry.source,
+    natural: entry.rolled,
+    total: entry.rolled,
+    contributions: [{ source: entry.notation, amount: entry.rolled }],
+    outcome: `${entry.amount} subtracted from the damage`,
+  }));
+
+  return ok({
+    events,
+    reductions: entries.map(({ source, roll, amount }) => ({ source, roll, amount })),
+    amount: total,
+  });
 }
 
 /**

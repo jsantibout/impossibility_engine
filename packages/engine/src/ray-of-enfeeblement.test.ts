@@ -268,6 +268,10 @@ const takenIn = (events: readonly GameEvent[]): number => {
   return taken?.type === 'damage-taken' ? taken.amount : 0;
 };
 
+/** What a penalty's line says actually came off the blow. */
+const subtracted = (line: { readonly outcome?: string }): number =>
+  Number((line.outcome ?? '').split(' ')[0]);
+
 /** The line the penalty writes in the log, if it wrote one. */
 const penaltyLine = (events: readonly GameEvent[]) => {
   const line = events.find(
@@ -288,6 +292,25 @@ const written = (effect: Record<string, unknown>) =>
     range: { kind: 'ranged', feet: 60 },
     targets: { count: 1 },
     durationSeconds: 60,
+    effects: [effect],
+  });
+
+/**
+ * The same, on a casting that is over the moment it resolves.
+ *
+ * What the lifetime rule is asked about: a grant hung by a casting with no
+ * duration and no Concentration has nothing that could ever lift it.
+ */
+const writtenInstantaneous = (effect: Record<string, unknown>) =>
+  parseSpellDefinition({
+    id: 'homebrew-flash',
+    name: 'Homebrew Flash',
+    level: 2,
+    school: 'necromancy',
+    castingTime: 'action',
+    concentration: false,
+    range: { kind: 'ranged', feet: 60 },
+    targets: { count: 1 },
     effects: [effect],
   });
 
@@ -381,8 +404,11 @@ describe('what a failed save costs, through the public API', () => {
     // **And nothing below nothing.** Ray of Enfeeblement prints no floor, so a
     // d8 larger than the blow leaves the target taking none at all rather than
     // healing the wizard — which is `adjustmentsFor`'s own ceiling and what
-    // `floor` would raise for SRD Enlarge/Reduce.
-    expect(takenIn(hit)).toBe(Math.max(0, rawOf(hit) - line!.total));
+    // `floor` would raise for SRD Enlarge/Reduce. The line says what actually
+    // came off rather than what the die showed, which is the difference a
+    // floor makes visible.
+    expect(takenIn(hit)).toBe(rawOf(hit) - subtracted(line!));
+    expect(subtracted(line!)).toBe(Math.min(line!.total, rawOf(hit)));
   });
 
   it('takes it off a spell the target casts as well, because the book says all of them', () => {
@@ -391,7 +417,7 @@ describe('what a failed save costs, through the public API', () => {
 
     const line = penaltyLine(bolt);
     expect(line, 'the penalty wrote no line').toBeDefined();
-    expect(takenIn(bolt)).toBe(Math.max(0, rawOf(bolt) - line!.total));
+    expect(takenIn(bolt)).toBe(rawOf(bolt) - subtracted(line!));
   });
 
   it('leaves an unenfeebled creature’s damage exactly as it was', () => {
@@ -410,6 +436,17 @@ describe('what a failed save costs, through the public API', () => {
     expect(out.ok).toBe(false);
     if (out.ok) throw new Error('unreachable');
     expect(out.code).toBe('penalty_subtracts_nothing');
+  });
+
+  it('is refused at authoring if the number it subtracts is not a hit point', () => {
+    const out = written({
+      kind: 'save',
+      ability: 'con',
+      modifiers: [{ kind: 'damage-penalty', flat: 0 }],
+    });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error('unreachable');
+    expect(out.code).toBe('bad_damage_penalty');
   });
 
   it('is refused at authoring if the floor is not a hit point', () => {
@@ -480,6 +517,45 @@ describe('what a successful save costs, which is the branch nothing used to reac
     expect(out.ok).toBe(false);
     if (out.ok) throw new Error('unreachable');
     expect(out.code).toBe('rider_off_a_success');
+  });
+});
+
+describe('what a casting with no duration may not leave standing, on either branch', () => {
+  /**
+   * The rule is {@link checkGrantLifetimes}' and it used to stop at the
+   * failure slot: `modifierRidersOf` reads the flat `modifiers`, and a grant
+   * hung on a **success** was walked by nothing at all. An Instantaneous
+   * homebrew could therefore hang a permanent Poisoned or a permanent damage
+   * penalty on a creature that had made its save — the silent failure the
+   * refusal exists to convert into an authoring error.
+   */
+  it.each([
+    ['a mode with no deadline', { modifiers: [{ kind: 'mode', modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } } }] }],
+    ['a damage penalty', { modifiers: [{ kind: 'damage-penalty', dice: '1d8' }] }],
+    ['a condition with no deadline', { conditions: [{ name: 'poisoned' }] }],
+    ['a creature held in the air', { movement: { feet: 20, kind: 'lift' } }],
+  ])('refuses %s on a success branch it could never lift', (_what, riders) => {
+    const out = writtenInstantaneous({
+      kind: 'save',
+      ability: 'con',
+      condition: 'poisoned',
+      outlivesCasting: true,
+      onSuccessRiders: riders,
+    });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error('unreachable');
+    expect(out.code).toBe('grant_without_lifetime');
+  });
+
+  /** And the same slot is fine the moment the casting has something to end it. */
+  it('accepts the very same riders on a casting that lasts', () => {
+    const out = written({
+      kind: 'save',
+      ability: 'con',
+      condition: 'poisoned',
+      onSuccessRiders: { modifiers: [{ kind: 'damage-penalty', dice: '1d8' }] },
+    });
+    expect(out.ok).toBe(true);
   });
 });
 

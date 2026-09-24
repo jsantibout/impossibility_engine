@@ -839,7 +839,9 @@ export type ModifierRider =
    * sentences in reach run for the casting's own duration — Ray of
    * Enfeeblement's "for the duration", Enlarge/Reduce's reduced half — so
    * `checkGrantLifetimes` refuses the rider on an Instantaneous host rather
-   * than offering a deadline nothing asks for.
+   * than offering a deadline nothing asks for. On **either** branch: the
+   * success slot is walked by `grantOnASuccess`, so the refusal is not one a
+   * definition can get round by writing the penalty on the other side.
    */
   | {
       readonly kind: 'damage-penalty';
