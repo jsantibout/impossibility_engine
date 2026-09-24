@@ -928,7 +928,25 @@ export type OngoingEndReason =
    * duplicate says so and the log reads as what happened. It is the only
    * ending whose cause is a blow somebody else struck.
    */
-  | 'spent';
+  | 'spent'
+  /**
+   * The curse moved, and this is the creature it moved off.
+   *
+   * SRD Hunter's Mark: "you can take a Bonus Action to **move the mark to a
+   * new creature**"; SRD Hex: "to **curse a new creature**". One Bonus Action
+   * and two halves — the casting lets go of the creature it was on, and lands
+   * on somebody else — and the first half is an ending on **one** target with
+   * the casting still running, which is exactly what a `spell-ended` carrying
+   * an `on` already is.
+   *
+   * **Its own member rather than `dismissed`.** That one is the creator
+   * letting a spell go, for nothing, with no action required; this costs a
+   * Bonus Action and buys a new victim, and a log that spelled them alike
+   * would say the Warlock gave up on a curse they were in the middle of
+   * moving. `SpellActivation.reAims` is the field and the activation is the
+   * only writer.
+   */
+  | 're-aimed';
 
 /**
  * Why a Concentration ended. Every one of these is in the SRD except

@@ -18,14 +18,15 @@ import { spendAction, spendBonusAction } from '../combat.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import { type Point } from '../positioning.js';
-import { actionRulesOn } from '../standing.js';
+import { actionRulesOn, canSee } from '../standing.js';
 import { type SpellActivation } from '../spell-definitions.js';
 import { lightPatchesOf, type Supply } from './casting.js';
-import { regionOfArea } from '../spells.js';
+import { castingIdOf, regionOfArea } from '../spells.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
 import { reachFromCaster, reachFromOrigin, relocateOrigin } from './ongoing.js';
 import { resolveEffects } from './spell-resolution.js';
+import { statedChoice, statedDamageType } from '../spell-definitions.js';
 import { type SpellResolution, type SpellTargetOutcome } from './targeting.js';
 import { settleAreaEffects } from './turns.js';
 
@@ -150,6 +151,31 @@ function altitudeCapOf(activation: SpellActivation): number | null {
     if (effect.kind === 'change-altitude') return effect.upTo;
   }
   return null;
+}
+
+/**
+ * The creature this casting's mark is on, read off the rider it granted.
+ *
+ * SRD Hunter's Mark and SRD Hex both hang the extra die on the **caster** and
+ * name the creature it is about — `GrantedAttackRider.target` — so "the
+ * target" of a mark is a fact the world already holds and nothing has to be
+ * carried on the record for it. `OngoingSpell.aimed` cannot answer: it stores
+ * what the *cast* declared and the world cannot say, and a creature the
+ * casting hung something on is deliberately not in it.
+ *
+ * Null where this casting marks nobody — a rider released on the caster, or a
+ * definition that grants none — which is the refusal {@link activateSpell}
+ * turns into `nothing_marked` rather than a target it invented.
+ */
+function markedBy(
+  state: GameState,
+  casterId: CharacterId,
+  castingId: string,
+): CharacterId | null {
+  const rider = state.creatures[casterId]?.attackRiders.find(
+    (held) => castingIdOf(held.source) === castingId && held.target !== undefined,
+  );
+  return rider?.target ?? null;
 }
 
 export function activateSpell(
@@ -301,6 +327,58 @@ export function activateSpell(
       );
     }
 
+    // — the mark, and the printed condition on moving it ————————————————
+    //
+    // SRD Hunter's Mark: "**If the target drops to 0 Hit Points** before this
+    // spell ends, you can take a Bonus Action to move the mark to a new
+    // creature you can see within range." SRD Hex writes the same condition
+    // and curses a new creature with it. The condition is the whole of what
+    // makes the action legal, and it is read off the creature the casting
+    // marks rather than off anything the caller says.
+    //
+    // Before the action is charged, like every other stated fact here: a Bonus
+    // Action refused for a quarry still on its feet must cost its caster
+    // nothing.
+    let marked: CharacterId | null = null;
+    if (activation.reAims === true) {
+      marked = markedBy(state, casterId, record.castingId);
+      if (marked === null) {
+        return err(
+          'nothing_marked',
+          `${record.spell} is running and marks nobody, so there is no mark to move`,
+        );
+      }
+      // "a **new** creature": the action is for moving the mark, and moving it
+      // where it already is spends a Bonus Action on nothing.
+      if (target === marked) {
+        return err(
+          'already_marked',
+          `${record.spell} already marks ${marked}; the Bonus Action moves it to a new creature`,
+        );
+      }
+      const quarry = creatureOf(state, marked);
+      if (quarry !== null && !quarry.vitals.dead && quarry.vitals.hp > 0) {
+        return err(
+          'quarry_still_standing',
+          `${marked} is on ${quarry.vitals.hp} Hit Points, and ${record.spell} moves only when its target drops to 0`,
+        );
+      }
+      // "a new creature **you can see**", asked of the caster's senses exactly
+      // as the casting asked them — a declaration first, then what reaches.
+      // Three-valued like every sight question: silence is reported and the
+      // action goes ahead, and only a declared *no* refuses.
+      if (definition.requiresSight === true && target !== null) {
+        const seen = canSee(state, casterId, target);
+        if (seen === null) {
+          unverified.push(
+            `nobody has said whether ${casterId} can see ${target}, so ${record.spell} moved to a creature it may not be able to see`,
+          );
+        } else if (!seen) {
+          return err('cannot_see_target', `${casterId} cannot see ${target}`);
+        }
+      }
+    }
+
     // — the point moves first, and the attack is measured from where it ends —
     //
     // SRD orders it that way — "move the force up to 20 feet **and** repeat the
@@ -363,6 +441,26 @@ export function activateSpell(
       by: casterId,
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **The curse leaves the creature it was on.** SRD prints the Bonus Action
+    // as a *move* — "move the mark to a new creature", "curse a new creature" —
+    // and a mark on two creatures is not a thing either sentence offers. So the
+    // casting ends on the old one through the door every other release uses,
+    // which takes the grants it hung there with it; what the caster holds is
+    // replaced rather than released, because a second grant from one source
+    // does not stack.
+    //
+    // Written after `spell-activated` and before the effects, which is the
+    // order it happened in: the action was taken, the old curse lifted, and
+    // the new one laid.
+    if (marked !== null) {
+      happened({
+        type: 'spell-ended',
+        castingId: record.castingId,
+        on: marked,
+        reason: 're-aimed',
+      });
+    }
 
     // **The direction, which is the whole of what the Bonus Action does.**
     // SRD Gust of Wind prints no save on the turning: the opening one is asked
@@ -461,7 +559,20 @@ export function activateSpell(
       supply,
       castingId: record.castingId,
       events,
-      effects: activation.effects,
+      // **A re-aiming action runs the casting's own effects**, because the
+      // book prints no second sentence for the later turn: Hunter's Mark moves
+      // *the mark* and Hex curses a new creature with *the curse*. Read
+      // through the same two substitutions the cast ran them through, off the
+      // record rather than out of a fresh request — the caster named the
+      // ability once, when they cast it.
+      effects:
+        activation.reAims === true
+          ? statedChoice(
+              statedDamageType(definition.effects, record.damageType),
+              record.choice?.of,
+              record.choice?.value,
+            )
+          : activation.effects,
       label: activation.label,
       // The object the casting was pointed at, off the record rather than out
       // of a fresh request: SRD Heat Metal deals "**this** damage again" to the

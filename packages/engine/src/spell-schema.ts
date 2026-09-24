@@ -5529,13 +5529,42 @@ export function checkSpellDefinition(
       resolves &&
       activation.effects.length === 0 &&
       activation.movesArea === undefined &&
-      activation.redirects !== true
+      activation.redirects !== true &&
+      activation.reAims !== true
     ) {
       found.push({
         field: 'activation.effects',
         code: 'activation_does_nothing',
         reason: 'an activation with no effects must be the one whose whole content is moving the area',
       });
+    }
+    /*
+     * SRD Hunter's Mark's "move the mark to a new creature", held to the two
+     * things the sentence needs: a mark to move, and no second sentence of its
+     * own.
+     *
+     * What moves is the creature an `attack-rider` names, so a definition that
+     * marks nobody has nothing for the Bonus Action to re-aim; and the effects
+     * it lays on the new creature are the casting's own, so a list here would
+     * be a second place for one sentence to be got wrong — see
+     * `SpellActivation.reAims`.
+     */
+    if (activation.reAims === true) {
+      if (!definition.effects.some((effect) => effect.kind === 'attack-rider' && effect.marksTarget === true)) {
+        found.push({
+          field: 'activation.reAims',
+          code: 're_aims_nothing',
+          reason: 'an action that moves a mark needs the spell to mark somebody; nothing in its effects does',
+        });
+      }
+      if (resolves && activation.effects.length > 0) {
+        found.push({
+          field: 'activation.effects',
+          code: 're_aim_resolves_effects',
+          reason:
+            'a re-aiming action lays the casting’s own effects on the new creature and resolves nothing of its own',
+        });
+      }
     }
     /*
      * SRD Gust of Wind's "you can change the direction in which the Line

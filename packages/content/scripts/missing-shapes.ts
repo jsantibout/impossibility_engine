@@ -1006,11 +1006,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'a-fact-only-the-table-can-declare',
       note: 'SRD: "You also have Advantage on any Wisdom (Perception or Survival) check you make to find it." A `RollModifier` selects a check by ability and by skill, so Wisdom (Perception) and Wisdom (Survival) are each perfectly expressible — two grants, one sentence. What no selector can say is which of those checks is the one being made *to find the quarry*, and that is a fact about the attempt rather than about the roll. Granted unconditionally it would hand the ranger Advantage on every Perception check they roll for the hour the spell runs, which is the silent wrong answer this discipline exists to refuse.',
     },
-    {
-      clause: 'moving the mark to a new creature when the quarry drops to 0 Hit Points',
-      why: 'an-outcome-that-reads-the-targets-hit-points',
-      note: 'SRD: "If the target drops to 0 Hit Points before this spell ends, you can take a Bonus Action to move the mark to a new creature you can see within range." The vitals are there and nothing reads a threshold on them, which is the whole of this shape; and the second half is a later action that re-aims what the casting already granted, where every registered `SpellActivation` resolves effects at a target instead.',
-    },
   ],
   // **Hypnotic Pattern is off this map entirely**, and both of the clauses it
   // used to carry left by different doors. "Only a creature that can see the
@@ -2672,32 +2667,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'Strength (Athletics) check against your spell save DC',
       why: 'a-check-another-creature-may-attempt',
       note: 'the check may be made by the target "or a creature within reach of it", and a casting check is rolled by somebody the casting touched — so the second half of that list has no one to be.',
-    },
-  ],
-  hex: [
-    {
-      marker: 'dice',
-      clause: 'extra 1d6 Necrotic damage',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the die joins every attack the caster lands on this target for the hour, where the extra dice a spell hangs belong to the one attack its casting was declared on — Divine Smite settles at the hit and this waits for the next one.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'The target has Disadvantage on ability checks made with the chosen ability',
-      why: 'expressible',
-      note: 'the over-count this entry used to be, corrected. `choiceStated` records the ability the caster names and `statedChoice` puts it on the selector, which is Enhance Ability sentence with the mode reversed — so nothing blocks the clause, and the only reason it is unwritten is that nobody has written this definition. The entry said so at length and filed itself under `a-choice-made-at-the-casting` anyway, because the value that means it lived on `BlockedClause` and not here, and widening this type reaches both generators and every guard over this map. Gate G1 took that decision.',
-    },
-    {
-      marker: 'extra-damage',
-      clause: 'whenever you hit it with an attack roll',
-      why: 'a-rider-on-a-later-weapon-attack',
-      note: 'the trigger half of the same sentence, and the half that makes it a standing rider rather than a settlement: there is no later attack for a finished casting to read.',
-    },
-    {
-      marker: 'hit-points',
-      clause: 'If the target drops to 0 Hit Points before this spell ends',
-      why: 'an-outcome-that-reads-the-targets-hit-points',
-      note: 'the curse moves to a new creature when this one falls, and no outcome asks the vitals a question — so the Bonus Action on a later turn that re-curses is never offered.',
     },
   ],
   'bestow-curse': [

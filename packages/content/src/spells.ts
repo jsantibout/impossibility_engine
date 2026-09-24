@@ -6208,9 +6208,20 @@ export const HUNTERS_MARK: SpellDefinition = {
   // Two keys, because the SRD prints two bands; a level 4 slot falls in the
   // first because 5 has not been reached.
   durationAtSlot: { 3: 28800, 5: 86400 },
+  // "If the target drops to 0 Hit Points before this spell ends, you can take
+  // a Bonus Action to move the mark to a new creature **you can see within
+  // range**." The range is the spell's own ninety feet, printed again on the
+  // Bonus Action; the sight is `requiresSight` above. What moves is the rider
+  // this casting granted, which is what {@link SpellActivation.reAims} names.
+  activation: {
+    action: 'bonus-action',
+    range: { kind: 'ranged', feet: 90 },
+    reAims: true,
+    label: "Hunter's Mark (a new quarry)",
+    effects: [],
+  },
   unmodelled: [
     'the Advantage on a Wisdom (Perception or Survival) check made to find the quarry is not granted: a roll modifier selects Wisdom (Perception) and Wisdom (Survival) perfectly well, and what nothing can select is *which* check is being made to find the quarry — so a grant would hand the ranger Advantage on every Perception check they ever roll',
-    'moving the mark to a new creature when the quarry drops to 0 Hit Points is not offered: nothing reads a threshold on a creature current Hit Points, and an activation resolves effects at a target rather than re-aiming what the casting already granted',
   ],
 };
 
@@ -13056,11 +13067,22 @@ export const ENSNARING_STRIKE: SpellDefinition = {
  * > with a spell slot of level 2 (up to 4 hours), 3–4 (up to 8 hours), or 5+
  * > (24 hours)."
  *
- * The hour, the Bonus Action and the Concentration are the definition's; the
- * three sentences between them are three different absences, which is why this
- * spell sat in `BLOCKED_ON` naming two shapes and prints a third — the extra
- * die rides *every later attack the caster makes*, and the extra dice a spell
- * can hang ride the one attack its casting was declared on.
+ * **Three sentences, and each one is a mechanism this engine already has.**
+ * The extra die is `attack-rider` with `marksTarget` — SRD Hunter's Mark's own
+ * effect with Necrotic dice, hung on the Warlock and read again on every later
+ * attack roll they land on the cursed creature. The chosen ability is
+ * `choiceStated` of `ability`, which is SRD Enhance Ability's sentence with the
+ * mode reversed: `statedChoice` puts the caster's answer on the selector, and
+ * the selector says `ability-check` because the SRD does and a saving throw is
+ * a different roll. And the slot table is `durationAtSlot`, three keys for the
+ * three bands the book prints.
+ *
+ * **The Bonus Action that curses a new creature is an `activation` that
+ * re-aims**, and the whole of what it resolves is this definition's own
+ * effects laid on somebody else — see {@link SpellActivation.reAims}, which is
+ * why the list below is empty. Its legality is the printed condition and
+ * nothing looser: the creature the casting marks has to be at 0 Hit Points or
+ * dead, which the command reads off the rider the casting granted.
  */
 export const HEX: SpellDefinition = {
   id: 'hex',
@@ -13072,14 +13094,42 @@ export const HEX: SpellDefinition = {
   range: { kind: 'ranged', feet: 90 },
   targets: { count: 1 },
   requiresSight: true,
-  effects: [],
-  durationSeconds: 3600,
-  unmodelled: [
-    'the extra 1d6 Necrotic is not dealt: it rides every later attack the caster lands on this target for the hour, where the extra dice a spell can hang belong to the one attack its casting was declared on',
-    'the ability chosen at the casting is not asked for, and the Disadvantage on ability checks made with it is not granted — a per-casting choice has nowhere to be recorded, and the modifier that would read it waits on the same thing',
-    'the target dropping to 0 Hit Points does not free the curse to move: no outcome reads the target’s Hit Points, so the Bonus Action that re-curses a new creature on a later turn is never offered',
-    'and the longer Concentration a bigger slot buys — four hours at level 2, eight at 3–4, twenty-four at 5 and above — is not applied; the hour is the hour whatever the slot',
+  effects: [
+    // "you deal an extra 1d6 Necrotic damage **to the target** whenever you
+    // hit it **with an attack roll**" — the target names the mark and the
+    // sentence names no weapon, so a Fire Bolt at the cursed creature carries
+    // it and a mace swung at anybody else does not.
+    { kind: 'attack-rider', dice: '1d6', damageType: 'necrotic', marksTarget: true },
+    {
+      kind: 'roll-mode',
+      modifier: {
+        mode: 'disadvantage',
+        // "ability checks made with the chosen ability" — a check and not a
+        // save, which is the narrowing `RollSelector` keeps apart on purpose.
+        // The ability printed here is the slot `statedChoice` fills.
+        selector: { roll: 'ability-check', relation: 'roller', ability: 'str' },
+      },
+    },
   ],
+  // "choose one ability when you cast the spell" — one of the six, with no
+  // list printed, so the list is the six.
+  choiceStated: { of: 'ability', options: ['str', 'dex', 'con', 'int', 'wis', 'cha'] },
+  // "you can take a Bonus Action **on a later turn** to curse a new creature."
+  // No range is printed on the Bonus Action, so it is the spell's own: a new
+  // creature is placed under a casting of Hex, and a casting of Hex reaches
+  // ninety feet and a creature its caster can see.
+  activation: {
+    action: 'bonus-action',
+    range: { kind: 'ranged', feet: 90 },
+    reAims: true,
+    label: 'Hex (a new creature)',
+    effects: [],
+  },
+  durationSeconds: 3600,
+  // "level 2 (up to 4 hours), 3–4 (up to 8 hours), or 5+ (24 hours)": three
+  // bands and therefore three keys, with a level 4 slot falling in the second
+  // because 5 has not been reached.
+  durationAtSlot: { 2: 14400, 3: 28800, 5: 86400 },
 };
 
 /**

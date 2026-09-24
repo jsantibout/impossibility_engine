@@ -2428,23 +2428,24 @@ describe('a consumer count is a query', () => {
    * is in the ranked map's own population. A three-spell family counted by hand
    * was still wrong, which is the argument for deriving even the small ones.
    *
-   * **Hunter's Mark and Hex are the fifth and sixth, and they are one
+   * **Hunter's Mark and Hex were the fifth and sixth, and they were one
    * sentence.** SRD gives both "If the target drops to 0 Hit Points before
    * this spell ends, you can take a Bonus Action ... to curse a new creature",
    * and IE-035 defined Hunter's Mark without that clause while leaving Hex
    * undefined. It filed the sentence for one of them and not the other on its
    * first pass, which moved this shape's `unblocks` from 0 to 1 on the
    * strength of a spell that prints the same rule — the argument for re-filing
-   * **both ends of a shared sentence in the same pass**, and for reading the
-   * paragraph rather than the brief, which said Hex would be blocked on its
-   * chosen ability alone.
+   * **both ends of a shared sentence in the same pass**.
+   *
+   * **They left together too**, which is the same argument arriving from the
+   * other end: the re-aiming Bonus Action was built once and both spells took
+   * it in one pass, so neither is in this list any more and the shape is down
+   * to the four the ranked map and Aura of Life account for.
    */
   it('finds one more than the ranked map did for reading the target’s Hit Points', () => {
     expect(consumersOf('an-outcome-that-reads-the-targets-hit-points').blocks).toEqual([
       'aura-of-life',
       'divine-word',
-      'hex',
-      'hunters-mark',
       'power-word-kill',
       'power-word-stun',
     ]);

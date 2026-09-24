@@ -5136,6 +5136,38 @@ export interface SpellActivation {
    * sentence names.
    */
   readonly redirects?: true;
+  /**
+   * Whether this action moves what the casting **already granted** onto a new
+   * creature.
+   *
+   * > SRD Hunter's Mark: "If the target drops to 0 Hit Points before this
+   * > spell ends, you can take a Bonus Action to move the mark to a new
+   * > creature you can see within range."
+   * > SRD Hex: "If the target drops to 0 Hit Points before this spell ends,
+   * > you can take a Bonus Action on a later turn to curse a new creature."
+   *
+   * **Beside {@link movesArea} and {@link redirects} rather than inside
+   * either**, and the three are the SRD's own three sentences: Moonbeam
+   * *carries* a Cylinder to a new point, Gust of Wind *turns* a Line that has
+   * not moved, and this puts the same casting's grants on somebody else. An
+   * area is not involved at all.
+   *
+   * **What it resolves is the definition's own effects**, which is why a
+   * re-aiming activation carries an empty {@link effects} list and the
+   * validator insists on one: the book prints no second sentence for the later
+   * turn — Hunter's Mark moves *the mark* and Hex curses a new creature with
+   * *the curse* — so a list here would be a second place for one sentence to
+   * be got wrong, and a Foe Slayer's d10 would have to be re-derived rather
+   * than replaced.
+   *
+   * **The mark is `attack-rider.marksTarget` and nothing else**, which is what
+   * makes the legality readable without a spell id: the rider the casting hung
+   * names the creature it is about, so the command reads that creature's
+   * vitals for the printed condition and refuses `quarry_still_standing` while
+   * they stand. `checkSpellDefinition` refuses the field on a definition that
+   * marks nobody, because there would be nothing to move.
+   */
+  readonly reAims?: true;
   /** How the log reads: "Vampiric Touch (again)". */
   readonly label: string;
   /**

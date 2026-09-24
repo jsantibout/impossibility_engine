@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADJUDICATED,
+  BLOCKED_ON,
   ITEM_SHAPES,
   MISSING_SHAPES,
   SPLIT_BUNDLES,
@@ -135,10 +136,17 @@ describe('the widening bought no relaxation', () => {
    * the failure the disposition that added it names by hand.
    */
   it('drops the three words from the shapes a spell waits on', () => {
-    expect((TRACKED_ADJUDICATED['hex'] ?? []).some((entry) => entry.why === 'expressible')).toBe(
-      true,
-    );
-    expect(spellShapesOf('hex', 'tracked')).not.toContain('expressible');
+    // **Read off the undefined map rather than the tracked one**, because Hex
+    // was the tracked map's only `'expressible'` entry and it left when the
+    // definition somebody had not written was written. The word is still a
+    // `why` and still never a heading, which is what this asserts; where the
+    // live example lives is not the claim.
+    expect(
+      (BLOCKED_ON['maze'] ?? []).some(
+        (entry) => typeof entry !== 'string' && entry.why === 'expressible',
+      ),
+    ).toBe(true);
+    expect(spellShapesOf('maze', 'no-definition')).not.toContain('expressible');
     // And the same of the other two, over the whole of both maps: a heading
     // in the report's shape table is a shape, never a claim about a clause.
     const headings = new Set(

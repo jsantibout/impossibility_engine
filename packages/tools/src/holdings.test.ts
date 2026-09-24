@@ -904,7 +904,7 @@ describe('a Warlock can regain what a feature gives back', () => {
    */
   it('gives a Pact slot back, and the amount is the feature’s, not the caller’s', () => {
     const t = pact();
-    expectOk(t.call('cast_spell', { caster: 'nim', spellId: 'hex', targets: ['bram'], slotLevel: 2 }));
+    expectOk(t.call('cast_spell', { caster: 'nim', spellId: 'hex', targets: ['bram'], slotLevel: 2, choice: 'str' }));
     expect(sheetOf(t, 'nim').pactSlots).toEqual([{ level: 2, max: 2, spent: 1, left: 1 }]);
 
     const outcome = expectOk(t.call('regain_uses', { who: 'nim', feature: 'warlock:magical-cunning' }));
@@ -915,7 +915,7 @@ describe('a Warlock can regain what a feature gives back', () => {
 
   it('refuses a second use, because the feature’s own pool is empty', () => {
     const t = pact();
-    expectOk(t.call('cast_spell', { caster: 'nim', spellId: 'hex', targets: ['bram'], slotLevel: 2 }));
+    expectOk(t.call('cast_spell', { caster: 'nim', spellId: 'hex', targets: ['bram'], slotLevel: 2, choice: 'str' }));
     expectOk(t.call('regain_uses', { who: 'nim', feature: 'warlock:magical-cunning' }));
 
     const outcome = expectRefused(t.call('regain_uses', { who: 'nim', feature: 'warlock:magical-cunning' }));
