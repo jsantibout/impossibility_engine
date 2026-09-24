@@ -119,13 +119,17 @@ export type SpellReactionWindow = Extract<
 >;
 
 /**
- * The windows a **class feature** answers.
+ * The windows a **feature** answers — a class's, or a stat block's.
  *
- * Also a narrowing, and the two lists overlap in one member on purpose — see
- * {@link ReactionWindow}. No SRD class feature answers `hit-by-attack` by
- * changing the Armour Class the way *Shield* and Parry do; the two that look
- * as though they might (Uncanny Dodge, Deflect Attacks) are triggered by the
- * hit and **act on the damage**, so they belong to `damage-rolled`.
+ * Also a narrowing, and the two lists overlap in two members on purpose — see
+ * {@link ReactionWindow}. No SRD *class* feature answers `hit-by-attack`: the
+ * two that look as though they might (Uncanny Dodge, Deflect Attacks) are
+ * triggered by the hit and **act on the damage**, so they belong to
+ * `damage-rolled`. A **stat block** answers it in as many words — SRD Parry
+ * adds to an Armour Class against the triggering attack, which is *Shield*'s
+ * own sentence worn by a creature, and SRD Reflexive Antennae answers the same
+ * instant by using another line of its block. So the member is here because
+ * the book writes it, and it arrived with the two effects that write it.
  *
  * `creature-falling` is absent, and deliberately: the Monk's Slow Fall names
  * that window in as many words and *does* something this engine cannot — it
@@ -135,7 +139,7 @@ export type SpellReactionWindow = Extract<
  */
 export type FeatureReactionWindow = Extract<
   ReactionWindow,
-  'damage-rolled' | 'damaged-by-creature' | 'test-rolled'
+  'hit-by-attack' | 'damage-rolled' | 'damaged-by-creature' | 'test-rolled'
 >;
 
 /**
@@ -288,7 +292,52 @@ export type ReactionEffect =
       readonly damageType: string;
       /** SRD's "within 60 feet of you", measured to whoever dealt the damage. */
       readonly within: number;
-    };
+    }
+  /**
+   * Raise the Armour Class against the attack that triggered this, and no
+   * further.
+   *
+   * SRD Parry: "The knight adds 2 to its AC against that attack, possibly
+   * causing it to miss." Seven stat blocks print it and it is *Shield*'s
+   * sentence with the span taken off — the spell's +5 lasts until the start of
+   * the caster's next turn and is therefore a standing bonus; this one is
+   * spent by the blow it answered, so nothing is granted and nothing ends.
+   *
+   * That is why the number is here rather than a `StandingEffect`: a bonus
+   * that exists for one comparison has nowhere to live but the comparison.
+   * `reconsiderHeldAttack` is where it is made, against the Armour Class the
+   * swing was actually measured against — cover and all — for the reason
+   * `deflectTriggeringAttack` states about the same arithmetic.
+   */
+  | {
+      readonly kind: 'raise-ac';
+      readonly amount: number;
+      /** SRD Parry: "hit by a **melee** attack roll". */
+      readonly meleeOnly?: true;
+      /** SRD Parry: "**while holding a weapon**". */
+      readonly requiresWeapon?: true;
+    }
+  /**
+   * Use a line the creature's own stat block prints, by its heading.
+   *
+   * SRD Rust Monster, Reflexive Antennae: "_Trigger:_ An attack roll hits the
+   * rust monster. _Response:_ The rust monster uses Antennae." The trigger is
+   * a window this engine holds and the response is *somewhere else on the
+   * block*, which is what makes this a shape rather than an effect: what
+   * happens is whatever that line turns out to be.
+   *
+   * **The second sentence that writes it is the Nalfeshnee's Pursuit** — "The
+   * nalfeshnee uses Teleport" — at a window the engine does not hold and with
+   * a clause about where the teleport may land, so the parser refuses that
+   * line whole. One shape, two sentences, one of them readable today.
+   *
+   * **Nothing performs it yet, and the command says so.** The Reaction is
+   * offered and spent and the response is handed to the table by name, which
+   * is the honest half: the rust monster's Antennae is a save nothing has
+   * read, and a response half-performed would be a creature doing something
+   * nobody printed.
+   */
+  | { readonly kind: 'use-printed-line'; readonly line: string };
 
 /**
  * Who gave a Reaction away, and under what source it will end.
@@ -682,6 +731,95 @@ export function offersForDamage(state: GameState, context: DamageContext): React
   }
 
   return { offers, unverified };
+}
+
+/** What the `hit-by-attack` window is being asked about. */
+export interface AttackContext {
+  readonly target: CharacterId;
+  readonly attacker: CharacterId;
+  /** Whether the swing was a melee one, which SRD Parry's trigger names. */
+  readonly melee: boolean;
+  /**
+   * Whether the target has a weapon in hand — `null` where nobody has said.
+   *
+   * Three-valued for {@link reaches}' reason and answered the same way: a
+   * stat block prints its gear and **nothing reads it**, so a knight nobody
+   * has equipped is a knight whose hands are undeclared rather than one
+   * standing there empty-handed. An undeclared fact does not withhold a whole
+   * Reaction; a declared one that is false does.
+   */
+  readonly holdsAWeapon: boolean | null;
+}
+
+/**
+ * Who may answer a hit that is known and whose damage is unrolled.
+ *
+ * {@link offersForDamage}'s sibling one instant earlier, and narrower in one
+ * way that is the window's own: every sentence here is about *the creature
+ * that was hit*, so the reach is `self` and nobody else is walked. SRD
+ * *Shield* is the same instant answered by a spell, and `reactionOpportunities`
+ * puts the two side by side.
+ *
+ * The clauses a printed trigger states are checked here rather than at the
+ * command alone, so an offer that would be refused is never made — the rule
+ * `affordable` already states about a stale offer.
+ */
+export function offersForAttack(state: GameState, context: AttackContext): ReactionOffers {
+  const offers: ReactionOffer[] = [];
+  const unverified: string[] = [];
+
+  for (const feature of [...featuresFor(state, context.target, 'hit-by-attack')].sort(byFeature)) {
+    if (attackReactionRefusal(feature, context) !== null) continue;
+    if (!canAfford(state, context.target, feature)) continue;
+    if (!reaches(state, context.target, feature, context.attacker, unverified)) continue;
+    if (feature.does.kind === 'raise-ac' && feature.does.requiresWeapon === true) {
+      if (context.holdsAWeapon === null) {
+        unverified.push(
+          `nobody has said what ${context.target} is holding, and ${feature.name} is taken while holding a weapon; the offer was made rather than withheld`,
+        );
+      }
+    }
+    offers.push(offerOf(context.target, feature));
+  }
+
+  return { offers, unverified };
+}
+
+/**
+ * Why this feature cannot answer this blow, or null where it can.
+ *
+ * **One rule, two callers**: the offer above and the command that takes it ask
+ * the same question of the same facts, so a Reaction the engine offers is one
+ * the engine will let a creature spend, and a Reaction it refuses is one it
+ * never offered. An *undeclared* fact is not a refusal — see
+ * {@link AttackContext.holdsAWeapon} — and the offer reports it instead.
+ */
+export function attackReactionRefusal(
+  feature: ReactionFeature,
+  context: AttackContext,
+): { readonly code: string; readonly reason: string } | null {
+  const does = feature.does;
+  if (does.kind !== 'raise-ac' && does.kind !== 'use-printed-line') {
+    return {
+      code: 'no_such_feature',
+      reason: `${feature.name} does not answer a hit`,
+    };
+  }
+  if (does.kind !== 'raise-ac') return null;
+
+  if (does.meleeOnly === true && !context.melee) {
+    return {
+      code: 'melee_only',
+      reason: `${feature.name} answers a melee attack roll, and this one was not`,
+    };
+  }
+  if (does.requiresWeapon === true && context.holdsAWeapon === false) {
+    return {
+      code: 'no_weapon_in_hand',
+      reason: `${feature.name} is taken while holding a weapon, and ${context.target} holds none`,
+    };
+  }
+  return null;
 }
 
 /** What the `test-rolled` window is being asked about. */

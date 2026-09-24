@@ -166,8 +166,8 @@ describe('toolSchemas', () => {
     // and the pins are the sum of them all.
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
-    expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
+    expect(toolSchemas(player())).toHaveLength(84);
+    expect(toolSchemas(dm())).toHaveLength(103);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -180,13 +180,19 @@ describe('toolSchemas', () => {
     // Re-pinned again for the bookkeeping spells track: `cast_spell.object` (the
     // eighth stated fact — Remove Curse's attunement, Heat Metal's object) and
     // the Command word's slot grew both surfaces by the same amount.
-    expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
+    expect(toolSchemas(player())).toHaveLength(84);
+    expect(toolSchemas(dm())).toHaveLength(103);
     // Re-pinned again for the bestiary traits track: `end_turn.burns` — the
     // creatures a Fire Aura's holder chooses to burn, `fought`'s twin, on the
     // one tool both surfaces publish — grew both by the same amount.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(118264);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142394);
+    // Re-pinned again for the stat-block Reactions track, which opened one
+    // door on **both** surfaces: `take_attack_reaction` answers a hit whose
+    // damage is unrolled — SRD Parry, at the instant *Shield* answers — and it
+    // is on both for the reason `take_damage_reaction` is, because the
+    // creature answering is whoever was hit. One pin each and the same 802
+    // bytes on both, which is the tool being published once.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(119066);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(143196);
   });
 });
 

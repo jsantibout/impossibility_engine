@@ -214,6 +214,7 @@ import {
   strandedSummons,
   summonCreature,
   swapInitiativeBetween,
+  takeAttackReaction,
   takeDamageReaction,
   takeDamageResponse,
   takeDash,
@@ -4348,6 +4349,53 @@ const TAKE_DAMAGE_RESPONSE = tool({
     ),
 });
 
+/**
+ * Answer the blow itself, before its damage is rolled — the fourth window's
+ * feature half.
+ *
+ * SRD Parry: "_Trigger:_ The knight is hit by a melee attack roll while
+ * holding a weapon. _Response:_ The knight adds 2 to its AC against that
+ * attack, possibly causing it to miss."
+ *
+ * **The spell half has had a door since Shield landed** — *Shield* is cast
+ * into this instant through `cast_spell` — and the feature half reached no
+ * tool at all, so seven stat blocks carried a Reaction nobody could take.
+ *
+ * **There is no `decline` beside it**, for `take_damage_response`'s reason
+ * turned the other way: the hold here is the *attacker's*, opened by asking
+ * for it, and `settle_attack` is what closes it. An offer nobody takes wedges
+ * nothing, because the attacker rolls the damage either way.
+ */
+const TAKE_ATTACK_REACTION = tool({
+  name: 'take_attack_reaction',
+  description:
+    'Answer a hit whose damage has not been rolled — SRD Parry adds to the Armour Class against that one attack, possibly turning it into a miss. `options` lists it when a hit is being held against this creature. You name the feature; the engine checks the clauses the line prints (a melee swing, a weapon in hand), spends the Reaction and re-decides the hit against the raised number. A blow that still lands is still held, and the attacker rolls its damage as usual.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Who is answering. Always the creature that was hit.'),
+    feature: z.string().min(1).describe('The feature id, from `options`, e.g. knight:parry.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeAttackReaction(
+        context.campaign.state(),
+        who(args.who),
+        { feature: args.feature, ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        took: args.feature,
+        // Whether the blow was turned aside, which is the whole question a
+        // caller took the Reaction to ask.
+        missed: value.missed,
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 const SETTLE_DAMAGE = tool({
   name: 'settle_damage',
   description:
@@ -5310,6 +5358,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   USE_FREE_INTERACTION,
   SUMMON_CREATURE,
   TAKE_ACTION,
+  TAKE_ATTACK_REACTION,
   TAKE_DAMAGE_REACTION,
   TAKE_DAMAGE_RESPONSE,
   TAKE_OPPORTUNITY_ATTACK,

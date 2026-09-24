@@ -48,7 +48,13 @@ import {
   MULTIATTACK_LEDGER,
   WEAPON_MASTERY_LEDGER,
 } from '../combat.js';
-import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
+import {
+  applyEvent,
+  type CreatureState,
+  type GameEvent,
+  type GameState,
+  type PendingAttack,
+} from '../events.js';
 import { modifierFor, type CharacterSheet, type StatedAttack } from '../character.js';
 import {
   attacksInAction,
@@ -1347,6 +1353,73 @@ export interface AttackCommand extends CommandIdentity {
    * See {@link CantripSwingRequest} for the choice it carries.
    */
   readonly cantrip?: CantripSwingRequest;
+}
+
+/**
+ * Whether the swing a hold is waiting on was a melee one.
+ *
+ * SRD Parry answers "a **melee** attack roll" and nothing else, and the hold
+ * records what the swing was made with rather than what kind it was: a
+ * catalogue weapon, or the heading of a line the creature's own block prints.
+ * So the question is asked of the same two facts `resolveAttackDamage` asks
+ * them of, by the same two readers, one command later.
+ */
+export function heldSwingIsMelee(
+  state: GameState,
+  content: Content,
+  pending: PendingAttack,
+): boolean {
+  const attacker = state.creatures[pending.attacker];
+  const sheet =
+    attacker === undefined ? null : (sheetAsItStands(state, pending.attacker) ?? attacker.sheet);
+  const printed = sheet === null || pending.action === undefined
+    ? null
+    : printedAttackOf(sheet, pending.action);
+  const stated = statedInPlay(printed, pending.thrown);
+  if (stated !== undefined) return !stated.ranged;
+
+  const weapon = pending.weapon === null ? null : (content.item(pending.weapon)?.weapon ?? null);
+  return rangeOf(weapon, pending.thrown) === null;
+}
+
+/**
+ * Whether the creature being swung at has a weapon in hand — null where nobody
+ * has said.
+ *
+ * SRD Parry's second clause. Three-valued because a **stat block's** hands are
+ * undeclared rather than empty: `gear` is printed on the block, carried into
+ * the catalogue and read by nothing, so a knight that has equipped nothing has
+ * had nothing said about it. A creature holding something that is not a weapon
+ * has been declared, and the clause is false of it.
+ */
+export function holdsAWeapon(content: Content, creature: CreatureState): boolean | null {
+  if (creature.equipped.length === 0) return null;
+  return wieldingOf(content, creature).length > 0;
+}
+
+/**
+ * Re-decide a held hit against an Armour Class that has just gone up.
+ *
+ * `deflectTriggeringAttack` is the same arithmetic for SRD *Shield*, and this
+ * is the half of it that is not about a casting: the rise is applied to
+ * {@link PendingAttack.targetAc} — the number the attack was actually measured
+ * against, cover folded in — and a natural 20 hits regardless, which SRD says
+ * in as many words.
+ *
+ * Closing the hold is the existing `attack-damage-dealt`, which is what a hold
+ * closing means: no damage events go with it, and the Reaction recorded in the
+ * log immediately before says why.
+ */
+export function reconsiderHeldAttack(
+  pending: PendingAttack,
+  raisedBy: number,
+): { readonly missed: boolean; readonly events: readonly GameEvent[] } {
+  if (pending.natural === 20) return { missed: false, events: [] };
+  if (pending.total >= pending.targetAc + raisedBy) return { missed: false, events: [] };
+  return {
+    missed: true,
+    events: [{ type: 'attack-damage-dealt', attacker: pending.attacker }],
+  };
 }
 
 export interface AttackResolution {

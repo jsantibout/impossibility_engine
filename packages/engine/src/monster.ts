@@ -1741,16 +1741,78 @@ function printedRollAddendReaction(
 }
 
 /**
+ * SRD Parry, onto the sheet as the Reaction it is.
+ *
+ * "_Trigger:_ The knight is hit by a melee attack roll while holding a weapon.
+ * _Response:_ The knight adds 2 to its AC against that attack, possibly
+ * causing it to miss."
+ *
+ * The same argument {@link printedRollAddendReaction} makes one function up,
+ * about a different window: `hit-by-attack` is the instant SRD *Shield*
+ * answers, `raise-ac` is the rise that belongs to one attack, and the reach is
+ * `self` because every clause of the sentence is about the creature that was
+ * hit. The heading is what says a Reaction is spent on it.
+ */
+function printedAcAddendReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
+  const addend = line.addsToAc;
+  if (addend === undefined) return null;
+
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: 'hit-by-attack',
+    costsReaction: true,
+    pool: line.perDay === undefined ? null : printedLinePoolKey(line.name),
+    reach: { kind: 'self' },
+    does: {
+      kind: 'raise-ac',
+      amount: addend.addend,
+      // Both clauses the trigger prints, carried rather than assumed: the
+      // parser reads them as literals for the reason a homebrew line that
+      // omitted one must not be read as though it had said it.
+      ...(addend.meleeOnly ? { meleeOnly: true as const } : {}),
+      ...(addend.requiresWeapon ? { requiresWeapon: true as const } : {}),
+    },
+  };
+}
+
+/**
+ * SRD Reflexive Antennae, onto the sheet as the Reaction it is.
+ *
+ * "_Trigger:_ An attack roll hits the rust monster. _Response:_ The rust
+ * monster uses Antennae." The trigger is the window above and the response is
+ * the **name** of another line of this same block — carried as a name for
+ * `AttackCommand.action`'s reason, so what the response is stays that line's
+ * business and a line nothing reads is handed to the table rather than half
+ * performed.
+ */
+function printedLineUseReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
+  if (line.usesLine === undefined) return null;
+
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: 'hit-by-attack',
+    costsReaction: true,
+    pool: line.perDay === undefined ? null : printedLinePoolKey(line.name),
+    reach: { kind: 'self' },
+    does: { kind: 'use-printed-line', line: line.usesLine },
+  };
+}
+
+/**
  * Every Reaction the block prints that this adapter can compile, and the pools
  * they come out of.
  *
- * **The Reactions section reaches the sheet for the first time here**, and
- * only one shape of it does. The SRD writes twenty `_Trigger:_` lines: nine
- * add to an **Armour Class** against one attack — SRD Parry, SRD Riposte, the
- * Mummy's Whirlwind of Sand — which is a window the engine does not hold, and
- * the other ten are ten different sentences, from an ooze that splits to an
- * octopus's ink. All nineteen stay prose and stay on the ledger, named there
- * rather than argued about here.
+ * **Three shapes of the Reactions section reach the sheet.** The SRD writes
+ * twenty-four lines under that heading: one adds to a D20 Test (the Sphinx of
+ * Wonder), seven add to an **Armour Class** against the attack that triggered
+ * them (Parry), and one answers a hit by using another line of its own block
+ * (Reflexive Antennae). Of the rest, three are sentences the parser reads as
+ * *kinds* and nothing spends — the two Splits and the Goblin Boss's Redirect
+ * Attack — and the others are each a different sentence, from an octopus's ink
+ * to the Stone Giant's deflection. Those stay prose and stay on the ledger,
+ * named there rather than argued about here.
  */
 function printedReactions(monster: Monster): {
   readonly reactions: readonly ReactionFeature[];
@@ -1760,7 +1822,10 @@ function printedReactions(monster: Monster): {
   const pools: PoolDeclaration[] = [];
 
   for (const line of monster.reactions) {
-    const reaction = printedRollAddendReaction(monster, line);
+    const reaction =
+      printedRollAddendReaction(monster, line) ??
+      printedAcAddendReaction(monster, line) ??
+      printedLineUseReaction(monster, line);
     if (reaction === null) continue;
     reactions.push(reaction);
     if (reaction.pool !== null) {
