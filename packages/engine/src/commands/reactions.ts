@@ -993,8 +993,13 @@ export function takeDamageResponse(
     const events: GameEvent[] = [...spent.value];
 
     if (answers.kind === 'damage-back') {
+      // **The world before the spend, with the spend beside it**, which is the
+      // shape `applyHitRider` keeps for the same reason: `throwItBack` folds
+      // what it is handed onto the state it is handed, so a state the cost had
+      // already been applied to would spend the Reaction twice — invisible
+      // nowhere and a `CorruptLogError` here, because a creature has one.
       return throwItBack(
-        events.reduce(applyEvent, state),
+        state,
         reactor,
         hurt.by,
         feature,

@@ -597,4 +597,106 @@ describe('the fields a chosen shape, a derived DC and a bought swing add', () =>
       }),
     ).toEqual([]);
   });
+
+  /**
+   * **Dice the rider adds to the blow, and the refusal they lift.**
+   *
+   * SRD Fire's Burn: "you can also deal 1d10 Fire damage to that target." The
+   * effect list still may not deal damage — it runs after the blow has landed
+   * and an attack holds one damage roll at a time — and the field beside the
+   * list is not a second roll at all: the attack path gathers it before the
+   * blow's own dice, so one `damage-rolled` carries the whole.
+   */
+  it('admits dice a rider adds to the blow, with no effect list at all', () => {
+    expect(
+      rider({
+        options: [
+          {
+            id: 'burn',
+            name: "Warden's Burn",
+            effects: [],
+            extraDamage: { dice: '1d10', damageType: 'fire' },
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it('still refuses damage inside the effect list, and says where it goes', () => {
+    const problems = checkContent({
+      classes: [
+        {
+          ...(clazz([]) as Record<string, unknown>),
+          features: [
+            {
+              id: 'warden:riposte',
+              name: 'Warden’s Riposte',
+              level: 3,
+              automation: 'engine',
+              note: 'An effect list a landed blow buys.',
+              grants: {
+                kind: 'on-hit',
+                options: [
+                  {
+                    id: 'burn',
+                    name: "Warden's Burn",
+                    effects: [
+                      {
+                        kind: 'save-damage',
+                        ability: 'dex',
+                        damage: { dice: '1d10' },
+                        damageType: 'fire',
+                        onSuccess: 'half',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        } as unknown as ClassDefinition,
+      ],
+    });
+    const refusal = problems.find((problem) => problem.code === 'rider_deals_damage');
+    expect(refusal?.field).toBe('classes[warden].features[0].grants.options[0].effects[0].kind');
+    expect(refusal?.reason).toContain('extraDamage');
+  });
+
+  it('refuses dice that are not a notation, and a type no defence is measured in', () => {
+    const at = 'classes[warden].features[0].grants.options[0].extraDamage';
+    expect(
+      rider({
+        options: [
+          { id: 'burn', name: 'Burn', effects: [], extraDamage: { dice: 'a few', damageType: 'fire' } },
+        ],
+      }),
+    ).toContain(`bad_rider_extra_damage @ ${at}.dice`);
+    expect(
+      rider({
+        options: [
+          { id: 'burn', name: 'Burn', effects: [], extraDamage: { dice: '1d10', damageType: 'awe' } },
+        ],
+      }),
+    ).toContain(`bad_rider_extra_damage @ ${at}.damageType`);
+  });
+
+  /**
+   * And refused on the other host for the shove's reason: this is a component
+   * of an attack's own damage roll, and a pool use throws no attack. A pool
+   * option that wants dice writes a `save-damage` effect, which is what SRD
+   * Divine Spark does and what the hit's list may not.
+   */
+  it('refuses dice added to a blow on an option somebody spends an action on', () => {
+    expect(shaped({ reach: 30, extraDamage: { dice: '1d10', damageType: 'fire' } })).toContain(
+      'extra_damage_without_a_blow @ classes[warden].features[0].grants.options[0].extraDamage',
+    );
+  });
+
+  /** SRD Hill's Tumble's "a Large or smaller creature", held to the printed sizes. */
+  it('refuses a size clause naming a size nobody prints', () => {
+    expect(rider({ ...RIDE, targetNoLargerThan: 'enormous' })).toContain(
+      'bad_rider_size_limit @ classes[warden].features[0].grants.targetNoLargerThan',
+    );
+    expect(rider({ ...RIDE, targetNoLargerThan: 'large' })).toEqual([]);
+  });
 });
