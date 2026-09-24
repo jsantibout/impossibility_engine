@@ -81,6 +81,12 @@ import { HIDE } from './actions.js';
 import { creatureOf, damageTakenIn, turnContextFor, unknownCreature } from './command.js';
 import { applyConditionTo, endConditionsOn, schedule } from './conditions.js';
 import { type DamageCommand, damageCreature, type SettledFloor } from './creatures.js';
+import {
+  type DropSpoils,
+  droppedToZeroBy,
+  NOTHING_GAINED,
+  rewardsForDropping,
+} from './drop-rewards.js';
 import { mayAct, pendingCastingsOf } from './holds.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { type CastSpellRequest } from './targeting.js';
@@ -1747,13 +1753,14 @@ export interface DamageResolution {
    * Clauses this command applied without being able to check them — see
    * `AttackResolution.unverified`.
    *
-   * Empty for every blow the engine typed itself, which is every blow but one:
-   * a DM's improvised amount carries no damage type, so SRD Undead Fortitude's
-   * "unless the damage is Radiant" is a clause nothing here can evaluate. The
-   * save is thrown anyway — the engine cannot see a Radiant it was never told
-   * about, and refusing the save on that ground would be inventing the
-   * exception rather than applying it — and the reader is told which half of
-   * the sentence it is holding.
+   * Two sentences reach it. A DM's improvised amount carries no damage type,
+   * so SRD Undead Fortitude's "unless the damage is Radiant" is a clause
+   * nothing here can evaluate; the save is thrown anyway — the engine cannot
+   * see a Radiant it was never told about, and refusing the save on that
+   * ground would be inventing the exception rather than applying it — and the
+   * reader is told which half of the sentence it is holding. And a feature
+   * watching the creature fall may need a side nobody has declared or a
+   * distance nobody has laid out a scene for; see `rewardsForDropping`.
    */
   readonly unverified: readonly string[];
 }
@@ -1906,6 +1913,32 @@ export function resolveDamage(
     events.push(...damage.value);
     const after = events.reduce(applyEvent, state);
 
+    /**
+     * **What the blow bought whoever was watching, paid at the funnel.**
+     *
+     * SRD Dark One's Blessing reads the *outcome* rather than the swing, and
+     * this command is where every road that deals damage arrives: a spell's
+     * through `dealSpellDamage`, a held weapon blow's through `settleDamage`,
+     * and a DM's adjudicated amount straight off the door. Two of the three
+     * used to ask and the third did not, which made the rule depend on which
+     * road the fall happened to arrive by.
+     *
+     * **Last, and computed on the world this command has finished making**,
+     * so a Concentration broken by the same blow has already been taken back
+     * before the sheets are read. Nothing is owed until the creature is down,
+     * which is why the events ride at the end.
+     *
+     * The one road that does not get here is a printed sentence that drops a
+     * creature *without damage* — a Sea Hag's glare — and that clause asks
+     * `rewardsForDropping` itself.
+     */
+    const paid = (): DropSpoils => {
+      const settledWorld = events.reduce(applyEvent, state);
+      return droppedToZeroBy(state, settledWorld, id)
+        ? rewardsForDropping(settledWorld, id, command.by ?? null)
+        : NOTHING_GAINED;
+    };
+
     // **What was taken, not what was swung.** `damageCreature` is the one
     // place a damage threshold is applied, and a blow it turned aside is
     // superficial: SRD says it "doesn't reduce Hit Points", so there is
@@ -1913,11 +1946,12 @@ export function resolveDamage(
     const check = concentrationSaveAfterDamage(after, id, damageTakenIn(events, command.amount));
     if (check === null) {
       const lost = held !== null && (after.creatures[id]?.concentration ?? null) === null;
+      const spoils = paid();
       return ok({
-        events,
+        events: [...events, ...spoils.events],
         concentration: lost ? { kind: 'already-lost', castingId: held.castingId } : { kind: 'none' },
         duplicate: false,
-        unverified,
+        unverified: [...unverified, ...spoils.unverified],
       });
     }
 
@@ -1966,11 +2000,12 @@ export function resolveDamage(
       });
     }
 
+    const spoils = paid();
     return ok({
-      events,
+      events: [...events, ...spoils.events],
       concentration: { kind: 'resolved', check, save: save.value, maintained },
       duplicate: false,
-      unverified,
+      unverified: [...unverified, ...spoils.unverified],
     });
   });
 }
