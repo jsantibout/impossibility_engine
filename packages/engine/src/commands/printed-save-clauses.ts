@@ -247,10 +247,30 @@ function describeUnhung(clause: LastingClause, line: string, target: CharacterId
 }
 
 /**
+ * What a line's damage came to on one target, in total and by type.
+ *
+ * Two numbers rather than one because the book asks both questions: SRD
+ * Wight's Life Drain lowers a maximum "by an amount equal to the damage
+ * taken", and SRD Vampire Spawn's Bite by "an amount equal to the **Necrotic**
+ * damage taken" out of a blow that was Piercing and Necrotic at once.
+ * {@link byType} is what the target's own defences left of each component, and
+ * {@link total} is what was actually taken — a threshold turns a whole blow
+ * aside, and nought taken is nought of every type.
+ */
+export interface PrintedDamageDealt {
+  readonly total: number;
+  readonly byType: Readonly<Record<string, number>>;
+}
+
+/** Nothing at all, for a target the line's damage never reached. */
+export const NOTHING_DEALT: PrintedDamageDealt = { total: 0, byType: {} };
+
+/**
  * Apply the clauses one outcome of a printed save carries to one creature.
  *
  * @param dealt what the line's damage came to on this target after its own
- * defences, which is what "an amount equal to the damage taken" reads.
+ * defences, which is what "an amount equal to the damage taken" reads — and,
+ * per type, what "the Necrotic damage taken" reads.
  * @param useTag a number unique to this use — the roll issuer's position —
  * so two Life Drains on one creature lower the maximum twice rather than the
  * second replacing the first under one source key.
@@ -262,7 +282,7 @@ export function applyPrintedClauses(
   line: string,
   save: MonsterSave,
   clauses: readonly PrintedSaveEffect[],
-  dealt: number,
+  dealt: PrintedDamageDealt,
   useTag: number,
   supply: Supply,
 ): Result<PrintedClausesLanded> {
@@ -360,6 +380,13 @@ export function applyPrintedClauses(
                 condition: deepening.condition,
                 ...(deepenedFor === undefined ? {} : { lasts: { seconds: deepenedFor } }),
                 ...(deepening.repeats === undefined ? {} : { repeats: repeatOf() }),
+                // **And so do the deeper condition's early endings.** SRD
+                // Brass Dragon Wyrmling: "This effect ends for the target if
+                // it takes damage or a creature within 5 feet of it takes an
+                // action to wake it." `deepenedBy` widens the flag back to
+                // the condition's name when the boundary writes the event.
+                ...(deepening.endsOnDamage === true ? { endsOnDamage: true as const } : {}),
+                ...(deepening.endsWhenWoken === true ? { endsWhenWoken: true as const } : {}),
               };
         const repeat: RepeatSave | undefined =
           clause.repeats === undefined ? undefined : repeatOf(deeper);
@@ -381,6 +408,16 @@ export function applyPrintedClauses(
             // lifts at the escape, at the cure and at the deadline, through
             // the doors those already go through.
             clause.implies,
+            // SRD Incubus: "for 1 hour, **until it takes damage, or until a
+            // creature within 5 feet of it takes an action to wake it**." Two
+            // endings nobody schedules — a blow and an onlooker's Action —
+            // pinned onto the instances they are about, which is why they are
+            // names: SRD Pseudodragon ends the Unconscious its Poisoned
+            // carries and lets the hour of Poison run on.
+            {
+              ...(clause.endsOnDamage === undefined ? {} : { onDamage: clause.endsOnDamage }),
+              ...(clause.endsWhenWoken === undefined ? {} : { whenWoken: clause.endsWhenWoken }),
+            },
           ),
         );
         if (!landed.ok) return landed;
@@ -389,6 +426,38 @@ export function applyPrintedClauses(
           break;
         }
         land(landed.value.events);
+        // **What the hold costs at a turn boundary**, filed under the
+        // grapple's own source so `holdStillStands` stops reading it the
+        // moment the escape succeeds — the hit side's shape exactly, because
+        // it is the same sentence. SRD Water Elemental's Whelm: "takes 9 (2d8)
+        // Bludgeoning damage at the start of each of **the elemental's**
+        // turns", which is the holder's boundary and the held creature's
+        // hit points, a round apart.
+        //
+        // Only onto a grapple: the sentence the book writes here says "until
+        // the grapple ends", and an arrangement filed under the line instead
+        // would be a debt nothing could ever settle.
+        if (clause.payout !== undefined && grapple) {
+          const collector = clause.payout.onTurnOf === 'source' ? source : target;
+          land([
+            {
+              type: 'turn-payout-granted',
+              id: collector,
+              payout: {
+                source: conditionSource,
+                at: clause.payout.at === 'start' ? 'start-of-turn' : 'end-of-turn',
+                payout: 'damage',
+                // A notation, thrown at each boundary and never here — and
+                // absent where a homebrew line prints a flat amount alone,
+                // which is what a null `dice` means everywhere in `@ie/srd`.
+                ...(clause.payout.damage.dice === null ? {} : { dice: clause.payout.damage.dice }),
+                flat: clause.payout.damage.flat,
+                damageType: clause.payout.damage.type,
+                ...(collector === target ? {} : { to: target }),
+              },
+            },
+          ]);
+        }
         landedInstances.set(clause.condition, conditionInstanceId(clause.condition, conditionSource));
         // What the **line** said, which is this clause and whatever it said
         // the clause carries. The implications a condition always has are not
@@ -630,13 +699,70 @@ export function applyPrintedClauses(
       case 'hit-point-maximum-decrease': {
         // "by an amount equal to the damage taken" — nothing taken, nothing
         // lowered. Sourced per use, so a second bite lowers it again.
-        if (dealt <= 0) break;
+        //
+        // **And where the sentence names a component, it is that component
+        // alone.** SRD Vampire Spawn's Bite is Piercing *plus* Necrotic and
+        // lowers the maximum "by an amount equal to the Necrotic damage
+        // taken"; the whole blow would be the Wight's reading applied to a
+        // line the book wrote differently. A blow that landed nothing at all
+        // — a threshold turned it aside — is nothing of every type, which is
+        // the clause above.
+        if (dealt.total <= 0) break;
+        const amount =
+          clause.ofType === undefined ? dealt.total : (dealt.byType[clause.ofType] ?? 0);
+        if (amount <= 0) break;
         land([
           {
             type: 'hit-point-maximum-adjusted',
             id: target,
-            adjustment: { source: `${lineSource}:${useTag}`, amount: -dealt },
+            adjustment: { source: `${lineSource}:${useTag}`, amount: -amount },
           },
+        ]);
+        if (clause.sourceRegains === undefined) break;
+        // "and the vampire regains Hit Points equal to that amount" — the
+        // second half of the same sentence, in the order the book prints it
+        // and with no dice anywhere: the amount is the one just computed. The
+        // Will-o'-Wisp's regain is the neighbouring shape and throws the
+        // block's own dice, which is why the two are spelled apart.
+        if (current.creatures[source] === undefined) break;
+        const fed = healCreature(current, source, amount);
+        if (!fed.ok) return fed;
+        land(fed.value);
+        break;
+      }
+
+      case 'line-immunity': {
+        // SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
+        // Visage for 24 hours." An immunity to **one printed line** and not to
+        // the condition it imposes — a second ghost's visage still frightens
+        // them — so it is hung on the line's own source with a `grants`
+        // deadline over it, and `forcePrintedSave` reads it where it gathers
+        // who the line caught.
+        //
+        // **The heading the sentence names is checked**, because the reader
+        // was handed the line's text without its heading and this is where the
+        // two meet. A block that named some other line of its own would be a
+        // sentence nobody here can honour, so it is reported rather than
+        // guessed at — the reading every unhosted clause above takes.
+        if (!line.startsWith(clause.line)) {
+          unverified.push(
+            `${line} says the target becomes immune to "${clause.line}", which is not this line — nothing was granted`,
+          );
+          break;
+        }
+        const timer = schedule(
+          current,
+          { kind: 'grants', on: target, source: lineSource },
+          { kind: 'seconds', seconds: clause.seconds },
+        );
+        if (!timer.ok) return timer;
+        land([
+          {
+            type: 'printed-line-immunity-granted',
+            id: target,
+            immunity: { source: lineSource, by: source, line },
+          },
+          timer.value,
         ]);
         break;
       }

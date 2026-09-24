@@ -542,12 +542,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // swings a declared count holds, the re-declaration that replaces it, and
   // the count the fold gives back with no content open.
   'creature-heads-declared',
-  // One creature spending an action to shake another out of a sleep — SRD
+  // One creature spending an action to shake another out of a sleep â€” SRD
   // Sleep, SRD Hypnotic Pattern, a dragon's sleep breath, a pseudodragon's
   // sting. Neither log was written when anybody could: `wakeCreature` did not
   // exist, no casting's `endsEarly` could name `shaken-awake` and no condition
   // instance carried a mark, so both fixtures fold to exactly the states they
-  // always folded to — the event writes no state of its own and the derived
+  // always folded to â€” the event writes no state of its own and the derived
   // pass that reads it finds nothing on any creature in either log.
   // `waking-a-sleeper.test.ts` folds it and drives it end to end: the ally
   // beside the sleeper, the ally ten feet away, the action nobody has to
@@ -701,7 +701,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // thresholds, the rest that returns it, and the Clay Golem's gate reading a
   // line that is now spendable and rechargeable at once.
   'printed-line-expended',
-  // A day's grace from one creature's one printed line — SRD Ghost's Horrific
+  // A day's grace from one creature's one printed line â€” SRD Ghost's Horrific
   // Visage, SRD Mummy's Dreadful Glare. Neither log was written when a success
   // could buy anything at all: `MonsterSave` had no `onSuccessEffects`, no
   // creature had a `lineImmunities` list, and both fixtures fold to exactly

@@ -462,6 +462,20 @@ export function dealSpellDamage(
 ): Result<{
   readonly events: readonly GameEvent[];
   readonly amount: number;
+  /**
+   * What each **type** in the blow came to after the target's own defences.
+   *
+   * SRD Vampire Spawn's Bite: "5 (1d4 + 3) Piercing damage plus 10 (3d6)
+   * Necrotic damage. The target's Hit Point maximum decreases by an amount
+   * equal to the **Necrotic** damage taken." One blow, two components, and a
+   * clause about one of them — which {@link amount} cannot answer and
+   * `applyDamage` already computes on the way past.
+   *
+   * **What the defences left, which is not always what was taken.** A damage
+   * threshold turns a whole blow aside, so a caller reading one component out
+   * of this asks {@link amount} first: nought taken is nought of every type.
+   */
+  readonly byType: Readonly<Record<string, number>>;
   readonly concentration: ConcentrationConsequence;
   /**
    * Clauses this blow applied without being able to check them — a side nobody
@@ -564,6 +578,9 @@ export function dealSpellDamage(
     // damage threshold let through. `damageTakenIn` reads it off the event the
     // command wrote rather than re-deriving it here, so there is one answer.
     amount: damageTakenIn(resolved.value.events, applied.total),
+    // What the defences left of each component, for the one clause in the
+    // book that asks about one of them — see the field's own note.
+    byType: applied.byType,
     concentration: resolved.value.concentration,
     // **Everything the funnel could not settle, not merely the watcher's
     // half.** An Undead Fortitude save thrown against an amount with no type

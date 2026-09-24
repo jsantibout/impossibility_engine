@@ -293,7 +293,7 @@ describe('SRD Sleep: someone within 5 feet spends an action', () => {
   it('refuses a creature holding nothing a shake would end', () => {
     const game = new Game(field());
     // Nobody has been put to sleep at all, so the ally's action would buy
-    // nothing — and an Action spent on nothing is the one thing the book does
+    // nothing â€” and an Action spent on nothing is the one thing the book does
     // not let a table do by accident.
     expect(wakeableOn(game.state, FOE)).toEqual([]);
     game.turn();
@@ -337,7 +337,7 @@ describe('SRD Sleep: someone within 5 feet spends an action', () => {
     struck.hit(FOE);
 
     // Both sentences say "on a target", so both release that one and leave
-    // the casting standing for the sleeper beside them — the same door,
+    // the casting standing for the sleeper beside them â€” the same door,
     // reached by an Action instead of by a blow.
     expect(woken.on(one)).toEqual(struck.on(two));
     expect(woken.on(one)).toEqual([MOB]);
