@@ -1027,9 +1027,9 @@ and a bite whose hit buys a save.
 |---|---|---|
 | A save a line forces | 127 | 187 |
 | A recharge | 83 | 83 |
-| A hit whose line says more than the engine applies | 49 | 50 |
+| A hit whose line says more than the engine applies | 47 | 48 |
 | A use the block limits per day | 45 | 49 |
-| An effect a hit buys | 39 | 40 |
+| An effect a hit buys | 35 | 36 |
 | A legendary action’s own economy | 30 | 82 |
 | A save whose line says more than the engine spends | 19 | 19 |
 | A trait shape nothing spends | 3 | 3 |

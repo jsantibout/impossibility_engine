@@ -2278,3 +2278,26 @@ Appended after wave seven's first spells track (2026-09-24):
   `ambiguous_copy` by name until the bond ends, which wants an engine-issued
   instance id on the conjured line. Features waiting on a shape: one
   (Resourceful, in flight).
+- **A creature set burning, and armour worn down.** The glossary's hazards
+  have a home: `CreatureState.hazards`, keyed by hazard so a second Burn
+  re-lights one fire rather than doubling the die — **not a sixteenth
+  condition** (the glossary files it under another heading, so no condition
+  Immunity reaches it) and **not a sourced grant** (a fire outlives the
+  Magmin that lit it). The 1d4 is the glossary's own rule in `hazards.ts`,
+  paid at the boundary through the payout machinery so the Fire meets the
+  creature's own Immunity; `extinguishFire` is the action, outside
+  `NAMED_ACTIONS` because no sentence names it. SRD Barbed Devil's Hurl Flame
+  sets no *creature* alight — the brief's test would have been a rule nobody
+  printed. Armour worn down is `EquippedItem.penalty`, cumulative, destroyed
+  against the suit's own printed number. **Filed with a seam each, in two
+  tables the track wrote:** graded failures on a hit (two rungs need a door
+  from a swing to the printed-save reader), the infernal wound, the long
+  clocks, the web (**a decision: an object a line creates needs an id the
+  engine mints, and the engine is pure** — ruled below), and Swarm, whose
+  trait is three sentences and whose reader has no handed-over channel, so
+  reading the healing half alone would have silenced the other two. A fire
+  can be lit through the model's door and not put out through one:
+  `extinguishFire` wants a player tool. **Ruling on the web's id:** derive it
+  from the use that made it, the way a summoned creature's id is derived from
+  its casting and an item copy's from its gain — a new primitive with a
+  precedent, not a random number.

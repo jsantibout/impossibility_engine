@@ -43,7 +43,9 @@ homebrew.
   list**: the DM's door rolls it, the engine applies the failure's damage,
   condition, grapple, push, Speed cut or lowered maximum, and hands over each
   sentence it could not read; a printed teleport is spent at its distance, a
-  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a Parry raises Armour Class in the hit window, a printed Reaction may spend
+  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (a
+  hazard beside its conditions, 1d4 at its turns, an action to put out) or
+  wear its armour down; a Parry raises Armour Class in the hit window, a printed Reaction may spend
   another printed line, a cast line is spent at its heading's price through
   the block's own numbers, and a creature carries its Challenge Rating.
 - **Features that do something** — an action rule a feature holds, a use that
@@ -114,9 +116,8 @@ homebrew.
   decide nothing about what can be held; the block's senses are not carried;
   and the monster side of the same swap (Doppelganger, Imp, Werewolf) is not
   built.
-- **A summons still carries one debt.** A casting raises a creature out of the
-  bestiary, keeps it for its caster where the spell says so, states its form
-  and type, and seats it after its rider; what no field can hold is a printed
+- **A summons still carries one debt.** A casting raises a creature out of the bestiary, states its form and type
+  and seats it; what no field can hold is a printed
   line whose numbers are the summoner's — the Otherworldly Steed's attack and
   Bonus Actions — and a creature stowed somewhere that is not the scene.
 - **Jumping is half.** A Thief's running jump lengthens by the Dexterity
@@ -129,14 +130,12 @@ homebrew.
 - **Nothing brings a jumper down** from a High Jump; a lifted creature is set
   down when its casting ends.
 - No ammunition spent. **An object cannot make an ability check** — a door
-  asked for one rolls at −5 and can succeed, where it should refuse; and
-  nothing stops a caller putting an object in the turn order, which would
-  leave a fight unable to close.
+  asked for one rolls at −5 where it should refuse — and nothing stops a
+  caller putting an object in the turn order.
 - A conferral refuses by name what it cannot do: bonuses to spell attack rolls,
   ability scores an item sets, curses, Speed from an item.
-- **Two corpus migrations are owed**: a weapon mastery is a ceiling rather than
-  a quota, and a size nobody chooses defaults rather than refusing. Making
-  either required is a fixture migration.
+- **Two corpus migrations are owed**: a weapon mastery is a ceiling rather
+  than a quota, and a size nobody chooses defaults rather than refusing.
 - Homebrew may add beside printed content, never override an id.
 
 ## Rulings that stand
