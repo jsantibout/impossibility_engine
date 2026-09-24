@@ -16,6 +16,7 @@
  * by the clock.
  */
 import { actionRuleKey } from '../combat.js';
+import { bonusKey } from '../bonuses.js';
 import { rollModifierKey } from '../roll-modifiers.js';
 import type { DeniedBenefit } from '../conditions.js';
 import type { GameEvent } from '../events.js';
@@ -83,10 +84,21 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
   switch (event.type) {
     case 'bonus-applied': {
       const creature = creatureOf(state, event, event.id);
-      // Re-applying the same source replaces it rather than stacking: a second
-      // Bless from the same casting is the same Bless.
+      // Re-applying the same grant replaces it rather than stacking: a second
+      // Bless from the same casting is the same Bless. **The same grant, not
+      // the same source** — see {@link bonusKey}: SRD Slow's "a −2 penalty to
+      // AC and Dexterity saving throws" is one casting with two of them, and a
+      // source-keyed store dropped the first when the second arrived.
+      //
+      // The sort stays the source's. Every key begins with the source, so two
+      // grants of one casting keep the order the log emitted them in, which is
+      // as deterministic as the log is — and every log already written sorts
+      // exactly as it did.
+      const replacing = bonusKey(event.bonus.source, event.bonus.applies, event.bonus.only);
       const bonuses = [
-        ...creature.bonuses.filter((held) => held.source !== event.bonus.source),
+        ...creature.bonuses.filter(
+          (held) => bonusKey(held.source, held.applies, held.only) !== replacing,
+        ),
         event.bonus,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { bonuses }, creature);

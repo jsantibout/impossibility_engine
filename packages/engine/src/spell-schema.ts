@@ -1992,7 +1992,7 @@ function checkModifierRider(
   found: SpellDefinitionProblem[],
 ): void {
   if (rider?.kind === 'bonus') {
-    checkBonusGrant(rider.bonus, rider.applies, path, found);
+    checkBonusGrant(rider.bonus, rider.applies, path, found, rider.only);
     return;
   }
   if (rider?.kind === 'damage-penalty') {

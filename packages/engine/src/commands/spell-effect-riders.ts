@@ -461,6 +461,12 @@ export function applyRiders(
               bonus: { ...modifier.bonus, source: definition.name },
               applies: modifier.applies,
               direction: modifier.direction,
+              // SRD Slow's "and Dexterity saving throws", carried through so
+              // the penalty reaches one ability's saves rather than every save
+              // the target ever makes — including the one this spell calls
+              // for. A second rider of one casting stands beside the first
+              // rather than replacing it, which `bonusKey` is what decides.
+              ...(modifier.only === undefined ? {} : { only: modifier.only }),
             },
           }
         : modifier.kind === 'mode'

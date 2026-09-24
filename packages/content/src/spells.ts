@@ -2513,6 +2513,22 @@ export const SLOW: SpellDefinition = {
         // "it takes a −2 penalty to AC". A flat bonus with the sign turned
         // round, which is the only kind an Armour Class takes.
         { kind: 'bonus', bonus: { source: 'Slow', flat: 2 }, applies: ['ac'], direction: 'subtract' },
+        // "and Dexterity saving throws" — the same −2 on a different family,
+        // narrowed by the ability the roll is made with. **A second rider and
+        // a second source**, for two reasons that both bite: a bonus is filed
+        // by source and a second grant under `Slow` would replace the first
+        // rather than stand beside it, and `BonusNarrowing` is refused beside
+        // an Armour Class because an Armour Class is not a roll and is made
+        // with no ability at all. So the two halves of one printed penalty are
+        // two grants of one casting, ended together by the casting's own
+        // source.
+        {
+          kind: 'bonus',
+          bonus: { source: 'Slow (Dexterity saves)', flat: 2 },
+          applies: ['save'],
+          direction: 'subtract',
+          only: { ability: 'dex' },
+        },
         // "and it can't take Reactions" — one slot taken away, with
         // everything the sentence does not name left alone.
         { kind: 'action', rule: { kind: 'forbids', slots: ['reaction'] } },

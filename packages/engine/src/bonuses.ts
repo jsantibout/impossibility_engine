@@ -165,6 +165,39 @@ export interface ActiveBonus {
 }
 
 /**
+ * What makes two stored bonuses the same bonus.
+ *
+ * **The source alone is not enough, and one spell proves it** — which is the
+ * sentence {@link rollModifierKey} already makes about a mode, arriving on the
+ * other family for the same reason. SRD Slow takes "a −2 penalty to AC **and
+ * Dexterity saving throws**": one casting, one source string, two grants,
+ * because an Armour Class is not a roll and takes no {@link BonusNarrowing}
+ * while one ability's saving throws need one. Keyed by source alone, the
+ * second silently evicted the first and half of the printed sentence was lost
+ * between the definition and the state.
+ *
+ * So identity is the source, **the kinds of roll it reaches** and **what it is
+ * narrowed to**. Re-granting the same kinds from the same casting still
+ * replaces rather than stacks, which is the rule `bonus-applied` was
+ * protecting; granting a *different* family, or the same family narrowed
+ * differently, is a second grant because it is a second sentence.
+ *
+ * The **direction** is not part of it, for the reason a mode is not part of
+ * `rollModifierKey`: one source that added and then subtracted on the same
+ * rolls is a contradiction, and the later word wins.
+ *
+ * `applies` is sorted, because a list is a set here: a definition naming
+ * attacks and saves is the same grant whichever order it wrote them in.
+ */
+export function bonusKey(
+  source: string,
+  applies: readonly BonusApplies[],
+  only?: BonusNarrowing,
+): string {
+  return [source, [...applies].sort().join(','), only?.ability ?? '', only?.skill ?? ''].join('|');
+}
+
+/**
  * The bonuses a creature carries that apply to this kind of roll.
  *
  * Subtraction is folded in here rather than at the reading site: a caller

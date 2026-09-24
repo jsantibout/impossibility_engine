@@ -880,6 +880,19 @@ export type ModifierRider =
       readonly bonus: Bonus;
       readonly applies: readonly BonusApplies[];
       readonly direction: 'add' | 'subtract';
+      /**
+       * Which of those rolls it reaches — see {@link BonusNarrowing}, and the
+       * `buff` effect's own `only`, which is this field on the kind that rolls
+       * a save of its own.
+       *
+       * SRD Slow: "it takes a −2 penalty to AC **and Dexterity saving
+       * throws**". Two families off one printed penalty, and only one of them
+       * is narrowed — an Armour Class is not a roll and is made with no
+       * ability at all, which is why the same spell writes two riders rather
+       * than one with a list. Absent is the unnarrowed sentence, which is
+       * every other rider in the book.
+       */
+      readonly only?: BonusNarrowing;
     }
   /**
    * An amount the same roll makes its target take off the damage **it** deals.
