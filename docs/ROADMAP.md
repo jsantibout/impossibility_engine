@@ -1939,3 +1939,26 @@ Appended after wave six's first two tracks (2026-09-24):
   weapon** and hangs a feature-sourced weapon rider on its id, and **any weapon
   rider ends when its id leaves `equipped`**, which pays Shillelagh's let-go
   clause with the same rule. In flight as W6-G2.
+
+Appended after wave seven's first spells track (2026-09-24):
+
+- **Six spells finished at the roll, and Sleep half.** `armor-class` has two
+  arms — a base the engine competes over (Mage Armor) and a **floor** on the
+  finished total read last and through plate (Barkskin) — because 17 written
+  as a base is wrong in both directions at once. An `attack` effect may carry
+  its own `reach` (Vampiric Touch's first swing) and a **sequenced burst**
+  (`then`, Ice Knife: "hit or miss" hangs off no branch, so it is a second
+  parent rather than a sixth rider, stepped over at one depth on the `attack`
+  host alone — the "a child that rolls is a parent" rule stands). A save may
+  auto-succeed off a defence the target already has (`autoSucceedIf`, the
+  mirror of Blight's automatic failure). A settled outcome may hang a light
+  (Faerie Fire) or break the target's Concentration (Sleet Storm, whose
+  Cylinder is 20 feet across and 40 tall — the book's numbers). A denied
+  benefit may name the effect's source (`DeniedBenefit.against`, Mind Spike:
+  the brief's `relation: 'against-source'` was the wrong mechanism, since a
+  `benefit` rider carries no selector). **Sleep's "creatures that don't
+  sleep"** is not a list the SRD prints in its creature types, so that half is
+  re-filed under `a-fact-only-the-table-can-declare`. **Shining Smite** waits
+  on `attack-damage` — the one effect a cast-on-hit carries — taking riders,
+  which is a decision about what the settled outcome of a spell cast on a hit
+  already landed is.

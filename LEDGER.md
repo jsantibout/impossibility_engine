@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 99 spells | 66 | 0 | 33 |
+| Spells in reach, not executed | 93 spells | 60 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 9 features | 3 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -52,10 +52,10 @@ hold at all. An executed spell with nothing left is not here.
 | `an-effect-that-suppresses-other-magic` | 5 | 2 |
 | `a-choice-made-at-the-casting` | 4 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
+| `a-fact-only-the-table-can-declare` | 4 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 3 | 1 |
-| `a-condition-benefit-an-effect-takes-away` | 2 | 1 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
 | `an-area-trigger-measured-from-a-point` | 2 | 1 |
@@ -65,23 +65,16 @@ hold at all. An executed spell with nothing left is not here.
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-reaction-window-that-opens-on-being-targeted` | 1 | 1 |
-| `a-second-roll-sequenced-after-the-first` | 1 | 1 |
 | `a-wall-or-several-templates-in-one-area` | 1 | 1 |
 | `a-world-fact-nothing-can-represent` | 1 | 1 |
-| `an-armor-class-a-spell-floors` | 1 | 1 |
-| `an-outcome-that-breaks-concentration` | 1 | 1 |
-| `an-outcome-that-reads-the-targets-defences` | 1 | 1 |
 | `falling` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
 | `jumping` | 1 | 1 |
-| `light-and-obscurement-the-scene-holds` | 1 | 1 |
-| `targeting-rules-that-differ-within-one-casting` | 1 | 1 |
 | `what-ends-attunement-besides-a-command` | 1 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 4 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
-| `a-fact-only-the-table-can-declare` | 3 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 3 | 0 |
 | `a-second-place-to-put-a-creature` | 3 | 0 |
 | `a-barrier-that-blocks-passage` | 2 | 0 |
@@ -96,6 +89,7 @@ hold at all. An executed spell with nothing left is not here.
 | `movement-modes` | 2 | 0 |
 | `a-casting-dismissed-early` | 1 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
+| `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
@@ -145,6 +139,13 @@ sums to the population.
 - **Warding Bond** (level 2) — tracked — also waits on 1
 - **Tiny Hut** (level 3) — tracked — also waits on 2
 
+#### `a-fact-only-the-table-can-declare` — blocks 4, finishes 1
+
+- **Hunter's Mark** (level 1) — executed-partial — also waits on 1
+- **Sleep** (level 1) — executed-partial
+- **Enthrall** (level 2) — tracked — also waits on 1
+- **Call Lightning** (level 3) — tracked — also waits on 1
+
 #### `a-stat-block-created-mid-fight` — blocks 3, finishes 1
 
 - **Unseen Servant** (level 1) — tracked — also waits on 1
@@ -162,11 +163,6 @@ sums to the population.
 - **Speak with Animals** (level 1) — tracked
 - **Gaseous Form** (level 3) — executed-partial — also waits on 2
 - **Haste** (level 3) — executed-partial — also waits on 2
-
-#### `a-condition-benefit-an-effect-takes-away` — blocks 2, finishes 1
-
-- **Mind Spike** (level 2) — executed-partial
-- **Shining Smite** (level 2) — executed-partial — also waits on 1
 
 #### `a-condition-that-ends-when-its-holder-leaves-an-area` — blocks 2, finishes 1
 
@@ -210,10 +206,6 @@ sums to the population.
 
 - **Shield** (level 1) — executed-partial
 
-#### `a-second-roll-sequenced-after-the-first` — blocks 1, finishes 1
-
-- **Ice Knife** (level 1) — tracked
-
 #### `a-wall-or-several-templates-in-one-area` — blocks 1, finishes 1
 
 - **Wind Wall** (level 3) — tracked
@@ -221,18 +213,6 @@ sums to the population.
 #### `a-world-fact-nothing-can-represent` — blocks 1, finishes 1
 
 - **Meld into Stone** (level 3) — tracked
-
-#### `an-armor-class-a-spell-floors` — blocks 1, finishes 1
-
-- **Barkskin** (level 2) — tracked
-
-#### `an-outcome-that-breaks-concentration` — blocks 1, finishes 1
-
-- **Sleet Storm** (level 3) — tracked
-
-#### `an-outcome-that-reads-the-targets-defences` — blocks 1, finishes 1
-
-- **Sleep** (level 1) — executed-partial
 
 #### `falling` — blocks 1, finishes 1
 
@@ -245,14 +225,6 @@ sums to the population.
 #### `jumping` — blocks 1, finishes 1
 
 - **Jump** (level 1) — tracked
-
-#### `light-and-obscurement-the-scene-holds` — blocks 1, finishes 1
-
-- **Faerie Fire** (level 1) — executed-partial
-
-#### `targeting-rules-that-differ-within-one-casting` — blocks 1, finishes 1
-
-- **Vampiric Touch** (level 3) — executed-partial
 
 #### `what-ends-attunement-besides-a-command` — blocks 1, finishes 1
 
@@ -283,12 +255,6 @@ sums to the population.
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Detect Thoughts** (level 2) — tracked — also waits on 1
 - **Spike Growth** (level 2) — executed-partial — also waits on 1
-
-#### `a-fact-only-the-table-can-declare` — blocks 3, finishes 0
-
-- **Hunter's Mark** (level 1) — executed-partial — also waits on 1
-- **Enthrall** (level 2) — tracked — also waits on 1
-- **Call Lightning** (level 3) — tracked — also waits on 1
 
 #### `a-random-outcome-that-is-not-a-d20` — blocks 3, finishes 0
 
@@ -359,6 +325,10 @@ sums to the population.
 #### `a-condition-a-spell-suppresses` — blocks 1, finishes 0
 
 - **Calm Emotions** (level 2) — tracked — also waits on 1
+
+#### `a-condition-benefit-an-effect-takes-away` — blocks 1, finishes 0
+
+- **Shining Smite** (level 2) — executed-partial — also waits on 1
 
 #### `a-condition-immunity-narrowed-to-its-source` — blocks 1, finishes 0
 
