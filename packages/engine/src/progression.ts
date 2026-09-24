@@ -1282,6 +1282,25 @@ export type FeatureGrant =
        */
       readonly atWill?: true;
       /**
+       * What must be true of the caster for this route to be open at all.
+       *
+       * SRD One with Shadows: "**While you're in an area of Dim Light or
+       * Darkness**, you can cast _Invisibility_ on yourself without expending
+       * a spell slot." The clause is about where the caster is standing when
+       * they cast rather than about the spell, so it cannot live on the
+       * definition and it cannot be settled at creation — the same three-line
+       * argument `standing.ts` makes for deriving every conditional benefit on
+       * every read, arriving at the one grant that hands out a *route*.
+       *
+       * The vocabulary is the standing one, and the reader is the same:
+       * `requirementsHold`. Checked where the route is settled, before a slot,
+       * an action or a die, so a Warlock standing in Bright Light is refused
+       * while refusing is still free — and refused rather than quietly sent to
+       * a spell slot, because the route the caller named is the route they
+       * meant.
+       */
+      readonly requires?: readonly StandingRequirement[];
+      /**
        * SRD Fiendish Vigor: "When you cast the spell with this feature, you
        * don't roll the die for the Temporary Hit Points; you automatically get
        * the highest number on the die."

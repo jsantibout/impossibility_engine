@@ -1,6 +1,7 @@
 import type { Ability } from '@ie/shared';
 import type { SlotKind } from './resources.js';
 import type { CastingNumbers } from './spells.js';
+import type { StandingRequirement } from './standing.js';
 
 /**
  * What a creature can actually cast, and by what route.
@@ -106,6 +107,16 @@ export interface GrantedSpell {
    * written onto the bond at the arrival.
    */
   readonly keptUntilSummonerLongRests?: true;
+  /**
+   * What must be true of the caster for this route to be open — SRD One with
+   * Shadows: "While you're in an area of Dim Light or Darkness."
+   *
+   * The `spells` grant's own field, compiled: a standing requirement checked
+   * against the world where the route is settled, because a clause about where
+   * the caster is standing cannot be answered when the sheet is written.
+   * Absent asks nothing, which is every granted route in the book but one.
+   */
+  readonly requires?: readonly StandingRequirement[];
 }
 
 /** One class's half of a creature's spellcasting, on that class's terms. */

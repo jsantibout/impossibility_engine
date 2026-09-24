@@ -16,6 +16,7 @@ import {
   resolveSpell,
   resolveTest,
   routesFor,
+  speedOf,
   type CharacterChoices,
   type GameEvent,
   type GameState,
@@ -917,6 +918,81 @@ describe('Repelling Blast', () => {
 
   it('shoves nobody for a Warlock who did not take it', () => {
     expect(shoves(blastAt(WITHOUT, {}, 'medium').events)).toHaveLength(0);
+  });
+});
+
+// ─── Gift of the Depths and One with Shadows ────────────────────────────────
+
+describe('Gift of the Depths', () => {
+  const GIFT = [
+    'Gift of the Depths',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+
+  /** "You gain a Swim Speed equal to your Speed." */
+  it('swims at the Speed it walks at', () => {
+    const state = fold('seed', table(warlock(GIFT)));
+    expect(speedOf(state, WHO, 'swim')).toBe(speedOf(state, WHO, 'walk'));
+    expect(speedOf(state, WHO, 'swim')).toBeGreaterThan(0);
+
+    const without = fold('seed', table(warlock(['Misty Visions', 'Armor of Shadows', 'Eldritch Mind', "Devil's Sight", 'Fiendish Vigor'])));
+    expect(speedOf(without, WHO, 'swim')).toBe(0);
+  });
+
+  /** "You can also cast Water Breathing once without expending a spell slot." */
+  it('casts Water Breathing out of a pool of one that a Long Rest refills', () => {
+    const granted = plan(warlock(GIFT)).spellcasting.granted.find(
+      (one) => one.spellId === 'water-breathing',
+    );
+    expect(granted?.freeCastPool).toBe('warlock:gift-of-the-depths');
+    // The feature's route is the free one, and no slot route beside it.
+    expect(granted?.slotCasting).toBe(false);
+
+    // One use, standing on the sheet as a pool the Long Rest already refills.
+    const state = fold('seed', table(warlock(GIFT)));
+    expect(remaining(state.creatures[WHO]!.resources, 'warlock:gift-of-the-depths')).toBe(1);
+  });
+});
+
+describe('One with Shadows', () => {
+  const SHADOWS = [
+    'One with Shadows',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+
+  /** The table above, lit the way the argument is about. */
+  const lit = (level: 'bright' | 'dim'): GameEvent[] => [
+    ...table(warlock(SHADOWS)),
+    {
+      type: 'light-declared',
+      patch: 'where the Warlock stands',
+      region: { origin: { creature: WHO }, shape: { kind: 'sphere', radius: 5 } },
+      level,
+    },
+  ];
+
+  const castIt = (level: 'bright' | 'dim') =>
+    resolveSpell(
+      fold('seed', lit(level)),
+      WHO,
+      { spellId: 'invisibility', targets: [WHO] },
+      supply('shadows'),
+    );
+
+  it('casts Invisibility for nothing in Dim Light', () => {
+    expect(castIt('dim').ok).toBe(true);
+  });
+
+  it('is refused in Bright Light', () => {
+    const bright = castIt('bright');
+    expect(bright.ok).toBe(false);
+    expect(bright.ok ? null : bright.code).toBe('route_not_open');
   });
 });
 

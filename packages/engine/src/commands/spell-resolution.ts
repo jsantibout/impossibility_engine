@@ -111,6 +111,7 @@ import {
   castingDamageFeatures,
   castingRangeBonus,
   castingRiders,
+  requirementsHold,
   type CastingDamageFeature,
   sheetAsItStands,
   ritualsFromBookOn,
@@ -728,6 +729,22 @@ export function castOrRelease(
           );
     if (!chosen.ok) return chosen;
     const route = chosen.value;
+
+    // **And the standing clause a granted route prints over its own casting.**
+    // SRD One with Shadows: "**While you're in an area of Dim Light or
+    // Darkness**, you can cast Invisibility on yourself without expending a
+    // spell slot." A fact about where the caster is standing at the moment
+    // they cast, which no sheet can hold — so it is read here, off the world,
+    // before a slot, an action or a die. Refused rather than quietly sent to a
+    // spell slot: the route the caller named is the route they meant.
+    if (route.kind === 'granted' && (route.grant.requires ?? []).length > 0) {
+      if (!requirementsHold(state, casterId, route.grant.requires, route.grant.source)) {
+        return err(
+          'route_not_open',
+          `${route.grant.source} casts ${definition.name} only while its own clause holds, and it does not right now`,
+        );
+      }
+    }
 
     // How long this casting takes, and whether it is a Ritual. Refused here,
     // before a slot, an action or a die — and computed once, because the

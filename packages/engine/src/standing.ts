@@ -2940,8 +2940,13 @@ function meetsRequirements(state: GameState, who: CharacterId, effect: StandingE
  * `source` is what `while-worn` and `while-attuned` look up — an item's id.
  * A feature naming no item is refused by `checkContent`, so handing a feature
  * id here withholds the benefit rather than granting it by accident.
+ *
+ * And because a **granted spell route** is gated by it too: SRD One with
+ * Shadows casts only "while you're in an area of Dim Light or Darkness", which
+ * is the same clause a `standing` grant's `requires` already writes, asked of
+ * a route instead of a benefit.
  */
-function requirementsHold(
+export function requirementsHold(
   state: GameState,
   who: CharacterId,
   requires: readonly StandingRequirement[] | undefined,

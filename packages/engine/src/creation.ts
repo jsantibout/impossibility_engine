@@ -1815,6 +1815,7 @@ function classFeatureAtWillCastings(
         slotCasting: false,
         atWill: true,
         ...(grant.maximisedDice === undefined ? {} : { maximisedDice: true }),
+        ...(grant.requires === undefined ? {} : { requires: grant.requires }),
       });
     }
   }
@@ -1882,6 +1883,7 @@ function classFeatureFreeCastings(
       freeCastPool: grant.freeCasting.pool,
       slotCasting: grant.freeCasting.withSlots === true,
       ...castsAs(grant.freeCasting),
+      ...(grant.requires === undefined ? {} : { requires: grant.requires }),
     });
   }
   return granted;

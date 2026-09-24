@@ -143,10 +143,13 @@ export const WARLOCK: ClassDefinition = {
             'Eldritch Mind',
             'Eldritch Spear',
             'Fiendish Vigor',
+            'Gaze of Two Minds',
+            'Gift of the Depths',
             'Lessons of the First Ones',
             'Mask of Many Faces',
             'Master of Myriad Forms',
             'Misty Visions',
+            'One with Shadows',
             'Otherworldly Leap',
             'Pact of the Tome',
             'Repelling Blast',
@@ -171,6 +174,9 @@ export const WARLOCK: ClassDefinition = {
             { option: "Devil's Sight", level: 2 },
             { option: 'Eldritch Spear', level: 2 },
             { option: 'Fiendish Vigor', level: 2 },
+            { option: 'Gaze of Two Minds', level: 5 },
+            { option: 'Gift of the Depths', level: 5 },
+            { option: 'One with Shadows', level: 5 },
             { option: 'Lessons of the First Ones', level: 2 },
             { option: 'Mask of Many Faces', level: 2 },
             { option: 'Master of Myriad Forms', level: 5 },
@@ -292,6 +298,42 @@ export const WARLOCK: ClassDefinition = {
               rides: { movement: { feet: 10, kind: 'push', targetNoLargerThan: 'large' } },
             },
           ],
+        },
+        // Gift of the Depths: "You can breathe underwater, and you gain a Swim
+        // Speed equal to your Speed." The Swim Speed is the derivation
+        // `match-walk` already writes for SRD Second-Story Work's Climb Speed;
+        // breathing underwater is the table's, and the note says so.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Gift of the Depths',
+          effects: [{ kind: 'speed', change: 'match-walk', mode: 'swim' }],
+        },
+        // "You can also cast Water Breathing once without expending a spell
+        // slot. You regain the ability to cast it in this way when you finish a
+        // Long Rest." A pool of one, which is what a sizing naming nothing but
+        // its floor comes to — SRD Faithful Steed's shape on another spell.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Gift of the Depths',
+          fixed: ['water-breathing'],
+          freeCasting: {
+            spell: 'water-breathing',
+            pool: 'warlock:gift-of-the-depths',
+            poolLabel: 'Gift of the Depths',
+            declares: { minimum: 1, recovers: 'long-rest' },
+          },
+        },
+        // One with Shadows: "While you're in an area of Dim Light or Darkness,
+        // you can cast Invisibility on yourself without expending a spell
+        // slot." The route is at will and the clause is where its caster is
+        // standing, read off the world at the moment of the cast.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'One with Shadows',
+          fixed: ['invisibility'],
+          atWill: true,
+          requires: [{ kind: 'in-dim-light-or-darkness' }],
         },
         // "You can cast Mage Armor on yourself without expending a spell slot."
         // No count, no pool, nothing that runs out.
