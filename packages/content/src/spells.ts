@@ -3787,13 +3787,16 @@ export const WEB: SpellDefinition = {
         kind: 'save',
         ability: 'dex',
         condition: 'restrained',
+        // "have the Restrained condition **while in the webs** or until it
+        // breaks free" — two ways out of one condition, and this is the first
+        // of them. The escape check below is the second.
+        endsWhenOutsideArea: true,
         check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
       },
     ],
   },
   durationSeconds: 3600,
   unmodelled: [
-    'Restrained by the webs lasts "while in the webs", and a condition that ends when its holder walks out of an area has no shape here: it runs until the casting ends or the creature breaks free',
     'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room',
     'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
   ],

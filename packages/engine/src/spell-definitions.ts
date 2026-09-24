@@ -700,6 +700,30 @@ export interface ConditionRider {
    */
   readonly outlivesCasting?: true;
   /**
+   * The condition ends the moment its holder is no longer in the area that
+   * imposed it.
+   *
+   * SRD Web: "have the Restrained condition **while in the webs** or until it
+   * breaks free." A lifetime that is neither a span, nor a moment in the turn
+   * order, nor a save — it is a fact about where the creature is standing, and
+   * `docs/design/space-and-areas.md` said in as many words that it had no
+   * shape here.
+   *
+   * **Legal only on a rider an {@link AreaTrigger} hosts**, which is what
+   * makes it answerable: the trigger is pinned whole onto the ongoing record
+   * at the cast, so the fold reads the mark and the area together out of the
+   * log and opens no catalogue. A rider on the spell's own `effects` has no
+   * pinned area beside it — the record stores the area but not the effects —
+   * so the validator refuses it there rather than letting a definition ask
+   * for an ending nothing would ever perform.
+   *
+   * **Not {@link outlivesCasting}'s neighbour and not its opposite.** That one
+   * severs the casting's ownership of the condition; this one keeps it and
+   * adds a second way out, so a Web that ends takes its Restrained with it
+   * exactly as before and a creature that walks out loses it sooner.
+   */
+  readonly endsWhenOutsideArea?: true;
+  /**
    * A saving throw the condition repeats at a turn boundary, if it does.
    *
    * **Moved in from `save`, and it is legal only where the host rolled a
@@ -1862,6 +1886,17 @@ export type SpellEffect =
        * *does* something from a spell that *keeps* doing it.
        */
       readonly outlivesCasting?: true;
+      /**
+       * The condition ends when its holder is no longer in the area.
+       *
+       * SRD Web's other half — "while in the webs" — and the flat spelling of
+       * {@link ConditionRider.endsWhenOutsideArea}, which is where the rule is
+       * written down. It is here rather than only on the rider list for the
+       * reason `lasts`, `check` and `outlivesCasting` are: `save` keeps its
+       * flat layout, and {@link conditionRiderOf} is the view that makes the
+       * two one vocabulary.
+       */
+      readonly endsWhenOutsideArea?: true;
     }
   /**
    * A saving throw that interrupts a casting already in progress.
@@ -4828,6 +4863,9 @@ export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[]
                 ...(effect.outlivesCasting === undefined
                   ? {}
                   : { outlivesCasting: effect.outlivesCasting }),
+                ...(effect.endsWhenOutsideArea === undefined
+                  ? {}
+                  : { endsWhenOutsideArea: effect.endsWhenOutsideArea }),
                 ...(effect.repeats === undefined ? {} : { repeats: effect.repeats }),
               },
             ]),

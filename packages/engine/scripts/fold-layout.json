@@ -83,8 +83,11 @@
     "raiseAreaBoundary",
     "raiseAreaEntries",
     "raiseAfterMovement",
+    "endConditionsLeftBehind",
+    "conditionsBoundToTheArea",
     "creaturesThatMoved",
     "raiseCarriedArrivals",
+    "raiseArrivalDebts",
     "raiseAreaArrivals",
     "dropOrphanedAreaEffects"
   ],

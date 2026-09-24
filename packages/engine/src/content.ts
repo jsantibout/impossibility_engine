@@ -1809,6 +1809,7 @@ const CONDITIONS_IS_THE_KINDS_OWN: ReadonlySet<string> = new Set([
  * | `lasts` | a lifetime the *casting* owns; a conferral's is `durationSeconds`, on the grant |
  * | `check` | an escape whose `effect-check-resolved` releases the casting the instance names |
  * | `outlivesCasting` | a mark that says the casting does not keep it, on a thing with no casting |
+ * | `endsWhenOutsideArea` | the area a casting's trigger pinned, on a thing that filled none |
  *
  * **`repeats` is the fourth and is not here, because on a `condition` it is
  * already refused one step earlier and for a better reason.**
@@ -1835,7 +1836,12 @@ const CONDITIONS_IS_THE_KINDS_OWN: ReadonlySet<string> = new Set([
  * Iron Bands of Binding, Rope of Entanglement — this is the list that shortens
  * and `fold/timers.ts` is the guard that narrows with it.
  */
-const CONFERRED_CONDITION_FIELDS: readonly string[] = ['lasts', 'check', 'outlivesCasting'];
+const CONFERRED_CONDITION_FIELDS: readonly string[] = [
+  'lasts',
+  'check',
+  'outlivesCasting',
+  'endsWhenOutsideArea',
+];
 
 /**
  * Whether a rolled span is dice and a unit, judged defensively.

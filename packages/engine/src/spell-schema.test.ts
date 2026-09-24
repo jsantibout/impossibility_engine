@@ -4694,6 +4694,73 @@ describe('the fought clause is refused everywhere it could not be read', () => {
     expect(inList('effects', { kind: 'teleport', feet: 0 })).toEqual(['bad_teleport_distance']);
     expect(inList('effects', { kind: 'teleport' })).toEqual(['bad_teleport_distance']);
   });
+
+  /**
+   * SRD Web's "while in the webs" is the third rule of this shape, and the
+   * only list that can answer it is the trigger's: `AreaTrigger` is pinned
+   * whole onto the ongoing record at the cast, so the mark and the geometry
+   * are read out of one value. The casting's own list is not pinned anywhere,
+   * and an activation's is not either.
+   */
+  it('accepts an area-bound condition in the one list that has an area', () => {
+    // `FIRE_DART` is Instantaneous, so a condition the casting owns has
+    // nothing to end it — `grant_without_lifetime`, which is a different rule.
+    // What is claimed here is the narrow thing: the area lifetime is not among
+    // whatever else that definition is wrong about.
+    expect(
+      inTrigger({
+        kind: 'save',
+        ability: 'dex',
+        condition: 'restrained',
+        endsWhenOutsideArea: true,
+      }).filter((code) => code.startsWith('area_lifetime_')),
+    ).toEqual([]);
+  });
+
+  it('refuses an area-bound condition where no pinned area reaches it', () => {
+    const BOUND = { ...SAVE, endsWhenOutsideArea: true };
+    expect(inList('effects', BOUND)).toContain('area_lifetime_without_an_area');
+    expect(inList('activation', BOUND)).toContain('area_lifetime_without_an_area');
+  });
+
+  /** The nested layout is the same rule at the other path. */
+  it('refuses one written in a rider list too', () => {
+    expect(
+      inList('effects', {
+        kind: 'condition',
+        condition: { name: 'restrained', endsWhenOutsideArea: true, outlivesCasting: true },
+      }),
+    ).toContain('area_lifetime_without_an_area');
+  });
+
+  /**
+   * And a condition the casting has disowned has no area to be bounded by:
+   * `outlivesCasting` records it under the spell's bare name with no casting
+   * mark, and the area belongs to the casting.
+   */
+  it('refuses an area-bound condition the casting does not keep', () => {
+    expect(
+      inTrigger({
+        kind: 'save',
+        ability: 'dex',
+        condition: 'restrained',
+        endsWhenOutsideArea: true,
+        outlivesCasting: true,
+      }),
+    ).toContain('area_lifetime_without_a_casting');
+  });
+
+  /** Absence is how a definition says the condition is not bound to the area. */
+  it('refuses any value but true for an area-bound condition', () => {
+    expect(
+      inTrigger({
+        kind: 'save',
+        ability: 'dex',
+        condition: 'restrained',
+        endsWhenOutsideArea: false,
+      }),
+    ).toContain('malformed_field');
+  });
 });
 
 /**

@@ -2284,3 +2284,116 @@ describe('an un-arrived start blocks its own creature and nobody else', () => {
     }
   });
 });
+
+// — a condition that ends when its holder leaves the area ————————————————————
+
+/**
+ * SRD Web: "have the Restrained condition **while in the webs** or until it
+ * breaks free."
+ *
+ * Two ways out of one condition and the engine had only the second. This is
+ * the first: a lifetime that is neither a span, nor a moment in the turn
+ * order, nor a saving throw — it is a fact about where the creature is
+ * standing, and `docs/design/space-and-areas.md` recorded that nothing here
+ * could say it.
+ *
+ * The pair below is what makes the rule observable rather than merely present:
+ * **out** of the Cube lifts it and **within** the Cube does not, and an
+ * implementation that read "the creature moved" instead of "the creature is
+ * outside" passes the first and fails the second.
+ */
+describe('a condition that lasts while its holder is in the area', () => {
+  /** SRD prints the clause this whole mechanism is named for. */
+  it('is a sentence in the book', () => {
+    expect(PROSE.get('web')).toContain('Restrained condition while in the webs');
+  });
+
+  const shoved = (who: CharacterId, to: string): GameEvent => ({
+    type: 'creature-moved',
+    id: who,
+    placement: { from: { landmark: to }, feet: 0 },
+    forced: true,
+  });
+
+  /**
+   * Restrained, and then carried out by somebody else. A Restrained creature
+   * has a Speed of 0 and cannot walk anywhere, so the only way out of the webs
+   * is forced movement — which is exactly the case the SRD sentence is about.
+   */
+  const restrained = (): Game => {
+    const g = new Game();
+    g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('web-save');
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+    return g;
+  };
+
+  it('lifts the Restrained when its holder is moved out of the webs', () => {
+    const g = restrained();
+    g.push([shoved(MOVER, 'outside cube')]);
+    expect(g.has(MOVER, 'restrained')).toBe(false);
+  });
+
+  /**
+   * And the casting is still running: "while in the webs" ends the condition,
+   * not the spell, which carries on for everybody else standing in them.
+   */
+  it('leaves the casting running when it lifts one creature’s condition', () => {
+    const g = new Game();
+    const web = g.conjure('web', CUBE, { towards: TOWARDS, slotLevel: 2 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('web-save');
+    g.push([shoved(MOVER, 'outside cube')]);
+    expect(ongoingSpellOf(g.state, web)).not.toBeNull();
+    expect(spellOn(g.state, ongoingSpellOf(g.state, web)!)).not.toContain(MOVER);
+  });
+
+  /** A move **within** the Cube is not leaving it, and the webs still hold. */
+  it('keeps the Restrained when its holder is moved within the webs', () => {
+    const g = restrained();
+    g.push([shoved(MOVER, 'deeper in cube')]);
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+  });
+
+  /**
+   * The escape check goes with the condition. A timer left standing would
+   * offer a Strength (Athletics) check against webs the creature is no longer
+   * in, and would raise its hook at every later boundary.
+   */
+  it('takes the escape check away with it', () => {
+    const g = restrained();
+    const held = () =>
+      Object.values(g.state.timers).filter(
+        (timer) => timer.target.kind === 'condition' && timer.target.on === MOVER,
+      );
+    expect(held()).not.toEqual([]);
+
+    g.push([shoved(MOVER, 'outside cube')]);
+    expect(held()).toEqual([]);
+  });
+
+  /** Derived, so a replay of the same log reaches the same state. */
+  it('folds to the same state from the log alone', () => {
+    const g = restrained();
+    g.push([shoved(MOVER, 'outside cube')]);
+    expect(roundTrip(g.log)).toEqual(g.state);
+    g.foldsAtEveryPrefix();
+  });
+
+  /**
+   * A neighbouring spell's Restrained is not bound to anybody's area. SRD
+   * Black Tentacles prints "Restrained ... for the duration", and walking out
+   * of the tentacles is not one of the ways the book lets a creature go.
+   */
+  it('does not lift a condition whose clause names no area', () => {
+    const g = new Game();
+    g.conjure('black-tentacles', CUBE, { towards: TOWARDS, slotLevel: 4 });
+    g.walk(MOVER, 'inside cube');
+    g.settle('tentacles');
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+
+    g.push([shoved(MOVER, 'outside cube')]);
+    expect(g.has(MOVER, 'restrained')).toBe(true);
+  });
+});

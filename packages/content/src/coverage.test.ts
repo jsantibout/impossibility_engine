@@ -176,15 +176,22 @@ describe('the coverage table cannot claim more than the tests prove', () => {
    * drove end to end, and that reading does not survive the honesty guard
    * reaching the executed bucket: partial now means *a clause of this spell is
    * adjudicated to a missing shape*, and a spell can be driven end to end and
-   * still leave one unbuilt. Web is exactly that — every save its webs call
-   * for is raised and resolved, and crossing them costs the same as crossing
-   * an empty floor. Rendering only the tick would be the green tick this third
+   * still leave one unbuilt. Banishment is exactly that — the save is rolled,
+   * the Incapacitated lands and the minute runs, and the demiplane the target
+   * was supposed to spend it in is a second place the engine has nowhere to
+   * put anybody. Rendering only the tick would be the green tick this third
    * state was invented to prevent, so the report says both.
+   *
+   * **Web used to be the example and no longer is**, which is the axis working:
+   * "while in the webs" was built, and the two sentences it has left — the
+   * collapse and the fire — are both the table's, so the spell is executed
+   * whole and carries no debt to name. An exemplar leaving this bucket is what
+   * progress looks like from here.
    */
   it('lets a spell be driven end to end and still carry a debt', () => {
     const both = PARTIAL_SPELLS.filter((id) => VERIFIED_SPELLS.includes(id));
     expect(both.length).toBeGreaterThan(0);
-    expect(both).toContain('web');
+    expect(both).toContain('banishment');
   });
 
   /** And in the order two branches can both append to, as the neighbours are. */

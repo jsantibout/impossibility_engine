@@ -4915,6 +4915,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       // anywhere else does not: both ask which of the lists the effect is in.
       checkFoughtClause(effect as object, entry.kind, where, at, found);
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
+      checkAreaBoundLifetime(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
@@ -5144,6 +5145,80 @@ function checkTeleportPlacement(
     reason:
       'the caster states where the teleport goes at the casting, so only the casting’s own effect list can read it',
   });
+}
+
+/**
+ * Where a condition may be tied to the area that imposed it.
+ *
+ * SRD Web: "have the Restrained condition **while in the webs**." The mark is
+ * `ConditionRider.endsWhenOutsideArea`, and it is answerable only from a
+ * clause whose area travels with the casting — which is `areaTrigger.effects`
+ * and nothing else. `AreaTrigger` is pinned whole onto the ongoing record at
+ * the cast, so the fold reads the mark and the geometry out of one pinned
+ * value; the casting's **own** list is not pinned anywhere, so a rider written
+ * there would be asking for an ending nothing could ever perform, and an
+ * activation's list is the same absence by the same route.
+ *
+ * {@link checkRecordedVerdict}'s shape and its reason: the rule is about which
+ * list the effect is in, so it is asked where the list is known.
+ *
+ * **Both layouts, because a rider has two.** `save` writes its first rider
+ * flat and every host writes the rest in `conditions`, which is the split
+ * {@link conditionRiderOf} exists to hide from the rules — and cannot hide
+ * from a pass that reads untyped input before there is anything to read it
+ * with.
+ */
+function checkAreaBoundLifetime(
+  effect: object,
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  const nested = (effect as { readonly conditions?: unknown }).conditions;
+  const riders: (readonly [string, unknown])[] = [
+    // The flat layout, and only on the kind that has one.
+    ...(kind === 'save' ? ([[path, effect]] as (readonly [string, unknown])[]) : []),
+    [`${path}.condition`, (effect as { readonly condition?: unknown }).condition],
+    ...(Array.isArray(nested)
+      ? nested.map((rider, i) => [`${path}.conditions[${i}]`, rider] as const)
+      : []),
+  ];
+
+  for (const [at, rider] of riders) {
+    if (typeof rider !== 'object' || rider === null) continue;
+    const stated = (rider as { readonly endsWhenOutsideArea?: unknown }).endsWhenOutsideArea;
+    if (stated === undefined) continue;
+
+    if (stated !== true) {
+      found.push({
+        field: `${at}.endsWhenOutsideArea`,
+        code: 'malformed_field',
+        reason:
+          'a condition either ends when its holder leaves the area or does not; the only value is true',
+      });
+      continue;
+    }
+
+    if (where !== 'areaTrigger.effects') {
+      found.push({
+        field: `${at}.endsWhenOutsideArea`,
+        code: 'area_lifetime_without_an_area',
+        reason:
+          'the area a condition ends outside is the trigger’s, pinned on the casting at the cast; only areaTrigger.effects has one, so a rider elsewhere names a boundary nothing holds',
+      });
+      continue;
+    }
+
+    if ((rider as { readonly outlivesCasting?: unknown }).outlivesCasting === true) {
+      found.push({
+        field: `${at}.endsWhenOutsideArea`,
+        code: 'area_lifetime_without_a_casting',
+        reason:
+          'outlivesCasting records the condition under the spell’s bare name with no casting in it, and the area it would end outside belongs to the casting; a condition cannot both be disowned by the casting and be bounded by its area',
+      });
+    }
+  }
 }
 
 /**
