@@ -430,6 +430,78 @@ describe('a trait about what a creature does to a thing rather than a creature',
   });
 });
 
+describe('a trait a damage type sets off', () => {
+  /**
+   * SRD Lightning Absorption, printed on the Flesh Golem and the Shambling
+   * Mound, both of which are immune to the type they absorb.
+   */
+  it('reads the type a block absorbs', () => {
+    expect(traitOf('flesh-golem', 'Lightning Absorption')).toEqual({
+      kind: 'absorbs-a-damage-type',
+      damageType: 'lightning',
+    });
+    expect(traitOf('shambling-mound', 'Lightning Absorption')).toEqual({
+      kind: 'absorbs-a-damage-type',
+      damageType: 'lightning',
+    });
+  });
+
+  /**
+   * And the Iron Golem's Fire Absorption, which is the same sentence under
+   * another heading — the rule this reader has followed since Pack Tactics:
+   * matched on the sentence and never on the name above it.
+   */
+  it('reads the same sentence printed under another heading', () => {
+    expect(traitOf('iron-golem', 'Fire Absorption')).toEqual({
+      kind: 'absorbs-a-damage-type',
+      damageType: 'fire',
+    });
+  });
+
+  /** A sentence naming two types is a rule nobody wrote. */
+  it('refuses a sentence whose two types disagree', () => {
+    expect(
+      parseTraitShape(
+        'Whenever the golem is subjected to Lightning damage, it regains a number of Hit Points equal to the Fire damage dealt.',
+      ),
+    ).toBeNull();
+    expect(
+      parseTraitShape(
+        'Whenever the golem is subjected to Sonic damage, it regains a number of Hit Points equal to the Sonic damage dealt.',
+      ),
+    ).toBeNull();
+  });
+
+  /**
+   * SRD Aversion to Fire, and the glossary's order for the two nouns whichever
+   * order the block prints them in.
+   */
+  it('reads the type and the rolls a penalty follows', () => {
+    expect(traitOf('flesh-golem', 'Aversion to Fire')).toEqual({
+      kind: 'penalised-after-taking-a-damage-type',
+      damageType: 'fire',
+      rolls: ['ability-check', 'attack-roll'],
+    });
+  });
+
+  it('refuses the same sentence with another span on the end of it', () => {
+    expect(
+      parseTraitShape(
+        'If the golem takes Fire damage, it has Disadvantage on attack rolls and ability checks until the end of its next turn.',
+      ),
+    ).toEqual({
+      kind: 'penalised-after-taking-a-damage-type',
+      damageType: 'fire',
+      rolls: ['ability-check', 'attack-roll'],
+    });
+    expect(
+      parseTraitShape(
+        'If the golem takes Fire damage, it has Disadvantage on attack rolls and ability checks for 1 hour.',
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('the reader is a list of matched sentences and not an interpreter', () => {
   it('reads nothing out of a trait nobody has matched', () => {
     expect(parseTraitShape('The elemental can move through a space as narrow as 1 inch.')).toBeNull();

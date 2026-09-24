@@ -1042,6 +1042,49 @@ export const printedRunningLeap = (
 };
 
 /**
+ * SRD Lightning Absorption: the type a block turns into Hit Points, or null.
+ *
+ * "Whenever the golem is subjected to Lightning damage, it regains a number of
+ * Hit Points equal to the Lightning damage dealt."
+ *
+ * **"Subjected to" and not "takes", and the difference is the whole trait.**
+ * Both blocks that print this are immune to the type they absorb, so an amount
+ * read after Immunity is always nought and the sentence would be dead text.
+ * The amount is therefore what was rolled at the creature before its own
+ * defences, which is the ruling this repository records here and applies in
+ * `dealSpellDamage`.
+ */
+export const printedAbsorption = (sheet: CharacterSheet): string | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'absorbs-a-damage-type') return trait.damageType;
+  }
+  return null;
+};
+
+/**
+ * SRD Aversion to Fire: the type that costs a block its rolls, and which.
+ *
+ * "If the golem takes Fire damage, it has Disadvantage on attack rolls and
+ * ability checks until the end of its next turn."
+ *
+ * **"Takes", which is the other word and the other reading**: the penalty
+ * follows damage the creature actually lost Hit Points to, so a defence that
+ * turned the whole blow aside turns the clause aside with it.
+ * {@link printedAbsorption} is the same trigger read the other way, and the
+ * book's own two verbs are what tell them apart.
+ */
+export const printedTypeAversion = (
+  sheet: CharacterSheet,
+): { readonly damageType: string; readonly rolls: readonly RollFamily[] } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'penalised-after-taking-a-damage-type') {
+      return { damageType: trait.damageType, rolls: trait.rolls.map((roll) => SUNLIT_ROLL[roll]) };
+    }
+  }
+  return null;
+};
+
+/**
  * The Speeds a block prints beside its walking one, onto the sheet.
  *
  * The parser has read "Speed 20 ft., Fly 40 ft." into five numbers and a flag

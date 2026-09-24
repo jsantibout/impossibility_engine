@@ -1177,6 +1177,8 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Blood Frenzy | the same, narrowed by `RollSelector.targetMissingHitPoints` |
  * | SRD Siege Monster | `dealSpellDamage`, as SRD's first-applied multiplier |
  * | SRD Aberrant Ground | `terrainAt`, which derives a carried patch the way `lightAt` does |
+ * | SRD Lightning Absorption | `dealSpellDamage`, which heals what the blow rolled before Immunity |
+ * | SRD Aversion to Fire | the same, hanging a `roll-mode` on a turn-order deadline |
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1185,6 +1187,7 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * anchored to a creature and move with it. `carriedLight` is that patch.
  */
 export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
+  'absorbs-a-damage-type',
   'advantage-against-a-wounded-target',
   'advantage-when-ally-is-within-5-feet-of-the-target',
   'advantage-while-bloodied',
@@ -1199,6 +1202,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'jumps-without-a-running-start',
   'long-jump-with-a-running-start',
   'magic-resistance',
+  'penalised-after-taking-a-damage-type',
   'sheds-light',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',

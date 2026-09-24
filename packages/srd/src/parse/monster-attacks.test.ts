@@ -1127,7 +1127,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // one Aura of Authority and one Aberrant Ground. The Giant Boar's
       // Bloodied Fury and the Gray Ooze's Corrosive Form are still refused,
       // which is the count saying so.
-      traits: { printed: 337, read: 158 },
+      // And four more when a damage type became a trigger: two Lightning
+      // Absorptions, the Iron Golem's Fire Absorption under another heading
+      // over the same sentence, and one Aversion to Fire.
+      traits: { printed: 337, read: 162 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

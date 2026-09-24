@@ -887,3 +887,120 @@ describe('SRD Aberrant Ground: Difficult Terrain derived from where a creature s
     expect(stepsAside(log)).toBe(5);
   });
 });
+
+describe('a trait a damage type sets off', () => {
+  const GOLEM = id('golem');
+
+  /** The golem, hurt enough that a heal has somewhere to go. */
+  const golemAt = (missing: number, block = 'flesh-golem'): GameEvent[] => {
+    const log = field(block, GOLEM, 15);
+    return missing === 0 ? log : [...log, { type: 'damage-taken', id: GOLEM, amount: missing }];
+  };
+
+  const hp = (state: GameState): number => state.creatures[GOLEM]!.vitals.hp;
+
+  const burn = (log: readonly GameEvent[], type: string, total: number) =>
+    dealSpellDamage(
+      at(log),
+      GOLEM,
+      [{ source: 'a bolt', type, roll: null, flat: total, total }],
+      'a bolt',
+      supply(),
+      { by: WATCHER },
+    );
+
+  /**
+   * SRD Lightning Absorption: "Whenever the golem is subjected to Lightning
+   * damage, it regains a number of Hit Points equal to the Lightning damage
+   * dealt." Both blocks that print it are **immune** to the type, so the
+   * amount read after Immunity would always be nought and the trait would be
+   * dead text — the amount is what was rolled at it, and none of it lands.
+   */
+  it('regains what the blow rolled and takes none of it', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'lightning', 11), 'the bolt');
+    expect(struck.amount).toBe(0);
+    expect(hp(fold(SEED, [...log, ...struck.events]))).toBe(hp(at(log)) + 11);
+  });
+
+  /** And never past its maximum, which is what a heal has always done. */
+  it('heals no further than the maximum', () => {
+    const log = golemAt(3);
+    const struck = unwrap(burn(log, 'lightning', 11), 'the bolt');
+    const after = fold(SEED, [...log, ...struck.events]);
+    expect(after.creatures[GOLEM]!.vitals.hp).toBe(after.creatures[GOLEM]!.vitals.hpMax);
+  });
+
+  /** A type the sentence does not name is an ordinary blow. */
+  it('absorbs only the type its sentence names', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'fire', 11), 'the flame');
+    expect(struck.amount).toBe(11);
+    expect(hp(fold(SEED, [...log, ...struck.events]))).toBe(hp(at(log)) - 11);
+  });
+
+  /**
+   * SRD Aversion to Fire: "If the golem takes Fire damage, it has Disadvantage
+   * on attack rolls and ability checks until the end of its next turn." The
+   * same trigger with a penalty on the other end of it.
+   */
+  it('hangs the Disadvantage the fire buys', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'fire', 11), 'the flame');
+    const after = fold(SEED, [...log, ...struck.events]);
+    // Named for the rule rather than for the heading, because a sheet's
+    // `stated.traits` carries the shapes the parser read and not the headings
+    // they were printed under — see `printedTypeTriggers`.
+    const rule = `printed:${GOLEM}:Disadvantage after fire damage`;
+    expect(
+      rollModesFor(after, { roller: GOLEM, against: WATCHER, family: 'attack' }).modes,
+    ).toEqual([{ source: rule, mode: 'disadvantage' }]);
+    expect(
+      rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes.map((m) => m.source),
+    ).toEqual([rule]);
+    // The sentence names two rolls and not three.
+    expect(rollModesFor(after, { roller: GOLEM, family: 'saving-throw' }).modes).toEqual([]);
+  });
+
+  /**
+   * "until the end of its next turn" — a moment in the turn order, which the
+   * timer beside the grant ends. The golem's turn ending once is not it: the
+   * sentence says its **next** turn, so the Disadvantage survives the end of
+   * the turn it was hung on and lapses at the end of the one after.
+   */
+  it('lifts the Disadvantage at the end of the golem’s next turn', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'fire', 11), 'the flame');
+    const hung = [...log, ...struck.events];
+    const checks = (events: readonly GameEvent[]): number =>
+      rollModesFor(fold(SEED, events), { roller: GOLEM, family: 'ability-check' }).modes.length;
+
+    expect(checks(hung)).toBe(1);
+    // Two turns pass — the watcher's and the golem's own — and the deadline is
+    // the end of the second of them.
+    const turned = [
+      ...hung,
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+      { type: 'turn-advanced' as const, ended: WATCHER, begun: GOLEM },
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+    ];
+    expect(checks(turned)).toBe(0);
+  });
+
+  /** And a type the sentence does not name hangs nothing. */
+  it('hangs nothing for a type its sentence does not name', () => {
+    const log = golemAt(20);
+    const struck = unwrap(burn(log, 'cold', 11), 'the frost');
+    const after = fold(SEED, [...log, ...struck.events]);
+    expect(rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes).toEqual([]);
+  });
+
+  /** A block that prints neither sentence is burnt and healed by nothing. */
+  it('gives a block that prints neither sentence nothing', () => {
+    const log = golemAt(20, 'ogre');
+    const struck = unwrap(burn(log, 'lightning', 11), 'the bolt');
+    expect(struck.amount).toBe(11);
+    const after = fold(SEED, [...log, ...struck.events]);
+    expect(rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes).toEqual([]);
+  });
+});

@@ -715,6 +715,50 @@ const ABERRANT_GROUND = new RegExp(
   `^The ground in a (\\d+)-foot Emanation originating from ${SUBJECT} is Difficult Terrain\\.$`,
 );
 
+/**
+ * SRD Lightning Absorption: "Whenever the golem is subjected to Lightning
+ * damage, it regains a number of Hit Points equal to the Lightning damage
+ * dealt."
+ *
+ * The back-reference is the anchor doing its work: the type absorbed and the
+ * type read off the blow are the same word in both blocks that print this, and
+ * a sentence that named two would be a rule nobody wrote.
+ */
+const ABSORBS_DAMAGE = new RegExp(
+  `^Whenever ${SUBJECT} is subjected to (\\w+) damage, it regains a number of Hit Points ` +
+    `equal to the \\1 damage dealt\\.$`,
+);
+
+/**
+ * SRD Aversion to Fire: "If the golem takes Fire damage, it has Disadvantage
+ * on attack rolls and ability checks until the end of its next turn."
+ *
+ * The span is matched and not captured, for {@link MonsterTraitSchema}'s
+ * stated reason at the kind: one block prints this and prints one span.
+ */
+const AVERSION_TO_A_TYPE = new RegExp(
+  `^If ${SUBJECT} takes (\\w+) damage, it has Disadvantage on ` +
+    `(attack rolls and ability checks|ability checks and attack rolls|attack rolls|ability checks) ` +
+    `until the end of its next turn\\.$`,
+);
+
+/** The book's other order for the same two nouns, in the kind's own words. */
+const PENALISED_ROLLS: Readonly<Record<string, readonly ('ability-check' | 'attack-roll')[]>> = {
+  'attack rolls': ['attack-roll'],
+  'ability checks': ['ability-check'],
+  // Listed in the glossary's order whichever order the block printed them in,
+  // because the kind is a set and a log that reordered with the sentence would
+  // compare two spellings of one rule as two rules.
+  'attack rolls and ability checks': ['ability-check', 'attack-roll'],
+  'ability checks and attack rolls': ['ability-check', 'attack-roll'],
+};
+
+/** The words the book writes a damage type in, lower-cased, or null. */
+const damageTypeOf = (printed: string): string | null => {
+  const word = printed.toLowerCase();
+  return DAMAGE_TYPES.some((known) => known === word) ? word : null;
+};
+
 /** The book's nouns for the rolls, in the kind's own three words. */
 const BLOODIED_ROLLS: Readonly<Record<string, readonly ('attack-roll' | 'saving-throw')[]>> = {
   'attack rolls': ['attack-roll'],
@@ -857,6 +901,21 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   const ground = ABERRANT_GROUND.exec(text);
   if (ground !== null) {
     return { kind: 'emanation-is-difficult-terrain', feet: Number(ground[1]) };
+  }
+
+  const absorbs = ABSORBS_DAMAGE.exec(text);
+  if (absorbs !== null) {
+    const damageType = damageTypeOf(absorbs[1]!);
+    if (damageType !== null) return { kind: 'absorbs-a-damage-type', damageType };
+  }
+
+  const aversion = AVERSION_TO_A_TYPE.exec(text);
+  if (aversion !== null) {
+    const damageType = damageTypeOf(aversion[1]!);
+    const rolls = PENALISED_ROLLS[aversion[2]!];
+    if (damageType !== null && rolls !== undefined) {
+      return { kind: 'penalised-after-taking-a-damage-type', damageType, rolls: [...rolls] };
+    }
   }
 
   return null;

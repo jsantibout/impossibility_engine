@@ -1624,6 +1624,47 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
     kind: z.literal('emanation-is-difficult-terrain'),
     feet: z.number().int().min(0),
   }),
+  z.object({
+    /**
+     * SRD Lightning Absorption, on the Flesh Golem and the Shambling Mound:
+     * "Whenever the golem is subjected to Lightning damage, it regains a
+     * number of Hit Points equal to the Lightning damage dealt."
+     *
+     * **The type is the shape and the amount is the blow's**, so there is one
+     * field: the sentence names one type and reads the amount off the damage,
+     * and a kind carrying a number would be a heal the book never printed.
+     *
+     * Both blocks that print it are **immune** to the type they absorb, which
+     * is what makes the ruling load-bearing rather than pedantic: "dealt" read
+     * after Immunity is always nought and the trait is dead text. So the
+     * amount is what was rolled at the creature before its own defences, and
+     * the reader says so where it applies it.
+     */
+    kind: z.literal('absorbs-a-damage-type'),
+    /** Lower-cased, in the engine's own vocabulary — `lightning`. */
+    damageType: z.string().min(1),
+  }),
+  z.object({
+    /**
+     * SRD Aversion to Fire, on the Flesh Golem: "If the golem takes Fire
+     * damage, it has Disadvantage on attack rolls and ability checks until the
+     * end of its next turn."
+     *
+     * {@link kind}`: 'absorbs-a-damage-type'`'s opposite number — the same
+     * trigger with a penalty on the other end of it — and `rolls` for
+     * `disadvantage-in-sunlight`'s reason.
+     *
+     * **The span is anchored and not carried.** One block in the book prints
+     * this sentence and it prints one span; a line naming another would be a
+     * different sentence, and a field that could hold any of them would invite
+     * a reader to guess at the one the anchor refused.
+     */
+    kind: z.literal('penalised-after-taking-a-damage-type'),
+    damageType: z.string().min(1),
+    rolls: z
+      .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
+      .min(1),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 

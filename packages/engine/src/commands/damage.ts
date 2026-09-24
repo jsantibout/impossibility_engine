@@ -20,8 +20,15 @@ import { parseNotation } from '../dice.js';
 import { canUseFeatureThisTurn, spendReaction } from '../combat.js';
 import { damageReductionsOf, reductionApplies } from '../damage-reduction.js';
 import { isIncapacitated } from '../conditions.js';
-import { hasPrintedTrait } from '../monster.js';
+import {
+  hasPrintedTrait,
+  printedAbsorption,
+  printedLineSource,
+  printedTypeAversion,
+} from '../monster.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
+import { endOfNextTurn } from '../time.js';
+import { schedule } from './conditions.js';
 import {
   applyEvent,
   type CreatureState,
@@ -209,6 +216,85 @@ function siegeDoubling(
     extra[component.type] = (extra[component.type] ?? 0) + Math.max(0, component.total);
   }
   return extra;
+}
+
+/**
+ * What a blow of a named type does to the creature's own printed traits.
+ *
+ * Two sentences, two verbs, and the verbs are the whole of what tells them
+ * apart — see {@link printedAbsorption} and {@link printedTypeAversion}:
+ *
+ * - SRD Lightning Absorption is "**subjected to**", so the amount is what was
+ *   rolled at the creature before its own defences. Both blocks that print it
+ *   are immune to the type, and an amount read after Immunity would always be
+ *   nought.
+ * - SRD Aversion to Fire is "**takes**", so the clause follows damage that
+ *   actually landed and a defence that turned the whole blow aside turns the
+ *   clause aside with it.
+ *
+ * **Outside a fight the penalty is reported rather than hung**, because its
+ * span is a moment in the turn order and there is no order to pin it in. That
+ * is `schedule`'s own refusal, taken here in the direction every unsettled
+ * clause on a stat-block line takes: the blow lands, and the sentence the
+ * engine could not carry is named.
+ */
+function printedTypeTriggers(
+  state: GameState,
+  target: CharacterId,
+  components: readonly DamageComponent[],
+  byType: Readonly<Record<string, number>>,
+): { readonly events: readonly GameEvent[]; readonly unverified: readonly string[] } {
+  const sheet = state.creatures[target]?.sheet;
+  if (sheet === undefined) return { events: [], unverified: [] };
+
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+
+  const absorbed = printedAbsorption(sheet);
+  if (absorbed !== null) {
+    const raw = components
+      .filter((component) => component.type === absorbed)
+      .reduce((sum, component) => sum + Math.max(0, component.total), 0);
+    // `heal` clamps at the maximum, so nothing here has to.
+    if (raw > 0) events.push({ type: 'healed', id: target, amount: raw });
+  }
+
+  const aversion = printedTypeAversion(sheet);
+  if (aversion !== null && (byType[aversion.damageType] ?? 0) > 0) {
+    // One grant per roll the sentence names, because a `RollModifier` carries
+    // one selector — `printedSunlight` reads the same nouns the same way — and
+    // they share a source, so one deadline ends all of them.
+    // **Named for the rule and not for the heading**, which is the one place
+    // this reader differs from `printedSunlight`: a sheet's `stated.traits`
+    // carries the shapes the parser read and not the headings they were
+    // printed under, and a `roll-modifier-granted`'s source is both what a
+    // roll reports and the key its deadline ends. So the source says what the
+    // rule *is* — which names a damage type and no catalogue entry.
+    const hung = printedLineSource(target, `Disadvantage after ${aversion.damageType} damage`);
+    const timer = schedule(state, { kind: 'grants', on: target, source: hung }, endOfNextTurn(target));
+    if (!timer.ok) {
+      unverified.push(
+        `${target} took ${aversion.damageType} damage and its block gives it Disadvantage until the end of its next turn; there is no turn order for that moment to be pinned in, so nothing was hung`,
+      );
+    } else {
+      for (const roll of aversion.rolls) {
+        events.push({
+          type: 'roll-modifier-granted',
+          id: target,
+          modifier: {
+            source: hung,
+            // The block's own heading is not in hand here, so the grant is
+            // named by the line that dealt the damage; what a roll reports is
+            // `ActiveRollModifier.source`, which is the key the deadline ends.
+            modifier: { mode: 'disadvantage', selector: { roll, relation: 'roller' } },
+          },
+        });
+      }
+      events.push(timer.value);
+    }
+  }
+
+  return { events, unverified };
 }
 
 /** A standing reduction, rolled: what it took off and what the log says about it. */
@@ -623,6 +709,12 @@ export function dealSpellDamage(
   // shares, and comes back on the events and the report below — see
   // `commands/drop-rewards.ts`.
 
+  // **After the blow has landed, because both sentences are about it having
+  // landed.** The heal reads what was rolled and the penalty reads what was
+  // taken, and a `healed` written before the `damage-taken` it answers would
+  // be a log nobody could narrate in order.
+  const triggered = printedTypeTriggers(state, target, components, applied.byType);
+
   return ok({
     // The faces, then the ward's own die, then what the two came to: the
     // chronology of the moment, which is the rule the line above states. The
@@ -633,6 +725,7 @@ export function dealSpellDamage(
       ...warded.value.events,
       ...wardCounted,
       ...resolved.value.events,
+      ...triggered.events,
     ],
     // What landed, which is what the defences left of the roll *and* what a
     // damage threshold let through. `damageTakenIn` reads it off the event the
@@ -646,7 +739,7 @@ export function dealSpellDamage(
     // half.** An Undead Fortitude save thrown against an amount with no type
     // is reported by `resolveDamage` too, and this road used to drop it on the
     // floor while the DM's own door reported it.
-    unverified: resolved.value.unverified,
+    unverified: [...resolved.value.unverified, ...triggered.unverified],
   });
 }
 
