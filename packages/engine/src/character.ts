@@ -1023,8 +1023,11 @@ export interface UnarmoredDefense {
  * sources into one "best applicable" pass, because SRD Multiclassing settles
  * that question once for all of them — "If you have multiple ways to calculate
  * your Armor Class, you can benefit from only one at a time."
+ *
+ * **The family has a second arm and it is not in that comparison at all**: see
+ * {@link GrantedArmorClassFloor}, which is SRD Barkskin's floor on the total.
  */
-export interface GrantedArmorClass {
+export interface GrantedBaseArmorClass {
   /** What granted it, carrying the casting: `Mage Armor#cast:3`. */
   readonly source: string;
   /**
@@ -1047,6 +1050,60 @@ export interface GrantedArmorClass {
   readonly plusAbility: Ability | null;
   /** Whether a Shield still adds on top. */
   readonly shieldAllowed: boolean;
+  /** Absent, which is what tells the two arms apart. */
+  readonly minimum?: undefined;
+}
+
+/**
+ * A floor under whatever Armour Class an ongoing effect's holder arrives at.
+ *
+ * SRD Barkskin: "the target has an Armor Class of 17 **if its AC is lower than
+ * that**."
+ *
+ * **Not in {@link armorClassCalculation}'s comparison**, and that is the whole
+ * difference between the two arms of this family. A base competes to *be* the
+ * calculation, before a Shield and before every flat bonus, and only while its
+ * holder is unarmoured. A floor is read last — after the calculation, after
+ * the bonuses, after what a worn ring is granting — and a creature in plate
+ * gets it as readily as a creature in nothing, because "its AC" in that
+ * sentence is the finished number.
+ *
+ * So `armorClassOf` is the only reader, which is also the only place the
+ * finished number exists: `armorClass` is a function of a sheet and knows
+ * nothing about the bonuses standing on the creature.
+ */
+export interface GrantedArmorClassFloor {
+  /** What granted it, carrying the casting: `Barkskin#cast:2`. */
+  readonly source: string;
+  /** SRD Barkskin's "17". */
+  readonly minimum: number;
+}
+
+/**
+ * What an ongoing effect is currently saying about a creature's Armour Class.
+ *
+ * Two arms because the SRD writes two sentences and they are read at different
+ * points in one sum — see each. One type rather than two populations on
+ * `CreatureState`, because both are released by the same `source` when the
+ * casting that hung them ends, and a second list would be a second thing
+ * `releaseCasting` had to remember.
+ */
+export type GrantedArmorClass = GrantedBaseArmorClass | GrantedArmorClassFloor;
+
+/**
+ * The floors standing on a creature, as the one number that matters.
+ *
+ * `null` for none, which is not 0: a floor of 0 and no floor at all are the
+ * same arithmetic, but a reader that had to know which is which would be the
+ * second place this rule lived.
+ */
+export function armorClassFloor(granted: readonly GrantedArmorClass[]): number | null {
+  let floor: number | null = null;
+  for (const one of granted) {
+    if (one.minimum === undefined) continue;
+    if (floor === null || one.minimum > floor) floor = one.minimum;
+  }
+  return floor;
 }
 
 /** How a creature's Armour Class was arrived at, and by which rule. */
@@ -1114,14 +1171,17 @@ export function armorClassCalculation(
     // ability — but the comparison is on the whole number, because a future
     // feature need not be shaped that way. Mage Armor is the proof of that:
     // it states its own base and adds no second ability.
-    const alternatives: readonly GrantedArmorClass[] = [
+    // **Floors are not alternatives**, so they are not in this comparison:
+    // SRD Barkskin does not calculate anything, it refuses a total below 17,
+    // and the total does not exist yet here. `armorClassOf` reads them.
+    const alternatives: readonly GrantedBaseArmorClass[] = [
       ...(sheet.unarmoredDefense ?? []).map((feature) => ({
         source: feature.source,
         base: 10,
         plusAbility: feature.ability as Ability | null,
         shieldAllowed: feature.shieldAllowed,
       })),
-      ...granted,
+      ...granted.filter((one): one is GrantedBaseArmorClass => one.minimum === undefined),
     ];
     for (const alternative of alternatives) {
       if (shield !== null && !alternative.shieldAllowed) continue;

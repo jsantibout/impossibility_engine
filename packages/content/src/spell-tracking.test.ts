@@ -1545,6 +1545,12 @@ describe('every spell this batch added is cast for real', () => {
   const EXECUTED_SINCE: readonly string[] = [
     'aid',
     'augury',
+    // **Barkskin leaves by the second arm of `armor-class`.** The spell is one
+    // sentence and the whole of it was the arm that did not exist: a base
+    // calculation competes to *be* the Armour Class and a floor refuses the
+    // finished total if it came out under seventeen, which is read last and
+    // through plate. Nothing is left but willingness and the bark.
+    'barkskin',
     'darkness',
     'daylight',
     'enhance-ability',
@@ -1553,6 +1559,12 @@ describe('every spell this batch added is cast for real', () => {
     'find-steed',
     'fog-cloud',
     'goodberry',
+    // **Ice Knife leaves by a second parent rather than a sixth rider.** "Hit
+    // or miss, the shard then explodes" hangs off neither branch of the
+    // attack, so `attack.then` is a second resolution sequenced after the
+    // first: its own Sphere, centred on the space the shard reached, its own
+    // effect list, and one level deep. Nothing of the spell is left.
+    'ice-knife',
     'magic-jar',
     'mirror-image',
     'phantom-steed',
@@ -1575,6 +1587,13 @@ describe('every spell this batch added is cast for real', () => {
     // is. Three clauses of five left its `unmodelled`; the area's filter, the
     // shake-awake and the automatic successes stay, in `ADJUDICATED` now.
     'sleep',
+    // **Sleet Storm leaves by the last three words of its save.** The
+    // Cylinder, both trigger moments, the Difficult Terrain and the Heavily
+    // Obscured air are Web's clauses and were all writable; "and lose
+    // Concentration" is the one that had no slot, and
+    // `OutcomeRiders.breaksConcentration` is it. Only the doused flames are
+    // left, which are a fact about a room.
+    'sleet-storm',
     'spike-growth',
     // **True Strike leaves by a door no effect kind opened.** Its swing *is*
     // the casting — "you make one attack with the weapon used in the spell's
@@ -1806,9 +1825,38 @@ describe('every spell this batch added is cast for real', () => {
     },
   );
 
+  /**
+   * A fourth end of a row, and the difference is whose sentence is left.
+   *
+   * Ice Knife owes the table nothing: every sentence it prints is a roll, and
+   * the one that had nowhere to go — "Hit or miss, the shard then explodes" —
+   * is `attack.then`, a second resolution rather than a rider on a branch the
+   * sentence explicitly does not take. What it still reports is a fact about
+   * the **fixture** — nobody in this file has a side, so an attack cannot tell
+   * whether anybody standing beside the caster is an enemy — and that is a
+   * thin scene rather than a debt of the spell. So the claim made here is the
+   * precise one: nothing under the definition's own mark.
+   */
+  const FINISHED_BUT_THE_SCENE_IS_THIN: readonly string[] = ['ice-knife'];
+
+  it.each(FINISHED_BUT_THE_SCENE_IS_THIN.map((s) => [s] as const))(
+    'leaves the table no debt of %s, whatever the scene cannot say',
+    (spellId) => {
+      const definition = SRD_CONTENT.spell(spellId)!;
+      expect(definition.unmodelled ?? []).toEqual([]);
+      expect(definition.dmDecides ?? []).toEqual([]);
+      const out = driven(spellId);
+      expect(out.unverified.filter((line) => line.startsWith(`${definition.name}:`))).toEqual([]);
+      expect(dmDecisionsIn(out.unverified)).toEqual([]);
+    },
+  );
+
   it.each(
     DRIVEN_HERE.filter(
-      (s) => !FINISHED_OUTRIGHT.includes(s) && !FINISHED_BUT_HANDS_OVER.includes(s),
+      (s) =>
+        !FINISHED_OUTRIGHT.includes(s) &&
+        !FINISHED_BUT_HANDS_OVER.includes(s) &&
+        !FINISHED_BUT_THE_SCENE_IS_THIN.includes(s),
     ).map((s) => [s] as const),
   )(
     'hands %s’s own sentences to the table',

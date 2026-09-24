@@ -1455,8 +1455,12 @@ describe('what a shape finishes is two numbers', () => {
     expect(
       consumersOf('a-repeat-save-that-does-something-on-a-failure').unblocksUnread,
     ).toEqual([]);
-    expect(consumersOf('an-armor-class-a-spell-floors').unblocks).toEqual([]);
-    expect(consumersOf('an-armor-class-a-spell-floors').tracked).toEqual(['barkskin']);
+    // **This named `an-armor-class-a-spell-floors` until that shape was built
+    // and retired**, which is the same departure the example above records one
+    // shape further on. The claim being made is about the *column* rather than
+    // about either id: an empty unread column because the population was read,
+    // rather than because nothing is blocked.
+    expect(consumersOf('an-outcome-that-reads-the-targets-hit-points').unblocks).toEqual([]);
   });
 
   /**
@@ -2199,6 +2203,16 @@ describe('the fought fact is a second build that corrected the query', () => {
    * its save — how well the caster knows the target, and what of the target's
    * they are holding — are the same fact, recorded in `TRACKED_ADJUDICATED`
    * instead. The shape did not move; the spell did.
+   *
+   * **And a second executed claimant arrived by a build finishing half a
+   * sentence**, which is the reading this shape exists to keep honest. SRD
+   * Sleep spares "Creatures that don't sleep, such as elves, or that have
+   * Immunity to the Exhaustion condition"; `save.autoSucceedIf` is the second
+   * clause, read off `conditionImmunitiesOf`, and the first is a fact the
+   * engine holds about nobody — the SRD prints it of no creature type and the
+   * Elf states it as a species trait no grant kind carries. So the spell moved
+   * off the shape the build retired and onto this one, which is where a fact
+   * rather than a mechanism belongs.
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
@@ -2209,7 +2223,7 @@ describe('the fought fact is a second build that corrected the query', () => {
     // the half of it no mechanical marker sees: the undefined population is
     // empty of this shape and all three claims are live somewhere else.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['hunters-mark']);
+    expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
     expect(fact.tracked).toEqual(['call-lightning', 'enthrall', 'scrying']);
   });
 });
@@ -2670,14 +2684,18 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     expect(ADJUDICATED['eldritch-blast']).toBeUndefined();
     expect(SRD_CONTENT.spell('eldritch-blast')?.unmodelled ?? []).toEqual([]);
 
-    // And a third departure the way Revivify went, which is what makes
-    // Revivify's a class rather than an exception: Barkskin is tracked, the
-    // floor on an Armour Class is still missing, and the shape keeps the spell
-    // as a tracked claimant instead of an undefined one. What changes is which
-    // population holds it, not whether the debt is owed.
+    // And a third departure, which went the whole way in two steps and is the
+    // only row here that records both of them. Barkskin was undefined, then
+    // tracked on `an-armor-class-a-spell-floors` alone, and is now executed:
+    // the second arm of `armor-class` is a floor read after the calculation,
+    // the Shield and every flat bonus. Its last claimant having left, the
+    // shape is retired the way `condition-removal` was, so what this row now
+    // pins is that the id is gone from the vocabulary rather than sitting in
+    // it unclaimed.
     expect(BLOCKED_ON['barkskin']).toBeUndefined();
-    expect(claimedShapes().has('an-armor-class-a-spell-floors')).toBe(true);
-    expect(SRD_CONTENT.spell('barkskin')?.effects).toEqual([]);
+    expect(TRACKED_ADJUDICATED['barkskin']).toBeUndefined();
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('an-armor-class-a-spell-floors');
+    expect(SRD_CONTENT.spell('barkskin')?.effects).toEqual([{ kind: 'armor-class', minimum: 17 }]);
 
     // **A fourth, and the first to leave on a shape that was half built.**
     // Feather Fall waited on `falling` and nothing else, and what it actually

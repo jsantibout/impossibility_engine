@@ -668,6 +668,76 @@ describe('conditions feed into checks', () => {
     expect(result.success).toBe(false);
   });
 
+  /**
+   * And the same phrase with the sign turned round.
+   *
+   * SRD Sleep: "Creatures … that have Immunity to the Exhaustion condition
+   * **automatically succeed** on saves against this spell." The die is still
+   * thrown and recorded — other effects can care what it showed — and the
+   * total is overridden, which is exactly what the automatic failure above
+   * does from the other end.
+   */
+  const SPARED = 'Sleep: a creature with Immunity to the exhaustion condition automatically succeeds on the save';
+
+  it('passes a save the caller says passes, whatever the die', () => {
+    const result = save(scriptedRng([1]), sheet(), 'wis', { dc: 30, autoSucceed: SPARED });
+    expect(result.natural).toBe(1);
+    expect(result.total).toBeLessThan(result.dc);
+    expect(result.autoSucceeded).toMatch(/Exhaustion/i);
+    expect(result.success).toBe(true);
+  });
+
+  /**
+   * **It outranks an automatic failure**, and a result never carries both.
+   *
+   * The narrower sentence wins: a condition's automatic failure is about a
+   * *family* of saves and this is about a named spell. Unreachable through the
+   * catalogue — the two spells printing the phrase call for Wisdom and
+   * Constitution, and every condition-sourced failure is Strength or Dexterity
+   * — so the case is built, on the precedent one test above.
+   */
+  it('outranks an automatic failure, and leaves no contradiction behind', () => {
+    const result = save(scriptedRng([1]), sheet(), 'str', {
+      dc: 30,
+      conditions: conditionState(['stunned']),
+      autoSucceed: SPARED,
+    });
+    expect(result.success).toBe(true);
+    expect(result.autoFailed).toBeNull();
+  });
+
+  /**
+   * And nothing applied *after* the roll argues it away, which is the half
+   * that was wrong: `interveneAfterRoll` and `rerollTest` each recomputed
+   * `success` from the total and the automatic **failure** alone, so a Cutting
+   * Words took Sleep's automatic success off an Exhaustion-immune creature —
+   * a result carrying `autoSucceeded` and `success: false`, which is the
+   * contradiction the field's own docstring says cannot exist.
+   */
+  it('survives a penalty applied after the roll', () => {
+    const spared = save(scriptedRng([2]), sheet(), 'wis', { dc: 5, autoSucceed: SPARED });
+    const cut = unwrap(
+      interveneAfterRoll(issuer(), scriptedRng([6]), spared, {
+        source: 'Cutting Words',
+        dice: '1d6',
+        direction: 'penalty',
+      }),
+      'cut down',
+    );
+    expect(cut.total).toBeLessThan(cut.dc);
+    expect(cut.autoSucceeded).toMatch(/Exhaustion/i);
+    expect(cut.success).toBe(true);
+  });
+
+  /** And it survives a reroll, which is the other site that recomputed it. */
+  it('survives a reroll', () => {
+    const spared = save(scriptedRng([20]), sheet(), 'wis', { dc: 15, autoSucceed: SPARED });
+    const again = unwrap(rerollTest(issuer(), scriptedRng([1]), spared), 'rerolled');
+    expect(again.natural).toBe(1);
+    expect(again.total).toBeLessThan(again.dc);
+    expect(again.success).toBe(true);
+  });
+
   it('gives a Restrained creature disadvantage on Dexterity saves only', () => {
     const dex = save(scriptedRng([15, 4]), sheet(), 'dex', {
       dc: 10,

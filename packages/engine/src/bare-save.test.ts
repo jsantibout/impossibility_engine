@@ -10,6 +10,7 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { conditionRiderOf } from './spell-definitions.js';
+import { lightAt } from './positioning.js';
 import { resolveSpell } from './commands.js';
 import { actionRulesOn, armorClassOf, effectiveConditions, speedOf } from './standing.js';
 import { spendAction, spendBonusAction, startCombat } from './combat.js';
@@ -382,5 +383,56 @@ describe('Faerie Fire', () => {
       'advantage on Invisible',
       'disadvantage on Invisible',
     ]);
+  });
+
+  /**
+   * "For the duration, objects and affected creatures **shed Dim Light in a
+   * 10-foot radius**."
+   *
+   * The sixth thing a settled outcome may carry. Light hung on a creature was
+   * already a `light` effect — SRD Light's torch, a patch whose region has the
+   * creature for its origin, so it walks with them — and what a *rider* had no
+   * slot for was hanging one off an outcome, which is what this sentence does:
+   * a creature outlined by the Cube glows and a creature that saved does not,
+   * out of the same die.
+   */
+  const outlinedAt = (state: GameState) =>
+    lightAt(state, { x: 100, y: 115, z: 0 });
+
+  it('sheds Dim Light in a 10-foot radius on a creature the save outlined', () => {
+    expect(outlinedAt(cast(FAILS))).toMatchObject({ level: 'dim', magical: true });
+    // Ten feet, not eleven: the space two squares along the line is dark.
+    expect(lightAt(cast(FAILS), { x: 100, y: 130, z: 0 }).level).toBeNull();
+  });
+
+  it('sheds none on a creature that made its save', () => {
+    expect(outlinedAt(cast(SAVES)).level).toBeNull();
+  });
+
+  /** Sourced to the casting, so a dispel takes the outline with it. */
+  it('takes the light away when the casting ends', () => {
+    const state = cast(FAILS);
+    const castingId = Object.keys(state.ongoing)[0];
+    expect(castingId).toBeDefined();
+
+    const ended = fold('seed', [
+      ...SETUP,
+      ...must(
+        resolveSpell(
+          fold('seed', SETUP),
+          DRUID,
+          {
+            spellId: 'faerie-fire',
+            targets: [],
+            at: { x: 100, y: 100, z: 0 },
+            towards: { x: 100, y: 200, z: 0 },
+            slotLevel: 1,
+          },
+          supply('faerie', FAILS),
+        ),
+      ).events,
+      { type: 'spell-ended', castingId: castingId!, on: null, reason: 'dispelled' },
+    ]);
+    expect(outlinedAt(ended).level).toBeNull();
   });
 });

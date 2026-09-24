@@ -1196,11 +1196,20 @@ export const MIND_SPIKE: SpellDefinition = {
       damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
       damageType: 'psychic',
       onSuccess: 'half',
+      modifiers: [
+        // "if it has the Invisible condition, it gains no benefit from that
+        // condition **against you**" — the `benefit` rider narrowed to the
+        // caster, which is what separates this from Starry Wisp's blanket
+        // denial: the spiked creature is still Invisible to everybody else,
+        // and still rolls Initiative with the Advantage the condition
+        // confers, because that roll is against nobody.
+        { kind: 'benefit', denies: 'invisible', against: 'caster' },
+      ],
     },
   ],
   durationSeconds: 3600,
   unmodelled: [
-    'knowing the target\u2019s location for the duration, and its losing the benefit of being hidden or Invisible against you',
+    'knowing the target’s location for the duration is the DM’s, and so is "the target can’t become hidden from you": the engine holds no knowledge model and sight is a declaration, so a DM who declares the sight has said the whole of both',
   ],
 };
 
@@ -5369,6 +5378,11 @@ export const VAMPIRIC_TOUCH: SpellDefinition = {
       damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
       damageType: 'necrotic',
       healsCasterForHalf: true,
+      // "against one creature **within reach**", which the Range of Self says
+      // nothing about: the Range is what the spell is *on* and the five feet
+      // are the arm's. Every later swing checks the activation's own `range`;
+      // this is the same distance on the swing the casting makes.
+      reach: 5,
     },
   ],
   durationSeconds: 60,
@@ -5388,9 +5402,6 @@ export const VAMPIRIC_TOUCH: SpellDefinition = {
       },
     ],
   },
-  unmodelled: [
-    'the *initial* attack\u2019s "within reach" goes unchecked: the spell\u2019s printed Range is Self, which is the reach the targeting rules read, and the five feet belong to the attack rather than to the spell. Every later use checks it',
-  ],
 };
 
 /**
@@ -7882,12 +7893,18 @@ export const FAERIE_FIRE: SpellDefinition = {
           },
         },
       ],
+      // "For the duration, objects and **affected** creatures shed Dim Light
+      // in a 10-foot radius" — on exactly the creatures the die outlined,
+      // which is what makes it a rider: a `light` effect beside the save would
+      // light the ones that made it too. The patch has the creature for its
+      // origin, so it walks with them, and it is the casting's, so a dispel
+      // puts it out.
+      light: { level: 'dim', radius: 10 },
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the objects in the Cube are not outlined: objects are not modelled, so which of them the light picks out is the DM’s',
-    'the Dim Light each outlined thing sheds in a 10-foot radius is not applied: a light a casting carries hangs on its target, and a save’s riders do not yet include one',
+    'the objects in the Cube are not outlined, and neither is the Dim Light they would shed: objects are not modelled, so which of them the light picks out is the DM’s',
   ],
 };
 
@@ -8558,13 +8575,41 @@ export const ICE_KNIFE: SpellDefinition = {
   concentration: false,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 1 },
-  effects: [],
-  unmodelled: [
-    'the shard is not thrown: "On a hit, the target takes 1d10 Piercing damage" is an ordinary ranged spell attack, and it is the smaller half of the spell',
-    'the burst is not resolved: "The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 Cold damage" is a second roll sequenced after the first, over an area centred on wherever the shard arrived — a point the casting does not hold',
-    'the Cold damage growing by 1d6 for each slot level above 1 is ordinary scaling with nothing to scale',
+  effects: [
+    {
+      kind: 'attack',
+      attack: 'ranged',
+      // "On a hit, the target takes 1d10 Piercing damage" — and the upcast
+      // is the burst's rather than the shard's, so this scales with nothing.
+      damage: { dice: '1d10' },
+      damageType: 'piercing',
+      // "**Hit or miss**, the shard then explodes. The target and each
+      // creature within 5 feet of it must succeed on a Dexterity saving
+      // throw or take 2d6 Cold damage." A second roll sequenced after the
+      // first rather than a rider: a rider rides a settled outcome, and this
+      // rides neither branch.
+      then: {
+        // Centred on the space the shard reached, which is wherever the
+        // target is standing. A Sphere includes its own origin, which is how
+        // "the target **and**" is answered without a second clause.
+        area: { kind: 'sphere', radius: 5, origin: 'point' },
+        effects: [
+          {
+            kind: 'save-damage',
+            ability: 'dex',
+            // "The Cold damage increases by 1d6 for each spell slot level
+            // above 1."
+            damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+            damageType: 'cold',
+            // SRD prints no half: a creature that saves takes none of it.
+            onSuccess: 'none',
+          },
+        ],
+      },
+    },
   ],
 };
+
 
 /**
  * SRD Sanctuary:
@@ -8761,6 +8806,12 @@ export const SLEEP: SpellDefinition = {
       kind: 'save',
       ability: 'wis',
       condition: 'incapacitated',
+      // "or that have Immunity to the Exhaustion condition automatically
+      // succeed on saves against this spell" — a defence the target already
+      // has, read off the creature. The die is still thrown and recorded and
+      // the total overridden, which is the automatic *failure*'s reading with
+      // the sign turned round.
+      autoSucceedIf: { immuneTo: 'exhaustion' },
       repeats: {
         // "until the end of its next turn, at which point it must repeat the
         // save" — the sleeper's own turn, and the condition's lifetime is the
@@ -8788,7 +8839,7 @@ export const SLEEP: SpellDefinition = {
     { on: 'shaken-awake', ends: 'target' },
   ],
   unmodelled: [
-    'the automatic successes are not granted: creatures that do not sleep, and creatures with Immunity to the Exhaustion condition, are an outcome read off the target’s own defences, and `checks.ts` carries an automatic failure and no automatic success',
+    '"Creatures that don’t sleep, such as elves" are not spared: the Immunity half of that sentence is executed — `autoSucceedIf` reads it off the target — and this half is not a fact the engine holds about anybody. The SRD prints it of no creature type, and the 2024 Elf states it as a species trait no `FeatureGrant` member carries, so whether a creature sleeps at all is the DM’s',
   ],
 };
 
@@ -8884,7 +8935,9 @@ export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
  * whole spell. Mage Armor supplies a *calculation* — 13 plus Dexterity — and
  * the engine picks the best calculation a creature has. This supplies a
  * finished number and only when it beats whatever the creature already has,
- * which is neither an `armor-class` effect nor a bonus.
+ * which is the second arm of `armor-class`: read after the calculation, after
+ * a Shield and after every flat bonus, because "its AC" in that sentence is
+ * the total rather than the base.
  */
 export const BARKSKIN: SpellDefinition = {
   id: 'barkskin',
@@ -8895,10 +8948,12 @@ export const BARKSKIN: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1, self: true },
-  effects: [],
+  // "the target has an Armor Class of 17 if its AC is lower than that" — the
+  // whole rule, and the `if` is the arm rather than a condition anybody has
+  // to write down.
+  effects: [{ kind: 'armor-class', minimum: 17 }],
   durationSeconds: 3600,
   unmodelled: [
-    'the Armour Class is not floored: "the target has an Armor Class of 17 if its AC is lower than that" is a minimum applied to whatever the creature already has, and the `armor-class` effect supplies a base calculation instead — 17 written as one would beat a plate-armoured Paladin’s 18 down, or be ignored, depending on which way the comparison ran',
     'whether the creature touched is willing is not modelled; willingness is fiction',
     'the bark-like appearance is narration',
   ],
@@ -9294,13 +9349,14 @@ export const MELD_INTO_STONE: SpellDefinition = {
  * > Dexterity saving throw or have the Prone condition and lose
  * > Concentration."
  *
- * **One sentence short of Web.** The Cylinder is a shape the engine has, the
- * two trigger moments are `AreaTrigger`'s two by name, and the Prone is an
- * ordinary condition — so all but one clause of the save is expressible. The
- * clause that is not is "and lose Concentration": breaking somebody's
- * Concentration is something the engine does readily and nothing lets an
- * *outcome* ask for it, so writing the save would drop half of what a failure
- * costs.
+ * **Web with one more sentence**, and the sentence was the whole of what was
+ * missing. The Cylinder is a shape the engine has, both trigger moments are
+ * `AreaTrigger`'s by name, the Difficult Terrain is `areaTerrain` and the
+ * Heavily Obscured air is `areaObscurement` — all of which Web already writes.
+ * What had no slot was "and lose Concentration": breaking somebody's
+ * Concentration is something the engine does readily and no *outcome* could
+ * ask for one, so writing the save without it would have dropped half of what
+ * a failure costs. `breaksConcentration` is that slot.
  */
 export const SLEET_STORM: SpellDefinition = {
   id: 'sleet-storm',
@@ -9311,12 +9367,36 @@ export const SLEET_STORM: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
+  // "a 40-foot-tall, 20-foot-radius Cylinder centered on a point you choose
+  // within range" — tall and wide, in the order the book prints them.
+  area: { kind: 'cylinder', radius: 20, height: 40, origin: 'point' },
+  // "Ground in the Cylinder is Difficult Terrain."
+  areaTerrain: { costPerFoot: 2 },
+  // "The area is Heavily Obscured." Not a level of light — sleet is thick
+  // rather than dim — which is why obscurement is a record of its own.
+  areaObscurement: { degree: 'heavily' },
   effects: [],
+  areaTrigger: {
+    // "When a creature enters the Cylinder for the first time on a turn or
+    // **starts its turn there**" — Web's pair exactly.
+    at: 'start-of-turn',
+    onEntry: 'first-per-turn',
+    label: 'Sleet Storm (the sleet)',
+    effects: [
+      {
+        kind: 'save',
+        ability: 'dex',
+        // "or have the Prone condition **and lose Concentration**" — one
+        // failed save, both halves, and neither is writable without the
+        // other: a second effect would roll a second saving throw.
+        condition: 'prone',
+        breaksConcentration: true,
+      },
+    ],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the save is not raised, because half of what a failure costs cannot be written: "have the Prone condition and lose Concentration" pairs an ordinary condition with a broken Concentration, and no outcome of a saving throw asks for one',
-    'the ground in the Cylinder is not changed, and what stands in the way is the area rather than the terrain: `areaTerrain` says a spell’s area is Difficult Terrain and four definitions write it, but this one carries no `area` at all — its 40-foot-radius, 20-foot-high Cylinder is a template nothing has transcribed, and a patch has to lie somewhere before it can charge for anything',
-    'the Heavily Obscured area and the exposed flames it douses are the DM’s; the engine has no lighting and no obscurement',
+    'the exposed flames the sleet douses are the DM’s: a flame in the open is not a thing the engine holds',
   ],
 };
 
@@ -12080,7 +12160,7 @@ export const SHINING_SMITE: SpellDefinition = {
   durationSeconds: 60,
   unmodelled: [
     'the Advantage on attack rolls against the target is not granted: it belongs to every other creature in the fight rather than to the one this casting touched, and a spell applies its effects to the targets it reached',
-    'and "it can’t benefit from the Invisible condition" switches off a benefit the condition layer derives while leaving the condition on the creature, which only a feature’s standing effect can do',
+    'and "it can’t benefit from the Invisible condition" switches off a benefit the condition layer derives while leaving the condition on the creature. The rider that does that exists — Starry Wisp, Faerie Fire and Mind Spike all hang it — and what this spell cannot reach it with is the host: a smite is cast on a hit, its one effect kind is `attack-damage`, and that kind carries no riders at all',
     'the Bright Light in a 5-foot radius is the DM’s, because light is not a state the engine holds',
   ],
 };

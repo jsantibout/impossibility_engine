@@ -386,6 +386,32 @@ export interface D20TestOptions {
    * outcome is the same either way.
    */
   readonly autoFail?: string;
+  /**
+   * Why this test succeeds regardless of the die — and the sentence a log will
+   * read.
+   *
+   * SRD Sleep: "Creatures that don't sleep … or that have Immunity to the
+   * Exhaustion condition **automatically succeed on saves against this
+   * spell**." SRD Flesh to Stone prints the same phrase of Constructs.
+   *
+   * **{@link autoFail} with the sign turned round, and deliberately nothing
+   * more than that**: the die is thrown and recorded, because other effects
+   * can care what it showed, and {@link D20TestResult.autoSucceeded} overrides
+   * the total so no penalty applied afterwards takes the success away.
+   *
+   * Supplied by the caller for the reason `autoFail` is: whether this creature
+   * is immune to Exhaustion and whether this spell singles such creatures out
+   * are questions the layer above already holds the answers to.
+   *
+   * **It outranks an automatic failure**, and the two have no SRD pair that
+   * collides — a condition's automatic failure reaches Strength and Dexterity
+   * saves, and both spells that print this phrase call for Wisdom and
+   * Constitution. Where a future pair did meet, the narrower sentence is this
+   * one: a condition's failure is about a *family* of saves and this is about
+   * a named spell. Stated rather than left to the order of two `??`s, because
+   * a result carrying both would contradict itself.
+   */
+  readonly autoSucceed?: string;
 }
 
 export interface D20TestResult {
@@ -414,6 +440,12 @@ export interface D20TestResult {
    * a Blinded creature searching by sight, a Stunned creature's Strength save.
    */
   readonly autoFailed: string | null;
+  /**
+   * Why the test succeeded regardless of the roll — SRD Sleep's "automatically
+   * succeed on saves against this spell", read off a defence the creature
+   * already has. See {@link D20TestOptions.autoSucceed}.
+   */
+  readonly autoSucceeded: string | null;
   /** How much the total beat the DC by; negative when it failed. */
   readonly margin: number;
   /**
@@ -489,12 +521,20 @@ function resolve(
   // Saving throws only - "can't make ability checks" is the other half of that
   // sentence and it is a refusal rather than a failure, which is not this
   // function's to invent. See `StatedValues.noAbilityScores`.
+  //
+  // And the automatic **success** outranks all three — see
+  // {@link D20TestOptions.autoSucceed}, where the precedence is argued and the
+  // absence of any SRD pair that collides is recorded. Taken here rather than
+  // in the `??` chain so that a result never carries both answers at once.
+  const autoSucceeded = options.autoSucceed ?? null;
   const autoFailed =
-    conditionEffect.autoFail ??
-    options.autoFail ??
-    (kind === 'saving-throw' && sheet.stated?.noAbilityScores === true
-      ? NO_ABILITY_SCORES
-      : null);
+    autoSucceeded !== null
+      ? null
+      : (conditionEffect.autoFail ??
+        options.autoFail ??
+        (kind === 'saving-throw' && sheet.stated?.noAbilityScores === true
+          ? NO_ABILITY_SCORES
+          : null));
 
   return ok({
     kind,
@@ -511,13 +551,15 @@ function resolve(
     bonuses,
     total,
     autoFailed,
+    autoSucceeded,
     // SRD: "If the total of the d20 and its modifiers equals or exceeds the
     // target number, the D20 Test succeeds." Nothing about naturals — those
     // rules are written for attack rolls only, so a natural 20 on a check
     // against an impossible DC still fails. A condition that fails the test
-    // outright overrides the total entirely; the roll is still recorded,
-    // because other effects can care what the die showed.
-    success: autoFailed === null && total >= options.dc,
+    // outright overrides the total entirely, and a defence that passes it
+    // outright does the same from the other side; the roll is still recorded
+    // either way, because other effects can care what the die showed.
+    success: autoSucceeded !== null || (autoFailed === null && total >= options.dc),
     margin: total - options.dc,
     // **And the roll this one replaced, where the pipeline replaced one.**
     // The same field `rerollTest` fills after a Reaction, filled here by a
@@ -553,6 +595,27 @@ export function rollSavingThrow(
   options: Omit<D20TestOptions, 'skill'>,
 ): Result<D20TestResult> {
   return resolve(issuer, rng, 'saving-throw', sheet, ability, saveModifier(sheet, ability), options);
+}
+
+/**
+ * What a test comes to once the arithmetic has moved, with the two answers the
+ * arithmetic cannot touch.
+ *
+ * `resolve` settles them before the die is even read — a condition's automatic
+ * failure, a spell's automatic success — and both are overrides of the
+ * *total*, so a bonus or a penalty applied afterwards must not argue either
+ * away. This is the one place that rule is written, because it is asked from
+ * three: the roll itself, an intervention after it, and a reroll.
+ *
+ * It was asked from one. `interveneAfterRoll` and `rerollTest` each carried
+ * their own copy of the failure half and neither knew about the success half,
+ * so a Cutting Words took Sleep's automatic success off a creature immune to
+ * Exhaustion — a result carrying `autoSucceeded` and `success: false`, which
+ * {@link D20TestOptions.autoSucceed} says cannot exist.
+ */
+function outrightOr(result: D20TestResult, beat: boolean): boolean {
+  if (result.autoSucceeded !== null) return true;
+  return result.autoFailed === null && beat;
 }
 
 /**
@@ -624,8 +687,12 @@ export function interveneAfterRoll(
     bonuses,
     total,
     // A test a condition failed outright stays failed: no die turns a Stunned
-    // creature's Strength save into a success.
-    success: result.autoFailed === null && total >= result.dc,
+    // creature's Strength save into a success. **And the other end of the
+    // same rule**: a test a defence passed outright stays passed, so a Cutting
+    // Words does not take Sleep's automatic success off an Exhaustion-immune
+    // creature. Both overrides are the total's, so neither can be argued away
+    // by arithmetic applied afterwards.
+    success: outrightOr(result, total >= result.dc),
     margin: total - result.dc,
   });
 }
@@ -671,7 +738,10 @@ export function rerollTest(
     modifier: rolled.value.modifier,
     bonuses: [...result.bonuses, ...rolled.value.bonuses],
     total,
-    success: result.autoFailed === null && total >= result.dc,
+    // The two outright answers survive a reroll for the reason they survive an
+    // intervention — see {@link outrightOr}. SRD Indomitable rerolls a *failed*
+    // save, and a save a defence made outright was never one.
+    success: outrightOr(result, total >= result.dc),
     margin: total - result.dc,
     supersedes: { natural: result.natural, total: result.total },
   });

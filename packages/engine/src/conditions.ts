@@ -1,4 +1,4 @@
-import type { Ability, ConditionName } from '@ie/shared';
+import type { Ability, CharacterId, ConditionName } from '@ie/shared';
 import type { Bonus, ModeSource } from './bonuses.js';
 
 /**
@@ -757,6 +757,25 @@ export interface DeniedBenefit {
   readonly source: string;
   /** The condition whose benefits this grant withholds. */
   readonly condition: ConditionName;
+  /**
+   * The one creature the denial holds against, where the sentence narrows it.
+   *
+   * SRD Mind Spike: "if it has the Invisible condition, it gains no benefit
+   * from that condition **against you**." SRD Starry Wisp and SRD Faerie Fire
+   * print the same clause with no such words, and absent is that blanket
+   * denial — which is what every grant written before this field meant.
+   *
+   * **A blanket denial would be wrong for Mind Spike rather than merely
+   * coarse**, and the Initiative Advantage is the proof: the condition confers
+   * one, it is a roll against nobody, and the SRD sentence does not take it
+   * away. An id here is what lets {@link benefitsFrom} answer "no" to the
+   * caster and "yes" to the rest of the room without a second question.
+   *
+   * **An id rather than a role**, for the reason `RollSelector.counterpart`
+   * holds one: a definition names the role and the resolver binds it, because
+   * the fold opens no catalogue and "you" is not a fact a book can hold.
+   */
+  readonly against?: CharacterId;
 }
 
 /**
@@ -767,6 +786,23 @@ export interface DeniedBenefit {
  * `effectiveConditions` is the one caller, because it is the one door every
  * reader of condition *effects* goes through.
  */
-export function deniedBenefitsOf(denied: readonly DeniedBenefit[]): readonly ConditionName[] {
-  return [...new Set(denied.map((one) => one.condition))].sort();
+export function deniedBenefitsOf(
+  denied: readonly DeniedBenefit[],
+  /**
+   * The creature on the other side of the question, where there is one.
+   *
+   * A narrowed denial answers only about the creature it names: SRD Mind
+   * Spike's "against you" is nothing to the caster's ally, and nothing at all
+   * to a roll with no second participant — an Initiative roll, a boundary
+   * save — which is what an absent argument means here.
+   */
+  against?: CharacterId,
+): readonly ConditionName[] {
+  return [
+    ...new Set(
+      denied
+        .filter((one) => one.against === undefined || one.against === against)
+        .map((one) => one.condition),
+    ),
+  ].sort();
 }

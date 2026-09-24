@@ -42,6 +42,7 @@ import { applySpellEffect, type SpellEffectOptions } from './casting.js';
 import { schedule } from './conditions.js';
 import { shoveAwayFrom } from './spell-effect-movement.js';
 import { effectCheckFrom } from './rolls.js';
+import { lightShedOn } from './spell-effect-grants.js';
 
 /**
  * The `damage-scheduled` event a delayed hit needs, or nothing.
@@ -452,7 +453,16 @@ export function applyRiders(
                   // so what is hung is the denial, under the casting's own
                   // source, and the deadline below is what hands the benefit
                   // back on a cantrip that never becomes an ongoing.
-                  denial: { source, condition: modifier.denies },
+                  // **And the creature it holds against, where the sentence
+                  // narrows it.** SRD Mind Spike's "against you" is the
+                  // caster, bound to an id here for the reason the `mode`
+                  // rider's `counterpart` is bound here: a definition names
+                  // the role and the fold opens no catalogue.
+                  denial: {
+                    source,
+                    condition: modifier.denies,
+                    ...(modifier.against === undefined ? {} : { against: casterId }),
+                  },
                 }
             : {
                 type: 'speed-modifier-granted',
@@ -543,6 +553,58 @@ export function applyRiders(
       events.push(spent);
       current = applyEvent(current, spent);
     }
+  }
+
+  // **Somebody else's Concentration, taken by this outcome** — SRD Sleet
+  // Storm's "or have the Prone condition **and lose Concentration**", welded
+  // to the condition above because one failed save costs both.
+  //
+  // Before the glow and after the grants, which is where the other endings sit
+  // relative to what a failure hands out: the grants this save hung are the
+  // casting's own and survive, and what goes is whatever the *target* was
+  // holding. A creature concentrating on nothing loses nothing and the rest of
+  // the failure lands anyway — `SpentBudget`'s silence, for its reason.
+  //
+  // The event is the one every other ending writes, so a Bless goes by the
+  // door a failed Constitution save, a recast and a dispel all go through; the
+  // fold refuses a mismatch, which is why the casting id is read off the
+  // creature rather than named.
+  if (riders.breaksConcentration === true) {
+    const holding = current.creatures[target]?.concentration ?? null;
+    if (holding !== null) {
+      const broken: GameEvent = {
+        type: 'concentration-ended',
+        id: target,
+        castingId: holding.castingId,
+        reason: 'broken-by-an-effect',
+      };
+      events.push(broken);
+      current = applyEvent(current, broken);
+    }
+  }
+
+  // **The glow, last, and after the shove** — SRD Faerie Fire's "For the
+  // duration, objects and affected creatures shed Dim Light in a 10-foot
+  // radius." The patch's region has the creature for its origin, so it walks
+  // with them and a push before it or after it makes no difference; it is last
+  // because it is a fact about the *scene* rather than about the creature, and
+  // reading it before the shove would put the first reading of the lattice
+  // ahead of the move that changed it.
+  //
+  // The same landing the `light` effect kind takes, reached from the other
+  // host: two hosts, one geometry. Sourced to the casting, so a dispel, a
+  // broken Concentration and the deadline all take it away.
+  if (riders.light !== undefined) {
+    const shed = lightShedOn(current, target, riders.light, {
+      name: definition.name,
+      source,
+      castingId,
+      spellLevel: definition.level,
+    });
+    held.add(target);
+    events.push(...shed.events);
+    current = shed.events.reduce(applyEvent, current);
+    context.unverified.push(...shed.unverified);
   }
 
   return ok({ events, conditions });

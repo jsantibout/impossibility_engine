@@ -45,6 +45,7 @@ import {
 } from '../spell-definitions.js';
 import {
   armorClassOf,
+  conditionImmunitiesOf,
   effectiveConditions,
   evadesHalfDamage,
   grantedAttackRiders,
@@ -319,7 +320,9 @@ function resolveOneAttackRoll(
     // A condition a feature has suppressed gives an attacker nothing:
     // SRD Aura of Courage says the condition "has no effect on that ally
     // while there", and being easier to hit is an effect.
-    targetConditions: effectiveConditions(current, target),
+    // Asked about the caster, because a spell attack has two ends too — see
+    // `effectiveConditions`, and SRD Mind Spike's "against you".
+    targetConditions: effectiveConditions(current, target, casterId),
     // Prone reads the distance, and a spell attack is measured the same
     // way a weapon's is — **from where the attack comes from**, which
     // for a casting that holds a point is that point rather than the
@@ -1106,9 +1109,23 @@ export function resolveSaveEffect(
   // The sheet as it stands — see `resolveSaveDamageEffect`. Two resolvers roll
   // two saves, so one of them moving is not the other moving.
   const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+  // SRD Sleep: "Creatures … that have Immunity to the Exhaustion condition
+  // **automatically succeed** on saves against this spell." A defence the
+  // target already has, read through the one gatherer — so a Zombie's printed
+  // Immunity and a granted one answer alike — and applied as the mirror of the
+  // automatic failure `againstType` writes on the other resolver: the die is
+  // still thrown and recorded, and the total is overridden.
+  const spared =
+    effect.autoSucceedIf !== undefined &&
+    conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo);
   const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
     dc: saveDc,
     conditions: support.conditions,
+    ...(spared
+      ? {
+          autoSucceed: `${name}: a creature with Immunity to the ${effect.autoSucceedIf!.immuneTo} condition automatically succeeds on the save`,
+        }
+      : {}),
     // SRD Charm Person: "It does so with Advantage if you or your allies are
     // fighting **it**." The fact was stated at the casting and refused if it
     // was not — `declaredFacts` asked before a slot went — so the only

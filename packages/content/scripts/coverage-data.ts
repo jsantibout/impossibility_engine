@@ -166,6 +166,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'augury',
   'bane',
   'banishment',
+  // `armor-class-floor.test.ts` (engine): a scout at 12 read 17, a knight in
+  // plate left at 18, a +2 swallowed by the floor and a +6 clearing it.
+  'barkskin',
   'beacon-of-hope',
   'black-tentacles',
   'bless',
@@ -232,6 +235,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'hold-person',
   'hunters-mark',
   'hypnotic-pattern',
+  // `sequenced-roll.test.ts` (engine): the shard, then the burst — on a hit,
+  // on a miss, on the neighbour five feet away and not the one fifteen.
+  'ice-knife',
   'ice-storm',
   'inflict-wounds',
   'insect-plague',
@@ -314,6 +320,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // one and leaving the other asleep, and a blow ending the spell on the
   // creature it landed on and on nobody else.
   'sleep',
+  // `sleet-storm.test.ts` (engine): the Cylinder's terrain and obscurement
+  // read back, and a wizard's Bless taken by a failed Dexterity save.
+  'sleet-storm',
   // Driven end to end by `bare-save.test.ts`, with Faerie Fire above it: both
   // are cast through `resolveSpell` at a placed target, and the grants their
   // failed saves hand out are read back off the folded state — a halved

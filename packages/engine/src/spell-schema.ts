@@ -29,7 +29,9 @@ import type {
   AttackRollCount,
   ConditionRider,
   DiceScaling,
+  LightRider,
   ModifierRider,
+  SequencedBurst,
   RiderDuration,
   SpellArea,
   SpellCheck,
@@ -1234,7 +1236,15 @@ function checkSaveWithoutCondition(
   found: SpellDefinitionProblem[],
 ): void {
   const further = Array.isArray(effect.conditions) ? effect.conditions : [];
-  const hangs = further.length > 0 || (effect.modifiers ?? []).length > 0;
+  // **Every rider slot this host carries**, because the question is whether
+  // the die decided anything at all: a failure that only makes its target glow
+  // is SRD's sentence perfectly well, and reading `modifiers` alone would call
+  // it a die thrown for nothing.
+  const hangs =
+    further.length > 0 ||
+    (effect.modifiers ?? []).length > 0 ||
+    effect.light !== undefined ||
+    effect.breaksConcentration === true;
 
   if (!hangs && effect.recordsOutcome !== true) {
     found.push({
@@ -1698,6 +1708,17 @@ function checkModifierRider(
     // Starry Wisp and Lesser Restoration are refused in one wording for one
     // mistake.
     checkCondition(String(rider.denies), `${path}.denies`, found);
+    // SRD Mind Spike's "against you": the caster, and the only role the
+    // sentence can name — see the member's own note, where the other role is
+    // argued to be a denial against nobody.
+    if (rider.against !== undefined && rider.against !== 'caster') {
+      found.push({
+        field: `${path}.against`,
+        code: 'bad_denial_target',
+        reason:
+          'a denial narrowed to one creature names the caster; "against you" is the only such sentence the book writes, and a denial against the creature it is hung on is a denial against nobody',
+      });
+    }
     // The fifth rider that may carry a deadline of its own, and its only
     // writer is a cantrip too: SRD Starry Wisp denies the benefit "until the
     // end of your next turn" off an Instantaneous host, and without the
@@ -1773,6 +1794,44 @@ function withReadableRiders<E extends SpellEffect>(effect: E): E {
 const readableRiderList = (slot: unknown): boolean => slot === undefined || Array.isArray(slot);
 
 /** Every rider one host carries, in the order `applyRiders` applies them. */
+/**
+ * A sentence about shed light, wherever it is written.
+ *
+ * Two hosts — the `light` effect kind and {@link OutcomeRiders.light} — so one
+ * checker, for the reason `lightShedOn` is one landing: a second reading of
+ * "a 10-foot radius" is a second place for it to mean something else.
+ */
+function checkShedLight(
+  light: { readonly level?: unknown; readonly radius?: unknown; readonly dimBeyond?: unknown },
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!(LIGHT_LEVELS as readonly string[]).includes(light.level as string)) {
+    found.push({
+      field: `${path}.level`,
+      code: 'bad_light_level',
+      reason: `"${String(light.level)}" is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
+    });
+  }
+  if (!Number.isInteger(light.radius) || (light.radius as number) < 5) {
+    found.push({
+      field: `${path}.radius`,
+      code: 'bad_light_radius',
+      reason: `light reaches a whole number of feet, at least one space, not ${String(light.radius)}`,
+    });
+  }
+  if (
+    light.dimBeyond !== undefined &&
+    (!Number.isInteger(light.dimBeyond) || (light.dimBeyond as number) < 5)
+  ) {
+    found.push({
+      field: `${path}.dimBeyond`,
+      code: 'bad_light_radius',
+      reason: `dim light beyond the bright reaches a whole number of feet, at least one space, not ${String(light.dimBeyond)}`,
+    });
+  }
+}
+
 function checkRiders(
   riders: {
     readonly conditions?: readonly ConditionRider[];
@@ -1780,6 +1839,8 @@ function checkRiders(
     readonly delayed?: { readonly damage: DiceScaling; readonly damageType: string };
     readonly movement?: { readonly feet: number };
     readonly spends?: SpentBudget;
+    readonly light?: LightRider;
+    readonly breaksConcentration?: true;
   },
   level: number,
   path: string,
@@ -1870,6 +1931,31 @@ function checkRiders(
   // {@link SpentBudget}.
   if (riders.spends !== undefined) {
     checkBudgetSpend(riders.spends as SpentBudget | undefined, `${path}.spends`, found);
+  }
+  // The seventh, and the only one with nothing to be wrong about but its own
+  // value: a clause the book either prints or does not — see
+  // {@link OutcomeRiders.breaksConcentration}.
+  if (riders.breaksConcentration !== undefined && riders.breaksConcentration !== true) {
+    found.push({
+      field: `${path}.breaksConcentration`,
+      code: 'malformed_field',
+      reason:
+        'a spell either prints "and lose Concentration" or does not; the only value is true',
+    });
+  }
+  // The sixth: a glow the outcome hangs on its target, checked by the same
+  // rule the `light` effect kind is — see {@link checkShedLight}.
+  if (riders.light !== undefined) {
+    if (
+      readsAsObject(
+        riders.light,
+        `${path}.light`,
+        'shed light is an object naming its level and how far it reaches',
+        found,
+      )
+    ) {
+      checkShedLight(riders.light, `${path}.light`, found);
+    }
   }
 }
 
@@ -2142,6 +2228,92 @@ function checkRollModifier(
   }
 }
 
+/**
+ * A second resolution sequenced after the first — see `SequencedBurst`.
+ *
+ * Three rules, and the third is the one that matters: a Sphere and nothing
+ * else, because that is the only shape the SRD prints where nobody is left to
+ * state a direction; a list with something in it, because a burst that does
+ * nothing is the `resolves_nothing` mistake one storey down; and **no burst
+ * below a burst**, which is the recursion the rider design refuses arriving
+ * one storey up. The child effects themselves are checked as effects by
+ * {@link effectLists}, which walks this list.
+ */
+function checkSequencedBurst(
+  burst: SequencedBurst,
+  level: number,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (
+    !readsAsObject(
+      burst,
+      path,
+      'a second roll is an object naming the area it covers and what it does',
+      found,
+    )
+  ) {
+    return;
+  }
+
+  const area = (burst as { readonly area?: unknown }).area;
+  if (
+    !readsAsObject(area, `${path}.area`, 'a burst names the Sphere it fills', found) ||
+    (area as { readonly kind?: unknown }).kind !== 'sphere'
+  ) {
+    found.push({
+      field: `${path}.area`,
+      code: 'burst_is_not_a_sphere',
+      reason:
+        'a second roll fills a Sphere centred on the space the first one reached; a Cone or a Line needs a direction and there is nobody left to state one',
+    });
+  } else {
+    const radius = (area as { readonly radius?: unknown }).radius;
+    if (!Number.isInteger(radius) || (radius as number) < 5) {
+      found.push({
+        field: `${path}.area.radius`,
+        code: 'bad_burst_radius',
+        reason: `a burst reaches a whole number of feet, at least one space, not ${String(radius)}`,
+      });
+    }
+  }
+
+  if (
+    readsAsList(
+      (burst as { readonly effects?: unknown }).effects,
+      `${path}.effects`,
+      'a second roll names what it does as a list of effects',
+      found,
+    )
+  ) {
+    const effects = burst.effects;
+    if (effects.length === 0) {
+      found.push({
+        field: `${path}.effects`,
+        code: 'burst_resolves_nothing',
+        reason: 'a second roll that resolves nothing is a second roll nobody makes',
+      });
+    }
+    effects.forEach((child, i) => {
+      if (typeof child !== 'object' || child === null || Array.isArray(child)) return;
+      if ((child as { readonly then?: unknown }).then !== undefined) {
+        found.push({
+          field: `${path}.effects[${i}].then`,
+          code: 'nested_sequenced_roll',
+          reason:
+            'a second roll may not carry a third: a sequence of two is data and a sequence without end is a program',
+        });
+        return;
+      }
+      // **And the child by the rules every effect is held to**, because it is
+      // an effect: the burst is a parent, so what hangs under it is checked
+      // exactly as the spell's own list is rather than by a second reading.
+      if (!EFFECT_KINDS.has(String((child as { readonly kind?: unknown }).kind))) return;
+      checkEffect(child, level, `${path}.effects[${i}]`, found);
+    });
+  }
+}
+
 /** One effect, wherever it was found: the spell's own list, an activation, a trigger. */
 function checkEffect(
   effect: SpellEffect,
@@ -2158,8 +2330,36 @@ function checkEffect(
       if (effect.rolls !== undefined) {
         checkRollCount(effect.rolls, level, `${path}.rolls`, found);
       }
+      // SRD Vampiric Touch's "within reach": a whole number of feet, at least
+      // one space of the lattice everything else is measured on, and only on
+      // the arm that has one — a ranged spell attack's distance is the
+      // spell's own Range, and a second number there would be a second place
+      // to get it wrong.
+      if (effect.reach !== undefined) {
+        if (effect.attack !== 'melee') {
+          found.push({
+            field: `${path}.reach`,
+            code: 'reach_without_a_melee_attack',
+            reason:
+              'a reach is how far the caster’s arm goes; a ranged spell attack is bounded by the spell’s own Range',
+          });
+        } else if (!Number.isInteger(effect.reach) || (effect.reach as number) < 5) {
+          found.push({
+            field: `${path}.reach`,
+            code: 'bad_reach',
+            reason: `a reach is a whole number of feet, at least one space, not ${String(effect.reach)}`,
+          });
+        }
+      }
       // An attack rolls an attack, so nothing it hangs has a save to repeat.
       checkRiders(effect, level, path, host(false), found);
+      // **And the second roll, where the spell prints one.** The child
+      // effects are checked as effects by `effectLists`' own walk — they are
+      // effects — so what is left here is the shape of the slot and the one
+      // rule that keeps the format data: a burst may not carry a burst.
+      if (effect.then !== undefined) {
+        checkSequencedBurst(effect.then, level, `${path}.then`, found);
+      }
       return;
 
     // Damage that simply lands: the same two fields an attack's damage is
@@ -2261,6 +2461,19 @@ function checkEffect(
     case 'save': {
       const extra = (effect as { readonly conditions?: unknown }).conditions;
       if (extra !== undefined) readsAsList(extra, `${path}.conditions`, RIDER_LIST, found);
+      // SRD Sleep's "Immunity to the Exhaustion condition": one condition the
+      // glossary names, read off the target rather than stated by the caster.
+      const spares = (effect as { readonly autoSucceedIf?: unknown }).autoSucceedIf;
+      if (spares !== undefined) {
+        const named = (spares as { readonly immuneTo?: unknown })?.immuneTo;
+        if (typeof named !== 'string' || !CONDITION_NAMES.has(named)) {
+          found.push({
+            field: `${path}.autoSucceedIf.immuneTo`,
+            code: 'unknown_condition',
+            reason: `"${String(named)}" is not a condition the rules glossary names`,
+          });
+        }
+      }
       const source = withReadableRiders(effect);
       if (effect.condition === undefined) checkSaveWithoutCondition(effect, path, found);
       else {
@@ -2635,30 +2848,9 @@ function checkEffect(
     // — a duration, Concentration or "until dispelled" — because the patch is
     // sourced to the casting and lapses with it; `checkSpellDefinition` says
     // so at the definition, where the duration is.
-    case 'light': {
-      if (!(LIGHT_LEVELS as readonly string[]).includes(effect.level)) {
-        found.push({
-          field: `${path}.level`,
-          code: 'bad_light_level',
-          reason: `"${String(effect.level)}" is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
-        });
-      }
-      if (!Number.isInteger(effect.radius) || effect.radius < 5) {
-        found.push({
-          field: `${path}.radius`,
-          code: 'bad_light_radius',
-          reason: `light reaches a whole number of feet, at least one space, not ${String(effect.radius)}`,
-        });
-      }
-      if (effect.dimBeyond !== undefined && (!Number.isInteger(effect.dimBeyond) || effect.dimBeyond < 5)) {
-        found.push({
-          field: `${path}.dimBeyond`,
-          code: 'bad_light_radius',
-          reason: `dim light beyond the bright reaches a whole number of feet, at least one space, not ${String(effect.dimBeyond)}`,
-        });
-      }
+    case 'light':
+      checkShedLight(effect, path, found);
       return;
-    }
 
     // A sense conferred for the casting: one the glossary names, to a range.
     case 'sense': {
@@ -2769,8 +2961,33 @@ function checkEffect(
       return;
     }
 
-    case 'armor-class':
-      if (!Number.isInteger(effect.base) || effect.base < 1) {
+    // Two arms, and the pair is the rule: a spell either supplies a base the
+    // calculation competes over (Mage Armor) or a floor under the finished
+    // total (Barkskin), and never both — the two are read at different points
+    // of one sum, so an effect claiming both would be two rules in one field.
+    case 'armor-class': {
+      const minimum = (effect as { readonly minimum?: unknown }).minimum;
+      const base = (effect as { readonly base?: unknown }).base;
+      if (minimum !== undefined && base !== undefined) {
+        found.push({
+          field: path,
+          code: 'armor_class_base_and_floor',
+          reason:
+            'an Armour Class a spell supplies is either a base the calculation competes over or a floor under the finished total, never both',
+        });
+        return;
+      }
+      if (minimum !== undefined) {
+        if (!Number.isInteger(minimum) || (minimum as number) < 1) {
+          found.push({
+            field: `${path}.minimum`,
+            code: 'bad_armor_class',
+            reason: 'a floor under an Armour Class is a whole number of at least 1',
+          });
+        }
+        return;
+      }
+      if (!Number.isInteger(base) || (base as number) < 1) {
         found.push({
           field: `${path}.base`,
           code: 'bad_armor_class',
@@ -2778,6 +2995,7 @@ function checkEffect(
         });
       }
       return;
+    }
 
     // A granted defence names types and says one thing about all of them, so
     // the only things to be wrong about are the list and the answer.
@@ -3669,6 +3887,16 @@ function grantCarried(effect: SpellEffect): string | null {
           default:
             break;
         }
+      }
+      // **And the sixth slot, which is not a `modifiers` member.** A glow the
+      // outcome hangs is sourced to the casting and lapses with its record, so
+      // an Instantaneous host would lay a patch on the lattice that nothing
+      // could ever put out — the same ending the standalone `light` kind is
+      // held to one branch up. It carries no `lasts`, for the reason that kind
+      // carries none: every SRD sentence in this position runs for the spell's
+      // own duration.
+      if ((effect as { readonly light?: unknown }).light !== undefined) {
+        return 'light the target sheds';
       }
       return null;
     }
@@ -5598,12 +5826,35 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
     return Array.isArray(list) ? [[`${parent}.effects`, list]] : [];
   };
 
-  return [
+  const lists: (readonly [string, readonly unknown[]])[] = [
     ...(Array.isArray(d['effects'])
       ? ([['effects', d['effects']]] as (readonly [string, readonly unknown[]])[])
       : []),
     ...nested('areaTrigger'),
     ...nested('activation'),
+  ];
+
+  // **And the one list that hangs below an effect rather than beside one.**
+  // SRD Ice Knife's burst is a second resolution sequenced after the attack —
+  // see `SequencedBurst`, where the case for a parent rather than a rider is
+  // made — so its effects are effects and every rule this walk feeds has to
+  // reach them: `checkEffect`'s, `checkGrantLifetimes`' and the leaf
+  // denylist's alike.
+  //
+  // **One level and no recursion**, which is the whole of what keeps the
+  // format data: a `then` below a `then` is refused by `checkEffect`, so this
+  // never needs to walk what it produces.
+  return [
+    ...lists,
+    ...lists.flatMap(([where, entries]) =>
+      entries.flatMap((entry, i): (readonly [string, readonly unknown[]])[] => {
+        if (!hostCarriesASequence(entry)) return [];
+        const then = (entry as { readonly then?: unknown }).then;
+        if (typeof then !== 'object' || then === null || Array.isArray(then)) return [];
+        const inner = (then as { readonly effects?: unknown }).effects;
+        return Array.isArray(inner) ? [[`${where}[${i}].then.effects`, inner]] : [];
+      }),
+    ),
   ];
 }
 
@@ -5631,6 +5882,24 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
  * the thing this validates, and reporting that is more useful than recursing
  * into it.
  */
+/**
+ * Whether this is the one effect kind a second resolution may hang on.
+ *
+ * `attack` and nothing else: it is the only kind whose type declares `then`,
+ * the only kind `checkEffect` validates one on, and the only kind `runEffects`
+ * reads one off. A `then` anywhere else is data no resolver would ever
+ * perform, so it stays what it was before the slot existed — a nested effect,
+ * refused by the leaf denylist.
+ *
+ * Read off untyped input like every other reader in this file, so a `kind`
+ * that is missing, null or something this engine has never heard of answers
+ * false and is reported by the rule that knows what is wrong with it.
+ */
+function hostCarriesASequence(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  return (value as { readonly kind?: unknown }).kind === 'attack';
+}
+
 function checkNoNestedEffect(
   value: unknown,
   path: string,
@@ -5654,6 +5923,23 @@ function checkNoNestedEffect(
   }
 
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    // **The one slot below an effect that is a parent, and is meant to be.**
+    // `then` is a second resolution sequenced after the first — see
+    // `SequencedBurst` — so it carries the three things this denylist exists
+    // to refuse, and refusing them here would refuse the shape rather than
+    // catch a mistake. It is walked by {@link effectLists} instead, where its
+    // effects are checked as effects; what this rule still holds is that
+    // nothing *else* below an effect may carry one, and `checkEffect` is what
+    // stops a `then` inside a `then`.
+    //
+    // **On the `attack` host and nowhere else**, which is the whole of the
+    // allowance: `attack` is the one kind whose type carries the slot and the
+    // one kind `runEffects` reads it off, so a `then` written on a
+    // `save-damage` would be a second resolution nothing ever performs. It was
+    // refused before this shape existed and it is refused still — by falling
+    // through to the denylist below, which is what `then.area` and
+    // `then.effects` are.
+    if (depth === 0 && key === 'then' && hostCarriesASequence(value)) continue;
     if (depth > 0 && FORBIDDEN_BELOW_AN_EFFECT.has(key)) {
       found.push({
         field: `${path}.${key}`,

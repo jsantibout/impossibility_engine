@@ -2264,8 +2264,13 @@ export function resolveAttack(
     // Dodge's "if you can see the attacker", which Darkvision genuinely
     // satisfies — so it rightly keeps `canSee`. One sense, two sentences, two
     // answers; `hide.test.ts` asserts both on one dwarf.
-    const attackerConditions = effectiveConditions(state, id);
-    const targetConditions = effectiveConditions(state, command.target);
+    // **Each asked about the creature on the other side of the swing**, which
+    // is what a denial narrowed to one creature needs: SRD Mind Spike's "it
+    // gains no benefit from that condition **against you**" is nothing to
+    // anybody but the caster, so the question has two ends and both are known
+    // here. Every unnarrowed denial answers exactly as it always did.
+    const attackerConditions = effectiveConditions(state, id, command.target);
+    const targetConditions = effectiveConditions(state, command.target, id);
     const targetCanSeeAttacker = canSomehowSee(state, command.target, id);
     const attackerCanSeeTarget = canSomehowSee(state, id, command.target);
 

@@ -33,6 +33,7 @@ import {
   abilityModifier,
   proficiencyBonus,
   armorClass,
+  armorClassFloor,
   hasSpeedInMode,
   speedInMode,
   type CharacterSheet,
@@ -4672,7 +4673,14 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   // anything having to remember to. No item is used to *gain* an Armour Class,
   // so there is nothing for a narrowing to match and none may be declared.
   for (const bonus of standingBonuses(state, who, 'ac')) total += bonus.flat ?? 0;
-  return total;
+  // And last of all, the floor — SRD Barkskin's "an Armor Class of 17 **if its
+  // AC is lower than that**". Last because "its AC" in that sentence is the
+  // finished number: the calculation, the Shield, every flat bonus and
+  // whatever the ring is granting have all had their say, and what this does
+  // is refuse the answer if it came out too low. See `GrantedArmorClassFloor`,
+  // where the two arms of the family are held apart.
+  const floor = armorClassFloor(creature.armorClasses);
+  return floor === null ? total : Math.max(total, floor);
 }
 
 /**
@@ -5964,7 +5972,22 @@ export function suppressedConditions(
  * through `creature.conditions`, which is the record of what is on them. The
  * two differ exactly where a feature says a condition has no effect.
  */
-export function effectiveConditions(state: GameState, who: CharacterId): ConditionState {
+export function effectiveConditions(
+  state: GameState,
+  who: CharacterId,
+  /**
+   * The creature on the other side of whatever is about to be asked, where
+   * there is one — an attacker, or the creature being attacked.
+   *
+   * **Only a narrowed denial reads it**, and absent is the answer for every
+   * question with no second participant: an Initiative roll, a boundary save,
+   * a Hide check. SRD Mind Spike's "against you" is the one sentence in the
+   * condition layer that has ever needed it, and handing it in here rather
+   * than at each reader is what keeps `benefitsFrom` a question about a
+   * `ConditionState` — the whole reason there is one gatherer.
+   */
+  against?: CharacterId,
+): ConditionState {
   const creature = state.creatures[who];
   if (creature === undefined) return conditionState([]);
 
@@ -5976,6 +5999,6 @@ export function effectiveConditions(state: GameState, who: CharacterId): Conditi
   // are meant to notice. This is the door every one of those readers already
   // goes through, so a new one asks the question by construction rather than
   // by remembering to; `benefitsFrom` is what they ask.
-  const denied = deniedBenefitsOf(creature.deniedBenefits);
+  const denied = deniedBenefitsOf(creature.deniedBenefits, against);
   return denied.length === 0 ? effective : { ...effective, withoutBenefit: denied };
 }

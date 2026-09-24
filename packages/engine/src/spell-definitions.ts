@@ -922,6 +922,30 @@ export type ModifierRider =
       readonly kind: 'benefit';
       /** The condition whose benefits the outcome withholds. */
       readonly denies: ConditionName;
+      /**
+       * The denial holds against the **caster** and nobody else.
+       *
+       * SRD Mind Spike: "if it has the Invisible condition, it gains no
+       * benefit from that condition **against you**." SRD Starry Wisp and SRD
+       * Faerie Fire write the same clause with no such words, and absent is
+       * that blanket denial.
+       *
+       * **`'caster'` is the only value, because it is the only role the
+       * sentence can name.** `CounterpartRole`'s other member is the creature
+       * the rider is hung on, and a benefit denied against *itself* is a
+       * denial against nobody — so this is a one-member union rather than a
+       * reuse of that type with a value the validator would have to refuse.
+       *
+       * A role rather than an id, for the reason `ModifierRider.counterpart`
+       * carries one: the resolver binds it, because the fold opens no
+       * catalogue and "you" is not a fact a book can hold.
+       *
+       * **What it does not reach is the point of it.** Invisible's Advantage
+       * on Initiative is a roll against nobody, so a narrowed denial leaves it
+       * standing — which is what the SRD sentence says and what a blanket one
+       * would get wrong.
+       */
+      readonly against?: 'caster';
       /** A deadline of the rider's own, shorter than the casting's. */
       readonly lasts?: RiderDuration;
     };
@@ -993,6 +1017,80 @@ export interface OutcomeRiders {
    * has to be standing before this asks whether the Reaction is available.
    */
   readonly spends?: SpentBudget;
+  /**
+   * Light the same roll makes its target shed.
+   *
+   * SRD Faerie Fire: "Each creature in the Cube is also outlined if it fails a
+   * Dexterity saving throw. For the duration, objects and **affected**
+   * creatures shed Dim Light in a 10-foot radius." One save, a benefit taken
+   * away and a glow, and the glow is on exactly the creatures the die
+   * outlined — so a `light` effect beside the save would light the ones that
+   * made it too, which is the argument every member of this interface makes.
+   *
+   * **The same landing as the `light` effect kind**, reached from the other
+   * host: `lightShedOn` writes the patches, whose region has the creature for
+   * its origin so the glow walks with them, and whose source is the casting so
+   * it lapses when the casting does. It is a leaf like every other rider —
+   * nothing is rolled and nobody new is targeted.
+   *
+   * **Sixth, and last, because it changes nothing any of the other five
+   * reads.** Light is a fact about the scene rather than about the creature,
+   * so the order it lands in relative to a condition or a grant is invisible;
+   * it goes after the shove for the reason the shove goes after the grants,
+   * which is that the shove moves the creature the patch is hung on.
+   *
+   * It carries no `lasts` of its own, for the reason the `light` effect
+   * carries none: every SRD sentence in this position runs for the spell's own
+   * duration, and `checkGrantLifetimes` refuses it on an Instantaneous host.
+   */
+  readonly light?: LightRider;
+  /**
+   * The outcome takes the target's Concentration away.
+   *
+   * SRD Sleet Storm: "it must succeed on a Dexterity saving throw or have the
+   * Prone condition **and lose Concentration**." SRD Earthquake prints the
+   * same pairing, word for word about a fissure.
+   *
+   * **A consequence of a settled outcome, so a rider** — and it is welded to
+   * the condition beside it: one failed save costs both, and a second effect
+   * would roll a second saving throw for one sentence. That is the argument
+   * every slot here makes, and this is the one the sentence could not be
+   * written without.
+   *
+   * **It ends a casting that is not this one**, which no other rider does, and
+   * that is what makes it a flag rather than a value: there is nothing for a
+   * definition to name. Which casting is the target's own, read off the
+   * creature at the moment the outcome settles, and the event is the
+   * `concentration-ended` every other ending already writes — so a Bless the
+   * wizard was holding goes by the door a failed Constitution save, a second
+   * casting and a dispel all go through.
+   *
+   * **A target holding no Concentration loses nothing and the rest of the
+   * failure still lands**, which is the silence {@link SpentBudget} takes for
+   * "if available" and for the same reason: a rider that could refuse the
+   * outcome would be a Sleet Storm that left a creature on its feet.
+   *
+   * `true` is the only value, as it is for every other printed-or-not clause
+   * in this format.
+   */
+  readonly breaksConcentration?: true;
+}
+
+/**
+ * A glow a settled outcome hangs on its target — see {@link
+ * OutcomeRiders.light}.
+ *
+ * Spelled out rather than shared with the `light` effect kind's own fields,
+ * for the reason `SpellRepeatSave` was pulled out of two inline literals: one
+ * exported type is what keeps two slots from being widened out of step. The
+ * effect kind still spells its own, because rewriting three definitions would
+ * change no rule.
+ */
+export interface LightRider {
+  readonly level: LightLevel;
+  readonly radius: number;
+  /** SRD "Dim Light for an additional N feet": a dim sphere N wider. */
+  readonly dimBeyond?: number;
 }
 
 /**
@@ -1113,6 +1211,46 @@ export interface TypedExtraDamage {
   readonly extraDice: string;
 }
 
+/**
+ * A second resolution the first one is followed by, over an area the casting
+ * never named.
+ *
+ * SRD Ice Knife, whole: "Make a ranged spell attack against the target. On a
+ * hit, the target takes 1d10 Piercing damage. **Hit or miss, the shard then
+ * explodes.** The target and each creature within 5 feet of it must succeed on
+ * a Dexterity saving throw or take 2d6 Cold damage."
+ *
+ * **It is not a rider, and "Hit or miss" is the word that says so.**
+ * {@link OutcomeRiders} rejected this by name — "a child that rolls is a
+ * parent" — and the rejection stands: every rider hangs off a *settled
+ * outcome* and rides the affirmative branch, and this hangs off no branch at
+ * all. So it is a second parent rather than a sixth kind of leaf, and it says
+ * so in the three ways a parent differs from a leaf: it rolls, it has an area,
+ * and it picks its own targets.
+ *
+ * **One level, and the validator keeps it there.** A `then` inside a `then` is
+ * the recursion the rider design exists to refuse, arriving one storey up;
+ * `checkEffect` refuses it, so what a definition can express is a sequence of
+ * two and never a program.
+ *
+ * **The point is derived and never stated.** "within 5 feet of **it**" is the
+ * space the first roll reached, which is where the target is standing — so the
+ * area's origin is that creature rather than a point the caster names, and a
+ * casting that never placed anybody simply catches the target alone and says
+ * so. `SpellArea`'s Sphere is reused rather than a radius being spelled out
+ * again, so `creaturesInArea` reads it exactly as it reads a Fireball's.
+ *
+ * **A Sphere and nothing else**, because that is the only shape the SRD prints
+ * in this position: a Cone or a Line would need a direction, and there is
+ * nobody to state one — the shard is already in the air.
+ */
+export interface SequencedBurst {
+  /** SRD Ice Knife's "within 5 feet of it", centred on the space it reached. */
+  readonly area: Extract<SpellArea, { readonly kind: 'sphere' }>;
+  /** What the burst does, to each creature it catches. */
+  readonly effects: readonly SpellEffect[];
+}
+
 export type SpellEffect =
   /**
    * A spell attack roll; damage on a hit.
@@ -1163,6 +1301,35 @@ export type SpellEffect =
        * is transcribed rather than generalised for exactly that reason.
        */
       readonly healsCasterForHalf?: true;
+      /**
+       * How far the swing itself reaches, where the spell's own Range does not
+       * say — SRD Vampiric Touch: "Make a melee spell attack against one
+       * creature **within reach**", on a spell whose printed Range is Self.
+       *
+       * **Two distances, and they are about different things.**
+       * {@link SpellDefinition.range} is what the *spell* reaches, and for
+       * this one it is Self: the casting sits on the caster, which is what
+       * Dispel Magic reads and what `spellOn` answers. The five feet belong to
+       * the arm, and a Range of Self says nothing whatever about them — so the
+       * targeting rules, which read the Range, checked nothing at all and the
+       * initial swing could be made across a room. Every later use went
+       * through `SpellActivation.range` and was measured; this is that clause
+       * on the effect that makes the first one.
+       *
+       * Checked with the targets settled and before the slot, the action or a
+       * die, so a swing out of reach costs its caster nothing. Absent is every
+       * other attack in the book, where the spell's Range is the whole of the
+       * distance and a second number here would be a second place to get it
+       * wrong.
+       */
+      readonly reach?: number;
+      /**
+       * What happens next, **whatever the attack did**: see
+       * {@link SequencedBurst}.
+       *
+       * SRD Ice Knife: "**Hit or miss**, the shard then explodes."
+       */
+      readonly then?: SequencedBurst;
       /**
        * SRD Scorching Ray: "You hurl three fiery rays ... **Make a ranged
        * spell attack for each ray.**"
@@ -1710,6 +1877,39 @@ export type SpellEffect =
        */
       readonly advantageIfFought?: true;
       /**
+       * A defence the target already has that makes the save for it.
+       *
+       * SRD Sleep: "Creatures that don't sleep, such as elves, or **that have
+       * Immunity to the Exhaustion condition** automatically succeed on saves
+       * against this spell."
+       *
+       * **`autoFail`'s mirror, read off the creature rather than stated.**
+       * {@link TypedSaveOutcome} is the neighbour and is a different question:
+       * that reads what the creature *is* — a Plant, a Construct — and this
+       * reads what it already **has**, a defence something granted it or its
+       * stat block printed. `conditionImmunitiesOf` is the one reader of that,
+       * so a Zombie's printed Immunity and a Mind Blank's granted one answer
+       * alike, and a creature that is somehow immune for six seconds is immune
+       * for those six seconds.
+       *
+       * **One condition, because the sentence names one.** A list would have
+       * to decide whether it meant any or all, and no SRD sentence of this
+       * shape names two.
+       *
+       * **Only half of Sleep's sentence, and the half that is left is not a
+       * missing field.** "Creatures that don't sleep, such as elves" is not a
+       * fact this engine holds about anybody: the SRD prints it of no creature
+       * type — the type list in the monster rules says nothing about sleeping
+       * — and the 2024 Elf states it in a species sentence, Trance's "You
+       * don't need to sleep, and magic can't put you to sleep", that no
+       * `FeatureGrant` member carries. So the definition writes this half and
+       * hands the table the other.
+       */
+      readonly autoSucceedIf?: {
+        /** SRD Sleep's "Immunity to the Exhaustion condition". */
+        readonly immuneTo: ConditionName;
+      };
+      /**
        * Write the verdict onto the casting, because the sentence says somebody
        * knows it.
        *
@@ -1815,6 +2015,25 @@ export type SpellEffect =
        * The host made the roll; the rider is the arithmetic.
        */
       readonly modifiers?: readonly ModifierRider[];
+      /**
+       * Light the same failed save makes its target shed: see
+       * {@link OutcomeRiders.light}.
+       *
+       * Spelled flat for the reason `condition` and `modifiers` are — this
+       * host keeps its own layout — and read through {@link outcomeRidersOf},
+       * so `applyRiders` never learns which host it is serving. SRD Faerie
+       * Fire is the one writer, and it is the third of the three hosts to
+       * carry the slot rather than a fourth spelling of it.
+       */
+      readonly light?: LightRider;
+      /**
+       * The same failed save takes the target's Concentration: see
+       * {@link OutcomeRiders.breaksConcentration}.
+       *
+       * Flat for the reason the slot above it is, and SRD Sleet Storm is the
+       * writer: "or have the Prone condition **and lose Concentration**".
+       */
+      readonly breaksConcentration?: true;
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
@@ -1925,9 +2144,11 @@ export type SpellEffect =
    * What a spell *does* need to say is that it may not be **cast** on an
    * armoured creature, and that is {@link TargetRule.mustBeUnarmored}.
    *
-   * Deliberately not Barkskin: "an Armor Class of 17 if its AC is lower than
-   * that" is a floor on the *total*, a different rule, and one spell is not
-   * evidence for building it.
+   * **Barkskin is the second arm below**, and it stayed out of this one for
+   * as long as it did because it is genuinely a different rule: "an Armor
+   * Class of 17 if its AC is lower than that" is a floor on the *total*, read
+   * after everything, and written as a base it would be wrong in both
+   * directions at once.
    */
   | {
       readonly kind: 'armor-class';
@@ -1949,6 +2170,36 @@ export type SpellEffect =
        * same shape says no, which is why this is stated rather than assumed.
        */
       readonly shieldAllowed: boolean;
+      /** Absent, which is what tells the two arms apart. */
+      readonly minimum?: undefined;
+    }
+  /**
+   * A **floor** under the Armour Class the target arrives at by whatever means.
+   *
+   * SRD Barkskin, the whole rule: "the target has an Armor Class of 17 **if
+   * its AC is lower than that**."
+   *
+   * **The same `kind` and a different arm**, because it is the same sentence
+   * of the book — what a spell says your Armour Class is — asked at a
+   * different point in the arithmetic. The arm above competes for the *base*,
+   * before a Shield and before every flat bonus, and is consulted only while
+   * the target is unarmoured; this one is read last, after the calculation,
+   * after the bonuses and after whatever a worn item is granting, and is read
+   * through plate as readily as through nothing. So `base` written as 17 would
+   * beat a plate-armoured 18 down or be discarded under the armour depending
+   * which way the comparison ran, and neither is the sentence.
+   *
+   * It carries no `shieldAllowed` and no `plusAbility` for the same reason: a
+   * Shield's +2 is part of the total this is a floor *under*, so there is
+   * nothing for it to permit, and a floor adds no ability to anything.
+   *
+   * See {@link GrantedArmorClass}, where the two arms are held apart on the
+   * creature, and `armorClassOf`, which is the only reader of this one.
+   */
+  | {
+      readonly kind: 'armor-class';
+      /** SRD Barkskin's "17": the number the total may not fall below. */
+      readonly minimum: number;
     }
   /**
    * Resistance, Immunity or Vulnerability the spell hands its target.
@@ -4240,6 +4491,27 @@ export const ranged = (range: SpellRange): number | null =>
   range.kind === 'ranged' ? range.feet : range.kind === 'touch' ? 5 : null;
 
 /**
+ * The shortest reach any swing in this list states, or null where none does.
+ *
+ * SRD Vampiric Touch's "within reach" — see `attack.reach`, where the two
+ * distances are told apart. The **shortest**, because a list whose swings
+ * reached different distances would be asking for every one of them to be in
+ * range of a creature the casting names once; no SRD spell writes two, and
+ * taking the loosest of them would let one arm excuse another.
+ *
+ * Only the spell's own effects, never an activation's: an activation states
+ * its reach in its own `range`, which `reachFromCaster` has always measured.
+ */
+export const swingReachIn = (effects: readonly SpellEffect[]): number | null => {
+  let shortest: number | null = null;
+  for (const effect of effects) {
+    if (effect.kind !== 'attack' || effect.reach === undefined) continue;
+    if (shortest === null || effect.reach < shortest) shortest = effect.reach;
+  }
+  return shortest;
+};
+
+/**
  * Whether resolving this effect needs dice thrown from the caster's own sheet.
  *
  * A saving throw does not: the DC is pinned on the casting and the roll is the
@@ -5117,12 +5389,28 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
   // hit" and "on a failed save" and nowhere else that a rider hangs.
   const spends =
     effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.spends : undefined;
+  // **All three hosts**, and the third is why this reads the field rather than
+  // the interface: SRD Faerie Fire writes the glow off a bare `save`, which
+  // keeps its flat spelling, so the slot is declared there as well and read
+  // here in one place.
+  const light =
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.light
+      : undefined;
+  // The same three hosts, for the same reason: SRD Sleet Storm writes the
+  // clause off a bare `save`, which keeps its flat spelling.
+  const breaksConcentration =
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.breaksConcentration
+      : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
     ...(delayed === undefined ? {} : { delayed }),
     ...(movement === undefined ? {} : { movement }),
     ...(spends === undefined ? {} : { spends }),
+    ...(light === undefined ? {} : { light }),
+    ...(breaksConcentration === undefined ? {} : { breaksConcentration }),
   };
 }
 
@@ -5142,7 +5430,9 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
     riders.modifiers !== undefined ||
     riders.delayed !== undefined ||
     riders.movement !== undefined ||
-    riders.spends !== undefined
+    riders.spends !== undefined ||
+    riders.light !== undefined ||
+    riders.breaksConcentration !== undefined
   );
 }
 
