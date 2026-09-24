@@ -205,6 +205,13 @@ Terrain is filtered. Goodberry's ten berries and Flame Blade's blade are the
 two the SRD prints, and `let_go_of_conjured` / `evoke_conjured` are the two
 halves of Flame Blade's own sentence.
 
+Since the two Pacts, an **activation** may conjure one too — SRD Pact of the
+Blade's `conjuresWeapon`, the line keyed by its activation in the fold
+(`settleConjuredLines`) so a second use replaces the first — and the line
+carries the hands it takes up; `already_in_hand` is a third refusal beside
+`no_free_hand`, answering for Goodberry's berries and Flame Blade's blade as
+well as for a pact weapon.
+
 ## Monsters
 
 `adaptMonster(monster, id)` turns a parsed stat block into a fightable

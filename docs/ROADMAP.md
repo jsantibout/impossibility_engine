@@ -2254,3 +2254,27 @@ Appended after wave seven's first spells track (2026-09-24):
   request and no schema, and a Ready of such a line is refused before the
   slot. Animal Messenger keeps one clause: a save whose whole content is its
   verdict, ruled for the area-standing brief. Main re-ingested.
+- **Eldritch Invocations executes, both Pacts included.** A feature may
+  conjure the weapon it imbues (`activated.conjuresWeapon`; the line is keyed
+  by its activation in the fold, `settleConjuredLines` beside
+  `settleWeaponRiders`, so a second use replaces the first rather than standing
+  beside it); an imbued weapon may **offer** an ability (`offersAbility` —
+  the book says "you **can** use your Charisma modifier", Dexterous Attacks'
+  word, so the brief's *imposed* ability was the wrong verb and the existing
+  `GrantedWeaponRider.ability` already reaches both rolls) and grant
+  proficiency in that one object; an activation may run `until-ended` and end
+  on `death`; a granted route may state its casting time (built twice in one
+  batch — the cast-line track and this one — and deduplicated at the merge)
+  and widen the forms a summons offers (`widensForm`, seven special forms: the
+  book prints no Slaad Tadpole); the forgone attack is a `summons-attack`
+  grant and `order_summons_attack`, the only way a familiar attacks at all.
+  **Filed:** bonding a magic weapon you touch, because no catalogue item is
+  marked magical and a rider is keyed on a catalogue id — refusing on the id
+  would refuse two Warlocks with two Longswords. **Two debts found and named:**
+  `spendOneAttack` reads "replace one of your attacks" as the action already
+  taken with one left over, so SRD Breath Weapon is unusable by any character
+  without Extra Attack (every Dragonborn at levels 1–4) — two lines and one
+  assertion, briefed next; and a pact Longsword beside a bought one is
+  `ambiguous_copy` by name until the bond ends, which wants an engine-issued
+  instance id on the conjured line. Features waiting on a shape: one
+  (Resourceful, in flight).

@@ -60,7 +60,9 @@ homebrew.
   Draconic Flight, Wild Companion, Ritual Adept, Paladin's Smite,
   Innate Sorcery, Divine Order and Primal Order
   execute; a feature may ask two questions, grant a language, or know a
-  marked quarry's defences through `look`. **Wild Shape executes**: a
+  marked quarry's defences through `look`. Eldritch Invocations executes
+  whole, both Pacts included: a feature may conjure the weapon it imbues and
+  widen the forms a summons offers. **Wild Shape executes**: a
   Druid wears a learned Beast's stat block for the hours the table prints,
   with the SRD's retained half kept, and comes back by every ending the book
   names.
@@ -104,10 +106,9 @@ homebrew.
   engine still has no idea a language model exists, which is the point.
 - **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed,
   timed, effect left to the table. `LEDGER.md` names each and its shape.
-- **Two features in a level 5 character's reach are still `manual`** —
-  Eldritch Invocations' second half and Resourceful's reroll window — and the
-  Champion's second Fighting Style at level 7. Every pool buys something;
-  `reachability.test.ts`'s `NOTHING_TO_BUY` is checked in both directions.
+- **One feature in a level 5 character's reach is still `manual`** —
+  Resourceful's reroll window — and the Champion's second Fighting
+  Style at level 7. Every pool buys something.
 - **A Druid's known forms are the ones it was made with.** SRD lets one be
   replaced when a Long Rest ends and no rest offers that yet; the form's limbs
   decide nothing about what can be held; the block's senses are not carried;

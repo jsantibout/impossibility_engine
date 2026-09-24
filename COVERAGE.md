@@ -521,7 +521,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 206 |
+| 12 / 12 | 12 / 12 | 269 | 207 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -541,7 +541,7 @@ believe it has twelve working classes when it has twelve validated ones.
 | Ranger | known | 25 | 18 |
 | Rogue | none | 28 | 20 |
 | Sorcerer | known | 18 | 14 |
-| Warlock | known | 17 | 11 |
+| Warlock | known | 17 | 12 |
 | Wizard | spellbook | 18 | 15 |
 
 ### What blocks the rest
@@ -590,9 +590,9 @@ be the second spelling of one derivation.
 | `a-resource-traded-for-another` | 3 | 1 |
 | `a-spell-an-item-casts-that-nothing-executes` | 3 | 1 |
 | `an-action-a-spell-compels-or-forbids` | 3 | 1 |
-| `an-attack-the-class-redefines` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-one-shot-roll-modifier` | 2 | 1 |
+| `an-attack-the-class-redefines` | 2 | 1 |
 | `an-option-re-chosen-on-a-rest` | 2 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
 | `a-creature-fact-an-effect-overrides` | 1 | 1 |
@@ -607,12 +607,11 @@ be the second spelling of one derivation.
 | `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `heroic-inspiration` | 1 | 1 |
-| `a-feature-that-changes-what-a-casting-costs` | 4 | 0 |
+| `a-feature-that-changes-what-a-casting-costs` | 3 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 2 | 0 |
 | `a-turn-boundary-payout-a-feature-owes` | 2 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `temporary-hit-points-a-feature-grants` | 2 | 0 |
-| `a-choice-made-at-the-casting` | 1 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
 | `a-rule-the-engine-fixes-for-everybody` | 1 | 0 |
 | `a-second-place-to-put-a-creature` | 1 | 0 |
@@ -622,7 +621,6 @@ be the second spelling of one derivation.
 | `an-effect-that-ends-when-its-target-is-hurt` | 1 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 1 | 0 |
 | `forced-movement-a-spell-causes` | 1 | 0 |
-| `senses-beyond-declared-sight` | 1 | 0 |
 
 A feature can need more than one shape, so neither column sums to the
 size of the population.
@@ -1069,26 +1067,26 @@ never added.
 
 | Level | Held | Executed | In reach | Tracked | Executed |
 |---|---|---|---|---|---|
-| 1 | 32 | 31 | 211 | 74 | 137 |
-| 2 | 53 | 52 | 211 | 74 | 137 |
-| 3 | 91 | 90 | 345 | 115 | 227 |
-| 4 | 104 | 103 | 345 | 115 | 227 |
-| 5 | 120 | 119 | 481 | 170 | 305 |
-| 6 | 132 | 126 | 481 | 170 | 305 |
-| 7 | 144 | 132 | 562 | 213 | 343 |
-| 8 | 156 | 144 | 562 | 213 | 343 |
-| 9 | 165 | 148 | 668 | 286 | 374 |
-| 10 | 176 | 152 | 668 | 286 | 374 |
-| 11 | 183 | 154 | 727 | 322 | 395 |
-| 12 | 195 | 166 | 727 | 322 | 395 |
-| 13 | 200 | 167 | 784 | 368 | 406 |
-| 14 | 211 | 173 | 784 | 368 | 406 |
-| 15 | 218 | 176 | 821 | 389 | 421 |
-| 16 | 230 | 188 | 821 | 389 | 421 |
-| 17 | 235 | 188 | 859 | 424 | 422 |
-| 18 | 245 | 190 | 859 | 424 | 422 |
-| 19 | 257 | 202 | 859 | 424 | 422 |
-| 20 | 269 | 206 | 859 | 424 | 422 |
+| 1 | 32 | 32 | 211 | 74 | 137 |
+| 2 | 53 | 53 | 211 | 74 | 137 |
+| 3 | 91 | 91 | 345 | 115 | 227 |
+| 4 | 104 | 104 | 345 | 115 | 227 |
+| 5 | 120 | 120 | 481 | 170 | 305 |
+| 6 | 132 | 127 | 481 | 170 | 305 |
+| 7 | 144 | 133 | 562 | 213 | 343 |
+| 8 | 156 | 145 | 562 | 213 | 343 |
+| 9 | 165 | 149 | 668 | 286 | 374 |
+| 10 | 176 | 153 | 668 | 286 | 374 |
+| 11 | 183 | 155 | 727 | 322 | 395 |
+| 12 | 195 | 167 | 727 | 322 | 395 |
+| 13 | 200 | 168 | 784 | 368 | 406 |
+| 14 | 211 | 174 | 784 | 368 | 406 |
+| 15 | 218 | 177 | 821 | 389 | 421 |
+| 16 | 230 | 189 | 821 | 389 | 421 |
+| 17 | 235 | 189 | 859 | 424 | 422 |
+| 18 | 245 | 191 | 859 | 424 | 422 |
+| 19 | 257 | 203 | 859 | 424 | 422 |
+| 20 | 269 | 207 | 859 | 424 | 422 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1127,7 +1125,7 @@ which the table will.
 | Ranger (Hunter) | 3/3 | 5/5 | 8/8 | 9/9 | 10/10 | 11/11 | 11/12 | 12/13 | 13/14 | 13/15 | 13/16 | 14/17 | 14/18 | 14/19 | 14/20 | 15/21 | 15/22 | 16/23 | 17/24 | 18/25 |
 | Rogue (Thief) | 4/4 | 5/5 | 9/9 | 10/10 | 12/12 | 13/13 | 14/15 | 15/16 | 15/17 | 16/18 | 16/19 | 17/20 | 17/21 | 17/22 | 18/23 | 19/24 | 19/25 | 19/26 | 20/27 | 20/28 |
 | Sorcerer (Draconic Sorcery) | 2/2 | 4/4 | 7/7 | 8/8 | 9/9 | 10/10 | 10/11 | 11/12 | 11/12 | 11/12 | 11/12 | 12/13 | 12/13 | 12/14 | 12/14 | 13/15 | 13/15 | 13/16 | 14/17 | 14/18 |
-| Warlock (Fiend Patron) | 1/2 | 2/3 | 5/6 | 6/7 | 6/7 | 7/8 | 7/8 | 8/9 | 8/10 | 8/11 | 8/12 | 9/13 | 9/13 | 9/14 | 9/14 | 10/15 | 10/15 | 10/15 | 11/16 | 11/17 |
+| Warlock (Fiend Patron) | 2/2 | 3/3 | 6/6 | 7/7 | 7/7 | 8/8 | 8/8 | 9/9 | 9/10 | 9/11 | 9/12 | 10/13 | 10/13 | 10/14 | 10/14 | 11/15 | 11/15 | 11/15 | 12/16 | 12/17 |
 | Wizard (Evoker) | 3/3 | 4/4 | 7/7 | 8/8 | 9/9 | 9/10 | 9/10 | 10/11 | 10/11 | 11/12 | 11/12 | 12/13 | 12/13 | 13/14 | 13/14 | 14/15 | 14/15 | 14/16 | 15/17 | 15/18 |
 
 ### Spells in reach, by path
