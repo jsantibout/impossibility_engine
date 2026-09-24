@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { asCharacterId, SKILL_ABILITY } from '@ie/shared';
 import { checkContent } from './content.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { standingSpellSaveDcBonus } from './standing.js';
+import { standingSpellSaveDcBonus, type StandingGrant } from './standing.js';
 import {
   rollSelectorProblems,
   selectorMatches,
@@ -168,7 +168,7 @@ describe('what a selector may not say', () => {
  * casting was made through, and the three answers that are not one.
  */
 describe('what a spell-save-dc-bonus adds, and to whose casting', () => {
-  const holding = (grant: Record<string, unknown>): GameState =>
+  const holding = (grant: StandingGrant): GameState =>
     fold('seed', [
       {
         type: 'creature-added',
