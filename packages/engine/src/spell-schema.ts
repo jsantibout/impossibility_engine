@@ -5766,33 +5766,17 @@ export function checkSpellDefinition(
   // Instantaneous casting of it would keep the body for no time at all — the
   // reachability rule `cap_without_a_casting` states one field along, arriving
   // at the one effect kind whose whole content is how long it has been there.
-  const marksABody = (list: readonly unknown[] | undefined): boolean =>
-    (list ?? []).some(
+  if (
+    definition.effects.some(
       (effect) => (effect as { readonly kind?: unknown })?.kind === 'preserves',
-    );
-
-  if (marksABody(definition.effects) && !castingPersists(definition)) {
+    ) &&
+    !castingPersists(definition)
+  ) {
     found.push({
       field: 'effects',
       code: 'preserves_without_a_casting',
       reason:
         'an Instantaneous casting leaves no record, so a body it kept would be kept for no span at all',
-    });
-  }
-
-  // **And it may not sit inside a printed branch.** The moment the keeping
-  // began is pinned onto the ongoing record from the definition's own list,
-  // because the record is written once for the whole casting and a branch is
-  // chosen per casting; a mark inside a branch would run its no-op resolver,
-  // pin nothing, and be a sentence that validates and does nothing. No SRD
-  // spell prints one, so this is refused rather than plumbed.
-  for (const [label, branch] of Object.entries(definition.options ?? {})) {
-    if (!marksABody(branch?.effects)) continue;
-    found.push({
-      field: `options.${label}.effects`,
-      code: 'preserves_in_a_branch',
-      reason:
-        'a body a casting keeps is pinned onto the casting\u2019s own record from the definition\u2019s effect list; a mark inside a branch would resolve to nothing',
     });
   }
 
@@ -6483,6 +6467,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkAltitudePlacement(entry.kind, where, at, found);
       checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
+      checkPreservesPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
       checkBranchPlacement(entry.kind, where, at, found);
       checkNoNestedEffect(effect, at, found);
@@ -7769,6 +7754,34 @@ function checkChancePlacement(
  * change deliberately does not widen by guarding one kind in two places and
  * its neighbour in one.
  */
+/**
+ * Where SRD Gentle Repose's mark on a body may be written.
+ *
+ * **In the casting's own effect list and nowhere else**, which is
+ * {@link checkSummonPlacement}'s rule for {@link checkSummonPlacement}'s
+ * reason: what the mark does is written onto the casting's own ongoing record
+ * — `preserving`, the moment the keeping began — and that record is built once
+ * for the whole casting from `SpellDefinition.effects`. A branch is chosen per
+ * casting and read at resolution, so a mark inside one would run its own no-op
+ * resolver, pin nothing and change no answer anywhere; an area trigger's list
+ * and an activation's are a minute later still. No SRD spell prints such a
+ * sentence in a branch, so it is refused at authoring rather than plumbed.
+ */
+function checkPreservesPlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'preserves' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'preserves_outside_the_casting',
+    reason:
+      'a body a casting keeps is pinned onto the casting\u2019s own record, which only the casting\u2019s own effect list is resolved in time to write',
+  });
+}
+
 function checkSummonPlacement(
   kind: unknown,
   where: string,
