@@ -104,7 +104,7 @@ export const MISSING_SHAPES = {
   'a-repeat-save-counted-to-a-tally':
     'a repeat save carrying a running count of successes and failures — the death-save shape rather than the repeat-save one, and CLAUDE.md records that `rollDeathSave` is its own thing for exactly that reason. `RepeatSave` holds no tally. The second of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-repeat-save-that-does-something-on-a-failure':
-    'a repeat save whose **failure** branch acts. `RepeatSave.onSuccess` releases an effect and the failure does nothing at all, so a boundary save that deals damage or deepens a condition has nowhere to put it. The audit names the damage half — "damage on a failure (Phantasmal Killer, Weird)" — as the third of the four mechanisms bundled under `a-repeat-save-beyond-the-turn-hook`; PROGRESS.md names it for Ensnaring Strike.',
+    'a repeat save whose **failure** branch acts. `RepeatSave.onSuccess` released an effect and the failure did nothing at all, so a boundary save that deals damage or deepens a condition had nowhere to put it. **Two of the three arms are built now.** `RepeatSave.onFailure` is the deepening — SRD Sleep’s second save applies the Unconscious under the same source and ends the timer with it, which is what finished that spell. And `RepeatSave.beforeTheSave` is the damage a boundary deals **before** the die: SRD Searing Smite’s "the target takes 1d6 Fire damage and then makes a Constitution saving throw", collected through `dealSpellDamage` so defences, Concentration and the log’s dice all apply, on a repeat the **casting** hosts rather than a condition — which is what finished that one. What is left is damage keyed to the *failure itself* — "damage on a failure (Phantasmal Killer, Weird)", the third of the four mechanisms the audit bundled under `a-repeat-save-beyond-the-turn-hook` — and any of it on a repeat raised from a condition rider, where the payout would have to travel with the condition rather than with the casting. PROGRESS.md names the id for Ensnaring Strike.',
   'a-repeat-save-raised-by-a-trigger':
     'a repeat save raised by something that happened — taking damage, having moved, coming within a distance, another effect trying to cure it. The turn hook is the only thing that raises one, which `docs/design/time-and-turns.md` states outright: "Raising is derived; rolling is commanded ... `turn-advanced` *raises* the saves the boundary owes". The fourth of the four mechanisms the audit found bundled under `a-repeat-save-beyond-the-turn-hook`.',
   'a-casting-ended-by-a-trigger':
@@ -1143,18 +1143,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'costs no Attack action',
       why: 'table',
       note: 'SRD ends this spell "if the warded creature makes an attack roll", and an attack roll changes no state by rule — `roll-recorded` is an audit line — so the ending hangs on the swing that spends something or on the blow that lands. An Opportunity Attack that misses, or any swing outside combat, leaves the ward standing where the book would end it.',
-    },
-  ],
-  'searing-smite': [
-    {
-      clause: 'a repeat save whose failure branch acts',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the burning deals 1d6 Fire damage at the start of each of the target’s turns and then asks for a Constitution save. `RepeatSave.onSuccess` releases an effect and the failure branch does nothing at all, which is the wrong way round for every sentence of this paragraph.',
-    },
-    {
-      clause: 'the spell continuing on a failed save, and ending on a successful one',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the two branches the save chooses between, and the second is the one the existing mechanism could express. Recorded separately because the damage above it is the half that has no branch to sit in, and a single entry would have hidden which of the two is missing.',
     },
   ],
   shield: [

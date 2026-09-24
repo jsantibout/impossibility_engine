@@ -35,6 +35,7 @@ import type {
   SpellCheck,
   SpellDefinition,
   SpellEffect,
+  SpellRepeatSave,
   SpentBudget,
   StatedChoiceOf,
   SummonedNumber,
@@ -967,6 +968,88 @@ function checkSpeedMode(
  * goes for the check, which `save` writes at `effects[0].check` and every
  * other carrier at `effects[0].condition.check`.
  */
+/**
+ * A repeat save the **casting** hosts, rather than a condition.
+ *
+ * SRD Searing Smite: "At the start of each of its turns until the spell ends,
+ * the target takes 1d6 Fire damage and then makes a Constitution saving throw.
+ * On a failed save, the spell continues. On a successful save, the spell
+ * ends." The spell imposes no condition, so there is no instance for the
+ * repeat to be filed on and the hook rides on the casting's own deadline —
+ * which decides every rule below.
+ *
+ * - **The ability is required**, because the host rolled no save for this one
+ *   to repeat. It is the one place the book prints it, and it is refused on
+ *   every rider whose host *did* roll one: see {@link SpellRepeatSave.ability}.
+ * - **A success ends the casting**, because there is nothing else it could
+ *   end. `end-on-target` releases what a casting hung on one creature, and
+ *   this casting has hung nothing.
+ * - **A failure deepens nothing**, for the same reason: `onFailure` applies a
+ *   condition "under the same source" as the one it replaces, and there is no
+ *   first condition here. SRD writes "on a failed save, the spell continues",
+ *   which is what a repeat with no failure branch already does.
+ * - **And the damage it deals before the die** is an amount like any other.
+ */
+function checkCastingRepeat(
+  repeats: SpellRepeatSave | undefined,
+  level: number,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (repeats === undefined) return;
+  if (!readsAsObject(repeats, path, 'a repeat save is an object naming when it fires', found)) {
+    return;
+  }
+
+  if (!TURN_MOMENT_NAMES.has(repeats.at as unknown as string)) {
+    found.push({
+      field: `${path}.at`,
+      code: 'bad_moment',
+      reason: `"${String(repeats.at)}" is not a moment in a turn`,
+    });
+  }
+
+  if (repeats.ability === undefined || !ABILITY_NAMES_SET.has(repeats.ability)) {
+    found.push({
+      field: `${path}.ability`,
+      code: 'repeat_without_an_ability',
+      reason: `"${String(repeats.ability)}" is not an ability, and a repeat on an effect that rolled no save of its own has none to repeat — the book prints this one`,
+    });
+  }
+
+  if (repeats.onSuccess !== 'end-casting') {
+    found.push({
+      field: `${path}.onSuccess`,
+      code: 'casting_repeat_ends_the_casting',
+      reason:
+        'a repeat save hosted by the casting has nothing on a target to release, so a success ends the casting; "end-on-target" would find nothing',
+    });
+  }
+
+  if (repeats.onFailure !== undefined) {
+    found.push({
+      field: `${path}.onFailure`,
+      code: 'deepening_without_a_condition',
+      reason:
+        'a failure deepens the condition the first save imposed, and an effect that imposes none has nothing to deepen; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
+    });
+  }
+
+  const burns = repeats.beforeTheSave;
+  if (
+    burns !== undefined &&
+    readsAsObject(
+      burns,
+      `${path}.beforeTheSave`,
+      'damage dealt before the save is an object naming its dice and their type',
+      found,
+    )
+  ) {
+    checkScaling(burns.damage, level, `${path}.beforeTheSave.damage`, found);
+    checkDamageType(burns.damageType, `${path}.beforeTheSave.damageType`, found);
+  }
+}
+
 function checkConditionRider(
   rider: ConditionRider | undefined,
   namePath: string,
@@ -996,6 +1079,34 @@ function checkConditionRider(
       field: `${riderPath}.repeats`,
       code: 'repeats_without_save',
       reason: `a repeat save repeats the one its host rolled, and a "${host.kind}" effect rolls none`,
+    });
+  }
+
+  // **And a rider's repeat names neither an ability nor damage**, which are
+  // the two fields the *casting*-hosted repeat one kind away carries and this
+  // one may not.
+  //
+  // The ability, because SRD writes "the target repeats **the** save" — the
+  // one the host already rolled — so a second one here would be a second
+  // answer to one sentence, which is the argument `SpellRepeatSave` makes in
+  // the field itself. The damage, because a rider's repeat is raised from the
+  // condition instance and the payout is collected from the *casting*'s own
+  // hook: nothing carries it across, so a definition writing one here would be
+  // promising damage no boundary would ever deal.
+  if (rider?.repeats?.ability !== undefined) {
+    found.push({
+      field: `${riderPath}.repeats.ability`,
+      code: 'repeat_states_an_ability',
+      reason:
+        'SRD writes "the target repeats the save" — the one this effect already rolled — so a repeat on a rider names no ability of its own',
+    });
+  }
+  if (rider?.repeats?.beforeTheSave !== undefined) {
+    found.push({
+      field: `${riderPath}.repeats.beforeTheSave`,
+      code: 'repeat_deals_no_damage',
+      reason:
+        'damage before a repeat save is collected from the casting’s own hook, and a rider’s repeat is raised from the condition it landed on; written here it would be dealt by nothing',
     });
   }
 
@@ -2062,6 +2173,7 @@ function checkEffect(
     case 'attack-damage':
       checkScaling(effect.damage, level, `${path}.damage`, found);
       checkDamageType(effect.damageType, `${path}.damageType`, found);
+      checkCastingRepeat(effect.repeats, level, `${path}.repeats`, found);
       // SRD Divine Smite: "The damage increases by 1d8 if the target is a
       // Fiend or an Undead." A bare notation rather than a `DiceScaling`, so
       // `checkScaling`'s cantrip and slot rules have nothing to say about it —
@@ -4294,6 +4406,7 @@ export function checkSpellDefinition(
   checkKeptBesideADuration(definition, found);
   checkChanceTargets(definition, found);
   checkWeaponAttack(definition, found);
+  checkCastingRepeatLifetime(definition, found);
 
   const activation = definition.activation;
   if (
@@ -5227,6 +5340,38 @@ function checkWeaponAttack(
         'the swing is resolved by the attack command and `resolveSpell` refuses the definition, so anything written beside it is an effect nothing would ever run',
     });
   }
+}
+
+/**
+ * A casting-hosted repeat save needs a casting that lasts.
+ *
+ * The hook rides on the casting's own deadline — that is what "hosted by the
+ * casting" means — so an Instantaneous smite carrying one would hang it on
+ * nothing: no timer, no boundary, and a paragraph of the spell that silently
+ * never happens. SRD Searing Smite prints "Duration: 1 minute", which is
+ * exactly the field this asks for.
+ *
+ * **A span, and not a moment in the turn order.** `durationUntil` is a rider's
+ * kind of deadline and the casting a hit makes takes its own from
+ * `durationSecondsAt`, so a definition writing the other one would be writing
+ * a duration the command that casts it cannot read.
+ */
+function checkCastingRepeatLifetime(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  const hosted = definition.effects.some(
+    (effect) => effect.kind === 'attack-damage' && effect.repeats !== undefined,
+  );
+  if (!hosted) return;
+  if (definition.durationSeconds !== undefined || definition.durationAtSlot !== undefined) return;
+
+  found.push({
+    field: 'durationSeconds',
+    code: 'casting_repeat_without_a_duration',
+    reason:
+      'a repeat save hosted by the casting rides on the casting’s own deadline, and a spell that prints no span in seconds has none for it to ride on',
+  });
 }
 
 /**

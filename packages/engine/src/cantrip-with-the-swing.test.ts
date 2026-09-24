@@ -157,6 +157,10 @@ const swing = (log: readonly GameEvent[], command: Partial<Swing> = {}, d20 = 15
     supply(d20),
   );
 
+/** The same swing with no casting in it, which is the control. */
+const bare = (log: readonly GameEvent[], d20 = 15) =>
+  resolveAttack(fold('seed', log), CASTER, { target: DUMMY, weapon: 'mace' }, supply(d20));
+
 const state = (log: readonly GameEvent[]): GameState => fold('seed', log);
 
 const typesOf = (events: readonly GameEvent[]): readonly string[] => {
@@ -194,7 +198,7 @@ describe('the definition says what the swing is made of', () => {
  */
 describe('the unaided Mace', () => {
   it('rolls its own d6 and subtracts the caster’s Strength', () => {
-    const hit = must(swing(table(), { cantrip: undefined }));
+    const hit = must(bare(table()));
     expect(hit.attack?.ability).toBe('str');
     expect(hit.damage).toBe(6 - 1);
   });
@@ -216,7 +220,7 @@ describe('True Strike is cast with the swing it makes', () => {
   it('puts the substituted modifier on the attack roll', () => {
     const rolled = must(swing(table())).attack!;
     expect(rolled.roll.modifier).toBe(4 + 3);
-    expect(must(swing(table(), { cantrip: undefined })).attack!.roll.modifier).toBe(-1 + 3);
+    expect(must(bare(table())).attack!.roll.modifier).toBe(-1 + 3);
   });
 
   it('casts the spell before it swings', () => {

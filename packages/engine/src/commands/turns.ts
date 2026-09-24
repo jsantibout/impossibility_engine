@@ -30,6 +30,7 @@ import { type CheckContext } from '../conditions.js';
 import { isDue, timeView, type TurnMoment } from '../time.js';
 import {
   mayAttempt,
+  pendingSaveKey,
   type GrantedPayout,
   type PendingSave,
   type ScheduledDamage,
@@ -1053,6 +1054,75 @@ function deepenedBy(state: GameState, pending: PendingSave): readonly GameEvent[
 }
 
 /**
+ * The damage a boundary deals **before** it rolls the save it owes.
+ *
+ * SRD Searing Smite: "the target takes 1d6 Fire damage **and then** makes a
+ * Constitution saving throw." The order is the rule and not a courtesy — the
+ * fire lands whether or not the save is made, so a spell that ends on this
+ * turn's success still burns on the turn it ends.
+ *
+ * **Through `dealSpellDamage`, which is the whole point of doing it here**: the
+ * target's Resistance and Immunity, the Temporary Hit Points it eats through,
+ * the Concentration it puts at risk and its dropping to 0 all behave exactly
+ * as they do for a Fire Bolt, because it is the same funnel. The notation is
+ * the one the casting pinned, so no catalogue is opened at the boundary, and
+ * the dice are thrown now rather than at the cast — the rule
+ * {@link ScheduledDamage} and {@link GrantedPayout} both keep.
+ *
+ * Read off the **timer** rather than carried on the debt, which is the rule
+ * `conditionEndedBy` and `deepenedBy` already follow: a {@link PendingSave}
+ * says what is owed, and what the effect is owes it.
+ *
+ * Nothing at all for every repeat save that deals none, which is every one the
+ * engine raised before this.
+ */
+function burnBeforeTheSave(
+  state: GameState,
+  pending: PendingSave,
+  supply: Supply,
+): Result<readonly GameEvent[]> {
+  const payout = state.timers[pending.effectKey]?.repeatSave?.beforeTheSave;
+  if (payout === undefined) return ok([]);
+
+  const victim = state.creatures[pending.target];
+  // Gone from the game between the boundary and the roll. The save above is
+  // refused for the same absence; this simply has nobody to burn.
+  if (victim === undefined || victim.vitals.dead) return ok([]);
+
+  const label = spellOfSource(pending.source);
+  // The recipient's own sheet, for the reason a scheduled hit takes one: the
+  // components kept are the ones whose source is the spell, so the sheet
+  // contributes nothing and the roll cannot fail for want of a caster who may
+  // be dead by now.
+  const rolled =
+    payout.dice === undefined
+      ? ok([] as readonly DamageComponent[])
+      : rollSpellDice(supply, victim.sheet, label, payout.damageType, payout.dice);
+  if (!rolled.ok) return rolled;
+
+  const flat = payout.flat ?? 0;
+  const components: readonly DamageComponent[] =
+    flat === 0
+      ? rolled.value
+      : [
+          ...rolled.value,
+          { source: label, type: payout.damageType, roll: null, flat, total: flat },
+        ];
+  if (components.length === 0) return ok([]);
+
+  // The caster is named so the hit can be answered and attributed, and is
+  // omitted rather than guessed at when the casting has outlived them — the
+  // reading `settleTurnPayouts` takes of the same question.
+  const castingId = castingIdOf(pending.source);
+  const by = castingId === null ? undefined : state.ongoing[castingId]?.caster;
+  const hurt = dealSpellDamage(state, pending.target, components, label, supply, {
+    ...(by === undefined ? {} : { by: by as CharacterId }),
+  });
+  if (!hurt.ok) return hurt;
+  return ok(hurt.value.events);
+}
+
+/**
  * Roll the turn-boundary saves a state already owes.
  *
  * The deferred half of {@link resolveTurn}: a caller who advanced without a
@@ -1083,11 +1153,34 @@ export function resolvePendingSaves(
     const events: GameEvent[] = [];
     const saves: ResolvedRepeatSave[] = [];
     const issuedBefore = supply.issuer.count;
+    // **The world a payout leaves behind, and nothing else's.** Every save
+    // below is still weighed against the state the boundary raised it in —
+    // which is what every save this command ever rolled was weighed against —
+    // and the one thing that can move between them is damage dealt by this
+    // same loop. So this is threaded through the payouts and read by them, and
+    // a boundary that owes no damage is byte-for-byte the command it was.
+    let burnt = state;
 
     for (const pending of owed) {
       const creature = state.creatures[pending.target];
       if (creature === undefined) {
         return unknownCreature(pending.target, 'owes a save but is not in this game');
+      }
+
+      // **The damage first, where the sentence deals some**, and then the die.
+      // SRD Searing Smite prints the order and the order is the rule.
+      const burning = burnBeforeTheSave(burnt, pending, supply);
+      if (!burning.ok) return burning;
+      events.push(...burning.value);
+      burnt = burning.value.reduce(applyEvent, burnt);
+
+      // And what the fire left: a casting the damage ended — its caster's
+      // Concentration broken by a hit it dealt them — has taken its timer with
+      // it, and `dropOrphanedSaves` has already dropped this debt. Rolling
+      // against it would write an `effect-save-resolved` for a save nothing is
+      // pending, which is a log the fold refuses.
+      if (burnt.pendingSaves[pendingSaveKey(pending.effectKey, pending.turn)] === undefined) {
+        continue;
       }
 
       // **"Avoid or end", and this is the ending.** SRD Dwarven Resilience

@@ -285,6 +285,15 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // three creatures, an all-miss casting that still throws every ray, and a
   // byte-identical replay from the seed.
   'scorching-ray',
+  // Driven end to end by `burning-smite.test.ts` (engine): settled onto a held
+  // greatsword hit, the extra die measured against the same swing without it,
+  // the casting it leaves running and its minute, and then the burning — the
+  // fire dealt at the start of the target's turns and the Constitution save
+  // after it, a seeded failure keeping it alight for another turn, a seeded
+  // success ending the casting and the burning with it, and a level 2 slot
+  // paying double each time. Divine Smite beside it is asserted to leave no
+  // record at all.
+  'searing-smite',
   'shatter',
   // Driven end to end by `executed-second-pass.test.ts`: refused by the
   // ordinary casting command, then settled onto a held greatsword hit, with
@@ -335,6 +344,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'stoneskin',
   'sunburst',
   'thunderwave',
+  // Driven end to end by `cantrip-with-the-swing.test.ts` (engine): the cantrip
+  // named on the attack command, the Action spent as the casting's and no
+  // Attack action taken, `spell-cast` ahead of the roll, both rolls made with
+  // the caster's spellcasting ability, the Radiant die added at level 5 and
+  // not at 4, the type choice landing in place of the weapon's own, and
+  // nothing granted or left standing afterwards.
+  'true-strike',
   'vampiric-touch',
   'vicious-mockery',
   'vitriolic-sphere',

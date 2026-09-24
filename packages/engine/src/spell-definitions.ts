@@ -444,6 +444,53 @@ export interface SpellRepeatSave {
   /** Which boundary it fires on, on the turns of whoever it landed on. */
   readonly at: TurnMoment;
   /**
+   * The ability the repeat is made with, **where the host rolled no save of
+   * its own**.
+   *
+   * The paragraph above says the ability is deliberately absent, and it is —
+   * for every host that rolls a save, because SRD writes "the target repeats
+   * **the** save" and a definition naming a second one would be a second place
+   * for one sentence to be got wrong. The exception is the host that rolls no
+   * save at all: SRD Searing Smite hangs its repeat on a **hit**, and "then
+   * makes a Constitution saving throw" is the only place that ability is
+   * printed.
+   *
+   * So it is required exactly where the host has none to repeat and refused
+   * exactly where it has — `checkEffect` keeps both halves, which is what
+   * stops this becoming the second answer the paragraph above warns about.
+   *
+   * The DC is still nobody's to write: it is the caster's own spell save DC,
+   * pinned onto the timer at the casting like every other number a casting
+   * leaves behind.
+   */
+  readonly ability?: Ability;
+  /**
+   * Damage the target takes **before** the save is rolled, where the sentence
+   * deals some.
+   *
+   * SRD Searing Smite: "the target takes 1d6 Fire damage **and then** makes a
+   * Constitution saving throw." One sentence, in that order, and the order is
+   * the rule: the fire is dealt whether or not the save is made, so a spell
+   * that ends on a success still burns on the turn it ends.
+   *
+   * **Its own amount, scaled like the hit's.** "All the damage increases by
+   * 1d6 for each spell slot level above 1" is one sentence about both, and
+   * they are still two amounts: a spell that grew one and not the other is a
+   * sentence the book could print tomorrow, and a shared field could not say
+   * it. What the casting pins is this amount at the slot it was cast with, so
+   * the boundary reads a notation rather than a catalogue.
+   *
+   * **Only on a host with no condition of its own**, which is the same fork
+   * {@link ability} takes: the payout is dealt to the creature whose boundary
+   * raised the save, and a condition rider's repeat is raised from the
+   * condition rather than from the casting. `checkConditionRider` refuses one
+   * there rather than letting a definition promise damage nothing collects.
+   */
+  readonly beforeTheSave?: {
+    readonly damage: DiceScaling;
+    readonly damageType: string;
+  };
+  /**
    * What a success does — see `RepeatSave.onSuccess`, which is where the
    * difference between ending the casting and ending it on one target is
    * argued and where the three doors that refuse the first are named.
@@ -1497,6 +1544,31 @@ export type SpellEffect =
        * d20 of its own — the attack it joins has already hit.
        */
       readonly againstType?: TypedExtraDamage;
+      /**
+       * A save the **casting** retakes at a turn boundary, for as long as it
+       * runs.
+       *
+       * SRD Searing Smite: "At the start of each of its turns until the spell
+       * ends, the target takes 1d6 Fire damage and then makes a Constitution
+       * saving throw. On a failed save, the spell continues. On a successful
+       * save, the spell ends."
+       *
+       * **Hosted by the casting rather than by a condition**, which is what
+       * makes this the one place a `repeats` sits directly on an effect. Every
+       * other repeat in the book is filed on the condition instance a failed
+       * save created, and this spell imposes no condition at all: what the
+       * boundary is asking about is whether the *spell* is still burning, so
+       * the hook rides on the casting's own timer and a success ends the
+       * casting. `onSuccess: 'end-on-target'` would have nothing to release,
+       * and `onFailure` would have no condition to deepen; the validator
+       * refuses both here rather than letting a definition promise either.
+       *
+       * **It presupposes a duration**, for the reason a grant does: the timer
+       * that carries the hook is the casting's own deadline, and an
+       * Instantaneous casting has none — so the repeat would be raised by
+       * nothing, for ever.
+       */
+      readonly repeats?: SpellRepeatSave;
     }
   /**
    * A condition the spell simply imposes, with **no saving throw**.

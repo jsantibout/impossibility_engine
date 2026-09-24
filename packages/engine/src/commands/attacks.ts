@@ -78,6 +78,7 @@ import {
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
 import {
+  durationSecondsAt,
   isCreatureType,
   scaledDiceFor,
   scaledFlatFor,
@@ -85,6 +86,9 @@ import {
   type SpellDefinition,
   type SpellEffect,
 } from '../spell-definitions.js';
+import type { RepeatSave } from '../timers.js';
+import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
+import { schedule } from './conditions.js';
 import {
   actionRulesOn,
   addsAbilityToLightExtraAttack,
@@ -118,7 +122,7 @@ import {
   resolveCastWith,
 } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
-import { routeLabel } from './item-casting.js';
+import { numbersFor, routeLabel } from './item-casting.js';
 import { remaining } from '../resources.js';
 import type { CastingRoute } from '../spellcasting.js';
 import { landDamage, statedFrom } from './damage.js';
@@ -3004,6 +3008,129 @@ export function resolveAttackDamage(
 }
 
 /**
+ * What a smite with a **duration** leaves running behind the blow.
+ *
+ * SRD Searing Smite prints "Duration: 1 minute" and a minute of burning; SRD
+ * Divine Smite prints "Instantaneous" and nothing at all. So this is two
+ * events where the spell prints a span and none where it does not, and the
+ * second half is as load-bearing as the first: a record for an Instantaneous
+ * casting would be a spell with nothing able to end it.
+ *
+ * - **The record**, so Dispel Magic can find the spell and `look` can report
+ *   it. Everything on it is pinned at the cast, which is rule 5: the level,
+ *   the caster's numbers, and the creature it is on.
+ * - **The deadline**, which is the minute — and which carries the repeat save
+ *   where the effect prints one. The save's DC and ability are pinned here
+ *   too, and so is the amount it burns for, scaled at the slot that paid:
+ *   the boundary that collects it opens no catalogue.
+ *
+ * The ability on a casting-hosted repeat is the definition's own, which is the
+ * one place the SRD prints it — the host rolled no save for this one to
+ * repeat. See {@link SpellRepeatSave.ability}.
+ */
+function keptRunning(
+  state: GameState,
+  id: CharacterId,
+  casting: {
+    readonly definition: SpellDefinition;
+    readonly effect: Extract<SpellEffect, { kind: 'attack-damage' }>;
+    readonly route: CastingRoute;
+    readonly target: CharacterId;
+    readonly castLevel: number;
+    readonly lasts: number | undefined;
+    readonly events: readonly GameEvent[];
+  },
+): Result<readonly GameEvent[]> {
+  const { definition, effect, castLevel, lasts } = casting;
+  if (lasts === undefined) return ok([]);
+
+  // The id the casting beneath has just allocated, read off the event that
+  // allocated it rather than counted again here: two derivations of one number
+  // is how a record comes to name a casting nobody made.
+  const cast = casting.events.find((event) => event.type === 'spell-cast');
+  if (cast?.type !== 'spell-cast') {
+    return err(
+      'no_casting',
+      `${definition.name} lasts ${lasts} seconds and the casting wrote nothing for it to hang on`,
+    );
+  }
+  const castingId = cast.castingId;
+
+  // The sheet as it stands, for the reason the damage roll re-reads it: a save
+  // DC is derived from the caster's numbers and an item that sets the ability
+  // those come from is worn or it is not at the moment the spell is cast.
+  const sheet = sheetAsItStands(state, id) ?? state.creatures[id]?.sheet;
+  if (sheet === undefined) return unknownCreature(id);
+
+  const repeats = effect.repeats;
+  const numbers = numbersFor(state, id, sheet, casting.route);
+
+  // What the boundary burns for, at the slot this casting paid — the same two
+  // readers the hit's own amount goes through, so "all the damage increases by
+  // 1d6 for each spell slot level above 1" is one arithmetic read twice rather
+  // than two arithmetics.
+  const burns = repeats?.beforeTheSave;
+  const burntDice =
+    burns === undefined
+      ? undefined
+      : scaledDiceFor(burns.damage, definition.level, sheet.level, castLevel);
+  const burntFlat =
+    burns === undefined ? 0 : scaledFlatFor(burns.damage, definition.level, castLevel);
+  const payout =
+    burns === undefined
+      ? undefined
+      : {
+          ...(burntDice === undefined ? {} : { dice: burntDice }),
+          ...(burntFlat === 0 ? {} : { flat: burntFlat }),
+          damageType: burns.damageType,
+        };
+
+  const hook: RepeatSave | undefined =
+    repeats === undefined || repeats.ability === undefined
+      ? undefined
+      : {
+          at: repeats.at,
+          // The creature the blow landed on: the SRD sentence names it twice,
+          // as the one whose turns the save falls on and as the one who rolls.
+          of: casting.target,
+          ability: repeats.ability,
+          dc: numbers.saveDc,
+          onSuccess: repeats.onSuccess,
+          ...(repeats.onFailure === undefined ? {} : { onFailure: repeats.onFailure }),
+          ...(payout === undefined ? {} : { beforeTheSave: payout }),
+          label: `${definition.name} (${repeats.ability.toUpperCase()} save)`,
+        };
+
+  const timer = schedule(
+    state,
+    { kind: 'casting', castingId },
+    { kind: 'seconds', seconds: lasts },
+    hook,
+  );
+  if (!timer.ok) return timer;
+
+  return ok([
+    {
+      type: 'spell-ongoing',
+      casting: {
+        version: ONGOING_RECORD_VERSION,
+        castingId,
+        caster: id,
+        spellId: definition.id,
+        spell: definition.name,
+        level: castLevel,
+        numbers,
+        // The creature the spell is on, which is the one the blow landed on.
+        // A world fact cannot say it — nothing the casting hung is standing on
+        // them — so it is written down, which is what `aimed` is for.
+        aimed: [casting.target],
+      },
+    },
+    timer.value,
+  ]);
+}
+
+/**
  * A spell cast in the window a hit opens, and what it adds to the blow.
  *
  * SRD Divine Smite is a level 1 Evocation spell with a Bonus Action casting
@@ -3113,6 +3240,15 @@ function castOnHit(
   // would strand the held roll. The identity is the settlement's own, and this
   // command carries no id of its own, so nothing is lost by taking the half
   // beneath the wrapper.
+  // **What the spell leaves running, where it leaves anything.** SRD Divine
+  // Smite is Instantaneous and the damage is the whole of it; SRD Searing
+  // Smite prints a minute, and a minute is a casting that keeps going after
+  // the blow — a record Dispel Magic can find and a deadline to end it.
+  //
+  // The band the slot falls in rather than the printed number, through the one
+  // reader every other duration goes through.
+  const lasts = durationSecondsAt(definition, castLevel);
+
   const cast = resolveCastWith(state, id, {
     spell: definition.name,
     level: definition.level,
@@ -3146,12 +3282,30 @@ function castOnHit(
   );
   const flat = scaledFlatFor(effect.damage, definition.level, castLevel);
 
+  // **And what a spell with a duration leaves standing.** The record and the
+  // deadline are written here rather than by the casting beneath, because the
+  // hook the deadline carries is this effect's and the low-level half has
+  // never read a definition. One site writes the timer for that reason: a
+  // duration passed down would schedule the same key without the hook, and
+  // two writers of one timer is the second place to get it wrong.
+  const keeps = keptRunning(state, id, {
+    definition,
+    effect,
+    route,
+    target,
+    castLevel,
+    lasts,
+    events: cast.value,
+  });
+  if (!keeps.ok) return keeps;
+
   return ok({
     // The use, where the free casting is the price: inside the settlement's
     // own batch, after every refusal and before the dice, as a slot's is.
     events: [
       ...(freePool === null ? [] : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
       ...cast.value,
+      ...keeps.value,
     ],
     damage: [
       {

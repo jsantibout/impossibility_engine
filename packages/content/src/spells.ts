@@ -8575,9 +8575,15 @@ export const SANCTUARY: SpellDefinition = {
  *
  * Divine Smite's sibling, and the same `attack-damage` effect: the casting
  * time is a Bonus Action with the hit attached, so `resolveSpell` refuses it
- * and `resolveAttackDamage` settles it on the attack that triggered it. What
- * Divine Smite does not print is the minute of burning afterwards, and that
- * is a repeat save whose **failure** branch acts.
+ * and `resolveAttackDamage` settles it on the attack that triggered it.
+ *
+ * **What Divine Smite does not print is the minute afterwards**, and the
+ * minute is what made this spell two mechanisms rather than one. The blow is
+ * an ordinary `attack-damage`; the burning is a repeat save hosted by the
+ * *casting* — the spell imposes no condition, so there is nothing else for a
+ * boundary to hang one on — that deals its own damage before it is rolled and
+ * ends the casting on a success. Both halves scale with the slot, because the
+ * book scales them in one sentence.
  */
 export const SEARING_SMITE: SpellDefinition = {
   id: 'searing-smite',
@@ -8596,13 +8602,24 @@ export const SEARING_SMITE: SpellDefinition = {
       kind: 'attack-damage',
       damage: { dice: '1d6', perSlotLevelAbove: '1d6' },
       damageType: 'fire',
+      // "At the start of each of its turns until the spell ends, the target
+      // takes 1d6 Fire damage and then makes a Constitution saving throw. On a
+      // failed save, the spell continues. On a successful save, the spell
+      // ends." The ability is printed here because the hit rolled no save for
+      // this one to repeat; the DC is the caster's own and is pinned at the
+      // cast.
+      repeats: {
+        at: 'start-of-turn',
+        ability: 'con',
+        onSuccess: 'end-casting',
+        beforeTheSave: {
+          damage: { dice: '1d6', perSlotLevelAbove: '1d6' },
+          damageType: 'fire',
+        },
+      },
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'the burning is not run: "At the start of each of its turns until the spell ends, the target takes 1d6 Fire damage and then makes a Constitution saving throw" is a repeat save whose failure branch acts, and a repeat save releases an effect on a success and does nothing at all on a failure',
-    'so the two branches beneath it are not taken either: the spell continuing on a failed save, and ending on a successful one',
-  ],
 };
 
 /**

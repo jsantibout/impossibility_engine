@@ -198,6 +198,35 @@ export interface RepeatSave {
    * rolled it.
    */
   readonly onFailure?: { readonly condition: ConditionName };
+  /**
+   * Damage the creature takes **before** the die is thrown.
+   *
+   * SRD Searing Smite: "the target takes 1d6 Fire damage **and then** makes a
+   * Constitution saving throw." The order is the rule — the fire lands whether
+   * or not the save is made — and it is dealt through the same funnel every
+   * other spell's damage goes through, so Resistance, Temporary Hit Points,
+   * the Concentration it puts at risk and the log's own dice all behave as
+   * they always do.
+   *
+   * **A notation and not a total**, exactly as {@link ScheduledDamage.notation}
+   * and {@link GrantedPayout.dice} are: a payout that repeats throws a new die
+   * at each boundary, and rolling one at the cast would put the number in the
+   * log before the moment that produced it. What *is* pinned is the amount at
+   * the level the casting paid for — "all the damage increases by 1d6 for each
+   * spell slot level above 1" is read once, at the cast, so the boundary opens
+   * no catalogue.
+   *
+   * Absent for every repeat save in the book but one, which is every repeat
+   * save this engine raised before it: a boundary that owes a save owes
+   * nothing else.
+   */
+  readonly beforeTheSave?: {
+    /** Rolled when the boundary arrives, never before. Absent when none is printed. */
+    readonly dice?: string;
+    /** The printed number, where the sentence prints one. */
+    readonly flat?: number;
+    readonly damageType: string;
+  };
   /** How the roll reads in the log. */
   readonly label: string;
 }
