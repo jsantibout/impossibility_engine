@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 104 spells | 71 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 23 features | 17 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 21 features | 15 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 248 items | on 143 of 244 blocks | 0 | 101 blocks already clean |
@@ -518,7 +518,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 23, 17 are class or subclass features printed at level 5 or below, 5 are species or background traits and 1 are feats.
+Of the 21, 15 are class or subclass features printed at level 5 or below, 5 are species or background traits and 1 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -535,9 +535,7 @@ comes from.
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-re-chosen-on-a-rest` | 1 | 1 |
 | `an-attack-the-class-redefines` | 3 | 0 |
-| `a-language-or-a-proficiency-an-item-grants` | 2 | 0 |
 | `a-move-a-feature-hands-its-holder` | 2 | 0 |
-| `a-second-question-one-feature-asks` | 2 | 0 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
@@ -597,20 +595,10 @@ sums to the population.
 - `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
 - `open-hand:technique` — Open Hand Technique (level 3, subclass, manual) — also waits on 2
 
-#### `a-language-or-a-proficiency-an-item-grants` — blocks 2, finishes 0
-
-- `cleric:divine-order` — Divine Order (level 1, class, manual) — also waits on 1
-- `druid:primal-order` — Primal Order (level 1, class, manual) — also waits on 1
-
 #### `a-move-a-feature-hands-its-holder` — blocks 2, finishes 0
 
 - `goliath:giant-ancestry` — Giant Ancestry (level 1, species, manual) — also waits on 2
 - `rogue:cunning-strike` — Cunning Strike (level 5, class, manual) — also waits on 1
-
-#### `a-second-question-one-feature-asks` — blocks 2, finishes 0
-
-- `cleric:divine-order` — Divine Order (level 1, class, manual) — also waits on 1
-- `druid:primal-order` — Primal Order (level 1, class, manual) — also waits on 1
 
 #### `a-casting-ended-by-a-trigger` — blocks 1, finishes 0
 
