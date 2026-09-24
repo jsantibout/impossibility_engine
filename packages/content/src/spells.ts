@@ -2326,11 +2326,14 @@ export const FEATHER_FALL: SpellDefinition = {
   // demand, and `self: true` because the trigger names the caster first: "when
   // **you** or a creature you can see ... falls".
   targets: { count: 5, self: true, mustBeFalling: true },
-  effects: [],
+  // "the creature takes no damage from the fall, and the spell ends for that
+  // creature" — both halves, and the second is why a ward is hung on each of
+  // the five separately rather than on the casting: one of them landing ends
+  // the spell on that one and leaves the other four in the air.
+  effects: [{ kind: 'fall-ward' }],
   durationSeconds: 60,
   unmodelled: [
     'the rate of descent is not slowed: nothing in the engine measures a descent, and the SRD gives the new rate as 60 feet per round against a height only the DM holds',
-    'a creature that lands before the spell ends takes no damage from the fall and the spell ends for that creature; falling damage is the table’s, so the DM decides what the landing costs and ends the casting for whoever reaches the ground',
     'the trigger’s "a creature you can see" goes unchecked, as Counterspell’s does: the 60 feet is the spell’s Range and is checked, and which falls a caster perceives the engine has never modelled',
   ],
 };
@@ -3796,13 +3799,16 @@ export const WEB: SpellDefinition = {
         kind: 'save',
         ability: 'dex',
         condition: 'restrained',
+        // "have the Restrained condition **while in the webs** or until it
+        // breaks free" — two ways out of one condition, and this is the first
+        // of them. The escape check below is the second.
+        endsWhenOutsideArea: true,
         check: { ability: 'str', skill: 'athletics', onSuccess: 'end-on-target' },
       },
     ],
   },
   durationSeconds: 3600,
   unmodelled: [
-    'Restrained by the webs lasts "while in the webs", and a condition that ends when its holder walks out of an area has no shape here: it runs until the casting ends or the creature breaks free',
     'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room',
     'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
   ],
@@ -3943,6 +3949,20 @@ export const SPEAK_WITH_ANIMALS: SpellDefinition = {
  * > movement."
  * > _Using a Higher-Level Spell Slot._ "You can target one additional creature
  * > for each spell slot level above 1."
+ *
+ * **The 2024 sentence, which is not the one this definition was written
+ * against.** The older printing tripled a jump distance, and a multiplier is
+ * what the engine would have needed to build; this prints two flat numbers and
+ * a cap, and all three are ordinary. So `jump-allowance` carries the thirty and
+ * the ten, `checkJump` takes the longer of the spell's bound and the creature's
+ * own, and `resolveMove` charges the spell's price instead of the ground's —
+ * which is what makes the spell worth casting on a Wizard as well as on a
+ * Barbarian.
+ *
+ * **The distance bounds a Long Jump**, because the sentence's thirty feet is a
+ * distance and the High Jump's own number is a height. The SRD's "Jump"
+ * glossary names the two separately and this spell names neither, so reading
+ * one as the other would hand a level 1 spell thirty feet of altitude.
  */
 export const JUMP: SpellDefinition = {
   id: 'jump',
@@ -3958,11 +3978,12 @@ export const JUMP: SpellDefinition = {
   // only yourself when you do so", a sentence with no meaning if the caster
   // were not a legal target of it.
   targets: { count: 1, extraPerSlotLevelAbove: 1, self: true },
-  effects: [],
+  // "Once on each of its turns until the spell ends, that creature can jump up
+  // to 30 feet by spending 10 feet of movement." Two numbers and a cap, and
+  // the cap is stamped on the grant rather than counted anywhere else — so a
+  // second casting of this spell is a second sentence with its own once.
+  effects: [{ kind: 'jump-allowance', feet: 30, costsMovement: 10 }],
   durationSeconds: 60,
-  unmodelled: [
-    'the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count',
-  ],
 };
 
 /**
@@ -9708,11 +9729,23 @@ export const HEAT_METAL: SpellDefinition = {
  * > Action, you can move the sphere up to 30 feet, rolling it along the
  * > ground."
  *
- * **Spiritual Weapon's point with Web's trigger**, and the pair is exactly
- * what the engine does not have: `CastingOrigin` holds a point a later Bonus
- * Action may move, and `AreaTrigger` raises a save at a turn boundary over an
- * *area the casting placed* — not over a radius measured from a point that
- * moves. Either half alone is written elsewhere in this catalogue.
+ * **Spiritual Weapon's point with Web's trigger**, and the pair is what
+ * `areaTrigger.within` is: the clause is measured from a point the casting
+ * holds rather than over the template the casting laid, and the point is
+ * rolled about on a Bonus Action by the machinery Moonbeam's beam already
+ * uses.
+ *
+ * **The area is the light, which is Dancing Lights' reading.** The sphere
+ * itself is one space of fire; what fills a volume is what it sheds — "Bright
+ * Light in a 20-foot radius and Dim Light for an additional 20 feet" — so that
+ * is the template, and the five feet that burn are the trigger's reach. Two
+ * questions about one point, and neither is the other's radius.
+ *
+ * **The ram is its own clause and not the beam's.** Moonbeam's `onAreaEntry`
+ * catches whoever the *area* sweeps over; this spell catches only the creature
+ * whose *space* the sphere is rolled into, and then stops moving — so
+ * `onPointEntry` is a second sentence rather than a spelling of the first,
+ * and the route is asked for by the same rule Moonbeam's is.
  */
 export const FLAMING_SPHERE: SpellDefinition = {
   id: 'flaming-sphere',
@@ -9723,12 +9756,42 @@ export const FLAMING_SPHERE: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
+  // "it sheds Bright Light in a 20-foot radius and Dim Light for an additional
+  // 20 feet" — the one volume this spell fills, laid at the point the sphere
+  // is conjured on and laid again wherever it is rolled to.
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  areaLight: { level: 'bright', dimBeyond: 20 },
   effects: [],
+  // "You create a 5-foot-diameter sphere of fire in an unoccupied space on the
+  // ground within range." Nothing happens at the casting: every save this
+  // spell ever calls for comes from the trigger, exactly as Web's does.
+  areaTrigger: {
+    at: 'end-of-turn',
+    within: 5,
+    onPointEntry: true,
+    label: 'Flaming Sphere (the sphere)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+        damageType: 'fire',
+        onSuccess: 'half',
+      },
+    ],
+  },
+  // "As a Bonus Action, you can move the sphere up to 30 feet, rolling it
+  // along the ground." The action's entire content, which is why it carries no
+  // effects and aims at nobody.
+  activation: {
+    action: 'bonus-action',
+    movesArea: 30,
+    label: 'Flaming Sphere (the sphere rolls)',
+    effects: [],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the sphere burns nobody: "Any creature that ends its turn within 5 feet of the sphere makes a Dexterity saving throw, taking 2d6 Fire damage on a failed save or half as much damage on a successful one" is an ordinary save for half, raised at a turn boundary over a radius measured from a point the casting holds — and a trigger reads the area a casting placed rather than a distance from a movable point',
-    'the Bonus Action that rolls the sphere up to 30 feet, and the save a creature makes when the sphere is rolled into its space, are the same absence from the other end',
-    'the barriers it is directed over, the pits it jumps, the flammable objects it sets alight and the Bright Light it sheds are the DM’s',
+    'the ground it is conjured on, the unoccupied space it needs, the barriers up to 5 feet tall it is directed over, the pits up to 10 feet wide it jumps and the flammable objects it sets alight are the DM’s',
   ],
 };
 
@@ -10712,8 +10775,22 @@ export const REVIVIFY: SpellDefinition = {
  * > damage on a successful one."
  *
  * The save and the halved damage are the most ordinary shape in the book; the
- * *area* is a length, a height and a thickness shaped along a path, and one
- * spell holds one template.
+ * *area* is the seventh template, and it is the only one the caster **draws**.
+ * A Sphere's radius is the whole of its shape and fifty feet of wall bent
+ * around a corner is not — so `area.length` is a bound rather than a size, and
+ * the path is stated at the cast and judged there: the total length, the
+ * continuity, the one ground it runs along, and the Range to the space it
+ * rises from.
+ *
+ * **It asks once, which is what the book asks.** "When the wall appears, each
+ * creature in its area makes a Strength saving throw" is a casting effect, and
+ * nothing in this spell's text asks again — so the path is not pinned on the
+ * record and no later clause may hang on it, which `checkSpellDefinition`
+ * refuses outright rather than leaving to be discovered.
+ *
+ * The thickness is narration: the smallest thing the lattice holds is a
+ * 5-foot space, so a wall occupies the spaces its path names and one foot is
+ * a description of what is in them.
  */
 export const WIND_WALL: SpellDefinition = {
   id: 'wind-wall',
@@ -10724,12 +10801,22 @@ export const WIND_WALL: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
-  effects: [],
+  // "up to 50 feet long, 15 feet high" — both bounds, and the caster's stated
+  // path is held to the first of them.
+  area: { kind: 'wall', length: 50, height: 15, origin: 'point' },
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'str',
+      damage: { dice: '4d8' },
+      damageType: 'bludgeoning',
+      onSuccess: 'half',
+    },
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'the Strength saving throw and the 4d8 Bludgeoning, half on a success, are not resolved: they are resolved over the wall, and a wall with a length, a height and a thickness shaped along a continuous path is not one of the six templates a casting may hold',
-    'nothing is stopped by it either: a barrier that turns back Small flying creatures, ordinary projectiles and creatures in gaseous form is the geometry’s missing half',
-    'fog, smoke and gases kept at bay, and loose material flying upward, are the DM’s',
+    'nothing is stopped by it: a Small or smaller flying creature and a creature in gaseous form cross it as if it were open floor, and an ordinary projectile launched at a target behind it still resolves its attack roll rather than being deflected upward to miss automatically — a barrier that refuses a crossing is the geometry’s other half, and this wall is a template rather than an obstacle',
+    'fog, smoke and gases kept at bay, and loose lightweight material flying upward, are the DM’s',
   ],
 };
 

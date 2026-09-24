@@ -125,9 +125,12 @@ export interface ParsedSpell {
  * **It came out equal to the hand list it replaced, entry for entry**, which is
  * what says this was a deletion and not a measurement.
  *
- * **Partial and verified are different axes.** Web is driven end to end *and*
- * leaves its Difficult Terrain unbuilt, and saying only the first would be the
- * green tick this state was invented to prevent.
+ * **Partial and verified are different axes.** Banishment is driven end to end
+ * *and* leaves the demiplane its target was meant to spend the minute in
+ * unbuilt, and saying only the first would be the green tick this state was
+ * invented to prevent. Web was the example until "while in the webs" was
+ * built; what it has left is the table's, so it is executed whole and is no
+ * longer in this list at all.
  *
  * A spell derived into this list **must** say in `unmodelled` what it is
  * missing, which `coverage.test.ts` asserts — otherwise this becomes the place

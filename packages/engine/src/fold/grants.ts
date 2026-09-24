@@ -41,6 +41,9 @@ export const GRANTS_EVENTS = [
   'speed-modifier-granted',
   'sense-granted',
   'damage-reduction-granted',
+  'fall-ward-granted',
+  'jump-allowance-granted',
+  'jump-allowance-spent',
   'attack-rider-granted',
   'weapon-rider-granted',
   'condition-immunity-granted',
@@ -212,6 +215,51 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.reduction,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { damageReductions }, creature);
+    }
+
+    // SRD *Feather Fall*: "the creature takes no damage from the fall." The
+    // source alone is the identity, as it is for a reduction, a sense and a
+    // Speed: a second Feather Fall on one creature is a second casting rather
+    // than a second entry under the first, and two wards ward exactly as one
+    // does.
+    case 'fall-ward-granted': {
+      const creature = creatureOf(state, event, event.id);
+      const fallWards = [
+        ...creature.fallWards.filter((held) => held.source !== event.ward.source),
+        event.ward,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { fallWards }, creature);
+    }
+
+    // SRD *Jump*: "that creature can jump up to 30 feet by spending 10 feet of
+    // movement." The source alone is the identity, as it is for every grant
+    // above: a second casting of Jump on the same creature is a second source,
+    // and a re-grant from the same one replaces rather than stacking — which
+    // also gives the creature its turn's jump back, exactly as a fresh casting
+    // should.
+    case 'jump-allowance-granted': {
+      const creature = creatureOf(state, event, event.id);
+      const jumpAllowances = [
+        ...creature.jumpAllowances.filter((held) => held.source !== event.allowance.source),
+        event.allowance,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { jumpAllowances }, creature);
+    }
+
+    // SRD *Jump*'s "Once on each of its turns", stamped on the grant rather
+    // than counted anywhere else. **The turn is read here and not carried**:
+    // the fold has the order in front of it, and an event stating a turn
+    // number would be a second answer to what turn it is. Outside combat there
+    // is no turn, and nothing is written — which leaves the jump uncapped, the
+    // reading every once-per-turn rule in this engine already takes.
+    case 'jump-allowance-spent': {
+      const creature = creatureOf(state, event, event.id);
+      const turn = state.combat?.turnsTaken ?? null;
+      if (turn === null) return next;
+      const jumpAllowances = creature.jumpAllowances.map((held) =>
+        held.source === event.source ? { ...held, takenOnTurn: turn } : held,
+      );
+      return withCreature(next, event.id, { jumpAllowances }, creature);
     }
 
     case 'attack-rider-granted': {

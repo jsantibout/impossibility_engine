@@ -700,6 +700,30 @@ export interface ConditionRider {
    */
   readonly outlivesCasting?: true;
   /**
+   * The condition ends the moment its holder is no longer in the area that
+   * imposed it.
+   *
+   * SRD Web: "have the Restrained condition **while in the webs** or until it
+   * breaks free." A lifetime that is neither a span, nor a moment in the turn
+   * order, nor a save — it is a fact about where the creature is standing, and
+   * `docs/design/space-and-areas.md` said in as many words that it had no
+   * shape here.
+   *
+   * **Legal only on a rider an {@link AreaTrigger} hosts**, which is what
+   * makes it answerable: the trigger is pinned whole onto the ongoing record
+   * at the cast, so the fold reads the mark and the area together out of the
+   * log and opens no catalogue. A rider on the spell's own `effects` has no
+   * pinned area beside it — the record stores the area but not the effects —
+   * so the validator refuses it there rather than letting a definition ask
+   * for an ending nothing would ever perform.
+   *
+   * **Not {@link outlivesCasting}'s neighbour and not its opposite.** That one
+   * severs the casting's ownership of the condition; this one keeps it and
+   * adds a second way out, so a Web that ends takes its Restrained with it
+   * exactly as before and a creature that walks out loses it sooner.
+   */
+  readonly endsWhenOutsideArea?: true;
+  /**
    * A saving throw the condition repeats at a turn boundary, if it does.
    *
    * **Moved in from `save`, and it is legal only where the host rolled a
@@ -2081,6 +2105,17 @@ export type SpellEffect =
        * *does* something from a spell that *keeps* doing it.
        */
       readonly outlivesCasting?: true;
+      /**
+       * The condition ends when its holder is no longer in the area.
+       *
+       * SRD Web's other half — "while in the webs" — and the flat spelling of
+       * {@link ConditionRider.endsWhenOutsideArea}, which is where the rule is
+       * written down. It is here rather than only on the rider list for the
+       * reason `lasts`, `check` and `outlivesCasting` are: `save` keeps its
+       * flat layout, and {@link conditionRiderOf} is the view that makes the
+       * two one vocabulary.
+       */
+      readonly endsWhenOutsideArea?: true;
     }
   /**
    * A saving throw that interrupts a casting already in progress.
@@ -2374,6 +2409,50 @@ export type SpellEffect =
    * sourced grant is.
    */
   | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
+  /**
+   * The casting takes a **fall's** cost away from its target entirely — SRD
+   * *Feather Fall*: "If a creature lands before the spell ends, the creature
+   * takes no damage from the fall, and the spell ends for that creature."
+   *
+   * **No number, and that is the whole shape.** The Monk's Slow Fall prints
+   * one — five times the Monk level — and is a feature's standing grant read
+   * off the sheet; this sentence prints an outcome instead, so a magnitude
+   * here would be `damage-reduction` written twice and would have had to name
+   * Bludgeoning to be subtracted from anything, warding its holder against a
+   * club along the way.
+   *
+   * Read by `resolveFall`, which throws no dice where a ward is held — "no
+   * damage" is not a roll that came to nothing — and leaves the lander
+   * standing, because SRD makes the Prone conditional on having paid. The
+   * second half of the sentence is performed there too: the casting ends on
+   * the creature that lands and runs on for the other four.
+   */
+  | { readonly kind: 'fall-ward' }
+  /**
+   * The casting buys its target a jump, and fixes what it costs — SRD *Jump*:
+   * "Once on each of its turns until the spell ends, that creature can jump up
+   * to 30 feet by spending 10 feet of movement."
+   *
+   * **Two numbers, because the sentence prints two and they are not the same
+   * kind of thing.** {@link feet} is a bound on the jump, read where the
+   * sheet's own Long Jump is read; {@link costsMovement} is the price, read
+   * where a move is charged. A spell that only lengthened the jump would leave
+   * a thirty-foot leap costing thirty feet of a creature's Speed, which is not
+   * what this spell is worth.
+   *
+   * **Not a multiplier.** The 2014 wording tripled a jump distance and this
+   * one does not: the book prints a flat thirty feet and a flat ten, so a
+   * Strength 20 Barbarian's jump is bounded by the spell exactly as a Strength
+   * 8 Wizard's is — and the spell is worth having to the second one.
+   *
+   * **The distance bounds a Long Jump.** SRD's "Jump" glossary names two
+   * jumps, one measured along the ground and one measured upward, and this
+   * sentence's thirty feet is a distance: a High Jump's own number is a
+   * height, and reading one as the other would hand a level 1 spell thirty
+   * feet of altitude. The spell says nothing about a High Jump and this
+   * reading says nothing either.
+   */
+  | { readonly kind: 'jump-allowance'; readonly feet: number; readonly costsMovement: number }
   /**
    * An amount the spell takes off a hit **before** the target's defences meet
    * it — SRD Resistance: "When the creature takes damage of the chosen type
@@ -3094,7 +3173,37 @@ export type SpellArea =
       readonly width: number;
       readonly origin: 'self';
     }
-  | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' };
+  | { readonly kind: 'emanation'; readonly distance: number; readonly origin: 'self' }
+  /**
+   * SRD Wind Wall: "You can make the wall up to 50 feet long, 15 feet high,
+   * and 1 foot thick. You can shape the wall in any way you choose so long as
+   * it makes one continuous path along the ground."
+   *
+   * **The definition states the bounds and the caster draws the wall**, which
+   * is the split every other member of this union does not need: a Sphere's
+   * radius is the whole of its shape, and fifty feet of wall bent around a
+   * corner is a decision somebody took space by space. So `length` is a
+   * maximum rather than a size, checked against the stated path at the cast.
+   *
+   * **A wall answers at the cast and nothing later.** The path is the one
+   * thing about a template that cannot be reconstructed from the book and a
+   * point, and the ongoing record does not store it — so a definition may not
+   * hang an `areaTrigger`, an `areaStanding`, terrain, light or obscurement on
+   * a wall, and `checkSpellDefinition` refuses all five rather than letting
+   * them read a shape that answers null. SRD Wind Wall asks once, when the
+   * wall appears, which is exactly what this reaches.
+   *
+   * The thickness is not here for the reason it is not on `AreaShape`: the
+   * lattice holds nothing narrower than a space.
+   */
+  | {
+      readonly kind: 'wall';
+      /** SRD's "up to 50 feet long": a maximum the stated path is held to. */
+      readonly length: number;
+      /** SRD's "15 feet high", measured up from the ground the path runs along. */
+      readonly height: number;
+      readonly origin: 'point';
+    };
 
 /**
  * Ground a casting's area is expensive to cross, for as long as the casting
@@ -3268,6 +3377,50 @@ export interface AreaTrigger {
    * Web's entry cap would come to be spent by a beam sliding overhead.
    */
   readonly onAreaEntry?: true;
+  /**
+   * SRD Flaming Sphere: "If you move the sphere **into a creature's space**,
+   * that creature makes the save against the sphere."
+   *
+   * {@link onAreaEntry}'s narrow twin and not a spelling of it. That clause is
+   * about an *area* sweeping over somebody — Moonbeam's Cylinder is five feet
+   * of radius and catches whoever it covers — and this one is about the
+   * casting's **point** arriving in an occupied space, which is a different
+   * set of creatures the moment the trigger reaches further than the point
+   * does: a sphere rolled past a goblin ends up beside it, and the book says
+   * the goblin saves only when the sphere is rolled *into* it.
+   *
+   * So the two are refused together. One spell prints one of these sentences,
+   * and a definition carrying both would be asking two questions of one move
+   * with no SRD sentence behind either answer.
+   *
+   * **The route matters here for {@link onAreaEntry}'s reason**, and
+   * `relocateOrigin` asks for it under the same rule: a thirty-foot roll
+   * crosses five spaces, and a creature standing in one of them was rolled
+   * into whatever the endpoint says.
+   */
+  readonly onPointEntry?: true;
+  /**
+   * How far from the casting's **point** this trigger reaches, in feet.
+   *
+   * SRD Flaming Sphere: "Any creature that **ends its turn within 5 feet of
+   * the sphere**." The clause is measured from a point the casting holds
+   * rather than over the template the casting laid, and the two are genuinely
+   * different questions for this spell: the sphere is one space of fire that
+   * lights a room twenty feet across, so {@link SpellDefinition.area} is the
+   * lit region — Dancing Lights' reading, where an area is what the light
+   * fills — and the burning reaches five feet.
+   *
+   * Absent is every other persistent area in the book and means what it has
+   * always meant: the clauses fire over the area itself. A radius here does
+   * **not** shrink the area; it answers a different question about the same
+   * point, and the light, the terrain and the standing effect all go on
+   * reading the template.
+   *
+   * Only on a point-origin area, because a point is what it measures from: a
+   * carried area's origin is a creature with a volume, and "within 5 feet of
+   * the Emanation" is a sentence the SRD does not print.
+   */
+  readonly within?: number;
   /**
    * SRD "A creature makes this save only once per turn."
    *
@@ -5100,6 +5253,9 @@ export function conditionRiderOf(effect: SpellEffect): readonly ConditionRider[]
                 ...(effect.outlivesCasting === undefined
                   ? {}
                   : { outlivesCasting: effect.outlivesCasting }),
+                ...(effect.endsWhenOutsideArea === undefined
+                  ? {}
+                  : { endsWhenOutsideArea: effect.endsWhenOutsideArea }),
                 ...(effect.repeats === undefined ? {} : { repeats: effect.repeats }),
               },
             ]),
@@ -5313,6 +5469,13 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // list of types, both the book's, with nothing of the caster's in
       // either — SRD Resistance's d4 is a d4 whoever cast it.
       case 'damage-reduction':
+      // And the ward that takes a fall's cost away, which carries no number at
+      // all: "no damage" is an outcome rather than an amount, so there is
+      // nothing of the caster's for it to pin. The jump beside it carries two
+      // and neither is the caster's: thirty feet and ten are the book's, and
+      // are the same numbers in a Barbarian's hand.
+      case 'fall-ward':
+      case 'jump-allowance':
       case 'attack-rider':
       // The ability it may pin is not one of these three: it is an *ability*
       // and not a number, which is `castersAbilityRead`'s question and not

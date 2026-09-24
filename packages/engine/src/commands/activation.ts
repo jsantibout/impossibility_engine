@@ -302,6 +302,28 @@ export function activateSpell(
       for (const event of settled.value.events) happened(event);
       outcomes.push(...settled.value.outcomes);
       unverified.push(...settled.value.unverified);
+
+      // SRD Flaming Sphere: "If you move the sphere into a creature's space,
+      // that creature makes the save against the sphere, **and the sphere
+      // stops moving for the turn**."
+      //
+      // The half of the sentence that is about the route rather than about the
+      // save, and it belongs here because here is the only place the route
+      // exists: the rest of the legs are simply not travelled, and the point
+      // stays where it hit somebody. Read off the debt the fold raised for
+      // *this* leg rather than off the geometry again, so what stops the
+      // sphere is exactly what the rules said it caught.
+      if (
+        definition.areaTrigger?.onPointEntry === true &&
+        settled.value.settled.some(
+          (owed) => owed.castingId === record.castingId && owed.moment === 'area-moved',
+        )
+      ) {
+        unverified.push(
+          `${record.spell} was rolled into an occupied space and stopped there; the rest of the route was not travelled`,
+        );
+        break;
+      }
     }
 
     // The activation's own effects, from where the area actually ended up. The

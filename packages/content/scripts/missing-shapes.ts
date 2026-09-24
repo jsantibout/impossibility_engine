@@ -226,8 +226,6 @@ export const MISSING_SHAPES = {
     'there is one scene, so a creature sent elsewhere has nowhere to be. `docs/design/spell-definitions.md`: "A destination *outside* the scene is different in kind ... there is one scene, so Plane Shift and Word of Recall have no position to move anybody to", and `docs/design/casting.md`: "the real fix is the doctrine’s multiple-scenes seam".',
   falling:
     '`docs/design/casting.md` lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". **Two of its three halves are built now.** The trigger is a declared fact, `fall-declared` beside `lastDamage`, and the Reaction window derived from it is what let Feather Fall be written; and the landing is a rule — `resolveFall` throws 1d6 Bludgeoning per ten feet to a maximum of 20d6 against a height the table states, and lands the faller Prone unless the drop cost nothing, through the same damage path a Fire Bolt takes. What is still missing is the half both claimants here actually need, which is **a reduction**: Feather Fall takes the fall damage away outright and Slow Fall subtracts five times the Monk level from it, and a number hung on a creature that one damage roll reads is a grant the format does not have. `FeatureReactionWindow` still excludes `creature-falling` for exactly that reason, and the descent rate is a separate absence — nothing measures a descent, so the sixty feet a round has nothing to be measured against.',
-  jumping:
-    'jumping, which nothing models, so a jump distance has nothing to be measured against. Jump’s own clause in spell-definitions.ts says it: "the 30-foot jump for 10 feet of movement is not applied; jumping is not modelled, and the once-per-turn limit has nothing to count".',
   'forced-movement-a-spell-causes':
     '**The rider half is built and the standalone half is not.** `OutcomeRiders` gained a fourth slot — a shove a settled outcome carries, ten feet straight away from the caster, spending no Speed and provoking nobody — and SRD Thunderwave writes it, which is what closed the recurring finding `docs/design/space-and-areas.md` recorded: that `moveCreature` took `forced: true` and no `SpellEffect` reached it. A rider is a leaf, and every claimant left here is one that is **not**: each of the three needs a push that is the whole of an outcome rather than something riding one, gated by a saving throw the push is the only consequence of. `save` requires a condition and has never carried the last two rider slots, so none of them can say it — Levitate’s lift, Gust of Wind’s fifteen feet and the Forceful Hand’s five are the same missing arm of the union, and every one of them is blocked on a second shape besides.',
   'an-activation-that-resolves-an-area':
@@ -837,6 +835,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "If the creature ends its turn in a space where it doesn\'t have line of sight to you, the creature makes a Wisdom saving throw." A repeat save is raised by a turn boundary and owed by whoever holds the condition; this one is owed only where a pairwise sight declaration says the target cannot see the caster, which no boundary reads.',
     },
   ],
+  'feather-fall': [
+    {
+      clause: 'a creature you can see',
+      why: 'table',
+      note: 'the Reaction’s printed trigger names a falling creature its caster can see within 60 feet, and the engine checks both halves it can count: the range against every target, and that each of them is falling. What it does not check is that the caster perceived **this** fall — the same condition Counterspell’s trigger carries, on the same window machinery. A fall is a fact the table declares, and who saw it happen is declared with it.',
+    },
+  ],
   'find-familiar': [
     {
       clause: 'seeing through the familiar’s eyes and hearing what it hears',
@@ -1226,11 +1231,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   web: [
     {
-      clause: 'while in the webs',
-      why: 'a-condition-that-ends-when-its-holder-leaves-an-area',
-      note: 'SRD Restrains a creature "while in the webs". A condition ends with its casting, on a deadline, or on a save; ending because its holder walked out of an area is a lifetime nothing expresses, so it runs until the casting ends or the creature breaks free.',
-    },
-    {
       clause: 'flammable',
       why: 'table',
       note: 'Whether anybody sets the webs alight is a decision the fiction makes and the engine has no path to: nothing in it starts a fire, and the 2d4 the burning cube deals is damage a DM applies through `resolveDamage` like any other consequence they narrate.',
@@ -1263,6 +1263,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the minute of reverting',
       why: 'an-activation-taken-by-somebody-other-than-the-caster',
       note: 'SRD: "Reverting takes 1 minute, during which the target has the Stunned condition." The Magic action that begins it is taken by the target rather than by the caster, so the minute of Stunned hangs off an activation belonging to somebody the casting reached rather than to whoever cast it.',
+    },
+  ],
+  'wind-wall': [
+    {
+      clause: 'deflected upward',
+      why: 'a-barrier-that-blocks-passage',
+      note: 'the geometry is built and the obstacle is not: the wall is a template the casting resolves over, and stopping a Small flying creature, an arrow or a creature in gaseous form is the half `docs/design/space-and-areas.md` keeps out — a shape that refuses a crossing is where a rules engine becomes a VTT.',
     },
   ],
   'zone-of-truth': [
@@ -1543,14 +1550,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'a message that is uttered when a trigger condition is met',
       why: 'table',
       note: 'condition here means circumstance rather than any of the fifteen the engine applies: "it must be based on visual or audible conditions that occur within 30 feet of the object" is something the DM watches for, and whether a silver bell has rung is not a fact the engine holds.',
-    },
-  ],
-  jump: [
-    {
-      marker: 'movement-cost',
-      clause: 'jump up to 30 feet by spending 10 feet of movement',
-      why: 'jumping',
-      note: '"jump up to 30 feet by spending 10 feet of movement" — the movement is spendable, the jump is not, so charging the 10 feet alone would be half a rule.',
     },
   ],
   'see-invisibility': [
@@ -1911,20 +1910,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the mode and the deadline are both ordinary; what they hang on is a creature **choosing** to keep hold of the object rather than drop it, which is the branch the clause above has no writer for.',
     },
   ],
-  'flaming-sphere': [
-    {
-      marker: 'saving-throw',
-      clause: 'Any creature that ends its turn within 5 feet of the sphere makes a Dexterity saving throw',
-      why: 'an-area-trigger-measured-from-a-point',
-      note: 'the turn boundary is one `AreaTrigger` already names and the geometry is not: five feet measured from a point the casting holds, rather than an area the casting placed \u2014 and the point moves on a Bonus Action besides.',
-    },
-    {
-      marker: 'dice',
-      clause: 'taking 2d6 Fire damage on a failed save',
-      why: 'an-area-trigger-measured-from-a-point',
-      note: 'an ordinary save for half with ordinary slot scaling, waiting on the trigger above it to have somewhere to fire from.',
-    },
-  ],
   'ray-of-enfeeblement': [
     {
       marker: 'saving-throw',
@@ -2015,30 +2000,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'A creature can make a Dexterity saving throw to grab a fixed object it can reach',
       why: 'falling',
       note: 'the save is ordinary and what it avoids is a fall upward. A fall is a fact the table can now declare, which is the half Feather Fall needed — but nothing lets an effect *produce* one, so a failed save here has no way to say the creature fell, and the fall upward still ends against a ceiling nothing models.',
-    },
-  ],
-  /**
-   * The spell the `falling` shape was named for, and now a definition — so
-   * what it still owes is two sentences rather than the whole paragraph.
-   *
-   * Both are marker-less, and that is the form working as designed: the SRD
-   * writes a descent rate and a fall's damage in none of the guard's words —
-   * `speed` is `Speed` with a capital and this says "rate of descent",
-   * `movement-cost` wants "feet of movement" — so nothing demanded these
-   * entries and somebody read the paragraph.
-   */
-  'feather-fall': [
-    {
-      marker: null,
-      clause: 'rate of descent slows to 60 feet per round',
-      why: 'falling',
-      note: 'the declared fall says a creature is falling and nothing else: no height, no speed downward, and so no rate for this to slow. The SRD prints the new rate and leaves the distance to the DM, so a descent the engine measured would be one it had invented the number for.',
-    },
-    {
-      marker: null,
-      clause: 'the creature takes no damage from the fall',
-      why: 'falling',
-      note: 'the damage is modelled now — `resolveFall` throws a die per ten feet against a height the table states — and what this sentence needs is the half beside it: a **reduction** hung on a creature that the fall’s own damage roll reads. Nothing grants one, so there is still nothing here for the spell to prevent, and it is the same missing half the Monk’s Slow Fall waits on.',
     },
   ],
   sequester: [
@@ -2243,20 +2204,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'That creature revives with 1 Hit Point',
       why: 'healing-that-raises-the-dead',
       note: 'not a heal of one: healCreature refuses a corpse and the refusal costs no slot, which is the rule docs/design/spell-definitions.md states this shape has to get past. Lifting death is not hit points with a small number in them.',
-    },
-  ],
-  'wind-wall': [
-    {
-      marker: 'saving-throw',
-      clause: 'each creature in its area makes a Strength saving throw',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'the save is ordinary and the area is not: "up to 50 feet long, 15 feet high, and 1 foot thick" shaped along a continuous path is a wall, and a casting holds one of six templates.',
-    },
-    {
-      marker: 'dice',
-      clause: 'taking 4d8 Bludgeoning damage on a failed save',
-      why: 'a-wall-or-several-templates-in-one-area',
-      note: 'half as much on a success is the save-damage kind exactly, and it has nowhere to be resolved until the wall it is resolved over can be described.',
     },
   ],
   divination: [

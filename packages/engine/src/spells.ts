@@ -259,19 +259,28 @@ export interface OngoingSpell {
   /**
    * The clauses that fire in {@link area}, as cast. Absent means none.
    *
-   * **The fold reads four of its fields** — `at`, `onEntry`, `onAreaEntry` and
-   * `oncePerTurn`, which between them decide who a persistent area catches and
-   * at which of the SRD's moments. Those are the ones that had to stop coming
-   * out of the catalogue.
+   * **The fold reads six of its fields** — `at`, `onEntry`, `onAreaEntry`,
+   * `onPointEntry`, `within` and `oncePerTurn`, which between them decide who
+   * a persistent area catches, where it is measured from and at which of the
+   * SRD's moments. Those are the ones that had to stop coming out of the
+   * catalogue.
    *
-   * `effects` and `label` are recorded and **not** read here: settlement
-   * resolves them through `definitionFor`, as it always has, so a correction
-   * to Web's saving throw does reach a debt raised before it. That is stated
-   * rather than fixed, because moving settlement onto the record is a second
-   * change with its own compatibility question — a pre-versioned record has no
-   * effects to read — and this one is about the fold. The clause is stored
-   * whole anyway, because `AreaTrigger` is one value the SRD writes as one
-   * sentence, and storing four of its fields would be a second shape for it.
+   * **`label` is recorded and not read here, and `effects` is read for one
+   * thing only.** Settlement resolves an effect through `definitionFor`, as it
+   * always has, so a correction to Web's saving throw does reach a debt raised
+   * before it; that is stated rather than fixed, because moving settlement
+   * onto the record is a second change with its own compatibility question —
+   * a pre-versioned record has no effects to read — and this one is about the
+   * fold. What the fold *does* read out of `effects` is a **lifetime**:
+   * `endConditionsLeftBehind` asks which of a trigger's condition riders said
+   * "while in the webs", and a condition ending is not something a settlement
+   * could resolve later. It reads it through `conditionRiderOf`, which is a
+   * pure view over this stored value rather than a lookup, so the fold still
+   * opens no catalogue.
+   *
+   * The clause is stored whole in any case, because `AreaTrigger` is one value
+   * the SRD writes as one sentence, and storing six of its fields would be a
+   * second shape for it.
    */
   readonly areaTrigger?: AreaTrigger;
   /**
@@ -644,6 +653,16 @@ function areaShapeOf(
       return aim === null
         ? null
         : { kind: 'line', length: area.length, width: area.width, towards: aim };
+    // **A wall cannot be reconstructed, and says so.** Every other template
+    // here is a printed dimension and, for three of them, a direction the
+    // record stored; a wall is a path the caster drew space by space, and the
+    // record keeps only the point it rose from. So a later question about a
+    // wall has no shape to ask of, which is the honest answer rather than a
+    // straight line between the endpoints — and `checkSpellDefinition` refuses
+    // every clause that would ask one, so nothing reaches this on a validated
+    // definition. SRD Wind Wall asks once, when the wall appears.
+    case 'wall':
+      return null;
   }
 }
 

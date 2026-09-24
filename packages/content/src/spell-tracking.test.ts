@@ -261,6 +261,22 @@ const cast = (
         : {
             at: AREA_AT,
             ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
+            // **And a wall needs its path**, which is the third fact an area
+            // can demand and the only one that is a shape rather than a point:
+            // SRD Wind Wall is drawn by whoever casts it, and a casting that
+            // draws nothing is refused. Derived from the definition for the
+            // reason the point above is — fifteen feet eastward out of
+            // `AREA_AT`, which is continuous, on one ground and inside every
+            // wall length the catalogue prints.
+            ...(definition.area.kind === 'wall'
+              ? {
+                  path: [
+                    AREA_AT,
+                    { x: AREA_AT.x + 5, y: AREA_AT.y, z: AREA_AT.z },
+                    { x: AREA_AT.x + 10, y: AREA_AT.y, z: AREA_AT.z },
+                  ],
+                }
+              : {}),
           }),
       ...over,
     },
@@ -458,9 +474,11 @@ describe('a tracked spell is retried and replayed like any other', () => {
  * "no shape sits unclaimed", is in `blocked-on.test.ts`, because asked of this
  * map alone it would delete every shape only the other two populations name.
  *
- * The two ids this bucket used to own privately, `jumping` and
- * `teleportation`, are in the shared vocabulary now and each still says where
- * this repository already described the gap.
+ * The two ids this bucket used to own privately were `jumping` and
+ * `teleportation`. Both moved into the shared vocabulary, and `jumping` has
+ * since been **retired**: SRD Jump's 2024 sentence prints two flat numbers and
+ * a cap rather than the multiplier the older one did, so the spell that was
+ * the shape's last claimant is executed and the id names no gap.
  */
 
 /**
@@ -625,6 +643,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'darkvision',
     'daylight',
     'expeditious-retreat',
+    // And the fifth kind of clean paragraph: SRD Feather Fall's prints a
+    // descent rate, a landing and a spell ending, and the marker list knows
+    // none of those words — `speed` is `Speed` with a capital and this says
+    // "rate of descent". The ward it hangs is executed all the same.
+    'feather-fall',
     'fog-cloud',
     'light',
     'magic-weapon',
@@ -1556,7 +1579,21 @@ describe('every spell this batch added is cast for real', () => {
     'enhance-ability',
     'expeditious-retreat',
     'faerie-fire',
+    // Feather Fall left the tracked bucket too, on the half the `falling`
+    // shape was still owed — a ward the landing reads, hung per creature so
+    // that one of five landing ends the spell on that one and leaves the other
+    // four in the air. It is **not** in this list, because this list is about
+    // the spells `ADDED` names and Feather Fall was written before that pass;
+    // `blocked-on.test.ts` is where its departure is recorded.
     'find-steed',
+    // **Flaming Sphere leaves on a reach rather than on a template.** Its
+    // clause is "within 5 feet of the sphere", measured from a point the
+    // casting holds — `areaTrigger.within` — while the volume it fills is the
+    // light it sheds, which is Dancing Lights' reading of what an area is. The
+    // ram is a second sentence and gets a second field: `onPointEntry` catches
+    // only the creature whose space the sphere is rolled into, where Moonbeam's
+    // `onAreaEntry` catches everyone the area sweeps over.
+    'flaming-sphere',
     'fog-cloud',
     'goodberry',
     // **Ice Knife leaves by a second parent rather than a sixth rider.** "Hit
@@ -1604,6 +1641,16 @@ describe('every spell this batch added is cast for real', () => {
     // the one entry here that the casting sweeps below cannot drive.
     'true-strike',
     'wind-walk',
+    // **Wind Wall leaves on the seventh template**, and it is the only one in
+    // the book the caster draws: a path of 5-foot spaces along the ground,
+    // judged at the cast against the fifty feet, the continuity, the single
+    // ground and the Range to the space it rises from. The Strength save and
+    // the 4d8 are the most ordinary shape there is, once there is somewhere to
+    // resolve them. What the spell still owes is the **barrier** — an arrow
+    // deflected upward, a Small flier turned back — so it leaves the tracked
+    // bucket as executed-partial rather than clean, and
+    // `a-barrier-that-blocks-passage` keeps it.
+    'wind-wall',
     // The last of the tracked spells to be blocked on a *publication* rather
     // than on a mechanic. The Charisma save was always ordinary and both
     // moments it fires at were `AreaTrigger` members; what it had nowhere to

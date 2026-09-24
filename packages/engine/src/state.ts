@@ -643,6 +643,53 @@ export interface CreatureState {
    */
   readonly damageReductions: readonly GrantedDamageReduction[];
   /**
+   * Running effects that take the cost of a **fall** away entirely.
+   *
+   * SRD *Feather Fall*: "If a creature lands before the spell ends, the
+   * creature takes no damage from the fall, and the spell ends for that
+   * creature."
+   *
+   * **Not {@link damageReductions}, and the difference is not a number.** That
+   * family subtracts a roll from a hit of a stated type, wherever the hit came
+   * from; this one is about *what happened* rather than about how much — a
+   * warded creature takes nothing from a fall of any height, and the same
+   * creature takes an ordinary Fire Bolt in the face. A reduction large enough
+   * to reach zero would also have had to name Bludgeoning, which would have
+   * warded it against a club.
+   *
+   * Read by `resolveFall`, which throws no dice at all where one is held: "no
+   * damage" is not a roll that came to nothing, and a creature who avoided the
+   * damage does not land Prone either — SRD ties the two together in one word
+   * ("**unless** you avoid taking damage from the fall ... You **then** have
+   * the Prone condition").
+   *
+   * Linked by the source like every other grant, so `releaseCasting`,
+   * `releaseOnTarget` and a `grants` deadline all end it through the door that
+   * already existed — and the landing itself ends it, because the book does.
+   */
+  readonly fallWards: readonly GrantedFallWard[];
+  /**
+   * Jumps a running effect has bought this creature, and what each costs.
+   *
+   * SRD *Jump*: "Once on each of its turns until the spell ends, that creature
+   * can jump up to 30 feet by spending 10 feet of movement."
+   *
+   * **Two numbers and a cap, because the sentence prints all three.** The
+   * distance is a bound on the jump the way the sheet's own Long Jump is, and
+   * the cost is a **price the spell fixes** rather than the feet the jump
+   * covered — which is the whole of what the spell buys, and the reason this
+   * is not a `speedModifiers` entry: nothing about the creature's Speed
+   * changes, and thirty feet of ground still crosses thirty feet of ground.
+   *
+   * Read by `checkJump`, where the bound on a declared jump is decided, and by
+   * `resolveMove`, where what a move costs is charged.
+   *
+   * Linked by the source like every other grant, so `releaseCasting`,
+   * `releaseOnTarget` and a `grants` deadline all end it through the door that
+   * already existed.
+   */
+  readonly jumpAllowances: readonly GrantedJump[];
+  /**
    * Extra damage a running effect adds to this creature's **later** attacks.
    *
    * The sixth member of the family the five above form, and the one whose
@@ -944,6 +991,66 @@ export interface LastDamage {
 export interface FallMoment {
   readonly turn: number | null;
   readonly elapsed: number;
+}
+
+/**
+ * A running effect that takes a fall's damage away, read only for what hung
+ * it.
+ *
+ * One field, because SRD *Feather Fall* prints one outcome and no number:
+ * "the creature takes **no** damage from the fall". A magnitude here would be
+ * {@link GrantedDamageReduction} written a second time, and the Monk's Slow
+ * Fall — which does print a number — is a feature's standing grant read from
+ * the sheet, not this.
+ *
+ * Declared here beside {@link FallMoment} for its reason: falling is a fact
+ * about a creature that the engine holds in exactly two places, the moment the
+ * table declares and the ward a casting hung, and neither belongs to a sheet.
+ */
+export interface GrantedFallWard {
+  /** The casting (`Feather Fall#cast:3`) that hung it. */
+  readonly source: string;
+}
+
+/**
+ * A jump a running effect bought, the distance it covers and what it costs.
+ *
+ * SRD *Jump*, whole: "Once on each of its turns until the spell ends, that
+ * creature can jump up to 30 feet by spending 10 feet of movement."
+ *
+ * Declared here beside {@link GrantedFallWard} for its reason: what a creature
+ * can do about gravity is held in this file and read in `commands/movement.ts`,
+ * and neither half is a fact about a sheet.
+ */
+export interface GrantedJump {
+  /** The casting (`Jump#cast:2`) or other source that bought it. */
+  readonly source: string;
+  /** SRD: "can jump up to 30 feet" — a bound on the distance covered. */
+  readonly feet: number;
+  /**
+   * SRD: "by spending 10 feet of movement."
+   *
+   * **A price rather than a discount**, which is why it is a number on the
+   * grant instead of a subtraction somewhere: the jump costs this whatever it
+   * covered, so thirty feet of ground is bought for ten and five feet of
+   * ground is bought for ten as well. A creature that wanted the cheaper of
+   * the two simply does not declare the jump.
+   */
+  readonly costsMovement: number;
+  /**
+   * The turn this allowance was last spent on, where there was one.
+   *
+   * SRD's "Once on each of its turns", held on the grant rather than on the
+   * turn's budget: the cap belongs to the *sentence* that bought the jump, so
+   * two sources that each print one would each be spendable once, and a
+   * creature's own turn record would have had to name them.
+   *
+   * **Absent means it has not been spent since the last turn this creature
+   * took**, and outside combat it is never written at all — there are no turns
+   * to count, which is the reading every once-per-turn cap in this engine
+   * already takes.
+   */
+  readonly takenOnTurn?: number;
 }
 
 export interface PendingAttack {

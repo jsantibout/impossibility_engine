@@ -81,6 +81,8 @@ import {
 import type {
   Attachment,
   CommandStamp,
+  GrantedFallWard,
+  GrantedJump,
   InventoryLine,
   PendingAttack,
   PendingCasting,
@@ -138,6 +140,8 @@ export type {
   CommandStamp,
   CreatureState,
   GameState,
+  GrantedFallWard,
+  GrantedJump,
   InventoryLine,
   LastDamage,
   PendingAttack,
@@ -508,6 +512,60 @@ export type GameEvent =
       readonly type: 'damage-reduction-granted';
       readonly id: CharacterId;
       readonly reduction: GrantedDamageReduction;
+    }
+  /**
+   * A running effect takes a **fall's** cost away from a creature entirely —
+   * SRD *Feather Fall*: "the creature takes no damage from the fall."
+   *
+   * Its own event rather than a `damage-reduction-granted`, because it carries
+   * no magnitude and names no damage type: what it says is that this creature
+   * does not pay for landing, at any height, while it lasts. A reduction big
+   * enough to reach zero would have had to name Bludgeoning, and would then
+   * have warded its holder against a club.
+   *
+   * Ended by the source it carries, exactly as the six grants above are, so
+   * there is no removal event: `releaseCasting`, `releaseOnTarget` and the
+   * `grants` timer are the doors — and the landing is a fourth, because the
+   * book ends the spell on the creature that lands.
+   */
+  | {
+      readonly type: 'fall-ward-granted';
+      readonly id: CharacterId;
+      readonly ward: GrantedFallWard;
+    }
+  /**
+   * A running effect buys a creature a jump, at a price the effect fixes —
+   * SRD *Jump*: "that creature can jump up to 30 feet by spending 10 feet of
+   * movement."
+   *
+   * Ended by the source it carries, exactly as the grants above are, so there
+   * is no removal event: `releaseCasting`, `releaseOnTarget` and the `grants`
+   * timer are the doors.
+   */
+  | {
+      readonly type: 'jump-allowance-granted';
+      readonly id: CharacterId;
+      readonly allowance: GrantedJump;
+    }
+  /**
+   * The creature took the jump this turn — SRD *Jump*: "**Once on each of its
+   * turns** until the spell ends."
+   *
+   * **The one grant in the family with a spend event**, and the reason is that
+   * the cap is per turn rather than per casting: the grant is still there
+   * afterwards and comes back on the creature's next turn, so nothing here
+   * removes it and `releaseCasting` is still the only door out.
+   *
+   * Which turn is the fold's to read rather than the caller's to state: the
+   * fold has the order in front of it, and an event carrying a turn number
+   * would be a second answer to what turn it is.
+   */
+  | {
+      readonly type: 'jump-allowance-spent';
+      readonly id: CharacterId;
+      /** The grant, by the source it carries. */
+      readonly source: string;
+      readonly command?: CommandStamp;
     }
 
   /**

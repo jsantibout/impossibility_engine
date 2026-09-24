@@ -10,7 +10,7 @@ import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared
 import { reachOf } from '../attack.js';
 import { spendMovement, spendReaction } from '../combat.js';
 import { deprivedOfFlight, isIncapacitated } from '../conditions.js';
-import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import { applyEvent, type GameEvent, type GameState, type GrantedJump } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
   actionRulesOn,
@@ -30,6 +30,7 @@ import {
   type MovementMode,
 } from '../character.js';
 import { bestPrintedMeleeAttack, hasPrintedTrait, printedLeap } from '../monster.js';
+import { castingIdOf } from '../spells.js';
 import {
   altitudeOf,
   canPassThrough,
@@ -429,8 +430,18 @@ export function moveWithin(
     // declared patches, which is the glossary's own arithmetic: "1 extra foot
     // (2 extra feet in Difficult Terrain)" is a foot of expensive ground
     // costing two and an unaided climb over it costing four.
-    const cost =
+    const ordinary =
       ground.value.cost + (charging === 'none' ? 0 : difficult * way.value.surcharge);
+
+    // SRD *Jump*: "can jump up to 30 feet **by spending 10 feet of
+    // movement**." A price the spell fixes, and it replaces the arithmetic
+    // above rather than joining it: the sentence says what the jump costs, so
+    // the ground it cleared and the feet it covered are both already answered
+    // — a jumper who leaves the ground pays the spell's number and nothing
+    // else. A shove is still charged nothing, because a shove is not a jump
+    // and `checkJump` refuses the pair outright.
+    const bought = jumped.value.bought;
+    const cost = bought === null ? ordinary : bought.costsMovement;
 
     // — the grant this move says it is spending —————————————————————————
     //
@@ -557,6 +568,16 @@ export function moveWithin(
       events.push({ type: 'movement-spent', id, feet: cost, from, to });
     }
 
+    // **And the allowance is spent once the move is known to have happened**,
+    // which is why it is here rather than beside the bound that read it: every
+    // refusal above leaves the creature's turn with its jump still in it, and
+    // a grant spent by a move that was then refused would be a sentence the
+    // caller paid for and never got. SRD's "Once on each of its turns" is
+    // counted only where there are turns; the fold reads which one.
+    if (bought !== null && state.combat !== null && state.combat.budgets[id] !== undefined) {
+      events.push({ type: 'jump-allowance-spent', id, source: bought.source });
+    }
+
     // — what it provokes ———————————————————————————————————————————————————
     // SRD Disengage: "your movement doesn't provoke Opportunity Attacks for the
     // rest of the current turn." Forced movement provokes nothing either, for a
@@ -597,7 +618,7 @@ export function moveWithin(
           ...opportunity.unverified,
           ...ground.value.unverified,
           ...passage.value.unverified,
-          ...jumped.value,
+          ...jumped.value.unverified,
           ...climbing,
         ],
         duplicate: false,
@@ -624,7 +645,7 @@ export function moveWithin(
         ...opportunity.unverified,
         ...ground.value.unverified,
         ...passage.value.unverified,
-        ...jumped.value,
+        ...jumped.value.unverified,
         ...climbing,
       ],
       duplicate: false,
@@ -777,9 +798,10 @@ function checkJump(
   command: MoveCommand,
   feet: number,
   rise: number,
-): Result<readonly string[]> {
+): Result<JumpOutcome> {
+  const nothing = { unverified: [], bought: null } as const;
   const jump = command.jump;
-  if (jump === undefined) return ok([]);
+  if (jump === undefined) return ok(nothing);
 
   // SRD Standing Leap, which is a sentence about both halves of this function:
   // the distances are printed rather than derived, and the running start stops
@@ -820,14 +842,28 @@ function checkJump(
     // cover increases by a number of feet equal to your Dexterity modifier" —
     // the running Long Jump alone, off the score as it stands.
     const lengthened = running && leap === null ? jumpBonusFor(state, id) : 0;
-    const reach =
-      leap === null ? longJumpDistance(sheet, running) + lengthened : leap.longJumpFeet;
+    const own = leap === null ? longJumpDistance(sheet, running) + lengthened : leap.longJumpFeet;
+
+    // SRD *Jump*: "that creature can jump up to 30 feet by spending 10 feet of
+    // movement." A bought jump is a **second** bound beside the creature's own
+    // and the longer one wins, which is what "can jump up to 30 feet" says: a
+    // Strength 20 Barbarian whose own Long Jump already covers twenty does not
+    // get a shorter one for having the spell on them.
+    //
+    // **Bought only where it is worth buying.** The price is flat, so a jump
+    // the creature could have made on its own is charged the spell's ten feet
+    // instead of the five the ground cost — and taking a once-per-turn
+    // allowance for that would be the engine spending something the caller
+    // never asked it to. So the grant is read only when the jump is longer
+    // than the creature's own reach.
+    const bought = feet > own ? jumpBoughtFor(state, id, feet) : null;
+    const reach = bought === null ? own : bought.feet;
     return feet > reach
       ? err(
           'jump_too_far',
-          `${id}'s ${leap === null ? (running ? 'running' : 'standing') : 'printed'} Long Jump covers ${reach} feet, and this one is ${feet}`,
+          `${id}'s ${leap === null ? (running ? 'running' : 'standing') : 'printed'} Long Jump covers ${own} feet, and this one is ${feet}${boughtJumpNote(state, id, feet)}`,
         )
-      : ok(unverified);
+      : ok({ unverified, bought });
   }
 
   const height = leap === null ? highJumpHeight(sheet, running) : leap.highJumpFeet;
@@ -836,7 +872,76 @@ function checkJump(
         'jump_too_far',
         `${id}'s ${leap === null ? (running ? 'running' : 'standing') : 'printed'} High Jump reaches ${height} feet, and this one rises ${rise}`,
       )
-    : ok(unverified);
+    : ok({ unverified, bought: null });
+}
+
+/**
+ * What a declared jump came to: what could not be checked, and what paid.
+ *
+ * Two answers rather than one because SRD *Jump* prints two sentences about a
+ * jump the creature did not have — how far it goes and what it costs — and the
+ * second is not this function's to charge. `resolveMove` owns what a move
+ * costs, so the grant travels back to it rather than being spent here.
+ */
+interface JumpOutcome {
+  /** What the running start could not be checked against; see {@link JumpDeclaration}. */
+  readonly unverified: readonly string[];
+  /** The allowance this jump is being made on, or null for the creature's own legs. */
+  readonly bought: GrantedJump | null;
+}
+
+/**
+ * Why the jump somebody bought this creature did not cover this one.
+ *
+ * **A refusal that names only the creature's own legs is a refusal that hides
+ * the spell.** A Wizard under SRD *Jump* who declares forty feet is told their
+ * standing Long Jump covers four, and the thirty the spell bought them — or
+ * the fact that they have already taken it this turn — is the half they needed
+ * to hear. The code is untouched: this is the reason, which is what a DM reads.
+ *
+ * Empty for a creature nobody has bought a jump for, which is every creature
+ * in the game but one.
+ */
+function boughtJumpNote(state: GameState, who: CharacterId, feet: number): string {
+  const turn = state.combat?.turnsTaken ?? null;
+  const held = state.creatures[who]?.jumpAllowances ?? [];
+  if (held.length === 0) return '';
+
+  const longest = Math.max(...held.map((allowance) => allowance.feet));
+  const spent =
+    turn !== null &&
+    held.every((allowance) => allowance.feet < feet || allowance.takenOnTurn === turn);
+  return longest >= feet && spent
+    ? `; the jump bought for them reaches ${longest} feet and has already been taken this turn`
+    : `; the jump bought for them reaches ${longest} feet`;
+}
+
+/**
+ * The jump a running effect has bought this creature, if one reaches this far.
+ *
+ * SRD *Jump*: "Once on each of its turns until the spell ends, that creature
+ * can jump up to 30 feet by spending 10 feet of movement."
+ *
+ * **The longest that covers the jump, and the cheapest of those.** Two spells
+ * of this shape on one creature is a case the SRD does not print and the
+ * engine should not have an opinion about beyond taking the one that does the
+ * job for the least — the reading `mostProtectiveCover` already takes of two
+ * declarations about one pair.
+ *
+ * **Once per turn, and only where there are turns.** The stamp is on the grant
+ * and the turn is the order's, so a creature outside a fight is uncapped: the
+ * sentence counts its turns and it is taking none, which is the reading the
+ * one-slot-per-turn rule and every once-per-turn feature already take.
+ */
+function jumpBoughtFor(state: GameState, who: CharacterId, feet: number): GrantedJump | null {
+  const turn = state.combat?.turnsTaken ?? null;
+  let best: GrantedJump | null = null;
+  for (const allowance of state.creatures[who]?.jumpAllowances ?? []) {
+    if (allowance.feet < feet) continue;
+    if (turn !== null && allowance.takenOnTurn === turn) continue;
+    if (best === null || allowance.costsMovement < best.costsMovement) best = allowance;
+  }
+  return best;
 }
 
 /** SRD "Jump": "if you move at least 10 feet immediately before the jump". */
@@ -1919,6 +2024,29 @@ function heightFallen(
   }
 }
 
+/**
+ * The castings that have taken the cost of landing away from this creature.
+ *
+ * SRD *Feather Fall*, and the whole of what the ward is: a list of sources,
+ * each carrying the casting that hung it. The casting ids are what the ending
+ * needs — "the spell ends for that creature" — and the list is what decides
+ * whether a die is thrown at all.
+ *
+ * Sorted, because `fall-ward-granted` sorts the grants by source and two
+ * readers of one state have to agree on the order the endings are written in.
+ * A ward from something that is not a casting ends nothing and is simply not
+ * here; nothing can write one today, and a ward that could not be ended would
+ * be a creature that never pays for a landing again.
+ */
+function wardsAgainstFalling(state: GameState, who: CharacterId): readonly string[] {
+  const found: string[] = [];
+  for (const ward of state.creatures[who]?.fallWards ?? []) {
+    const castingId = castingIdOf(ward.source);
+    if (castingId !== null) found.push(castingId);
+  }
+  return found;
+}
+
 export function resolveFall(
   state: GameState,
   id: CharacterId,
@@ -1958,6 +2086,55 @@ export function resolveFall(
             ...(stamp === null ? {} : { command: stamp }),
           },
         ];
+
+    // SRD *Feather Fall*: "If a creature **lands** before the spell ends, the
+    // creature takes **no damage** from the fall, and the spell ends for that
+    // creature."
+    //
+    // **The landing is what ends it, not the damage**, which is why this is
+    // the first branch and not the second: a warded creature that comes down
+    // four feet has landed, and a ward left standing there would be a spell
+    // that goes on paying for every later fall of a minute it has already
+    // spent. The clause the engine can see is the landing, and the engine sees
+    // one here whatever the height came to.
+    //
+    // **And nothing is thrown**, because "no damage" is not a roll that came
+    // to nothing: the branch is above the dice rather than a subtraction after
+    // them, so the generator does not move for a landing that cost nothing.
+    // The lander is left standing for the other half of SRD's own sentence —
+    // "**unless** you avoid taking damage from the fall ... You **then** have
+    // the Prone condition."
+    //
+    // The spell ends **on that creature**, through the door a repeat save
+    // already uses: the other four the casting caught are still falling, and
+    // it is still holding them.
+    const warded = wardsAgainstFalling(state, id);
+    if (warded.length > 0) {
+      const ended = warded.map(
+        (castingId, at): GameEvent => ({
+          type: 'spell-ended',
+          castingId,
+          on: id,
+          // `spent`, which is the ending nobody decides: the ward was used up
+          // by the landing it paid for, exactly as SRD Mirror Image's last
+          // duplicate is used up by the blow that destroys it. Not `dismissed`
+          // — the caster did nothing — and not `dispelled`, which is somebody
+          // else's magic defeating theirs.
+          reason: 'spent',
+          // The stamp rides the first event this command writes, whichever it
+          // is: the descent where the engine knew the height, and otherwise
+          // the ending. Without it a retry would send `spell-ended` a second
+          // time — and the ward is gone with the first, so the retry finds
+          // nothing to end and writes nothing either way.
+          ...(stamp === null || descent.length > 0 || at > 0 ? {} : { command: stamp }),
+        }),
+      );
+      return ok({
+        ...nothing(false),
+        events: [...descent, ...ended],
+        unverified: dropped.value.unverified,
+      });
+    }
 
     const count = fallDamageDice(feet);
     // SRD ties the two halves together in one word: "**unless** you avoid

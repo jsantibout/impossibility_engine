@@ -2277,7 +2277,7 @@ const ATTACK = tool({
 const CAST_SPELL = tool({
   name: 'cast_spell',
   description:
-    'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration, the range. You name the spell, the targets and the slot. An area spell takes no targets and picks its own — give it `at` for where it is centred, and, for a Cone, Cube or Line, a `towardsCreature`, `towardsLandmark` or `towards` saying which way it points. The exception is an area the spell says is "each creature of your choice": there `targets` names which of the creatures standing in it are caught, and the engine says who those are when you leave it out.',
+    'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration, the range. You name the spell, the targets and the slot. An area spell takes no targets and picks its own — give it `at` for where it is centred, and, for a Cone, Cube or Line, a `towardsCreature`, `towardsLandmark` or `towards` saying which way it points. A wall is the one template you draw instead: give it `path`, the 5-foot spaces it runs through in order. The exception is an area the spell says is "each creature of your choice": there `targets` names which of the creatures standing in it are caught, and the engine says who those are when you leave it out.',
   mutates: true,
   input: z.object({
     caster: creatureId,
@@ -2304,6 +2304,12 @@ const CAST_SPELL = tool({
     slotLevel: z.int().min(1).max(9).optional().describe('Which slot to spend. Omit for a cantrip.'),
     at: pointSchema.optional().describe('Where an area spell is centred, for a spell that asks for a point.'),
     towards: pointSchema.optional().describe('Point a Cone, Cube or Line at this exact spot.'),
+    path: z
+      .array(pointSchema)
+      .optional()
+      .describe(
+        'The 5-foot spaces a **wall** runs through, in order along the ground — SRD Wind Wall’s "you can shape the wall in any way you choose so long as it makes one continuous path along the ground". The only template the caster draws rather than aims: the engine checks the total length the spell allows, that each space touches the one before it, that the whole path is on one ground and crosses no space twice, and that the first space is in range. Leave `at` out; the wall rises at the first space of its own path.',
+      ),
     towardsCreature: creatureId.optional().describe('Point a Cone, Cube or Line at this creature.'),
     towardsLandmark: z.string().min(1).optional().describe('Point it at this landmark instead.'),
     anchoring: z
@@ -2428,6 +2434,7 @@ const CAST_SPELL = tool({
         ? {}
         : { rollsAt: args.rollsAt.map((aim) => ({ target: who(aim.target), count: aim.count })) }),
       ...(args.at === undefined ? {} : { at: point(args.at) }),
+      ...(args.path === undefined ? {} : { path: args.path.map(point) }),
       ...(towards.value === undefined ? {} : { towards: towards.value }),
       ...(args.anchoring === undefined ? {} : { anchoring: args.anchoring }),
       ...(args.slotLevel === undefined ? {} : { slotLevel: args.slotLevel }),

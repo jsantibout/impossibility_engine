@@ -615,6 +615,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // opportunity appearing and disappearing on the same rule, and the spell
   // cast through the public API.
   'fall-declared',
+  // The ward SRD Feather Fall hangs on each falling creature it catches.
+  // Neither log could carry one: no casting could reach what a landing costs
+  // until `resolveFall` existed to charge for one, and the creature record had
+  // no `fallWards` list at all — so both fixtures fold to exactly the states
+  // they always folded to with that list empty on every creature.
+  // `falling.test.ts` casts the spell in the falling window through the
+  // public API and drives it end to end: the sixty-foot fall that costs
+  // nothing, the lander left standing, the casting ending on that one creature
+  // and running on for the other, and an unwarded faller taking the dice.
+  'fall-ward-granted',
   // The two halves of a rule about hit points that a running effect states —
   // one standing in front of healing, one holding a maximum up. Neither log
   // was written when a spell could do either: no creature had a `healingRules`
@@ -674,6 +684,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'item-dropped',
   'item-taken-up',
   'item-transferred',
+  // The jump SRD Jump buys a creature, and the turn it was spent on. Neither
+  // log was written when a casting could buy one: no creature record had a
+  // `jumpAllowances` list, `checkJump` measured every jump against the sheet
+  // alone, and a move's cost was whatever the ground came to — so both
+  // fixtures fold to exactly the states they always folded to with that list
+  // empty on every creature. `jump-spell.test.ts` casts the spell through the
+  // public API and drives it end to end: the thirty feet a Wizard could not
+  // otherwise clear, the ten feet it costs instead of thirty, the once a turn
+  // it may be taken, and the grant going back when the casting does.
+  'jump-allowance-granted',
+  'jump-allowance-spent',
   // How bright a patch of the room is, and how obscured. Neither log was
   // written when the lattice held either — sight was pairwise and no square
   // was lit or unlit — and both fixtures fold to exactly the states they

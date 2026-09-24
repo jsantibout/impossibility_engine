@@ -378,6 +378,20 @@ const castAt = (
   }
 
   const directional = directionalShape(definition.area);
+  // The ninth stated fact, and the only one that is a **shape**: SRD Wind
+  // Wall's "you can shape the wall in any way you choose so long as it makes
+  // one continuous path along the ground" is drawn by whoever casts it, and a
+  // casting that draws nothing is refused. The sweep draws fifteen feet
+  // northward out of the caster's own square — well inside the shortest wall
+  // the catalogue holds, continuous, on one ground, and running through the
+  // square TARGET is standing in, because the point here is that every
+  // definition casts *and catches somebody*.
+  const drawn =
+    definition.area.kind === 'wall'
+      ? {
+          path: [at, { x: at.x, y: at.y + 5, z: at.z }, { x: at.x, y: at.y + 10, z: at.z }],
+        }
+      : {};
   return resolveSpell(
     state,
     CASTER,
@@ -392,6 +406,7 @@ const castAt = (
       targets: definition.targets.chosenFromTheArea === true ? [TARGET] : [],
       ...(definition.area.origin === 'point' ? { at } : {}),
       ...(directional ? { towards } : {}),
+      ...drawn,
       ...stated,
       ...(slotLevel === undefined ? {} : { slotLevel }),
     },

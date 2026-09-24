@@ -14,24 +14,33 @@
  * so `areaDefinitionOf` answers out of the log rather than out of this week's
  * catalogue.
  */
-import type { CharacterId } from '@ie/shared';
+import type { CharacterId, ConditionName } from '@ie/shared';
 import type { TurnMoment } from '../time.js';
+import { timerKey } from '../timers.js';
 import {
   areaStampKey,
+  castingIdOf,
   creaturesStandingInCastingArea,
   type AreaMoment,
   type OngoingSpell,
 } from '../spells.js';
 import type { PositionState, Point } from '../positioning.js';
-// **Type-only, deliberately.** The fold does not open the spell catalogue: a
-// casting's area and its clauses are pinned on the ongoing record at the cast,
-// so a replay answers out of the log rather than out of this week's
-// definitions. The one lookup left is `upgradeOngoing`, which is for a record
-// written before that field existed — see `ongoing-compatibility.ts`.
-import type { AreaTrigger, SpellArea } from '../spell-definitions.js';
+// **Type-only for the shapes, deliberately.** The fold does not open the spell
+// catalogue: a casting's area and its clauses are pinned on the ongoing record
+// at the cast, so a replay answers out of the log rather than out of this
+// week's definitions. The one lookup left is `upgradeOngoing`, which is for a
+// record written before that field existed — see `ongoing-compatibility.ts`.
+//
+// `conditionRiderOf` is the one value, and it is not a lookup: it is the view
+// that reads the riders out of an effect whichever of the three layouts its
+// host writes them in, applied to the trigger this record **already carries**.
+// A second copy of that switch living here would be a second answer to "what
+// does this effect impose".
+import { conditionRiderOf, type AreaTrigger, type SpellArea } from '../spell-definitions.js';
 
 import type { GameState } from '../state.js';
 import { sortedRecord } from './common.js';
+import { endTimedCondition } from './release.js';
 
 /**
  * Which placed creatures a persistent casting's area currently holds, for the
@@ -43,13 +52,51 @@ import { sortedRecord } from './common.js';
  * thing the trigger path asks for and the standing one does not: a casting
  * with no trigger clauses catches nobody *here*, because there is nothing for
  * it to catch them with.
+ *
+ * **And the second thing: a reach measured from the point rather than over the
+ * template.** SRD Flaming Sphere's clause is "within 5 feet of the sphere",
+ * and the sphere is one space of fire that lights a room twenty feet across —
+ * so the record's `area` is the lit region and `AreaTrigger.within` is what
+ * burns. The substitution is a Sphere of that radius at the same point, run
+ * through the same one geometry with the same designated-unaffected filter, so
+ * there is no second ruler; a Cube's `towards` is simply unread, as it is for
+ * every Sphere.
  */
 function creaturesInCastingArea(
   scene: PositionState,
   record: OngoingSpell,
 ): ReadonlySet<CharacterId> | null {
-  if (areaDefinitionOf(record) === null) return null;
-  return creaturesStandingInCastingArea(scene, record);
+  const definition = areaDefinitionOf(record);
+  if (definition === null) return null;
+
+  const within = definition.trigger.within;
+  if (within === undefined) return creaturesStandingInCastingArea(scene, record);
+  return creaturesStandingInCastingArea(scene, {
+    ...record,
+    area: { kind: 'sphere', radius: within, origin: 'point' },
+  });
+}
+
+/**
+ * Whoever is standing in the space the casting's point occupies.
+ *
+ * SRD Flaming Sphere: "If you move the sphere **into a creature's space**." A
+ * Sphere of radius zero is exactly that question asked of the one geometry —
+ * the point's own space and nothing adjacent — which is why it is a
+ * substitution rather than a coordinate comparison: a Large creature occupies
+ * four spaces and a comparison against its anchor would find it in one of
+ * them.
+ */
+function creaturesOnCastingPoint(
+  scene: PositionState,
+  record: OngoingSpell,
+  at: Point,
+): ReadonlySet<CharacterId> | null {
+  return creaturesStandingInCastingArea(scene, {
+    ...record,
+    area: { kind: 'sphere', radius: 0, origin: 'point' },
+    origin: at,
+  });
 }
 
 /**
@@ -237,7 +284,91 @@ export function raiseAreaEntries(state: GameState, before: PositionState | null)
  * outcome and exists only to keep a fold's list in the order a reader expects.
  */
 export function raiseAfterMovement(state: GameState, before: PositionState | null): GameState {
-  return raiseAreaEntries(raiseCarriedArrivals(state, before), before);
+  return endConditionsLeftBehind(raiseAreaEntries(raiseCarriedArrivals(state, before), before));
+}
+
+/**
+ * The conditions a casting's area imposed on creatures who are no longer in
+ * it.
+ *
+ * SRD Web: "have the Restrained condition **while in the webs** or until it
+ * breaks free." A lifetime that is neither a span nor a moment in the turn
+ * order nor a saving throw — it is a fact about where the creature is
+ * standing, and `docs/design/space-and-areas.md` recorded in as many words
+ * that nothing here could say it.
+ *
+ * **Derived, like every other lapse in this file.** Nobody commands a
+ * condition to end because its holder walked out; the walking is the whole of
+ * it, so this runs off the same authoritative position change the entry
+ * detectors run off and writes no event of its own. A `condition-removed` here
+ * would be a second record of a fact the log already holds, and one a replay
+ * could disagree with.
+ *
+ * **It reads the mark off the pinned trigger, not out of the catalogue.**
+ * `AreaTrigger` is stored whole on the ongoing record at the cast, so the
+ * clause that says "while in the webs" travels with the casting that printed
+ * it and a corrected definition cannot reach a Web conjured an hour ago.
+ *
+ * **Asked of everybody, not only of whoever moved.** The area itself can move
+ * (`spell-origin-moved`), a mount can carry a rider out, and a creature can be
+ * shoved; one question asked of the whole scene is right in all of them, where
+ * a diff against the movers would be right in one. It is idempotent by
+ * construction — a creature outside the area holding nothing is left alone —
+ * which is what lets it run on every position change without a guard.
+ */
+export function endConditionsLeftBehind(state: GameState): GameState {
+  const scene = state.scene;
+  if (scene === null) return state;
+
+  let current = state;
+  for (const castingId of Object.keys(state.ongoing).sort()) {
+    const record = current.ongoing[castingId];
+    if (record === undefined) continue;
+
+    const definition = areaDefinitionOf(record);
+    if (definition === null) continue;
+
+    const bound = conditionsBoundToTheArea(definition.trigger);
+    if (bound.size === 0) continue;
+
+    const inside = creaturesStandingInCastingArea(scene, record);
+    if (inside === null) continue;
+
+    for (const who of Object.keys(current.creatures).sort() as CharacterId[]) {
+      // **An unplaced creature is outside**, which is the same reading
+      // `creaturesInArea` takes: the engine does not guess where anybody might
+      // be, and a creature nobody can find is not standing in the webs.
+      if (inside.has(who)) continue;
+
+      const held = current.creatures[who]?.conditions.instances ?? [];
+      for (const instance of held) {
+        if (!bound.has(instance.condition)) continue;
+        if (castingIdOf(instance.source) !== castingId) continue;
+        const target = { kind: 'condition', on: who, instance: instance.id } as const;
+        current = endTimedCondition(current, timerKey(target), target);
+      }
+    }
+  }
+  return current;
+}
+
+/**
+ * The conditions a trigger's clauses said last only while their holder is in
+ * the area.
+ *
+ * Names rather than riders, because the instance is matched by what it *is*
+ * and by which casting put it there — the two facts an instance carries. One
+ * casting imposing two conditions of which the book binds only one to the
+ * area is exactly the case `EarlyEndings` already names conditions for.
+ */
+function conditionsBoundToTheArea(trigger: AreaTrigger): ReadonlySet<ConditionName> {
+  const bound = new Set<ConditionName>();
+  for (const effect of trigger.effects) {
+    for (const rider of conditionRiderOf(effect)) {
+      if (rider.endsWhenOutsideArea === true) bound.add(rider.name);
+    }
+  }
+  return bound;
 }
 
 /** Every creature whose authoritative position differs between two scenes. */
@@ -370,6 +501,20 @@ export function raiseAreaArrivals(
   from: Point,
   to: Point,
 ): GameState {
+  // **The area moved off somebody as well as onto somebody**, and a condition
+  // bound to the area ends on either half of that sentence — whether or not
+  // this casting prints an arrival clause. So the ending runs over the moved
+  // state regardless, and the arrival detector below keeps every one of its
+  // own early exits.
+  return endConditionsLeftBehind(raiseArrivalDebts(state, castingId, from, to));
+}
+
+function raiseArrivalDebts(
+  state: GameState,
+  castingId: string,
+  from: Point,
+  to: Point,
+): GameState {
   const scene = state.scene;
   if (scene === null) return state;
 
@@ -380,10 +525,25 @@ export function raiseAreaArrivals(
   // **A fixed area gains nothing from a neighbour's moving one.** Web's Cube
   // stays where it was conjured, and a hand-built log that moved its point
   // anyway must not make it start catching people on a clause it never printed.
-  if (definition === null || definition.trigger.onAreaEntry !== true) return state;
+  if (definition === null) return state;
+  const trigger = definition.trigger;
+  if (trigger.onAreaEntry !== true && trigger.onPointEntry !== true) return state;
 
-  const was = creaturesInCastingArea(scene, { ...record, origin: from });
-  const now = creaturesInCastingArea(scene, { ...record, origin: to });
+  // **Two clauses, two populations, and the SRD wrote them about two different
+  // things.** Moonbeam's is the *area* sweeping over somebody, so it is
+  // everyone the area covers now and did not cover before; Flaming Sphere's is
+  // the *point* arriving in an occupied space, so it is whoever is standing
+  // where the point landed and was not standing where it was. A definition
+  // carries one or the other — `checkSpellDefinition` refuses both — so this
+  // chooses rather than unions.
+  const was =
+    trigger.onPointEntry === true
+      ? creaturesOnCastingPoint(scene, record, from)
+      : creaturesInCastingArea(scene, { ...record, origin: from });
+  const now =
+    trigger.onPointEntry === true
+      ? creaturesOnCastingPoint(scene, record, to)
+      : creaturesInCastingArea(scene, { ...record, origin: to });
   if (was === null || now === null) return state;
 
   const turn = state.combat?.turnsTaken ?? null;
@@ -391,7 +551,7 @@ export function raiseAreaArrivals(
   let current = state;
   for (const who of [...now].sort()) {
     if (was.has(who)) continue;
-    if (!areaTriggerAllowed(current, castingId, who, definition.trigger, 'area-moved', turn)) {
+    if (!areaTriggerAllowed(current, castingId, who, trigger, 'area-moved', turn)) {
       continue;
     }
     current = oweAreaEffect(current, castingId, who, 'area-moved', turn);

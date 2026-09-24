@@ -269,6 +269,25 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly towards?: Point;
   /**
+   * The 5-foot spaces a **wall** runs through, in order along the ground.
+   *
+   * SRD Wind Wall: "You can shape the wall in any way you choose so long as it
+   * makes one continuous path along the ground."
+   *
+   * **The one template the caster draws rather than aims**, and the reason it
+   * is a list of spaces and not a length and a bearing: fifty feet of wall
+   * bent around a corner is a shape no number reconstructs, and a wall the
+   * engine picked the route of would be the engine playing. `placeWall` judges
+   * what arrives — the length, the continuity, the single ground it runs along
+   * and the Range to its first space — and refuses rather than straightening.
+   *
+   * The point the wall rises from is the first space of the path, so {@link at}
+   * may be left out; stated beside a path, it has to agree with it.
+   *
+   * Absent for every other area, which is shaped by its own printed dimension.
+   */
+  readonly path?: readonly Point[];
+  /**
    * Whether `at` and `towards` name a space or a grid intersection —
    * the vertical edge four spaces share. Defaults to `space`.
    *
@@ -763,6 +782,8 @@ export interface AreaRequest {
   readonly targets: readonly CharacterId[];
   readonly at?: Point;
   readonly towards?: Point;
+  /** The spaces a wall runs through — see {@link CastSpellRequest.path}. */
+  readonly path?: readonly Point[];
   readonly anchoring?: PointAnchoring;
 }
 
@@ -1107,6 +1128,17 @@ function placeArea(
   // because `CastSpellRequest.anchoring` exists precisely so a caster who
   // wants the other convention can ask for it.
   const anchoring: PointAnchoring = anchoringFor(source, request);
+
+  // **A wall is placed by being drawn**, which is the one template the caster
+  // states rather than aims: SRD Wind Wall's "you can shape the wall in any way
+  // you choose so long as it makes one continuous path along the ground". The
+  // path settles both halves of the placement — where the wall starts and what
+  // shape it is — so it is answered before the origin question every other area
+  // asks, and the point it rises from is the first space of the path.
+  if (area.kind === 'wall') {
+    return placeWall(state, casterId, source, area, request, reach);
+  }
+
   let origin: AreaOrigin;
   if (area.origin === 'self') {
     if (request.at !== undefined) {
@@ -1141,6 +1173,17 @@ function placeArea(
       }
     }
     origin = areaPointAt(request.at, anchoring);
+  }
+
+  // **And a path belongs to the one template that is drawn.** A Sphere stated
+  // with a path is a caller who believes they have shaped something, and a
+  // stated fact nobody reads is exactly the silence `not_directional` below
+  // refuses on the other side of the same question.
+  if (request.path !== undefined) {
+    return err(
+      'area_is_not_drawn',
+      `a ${area.kind} is the shape its own dimensions make; only a wall is drawn space by space`,
+    );
   }
 
   // A Cone, Cube or Line has to be pointed somewhere.
@@ -1183,6 +1226,138 @@ function placeArea(
 
   return ok({ origin, shape });
 }
+
+/**
+ * A wall, drawn by whoever cast it and judged against what the book allows.
+ *
+ * SRD Wind Wall: "A wall of strong wind rises from the ground **at a point you
+ * choose within range**. You can make the wall **up to 50 feet long**, 15 feet
+ * high, and 1 foot thick. You can shape the wall in any way you choose so long
+ * as it makes **one continuous path along the ground**."
+ *
+ * Four sentences and every one of them is a check the engine can make, which
+ * is what separates this from the geometry it sits beside: nothing is
+ * measured from a point, and the whole of the adjudication is whether the
+ * shape the caster drew is a shape the spell permits.
+ *
+ * | The book | What is checked |
+ * |---|---|
+ * | "at a point you choose within range" | the first space, against the spell's Range |
+ * | "up to 50 feet long" | the count of spaces, at five feet each |
+ * | "one continuous path" | each space touches the one before it, and none twice |
+ * | "along the ground" | one height for the whole path |
+ *
+ * **The caller draws and the engine judges**, which is `placeOrigin`'s
+ * division and the reason the path is not swept for: a wall the engine chose
+ * the shape of is the engine playing, and there is no shortest-path answer to
+ * "where would you like your wall".
+ */
+function placeWall(
+  state: GameState,
+  casterId: CharacterId,
+  source: AreaSource,
+  area: Extract<SpellArea, { readonly kind: 'wall' }>,
+  request: AreaRequest,
+  reach: number | null,
+): Result<{ readonly origin: AreaOrigin; readonly shape: AreaShape }> {
+  const scene = state.scene;
+  if (scene === null) {
+    return err('no_scene', `${source.name} needs a scene for its wall to stand in`);
+  }
+
+  // A wall is drawn rather than aimed, so a direction stated beside one is a
+  // fact nothing reads — the mirror of `not_directional`, which refuses an aim
+  // at a shape that has no direction to point.
+  if (request.towards !== undefined) {
+    return err('not_directional', `a wall is drawn along its own path and has no direction to point`);
+  }
+
+  const drawn = request.path ?? [];
+  if (drawn.length === 0) {
+    return err(
+      'no_wall_path',
+      `${source.name} is shaped by whoever casts it; name the 5-foot spaces its wall runs through, in order`,
+    );
+  }
+
+  const path = drawn.map(snapToSpace);
+
+  // "up to 50 feet long", at one space to five feet. A wall of no length is
+  // refused above; this is the other end.
+  const feet = path.length * SPACE;
+  if (feet > area.length) {
+    return err(
+      'wall_too_long',
+      `${source.name} makes a wall up to ${area.length} feet long, and that path is ${feet}`,
+    );
+  }
+
+  // "one continuous path along the ground", which is three things at once: one
+  // height throughout, each space touching the one before it, and no space
+  // twice — a path that doubled back over itself would be a wall whose fifty
+  // feet had been counted for ground it covers once.
+  const seen = new Set<string>();
+  let previous: Point | null = null;
+  for (const space of path) {
+    if (!isInsideScene(scene, space)) {
+      return err(
+        'outside_scene',
+        `${source.name} cannot run through (${space.x}, ${space.y}, ${space.z}); that is outside this scene`,
+      );
+    }
+    const key = `${space.x},${space.y},${space.z}`;
+    if (seen.has(key)) {
+      return err(
+        'wall_not_continuous',
+        `${source.name} runs through (${space.x}, ${space.y}, ${space.z}) twice; one continuous path crosses a space once`,
+      );
+    }
+    seen.add(key);
+
+    if (previous !== null) {
+      const step = Math.max(Math.abs(space.x - previous.x), Math.abs(space.y - previous.y));
+      if (space.z !== previous.z || step !== SPACE) {
+        return err(
+          'wall_not_continuous',
+          `${source.name} makes one continuous path along the ground, and (${space.x}, ${space.y}, ${space.z}) does not touch (${previous.x}, ${previous.y}, ${previous.z})`,
+        );
+      }
+    }
+    previous = space;
+  }
+
+  // "rises from the ground at a point you choose within range" — the first
+  // space of the path is that point, so a caller states the wall and not the
+  // wall and its own beginning. One stated beside it has to agree.
+  const rises = path[0]!;
+  if (request.at !== undefined) {
+    const at = snapToSpace(request.at);
+    if (at.x !== rises.x || at.y !== rises.y || at.z !== rises.z) {
+      return err(
+        'no_wall_path',
+        `${source.name} rises at the first space of its own path; (${at.x}, ${at.y}, ${at.z}) is not (${rises.x}, ${rises.y}, ${rises.z})`,
+      );
+    }
+  }
+  if (reach !== null) {
+    const away = distanceToPoint(scene, casterId, rises);
+    if (!away.ok) return away;
+    if (away.value > reach) {
+      return err(
+        'out_of_range',
+        `${source.name} reaches ${reach} feet; that point is ${away.value} away`,
+      );
+    }
+  }
+
+  return ok({
+    origin: areaPointAt(rises, 'space'),
+    shape: { kind: 'wall', path, height: area.height },
+  });
+}
+
+/** One space on the lattice, in feet — SRD: "Each square represents 5 feet." */
+const SPACE = 5;
 
 /**
  * Where the point a casting keeps is going to be.

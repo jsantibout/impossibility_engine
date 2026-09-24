@@ -158,10 +158,12 @@ describe('toolSchemas', () => {
     // sum with whatever the other tracks of this batch moved.
     // Six tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
+    // Seven tracks moved these pins on one night; each move is recorded above
+    // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(83);
     expect(toolSchemas(dm())).toHaveLength(101);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(115883);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(138190);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(116805);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(139112);
   });
 });
 

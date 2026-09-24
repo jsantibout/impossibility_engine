@@ -12,6 +12,8 @@
     "CommandStamp",
     "LastDamage",
     "FallMoment",
+    "GrantedFallWard",
+    "GrantedJump",
     "PendingAttack",
     "PendingMove",
     "PendingCasting",
@@ -75,6 +77,7 @@
   ],
   "fold/areas.ts": [
     "creaturesInCastingArea",
+    "creaturesOnCastingPoint",
     "originOfCastingArea",
     "areaShapeOf",
     "areaDefinitionOf",
@@ -83,8 +86,11 @@
     "raiseAreaBoundary",
     "raiseAreaEntries",
     "raiseAfterMovement",
+    "endConditionsLeftBehind",
+    "conditionsBoundToTheArea",
     "creaturesThatMoved",
     "raiseCarriedArrivals",
+    "raiseArrivalDebts",
     "raiseAreaArrivals",
     "dropOrphanedAreaEffects"
   ],
