@@ -128,7 +128,208 @@ export const WARLOCK: ClassDefinition = {
       name: 'Eldritch Invocations',
       level: 1,
       automation: 'manual',
-      note: 'The number known is on the class table and the invocations themselves are not modelled: each is its own small rule, and several of them grant spells or change how a spell is cast, which the engine would have to execute one at a time.',
+      note: 'SRD: "You gain one invocation of your choice ... You gain more invocations at higher levels, as shown in the Invocations column of the Warlock Features table." The count is that column and the invocations offered are executed: Agonizing Blast adds Charisma to every damage roll of the one cantrip its holder named, Armor of Shadows, Ascendant Step, Fiendish Vigor, Mask of Many Faces, Master of Myriad Forms, Misty Visions and Otherworldly Leap each cast their spell for nothing as often as asked, Fiendish Vigor takes the highest face of the die rather than rolling it, Devil’s Sight sees through Darkness magical and nonmagical to 120 feet, Eldritch Mind gives Advantage on the Constitution save that maintains Concentration, Lessons of the First Ones grants the Origin feat its holder names, and Pact of the Tome prepares three cantrips and two Rituals from any class’s list and puts the Rituals in a book the Ritual licence reads. Each grant is gated on the invocation chosen, so a Warlock holds what they took and nothing else, and a Prerequisite the book prints over an option is checked at creation. Four clauses are left. Half the book’s invocations are not offered at all, and a Warlock who names one is refused rather than handed an option that does nothing: Eldritch Spear and Repelling Blast change what a casting costs or catches, the three Pacts and what hangs off them are a conjured weapon, a familiar’s extra forms and a book of names, and Gaze of Two Minds and One with Shadows are a perception and a light gate the engine has no reader for. Four invocations are Repeatable and this refuses a second copy, because an option is taken once and nothing on the question says which of them says otherwise. And "a Warlock cantrip that deals damage" is checked as a Warlock cantrip and not as one that deals damage, so a cantrip that deals none simply reaches nothing.',
+      choices: [
+        // "as shown in the Invocations column of the Warlock Features table" —
+        // the column itself, the way Weapon Mastery reads the Fighter's.
+        {
+          kind: 'option',
+          chooseByLevel: ELDRITCH_INVOCATIONS,
+          from: [
+            'Agonizing Blast',
+            'Armor of Shadows',
+            'Ascendant Step',
+            "Devil's Sight",
+            'Eldritch Mind',
+            'Fiendish Vigor',
+            'Lessons of the First Ones',
+            'Mask of Many Faces',
+            'Master of Myriad Forms',
+            'Misty Visions',
+            'Otherworldly Leap',
+            'Pact of the Tome',
+          ],
+          // "If an invocation has a prerequisite, you must meet it to learn
+          // that invocation." Every line the SRD prints over an offered
+          // invocation, and no line it does not.
+          prerequisites: [
+            { option: 'Agonizing Blast', level: 2 },
+            { option: 'Ascendant Step', level: 5 },
+            { option: "Devil's Sight", level: 2 },
+            { option: 'Fiendish Vigor', level: 2 },
+            { option: 'Lessons of the First Ones', level: 2 },
+            { option: 'Mask of Many Faces', level: 2 },
+            { option: 'Master of Myriad Forms', level: 5 },
+            { option: 'Misty Visions', level: 2 },
+            { option: 'Otherworldly Leap', level: 2 },
+          ],
+        },
+        // "Choose one of your known Warlock cantrips that deals damage" — the
+        // second question, asked of nobody who did not take the invocation.
+        {
+          key: 'agonizing-blast',
+          kind: 'spell',
+          choose: 1,
+          maxLevel: 0,
+          onlyIfChoice: 'Agonizing Blast',
+        },
+        // "You have received knowledge from an elder entity of the multiverse,
+        // allowing you to gain one Origin feat of your choice."
+        {
+          key: 'lessons',
+          kind: 'feat',
+          choose: 1,
+          category: 'origin',
+          onlyIfChoice: 'Lessons of the First Ones',
+        },
+        // "When the book appears, choose three cantrips, and choose two level 1
+        // spells that have the Ritual tag. The spells can be from any class's
+        // spell list, and they must be spells you don't already have prepared."
+        {
+          key: 'tome-cantrips',
+          kind: 'spell',
+          choose: 3,
+          maxLevel: 0,
+          fromAnyList: true,
+          onlyIfChoice: 'Pact of the Tome',
+        },
+        {
+          key: 'tome-rituals',
+          kind: 'spell',
+          choose: 2,
+          maxLevel: 1,
+          fromAnyList: true,
+          ritualOnly: true,
+          onlyIfChoice: 'Pact of the Tome',
+        },
+      ],
+      grants: [
+        // Agonizing Blast: "You can add your Charisma modifier to that spell's
+        // damage rolls." The spell is the answer to the question above, read
+        // off its own key; the plural is `everyRoll`, which is what makes a
+        // level 5 Warlock's two beams each carry the modifier.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Agonizing Blast',
+          choiceFrom: 'warlock:eldritch-invocations:agonizing-blast',
+          spellFromChoice: true,
+          effects: [
+            {
+              kind: 'casting-damage',
+              when: { dealsDamage: true },
+              alters: { kind: 'ability-modifier', ability: 'cha', everyRoll: true },
+            },
+          ],
+        },
+        // "You can cast Mage Armor on yourself without expending a spell slot."
+        // No count, no pool, nothing that runs out.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Armor of Shadows',
+          fixed: ['mage-armor'],
+          atWill: true,
+        },
+        // "You can cast Levitate on yourself without expending a spell slot."
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Ascendant Step',
+          fixed: ['levitate'],
+          atWill: true,
+        },
+        // "You can see normally in Dim Light and Darkness — both magical and
+        // nonmagical — within 120 feet of yourself." The grant a devil's own
+        // line writes, on a Warlock.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: "Devil's Sight",
+          effects: [{ kind: 'sees-through', through: 'darkness', feet: 120 }],
+        },
+        // "You have Advantage on Constitution saving throws that you make to
+        // maintain Concentration."
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Eldritch Mind',
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: {
+                  roll: 'saving-throw',
+                  relation: 'roller',
+                  ability: 'con',
+                  onlyConcentration: true,
+                },
+              },
+            },
+          ],
+        },
+        // "You can cast False Life on yourself without expending a spell slot.
+        // When you cast the spell with this feature, you don't roll the die for
+        // the Temporary Hit Points; you automatically get the highest number on
+        // the die."
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Fiendish Vigor',
+          fixed: ['false-life'],
+          atWill: true,
+          maximisedDice: true,
+        },
+        // "You can cast Disguise Self without expending a spell slot."
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Mask of Many Faces',
+          fixed: ['disguise-self'],
+          atWill: true,
+        },
+        // "You can cast Alter Self without expending a spell slot."
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Master of Myriad Forms',
+          fixed: ['alter-self'],
+          atWill: true,
+        },
+        // "You can cast Silent Image without expending a spell slot."
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Misty Visions',
+          fixed: ['silent-image'],
+          atWill: true,
+        },
+        // "You can cast Jump on yourself without expending a spell slot."
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Otherworldly Leap',
+          fixed: ['jump'],
+          atWill: true,
+        },
+        // Pact of the Tome: "While the book is on your person, you have the
+        // chosen spells prepared, and they function as Warlock spells for you."
+        // Three cantrips on the Warlock's cantrip list and two Rituals both
+        // prepared and written into the book the licence below reads.
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Pact of the Tome',
+          choiceFrom: 'warlock:eldritch-invocations:tome-cantrips',
+        },
+        {
+          kind: 'spells',
+          onlyIfChoice: 'Pact of the Tome',
+          choiceFrom: 'warlock:eldritch-invocations:tome-rituals',
+          intoBook: true,
+        },
+        // "[the book] counts as a spellbook" — the licence Ritual Adept reads,
+        // over the two spells the book holds.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Pact of the Tome',
+          effects: [{ kind: 'ritual-from-book' }],
+        },
+      ],
     },
     {
       id: 'warlock:pact-magic',

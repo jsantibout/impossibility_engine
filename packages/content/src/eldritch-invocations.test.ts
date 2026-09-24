@@ -70,6 +70,7 @@ describe('the count the Invocations column prints', () => {
           'Eldritch Mind',
           'Fiendish Vigor',
         ],
+        'warlock:eldritch-invocations:agonizing-blast': ['eldritch-blast'],
       },
     });
     expect(codes(five)).toEqual([]);

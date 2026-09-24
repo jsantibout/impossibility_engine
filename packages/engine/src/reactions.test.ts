@@ -1,6 +1,6 @@
 import { type Content } from './content.js';
 import { describe, expect, it } from 'vitest';
-import { SRD_CONTENT } from '@ie/content';
+import { ELDRITCH_INVOCATIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
@@ -238,6 +238,23 @@ const fighter = (level: number): CharacterChoices => ({
   },
 });
 
+/**
+ * The invocations the Invocations column asks for at this level, taken from
+ * those that ask no second question — SRD Eldritch Invocations.
+ */
+const invocations = (level: number): readonly string[] =>
+  [
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+    'Misty Visions',
+    'Mask of Many Faces',
+    'Otherworldly Leap',
+    'Ascendant Step',
+    'Master of Myriad Forms',
+  ].slice(0, ELDRITCH_INVOCATIONS[level - 1] ?? 0);
+
 const warlock = (level: number): CharacterChoices => ({
   ...common,
   name: 'Vek',
@@ -250,7 +267,10 @@ const warlock = (level: number): CharacterChoices => ({
   abilityIncreases: { con: 2, int: 1 },
   classSkills: ['arcana', 'deception'],
   subclassId: 'fiend-patron',
-  featureChoices: { 'human:skillful': ['perception'] },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'warlock:eldritch-invocations': invocations(level),
+  },
   cantrips: known('warlock', level).cantrips,
   preparedSpells: known('warlock', level).prepared,
   feats: { ...common.feats, ...asi('warlock', level, [4, 8, 12, 16]) },

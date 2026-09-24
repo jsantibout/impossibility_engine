@@ -132,7 +132,11 @@ const FEATURE_CHOICES: Readonly<Record<string, Readonly<Record<string, readonly 
     'rogue:second-expertise': ['acrobatics', 'investigation'],
   },
   sorcerer: { 'sorcerer:metamagic': ['Empowered Spell', 'Quickened Spell'] },
-  warlock: {},
+  // The Invocations column reads 3 at both levels this file drives a Warlock
+  // to, and these three are the invocations that ask no second question.
+  warlock: {
+    'warlock:eldritch-invocations': ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight"],
+  },
   wizard: {
     'wizard:scholar': ['arcana'],
     'evoker:evocation-savant': ['gust-of-wind', 'shatter'],

@@ -154,6 +154,52 @@ const featuresUpTo = (path: Path, level: number) =>
     ...(SRD_CONTENT.backgroundById('sage')?.features ?? []),
   ].filter((feature) => (feature.level ?? 1) <= level);
 
+/**
+ * The options a feature's own question offers **this** character, answered.
+ *
+ * Three rules, and each is the SRD's rather than this fixture's. The count may
+ * be a column of the class table (SRD Eldritch Invocations) rather than a
+ * printed number. A Prerequisite line bars an option below its level, and one
+ * that names another option is left alone entirely, because the fixture takes
+ * the first legal answers rather than building a chain. And an option that
+ * gates a *second* question is taken last, so a fixture about something else
+ * answers the shortest questions it can.
+ */
+const optionsFor = (
+  feature: {
+    readonly choice?: { readonly onlyIfChoice?: string };
+    readonly choices?: readonly { readonly onlyIfChoice?: string }[];
+  },
+  choice: {
+    readonly from: readonly string[];
+    readonly choose?: number;
+    readonly chooseByLevel?: readonly number[];
+    readonly prerequisites?: readonly {
+      readonly option: string;
+      readonly level?: number;
+      readonly requiresOption?: string;
+    }[];
+  },
+  level: number,
+): readonly string[] => {
+  const wanted = choice.chooseByLevel?.[level - 1] ?? choice.choose ?? 0;
+  const barred = new Set(
+    (choice.prerequisites ?? [])
+      .filter((line) => (line.level ?? 0) > level || line.requiresOption !== undefined)
+      .map((line) => line.option),
+  );
+  const gates = new Set(
+    questionsOf<{ readonly onlyIfChoice?: string }>(feature).flatMap((one) =>
+      one.onlyIfChoice === undefined ? [] : [one.onlyIfChoice],
+    ),
+  );
+  const legal = choice.from.filter((one) => !barred.has(one));
+  return [...legal.filter((one) => !gates.has(one)), ...legal.filter((one) => gates.has(one))].slice(
+    0,
+    wanted,
+  );
+};
+
 /** The first legal answer to every choice the plan asks, whatever they are. */
 const autoChoices = (
   path: Path,
@@ -181,7 +227,7 @@ const autoChoices = (
         if (!expertise) for (const one of picked) used.add(one);
         out[at] = picked;
       } else if (choice.kind === 'option') {
-        out[at] = choice.from.slice(0, choice.choose);
+        out[at] = optionsFor(feature, choice, level);
       } else if (choice.kind === 'spell') {
         const wantsCantrip = choice.maxLevel === 0;
         out[at] = SRD_CONTENT.spells
@@ -193,6 +239,8 @@ const autoChoices = (
             (spell) =>
               (choice.school === undefined || spell.school === choice.school) &&
               (choice.maxLevel === undefined || spell.level <= choice.maxLevel) &&
+              (choice.ritualOnly !== true ||
+                SRD_CONTENT.spellEntry(spell.id)?.ritual === true) &&
               (wantsCantrip ? spell.level === 0 : spell.level > 0),
           )
           .map((spell) => spell.id)

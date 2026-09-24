@@ -82,7 +82,12 @@ const kael = (): CharacterChoices => ({
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'] },
+  // The three the Invocations column asks a level 3 Warlock for, chosen from
+  // those that ask no second question.
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'warlock:eldritch-invocations': ['Armor of Shadows', 'Eldritch Mind', "Devil's Sight"],
+  },
   feats: {
     'acolyte:magic-initiate-cleric': {
       featId: 'magic-initiate',

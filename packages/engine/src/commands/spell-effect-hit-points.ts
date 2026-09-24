@@ -30,7 +30,23 @@ export function resolveTempHpEffect(
   let current = world;
 
   const dice = scaledDiceFor(effect.amount, level, numbers.casterLevel, castLevel);
-  const rolled = rollSpellDice(supply, casterSheet().sheet, name, 'temporary', dice);
+  // **What the route this casting was made through says about the dice.** SRD
+  // Fiendish Vigor: "When you cast the spell with this feature, you don't roll
+  // the die for the Temporary Hit Points; you automatically get the highest
+  // number on the die." It is the *grant's* rule rather than the spell's — the
+  // same Warlock casting False Life off a slot rolls it — and it reaches the
+  // roll through the `DieEffect.substitute` SRD Beacon of Hope already uses, so
+  // every die is still thrown, still recorded, and still says what it showed.
+  const route = ctx.route;
+  const maximised = route?.kind === 'granted' && route.grant.maximisedDice === true;
+  const rolled = rollSpellDice(
+    supply,
+    casterSheet().sheet,
+    name,
+    'temporary',
+    dice,
+    maximised ? [maximisedHealing('the highest number on the die')] : [],
+  );
   if (!rolled.ok) return rolled;
 
   const flat = scaledFlatFor(effect.amount, level, castLevel);

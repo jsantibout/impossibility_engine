@@ -2220,16 +2220,24 @@ function checkFeats(
 
   for (const feature of features) {
     const fixed = feature.grantsFeat;
-    // The primary question's, because a feat is answered in `choices.feats`,
-    // which is keyed by the feature and has no room for a second answer.
-    const choice = primaryChoiceOf(feature);
-    const asksForOne = choice?.kind === 'feat';
-    const made = choices.feats[feature.id];
+    // **Whichever question asks for one, and where its answer is filed.**
+    // `choices.feats` is keyed by the same key `featureChoices` is — the
+    // feature's own id for its primary question, `<id>:<key>` for a later one
+    // — so a feature whose first question is already spent on something else
+    // can still ask for a feat. SRD Lessons of the First Ones is that feature:
+    // it is one option of Eldritch Invocations, whose primary question is the
+    // list of invocations taken, and the feat it grants is a second question
+    // asked only of whoever took it.
+    const asking = askedOf(choices, feature).filter((one) => one.kind === 'feat');
+    const choice = asking[0];
+    const asksForOne = choice !== undefined;
+    const answerKey = choiceAnswerKey(feature.id, choice?.key);
+    const made = choices.feats[answerKey];
     if (fixed === undefined && !asksForOne) continue;
 
     if (made === undefined) {
       problems.push(
-        problem('missing_feat_choice', 'feats', `${feature.id} (${feature.name}) grants a feat, and none was chosen`),
+        problem('missing_feat_choice', 'feats', `${answerKey} (${feature.name}) grants a feat, and none was chosen`),
       );
       continue;
     }
@@ -2245,8 +2253,9 @@ function checkFeats(
       );
       continue;
     }
-    // The category the feature's own sentence names: "an Epic Boon feat".
-    const category = asksForOne ? choice.category : undefined;
+    // The category the feature's own sentence names: "an Epic Boon feat",
+    // and SRD Lessons of the First Ones' "one Origin feat of your choice".
+    const category = choice?.kind === 'feat' ? choice.category : undefined;
     if (category !== undefined && definition.category !== category) {
       problems.push(
         problem('wrong_feat_category', 'feats', `${feature.name} grants a ${category} feat; ${definition.name} is ${definition.category}`),
@@ -2265,8 +2274,8 @@ function checkFeats(
       continue;
     }
 
-    taken.push({ feature: feature.id, feat: definition, choice: made });
-    problems.push(...checkFeatChoice(content, feature.id, definition, made, fixed?.spellList));
+    taken.push({ feature: answerKey, feat: definition, choice: made });
+    problems.push(...checkFeatChoice(content, answerKey, definition, made, fixed?.spellList));
   }
 
   // SRD Magic Initiate: "you must choose a different spell list each time."
@@ -3237,6 +3246,25 @@ export function planCharacter(
               declared.kind === 'casting-damage'
               ? { ...declared, when: { ...declared.when, damageTypes: chosenTypes() } }
               : declared;
+
+      // SRD Agonizing Blast: "Choose one of your known Warlock cantrips that
+      // deals damage ... add your Charisma modifier to **that spell's** damage
+      // rolls." The narrowing is the player's answer, read off the keyed
+      // question the grant names — `choiceFrom`'s second job — rather than off
+      // the primary answer the gate above reads.
+      //
+      // **No answer grants nothing.** A `casting-damage` grant whose `when`
+      // named no spell would reach every casting the Warlock makes, which is a
+      // benefit misapplied rather than one never applied; creation refuses the
+      // sheet for the missing answer, and this makes sure a plan built past
+      // that refusal hands out nothing.
+      if (grant.spellFromChoice === true) {
+        if (effect.kind !== 'casting-damage') continue;
+        const named = choices.featureChoices[grant.choiceFrom ?? feature.id] ?? [];
+        const spell = named[0];
+        if (spell === undefined) continue;
+        effect = { ...effect, when: { ...effect.when, spell } };
+      }
 
       // SRD Sneak Attack's dice are a column of the Rogue table, read at that
       // class's own level — the same rule Rage Damage's flat bonus follows.

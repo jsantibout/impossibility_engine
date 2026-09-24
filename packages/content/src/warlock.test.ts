@@ -57,7 +57,19 @@ const warlock = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'] },
+  // The five the Invocations column asks a level 5 Warlock for. Each is one
+  // that asks no second question, so a test about slots stays about slots;
+  // `eldritch-invocations.test.ts` is where the invocations themselves are.
+  featureChoices: {
+    'human:skillful': ['perception'],
+    'warlock:eldritch-invocations': [
+      'Armor of Shadows',
+      'Eldritch Mind',
+      "Devil's Sight",
+      'Fiendish Vigor',
+      'Misty Visions',
+    ],
+  },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',

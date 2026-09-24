@@ -180,6 +180,18 @@ export interface CastingAlterations {
   halfWhenAvoided: boolean;
   /** Not yet taken by any roll of this casting. Zeroed by the first that does. */
   addend: number;
+  /**
+   * SRD Agonizing Blast: "add your Charisma modifier to that spell's **damage
+   * rolls**" — so the addend above is not spent by the roll that takes it.
+   *
+   * A flag rather than a second addend, because the two are the same number
+   * arriving from features that disagree only about how many rolls it reaches.
+   * A casting reached by both adds both to every roll; the alternative is two
+   * running totals and an ordering rule between them, for a pairing no SRD
+   * character can currently hold — Agonizing Blast names a Warlock cantrip and
+   * the two singular writers reach a Sorcerer's and a Wizard's spells.
+   */
+  addendEveryRoll: boolean;
 }
 
 /** What a casting with no such feature behind it carries. */
@@ -188,6 +200,7 @@ export const NO_ALTERATIONS = (): CastingAlterations => ({
   maximum: false,
   halfWhenAvoided: false,
   addend: 0,
+  addendEveryRoll: false,
 });
 
 /**
@@ -204,7 +217,10 @@ export const NO_ALTERATIONS = (): CastingAlterations => ({
  */
 export function takeCastingAddend(alterations: CastingAlterations): number {
   const taken = alterations.addend;
-  alterations.addend = 0;
+  // SRD Agonizing Blast says "damage rolls", so there is nothing to spend: the
+  // addend stands for every roll this casting makes. Every other writer of this
+  // shape says "one damage roll", and for those the first roll takes it.
+  if (!alterations.addendEveryRoll) alterations.addend = 0;
   return taken;
 }
 
@@ -260,6 +276,8 @@ export function castingAlterations(
     switch (alters.kind) {
       case 'ability-modifier':
         alterations.addend += abilityModifier(sheet.abilities[alters.ability]);
+        // SRD Agonizing Blast's plural — see {@link CastingAlterations}.
+        if (alters.everyRoll === true) alterations.addendEveryRoll = true;
         break;
       case 'die':
         // The first wins, and no SRD feature writes a second: a die substituted
@@ -517,6 +535,14 @@ export function savingSupport(
   about?: readonly ConditionName[],
   /** Whether a spell or other magical effect forced it. Silence is "no". */
   magical?: boolean,
+  /**
+   * Whether this is the save made to **maintain Concentration**. Silence is
+   * "no", for the reason the two answers above take silence that way: SRD
+   * Eldritch Mind and War Caster name one save out of every Constitution save
+   * their holder makes, and a gatherer that guessed would hand a Warlock
+   * Advantage on every one of them.
+   */
+  concentration?: boolean,
 ): {
   readonly bonuses: readonly Bonus[];
   readonly modes: readonly (RollMode | ModeSource)[];
@@ -562,6 +588,10 @@ export function savingSupport(
         // sentence, and a gatherer that guessed would hand a devil Advantage
         // on every save it ever makes.
         ...(magical === undefined ? {} : { magical }),
+        // And which save this is, passed through the same way: one caller says
+        // yes — the Concentration save a blow forces — and every other save
+        // says nothing, which a Concentration-keyed selector reads as a miss.
+        ...(concentration === undefined ? {} : { concentration }),
       }).modes,
       supply.modes ?? [],
     ),

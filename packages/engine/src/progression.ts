@@ -1343,6 +1343,24 @@ export type FeatureGrant =
        * from the one {@link GrantGate.choiceFrom} names.
        */
       readonly damageTypesFromChoice?: boolean;
+      /**
+       * The spell a `casting-damage` grant reaches comes from the choice this
+       * feature asked for — {@link damageTypesFromChoice} on the other
+       * narrowing of the same `when`.
+       *
+       * SRD Agonizing Blast: "Choose one of your known Warlock cantrips that
+       * deals damage. You can add your Charisma modifier to **that spell's**
+       * damage rolls." The engine knows no spell by name and neither does the
+       * class table: which cantrip it is, is the player's answer, so the grant
+       * says where to read it rather than naming one.
+       *
+       * Read off the **keyed** answer {@link GrantGate.choiceFrom} names —
+       * which is that field's second job, stated in its own docstring — so an
+       * invocation's cantrip is read from the question that asked for it and
+       * not from the list of invocations taken. An unanswered question grants
+       * nothing at all rather than a narrowing that reaches every casting.
+       */
+      readonly spellFromChoice?: boolean;
       /** SRD Aura Expansion: this feature makes the aura this many feet. */
       readonly auraFeet?: number;
       /**

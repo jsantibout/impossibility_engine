@@ -268,7 +268,23 @@ export type CastingDamageAlteration =
    * The modifier is read off the caster's sheet at the casting, so a Headband
    * of Intellect moves it exactly as it moves the save DC.
    */
-  | { readonly kind: 'ability-modifier'; readonly ability: Ability }
+  | {
+      readonly kind: 'ability-modifier';
+      readonly ability: Ability;
+      /**
+       * SRD Agonizing Blast: "you can add your Charisma modifier to that
+       * spell's **damage rolls**."
+       *
+       * The plural is the whole of this field. Elemental Affinity and
+       * Empowered Evocation each say "one damage roll", which is what
+       * `takeCastingAddend` spends once and records where it landed; an
+       * invocation that names a single cantrip says it of every roll that
+       * cantrip makes, and an Eldritch Blast at level 5 makes two.
+       *
+       * Absent is the singular, which is every other writer.
+       */
+      readonly everyRoll?: true;
+    }
   /**
    * SRD Foe Slayer: "The damage die of your _Hunter's Mark_ is a d10 rather
    * than a d6."

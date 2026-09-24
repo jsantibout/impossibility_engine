@@ -128,7 +128,18 @@ const warlock = (): CharacterChoices => ({
   backgroundEquipment: 'A',
   equipped: ['leather-armor'],
   hitPoints: { method: 'fixed' },
-  featureChoices: { 'human:skillful': ['perception'] },
+  featureChoices: {
+    'human:skillful': ['perception'],
+    // The five the Invocations column asks a level 5 Warlock for, chosen from
+    // the invocations that ask no second question.
+    'warlock:eldritch-invocations': [
+      'Armor of Shadows',
+      'Eldritch Mind',
+      "Devil's Sight",
+      'Fiendish Vigor',
+      'Misty Visions',
+    ],
+  },
   feats: {
     'sage:magic-initiate-wizard': {
       featId: 'magic-initiate',
