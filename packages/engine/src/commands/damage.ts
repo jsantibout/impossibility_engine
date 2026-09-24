@@ -473,8 +473,21 @@ export function dealSpellDamage(
   // rather than subtracted from what comes back. `settleDamage` does exactly
   // the same with the same helper, which is what keeps a blow somebody
   // answered and a blow nobody could from being two different rules.
+  const issuedBeforeWard = supply.issuer.count;
   const warded = standingReductionOf(state, target, components, supply);
   if (!warded.ok) return warded;
+  // **And the die is counted here rather than by whoever called.** Thirteen
+  // commands reach this function and five of them take their generator delta
+  // *before* the call — the ordinary weapon attack among them — so a ward that
+  // trusted the caller would throw a d4 nobody counted, leave `rollsIssued`
+  // short, and have the next command reuse a roll id the log already holds.
+  //
+  // **Counting it twice is the safe direction and is precedented one line
+  // down**: `resolveDamage` emits its own narrow `rolls-issued` for an Undead
+  // Fortitude save while a casting's effect loop counts the same die again. A
+  // doubled count *skips* roll ids and never reuses one, and the last snapshot
+  // in the log is still the live generator either way.
+  const wardCounted = rollsIssuedSince(supply, issuedBeforeWard);
 
   // A creature's own defences and the ones its features grant, together. The
   // stat block's entries alone would miss a Sorcerer's Elemental Affinity.
@@ -516,6 +529,7 @@ export function dealSpellDamage(
     events: [
       ...(dice === null ? [] : [dice]),
       ...warded.value.events,
+      ...wardCounted,
       ...resolved.value.events,
     ],
     // What landed, which is what the defences left of the roll *and* what a

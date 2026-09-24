@@ -1029,6 +1029,25 @@ function checkConditionRider(
       `${riderPath}.repeats.onFailure.condition`,
       found,
     );
+
+    // **And the condition that carries one takes no deadline of its own.**
+    // SRD Sleep names one moment twice — "until the end of its next turn, at
+    // which point it must repeat the save" — and what the moment does is
+    // *change* the condition rather than end it. A `lasts` beside a deepening
+    // is the same moment written as an ending, and the two passes that read it
+    // would race: `expireEffects` deletes the timer and `dropOrphanedSaves`
+    // drops the pending save, so the sentence the author wrote would silently
+    // do nothing. The condition runs for the casting's own duration instead,
+    // and this refuses the pair rather than leaving four docstrings to claim a
+    // rule nothing keeps.
+    if (rider.lasts !== undefined) {
+      found.push({
+        field: `${riderPath}.lasts`,
+        code: 'deepening_with_a_deadline',
+        reason:
+          'a repeat save whose failure deepens the condition is the moment that changes it, so the condition runs for the casting and carries no deadline of its own; a "lasts" here would expire the timer and drop the save before anybody rolled it',
+      });
+    }
   }
 
   checkRiderDuration(rider?.lasts, riderPath, found);

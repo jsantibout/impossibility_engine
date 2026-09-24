@@ -440,7 +440,17 @@ describe('SRD Resistance: a d4 off the total, before the defences', () => {
     expect(game.state.rollsIssued).toBe(before + kit.issuer.count);
   });
 
-  /** And the same on the road a casting takes, where the casting counts for it. */
+  /**
+   * And the same on the road a blow nobody answers takes.
+   *
+   * **Counted twice rather than not at all**, which is the safe direction and
+   * the one `resolveDamage`'s own narrow `rolls-issued` already takes inside a
+   * casting's effect loop: five of `dealSpellDamage`'s callers take their
+   * generator delta *before* the call, so a ward that trusted the caller would
+   * leave `rollsIssued` short and the next command reusing an id the log
+   * already holds. A doubled count skips ids and never reuses one, so the
+   * claim is the inequality rather than the equality.
+   */
   it('counts the die it threw on the dealt road', () => {
     const game = new Game(field());
     game.ward('radiant');
@@ -454,7 +464,40 @@ describe('SRD Resistance: a d4 off the total, before the defences', () => {
     );
     game.push(out.events);
     expect(reductionIn(out.events)).not.toBeNull();
-    expect(game.state.rollsIssued).toBe(before + kit.issuer.count);
+    expect(game.state.rollsIssued).toBeGreaterThanOrEqual(before + kit.issuer.count);
+  });
+
+  /**
+   * The road the ward is most often actually on: a sword, swung at a creature
+   * with no Reaction to answer with.
+   *
+   * `resolveAttack` takes its generator delta **before** `landDamage`, so this
+   * is the case a ward counted by its caller would have got wrong — and SRD
+   * Resistance prints Slashing among its eleven, so it is reachable rather
+   * than hypothetical.
+   */
+  it('reduces an ordinary weapon hit nobody answers, and counts its die', () => {
+    const game = new Game(field());
+    game.ward('slashing');
+    game.until(THUG);
+
+    const before = game.state.rollsIssued;
+    const kit = supply(game.state);
+    const out = unwrap(
+      resolveAttack(
+        game.state,
+        THUG,
+        { target: WARD, weapon: 'longsword', attackBonuses: [{ source: 'forced', flat: 40 }] },
+        kit,
+      ),
+      'swing',
+    );
+    game.push(out.events);
+
+    const off = reductionIn(out.events);
+    expect(off).not.toBeNull();
+    expect(rawOf(out.events) - off!).toBe(takenIn(out.events));
+    expect(game.state.rollsIssued).toBeGreaterThanOrEqual(before + kit.issuer.count);
   });
 
   it('gives the grant back when the casting ends', () => {

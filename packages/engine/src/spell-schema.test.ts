@@ -3059,6 +3059,58 @@ describe('a rider is held to what its host can support', () => {
     expect(problems(host({ repeats, lasts: { seconds: 30 } }))).toEqual([]);
   });
 
+  /**
+   * **A deepening is the moment that changes the condition, so the condition
+   * has no ending of its own.**
+   *
+   * SRD Sleep names one moment twice: "until the end of its next turn, at
+   * which point it must repeat the save". Written as a `lasts` as well, the
+   * two derived passes race the roll — `expireEffects` deletes the timer and
+   * `dropOrphanedSaves` drops the pending save — so the failure branch the
+   * author wrote would silently never fire. Refused at authoring, which is
+   * where a definition's defects belong, rather than left to four docstrings
+   * to claim a rule nothing keeps.
+   */
+  it('refuses a deepening beside a deadline of the condition own', () => {
+    const host = (repeats: unknown, rider: Record<string, unknown> = {}) => ({
+      kind: 'save',
+      ability: 'wis',
+      condition: 'incapacitated',
+      repeats,
+      ...rider,
+    });
+    const deepens = {
+      at: 'end-of-turn',
+      onSuccess: 'end-on-target',
+      onFailure: { condition: 'unconscious' },
+    } as const;
+
+    expect(problems(host(deepens, { lasts: { seconds: 30 } }))).toContain(
+      'deepening_with_a_deadline',
+    );
+    // Either half alone is Sleep and Sunburst, and neither is refused.
+    expect(problems(host(deepens))).toEqual([]);
+    expect(
+      problems(host({ at: 'end-of-turn', onSuccess: 'end-on-target' }, { lasts: { seconds: 30 } })),
+    ).toEqual([]);
+  });
+
+  /** And the condition a failure deepens to is one of the SRD's fifteen. */
+  it('refuses a deepening to a condition the glossary does not print', () => {
+    expect(
+      problems({
+        kind: 'save',
+        ability: 'wis',
+        condition: 'incapacitated',
+        repeats: {
+          at: 'end-of-turn',
+          onSuccess: 'end-on-target',
+          onFailure: { condition: 'bewildered' },
+        },
+      }),
+    ).toContain('unknown_condition');
+  });
+
   /** And allows it on the two hosts that did roll one, or the rule is vacuous. */
   it('allows a repeat save on a host that rolled one', () => {
     const repeats = { at: 'end-of-turn', onSuccess: 'end-on-target' } as const;

@@ -20,7 +20,7 @@
  * arrangement on the defender, consulted by every blow that arrives whether
  * anybody is watching or not, had no path to the arithmetic at all: that is
  * the gap `a-reduction-an-effect-applies-to-damage` named, and this is the
- * record that fills it. `spellDamageReduction` in `commands/damage.ts` is the
+ * record that fills it. `standingReductionOf` in `commands/damage.ts` is the
  * one reader, shared by the dealt path and the held one.
  *
  * Here rather than in `standing.ts` for the reason `GrantedSense` is there and
@@ -60,7 +60,15 @@ export interface GrantedDamageReduction {
   readonly label: string;
   /** Thrown at the blow, never at the cast. */
   readonly dice: string;
-  /** Lower-cased, so it meets the same keys `applyDamage` sums into. */
+  /**
+   * The kinds of damage the sentence is about.
+   *
+   * Compared as written against the component types a blow is made of, which
+   * is the same table `applyDamage` sums into: `checkSpellDefinition` holds a
+   * definition's list to the damage types the SRD prints, and
+   * `statedDamageType` rewrites it to the one the caster named, so nothing
+   * here has to normalise a string somebody made up.
+   */
   readonly damageTypes: readonly string[];
   /** SRD Resistance's "only once per turn". Absent is no limit at all. */
   readonly oncePerTurn?: true;
