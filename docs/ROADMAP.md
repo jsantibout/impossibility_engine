@@ -2035,3 +2035,28 @@ Appended after wave seven's first spells track (2026-09-24):
   a route may state a casting time (`GrantedSpell.castingTime`, one
   call-site change in `castingOf`) — a line is a route the way a feature's
   free casting is, not a pipeline of its own. Main re-ingested.
+- **Five spells finished in the bookkeeping, one filed with a name, one
+  stopped on a decision.** A definition may cap the castings of it running
+  at once (`maxRunning`, Prestidigitation — the SRD 5.2.1 sentence caps
+  non-instantaneous effects and prints no dismissal, so counting castings is
+  counting that population under the engine's own reading); a `revive` effect
+  brings a creature back at one hit point with its death saves afresh, refused
+  on the living and on a corpse older than a minute, off `Vitals.diedAt`
+  stamped by all four roads into death (Revivify); an `end-attunement` effect
+  breaks the attunement to an object the caster states — the eighth stated
+  fact, `cast_spell.object` (Remove Curse); a `creature-type-override` grant
+  masks a creature's type for every **magical** asker and no mundane one
+  (`typeMagicSees`; Arcanist's Magic Aura — one magical asker, Lay on Hands'
+  `excludesTypes`, still reads the bare type and is one line for whoever owns
+  `commands/features.ts` next); a `drops` rider with an `orElse` empties a hand
+  or hangs the Disadvantage on a creature that could not let go (Heat Metal,
+  whose second sentence is conditional on its first, so it is one rider and
+  not two). Animal Messenger got `TargetRule.mustBeSize` and stays filed on the
+  one fact the sheet does not carry — a stat block's Challenge Rating, parsed
+  and dropped at `adaptMonster` — which the next bestiary brief carries onto
+  the creature. Speak with Animals and Meld into Stone are handed over whole.
+  **Command stopped, rightly:** `choiceStated` substitutes a value into an
+  effect already in the list, and its docstring names the other arm as
+  deliberately absent — a choice of *which effects run*. Halt, Drop and Grovel
+  are each writable alone now and none can say "only if this word was spoken";
+  that arm is its own brief (Command, Thaumaturgy, Enlarge/Reduce's shell).

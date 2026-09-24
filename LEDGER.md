@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 89 spells | 56 | 0 | 33 |
+| Spells in reach, not executed | 84 spells | 49 | 0 | 35 |
 | Features manual, or a pool with nothing to buy | 8 features | 2 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -56,16 +56,9 @@ hold at all. An executed spell with nothing left is not here.
 | `a-barrier-that-blocks-passage` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
-| `an-action-the-engine-has-no-spender-for` | 3 | 1 |
-| `a-creature-fact-an-effect-overrides` | 2 | 1 |
 | `difficult-terrain-an-area-creates` | 2 | 1 |
-| `what-a-creature-is-holding` | 2 | 1 |
-| `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-reaction-window-that-opens-on-being-targeted` | 1 | 1 |
-| `a-world-fact-nothing-can-represent` | 1 | 1 |
-| `healing-that-raises-the-dead` | 1 | 1 |
-| `what-ends-attunement-besides-a-command` | 1 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 4 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
@@ -79,6 +72,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
+| `an-action-the-engine-has-no-spender-for` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 2 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 2 | 0 |
@@ -87,6 +81,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 1 | 0 |
+| `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
@@ -106,6 +101,7 @@ hold at all. An executed spell with nothing left is not here.
 | `senses-beyond-declared-sight` | 1 | 0 |
 | `several-attack-rolls-from-one-casting` | 1 | 0 |
 | `the-effects-source-as-a-participant` | 1 | 0 |
+| `what-a-creature-is-holding` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
@@ -161,30 +157,10 @@ sums to the population.
 - **Animal Messenger** (level 2) — tracked
 - **Animate Dead** (level 3) — tracked — also waits on 1
 
-#### `an-action-the-engine-has-no-spender-for` — blocks 3, finishes 1
-
-- **Speak with Animals** (level 1) — tracked
-- **Gaseous Form** (level 3) — executed-partial — also waits on 2
-- **Haste** (level 3) — executed-partial — also waits on 2
-
-#### `a-creature-fact-an-effect-overrides` — blocks 2, finishes 1
-
-- **Arcanist's Magic Aura** (level 2) — tracked
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-
 #### `difficult-terrain-an-area-creates` — blocks 2, finishes 1
 
 - **Gust of Wind** (level 2) — executed-partial — also waits on 1
 - **Speak with Plants** (level 3) — tracked
-
-#### `what-a-creature-is-holding` — blocks 2, finishes 1
-
-- **Heat Metal** (level 2) — tracked
-- **Fear** (level 3) — executed-partial — also waits on 1
-
-#### `a-cap-on-how-many-castings-run-at-once` — blocks 1, finishes 1
-
-- **Prestidigitation** (level 0) — tracked
 
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 
@@ -193,18 +169,6 @@ sums to the population.
 #### `a-reaction-window-that-opens-on-being-targeted` — blocks 1, finishes 1
 
 - **Shield** (level 1) — executed-partial
-
-#### `a-world-fact-nothing-can-represent` — blocks 1, finishes 1
-
-- **Meld into Stone** (level 3) — tracked
-
-#### `healing-that-raises-the-dead` — blocks 1, finishes 1
-
-- **Revivify** (level 3) — tracked
-
-#### `what-ends-attunement-besides-a-command` — blocks 1, finishes 1
-
-- **Remove Curse** (level 3) — tracked
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 4, finishes 0
 
@@ -280,6 +244,11 @@ sums to the population.
 - **Calm Emotions** (level 2) — tracked — also waits on 1
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
 
+#### `an-action-the-engine-has-no-spender-for` — blocks 2, finishes 0
+
+- **Gaseous Form** (level 3) — executed-partial — also waits on 2
+- **Haste** (level 3) — executed-partial — also waits on 2
+
 #### `an-activation-taken-by-somebody-other-than-the-caster` — blocks 2, finishes 0
 
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
@@ -314,6 +283,10 @@ sums to the population.
 #### `a-condition-that-ends-when-its-holder-leaves-an-area` — blocks 1, finishes 0
 
 - **Silence** (level 2) — tracked — also waits on 1
+
+#### `a-creature-fact-an-effect-overrides` — blocks 1, finishes 0
+
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 
 #### `a-creature-type-predicate-an-area-reads` — blocks 1, finishes 0
 
@@ -391,6 +364,10 @@ sums to the population.
 
 - **Bestow Curse** (level 3) — tracked — also waits on 2
 
+#### `what-a-creature-is-holding` — blocks 1, finishes 0
+
+- **Fear** (level 3) — executed-partial — also waits on 1
+
 #### Waiting on a definition — 0
 
 Nothing here is blocked. Each is either a paragraph nobody has recorded
@@ -398,7 +375,7 @@ reading, or one the existing kinds already say and nobody has written — and
 both are work, which is why they are no longer printed as finished business.
 
 
-#### Waiting on no shape — 33
+#### Waiting on no shape — 35
 
 - **Druidcraft** (level 0) — tracked
 - **Elementalism** (level 0) — tracked
@@ -418,6 +395,7 @@ both are work, which is why they are no longer printed as finished business.
 - **Illusory Script** (level 1) — tracked
 - **Purify Food and Drink** (level 1) — tracked
 - **Silent Image** (level 1) — tracked
+- **Speak with Animals** (level 1) — tracked
 - **Arcane Lock** (level 2) — tracked
 - **Find Traps** (level 2) — tracked
 - **Gentle Repose** (level 2) — tracked
@@ -429,6 +407,7 @@ both are work, which is why they are no longer printed as finished business.
 - **Clairvoyance** (level 3) — tracked
 - **Create Food and Water** (level 3) — tracked
 - **Major Image** (level 3) — tracked
+- **Meld into Stone** (level 3) — tracked
 - **Speak with Dead** (level 3) — tracked
 - **Tongues** (level 3) — tracked
 - **Water Breathing** (level 3) — tracked

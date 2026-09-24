@@ -305,4 +305,7 @@ pool of its own any more — and a sweep pins the doors a copy arrives through
 so a fourth cannot be quiet about labelling.
 
 One thing a brief still has to decide: what ends attunement besides a command
-— death, losing the item, another creature attuning to it.
+— death, losing the item, another creature attuning to it. A spell ends one
+now: SRD Remove Curse's `end-attunement` effect names the object the caster
+stated (`CastSpellRequest.object`) and writes the same `attunement-ended` a
+command does, with the casting as the reason.
