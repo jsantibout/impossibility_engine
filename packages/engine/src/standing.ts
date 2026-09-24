@@ -24,6 +24,7 @@ import {
   conditionSpeed,
   conditionState,
   deniedBenefitsOf,
+  hasCondition,
   isIncapacitated,
   withoutConditions,
   type ConditionState,
@@ -51,6 +52,7 @@ import {
   SIGHT_SENSES,
   type CreatureSense,
   type Point,
+  type PositionState,
   type SenseName,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
@@ -3477,6 +3479,72 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
 }
 
 /**
+ * SRD Blinded — "You can't see" — asked of the **looker**, and the one sense
+ * that excepts it.
+ *
+ * The first step of all three sight questions below, because it is the
+ * book's own flat sentence about the creature doing the looking and not a
+ * fact about the pair. It therefore **outranks a declared line**: a table
+ * that said this creature can see that one stated a fact about eyes that have
+ * since stopped working, and a declaration is for what the engine cannot know.
+ * Light and a declaration are both about what lies between two creatures;
+ * this is about one of them.
+ *
+ * **Blindsight is the exception, and the only one.** SRD Blindsight lets a
+ * creature "see within a specific range without relying on physical sight",
+ * which is exactly the reliance the condition removes — so a Blinded looker
+ * sees inside that range and nothing beyond it, and falls through to the
+ * ordinary answer where it reaches. Darkvision "can see in Dim Light … as if
+ * it were Bright Light" and Truesight "sees in normal and magical Darkness":
+ * both are sight, and both go dark with the eyes.
+ *
+ * `blindsightReaches` is the caller's, because each of the three measures to a
+ * different far end — a creature, a point, or a place with no coordinates at
+ * all — and the range is the only part of this that is about the pair. It is
+ * three-valued for the reason everything about range in this file is: **a
+ * Blindsight nobody can measure is homework rather than blindness.** The
+ * exception the SRD prints is a distance, and where there is no distance the
+ * condition has settled nothing about a creature who holds the sense — while
+ * one who holds none is blind either way, because no distance could have made
+ * a sense they do not have reach.
+ *
+ * `undefined` is "the condition says nothing here", which is a third answer
+ * and not a fourth: the looker is not Blinded, or their Blindsight reaches, and
+ * either way the caller falls through to the ordinary question.
+ *
+ * `effectiveConditions` rather than the raw record, for the reason every
+ * reader of a condition's *effect* goes through it: a feature that says
+ * Blinded has no effect on its holder has said so about this too.
+ */
+function blindedTo(
+  state: GameState,
+  from: CharacterId,
+  blindsightReaches: boolean | null,
+): boolean | null | undefined {
+  if (blindsightReaches === true) return undefined;
+  if (!hasCondition(effectiveConditions(state, from), 'blinded')) return undefined;
+  return blindsightReaches === null ? null : false;
+}
+
+/**
+ * Whether the looker's Blindsight reaches that creature — `false` for a looker
+ * who holds none or none long enough, and `null` where they hold some and the
+ * lattice cannot say how far away the other one is.
+ */
+function blindsightReaching(
+  state: GameState,
+  scene: PositionState,
+  from: CharacterId,
+  to: CharacterId,
+): boolean | null {
+  const held = sensesOf(state, from).filter((sense) => sense.sense === 'blindsight');
+  if (held.length === 0) return false;
+  const apart = distanceBetween(scene, from, to);
+  if (!apart.ok) return null;
+  return held.some((sense) => apart.value <= sense.feet);
+}
+
+/**
  * Whether one creature can see another, with the looker's own senses read in.
  *
  * The `GameState` half of {@link sightBetween}, and the seam every rule that
@@ -3506,8 +3574,15 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  * | a ranged attack at close quarters (`enemyWithinFiveFeet`) | the enemy beside you, "who can see you" |
  *
  * Dodge is the one that runs against the direction of the action, and the
- * last is the one a sense cannot move — only a declared no excuses that
- * attacker. Both say so where they are written.
+ * last is the one a sense cannot move — only a declared no, or the looker's
+ * own Blinded condition, excuses that attacker. Both say so where they are
+ * written.
+ *
+ * **And every row of that table is answered "no" by a Blinded looker**, which
+ * is the point of gathering them here: SRD Blinded is one flat sentence about
+ * the creature doing the looking, so it is read first, ahead of the
+ * declaration, with Blindsight the one sense that excepts it. {@link blindedTo}
+ * holds the ruling.
  *
  * **One sentence in the book does not ask this question**, and it is the one
  * that looks most like it: SRD Invisible's "if a creature can somehow see
@@ -3515,8 +3590,18 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
  * and the ruling that put it there.
  */
 export function canSee(state: GameState, from: CharacterId, to: CharacterId): boolean | null {
-  if (state.scene === null) return null;
-  return sightBetween(state.scene, from, to, sensesOf(state, from), {
+  const scene = state.scene;
+  if (scene === null) return null;
+  // SRD Blinded, first and ahead of the declaration — {@link blindedTo} says
+  // why. Not of the pair a creature makes with itself: that one is answered
+  // before everything, because where a creature stands relative to itself is
+  // the engine's fact rather than the table's, and `seeing-yourself.test.ts`
+  // is the whole of what asking it cost.
+  if (from !== to) {
+    const forced = blindedTo(state, from, blindsightReaching(state, scene, from, to));
+    if (forced !== undefined) return forced;
+  }
+  return sightBetween(scene, from, to, sensesOf(state, from), {
     obscured: obscuredFrom(state, from, to),
   });
 }
@@ -3542,29 +3627,52 @@ export function canSee(state: GameState, from: CharacterId, to: CharacterId): bo
  *
  * | | |
  * |---|---|
+ * | the looker's Blinded condition | {@link blindedTo}, first, as it is in {@link canSee} |
  * | the lattice over the point | a bank of fog or a dark room the table declared — `obscurementAt`, then {@link piercesObscurement} against this looker's senses |
  * | a sight sense that reaches | Blindsight or Truesight in range, Darkvision where the dark is not magical |
  * | anything else | null — nobody has said, and about a point nobody can |
  *
- * **It does not read the Blinded condition**, and the silence is deliberate:
- * {@link canSee} does not read it either, and one of the two answering "a
- * blind creature cannot see" while the other does not is worse than both
- * being silent. Blinded is a fact about the *looker* rather than about the
- * line, so the rule that needs it composes the two — `areaTargets` does
- * exactly that for the clause above and says so. Reading it only here would
- * leave one sight question in this engine with a rule none of the others has.
+ * **It reads the Blinded condition, because all three of them do.** It used
+ * not to, and the silence was right while {@link canSee} was silent too: one
+ * of the two answering "a blind creature cannot see" while the other did not
+ * would have been worse than both saying nothing, so the one rule that needed
+ * it — `areaTargets`, for the clause above — composed the condition beside
+ * this call itself. The composition is gone now that the helper reads it, and
+ * the two questions agree again.
  *
- * Null outside a scene and null for a looker nobody has placed, for the
- * reason {@link canSee} is null outside one: there is no distance for a range
- * to be measured against, and inventing one is inventing a position.
+ * **`space` may be null**, and that is a place with no coordinates rather than
+ * a caller being careless — see the note at the branch. Null outside a scene
+ * and null for a looker nobody has placed, for the reason {@link canSee} is
+ * null outside one: there is no distance for a range to be measured against,
+ * and inventing one is inventing a position.
  */
-export function canSeePoint(state: GameState, from: CharacterId, space: Point): boolean | null {
+export function canSeePoint(
+  state: GameState,
+  from: CharacterId,
+  space: Point | null,
+): boolean | null {
   const scene = state.scene;
   if (scene === null) return null;
 
-  const apart = distanceToPoint(scene, from, space);
-  if (!apart.ok) return null;
-  const reach = apart.value;
+  // **A distance the lattice cannot give**: a looker nobody has placed, or —
+  // `space` being null — a place with no coordinates at all. The second is a
+  // real case rather than a careless caller: an intersection-anchored template
+  // is centred on a corner, and "a corner is not a space".
+  //
+  // Nothing about *where* it is can be measured, so the only thing left that
+  // answers is the fact about the looker alone. A creature who cannot see at
+  // all cannot see a pattern wherever it hangs; one whose Blindsight might
+  // have reached is left unsettled rather than declared blind.
+  const apart = space === null ? null : distanceToPoint(scene, from, space);
+  const reach = apart !== null && apart.ok ? apart.value : null;
+  if (space === null || reach === null) {
+    // Held but unmeasurable is `null` here as it is between two creatures, and
+    // {@link blindedTo} is the one place that ruling is written.
+    const blindsight = sensesOf(state, from).some((sense) => sense.sense === 'blindsight')
+      ? null
+      : false;
+    return blindedTo(state, from, blindsight) ?? null;
+  }
 
   // The looker's own senses, narrowed to those that are a form of sight and
   // then to those that reach — the two filters `sightBetween` and
@@ -3573,6 +3681,15 @@ export function canSeePoint(state: GameState, from: CharacterId, space: Point): 
   const reaching = sensesOf(state, from).filter(
     (sense) => SIGHT_SENSES.has(sense.sense) && reach <= sense.feet,
   );
+
+  // SRD Blinded, the same first step the other two take — {@link blindedTo}.
+  // The reach is measured, so the Blindsight question has a yes or a no.
+  const forced = blindedTo(
+    state,
+    from,
+    reaching.some((sense) => sense.sense === 'blindsight'),
+  );
+  if (forced !== undefined) return forced;
 
   const darkness = seesThroughOf(state, from).darkness;
   const pierced = piercesObscurement(
@@ -3701,9 +3818,10 @@ export const SENSES_THAT_SOMEHOW_SEE: ReadonlySet<SenseName> = new Set<SenseName
  * Invisible Rogue is standing. One sense, two sentences, two answers.
  *
  * Everything else about it is {@link canSee}'s behaviour, because it *is*
- * that function with a shorter list: a declaration outranks a sense, declared
- * Total Cover silences one, a creature sees itself, and a question nobody has
- * answered is `null` — homework rather than a verdict. The caller decides
+ * that function with a shorter list: the looker's Blinded condition answers
+ * first, a declaration outranks a sense, declared Total Cover silences one, a
+ * creature sees itself, and a question nobody has answered is `null` —
+ * homework rather than a verdict. The caller decides
  * what to do with the `null`; on the ordinary attack route it is an
  * `unverified` line and never a `needs-context`, because a swing must not
  * stop to ask.
@@ -3714,8 +3832,15 @@ export function canSomehowSee(
   to: CharacterId,
 ): boolean | null {
   if (state.scene === null) return null;
+  const scene = state.scene;
+  // SRD Blinded, the same first step and for the same reason: the sentence is
+  // about the looker, and this question has one too.
+  if (from !== to) {
+    const forced = blindedTo(state, from, blindsightReaching(state, scene, from, to));
+    if (forced !== undefined) return forced;
+  }
   return sightBetween(
-    state.scene,
+    scene,
     from,
     to,
     sensesOf(state, from).filter((sense) => SENSES_THAT_SOMEHOW_SEE.has(sense.sense)),

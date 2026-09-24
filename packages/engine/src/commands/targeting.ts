@@ -24,7 +24,6 @@ import {
 } from '@ie/shared';
 import { type AttackResult } from '../attack.js';
 import { type D20TestResult } from '../checks.js';
-import { hasCondition } from '../conditions.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity } from '../idempotency.js';
 import {
@@ -50,6 +49,7 @@ import {
   rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
+  ranged,
   type SpellArea,
   type SpellDefinition,
   statesFoughtFact,
@@ -742,6 +742,15 @@ export interface AreaRequest {
 }
 
 /**
+ * Where an area would be laid, with nobody named — {@link AreaRequest} minus
+ * the one field that is a *choice* rather than a placement.
+ *
+ * What {@link eligibleTargets} takes, because a shortlist is asked before any
+ * target has been picked: the whole point of it is to say who could be.
+ */
+export type AreaPlacement = Omit<AreaRequest, 'targets'>;
+
+/**
  * Where a spell's area sits and what shape it is.
  *
  * Shared by the two callers that need it, and they need it for opposite
@@ -1205,6 +1214,86 @@ export function areaTargets(
       `${source.name} fills an area and catches whoever is in it; it does not take a target list`,
     );
   }
+
+  const caught = areaCatch(state, casterId, source, area, request, reach, unverified);
+  if (!caught.ok) return caught;
+  const shortlist = caught.value;
+  if (source.chosenFromTheArea !== true) return ok(shortlist);
+
+  // SRD Sleep: "Each creature **of your choice** in a 5-foot-radius Sphere."
+  //
+  // The area has said who could be caught; this is the caster saying which of
+  // them are. A name that is not on that shortlist is a refusal rather than a
+  // filter, because unlike a creature type it is not a fact about the world
+  // the spell shrugs at — it is the caster aiming at somebody the spell does
+  // not reach, and quietly dropping them would be the engine casting a
+  // different spell from the one it was asked for.
+  //
+  // **Not `outside_area`, and the two are worth keeping apart.** That one is
+  // `namedTargets`' answer for a `targetsWithin` bound — a template that
+  // merely *fences* a list the caller named, where being outside it is a
+  // matter of geometry alone. This is an area's own catch, which the dead, a
+  // creature type the spell cannot touch and Total Cover have already been
+  // taken out of, so the list a caller is held to here is a different list and
+  // the remedy names different creatures.
+  const outside = request.targets.filter((who) => !shortlist.includes(who));
+  if (outside.length > 0) {
+    return err(
+      'not_in_the_area',
+      `${source.name} catches only creatures inside its area, and ${outside.join(', ')} ${outside.length === 1 ? 'is' : 'are'} not among ${shortlist.length === 0 ? 'the nobody it caught' : shortlist.join(', ')}`,
+    );
+  }
+  if (request.targets.length === 0 && shortlist.length > 0) {
+    // **A choice the spell prints and the caster has not made**, answered the
+    // way `choice_required` and `damage_type_required` answer theirs: the
+    // engine names the options and will not pick between them. A silence read
+    // as "nobody" would be every casting written before this clause quietly
+    // affecting no one, which is the confident wrong answer rather than the
+    // missing one.
+    return err(
+      'area_choice_required',
+      `${source.name} catches each creature of your choice in its area and the engine will not choose between them; name which of ${shortlist.join(', ')} in \`targets\``,
+    );
+  }
+  if (new Set(request.targets).size !== request.targets.length) {
+    return err('duplicate_target', `${source.name} may not take the same target twice`);
+  }
+  return ok(request.targets.slice().sort());
+}
+
+/** Why one creature the geometry caught is not on the list after all. */
+export interface AreaRejection {
+  readonly target: CharacterId;
+  readonly reason: string;
+}
+
+/**
+ * **The catch itself**: every creature the template covers that this source
+ * can actually affect, sorted, before "each creature of your choice" has a
+ * word to say about it.
+ *
+ * Split out of {@link areaTargets} because two callers want it and only one of
+ * them wants the choice: the casting is held to the subset the caster named,
+ * and {@link eligibleTargets} is the shortlist the caster picks that subset
+ * *from*. A shortlist derived any other way is a door offering creatures the
+ * refusal below would then reject, which is the one thing a shortlist may not
+ * do.
+ *
+ * `rejected` is the second optional collector beside `unverified`, filled only
+ * when a caller passes one: the shortlist has to say why each creature the
+ * geometry caught is not on the list, and writing those sentences twice is how
+ * the two halves drift apart. A casting passes nothing and pays nothing.
+ */
+export function areaCatch(
+  state: GameState,
+  casterId: CharacterId,
+  source: AreaSource,
+  area: SpellArea,
+  request: AreaRequest,
+  reach: number | null,
+  unverified: string[] = [],
+  rejected?: AreaRejection[],
+): Result<readonly CharacterId[]> {
   if (state.scene === null) {
     return needsContext(
       'no_scene',
@@ -1263,40 +1352,54 @@ export function areaTargets(
   // not make the casting illegal, which is the difference between an area and
   // a target a caller named.
   const wanted = source.mustBeType;
+  /** Out, and why — the sentence written once for both halves. */
+  const out = (who: CharacterId, reason: string): false => {
+    rejected?.push({ target: who, reason });
+    return false;
+  };
   const eligible = caught.value.filter((who: CharacterId) => {
     const creature = state.creatures[who];
     if (creature === undefined) return false;
-    if (creature.vitals.dead) return false;
+    if (creature.vitals.dead) return out(who, `${who} is dead`);
     // The same comparison the outcome side makes, rather than a second one
     // spelled alike: an undeclared type is not a match here, and an area
     // *filters* rather than asking, because "each Humanoid in the area" leaves
     // the ogre standing there unbothered.
     if (wanted !== undefined && !isCreatureType(creature.creatureType, wanted)) {
-      return false;
+      return out(
+        who,
+        `${source.name} touches only a ${wanted}, and ${who} is ${creature.creatureType ?? 'a creature nobody has said the kind of'}`,
+      );
     }
     // SRD Entangle: "Each creature (other than you) in the area". The caster
     // stands in their own grasping plants and is simply not caught — a filter
     // like every other one here, so a druid who conjures the square they are
     // standing in has cast a legal spell rather than a refused one.
-    if (source.notTheCaster === true && who === casterId) return false;
+    if (source.notTheCaster === true && who === casterId) {
+      return out(who, `${source.name} catches every creature in its area other than you`);
+    }
     // SRD Hypnotic Pattern: "Each creature in the area who can see the
     // pattern."
     //
-    // **Two facts, composed here because they live in two places.** Blinded is
-    // the book's own sentence about the looker — "You can't see" — and it is a
-    // condition; the line to the pattern is the sight model's and it is a
-    // question about a place. `canSeePoint` deliberately answers only the
-    // second (its note says why), so the clause that needs both joins them,
-    // and no other rule in the engine has its sight answer changed by this.
+    // **One question, asked once.** This used to compose two facts that lived
+    // in two places — the looker's Blinded condition here, and the line to the
+    // pattern in `canSeePoint` — because the helper deliberately did not read
+    // the condition while `canSee` did not either. Both read it now, so the
+    // clause is the helper's answer and nothing else, and a blind creature
+    // gets the same answer from this spell as from every other sight question
+    // in the engine. `canSeePoint` takes the null origin too, for the same
+    // reason: a place with no coordinates is still a place a blind creature
+    // cannot see.
     //
     // **Unsettled is caught, and reported.** Nobody can declare a line of
     // sight to a patch of air, so a null here is not homework anybody could
     // do — it is the ruling SRD Faerie Fire's gate already takes, applied and
     // then named in the outcome so the table can overrule it.
     if (source.mustSeeTheOrigin === true) {
-      if (hasCondition(creature.conditions, 'blinded')) return false;
-      const seen = originSpace === null ? null : canSeePoint(state, who, originSpace);
-      if (seen === false) return false;
+      const seen = canSeePoint(state, who, originSpace);
+      if (seen === false) {
+        return out(who, `${source.name} catches only a creature that can see it, and ${who} cannot`);
+      }
       if (seen === null) {
         unverified.push(
           `${source.name}: nobody has said whether ${who} can see the point it fills, and it catches only a creature that can; ${who} was caught rather than passed over`,
@@ -1306,52 +1409,13 @@ export function areaTargets(
     // SRD: "A spell's area of effect is blocked by Total Cover." Cover here is
     // declared pairwise from the caster rather than traced through the area,
     // which is the documented approximation the whole cover model makes.
-    if (state.scene !== null && coverBetween(state.scene, casterId, who) === 'total') return false;
+    if (state.scene !== null && coverBetween(state.scene, casterId, who) === 'total') {
+      return out(who, `${who} is behind Total Cover`);
+    }
     return true;
   });
 
-  const shortlist = eligible.slice().sort();
-  if (source.chosenFromTheArea !== true) return ok(shortlist);
-
-  // SRD Sleep: "Each creature **of your choice** in a 5-foot-radius Sphere."
-  //
-  // The area has said who could be caught; this is the caster saying which of
-  // them are. A name that is not on that shortlist is a refusal rather than a
-  // filter, because unlike a creature type it is not a fact about the world
-  // the spell shrugs at — it is the caster aiming at somebody the spell does
-  // not reach, and quietly dropping them would be the engine casting a
-  // different spell from the one it was asked for.
-  //
-  // **Not `outside_area`, and the two are worth keeping apart.** That one is
-  // `namedTargets`' answer for a `targetsWithin` bound — a template that
-  // merely *fences* a list the caller named, where being outside it is a
-  // matter of geometry alone. This is an area's own catch, which the dead, a
-  // creature type the spell cannot touch and Total Cover have already been
-  // taken out of, so the list a caller is held to here is a different list and
-  // the remedy names different creatures.
-  const outside = request.targets.filter((who) => !shortlist.includes(who));
-  if (outside.length > 0) {
-    return err(
-      'not_in_the_area',
-      `${source.name} catches only creatures inside its area, and ${outside.join(', ')} ${outside.length === 1 ? 'is' : 'are'} not among ${shortlist.length === 0 ? 'the nobody it caught' : shortlist.join(', ')}`,
-    );
-  }
-  if (request.targets.length === 0 && shortlist.length > 0) {
-    // **A choice the spell prints and the caster has not made**, answered the
-    // way `choice_required` and `damage_type_required` answer theirs: the
-    // engine names the options and will not pick between them. A silence read
-    // as "nobody" would be every casting written before this clause quietly
-    // affecting no one, which is the confident wrong answer rather than the
-    // missing one.
-    return err(
-      'area_choice_required',
-      `${source.name} catches each creature of your choice in its area and the engine will not choose between them; name which of ${shortlist.join(', ')} in \`targets\``,
-    );
-  }
-  if (new Set(request.targets).size !== request.targets.length) {
-    return err('duplicate_target', `${source.name} may not take the same target twice`);
-  }
-  return ok(request.targets.slice().sort());
+  return ok(eligible.slice().sort());
 }
 
 /** The other half: a list of ids somebody chose, each checked as itself. */
@@ -1785,6 +1849,20 @@ export interface EligibleTargets {
  * and `resolveSpell` will refuse an ineligible target naming that target even
  * when exactly one legal alternative is standing beside it. A player who said
  * "the goblin" and hit the thug has been lied to about what happened.
+ *
+ * **An area spell is not a walk over the creatures.** It fills a template, and
+ * who is on the list is whoever is standing in the template — so this defers
+ * to {@link areaCatch}, the same function the casting settles its catch with,
+ * rather than asking each creature the questions a named target is asked. It
+ * used to do the latter, and the two then disagreed: Sleep's door offered
+ * every Humanoid within sixty feet and the casting refused all but the three
+ * inside the five-foot Sphere, and the caster — whom the Sphere really does
+ * catch — was left off because the spell's target line prints no `self`.
+ *
+ * `placement` is the one fact the catch turns on that the definition does not
+ * hold, and it is the caller's rather than the engine's: where the area is
+ * laid. Absent, the shortlist asks for it instead of guessing a point, and a
+ * spell with no area ignores it.
  */
 export function eligibleTargets(
   state: GameState,
@@ -1792,6 +1870,7 @@ export function eligibleTargets(
   casterId: CharacterId,
   spellId: string,
   slotLevel: number,
+  placement?: AreaPlacement,
 ): EligibleTargets {
   const definition = content.spell(spellId);
   const caster = creatureOf(state, casterId);
@@ -1799,6 +1878,10 @@ export function eligibleTargets(
     return { eligible: [], excluded: [], needsContext: [] };
   }
   void slotLevel;
+
+  if (definition.area !== undefined) {
+    return areaShortlist(state, casterId, definition, definition.area, placement);
+  }
 
   const eligible: CharacterId[] = [];
   const excluded: { target: CharacterId; reason: string }[] = [];
@@ -1902,5 +1985,105 @@ export function eligibleTargets(
   }
 
   return { eligible, excluded, needsContext };
+}
+
+/**
+ * Which fields would place this template, in the words a caller can act on.
+ *
+ * **A self-origin area is never told to supply an `at`**, and that is the
+ * whole reason this is a function rather than a sentence: `placeArea` refuses
+ * a point for one (`area_starts_at_caster`), so a request naming `at` for SRD
+ * Burning Hands would send a caller between two refusals forever — which is
+ * precisely what a `needs-context` exists not to do.
+ */
+const howToPlace = (area: SpellArea): string => {
+  const aim = DIRECTIONAL_AREAS.has(area.kind) ? `\`towards\` pointing the ${area.kind}` : null;
+  if (area.origin === 'self') {
+    return aim === null
+      ? `no placement of any kind: the ${area.kind} starts at you and goes nowhere else`
+      : `${aim}, which is all of it: the ${area.kind} starts at you`;
+  }
+  return aim === null ? `\`at\` placing the ${area.kind}` : `\`at\` and ${aim}`;
+};
+
+/**
+ * {@link eligibleTargets} for a spell that fills a template.
+ *
+ * Three answers, and the middle one is the whole of why this exists:
+ *
+ * | | |
+ * |---|---|
+ * | the area places | the catch, exactly as the casting settles it, and the reason the catch wrote for everyone it dropped |
+ * | the area does not place | a `route` request for the field that would place it — never a guessed point, and never the Range standing in for the template |
+ * | a creature the template never covered | off the list, and told so in the geometry's terms rather than the target rule's |
+ *
+ * **The placement refusal is a `route` and not a `refusal`**, because that is
+ * what it is: `no_origin`, `no_direction` and `out_of_range` are all answered
+ * by the caller asking again with the field corrected, which is `route`'s own
+ * definition. Where the refusal already carries its own requests — no scene,
+ * an unplaced caster — those are the better ones and they travel unchanged.
+ */
+function areaShortlist(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  area: SpellArea,
+  placement: AreaPlacement | undefined,
+): EligibleTargets {
+  const rejected: AreaRejection[] = [];
+  const caught = areaCatch(
+    state,
+    casterId,
+    areaSourceOf(definition),
+    area,
+    { targets: [], ...placement },
+    ranged(definition.range),
+    // **The catch's `unverified` is dropped here on purpose.** Its one entry
+    // is Hypnotic Pattern's unanswerable question — whether a creature can see
+    // a point, which no table can declare — and the catch answers it by
+    // catching them, so the shortlist offers exactly whom the casting would
+    // catch. `EligibleTargets` has three channels and none of them is a
+    // caveat: `needsContext` is for a fact somebody could go and establish,
+    // and this is not one. The casting still reports it on the outcome, which
+    // is where a table can overrule it.
+    [],
+    rejected,
+  );
+
+  if (!caught.ok) {
+    return {
+      eligible: [],
+      excluded: [],
+      needsContext:
+        caught.requests ??
+        [
+          {
+            kind: 'route',
+            subject: casterId,
+            need: caught.reason,
+            because: `${definition.name} catches whoever is standing in its area, so who is on the list turns on where the area is laid`,
+            satisfyWith: `eligibleTargets again with ${howToPlace(area)}`,
+          },
+        ],
+    };
+  }
+
+  // Everyone the template never covered in the first place. The catch only
+  // reports the creatures it *narrowed away*, because those are the ones a
+  // clause has something to say about; standing somewhere else is geometry,
+  // and the sentence for it belongs here where the rest of the scene is.
+  const excluded = [...rejected];
+  const inside = new Set(caught.value);
+  const named = new Set(rejected.map((entry) => entry.target));
+  for (const key of Object.keys(state.creatures).sort()) {
+    const other = state.creatures[key];
+    if (other === undefined || inside.has(other.id) || named.has(other.id)) continue;
+    excluded.push({
+      target: other.id,
+      reason: `${other.name} is not standing in the area ${definition.name} fills`,
+    });
+  }
+
+  return { eligible: caught.value, excluded, needsContext: [] };
 }
 

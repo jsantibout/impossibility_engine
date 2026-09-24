@@ -125,11 +125,13 @@ describe('toolSchemas', () => {
     // the list a casting already has. A sentence rather than a door, and the
     // pin moves for a sentence exactly as it does for a door. The attach track
     // then added `attack.holdInsteadOfDamage` — the hold a printed line offers
-    // in place of its damage — on the same night, and the two pins sum.
+    // in place of its damage — and the Blinded track gave `eligible_targets`
+    // the `at` / `towards` a self-origin area needs to be placed, all on the
+    // same night; the three pins sum.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(106138);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(127060);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(106941);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(127863);
   });
 });
 

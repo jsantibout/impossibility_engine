@@ -154,6 +154,27 @@ describe('Dodge makes an attack against you harder', () => {
     expect(out.attack!.mode).toBe('disadvantage');
     expect(out.unverified.join(' ')).toMatch(/see/i);
   });
+
+  /**
+   * SRD Blinded: "You can't see." That is the same clause a declared no
+   * answers, and the condition answers it — so a blind rogue's Dodge gives
+   * nothing against the ogre, **even though the table declared the line**
+   * before the sand went in. A declaration is for what the engine cannot
+   * know; whether this creature's eyes work is something it knows.
+   *
+   * Asserted against the same passage of play with no Dodge in it rather than
+   * against a literal, because Blinded hands the attacker Advantage of its own
+   * and the two would otherwise cancel into a `normal` that looks like a Dodge
+   * doing its job.
+   */
+  it('gives nothing to a Blinded dodger, whatever the table declared', () => {
+    const blind: readonly GameEvent[] = [
+      ...SETUP,
+      { type: 'condition-applied', id: ROGUE, condition: 'blinded', source: 'a faceful of sand' },
+    ];
+    expect(swungAt(dodging(blind)).attack!.mode).toBe(swungAt(waiting(blind)).attack!.mode);
+    expect(swungAt(dodging(blind)).attack!.mode).toBe('advantage');
+  });
 });
 
 describe('Dodge helps a Dexterity saving throw and nothing else', () => {

@@ -171,6 +171,32 @@ describe('the queries cost nothing and write nothing', () => {
     expect(outcome.events).toHaveLength(0);
     expect(outcome.resolution['eligible']).toContain('vex');
   });
+
+  /**
+   * An area spell's shortlist is whoever is standing in the area, so the door
+   * takes the placement the catch turns on. Without it the answer is the
+   * request for the point rather than a list of everyone within the spell's
+   * Range — which is what it used to be, and which the casting would then have
+   * refused one creature at a time.
+   */
+  it('eligible_targets asks where an area goes, and lists its catch once told', () => {
+    const t = adjacent();
+    const asked = expectOk(t.call('eligible_targets', { caster: 'kessa', spellId: 'sleep', slotLevel: 1 }));
+    expect(asked.resolution['eligible']).toEqual([]);
+    expect((asked.resolution['establish'] as { kind: string }[]).map((e) => e.kind)).toEqual([
+      'route',
+    ]);
+
+    const placed = expectOk(
+      t.call('eligible_targets', {
+        caster: 'kessa',
+        spellId: 'sleep',
+        slotLevel: 1,
+        at: { x: 10, y: 10 },
+      }),
+    );
+    expect(placed.resolution['eligible']).toEqual(['kessa', 'vex']);
+  });
 });
 
 describe('the declarations the engine cannot work out for itself', () => {
