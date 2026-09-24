@@ -4494,6 +4494,19 @@ export interface SpellDefinition {
    * it absent for long enough that three spells were waiting on it. The two
    * fields are neighbours rather than alternatives: a definition may print
    * both, and one casting may state a branch *and* a value inside it.
+   *
+   * **Which branch was named decides whether the choice is asked for.** SRD
+   * Bestow Curse prints "Choose one ability" inside the first of its four
+   * bullets and asks nothing of the other three, so `declaredFacts` runs
+   * {@link statedChoiceReaches} over the list *this* casting will run and
+   * demands a value only where one would land. The validator asks the wider
+   * question — does it land anywhere a casting could put it — which is the
+   * pairing to know about before writing a definition whose choice reaches
+   * one branch and whose route also *fixes* the value: `fixesChoice` is
+   * answered on every branch and this asks for it on one, so the branches
+   * that hold no slot would refuse the fixed value with `no_choice_clause`.
+   * No content meets both halves today, and the day one does it is this
+   * sentence that says where to look.
    */
   readonly choiceStated?: StatedChoice;
   /**
@@ -5329,6 +5342,27 @@ export function statedFormOf(
  * falls below every band by construction — the validator refuses a band on a
  * cantrip rather than leaving that to arithmetic.
  */
+export function durationSecondsAt(
+  definition: SpellDefinition,
+  castLevel: number,
+): number | undefined {
+  const bands = definition.durationAtSlot;
+  if (bands === undefined) return definition.durationSeconds;
+
+  let best: number | undefined;
+  let bestLevel = -Infinity;
+  // Sorted rather than trusting key order: numeric keys iterate in ascending
+  // order today and this answer reaches a deadline in the log, which is not a
+  // thing to leave resting on an engine's iteration rules.
+  for (const key of Object.keys(bands).map(Number).sort((a, b) => a - b)) {
+    if (key <= castLevel && key > bestLevel) {
+      bestLevel = key;
+      best = bands[key];
+    }
+  }
+  return best ?? definition.durationSeconds;
+}
+
 /**
  * Whether a casting of this spell at this slot requires Concentration.
  *
@@ -5349,27 +5383,6 @@ export function concentrationAt(definition: SpellDefinition, castLevel: number):
   if (!definition.concentration) return false;
   const drops = definition.concentrationEndsAtSlot;
   return drops === undefined || castLevel < drops;
-}
-
-export function durationSecondsAt(
-  definition: SpellDefinition,
-  castLevel: number,
-): number | undefined {
-  const bands = definition.durationAtSlot;
-  if (bands === undefined) return definition.durationSeconds;
-
-  let best: number | undefined;
-  let bestLevel = -Infinity;
-  // Sorted rather than trusting key order: numeric keys iterate in ascending
-  // order today and this answer reaches a deadline in the log, which is not a
-  // thing to leave resting on an engine's iteration rules.
-  for (const key of Object.keys(bands).map(Number).sort((a, b) => a - b)) {
-    if (key <= castLevel && key > bestLevel) {
-      bestLevel = key;
-      best = bands[key];
-    }
-  }
-  return best ?? definition.durationSeconds;
 }
 
 /**

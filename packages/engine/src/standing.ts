@@ -5088,7 +5088,13 @@ export interface GrantedAttackRider {
    * a Fireball, a Sacred Flame, a Magic Missile — which `dealSpellDamage`
    * answers for and {@link spellDamageRiders} reads. A blow that took the
    * attack road never takes this one, which is what `fromSpell` says at the
-   * three call sites that raise a casting's damage without an attack.
+   * three effect resolvers that raise a casting's damage without an attack.
+   *
+   * **Three more sites are a spell's damage and are not marked**, and the gap
+   * is named rather than absorbed: a casting's scheduled hit, an ongoing
+   * casting's per-turn payout and the burn a repeat save collects all arrive
+   * through `commands/turns.ts`, so the die does not ride them yet. See
+   * `dealSpellDamage`'s own note, where the seam is named.
    */
   readonly alsoSpells?: true;
 }

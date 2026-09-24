@@ -340,10 +340,63 @@ describe('the Bonus Action that curses a new creature', () => {
     ).not.toContain('disadvantage');
   });
 
-  it("spends the caster's Bonus Action", () => {
+  /**
+   * **What happens to the creature the curse was on**, which is the half the
+   * grants above cannot show: the casting ends *on them* and goes on running
+   * for the caster, under a reason that says a curse was moved rather than
+   * given up on.
+   */
+  it('ends the casting on the old creature and leaves it running', () => {
     const down = felled(hexed());
-    const events = must(reAim(down, SECOND) as Result<{ events: readonly GameEvent[] }>).events;
-    expect(events.some((event) => event.type === 'spell-activated')).toBe(true);
+    const out = must(reAim(down, SECOND) as Result<{ events: readonly GameEvent[] }>);
+    const ended = out.events.find((event) => event.type === 'spell-ended');
+    expect(ended).toMatchObject({
+      type: 'spell-ended',
+      castingId: 'cast:1',
+      on: QUARRY,
+      reason: 're-aimed',
+    });
+    // The casting itself is still there: an `on` releases one creature and
+    // ends nothing else.
+    expect(Object.keys(fold('seed', [...down, ...out.events]).ongoing)).toEqual(['cast:1']);
+  });
+
+  /**
+   * **And it costs the Bonus Action the book prints**, asserted where a Bonus
+   * Action exists to be spent: outside combat there is no budget at all, so a
+   * fixture with no Initiative proves nothing about the economy.
+   */
+  it("spends the caster's Bonus Action, and there is only one", () => {
+    const down = [
+      ...felled(hexed()),
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: CASTER, initiative: 20, speed: 30 },
+          { id: SECOND, initiative: 10, speed: 30 },
+        ],
+      } as GameEvent,
+    ];
+    const first = must(reAim(down, SECOND) as Result<{ events: readonly GameEvent[] }>);
+    expect(first.events.some((event) => event.type === 'bonus-action-spent')).toBe(true);
+
+    // A second move on the same turn has nothing left to pay with. The new
+    // quarry is put down first so the *legality* is satisfied and the economy
+    // is the only thing left to refuse — a refusal before the action is
+    // charged would otherwise hide it.
+    const after: readonly GameEvent[] = [
+      ...down,
+      ...first.events,
+      { type: 'damage-taken', id: SECOND, amount: 500, source: 'a cliff' },
+    ];
+    const again = activateSpell(
+      fold('seed', after),
+      CASTER,
+      { castingId: 'cast:1', targets: [QUARRY] },
+      supply('again'),
+    );
+    expect(again.ok).toBe(false);
+    expect(again.ok === false && again.code).toBe('no_bonus_action');
   });
 });
 

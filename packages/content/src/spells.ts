@@ -13382,6 +13382,7 @@ export const BESTOW_CURSE: SpellDefinition = {
     dodge: {
       label: 'A Wisdom save at the start of each of its turns or Dodge',
       unmodelled: [
+        'this branch resolves nothing at all, so the opening Wisdom save the other three roll — "must succeed on a Wisdom saving throw or become cursed" — is not raised for it either, and nobody is cursed',
         'the Wisdom save at the start of each of the target’s turns is not raised, and a failure does not compel the Dodge action: a repeat save hung on a casting ends the spell on a success and this one ends nothing, and its failure spends an action rather than deepening a condition',
       ],
     },

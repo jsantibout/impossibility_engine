@@ -803,10 +803,20 @@ export function dealSpellDamage(
      * rolled, and hands them in as components — so what this flag marks is the
      * *other* road, and gathering on both would throw the die twice.
      *
-     * **Set by the three sites that raise a casting's damage without an attack
-     * roll** and by nothing else: a fall, a Fire Shield's flames, a feature's
-     * pool, a monster's printed save and a DM's stated amount are none of them
-     * "a spell", and the flag is what keeps the sentence to what it says.
+     * **Set by the three effect resolvers that raise a casting's damage without
+     * an attack roll**, and by nothing else that is not a spell: a fall, a
+     * Fire Shield's flames, a feature's pool, a monster's printed save and a
+     * DM's stated amount are none of them "a spell", and the flag is what
+     * keeps the sentence to what it says.
+     *
+     * **And one seam a spell's damage does reach is deliberately not marked
+     * yet**, because it is another track's file: `commands/turns.ts` deals a
+     * casting's *scheduled* hit (SRD Acid Arrow's second round), an ongoing
+     * casting's per-turn payout and the burn a repeat save collects before the
+     * die, and all three are a spell dealing damage to a creature. So Bestow
+     * Curse's die does not ride a Moonbeam tick today. That is a known gap
+     * with a named seam rather than a rule: whoever owns those three call
+     * sites sets the flag there and nothing else has to change.
      */
     readonly fromSpell?: true;
   },
