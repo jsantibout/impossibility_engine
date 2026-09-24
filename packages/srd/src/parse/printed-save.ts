@@ -61,9 +61,27 @@
  * only the *early* endings, and those are carried rather than dropped. An
  * effect that would never end is refused; one that ends later than the book
  * says is applied and the difference is handed to the table.
+ *
+ * **A failure may also branch on the target's Hit Points**, which is the one
+ * shape here whose two sentences are one rule: "If the target has 20 Hit
+ * Points or fewer, it drops to 0 Hit Points. Otherwise, the target takes 13
+ * (3d8) Psychic damage." Both halves are read together or neither is —
+ * a ceiling with nothing under it decides nothing, and the `Otherwise` damage
+ * standing alone is a line that deals it to the creature the book took to 0
+ * instead. It is the second two-sentence rule in this file, after the curse,
+ * and the reason the `then` arm is read against its own scratch. SRD Sea Hag
+ * and SRD Incubus are read by it; SRD Solar's Slaying Bow prints the same
+ * shape over "it dies" and stays prose, because a kill's ceiling is the last
+ * thing to read on a widened word.
  */
 
-import type { MonsterDamage, MonsterSave, PrintedSaveEffect, PrintedSpan } from '../schemas.js';
+import type {
+  MonsterDamage,
+  MonsterSave,
+  PrintedSaveClause,
+  PrintedSaveEffect,
+  PrintedSpan,
+} from '../schemas.js';
 
 type ConditionEffect = Extract<PrintedSaveEffect, { kind: 'condition' }>;
 
@@ -279,6 +297,49 @@ const DIES =
 const TARGET_HIT_POINTS = /\bthat has (\d+) Hit Points?\b(?! or more)/;
 
 /**
+ * SRD Sea Hag: "If the target has 20 Hit Points or fewer, it drops to 0 Hit
+ * Points." SRD Incubus prints the same opening over an Unconscious.
+ *
+ * The first half of a two-sentence rule; {@link OTHERWISE_TAKES} is the other,
+ * and neither is read without the other — see {@link readBranch}.
+ */
+const IF_HIT_POINTS_AT_MOST =
+  /^If the (?:target|creature) has (\d+) Hit Points or fewer, (.+)$/;
+/**
+ * SRD Sea Hag: "Otherwise, the target takes 13 (3d8) Psychic damage."
+ *
+ * Both spellings the corpus prints, because SRD Solar writes the same sentence
+ * as "It otherwise takes …". What follows is damage and only damage: no
+ * "Otherwise" in the book carries a condition.
+ */
+const OTHERWISE_TAKES =
+  /^(?:Otherwise, (?:the target|the creature|it) takes|It otherwise takes) (.+)$/;
+/**
+ * SRD Sea Hag: "it drops to 0 Hit Points".
+ *
+ * Read **only under a ceiling**, which is the gate {@link DIES} has and for
+ * the same reason: a save that empties a healthy creature's Hit Points with no
+ * restriction on who it may reach is a rule nobody printed. See
+ * `PrintedSaveEffectSchema`'s `drops-to-zero`.
+ */
+const DROPS_TO_ZERO = new RegExp(`^${SUBJECT}drops to 0 Hit Points$`);
+/**
+ * SRD Incubus: "it has the Unconscious condition **for 1 hour, until it takes
+ * damage, or until a creature within 5 feet of it takes an action to wake
+ * it**."
+ *
+ * A span the reader knows followed by early endings it does not. Tried before
+ * {@link HAS_CONDITION}, which reads the whole tail as one span, fails to make
+ * a span of it and refuses the sentence. The printed hour is applied and the
+ * early endings are carried, which is the `Scratch.carried` seam: an effect
+ * that ends *later* than the book says is applied with the difference handed
+ * over, where one that would never end is refused.
+ */
+const CONDITION_WITH_EARLY_ENDINGS = new RegExp(
+  `^${SUBJECT}has the ([A-Z][a-z]+) condition (for \\d+ (?:hour|minute)s?), (until .+)$`,
+);
+
+/**
  * Read one span, or null where the words are not a span this reader knows.
  *
  * "its" is the target's turn; a possessive naming the block's own creature —
@@ -378,18 +439,39 @@ const alsoImplies = (
     : { ...last, implies: [...(last.implies ?? []), condition] };
 
 /**
+ * Where a clause is being read, which is the only thing that changes what it
+ * may say.
+ *
+ * Two flags rather than two parameters, because both travel together down
+ * every recursive call in {@link readClause} and a third would be a third
+ * place to forget one.
+ */
+interface Reading {
+  /**
+   * Whether this section is one rung of a graded failure: see
+   * {@link REPEATS_NEXT_TURN}.
+   */
+  readonly graded: boolean;
+  /**
+   * Whether this clause sits under a branch's Hit Point ceiling: see
+   * {@link DROPS_TO_ZERO}.
+   */
+  readonly underACeiling: boolean;
+}
+
+/** Nothing said about where it is: the plain `_Failure:_` of an ungraded line. */
+const PLAINLY: Reading = { graded: false, underACeiling: false };
+
+/**
  * Read one clause **into** the scratch, or return false where the words are
  * not a clause this knows.
  *
  * Several sentences say something about a clause already read — "and repeats
  * the save…", "After 1 minute, it succeeds automatically.", "While Poisoned,
  * the target has the Paralyzed condition." — and amend it in place.
- *
- * @param graded whether this section is one rung of a graded failure, which is
- * the one thing that changes what a clause may say: see
- * {@link REPEATS_NEXT_TURN}.
  */
-function readClause(clause: string, into: Scratch, graded: boolean): boolean {
+function readClause(clause: string, into: Scratch, where: Reading): boolean {
+  const { graded } = where;
   const words = clause.replace(/\.$/, '').trim();
   if (words === '') return true;
 
@@ -398,7 +480,7 @@ function readClause(clause: string, into: Scratch, graded: boolean): boolean {
     const size = SIZES[gated[1]!];
     if (size === undefined) return false;
     const before = into.effects.length;
-    if (!readClause(gated[2]!, into, graded)) return false;
+    if (!readClause(gated[2]!, into, where)) return false;
     for (let i = before; i < into.effects.length; i += 1) {
       const effect = into.effects[i]!;
       if (effect.kind === 'condition') into.effects[i] = { ...effect, ifNoLargerThan: size };
@@ -444,6 +526,22 @@ function readClause(clause: string, into: Scratch, graded: boolean): boolean {
     return true;
   }
 
+  // Before `HAS_CONDITION`, which reads "for 1 hour, until it takes damage, …"
+  // as one span, cannot make a span of it and refuses the sentence.
+  const ending = CONDITION_WITH_EARLY_ENDINGS.exec(words);
+  if (ending !== null) {
+    const name = CONDITIONS[ending[1]!];
+    if (name === undefined) return false;
+    const span = spanOf(ending[2]!);
+    if (span === null) return false;
+    into.effects.push({ kind: 'condition', condition: name, lasts: span });
+    // Carried with the noun the book's own clause hangs on, which is the rule
+    // `WHILE_CONDITION` follows above: a table handed "until it takes damage"
+    // bare could not tell which condition it ends.
+    into.carried.push(`The ${ending[1]} condition ends early: ${ending[3]}.`);
+    return true;
+  }
+
   const condition = HAS_CONDITION.exec(words);
   if (condition !== null) {
     const name = CONDITIONS[condition[1]!];
@@ -456,13 +554,13 @@ function readClause(clause: string, into: Scratch, graded: boolean): boolean {
       ...(span === null ? {} : { lasts: span }),
       ...(condition[2] === undefined ? {} : { escapeDc: Number(condition[2]) }),
     });
-    return condition[4] === undefined ? true : readClause(condition[4], into, graded);
+    return condition[4] === undefined ? true : readClause(condition[4], into, where);
   }
 
   const pushed = PUSHED.exec(words);
   if (pushed !== null) {
     into.effects.push({ kind: 'push', feet: Number(pushed[1]) });
-    return pushed[2] === undefined ? true : readClause(pushed[2], into, graded);
+    return pushed[2] === undefined ? true : readClause(pushed[2], into, where);
   }
 
   const speed = SPEED_CUT.exec(words);
@@ -475,6 +573,12 @@ function readClause(clause: string, into: Scratch, graded: boolean): boolean {
 
   if (HP_MAX_CUT.test(words)) {
     into.effects.push({ kind: 'hit-point-maximum-decrease', by: 'damage-taken' });
+    return true;
+  }
+
+  // Under a ceiling and nowhere else — see {@link DROPS_TO_ZERO}.
+  if (where.underACeiling && DROPS_TO_ZERO.test(words)) {
+    into.effects.push({ kind: 'drops-to-zero' });
     return true;
   }
 
@@ -562,6 +666,64 @@ function readCurse(cursed: string, next: string | undefined): PrintedSaveEffect[
 }
 
 /**
+ * The two sentences a Hit Point ceiling is printed in, read together or not at
+ * all.
+ *
+ * SRD Sea Hag: "If the target has 20 Hit Points or fewer, it drops to 0 Hit
+ * Points. Otherwise, the target takes 13 (3d8) Psychic damage." SRD Incubus
+ * prints the same over an Unconscious and 4d8.
+ *
+ * Null where either half is missing or either half is a clause the grammar
+ * does not know, and both halves are then carried as the sentences they are.
+ * Half of it is worse than none in both directions: a ceiling with nothing
+ * under it decides nothing, and the `Otherwise` damage standing alone is a
+ * line that deals it to a creature the book took to 0 instead.
+ *
+ * **The `then` arm is read as its own scratch**, so a clause it does not know
+ * refuses the branch rather than leaving a half-built one behind — the same
+ * transaction every sentence in this reader is read under. Anything the arm
+ * *carries* comes back with it, which is how the Incubus' early endings reach
+ * `handedOver` while its printed hour is applied.
+ */
+function readBranch(
+  first: string,
+  next: string | undefined,
+): { readonly effect: PrintedSaveEffect; readonly carried: readonly string[] } | null {
+  const ceiling = IF_HIT_POINTS_AT_MOST.exec(first);
+  if (ceiling === null || next === undefined) return null;
+  const otherwise = OTHERWISE_TAKES.exec(next.trim().replace(/\.$/, ''));
+  if (otherwise === null) return null;
+
+  const hit = DAMAGE.exec(otherwise[1]!);
+  if (hit === null) return null;
+  // The whole of the `Otherwise` sentence is its damage: a tail after it would
+  // be a rule this has no field for, so the pair is refused rather than read
+  // down to the part that fits.
+  if (hit[0].length !== otherwise[1]!.length) return null;
+  const damage = damageOf(hit, 1);
+  const plus = hit[7] === undefined ? undefined : damageOf(hit, 7);
+  if (damage === null || plus === null) return null;
+
+  const scratch: Scratch = { effects: [], carried: [] };
+  if (!readClause(ceiling[2]!, scratch, { graded: false, underACeiling: true })) return null;
+  // Typed back down to what a branch may hold, which is every clause but
+  // another branch — `readClause` cannot produce one, and the schema is where
+  // that is stated.
+  const then = scratch.effects.filter((effect): effect is PrintedSaveClause => effect.kind !== 'branch');
+  if (then.length !== scratch.effects.length || then.length === 0) return null;
+
+  return {
+    effect: {
+      kind: 'branch',
+      ifHitPointsAtMost: Number(ceiling[1]),
+      then,
+      otherwise: { damage, ...(plus === undefined ? {} : { plus }) },
+    },
+    carried: scratch.carried,
+  };
+}
+
+/**
  * The clauses one section prints, read one sentence at a time.
  *
  * The first sentence may be damage, with an optional ", and <clause>" riding
@@ -612,6 +774,17 @@ function readSection(
       }
     }
 
+    // Before the curse and before the clause, because a branch is the one
+    // sentence whose *first* word is a condition on the rest of it.
+    const branched = readBranch(rest, sentences[index + 1]);
+    if (branched !== null) {
+      effects.push(branched.effect);
+      handedOver.push(...branched.carried);
+      readSomething = true;
+      index += 1;
+      continue;
+    }
+
     const cursed = readCurse(rest, sentences[index + 1]);
     if (cursed !== null) {
       effects.push(...cursed);
@@ -621,7 +794,7 @@ function readSection(
     }
 
     const scratch: Scratch = { effects: [...effects], carried: [] };
-    if (readClause(rest, scratch, graded)) {
+    if (readClause(rest, scratch, { ...PLAINLY, graded })) {
       effects.splice(0, effects.length, ...scratch.effects);
       handedOver.push(...scratch.carried);
       readSomething = true;
