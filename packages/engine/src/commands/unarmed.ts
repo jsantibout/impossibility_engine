@@ -39,14 +39,14 @@ import {
 } from '@ie/shared';
 import { CREATURE_SIZES, type CreatureSize } from '@ie/srd/schemas';
 import { type Bonus, type ModeSource } from '../bonuses.js';
-import { modifierFor, proficiencyBonus } from '../character.js';
+import { modifierFor, MOVEMENT_MODES, proficiencyBonus } from '../character.js';
 import { rollAbilityCheck, rollSavingThrow, type D20TestResult } from '../checks.js';
 import { spendAction, spendAttack, spendMovement } from '../combat.js';
 import { conditionInstanceId, isIncapacitated } from '../conditions.js';
 import { applyEvent, type CommandStamp, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { attacksInAction, statedBonusActionsUsed } from '../monster.js';
-import { attachSource } from '../state.js';
+import { attachSource, type CreatureState } from '../state.js';
 import {
   apartFrom,
   bearingBetween,
@@ -1084,39 +1084,71 @@ export function letGoOfAttachment(
 
     const events: GameEvent[] = [];
     if (state.combat !== null && state.combat.budgets[who] !== undefined) {
-      const spent = spendMovement(state.combat, who, SELF_DETACH_FEET, speedOf(state, who), {
-        rules: actionRulesOn(state, who),
-      });
-      if (spent.ok) {
-        events.push({ type: 'movement-spent', id: who, feet: SELF_DETACH_FEET });
-      } else if (
-        spent.code === 'not_enough_movement' &&
-        creature.speedModifiers.some((held) => held.source === attached.source)
-      ) {
-        // **SRD Darkmantle prints the rule and its exception in one
-        // paragraph**: "Its Speed becomes 0, it can't benefit from any bonus
-        // to its Speed … On its turn, the darkmantle can detach itself by
-        // using 5 feet of movement." Measured against the Speed this very
-        // attach pinned, that second sentence could never be taken — so the
-        // line hands the feet over, which is the shape `movement-granted`
-        // already has for SRD Tactical Shift's: feet spent out of no Speed at
-        // all.
-        //
-        // **Only where the attach itself is what stopped it.** A darkmantle
-        // that has already spent its turn walking, or one held by something
-        // the line says nothing about, is refused exactly as a stirge is: the
-        // book gives it five feet of its own movement and no more.
-        events.push(
-          { type: 'movement-granted', id: who, source: attached.source, feet: SELF_DETACH_FEET },
-          { type: 'movement-spent', id: who, feet: SELF_DETACH_FEET, grant: attached.source },
-        );
-      } else {
-        return spent;
-      }
+      const spent = spendMovement(
+        state.combat,
+        who,
+        SELF_DETACH_FEET,
+        speedWithoutTheHold(state, creature, attached),
+        { rules: actionRulesOn(state, who) },
+      );
+      if (!spent.ok) return spent;
+      events.push({ type: 'movement-spent', id: who, feet: SELF_DETACH_FEET });
     }
 
-    return ok([...events, ...releaseAttachment(state, attached, stamp)]);
+    // **The release goes first and the five feet follow it**, which is the one
+    // place in this module the log does not read in the order the fiction
+    // happens. The reducer re-derives the allowance a `movement-spent` is
+    // measured against from live state (`spendableSpeed`), and while the
+    // attach stands that Speed is the 0 the attach pinned — so a charge
+    // written before the release is an event the engine emitted and its own
+    // fold would refuse, which is a log that cannot be replayed. Afterwards
+    // the Speed is the creature's own and the backstop agrees with the
+    // command's own reading above.
+    return ok([...releaseAttachment(state, attached, stamp), ...events]);
   });
+}
+
+/**
+ * The Speed the five feet are measured against — the creature's own, **minus
+ * whatever this very hold did to it**.
+ *
+ * SRD Darkmantle prints the rule and its exception in one paragraph: "Its
+ * Speed becomes 0, it can't benefit from any bonus to its Speed, and it moves
+ * with the target … On its turn, the darkmantle can detach itself by using 5
+ * feet of movement." Measured against the Speed the attach pinned, that
+ * second sentence is unsatisfiable: a darkmantle that attached could never let
+ * go again, and the one door SRD gives it would refuse for ever.
+ *
+ * **Only this hold's own grant is set aside**, not every Speed of 0 the
+ * creature might be under: a darkmantle caught by SRD Hypnotic Pattern is held
+ * by something the line says nothing about, and letting it wriggle free of
+ * that would be a rule nobody printed. And what is left is still an allowance
+ * rather than a permission — a darkmantle that flew its whole Speed before
+ * biting has no movement left to let go with, exactly as a stirge has none.
+ *
+ * **The largest of its Speeds**, which is `spendableSpeed`'s reading of the
+ * same question one layer down: letting go names no mode — it is not a move —
+ * so the honest cap is whether the creature could have gone five feet by any
+ * means it has. A block whose walking Speed is 0 and which flies is the case
+ * that makes the difference.
+ */
+function speedWithoutTheHold(
+  state: GameState,
+  creature: CreatureState,
+  attached: HeldAttachment,
+): number {
+  const kept = creature.speedModifiers.filter((held) => held.source !== attached.source);
+  const freed =
+    kept.length === creature.speedModifiers.length
+      ? state
+      : {
+          ...state,
+          creatures: {
+            ...state.creatures,
+            [attached.holder]: { ...creature, speedModifiers: kept },
+          },
+        };
+  return Math.max(...MOVEMENT_MODES.map((mode) => speedOf(freed, attached.holder, mode)));
 }
 
 /**
@@ -1150,7 +1182,7 @@ function releaseAttachment(
       (state.creatures[attached.to]?.conditions.instances ?? [])
         // Only what this cause is itself the reason for: an implied instance
         // goes with the one that carried it, through `removeCondition`.
-        .filter((one) => one.source === onTheTarget && (one.impliedBy ?? null) === null)
+        .filter((one) => one.source === onTheTarget && one.impliedBy === null)
         .map((one) => one.condition),
       onTheTarget,
     ),

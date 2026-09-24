@@ -396,6 +396,34 @@ describe('an attach that covers what it lands on', () => {
     expect(off.creatures[BEAST]?.speedModifiers).toEqual([]);
     expect(speedOf(off, BEAST)).toBeGreaterThan(0);
     expect(conditionsOn(off, BREN)).not.toContain('blinded');
+    // And the five feet were charged: SRD says "by **using** 5 feet of
+    // movement", so a hold let go of costs the turn what the line prints.
+    expect(off.combat?.budgets[BEAST]?.movementSpent).toBe(5);
+  });
+
+  /**
+   * **What is set aside is this hold's own Speed and not the turn's own
+   * budget.** A darkmantle that flew its whole Speed before biting has no
+   * movement left to let go with, exactly as a stirge in the same position
+   * has none: the book gives it five feet of its own movement and no more.
+   */
+  it('refuses the darkmantle that has already spent its movement', () => {
+    const table = field('darkmantle', 45);
+    // The whole of the Speed this fight declared for it, and then the swing
+    // that attaches: nothing is left for the line's five feet to come out of.
+    table.did('the darkmantle flies in', (s) =>
+      resolveMove(
+        s,
+        BEAST,
+        { placement: { from: { creature: BEAST }, feet: 40, bearing: 0 }, commandId: 'fly in' },
+        supply(),
+      ),
+    );
+    swing(table, 'Crush');
+
+    const out = letGoOfAttachment(table.state, BEAST, { from: BREN, commandId: 'let go' });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.code).toBe('not_enough_movement');
   });
 });
 
