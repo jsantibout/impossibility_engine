@@ -1729,3 +1729,28 @@ Appended after wave four (2026-09-23), four tracks merged and one in flight:
   before the roll (`beforeTheSave`), raised with the casting's own mark as the
   source. Two defensive paths are undriven by any SRD spell: a payout that
   orphans its own save, and several payouts in one boundary.
+
+Appended after wave five's first two tracks (2026-09-24):
+
+- **An area filters its catch**: `notTheCaster`, `mustSeeTheOrigin` and
+  `chosenFromTheArea` on `TargetRule`, read once where a casting settles its
+  catch; `canSeePoint` beside `canSee`. An empty `targets` on a choosing area
+  is the question, refused `area_choice_required` like every other
+  `*_required` — reading silence as "nobody" would have made every Sleep
+  written before the clause affect no one. Entangle is whole (its Difficult
+  Terrain is `areaTerrain`, as Web's is). **Ruled and in flight (W5-B):**
+  Blinded answers no to every sight question as the looker, Blindsight in
+  range excepted, and the condition outranks a declared line; `eligibleTargets`
+  learns an area's catch.
+- **At 0 Hit Points**: `hit-points-dropped-to-zero` is a drop that is not
+  damage (Temporary Hit Points untouched, no damage reader fires — the Sea
+  Hag's glare), a printed failure may **branch** on the target's Hit Points
+  ("Otherwise" carries damage only), and `on-dropping-a-hostile` pays SRD Dark
+  One's Blessing — hostility read from the **holder's** side, because "an
+  enemy" in a second-person feature has no other referent. `temporary-hp-granted`
+  gained an optional `source`. **Two follow-ups, one brief:** the DM's
+  `improvised_damage` reaches `resolveDamage` directly and pays no watcher
+  (a `commands/drop-rewards.ts` imported by `casting.ts` closes the module
+  cycle), and ten callers of `dealSpellDamage` drop its `unverified` on the
+  floor while holding accumulators of their own. Solar's Slaying Bow ("it
+  dies") waits on widening the kill's gate, out of level-5 reach.

@@ -527,7 +527,7 @@ engine could take it today — is recorded as such rather than omitted.
 
 | Classes | Subclasses | Features | Executed by the engine |
 |---|---|---|---|
-| 12 / 12 | 12 / 12 | 269 | 195 |
+| 12 / 12 | 12 / 12 | 269 | 196 |
 
 A feature declares its own automation, so this column is read rather than
 guessed. **Manual is not failure**: several features are judgement the
@@ -547,7 +547,7 @@ believe it has twelve working classes when it has twelve validated ones.
 | Ranger | known | 25 | 16 |
 | Rogue | none | 28 | 18 |
 | Sorcerer | known | 18 | 13 |
-| Warlock | known | 17 | 10 |
+| Warlock | known | 17 | 11 |
 | Wizard | spellbook | 18 | 15 |
 
 ### What blocks the rest
@@ -616,11 +616,11 @@ be the second spelling of one derivation.
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `heroic-inspiration` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 3 | 0 |
-| `temporary-hit-points-a-feature-grants` | 3 | 0 |
 | `a-speed-a-feature-reduces` | 2 | 0 |
 | `a-turn-boundary-payout-a-feature-owes` | 2 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 2 | 0 |
 | `forced-movement-a-spell-causes` | 2 | 0 |
+| `temporary-hit-points-a-feature-grants` | 2 | 0 |
 | `a-casting-ended-by-a-trigger` | 1 | 0 |
 | `a-dc-a-feature-derives-from-its-own-abilities` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
@@ -632,7 +632,6 @@ be the second spelling of one derivation.
 | `an-action-rule-a-feature-holds` | 1 | 0 |
 | `an-effect-that-ends-when-its-target-is-hurt` | 1 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 1 | 0 |
-| `an-outcome-of-a-spells-own-damage` | 1 | 0 |
 
 A feature can need more than one shape, so neither column sums to the
 size of the population.
@@ -965,7 +964,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 904 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 906 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -1025,8 +1024,8 @@ fact the book wrote for a person.
 | Line | Printed | Read |
 |---|---|---|
 | Traits | 337 | 137 |
-| Actions | 812 | 747 |
-| Bonus actions | 75 | 20 |
+| Actions | 812 | 748 |
+| Bonus actions | 75 | 21 |
 | Reactions | 24 | 0 |
 | Legendary actions | 82 | 0 |
 
@@ -1049,7 +1048,7 @@ and a bite whose hit buys a save.
 | A hit whose line says more than the engine applies | 52 | 53 |
 | An effect a hit buys | 45 | 46 |
 | A legendary action’s own economy | 30 | 82 |
-| A save whose line says more than the engine spends | 23 | 23 |
+| A save whose line says more than the engine spends | 24 | 24 |
 | How many attacks the Attack action holds | 2 | 2 |
 | A creature that casts | 1 | 1 |
 | A trait shape nothing spends | 0 | 0 |
@@ -1086,24 +1085,24 @@ never added.
 |---|---|---|---|---|---|
 | 1 | 32 | 28 | 211 | 92 | 119 |
 | 2 | 53 | 46 | 211 | 92 | 119 |
-| 3 | 91 | 80 | 345 | 147 | 195 |
-| 4 | 104 | 93 | 345 | 147 | 195 |
-| 5 | 120 | 108 | 481 | 213 | 262 |
-| 6 | 132 | 115 | 481 | 213 | 262 |
-| 7 | 144 | 121 | 562 | 256 | 300 |
-| 8 | 156 | 133 | 562 | 256 | 300 |
-| 9 | 165 | 137 | 668 | 333 | 327 |
-| 10 | 176 | 141 | 668 | 333 | 327 |
-| 11 | 183 | 143 | 727 | 369 | 348 |
-| 12 | 195 | 155 | 727 | 369 | 348 |
-| 13 | 200 | 156 | 784 | 415 | 359 |
-| 14 | 211 | 162 | 784 | 415 | 359 |
-| 15 | 218 | 165 | 821 | 436 | 374 |
-| 16 | 230 | 177 | 821 | 436 | 374 |
-| 17 | 235 | 177 | 859 | 471 | 375 |
-| 18 | 245 | 179 | 859 | 471 | 375 |
-| 19 | 257 | 191 | 859 | 471 | 375 |
-| 20 | 269 | 195 | 859 | 471 | 375 |
+| 3 | 91 | 81 | 345 | 147 | 195 |
+| 4 | 104 | 94 | 345 | 147 | 195 |
+| 5 | 120 | 109 | 481 | 213 | 262 |
+| 6 | 132 | 116 | 481 | 213 | 262 |
+| 7 | 144 | 122 | 562 | 256 | 300 |
+| 8 | 156 | 134 | 562 | 256 | 300 |
+| 9 | 165 | 138 | 668 | 333 | 327 |
+| 10 | 176 | 142 | 668 | 333 | 327 |
+| 11 | 183 | 144 | 727 | 369 | 348 |
+| 12 | 195 | 156 | 727 | 369 | 348 |
+| 13 | 200 | 157 | 784 | 415 | 359 |
+| 14 | 211 | 163 | 784 | 415 | 359 |
+| 15 | 218 | 166 | 821 | 436 | 374 |
+| 16 | 230 | 178 | 821 | 436 | 374 |
+| 17 | 235 | 178 | 859 | 471 | 375 |
+| 18 | 245 | 180 | 859 | 471 | 375 |
+| 19 | 257 | 192 | 859 | 471 | 375 |
+| 20 | 269 | 196 | 859 | 471 | 375 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1142,7 +1141,7 @@ which the table will.
 | Ranger (Hunter) | 3/3 | 4/5 | 6/8 | 7/9 | 8/10 | 9/11 | 9/12 | 10/13 | 11/14 | 11/15 | 11/16 | 12/17 | 12/18 | 12/19 | 12/20 | 13/21 | 13/22 | 14/23 | 15/24 | 16/25 |
 | Rogue (Thief) | 3/4 | 4/5 | 8/9 | 9/10 | 10/12 | 11/13 | 12/15 | 13/16 | 13/17 | 14/18 | 14/19 | 15/20 | 15/21 | 15/22 | 16/23 | 17/24 | 17/25 | 17/26 | 18/27 | 18/28 |
 | Sorcerer (Draconic Sorcery) | 2/2 | 3/4 | 6/7 | 7/8 | 8/9 | 9/10 | 9/11 | 10/12 | 10/12 | 10/12 | 10/12 | 11/13 | 11/13 | 11/14 | 11/14 | 12/15 | 12/15 | 12/16 | 13/17 | 13/18 |
-| Warlock (Fiend Patron) | 1/2 | 2/3 | 4/6 | 5/7 | 5/7 | 6/8 | 6/8 | 7/9 | 7/10 | 7/11 | 7/12 | 8/13 | 8/13 | 8/14 | 8/14 | 9/15 | 9/15 | 9/15 | 10/16 | 10/17 |
+| Warlock (Fiend Patron) | 1/2 | 2/3 | 5/6 | 6/7 | 6/7 | 7/8 | 7/8 | 8/9 | 8/10 | 8/11 | 8/12 | 9/13 | 9/13 | 9/14 | 9/14 | 10/15 | 10/15 | 10/15 | 11/16 | 11/17 |
 | Wizard (Evoker) | 3/3 | 4/4 | 7/7 | 8/8 | 9/9 | 9/10 | 9/10 | 10/11 | 10/11 | 11/12 | 11/12 | 12/13 | 12/13 | 13/14 | 13/14 | 14/15 | 14/15 | 14/16 | 15/17 | 15/18 |
 
 ### Spells in reach, by path
