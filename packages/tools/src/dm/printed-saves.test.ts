@@ -287,6 +287,22 @@ describe('`look` says which printed lines the engine will roll', () => {
     expect(nightmare.engineRollsTheSave).toBe(true);
   });
 
+  /**
+   * SRD Copper Dragon Wyrmling's Slowing Breath stood beside the Brass
+   * Dragon's Sleep Breath on the false side of this flag until the reader
+   * learned a rule about a turn: "The target can't take Reactions; its Speed
+   * is halved; and it can take either an action or a Bonus Action on its
+   * turn, not both. This effect lasts until the end of its next turn."
+   */
+  it('says true for the breath that changes what a turn may hold', () => {
+    const t = fight('the-copper-is-read', 'copper-dragon-wyrmling');
+    const block = blockOf(t, 'fang');
+
+    const slowing = block.actions.find((one) => one.name.startsWith('Slowing Breath'))!;
+    expect(slowing.text).toContain('not both');
+    expect(slowing.engineRollsTheSave).toBe(true);
+  });
+
   it('says false for a printed Bonus Action that forces nothing', () => {
     const t = fight('the-goblin-is-read');
     const block = blockOf(t, 'grish');
