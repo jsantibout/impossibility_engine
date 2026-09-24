@@ -89,9 +89,9 @@ homebrew.
   with an instance id, and a creature can be too laden to lift it. **An object
   is declared into the scene and broken**: a door stated by material and size,
   swung at and destroyed through the paths a creature already takes, with a
-  damage threshold that turns a superficial blow aside. **Hands are a count**, so a Two-Handed weapon and a
-  shield refuse each other and a conjured thing occupies one while its casting
-  runs.
+  damage threshold that turns a superficial blow aside. **Hands are a count**, so a Two-Handed weapon and a shield refuse each
+  other, and a conjured thing occupies one and carries a record of its own
+  while its casting or activation runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from JSON
   text; homebrew goes through the same door the SRD does, and content using
   mechanics the engine has touches no engine file.
@@ -107,7 +107,7 @@ homebrew.
 ## What does not
 
 - **No orchestration, persistence or web app.** Nothing stores a log. The
-  engine still has no idea a language model exists, which is the point.
+  engine still has no idea a language model exists.
 - **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed,
   timed, effect left to the table. `LEDGER.md` names each and its shape.
 - **No feature in a level 5 character's reach is `manual`**; the Champion's
@@ -116,9 +116,8 @@ homebrew.
   one yet, the form's limbs decide nothing about what can be held, and the
   block's senses are not carried.
 - **A summons still carries one debt.** A casting raises a creature out of the bestiary, states its form and type
-  and seats it; what no field can hold is a printed
-  line whose numbers are the summoner's — the Otherworldly Steed's attack and
-  Bonus Actions — and a creature stowed somewhere that is not the scene.
+  and seats it; what no field can hold is a printed line whose numbers are the summoner's (the Otherworldly
+  Steed's) and a creature stowed somewhere that is not the scene.
 - **Jumping is half.** A Thief's running jump lengthens by the Dexterity
   modifier; Slow Fall is elected on the landing rather than in a window.
 - **A printed hit is read clause by clause**: the charge, a push or pull, a
@@ -131,7 +130,7 @@ homebrew.
 - No ammunition spent. **An object cannot make an ability check** — a door
   asked for one rolls at −5 where it should refuse — and nothing stops a
   caller putting an object in the turn order.
-- A conferral refuses by name what it cannot do: bonuses to spell attack rolls,
+- A conferral refuses by name what it cannot do: spell attack bonuses,
   ability scores an item sets, curses, Speed from an item.
 - **Two corpus migrations are owed**: a weapon mastery is a ceiling rather
   than a quota, and a size nobody chooses defaults rather than refusing.
