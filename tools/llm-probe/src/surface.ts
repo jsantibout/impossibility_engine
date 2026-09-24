@@ -940,6 +940,11 @@ function run(
       // needed a direction, and the model spent four calls trying to find
       // somewhere to put a bearing because the schema had nowhere.
       const towards = towardsFrom(state, input);
+      // The spaces a wall runs through, which is the same lesson one template
+      // along: SRD Wind Wall is *drawn* rather than aimed, so a surface with
+      // nowhere to draw it is a spell nobody at this table can cast.
+      const drawn = input['path'];
+      const path = Array.isArray(drawn) ? drawn.map((space) => pointFrom(obj(space))) : undefined;
       return settle(
         session,
         resolveSpell(
@@ -949,6 +954,7 @@ function run(
             spellId: str(input, 'spell_id'),
             targets: strArray(input, 'targets').map(asCharacterId),
             ...(at === undefined ? {} : { at }),
+            ...(path === undefined ? {} : { path }),
             ...(towards === undefined ? {} : { towards }),
             ...(optNum(input, 'slot_level') === undefined ? {} : { slotLevel: optNum(input, 'slot_level')! }),
             ...commandId(input),
@@ -1656,7 +1662,7 @@ const DEFINED: readonly ToolSpec[] = [
   {
     name: 'cast_spell',
     description:
-      'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration. You name the spell, the targets and the slot. An area spell takes no targets and picks its own: give it `at` for where it is centred, and — for a Cone, Cube or Line — a `towards_creature`, `towards_landmark` or `towards` saying which way it points.',
+      'Cast a spell. The engine derives everything mechanical: the save DC, the attack modifier, the damage dice, the condition, the duration. You name the spell, the targets and the slot. An area spell takes no targets and picks its own: give it `at` for where it is centred, and — for a Cone, Cube or Line — a `towards_creature`, `towards_landmark` or `towards` saying which way it points. A wall is the one template you draw instead: give it `path`, the 5-foot spaces it runs through in order.',
     parameters: schema(
       {
         caster: field('string', 'Creature id.'),
@@ -1680,6 +1686,16 @@ const DEFINED: readonly ToolSpec[] = [
           description: 'Point a Cone, Cube or Line at this exact spot, if no creature or landmark says it better.',
           properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
           required: ['x', 'y'],
+        },
+        path: {
+          type: 'array',
+          description:
+            'The 5-foot spaces a wall runs through, in order along the ground — SRD Wind Wall. The one template you draw instead of aiming: the engine checks the length the spell allows, that each space touches the one before it, that the path stays on one ground, and that the first space is in range. Leave `at` out; the wall rises at the first space of its own path.',
+          items: {
+            type: 'object',
+            properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+            required: ['x', 'y'],
+          },
         },
         command_id: COMMAND_ID,
       },

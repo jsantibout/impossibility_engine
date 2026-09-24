@@ -5032,3 +5032,177 @@ describe('a band table is a lengthening, not a duration of its own', () => {
     ).toEqual(['bad_duration']);
   });
 });
+
+/**
+ * The seventh template, and the rules a definition may not break about it.
+ *
+ * SRD Wind Wall is the only spell in the book whose area is drawn rather than
+ * printed, and everything a *definition* can say about it is a bound: how long
+ * a path the caster may draw, and how high it stands. The one rule that is not
+ * a number is the important one — a wall answers at the casting and nothing
+ * later, because the path is not pinned on the record, so every clause that
+ * would ask again is refused where it is written rather than silently doing
+ * nothing.
+ */
+describe('a wall is bounded by its definition and asks once', () => {
+  const WALL = {
+    ...FIRE_DART,
+    targets: { count: 0 },
+    concentration: true,
+    durationSeconds: 60,
+    area: { kind: 'wall', length: 50, height: 15, origin: 'point' },
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'str',
+        damage: { dice: '4d8' },
+        damageType: 'bludgeoning',
+        onSuccess: 'half',
+      },
+    ],
+  };
+
+  it('accepts the bounds SRD Wind Wall prints', () => {
+    expect(codes(checkSpellDefinitionValue(WALL))).toEqual([]);
+  });
+
+  it.each([
+    ['length', 0],
+    ['length', 12],
+    ['height', -5],
+    ['height', 'tall'],
+  ])('refuses a %s of %s', (field, value) => {
+    expect(
+      codes(checkSpellDefinitionValue({ ...WALL, area: { ...WALL.area, [field]: value } })),
+    ).toContain('bad_wall_dimension');
+  });
+
+  /** No SRD wall rises at its caster, and one that did could not be drawn. */
+  it('refuses a wall that starts at the caster', () => {
+    expect(
+      codes(checkSpellDefinitionValue({ ...WALL, area: { ...WALL.area, origin: 'self' } })),
+    ).toContain('wall_starts_at_a_point');
+  });
+
+  /**
+   * And the rule the whole design rests on: the path is drawn at the casting
+   * and nothing keeps it, so a clause that would read the shape again is
+   * refused at authoring rather than reading a shape that answers null.
+   */
+  it.each([
+    [
+      'areaTrigger',
+      {
+        at: 'end-of-turn',
+        label: 'the wind',
+        effects: [
+          { kind: 'save-damage', ability: 'str', damage: { dice: '1d6' }, damageType: 'bludgeoning' },
+        ],
+      },
+    ],
+    ['areaStanding', { kind: 'speed', change: 'halve' }],
+    ['areaTerrain', { costPerFoot: 2 }],
+    ['areaLight', { level: 'dim' }],
+    ['areaObscurement', { degree: 'lightly' }],
+  ])('refuses %s beside a wall', (clause, value) => {
+    expect(codes(checkSpellDefinitionValue({ ...WALL, [clause]: value }))).toContain(
+      'wall_answers_once',
+    );
+  });
+});
+
+/**
+ * The two clauses SRD Flaming Sphere measures from the casting's own point.
+ *
+ * `within` is the reach that burns and `onPointEntry` is the space the sphere
+ * is rolled into, and both are about a point: a carried area's origin is a
+ * creature with a volume, and "within 5 feet of the Emanation" is not a
+ * sentence the book prints.
+ */
+describe('a trigger measured from the casting’s point', () => {
+  const TRIGGER_EFFECTS = [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      damage: { dice: '2d6' },
+      damageType: 'fire',
+      onSuccess: 'half',
+    },
+  ];
+  const SPHERE = {
+    ...FIRE_DART,
+    targets: { count: 0 },
+    concentration: true,
+    durationSeconds: 60,
+    area: { kind: 'sphere', radius: 20, origin: 'point' },
+    effects: [],
+    areaTrigger: {
+      at: 'end-of-turn',
+      within: 5,
+      label: 'the sphere',
+      effects: TRIGGER_EFFECTS,
+    },
+  };
+
+  it('accepts the reach SRD Flaming Sphere prints', () => {
+    expect(codes(checkSpellDefinitionValue(SPHERE))).toEqual([]);
+  });
+
+  it.each([[0], [3], ['near']])('refuses a reach of %s', (within) => {
+    expect(
+      codes(
+        checkSpellDefinitionValue({ ...SPHERE, areaTrigger: { ...SPHERE.areaTrigger, within } }),
+      ),
+    ).toContain('bad_trigger_reach');
+  });
+
+  /** A carried area has no point to measure from, and none to be rolled. */
+  it.each([
+    ['within', 5],
+    ['onPointEntry', true],
+  ])('refuses %s on an area the caster carries', (field, value) => {
+    expect(
+      codes(
+        checkSpellDefinitionValue({
+          ...SPHERE,
+          area: { kind: 'emanation', distance: 10, origin: 'self' },
+          areaTrigger: {
+            at: 'end-of-turn',
+            label: 'the aura',
+            effects: TRIGGER_EFFECTS,
+            [field]: value,
+          },
+        }),
+      ),
+    ).toContain('point_clause_without_a_point');
+  });
+
+  /**
+   * And the two arrival clauses are refused together: the area sweeping over
+   * somebody and the point being rolled into them are two SRD sentences, no
+   * spell prints both, and a definition carrying both would catch one creature
+   * twice for one move.
+   */
+  it('refuses the area arriving beside the point arriving', () => {
+    expect(
+      codes(
+        checkSpellDefinitionValue({
+          ...SPHERE,
+          areaTrigger: { ...SPHERE.areaTrigger, onAreaEntry: true, onPointEntry: true },
+        }),
+      ),
+    ).toContain('two_arrival_clauses');
+  });
+
+  /** Absence is how a definition says the sphere rams nobody. */
+  it('refuses any value but true for the ram', () => {
+    expect(
+      codes(
+        checkSpellDefinitionValue({
+          ...SPHERE,
+          areaTrigger: { ...SPHERE.areaTrigger, onPointEntry: 'yes' },
+        }),
+      ),
+    ).toContain('malformed_field');
+  });
+});

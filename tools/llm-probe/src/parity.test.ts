@@ -122,6 +122,13 @@ const AUDIT: readonly {
       // landmark or a spot — because that is what the engine takes and because
       // an angle would be the model typing raw geometry.
       towards: expose('towards'),
+      // The same decision one template along: SRD Wind Wall is drawn rather
+      // than aimed, and a wall the caller cannot draw is a spell they cannot
+      // cast. A list of spaces is what the engine takes, and it is a shape
+      // rather than a number that decides an outcome — the engine judges the
+      // length, the continuity and the Range, and refuses rather than
+      // straightening.
+      path: expose('path'),
       anchoring: because(
         'whether an area is centred on a space or on the intersection between four of them, which decides whether its footprint comes out odd or even. A real tactical choice and not a number that decides an outcome — but which of the two a given spell wants is a property of the spell (a 20-foot radius wants an intersection, a 5-foot-wide Line wants a space), so it belongs to the definition rather than to a per-cast decision the DM makes afresh each time. Publish it if and when a definition cannot say',
       ),
