@@ -760,7 +760,10 @@ describe('the training a feature grants', () => {
       grants: { kind: 'weapon-and-armor-training', armor: ['plate'] },
     } as never as FeatureDefinition;
     expect(codes(armor)).toContain('bad_training_grant');
-    const empty = { ...trains, grants: { kind: 'weapon-and-armor-training', weapons: [] } };
+    const empty = {
+      ...trains,
+      grants: { kind: 'weapon-and-armor-training', weapons: [] },
+    } as never as FeatureDefinition;
     expect(codes(empty)).toContain('bad_training_grant');
   });
 });
