@@ -107,8 +107,10 @@ import { castOrRelease } from './spell-resolution.js';
 import {
   aimedIdentity,
   type AimedRolls,
+  type CastSpellRequest,
   declaredFacts,
   type SpellResolution,
+  type SpellTargetOutcome,
 } from './targeting.js';
 
 /**
@@ -1429,6 +1431,330 @@ export function takePrintedTeleport(
         events: [...events, ...moved.value.events],
         feet: moved.value.feet,
         unverified: moved.value.unverified.map((gap) => `${line.name}: ${gap}`),
+        duplicate: false,
+      });
+    },
+  );
+}
+
+/**
+ * The facts a printed casting states, which are the **casting's** own.
+ *
+ * Every stated fact a `CastSpellRequest` carries, less the ones a printed line
+ * decides and a caller therefore may not: the spell is off the line's menu,
+ * the price is the heading's, and neither a slot, a payment, a Ritual, an item
+ * nor a held declaration is a thing a stat block offers. Omitted rather than
+ * accepted-and-refused, because a field that cannot be honoured is a caller
+ * who thinks they said something, and a type is the cheapest place to say so.
+ *
+ * `targets` is optional here and required there: a line whose spell reaches
+ * nobody names none, and a line that needs them is *asked*, by the pipeline's
+ * own `undeclared_targets`, before anything is spent.
+ */
+export type PrintedCastingFacts = Partial<
+  Omit<
+    CastSpellRequest,
+    | 'spellId'
+    | 'commandId'
+    | 'slotLevel'
+    | 'slotKind'
+    | 'slotless'
+    | 'payment'
+    | 'ritual'
+    | 'item'
+    | 'charges'
+    | 'source'
+    | 'hold'
+    | 'answers'
+    | 'usingFeatures'
+    | 'usingOptions'
+  >
+>;
+
+/** Which line the caller is taking, which spell off it, and where it is aimed. */
+export interface PrintedCastingCommand extends CommandIdentity {
+  readonly line: string;
+  /**
+   * Which spell off the line's menu.
+   *
+   * **The one decision a cast line leaves open**, and the reason it is a
+   * decision rather than a lookup: SRD Priest's Divine Aid offers four spells
+   * for one use, and the engine picks none of them. Absent is asked about
+   * rather than refused, because a choice nobody has made is a fact that is
+   * missing rather than a call that is wrong — and a line offering one spell
+   * is asked exactly as readily, so the caller and the log always agree about
+   * which spell was cast.
+   */
+  readonly spell?: string;
+  /** What the casting itself states — see {@link PrintedCastingFacts}. */
+  readonly casting?: PrintedCastingFacts;
+}
+
+export interface PrintedCastingOutcome {
+  readonly events: readonly GameEvent[];
+  /**
+   * The casting this made — see `SpellResolution.castingId`.
+   *
+   * **Null on a retry**, and that is the honest answer rather than a gap: the
+   * event this command stamps is the line being taken, so the ledger remembers
+   * which line and not which casting. A caller that needs the id on a replay
+   * reads the `spell-cast` that follows the stamped `stated-action-taken` in
+   * the log, which is where it is.
+   */
+  readonly castingId: string | null;
+  readonly outcomes: readonly SpellTargetOutcome[];
+  /** What the casting and the line between them left to the table. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Cast one of the spells a creature's stat block prints on a line, at the
+ * heading's price and through the block's own numbers.
+ *
+ * SRD Priest, Divine Aid (3/Day), under **Bonus Actions**: "The priest casts
+ * _Bless, Dispel Magic, Healing Word,_ or _Lesser Restoration,_ using the same
+ * spellcasting ability as Spellcasting." Every part of that is a rule the
+ * engine already holds — a menu, an ability, a printed save DC, a count
+ * between dawns — so this door decides nothing about the spell: it settles
+ * *which line*, *which spell* and *what the use costs*, and hands the rest to
+ * the casting pipeline, which records the casting, takes the Concentration,
+ * pins the DC and hangs the deadlines exactly as it does for a Wizard.
+ *
+ * **The fourth door on one line, beside the three that already exist.**
+ * {@link takeStatedAction} and {@link takeStatedBonusAction} spend the slot and
+ * hand the sentence over, for every line including this one, and they still
+ * do; {@link forcePrintedSave} rolls a save where the line forces one;
+ * {@link takePrintedTeleport} moves the creature. This one casts, and it
+ * refuses `line_casts_nothing` for a line whose sentence says something else.
+ *
+ * **What the heading prices is the *use*, and that is why the route carries a
+ * casting time.** Divine Aid is a Bonus Action offering *Bless*, whose own
+ * casting time is an Action, and the only place a casting's slot is decided is
+ * `castingOf` — so `GrantedSpell.castingTime` is read there and the pipeline
+ * spends the Bonus Action the book printed. This command spends **no** slot of
+ * its own; a door that did would charge the creature twice.
+ *
+ * **The economy it does spend is the one the hand-over door already spends**,
+ * in the same order and for the same reason: the recharge and the day's uses
+ * are checked before anything, so a refusal leaves no footprint, and the same
+ * events go into the log, because the same line was taken. It is deliberately
+ * *not* a pool on the grant — two ledgers for one heading is how a creature
+ * comes to cast four Blesses out of a 3/Day line, once through each door.
+ *
+ * **"Requiring no spell components" is fiction here.** The engine models no
+ * components at all, so the clause changes nothing it could check; it is said
+ * in the note the casting hands back rather than enforced.
+ *
+ * **A line that casts on itself has no target to state.** SRD Imp, Quasit and
+ * Sprite print "casts _Invisibility_ **on itself**", and the parser reads the
+ * clause — so the target is fixed to the caster and a caller who named anybody
+ * else is refused rather than quietly overruled.
+ */
+export function castPrintedLine(
+  state: GameState,
+  id: CharacterId,
+  command: PrintedCastingCommand,
+  supply: Supply,
+): Result<PrintedCastingOutcome> {
+  return once(
+    state,
+    `printed-casting:${id}`,
+    command,
+    () => ({ events: [], castingId: null, outcomes: [], unverified: [], duplicate: true }),
+    (stamp) => {
+      // A mandatory effect this creature has been caught by, or a turn whose
+      // start has not arrived. **After the duplicate check, never before it.**
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (state.combat === null) {
+        // Which slot the line costs is the heading's answer and the heading
+        // has not been read yet, so the refusal names neither. Refused for the
+        // reason its three siblings refuse: a printed line is taken out of a
+        // turn's economy, and the event that records one names the turn.
+        return err('not_in_combat', 'there is no turn to spend a printed line from outside combat');
+      }
+
+      // Read off the sheet, where `creature-added` pinned the block's own
+      // lines. Actions first, for `forcePrintedSave`'s reason: the book writes
+      // cast lines under both headings — five under Actions and nine under
+      // Bonus Actions — and what the heading changes is what the line costs.
+      const action = statedActionOf(creature.sheet, command.line);
+      const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
+      const line: StatedAction | StatedBonusAction | null = action ?? bonus;
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions; a printed attack is taken by the command that swings it, and a heading printed under another section by the command that owns that one`,
+        );
+      }
+
+      const printed = line.casts;
+      if (printed === undefined) {
+        return err(
+          'line_casts_nothing',
+          `${line.name} casts no spell this engine could read; take it with the door that hands the sentence over, and a DM applies what it says`,
+        );
+      }
+
+      // **Which spell, which is the line's one open decision.** Asked for
+      // rather than guessed at even where the menu holds one entry: a caller
+      // and a log that agree about which spell was cast is worth a round trip,
+      // and a menu of four is a choice nobody here may make.
+      const wanted = command.spell;
+      if (wanted === undefined) {
+        return needsContext(
+          'undeclared_spell',
+          `${line.name} casts one of ${printed.spells.join(', ')}, and nobody has said which`,
+          [
+            {
+              kind: 'route',
+              subject: id,
+              need: `which of ${printed.spells.join(', ')} ${line.name} is casting`,
+              because: 'the line offers a menu and the engine chooses none of it',
+              satisfyWith: 'castPrintedLine again with its spell named',
+            },
+          ],
+        );
+      }
+      if (!printed.spells.includes(wanted)) {
+        return err(
+          'spell_not_on_the_line',
+          `${line.name} casts ${printed.spells.join(', ')}, and ${wanted} is not one of them`,
+        );
+      }
+
+      // **The route the adapter compiled off this very line**, and the one
+      // place this command learns whose ability and whose DC the casting uses.
+      // Absent is a line the adapter **refused**, and the reason it refuses is
+      // exactly the reason this must too: a block that casts "using the same
+      // spellcasting ability as Spellcasting" and prints no Spellcasting line
+      // has not said which ability, and the engine picking one would be the
+      // engine inventing a number the book declined to print. The refusal
+      // carries what the adapter said, off the creature's own caveats.
+      const route = creature.spellcasting.granted.find(
+        (grant) => grant.throughLine === line.name && grant.spellId === wanted,
+      );
+      if (route === undefined) {
+        return err(
+          'line_has_no_route',
+          `${line.name} casts ${wanted} and this creature holds no route for it; the block declined to say something the casting needs — whose spellcasting ability, most often — and add_creature said so when it arrived`,
+        );
+      }
+
+      // **The target the sentence fixed**, where it fixed one. A caller who
+      // named somebody else is refused rather than overruled, which is the
+      // reading every stated fact that cannot be honoured already gets.
+      const stated = command.casting ?? {};
+      const named = stated.targets ?? [];
+      if (printed.selfOnly === true && named.some((target) => target !== id)) {
+        return err(
+          'line_casts_on_itself',
+          `${line.name} casts ${wanted} on ${id} and on nobody else; ${named.filter((target) => target !== id).join(', ')} cannot be named`,
+        );
+      }
+
+      // **A line already used and not yet back**, and **a line whose day's
+      // worth is gone** — both before the casting, because a refusal after a
+      // spell has landed is a refusal with a footprint, and both read off the
+      // very ledger `takeStatedAction` reads, so two doors on one heading
+      // cannot disagree about what is left of it.
+      const recharge = line.recharge ?? null;
+      if (creature.expendedLines.includes(line.name)) {
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${
+            recharge === null ? '' : `: ${describeRecharge(recharge)}`
+          }`,
+        );
+      }
+      const perDay = line.perDay ?? null;
+      const usedToday = tallied(creature.resources, perDayTallyKey(line.name));
+      if (perDay !== null && usedToday >= perDay) {
+        return err(
+          'daily_limit_reached',
+          `${id} has used ${line.name} ${usedToday} times today: ${describePerDay(perDay)}`,
+        );
+      }
+
+      // **The casting, through the route the adapter compiled off this very
+      // line.** No slot, no payment and no commandId of its own: the price is
+      // the heading's and the identity is this command's, so exactly one stamp
+      // rides this batch and a retry answers from the ledger above.
+      const cast = castOrRelease(
+        state,
+        id,
+        {
+          ...stated,
+          spellId: wanted,
+          targets: printed.selfOnly === true ? [id] : named,
+          // **The one road into a route the line holds open.** `routesFor`
+          // leaves it out of what a casting finds for itself, because the
+          // price is the heading's and a casting that reached it unasked
+          // would pay nothing; `chooseRoute` looks a named source up
+          // directly, and this is that name — read off the grant rather than
+          // rebuilt, so two spellings of one key cannot drift apart.
+          source: route.source,
+        },
+        supply,
+        null,
+      );
+      if (!cast.ok) return cast;
+
+      // The same two events the hand-over door writes, because the same line
+      // was taken — and only those two: the Action or the Bonus Action is the
+      // casting's to spend, at the casting time the route stated.
+      const events: GameEvent[] = [
+        // SRD *Monsters*: "a monster can use the stat block part once."
+        ...(recharge === null
+          ? []
+          : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+        ...(perDay === null
+          ? []
+          : [
+              {
+                type: 'resource-spent' as const,
+                id,
+                key: perDayTallyKey(line.name),
+                amount: 1,
+                tally: 'dawn' as const,
+              },
+            ]),
+        action !== null
+          ? {
+              type: 'stated-action-taken' as const,
+              id,
+              // The **printed** heading rather than what the caller typed.
+              line: line.name,
+              ...(stamp === null ? {} : { command: stamp }),
+            }
+          : {
+              type: 'stated-bonus-action-taken' as const,
+              id,
+              line: line.name,
+              turn: state.combat.turnsTaken,
+              ...(stamp === null ? {} : { command: stamp }),
+            },
+      ];
+
+      return ok({
+        events: [...events, ...cast.value.events],
+        castingId: cast.value.castingId,
+        outcomes: cast.value.outcomes,
+        unverified: [
+          ...cast.value.unverified,
+          // The one clause of the sentence the engine read and models nothing
+          // of, said out loud at the moment of use rather than dropped at the
+          // door — the discipline a spell's own unmodelled lines already keep.
+          ...(/requiring no [A-Za-z ]+ components/.test(line.text)
+            ? [
+                `${line.name}: "requiring no spell components" — the engine models no components at all, so the clause changes nothing it could check`,
+              ]
+            : []),
+        ],
         duplicate: false,
       });
     },

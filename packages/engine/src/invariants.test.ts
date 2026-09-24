@@ -136,6 +136,7 @@ import {
   takeItemUp,
   takeReady,
   forcePrintedSave,
+  castPrintedLine,
   takePrintedTeleport,
   takeStatedAction,
   takeStatedBonusAction,
@@ -466,6 +467,54 @@ const BLINKING: readonly GameEvent[] = SETUP.map((event) =>
     ? { ...event, sheet: sheet({ stated: { unreadActions: [TELEPORTING_LINE] } }) }
     : event,
 );
+
+/**
+ * The same invented line with the book's cast template read off it.
+ *
+ * Invented for the three above's reason, and *Bless* because it is the spell
+ * SRD's own Divine Aid offers first: a casting that touches nobody's hit
+ * points, so a second run under one id shows up as a second casting rather
+ * than as arithmetic.
+ */
+const CASTING_LINE = {
+  ...PRINTED_LINE,
+  casts: { spells: ['bless'], ability: 'wis' as const, saveDc: 13 },
+} as const;
+
+/**
+ * The same world again, with that line under Actions and a route to cast it.
+ *
+ * The grant is what `adaptMonster` compiles off such a line, written out here
+ * because the sweep is about the command's identity rather than about any
+ * block: the heading's price, the line's ability, and no payment of its own.
+ */
+const CASTING: readonly GameEvent[] = [
+  ...SETUP.map((event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { unreadActions: [CASTING_LINE] } }) }
+      : event,
+  ),
+  {
+    type: 'spellcasting-declared',
+    id: A,
+    spellcasting: {
+      classes: [],
+      granted: [
+        {
+          spellId: 'bless',
+          source: `printed:invented:${PRINTED_LINE.name}`,
+          ability: 'wis' as const,
+          castingTime: 'action' as const,
+          throughLine: PRINTED_LINE.name,
+          freeCastPool: null,
+          slotCasting: false,
+          atWill: true as const,
+          saveDc: 13,
+        },
+      ],
+    },
+  },
+];
 
 /**
  * A Short Rest that has run its hour, with a wound and a Hit Die left.
@@ -1892,6 +1941,22 @@ const GUARDED: readonly Guarded[] = [
         to: { from: { landmark: 'here' }, feet: 10, bearing: 180 },
         commandId,
       }),
+  },
+  /**
+   * And the fourth, which is the most expensive retry of the four: a second
+   * run under one id would be a second casting with a second id, a second
+   * Concentration and a second day's use gone.
+   */
+  {
+    name: 'castPrintedLine',
+    log: CASTING,
+    run: (s, commandId) =>
+      castPrintedLine(
+        s,
+        A,
+        { line: CASTING_LINE.name, spell: 'bless', casting: { targets: [A] }, commandId },
+        supply(),
+      ),
   },
   /**
    * The five the glossary prints that arrived with their spenders. Each is a
@@ -3439,6 +3504,16 @@ const SPENDERS: readonly Spender[] = [
         line: 'A Printed Line',
         to: { from: { landmark: 'here' }, feet: 10, bearing: 180 },
       }),
+  },
+  /**
+   * And the fourth door on one line, which spends the same slot through the
+   * casting the route opens — and is refused for the same debt before the
+   * line, the menu or the targets are looked at, like its three siblings.
+   */
+  {
+    name: 'castPrintedLine',
+    run: (s) =>
+      castPrintedLine(s, B, { line: 'A Printed Line', spell: 'bless' }, supply()),
   },
   /**
    * A wand's charge. It spends no Action here — what a charge *buys* is not

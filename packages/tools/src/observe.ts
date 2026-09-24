@@ -348,6 +348,18 @@ export interface ObservedGrantedSpell {
   readonly left: number | null;
   /** SRD "At Will": cast for nothing, without limit. See the field above. */
   readonly atWill: boolean;
+  /**
+   * The printed heading this route is only open through, or null.
+   *
+   * SRD Priest, Divine Aid (3/Day): the spell is the creature's and the price
+   * is the *heading's*, which is a ledger only the line's own door spends —
+   * so `cast_spell` cannot reach this route at all and `take_printed_action`'s
+   * casting sibling is where it is taken. Reported because the two fields
+   * above would otherwise read as a lie: a route the block rations three times
+   * a day is not free and is not without limit, and what counts it is the
+   * heading rather than the grant.
+   */
+  readonly throughLine: string | null;
 }
 
 /**
@@ -613,6 +625,7 @@ export function observe(state: GameState): Observation {
         source: grant.source,
         left: grant.freeCastPool === null ? null : remaining(c.resources, grant.freeCastPool),
         atWill: grant.atWill === true,
+        throughLine: grant.throughLine ?? null,
       })),
       senses: awarenessesOn(state, c.id).map((awareness) => ({
         feature: awareness.feature,

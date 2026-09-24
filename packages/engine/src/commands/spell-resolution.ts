@@ -818,7 +818,11 @@ export function castOrRelease(
     // How long this casting takes, and whether it is a Ritual. Refused here,
     // before a slot, an action or a die — and computed once, because the
     // arithmetic and the refusals are three consequences of one SRD sentence.
-    const casting = castingOf(definition, request);
+    //
+    // **The route goes in because a route may price the use.** A stat block's
+    // heading is a Bonus Action over a spell that prints an Action, and this
+    // is the one place a casting's slot is decided.
+    const casting = castingOf(definition, request, route);
     if (!casting.ok) return casting;
 
     const slotLevel = request.slotLevel ?? definition.level;
@@ -1506,10 +1510,24 @@ export interface CastingTiming {
 export function castingOf(
   definition: SpellDefinition,
   request: CastSpellRequest,
+  route?: CastingRoute | null,
 ): Result<CastingTiming> {
   if (request.ritual !== true) {
+    // **What the route prices the use at, where it prices it.** A stat block's
+    // heading is the one thing in the book that says how long a casting takes
+    // without being the spell: SRD Divine Aid is a Bonus Action offering
+    // *Bless*, whose own casting time is an Action. A route is the right host
+    // for it because a route is already how a casting learns whose ability and
+    // whose DC it uses — and this is the one place a casting's slot is
+    // decided, so the action economy, the event and the settlement all read
+    // one answer.
+    //
+    // **A span of seconds does not travel with it**, and cannot: the only
+    // casting time that takes one is `long`, which no printed heading prices a
+    // use at, and `castSpell` refuses a `long` casting that names no span.
+    const stated = route?.kind === 'granted' ? route.grant.castingTime : undefined;
     return ok({
-      castingTime: definition.castingTime,
+      castingTime: stated ?? definition.castingTime,
       ...(definition.castingSeconds === undefined
         ? {}
         : { castingSeconds: definition.castingSeconds }),

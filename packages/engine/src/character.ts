@@ -24,6 +24,7 @@ import type { NamedAction } from './combat.js';
 import type {
   Armor,
   MonsterAttack,
+  MonsterCastLine,
   MonsterMultiattack,
   MonsterRecharge,
   MonsterSave,
@@ -164,6 +165,17 @@ export interface StatedBonusAction {
   readonly save?: MonsterSave;
   /** Where this line teleports its creature — see {@link StatedAction.teleports}. */
   readonly teleports?: MonsterTeleport;
+  /**
+   * The spells this line casts — see {@link StatedAction.casts}, which this is
+   * the same field as and for the same reason.
+   *
+   * **Nine of the book's fourteen cast lines are printed here**, which is more
+   * than under any other heading: every Divine Aid, both Misty Steps, the
+   * Cultist Fanatic's Spiritual Weapon, the Drider's, the Stone Golem's, the
+   * Oni's Invisibility. A Bonus Action heading over a spell whose own casting
+   * time is an Action is the whole reason a route may state a casting time.
+   */
+  readonly casts?: MonsterCastLine;
 }
 
 /**
@@ -236,6 +248,24 @@ export interface StatedAction {
    * caster — so the line is the same mechanism at the heading's price.
    */
   readonly teleports?: MonsterTeleport;
+  /**
+   * The spells this line casts, where its sentence is the book's cast template
+   * — see `MonsterCastLineSchema`.
+   *
+   * SRD Dust Mephit, Sleep (1/Day): "The mephit casts the _Sleep_ spell …
+   * using Charisma as the spellcasting ability (spell save DC 10)." A menu,
+   * an ability and sometimes a printed DC, every one of which is already a
+   * fact the casting pipeline reads off a route — so the line is a *route*
+   * rather than a pipeline of its own, and `castPrintedLine` is the door that
+   * takes it.
+   *
+   * **The field was deliberately absent for a batch**, and the reason it is
+   * here now is that it has a reader: a field nothing reads is the failure
+   * this repository finds most often, and until a door could spend one, a
+   * cast line on the sheet would have validated, loaded, landed on a creature
+   * and done nothing.
+   */
+  readonly casts?: MonsterCastLine;
 }
 
 /**

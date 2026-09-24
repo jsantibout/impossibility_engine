@@ -97,10 +97,44 @@ describe('what a caller can see before it casts anything', () => {
     const t = room(table());
     const zeal = t.surface.observe().creatures.find((c) => c.id === 'zeal')!;
     expect(zeal.grantedSpells).toEqual([
-      { spellId: 'light', source: 'cultist-fanatic:spellcasting', left: null, atWill: true },
-      { spellId: 'thaumaturgy', source: 'cultist-fanatic:spellcasting', left: null, atWill: true },
-      { spellId: 'command', source: 'cultist-fanatic:spellcasting', left: 2, atWill: false },
-      { spellId: 'hold-person', source: 'cultist-fanatic:spellcasting', left: 1, atWill: false },
+      {
+        spellId: 'light',
+        source: 'cultist-fanatic:spellcasting',
+        left: null,
+        atWill: true,
+        throughLine: null,
+      },
+      {
+        spellId: 'thaumaturgy',
+        source: 'cultist-fanatic:spellcasting',
+        left: null,
+        atWill: true,
+        throughLine: null,
+      },
+      {
+        spellId: 'command',
+        source: 'cultist-fanatic:spellcasting',
+        left: 2,
+        atWill: false,
+        throughLine: null,
+      },
+      {
+        spellId: 'hold-person',
+        source: 'cultist-fanatic:spellcasting',
+        left: 1,
+        atWill: false,
+        throughLine: null,
+      },
+      // And the Bonus Action cast line, which is a route of its own: the
+      // heading rations it, so the grant itself runs out of nothing and
+      // `throughLine` says where the counting happens.
+      {
+        spellId: 'spiritual-weapon',
+        source: 'cultist-fanatic:spiritual-weapon-2-day',
+        left: null,
+        atWill: true,
+        throughLine: 'Spiritual Weapon (2/Day)',
+      },
     ]);
   });
 
