@@ -569,20 +569,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Paladin —
-  /**
-   * A bare pool, and the one of the four whose debt is smallest.
-   *
-   * SRD gives this pool exactly one effect at level 3 — Divine Sense — and
-   * the subclass options that join it are features of their own with entries
-   * of their own.
-   */
-  'paladin:channel-divinity': [
-    {
-      clause: 'What each use buys is not executed',
-      why: 'a-declared-fact-a-feature-sets',
-      note: 'SRD Divine Sense: "you know the location of any creature of those types within 60 feet of yourself" — awareness of a filtered set of creatures for ten minutes, which is the declared fact a DM writes today and a feature cannot.',
-    },
-  ],
   'paladin:fighting-style': [
     {
       clause: 'The other two of the four are still a note rather than a grant',
@@ -1011,20 +997,6 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
   ],
 
   // — Species and backgrounds. Read here; `origins.ts` is somebody else's file. —
-  'elf:elven-lineage': [
-    {
-      clause: 'is an option re-chosen on a rest',
-      why: 'an-option-re-chosen-on-a-rest',
-      note: 'the High Elf alone: every other clause of every lineage is applied, and what is left is a cantrip swapped for another one whenever the Elf finishes a Long Rest, which nothing rewires a compiled grant for.',
-    },
-  ],
-  'gnome:gnomish-lineage': [
-    {
-      clause: 'an object with its own Armour Class, hit point and Bonus Action that nothing in the engine creates',
-      why: 'an-object-with-statistics-of-its-own',
-      note: 'the Rock Gnome’s clockwork device, which is the spell map’s own id: a thing with an Armour Class and a Hit Point that is not a creature.',
-    },
-  ],
   // — the feats, which no population had until gate G1 ————————————————————
   //
   // `allFeatures` walked classes, subclasses, species and backgrounds and
@@ -1120,7 +1092,15 @@ export const isBarePool = (feature: FeatureDefinition): boolean => {
  * - a **menu joined to this feature's own pool** — the same trait's Cloud's
  *   Jaunt, a `pool-options` grant naming the feature that declares the pool.
  *   A menu joined from *another* feature is not read here and does not need to
- *   be: the host's own `options` member answers for it.
+ *   be: the host's own `options` member answers for it;
+ * - an **activation on the pool** — SRD Divine Sense, a Bonus Action that
+ *   spends a use of the Channel Divinity declared beside it and opens an
+ *   awareness for ten minutes. What a use buys there is a span on its holder
+ *   rather than an entry on a menu, which is why no `options` member says it
+ *   and why the pool read as bare while the feature was fully executed.
+ *   Sacred Weapon is the same shape from *another* feature and is not read
+ *   here for the same reason a menu from another feature is not: what this
+ *   asks is whether the declaring feature itself spends what it declared.
  *
  * The failure this is guarding against is a pool the engine fully spends being
  * counted as a resource nothing buys from, which would put a finished feature
@@ -1136,6 +1116,7 @@ const siblingSpends = (
     if (grant.kind === 'on-hit' || grant.kind === 'reaction' || grant.kind === 'casting-options') {
       return grant.pool === key;
     }
+    if (grant.kind === 'activated' && grant.pool === key) return true;
     const effects =
       grant.kind === 'standing'
         ? (grant.effects ?? [])

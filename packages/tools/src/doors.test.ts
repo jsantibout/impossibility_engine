@@ -363,6 +363,11 @@ const ESTABLISHING_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // block read out of the book exactly as `add_creature` reads one, put on the
   // summoner's side by a casting. No number of the caller's, here either.
   'summon_creature:creature': ['id', 'monsterId', 'by'],
+  // The fourth, and the one with no book behind it at all: a thing a feature
+  // makes reads every number off that feature — the Armour Class, the hit
+  // point, the size — so what the caller says is whose feature it is, what to
+  // call the thing and which of the effects the feature prints it does.
+  'create_device:creature': ['who', 'feature', 'device', 'name', 'function'],
   'declare_creature_type:creature-type': ['who', 'creatureType'],
   // Its twin, differing only in being re-declarable: a type is what a
   // creature is and a side is who it is fighting, and the second changes in

@@ -5,6 +5,7 @@ import type {
   ShapeShift,
   HealingTouch,
   HitOption,
+  ObjectMaker,
   PoolOption,
   RecoveryFeature,
   SelfHealFeature,
@@ -649,6 +650,12 @@ export interface CharacterSheet {
    * See `ShapeShift`; what a form does to the sheet is `assumeStatBlock`.
    */
   readonly shapeShifts?: readonly ShapeShift[];
+  /**
+   * Features that make a thing with statistics of its own — SRD Gnomish
+   * Lineage's clockwork device. See `ObjectMaker`; what a making puts in the
+   * room is a creature, so nothing about the thing itself is on this sheet.
+   */
+  readonly objectMakers?: readonly ObjectMaker[];
   /**
    * Features that give another pool's uses back — Sorcerous Restoration,
    * Magical Cunning.

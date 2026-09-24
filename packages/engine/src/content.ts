@@ -220,6 +220,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'ability-score-increase',
   'activated',
   'casting-options',
+  'creates-object',
   'critical-range',
   'expertise',
   'extra-attack',
@@ -5027,6 +5028,22 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
                 reason: `${feature.id} arrives at level ${feature.level} and spends a pool ${declaring[0]!.id} does not declare until ${declaring[0]!.level}, so every casting in between would be refused for want of a pool`,
               });
             }
+          }
+        }
+        // The list a rest's replacement comes from — the half a definition
+        // cannot check for itself, because a class is another population.
+        // SRD Elven Lineage names the Wizard list; a mark naming a class this
+        // world does not print would refuse every replacement anybody offered,
+        // at the rest rather than here, and would read as the trait simply not
+        // working.
+        if (grant.kind === 'spells' && grant.rechosenOn !== undefined) {
+          const named = grant.rechosenOn.fromClass;
+          if (typeof named === 'string' && named !== '' && classOf.get(named) === undefined) {
+            problems.push({
+              field: `${grantsAt}.rechosenOn.fromClass`,
+              code: 'unknown_rechoice_list',
+              reason: `${feature.id} lets a rest replace its spell from the ${named} spell list, and this world holds no class with that id`,
+            });
           }
         }
         // A grant written in terms of another feature's choice — the SRD's

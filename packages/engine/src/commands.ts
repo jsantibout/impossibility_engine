@@ -69,6 +69,13 @@ export type { AddCreatureOutcome, DamageCommand, Summons } from './commands/crea
 export { applyConditionTo, liftConditionFrom, whyCondition } from './commands/conditions.js';
 export { declareObject } from './commands/objects.js';
 export type { ObjectDeclaration } from './commands/objects.js';
+export { activateDevice, createDevice, dismantleDevice } from './commands/devices.js';
+export type {
+  ActivateDeviceCommand,
+  CreateDeviceCommand,
+  DeviceUse,
+  DismantleDeviceCommand,
+} from './commands/devices.js';
 export {
   declareCreatureType,
   declareDifficultTerrain,

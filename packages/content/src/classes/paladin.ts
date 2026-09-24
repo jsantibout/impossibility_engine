@@ -163,16 +163,41 @@ export const PALADIN: ClassDefinition = {
       name: 'Channel Divinity',
       level: 3,
       automation: 'engine',
-      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. What each use buys is not executed.',
-      grants: {
-        kind: 'pool',
-        key: 'channel-divinity',
-        label: 'Channel Divinity',
-        usesByLevel: PALADIN_CHANNEL_DIVINITY,
-        recovers: 'long-rest',
-        // SRD: "You regain one expended use when you finish a Short Rest."
-        regainsOnShortRest: 1,
-      },
+      note: 'Declared as a pool sized by the Channel Divinity column, refilling on a Long Rest. A Short Rest gives back one use, which is applied without emptying the pool. What the class\'s one use buys is executed: Divine Sense is an activation on that pool, opened for a Bonus Action, running the printed ten minutes on the clock and ending early on the Incapacitated condition — and while it runs the engine answers the question the book asks, naming every Celestial, Fiend and Undead within sixty feet with its type and its distance. A creature the radius reached whose record states no type is named as unknown rather than dropped, because "there is something there and nobody has said what" is a different answer from an empty radius. One sentence stays the table\'s: "you also detect the presence of any place or object that has been consecrated or desecrated" — nothing in the engine consecrates a place, so there is no fact for the radius to find.',
+      grants: [
+        {
+          kind: 'pool',
+          key: 'channel-divinity',
+          label: 'Channel Divinity',
+          usesByLevel: PALADIN_CHANNEL_DIVINITY,
+          recovers: 'long-rest',
+          // SRD: "You regain one expended use when you finish a Short Rest."
+          regainsOnShortRest: 1,
+        },
+        {
+          // SRD: "You have one such effect: Divine Sense." One pool and one way
+          // to spend it, so the way hangs on the feature that prints it — and
+          // it is an activation rather than an option on the menu because what
+          // it buys is a span on its holder rather than an effect on anybody:
+          // ten minutes, ended early by a condition, which is what `endsOn` and
+          // the fold's derived pass are.
+          kind: 'activated',
+          // "As a Bonus Action, you can open your awareness".
+          action: 'bonus-action',
+          // The pool is the one declared beside this, sized by the column
+          // above; the activation spends a use and sizes nothing.
+          pool: 'channel-divinity',
+          spendsOnly: true,
+          // "For the next 10 minutes or until you have the Incapacitated
+          // condition".
+          lastsSeconds: 600,
+          endsOn: ['incapacitated'],
+          // "to detect Celestials, Fiends, and Undead ... you know the location
+          // of any creature of those types within 60 feet of yourself, and you
+          // know its creature type."
+          detects: { feet: 60, creatureTypes: ['Celestial', 'Fiend', 'Undead'] },
+        },
+      ],
     },
     {
       id: 'paladin:subclass',

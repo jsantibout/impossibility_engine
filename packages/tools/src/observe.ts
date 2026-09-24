@@ -26,8 +26,10 @@ import { asCharacterId } from '@ie/shared';
 import type { CharacterSheet, GameState, StatedAction, StatedAttack } from '@ie/engine';
 import {
   armorClassOf,
+  awarenessesOn,
   carrying,
   describeRecharge,
+  detectedBy,
   distanceBetween,
   movementLeftFor,
   lightAt,
@@ -251,7 +253,48 @@ export interface ObservedCreature {
    * second copy of an answer that already has a door.
    */
   readonly grantedSpells: readonly ObservedGrantedSpell[];
+  /**
+   * What an awareness this creature has switched on is telling them.
+   *
+   * SRD Divine Sense: "you know the location of any creature of those types
+   * within 60 feet of yourself, and you know its creature type." **This is the
+   * door that ruling requires.** The engine may hold a fact only the table
+   * reads when the fact is derived from state and a door publishes it, and
+   * this feature is nothing *but* that fact — a Paladin who spent a Channel
+   * Divinity and was told nothing spent it on silence.
+   *
+   * Empty for everybody with no awareness running, which is everybody most of
+   * the time, and empty again the instant the ten minutes are up or the
+   * Paladin is Stunned: `detectedBy` derives the whole list on every read.
+   */
+  readonly senses: readonly ObservedAwareness[];
   readonly budget: ObservedBudget | null;
+}
+
+/** One awareness a creature has open, and what it has found. */
+export interface ObservedAwareness {
+  /** The feature that opened it, which is the id `end_feature` takes. */
+  readonly feature: string;
+  /** What the log calls it — SRD's "Channel Divinity". */
+  readonly name: string;
+  readonly feet: number;
+  /** The creature types it reports — SRD's Celestials, Fiends and Undead. */
+  readonly creatureTypes: readonly string[];
+  readonly found: readonly ObservedDetection[];
+}
+
+/**
+ * One creature an awareness has found.
+ *
+ * `creatureType` is **null where nobody has typed the creature**, which is the
+ * honest answer and not an absence: the awareness reached something and the
+ * record does not say what it is, which a caller narrating the room has to be
+ * able to tell from an empty radius.
+ */
+export interface ObservedDetection {
+  readonly who: string;
+  readonly creatureType: string | null;
+  readonly feet: number;
 }
 
 /** One spell a feature, a feat or a stat block's own line grants a creature. */
@@ -524,6 +567,15 @@ export function observe(state: GameState): Observation {
         source: grant.source,
         left: grant.freeCastPool === null ? null : remaining(c.resources, grant.freeCastPool),
         atWill: grant.atWill === true,
+      })),
+      senses: awarenessesOn(state, c.id).map((awareness) => ({
+        feature: awareness.feature,
+        name: awareness.name,
+        feet: awareness.feet,
+        creatureTypes: awareness.creatureTypes,
+        found: detectedBy(state, c.id)
+          .filter((one) => one.feature === awareness.feature)
+          .map((one) => ({ who: one.id, creatureType: one.creatureType, feet: one.feet })),
       })),
       budget:
         budget === undefined

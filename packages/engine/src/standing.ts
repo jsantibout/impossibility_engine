@@ -1612,6 +1612,49 @@ export interface ActivatedFeature {
    * feature is active and the creature's own size otherwise.
    */
   readonly size?: CreatureSize;
+  /**
+   * SRD Divine Sense: the creature types this awareness reports, and how far.
+   * Read by {@link detectedBy} while the feature is running, and by nothing
+   * else. See the `activated` grant's own field.
+   */
+  readonly detects?: {
+    readonly feet: number;
+    readonly creatureTypes: readonly string[];
+  };
+}
+
+/**
+ * A feature that makes a thing with statistics of its own — SRD Gnomish
+ * Lineage's clockwork device.
+ *
+ * Resolved at creation for the reason `activated` and `shapeShifts` are: a
+ * command reads a sheet and never a class table, and the numbers the trait
+ * prints — AC 5, one hit point, three at a time, eight hours — are the only
+ * place any of this is written. What is made is a creature in the roster, so
+ * nothing about it is kept here.
+ */
+export interface ObjectMaker {
+  readonly feature: string;
+  readonly name: string;
+  /**
+   * SRD's "10 minutes", in the seconds the clock counts — and the whole of
+   * what a making costs. See the `creates-object` grant on why there is no
+   * action beside it.
+   */
+  readonly castingSeconds: number;
+  /** The spell the making is a casting of, recorded on the thing's bond. */
+  readonly spell: string;
+  readonly size: CreatureSize;
+  readonly armorClass: number;
+  readonly hitPoints: number;
+  /** How long one stands before it falls apart. */
+  readonly lastsSeconds: number;
+  /** How many may be in existence at a time. */
+  readonly atOnce: number;
+  /** The functions the maker chooses between, pinned on the thing as prose. */
+  readonly functions: readonly string[];
+  /** What activating one costs the creature that touches it. */
+  readonly activation: 'action' | 'bonus-action';
 }
 
 /**
@@ -3610,6 +3653,120 @@ export function sensesOf(state: GameState, who: CharacterId): readonly CreatureS
   return [...furthest.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([sense, feet]) => ({ sense, feet }));
+}
+
+/**
+ * One awareness a creature has switched on and is still in.
+ *
+ * SRD Divine Sense is the one printing. Read off the sheet's activations
+ * rather than stored, so it stops the instant the feature leaves
+ * `activeFeatures` — a deadline, the Incapacitated condition, death or a
+ * second use — without any of those knowing an awareness existed.
+ */
+export interface RunningAwareness {
+  readonly feature: string;
+  readonly name: string;
+  /** SRD's "within 60 feet of yourself". */
+  readonly feet: number;
+  /** SRD's "Celestials, Fiends, and Undead". */
+  readonly creatureTypes: readonly string[];
+}
+
+/**
+ * The awarenesses running on this creature, sorted by the feature that opened
+ * them.
+ *
+ * `sensesOf`'s neighbour and deliberately not its member: a sense answers
+ * `canSee` and is a fact about eyes, and this answers "what is out there, of
+ * these kinds" — which is true through a wall and which no sight rule reads.
+ */
+export function awarenessesOn(state: GameState, who: CharacterId): readonly RunningAwareness[] {
+  const creature = state.creatures[who];
+  if (creature === undefined) return [];
+  const sheet = sheetAsItStands(state, who) ?? creature.sheet;
+  return (sheet.activated ?? [])
+    .filter(
+      (activation) =>
+        activation.detects !== undefined && creature.activeFeatures.includes(activation.feature),
+    )
+    .map((activation) => ({
+      feature: activation.feature,
+      name: activation.name,
+      feet: activation.detects?.feet ?? 0,
+      creatureTypes: activation.detects?.creatureTypes ?? [],
+    }))
+    .sort((a, b) => a.feature.localeCompare(b.feature));
+}
+
+/** One creature a running awareness has found, and what it knows about it. */
+export interface DetectedCreature {
+  readonly id: CharacterId;
+  readonly name: string;
+  /**
+   * The type the creature's record states, or **null where nobody has typed
+   * it**.
+   *
+   * SRD: "you know its creature type", which is an answer a record that says
+   * nothing cannot give. Reported as unknown rather than dropped, because a
+   * creature the awareness reached and could not name is a different fact from
+   * an empty radius — and dropping it would make the awareness quietly lie
+   * about what is out there.
+   */
+  readonly creatureType: string | null;
+  /** Feet from the aware creature, on the scene's own metric. */
+  readonly feet: number;
+  /** Which awareness found it. */
+  readonly feature: string;
+}
+
+/**
+ * The answer SRD Divine Sense asks for: what is within the radius, of the
+ * types the feature names.
+ *
+ * Derived on every read, which is the reading `standing.ts` insists on for
+ * everything conditional: nothing is written down when the awareness opens, so
+ * a creature that walks into the radius is found and one that walks out is not,
+ * and the whole list is empty the moment the feature stops running.
+ *
+ * **An unplaced creature is not found**, and neither is one the scene cannot
+ * measure to: a radius is a distance, and a creature with no distance is not
+ * inside one. Sorted by id, so the answer is fixed however the roster was
+ * assembled.
+ */
+export function detectedBy(state: GameState, who: CharacterId): readonly DetectedCreature[] {
+  const running = awarenessesOn(state, who);
+  // A radius is a distance, and with no scene there is nothing to measure in.
+  const scene = state.scene;
+  if (running.length === 0 || scene === null) return [];
+
+  const found: DetectedCreature[] = [];
+  for (const key of Object.keys(state.creatures).sort()) {
+    const other = state.creatures[key];
+    if (other === undefined || other.id === who) continue;
+    const apart = distanceBetween(scene, who, other.id);
+    if (!apart.ok) continue;
+    for (const awareness of running) {
+      if (apart.value > awareness.feet) continue;
+      // A type the awareness does not name is not reported at all; a creature
+      // with no type at all is, because "unknown" is an answer and "absent" is
+      // a different one.
+      if (
+        other.creatureType !== null &&
+        !awareness.creatureTypes.includes(other.creatureType)
+      ) {
+        continue;
+      }
+      found.push({
+        id: other.id,
+        name: other.name,
+        creatureType: other.creatureType,
+        feet: apart.value,
+        feature: awareness.feature,
+      });
+      break;
+    }
+  }
+  return found;
 }
 
 /**

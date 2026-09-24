@@ -292,6 +292,9 @@ const HOLLOW_NOTE =
 /** The damage types the game has, for the one grant that names one outright. */
 const DAMAGE_KINDS: ReadonlySet<string> = new Set(DAMAGE_TYPES);
 
+/** The highest level the SRD prints a spell at, for a ceiling a grant states. */
+const TOP_SPELL_LEVEL = 9;
+
 /** A whole number of at least one — what the SRD prints for a pool's size. */
 const isCount = (value: unknown): boolean =>
   typeof value === 'number' && Number.isInteger(value) && value >= 1;
@@ -1201,6 +1204,34 @@ function grantProblems(
         reason: `"${String(grant.size)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
       });
     }
+    // An awareness with no radius or nothing to report is a use of a pool that
+    // buys silence — SRD Divine Sense's "any creature of those types within 60
+    // feet". Both halves are the feature's and neither has a default: a radius
+    // of nothing finds nobody and an empty list names nobody, and a caller who
+    // spent the use would be told the room was empty.
+    if (grant.detects !== undefined) {
+      const detects = grant.detects;
+      if (!isCount(detects.feet)) {
+        found.push({
+          field: 'grants.detects.feet',
+          code: 'bad_awareness',
+          reason: `an awareness reaches a whole number of feet of at least one, not ${String(detects.feet)}`,
+        });
+      }
+      const types: unknown = detects.creatureTypes;
+      if (
+        !Array.isArray(types) ||
+        types.length === 0 ||
+        types.some((one: unknown) => typeof one !== 'string' || one.trim() === '')
+      ) {
+        found.push({
+          field: 'grants.detects.creatureTypes',
+          code: 'bad_awareness',
+          reason:
+            'an awareness names the creature types it reports, and one naming none would spend a use to find nobody',
+        });
+      }
+    }
 
     const kinds = new Set<string>();
     (grant.hangs ?? []).forEach((hung, index) => {
@@ -1765,6 +1796,124 @@ function grantProblems(
         field: 'grants.rechooses',
         code: 'rechooses_nothing',
         reason: `a rest re-asks this feature's own choice or a line of the prepared list, and "${String((rechooses as { kind?: unknown } | undefined)?.kind)}" is neither`,
+      });
+    }
+  }
+
+  // The other spelling of the same sentence, and the three facts a re-choice
+  // on a **grant** needs before anything can answer it: SRD Elven Lineage's
+  // "you can replace **that** cantrip with a different cantrip from the
+  // **Wizard** spell list".
+  //
+  // The one fixed spell is the load-bearing rule. The offer names the spell
+  // being replaced, the answer is filed under it, and creation reads it back —
+  // so a grant handing over two spells has no *that*, and every one of those
+  // three readers would have to invent which one the rest meant.
+  if (grant.kind === 'spells' && grant.rechosenOn !== undefined) {
+    const rechosen = grant.rechosenOn;
+    if (rechosen.rest !== 'short' && rechosen.rest !== 'long') {
+      found.push({
+        field: 'grants.rechosenOn.rest',
+        code: 'bad_rest_kind',
+        reason: `a rest is short or long, and "${String(rechosen.rest)}" is neither`,
+      });
+    }
+    if ((grant.fixed ?? []).length !== 1) {
+      found.push({
+        field: 'grants.rechosenOn',
+        code: 'rechooses_nothing',
+        reason: `a rest replaces the one spell this grant prints, and ${(grant.fixed ?? []).length} are printed`,
+      });
+    }
+    if (typeof rechosen.fromClass !== 'string' || rechosen.fromClass.trim() === '') {
+      found.push({
+        field: 'grants.rechosenOn.fromClass',
+        code: 'rechooses_nothing',
+        reason:
+          'a replacement comes from a named class’s spell list, and a grant naming none would refuse every answer',
+      });
+    }
+    if (
+      !Number.isInteger(rechosen.maxLevel) ||
+      rechosen.maxLevel < 0 ||
+      rechosen.maxLevel > TOP_SPELL_LEVEL
+    ) {
+      found.push({
+        field: 'grants.rechosenOn.maxLevel',
+        code: 'bad_rechosen_level',
+        reason: `a replacement's ceiling is a spell level from 0 to ${TOP_SPELL_LEVEL}, not ${String(rechosen.maxLevel)}`,
+      });
+    }
+  }
+
+  // A feature that makes a thing, judged on the five numbers the trait prints
+  // and the menu it offers. Each of them is read by a command and none has a
+  // default: a thing with no hit points cannot be broken, a thing that stands
+  // for no time never falls apart, a ceiling of nothing refuses every making,
+  // and a menu of nothing refuses every function anybody names — four
+  // different ways for the feature to validate and do nothing.
+  if (grant.kind === 'creates-object') {
+    const made = grant.object as Partial<typeof grant.object> | undefined;
+    if (!(CREATURE_SIZES as readonly unknown[]).includes(made?.size)) {
+      found.push({
+        field: 'grants.object.size',
+        code: 'bad_made_object',
+        reason: `"${String(made?.size)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
+      });
+    }
+    if (!isCount(made?.armorClass) || !isCount(made?.hitPoints)) {
+      found.push({
+        field: 'grants.object',
+        code: 'bad_made_object',
+        reason: 'a thing a feature makes prints an Armour Class and a hit point total, each a whole number of at least one',
+      });
+    }
+    for (const [field, value] of [
+      ['castingSeconds', grant.castingSeconds],
+      ['lastsSeconds', grant.lastsSeconds],
+      ['atOnce', grant.atOnce],
+    ] as const) {
+      if (!isCount(value)) {
+        found.push({
+          field: `grants.${field}`,
+          code: 'bad_made_object',
+          reason: `${field} is a whole number of at least one, not ${String(value)}`,
+        });
+      }
+    }
+    if (typeof grant.spell !== 'string' || grant.spell.trim() === '') {
+      found.push({
+        field: 'grants.spell',
+        code: 'bad_made_object',
+        reason: 'the making is a casting, and what is made is kept on a bond that records which spell made it',
+      });
+    } else if (!context.spellExists(grant.spell)) {
+      found.push({
+        field: 'grants.spell',
+        code: 'unknown_granted_spell',
+        reason: `this content holds no spell with the id "${grant.spell}", so the casting this feature makes its thing with names nothing`,
+      });
+    }
+    const menu: unknown = grant.functions;
+    if (
+      !Array.isArray(menu) ||
+      menu.length === 0 ||
+      menu.some((one: unknown) => typeof one !== 'string' || one.trim() === '')
+    ) {
+      found.push({
+        field: 'grants.functions',
+        code: 'bad_made_object',
+        reason: 'a thing a feature makes does one of the effects the feature prints, and a menu naming none would refuse every making',
+      });
+    }
+    // What touching it costs, which is a price the command really charges —
+    // unlike the making's own, which is the clock's. A third word here is a
+    // Bonus Action nobody could spend.
+    if (grant.activation !== 'action' && grant.activation !== 'bonus-action') {
+      found.push({
+        field: 'grants.activation',
+        code: 'bad_made_object',
+        reason: `touching the thing costs an action or a Bonus Action, and "${String(grant.activation)}" is neither`,
       });
     }
   }

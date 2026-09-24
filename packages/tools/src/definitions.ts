@@ -141,6 +141,7 @@ import type {
   Point,
 } from '@ie/engine';
 import {
+  activateDevice,
   activateFeature,
   activateSpell,
   addCreature,
@@ -159,6 +160,8 @@ import {
   continueCasting,
   beginRest,
   createCharacter,
+  createDevice,
+  dismantleDevice,
   declareCoverBetween,
   declareCreatureSide,
   declareCreatureType,
@@ -2848,6 +2851,107 @@ const END_FEATURE = tool({
 });
 
 /**
+ * A thing a feature makes, through the door — SRD Gnomish Lineage's clockwork
+ * device.
+ *
+ * Three tools and no number: the caller says which feature, what to call the
+ * thing, which of the effects the feature prints it is being made to do, and
+ * where it is put down. Every number is the engine's — the Armour Class, the
+ * hit point, the ten minutes of casting, the eight hours it stands and the
+ * ceiling on how many may stand at once — and `sheet` reports the menu under
+ * the feature, because a caller cannot name what it cannot see.
+ *
+ * **What the thing does is prose and comes back as prose.** The SRD hands the
+ * sentence over and so does this: `activate_device` spends the Bonus Action
+ * and reports the effect the making pinned, for the table to narrate. No die
+ * is thrown, because there is nothing here to throw one for.
+ */
+const CREATE_DEVICE = tool({
+  name: 'create_device',
+  description:
+    'Make the thing one of the character’s features makes — SRD Rock Gnome’s clockwork device. Name the feature, give the thing an id and a name, and say which of the effects the feature prints it is being made to do; `sheet` lists them under the feature as `functions`. The engine spends the casting time on the clock, stands the thing in the scene with the Armour Class, hit points and size the feature prints, and refuses one more than the feature allows to exist at a time (`too_many_devices`). It is refused inside a fight, because the casting takes minutes and a fight’s seconds belong to the turn order. From then on it is an ordinary thing in the room: it can be attacked, it breaks, and when it falls apart `look` reports it under `strandedSummons` for `dismiss_stranded_summons` to take away.',
+  mutates: true,
+  establishes: ['creature'],
+  input: z
+    .object({
+      who: creatureId.describe('The maker.'),
+      feature: z.string().min(1).describe('The feature id, from `sheet`, e.g. gnome:gnomish-lineage.'),
+      device: creatureId.describe('The id the thing will have in play, e.g. music-box.'),
+      name: z.string().min(1).describe('What to call it: "a tin bird", "a music box". Narration.'),
+      function: z
+        .string()
+        .min(1)
+        .describe('Which of the effects the feature prints it does, word for word, from `sheet`.'),
+      detail: z
+        .string()
+        .optional()
+        .describe(
+          'The option inside that effect, where it has one — "it lights, never snuffs". Free prose, recorded and handed back at every use.',
+        ),
+    })
+    .and(placementSchema),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      createDevice(context.campaign.state(), who(args.who), {
+        feature: args.feature,
+        device: who(args.device),
+        name: args.name,
+        function: args.function,
+        ...(args.detail === undefined ? {} : { detail: args.detail }),
+        placement: placementOf(args),
+        ...identity(context),
+      }),
+      { made: args.device, does: args.function },
+    ),
+});
+
+const DISMANTLE_DEVICE = tool({
+  name: 'dismantle_device',
+  description:
+    'Take one of those things apart. Anybody within reach may do it and it costs nothing — the SRD prints no action for it. The thing leaves the game, and the room it takes up under the feature’s "how many at a time" ceiling goes with it.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whoever is taking it apart. Reach is checked.'),
+    device: creatureId.describe('The thing, by the id it was made with.'),
+  }),
+  run: (context, args) =>
+    settleEvents(
+      context,
+      dismantleDevice(context.campaign.state(), who(args.who), {
+        device: who(args.device),
+        ...identity(context),
+      }),
+      { dismantled: args.device },
+    ),
+});
+
+const ACTIVATE_DEVICE = tool({
+  name: 'activate_device',
+  description:
+    'Touch one of those things and set it going. Anybody within reach may do it; the engine charges whatever the feature says it costs — a Bonus Action for the SRD’s clockwork device — where a fight is running, and reports the effect the thing was made to do, in the words its maker chose. **That sentence is yours to narrate**: the engine applies no part of it, because nothing in it is a rule. A thing whose maker is dead has stopped working and is refused.',
+  mutates: true,
+  input: z.object({
+    who: creatureId.describe('Whoever is touching it. Reach is checked.'),
+    device: creatureId.describe('The thing, by the id it was made with.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      activateDevice(context.campaign.state(), who(args.who), {
+        device: who(args.device),
+        ...identity(context),
+      }),
+      (use) => use.events,
+      (use) => ({
+        activated: args.device,
+        does: use.function,
+        ...(use.detail === null ? {} : { detail: use.detail }),
+      }),
+    ),
+});
+
+/**
  * A creature becoming another creature — SRD Wild Shape, through the door.
  *
  * Two tools and no number: the caller names the feature and a form the
@@ -5088,6 +5192,10 @@ export const TOOLS: readonly ToolDefinition[] = [
   TRADE_RESOURCE,
   ADVANCE_CHARACTER,
   WAKE_CREATURE,
+  // A thing a feature makes, and the two halves of what happens to it after.
+  CREATE_DEVICE,
+  DISMANTLE_DEVICE,
+  ACTIVATE_DEVICE,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const TOOL_NAMES: readonly string[] = TOOLS.map((definition) => definition.name);

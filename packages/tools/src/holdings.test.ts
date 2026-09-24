@@ -309,12 +309,39 @@ function table(seed = 'holdings') {
   return { campaign, surface, call, rule };
 }
 
+/**
+ * A Rock Gnome beside the class party, because the record is not a record of
+ * classes.
+ *
+ * The sweep below was one character per class and would have gone on being
+ * silent about `makes-object` for ever: SRD prints the clockwork device on a
+ * **species**, and a party of twelve Humans holds no species feature anybody
+ * can spend. The same failure the hand-picked party had, one population along
+ * — so the party gains an origin rather than the record losing a line.
+ */
+const ROCK_GNOME = 'rock-gnome';
+
+const rockGnome = (): Record<string, unknown> => {
+  const base = character('fighter', SWEPT_LEVEL);
+  return {
+    ...base,
+    speciesId: 'gnome',
+    size: 'Small',
+    featureChoices: {
+      ...(base['featureChoices'] as Record<string, unknown>),
+      'gnome:gnomish-lineage': ['Rock Gnome'],
+    },
+    featureSpellcasting: { 'gnome:gnomish-lineage': 'int' },
+  };
+};
+
 /** One character of every class in the book, each named for its class. */
 function wholeCatalogue(seed = 'catalogue') {
   const t = table(seed);
   for (const classId of EVERY_CLASS) {
     expectOk(t.call('create_character', { id: classId, choices: character(classId, SWEPT_LEVEL) }));
   }
+  expectOk(t.call('create_character', { id: ROCK_GNOME, choices: rockGnome() }));
   return t;
 }
 
@@ -496,8 +523,8 @@ describe('a character can be asked what it holds', () => {
   it('names, for every feature it can spend, a tool this surface really has', () => {
     const t = wholeCatalogue();
 
-    const spendable = EVERY_CLASS.flatMap((classId) =>
-      sheetOf(t, classId).features.filter((one) => one.spentBy !== null),
+    const spendable = [...EVERY_CLASS, ROCK_GNOME].flatMap((who) =>
+      sheetOf(t, who).features.filter((one) => one.spentBy !== null),
     );
     // Non-vacuous, and exhaustive over the kinds the surface claims to spend:
     // a party holding none of one of them would make the sweep silent about it.
@@ -997,17 +1024,25 @@ describe('a Cleric can be told to turn undead', () => {
   });
 
   /**
-   * And a Paladin's Channel Divinity is still shut, which is the honest half
-   * of this door: the pool is declared and what a use buys is executed by
-   * nothing, so the feature offers no option and reports no tool to spend it.
+   * And a Paladin's Channel Divinity is open too, by the other door: SRD gives
+   * that pool one effect at level 3 and it is not an option on a menu but an
+   * activation — Divine Sense, a Bonus Action that opens an awareness for ten
+   * minutes. So the sheet reports the pool *and* the feature that spends it,
+   * with the tool that spends it, which is the whole of what this door was
+   * missing while the pool was shut.
    */
-  it('leaves shut the pool whose options nothing executes', () => {
+  it('reports the pool whose use buys an activation, with the door that spends it', () => {
     const t = table('paladin-cd');
     expectOk(t.call('create_character', { id: 'ser', choices: character('paladin', 5) }));
     const held = sheetOf(t, 'ser');
 
     expect(held.pool('channel-divinity')).toMatchObject({ label: 'Channel Divinity' });
-    expect(held.feature('paladin:channel-divinity')).toBeUndefined();
+    expect(held.feature('paladin:channel-divinity')).toMatchObject({
+      kind: 'activated',
+      spentBy: 'activate_feature',
+      action: 'bonus-action',
+      pool: 'channel-divinity',
+    });
   });
 });
 

@@ -152,11 +152,18 @@ export const OBJECT_CONDITION_IMMUNITIES: readonly ConditionName[] = [
  * substance's entry is a GM's ruling about a type the rule has already
  * settled. Nothing in the SRD collides here; the order is stated so that a
  * homebrew catalogue cannot make an object take Poison damage by accident.
+ *
+ * **Null is a thing with no substance**, which is not the same as a thing made
+ * of nothing: SRD Gnomish Lineage prints its clockwork device's Armour Class
+ * outright and never says what it is made of, so there is no row of the
+ * Object Armour Class table behind it and nothing to read a ruling off. What
+ * such a thing gets is the rule and the rule alone, which is the whole of what
+ * the SRD says about every object there will ever be.
  */
 export function objectDefenses(
-  material: ObjectMaterial,
+  material: ObjectMaterial | null,
 ): Readonly<Record<string, DamageDefenses>> {
-  const defenses: Record<string, DamageDefenses> = { ...(material.defenses ?? {}) };
+  const defenses: Record<string, DamageDefenses> = { ...(material?.defenses ?? {}) };
   for (const type of OBJECT_DAMAGE_IMMUNITIES) defenses[type] = { immune: true };
   return defenses;
 }

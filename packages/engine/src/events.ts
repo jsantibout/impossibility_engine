@@ -89,6 +89,7 @@ import type {
   PendingTest,
   ReadiedAction,
   KeptBond,
+  DeviceRecord,
 } from './state.js';
 
 /**
@@ -149,6 +150,7 @@ export type {
   ReadiedResponse,
   KeptBond,
   SummonBond,
+  DeviceRecord,
 } from './state.js';
 export {
   initialState,
@@ -287,6 +289,18 @@ export type GameEvent =
        * regenerated.
        */
       readonly size?: CreatureSize;
+      /**
+       * What a feature made this thing to do — SRD Gnomish Lineage's clockwork
+       * device. See {@link DeviceRecord}.
+       *
+       * Pinned here rather than on an event of its own, because it is part of
+       * what the thing *is*, exactly as the Armour Class its sheet states and
+       * the size beside it are: one making, one arrival, one reading of the
+       * trait. **Optional, and absent means this is not such a thing**, which
+       * is what every log written before a feature could make one says — so
+       * both frozen fixtures fold unchanged and neither was regenerated.
+       */
+      readonly device?: DeviceRecord;
       /** Which side of the fight this creature is on. See {@link CreatureState.side}. */
       readonly side?: string;
       readonly command?: CommandStamp;

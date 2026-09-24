@@ -95,6 +95,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // what every log written before summoning existed says, so both
             // frozen fixtures fold unchanged.
             summonedBy: null,
+            // Nothing made it, which is what every log written before a
+            // feature could make a thing says — so both frozen fixtures fold
+            // unchanged and neither was regenerated.
+            device: event.device ?? null,
             activeFeatures: [],
             // In its own shape, which is what every log written before a form
             // could be worn says — so both frozen fixtures fold unchanged.

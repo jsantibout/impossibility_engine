@@ -12,6 +12,7 @@ import type { Rng } from './dice.js';
 import { timerKey } from './timers.js';
 import type { GameEvent, GameState } from './events.js';
 import { once, type CommandIdentity } from './idempotency.js';
+import { rechosenSpellKey } from './progression.js';
 import { hitDieSides, remaining } from './resources.js';
 import { rollRecorded, type RollIssuer } from './rolls.js';
 import { castingIdOf } from './spells.js';
@@ -307,12 +308,49 @@ function rechoiceEvents(
 
   const featureChoices: Record<string, readonly string[]> = {};
   for (const [feature, answer] of Object.entries(choosesAgain)) {
+    // **Both re-choices a feature answers for, found by the feature rather than
+    // by the kind.** The caller names the feature that re-asks, which is the
+    // one thing a player can see; which of the two questions that feature
+    // re-asks — its own option, or the spell one of its grants hands over — is
+    // read off the offer, and the answer is filed under the key that offer
+    // names. A caller that had to know the difference would be reading the
+    // grant vocabulary to answer a rest.
     const offer = offerFor(
-      (one) => one.feature === feature && one.rechooses.kind === 'this-features-choice',
+      (one) =>
+        one.feature === feature &&
+        (one.rechooses.kind === 'this-features-choice' ||
+          one.rechooses.kind === 'granted-spell'),
       `${feature}’s own choice`,
     );
     if (!offer.ok) return offer;
-    featureChoices[feature] = answer;
+    const rechooses = offer.value.rechooses;
+    if (rechooses.kind !== 'granted-spell') {
+      featureChoices[feature] = answer;
+      continue;
+    }
+
+    // SRD Elven Lineage: "you can replace that cantrip with a **different**
+    // cantrip". **"That cantrip" is the one they are holding**, which is the
+    // answer they gave last time and the printed spell until they have given
+    // one — and this is the only place both are visible, because a
+    // `CharacterChoices` holds what the character will be afterwards and the
+    // record holds what they are now. Whether the replacement is legal at all
+    // is `planCharacter`'s, asked through `rechooseCharacter` below.
+    //
+    // A refusal rather than a quiet no-op, and the difference matters in one
+    // direction only: naming the spell a swap already stands on emits nothing
+    // (`sameAnswer`), while naming the *printed* spell for the first time
+    // would file an answer nobody asked for and write a `character-advanced`
+    // that records a night's sleep and no decision.
+    const key = rechosenSpellKey(feature, rechooses.granted);
+    const standing = record.choices.featureChoices[key]?.[0] ?? rechooses.granted;
+    if (answer.length === 1 && answer[0] === standing) {
+      return err(
+        'spell_not_replaced',
+        `${offer.value.featureName} replaces ${standing} with a different spell, and ${standing} is the one it hands over now`,
+      );
+    }
+    featureChoices[key] = answer;
   }
 
   let preparedSpells: readonly string[] | undefined;

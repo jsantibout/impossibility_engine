@@ -924,7 +924,49 @@ export type RestRechoice =
    * named spells — and a feature that swapped every prepared spell would be the
    * class's own re-preparation rather than a feature at all.
    */
-  | { readonly kind: 'prepared-spells'; readonly swap: number };
+  | { readonly kind: 'prepared-spells'; readonly swap: number }
+  /**
+   * The one spell a `spells` grant hands over, handed over as a different one.
+   *
+   * SRD Elven Lineage, High Elf: "You know the Prestidigitation cantrip.
+   * Whenever you finish a Long Rest, you can replace that cantrip with a
+   * different cantrip from the Wizard spell list."
+   *
+   * **The third member because the SRD writes a third sentence**, and what
+   * makes it third is *whose* answer is re-asked: the land is the feature's own
+   * question, the swap is a line of the character's prepared list, and this is
+   * a spell **nobody chose** — a fixed grant, on the sheet from level 1, whose
+   * one entry the rest lets its holder replace. There is no question at
+   * creation to re-ask, so the offer carries the terms instead: which spell is
+   * standing there now, and what may stand there in its place.
+   *
+   * Nothing here is new machinery either. The answer lands in
+   * `CharacterChoices.featureChoices` under {@link rechosenSpellKey} and the
+   * character is re-planned by the same call, so the grant is compiled out of
+   * the answer the next time anything reads it.
+   */
+  | {
+      readonly kind: 'granted-spell';
+      /** The spell the grant prints — the one the replacement stands in for. */
+      readonly granted: string;
+      /** The class whose spell list a replacement must be on: SRD's Wizard. */
+      readonly fromClass: string;
+      /** The highest level a replacement may be. SRD's "cantrip" is 0. */
+      readonly maxLevel: number;
+    };
+
+/**
+ * Where the replacement for a re-chosen granted spell is filed.
+ *
+ * The granted spell's own id is the key, because the sentence is "replace
+ * **that** cantrip": one grant hands over one spell, the validator holds it to
+ * one, and the answer belongs to the thing it replaces rather than to a
+ * question the feature never asked. One function because creation, the rest
+ * and the validator all have to agree about it — `choiceAnswerKey`'s argument,
+ * one host along.
+ */
+export const rechosenSpellKey = (featureId: string, granted: string): string =>
+  choiceAnswerKey(featureId, granted);
 
 /**
  * The mechanical shapes a feature's choice can take.
@@ -987,6 +1029,34 @@ export type FeatureGrant =
   | {
       readonly kind: 'spells';
       readonly fixed?: readonly string[];
+      /**
+       * SRD Elven Lineage, High Elf: "Whenever you finish a Long Rest, you can
+       * replace that cantrip with a different cantrip from the Wizard spell
+       * list."
+       *
+       * A mark on the grant rather than a `rechosen-on-a-rest` grant beside it,
+       * and the sentence is why: what is re-asked is **this grant's own
+       * fixed spell**, so the terms — which spell is standing there, which list
+       * may replace it, how high it may be — are all read off the grant that
+       * prints it. A second grant would have to name the first, and two
+       * declarations of one cantrip is how the two come to disagree.
+       *
+       * Exactly one entry in {@link fixed}, which the validator holds it to:
+       * the book says "replace **that** cantrip", and a grant handing over two
+       * spells has no *that*.
+       *
+       * The answer is filed under {@link rechosenSpellKey} and read back here
+       * by creation, so the swap survives a level-up and a re-plan without
+       * anything having to remember it.
+       */
+      readonly rechosenOn?: {
+        /** Which rest re-asks it. */
+        readonly rest: RestKind;
+        /** The class whose spell list a replacement must be on: SRD's Wizard. */
+        readonly fromClass: string;
+        /** The highest level a replacement may be. SRD's "cantrip" is 0. */
+        readonly maxLevel: number;
+      };
       /**
        * The abilities the feature offers for the spells it grants, where the
        * source is not a class and has none of its own.
@@ -1239,6 +1309,43 @@ export type FeatureGrant =
       readonly size?: CreatureSize;
       readonly capSeconds?: number;
       readonly endsOn?: readonly ActivationEnd[];
+      /**
+       * SRD Divine Sense: "you know the location of any creature of those types
+       * within 60 feet of yourself, and you know its creature type."
+       *
+       * **A question the engine can answer**, which is what makes it a field
+       * rather than a note handed to the table: every creature's type and every
+       * creature's distance are already in state, so what the feature supplies
+       * is only the filter and the radius. Nothing is hung on anybody and
+       * nothing is spent by reading it — `detectedBy` in `standing.ts` computes
+       * the answer afresh on every read, exactly as `sensesOf` does, so an
+       * awareness stops the instant its holder is Stunned without anything
+       * having to remember to.
+       *
+       * **Not a `sense`.** A `standing` grant's `sense` is Darkvision or
+       * Blindsight: it answers `canSee`, and every rule that asks whether one
+       * creature can see another goes through it. This answers a different
+       * question — *what is out there, of these kinds* — which no sight rule
+       * reads and which is true of a creature behind a wall.
+       *
+       * The half of the SRD's sentence that is **not** here is the second one:
+       * "any place or object that has been consecrated or desecrated". Nothing
+       * in the engine consecrates a place, so a radius would search for a fact
+       * nothing can state, and the feature's own note hands that sentence over.
+       */
+      readonly detects?: {
+        /** SRD's "within 60 feet of yourself". */
+        readonly feet: number;
+        /**
+         * The creature types it reports — SRD's "Celestials, Fiends, and
+         * Undead".
+         *
+         * The same word a stat block's `Fey` and an object's `Object` are, and
+         * not a catalogue id: it is the noun the glossary puts over the
+         * category, which `mustBeType` on a pool option already reads.
+         */
+        readonly creatureTypes: readonly string[];
+      };
       readonly forbidsCasting?: boolean;
       /**
        * SRD Steady Aim: "You can use this feature only if you haven't moved
@@ -1264,6 +1371,85 @@ export type FeatureGrant =
        * at that class's own level exactly as the pool's size is.
        */
       readonly flatByLevel?: readonly number[];
+    }
+  /**
+   * A feature that **makes a thing with statistics of its own** — SRD Gnomish
+   * Lineage's clockwork device.
+   *
+   * > "you can spend 10 minutes casting Prestidigitation to create a Tiny
+   * > clockwork device (AC 5, 1 HP) ... You can have three such devices in
+   * > existence at a time, and each falls apart 8 hours after its creation or
+   * > when it is dismantled by you or another creature."
+   *
+   * **Not an `activated` grant and not a pool option**, and the printed
+   * sentence is why: both of those buy something that happens to a creature —
+   * a span on the holder, an effect list over targets — and this puts a
+   * *second thing* in the room, with an Armour Class, a hit point and a
+   * lifetime of its own. `objects.ts` already says what such a thing is and
+   * `declareObject` already raises one when a DM describes it; what was
+   * missing was the door a **feature** makes one through.
+   *
+   * **And not a pool.** "Three such devices in existence at a time" is a count
+   * of things standing, not of uses spent: a device dismantled makes room for
+   * another the same minute, and a pool with no recovery would refuse the
+   * fourth for ever. So the ceiling is derived from the room rather than
+   * stored on the sheet, which is the same reading `strandedSummons` takes of
+   * a summons — a question about the world as it stands.
+   *
+   * What the device *does* is **prose the table narrates**, pinned at the
+   * making. The SRD's own sentence hands it over: the function is "one effect
+   * from the Prestidigitation spell", and the engine holds no candle to light.
+   * So {@link functions} is the menu the book prints, the maker names one of
+   * them, and the Bonus Action that activates the device spends the slot and
+   * hands the sentence back — the reading `take_printed_action` already takes
+   * of a stat block's line.
+   */
+  | {
+      readonly kind: 'creates-object';
+      /**
+       * SRD: "spend **10 minutes** casting Prestidigitation".
+       *
+       * **The whole of what a making costs, and there is no action beside
+       * it.** The field for one was here and is gone: a making moves the clock,
+       * and inside a fight the clock is the turn order's — `advanceTime` states
+       * that rule and this command keeps it — so every making happens outside
+       * combat, where there is no economy to spend an action from. A price
+       * nothing could ever charge is a number on a sheet that lies to whoever
+       * reads it, which is the failure this vocabulary is built to avoid.
+       */
+      readonly castingSeconds: number;
+      /**
+       * The spell the making is a casting of.
+       *
+       * Required, because the thing that is made is **kept** by its maker and
+       * a kept creature's bond records which spell keeps it — the same field
+       * a familiar's does. A feature that made something without casting
+       * anything would need a second kind of bond, which is a sentence no book
+       * has written.
+       */
+      readonly spell: string;
+      /** SRD: "a Tiny clockwork device (AC 5, 1 HP)". */
+      readonly object: {
+        readonly size: CreatureSize;
+        readonly armorClass: number;
+        readonly hitPoints: number;
+      };
+      /** SRD: "each falls apart 8 hours after its creation". */
+      readonly lastsSeconds: number;
+      /** SRD: "You can have three such devices in existence at a time." */
+      readonly atOnce: number;
+      /**
+       * The functions the maker chooses between, each one a sentence the table
+       * narrates.
+       *
+       * Content, because it is the printed list of another spell's effects and
+       * the engine holds no catalogue. A making that names anything else is
+       * refused rather than pinned, so a device always does something its own
+       * trait prints.
+       */
+      readonly functions: readonly string[];
+      /** SRD: "takes a Bonus Action to activate it with a touch". */
+      readonly activation: 'action' | 'bonus-action';
     }
   /**
    * SRD Extra Attack: "You can attack twice instead of once whenever you take

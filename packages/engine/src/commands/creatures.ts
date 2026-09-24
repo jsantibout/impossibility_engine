@@ -639,6 +639,15 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
       // summoner who has left the game is read as the second, because a
       // creature kept by nobody is kept by nothing.
       if (creature.vitals.hp <= 0 || creature.vitals.dead) return [creature.id];
+      // SRD Gnomish Lineage: "each falls apart 8 hours after its creation" —
+      // a span the bond carries, measured from the clock at the binding. The
+      // fifth way a kept creature goes and the only one that is a deadline:
+      // there is no casting left running for a timer to hang on, because the
+      // ten minutes of Prestidigitation that made it are over.
+      const span = bond.kept?.lastsSeconds;
+      if (span !== undefined && state.elapsed >= (bond.kept?.since ?? 0) + span) {
+        return [creature.id];
+      }
       if (bond.kept?.untilSummonerDies === true) {
         const summoner = state.creatures[bond.by];
         if (summoner === undefined || summoner.vitals.dead) return [creature.id];

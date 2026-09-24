@@ -38,6 +38,7 @@ import type {
   HealingTouch,
   CastingOption,
   HitOption,
+  ObjectMaker,
   PoolOption,
   RecoveryFeature,
   SelfHealFeature,
@@ -83,6 +84,7 @@ import {
   featureGrants,
   featureOfAnswerKey,
   primaryChoiceOf,
+  rechosenSpellKey,
   type ClassDefinition,
   type EquipmentEntry,
   type ClassLevelRow,
@@ -968,7 +970,7 @@ function choicesGranting(
     if (grant.kind !== kind) continue;
     // A fixed grant is the feature's own answer; a choice is the player's.
     if (grant.kind === 'spells' && grant.fixed !== undefined) {
-      picked.push(...grant.fixed);
+      picked.push(...grantedFixedSpells(choices, feature, grant));
       continue;
     }
     // **A keyed `choiceFrom` is read as content; a bare one is not.** The
@@ -982,6 +984,29 @@ function choicesGranting(
     picked.push(...(choices.featureChoices[keyed ? from : feature.id] ?? []));
   }
   return picked;
+}
+
+/**
+ * What a `spells` grant hands over **now**: the spell it prints, or the one a
+ * rest put in its place.
+ *
+ * SRD Elven Lineage's High Elf is the one writer, and every reader of a fixed
+ * grant goes through here — because a grant read one way in one pass and
+ * another way in the next is a cantrip on the sheet that nothing can cast.
+ *
+ * An unanswered mark hands over what the book prints, which is what "you know
+ * the Prestidigitation cantrip" means on the morning of level 1.
+ */
+function grantedFixedSpells(
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+  grant: Extract<FeatureGrant, { readonly kind: 'spells' }>,
+): readonly string[] {
+  const fixed = grant.fixed ?? [];
+  const granted = fixed[0];
+  if (grant.rechosenOn === undefined || granted === undefined) return fixed;
+  const answer = choices.featureChoices[rechosenSpellKey(feature.id, granted)]?.[0];
+  return answer === undefined ? fixed : [answer];
 }
 
 /** Skills a feature granted Expertise in, whichever feature it was. */
@@ -1132,11 +1157,21 @@ function unaskedAnswers(
   choices: CharacterChoices,
   feature: FeatureDefinition,
 ): CreationProblem[] {
-  const asked = new Set(
-    askedOf(choices, feature).flatMap((question) =>
+  const asked = new Set([
+    ...askedOf(choices, feature).flatMap((question) =>
       question.key === undefined ? [] : [question.key],
     ),
-  );
+    // And the key a re-chosen `spells` grant files its replacement under, which
+    // is a question nobody was asked at creation and an answer a rest may
+    // nevertheless have written — SRD Elven Lineage's High Elf. A gate that was
+    // not met leaves no grant here at all, so a Wood Elf carrying a High Elf's
+    // answer is still refused.
+    ...featureGrants(feature).flatMap((grant) =>
+      grant.kind === 'spells' && grant.rechosenOn !== undefined
+        ? ((grant.fixed ?? [])[0] === undefined ? [] : [(grant.fixed ?? [])[0] as string])
+        : [],
+    ),
+  ]);
   const problems: CreationProblem[] = [];
   for (const [key, answer] of Object.entries(choices.featureChoices)) {
     if (!key.startsWith(`${feature.id}:`) || answer.length === 0) continue;
@@ -1144,6 +1179,63 @@ function unaskedAnswers(
     if (asked.has(named)) continue;
     problems.push(
       problem('choice_not_asked', 'featureChoices', `${feature.name} did not ask this character for ${named}, and ${answer.join(', ')} answers it`),
+    );
+  }
+  return problems;
+}
+
+/**
+ * The spell a rest put in a fixed grant's place, held to the grant's own terms.
+ *
+ * SRD Elven Lineage, High Elf: "you can replace that cantrip with a different
+ * cantrip from the **Wizard** spell list." Two of the three rules are the
+ * grant's and are checked here — which list, and how high — so nothing here
+ * knows that an Elf exists.
+ *
+ * **The third is not checkable from a set of choices**, and that is why it is
+ * not here. "A *different* cantrip" is a rule about the swap rather than about
+ * the answer: what the answer must differ from is what the character is
+ * holding *now*, and a `CharacterChoices` holds only what they will be holding
+ * afterwards. `rechoiceEvents` in `rest.ts` can see both, and does. Asking the
+ * question here compared the answer to the spell the grant **prints**, which
+ * is a different question and gives the wrong answer twice over: it refuses a
+ * High Elf taking Prestidigitation back, and it permits replacing Fire Bolt
+ * with Fire Bolt.
+ *
+ * Silence is the book's own answer and not a gap: an unanswered mark leaves
+ * Prestidigitation where it was, which is what the first sentence of the trait
+ * says.
+ */
+function checkRechosenSpells(
+  content: Content,
+  choices: CharacterChoices,
+  feature: FeatureDefinition,
+): CreationProblem[] {
+  const problems: CreationProblem[] = [];
+  for (const grant of featureGrants(feature)) {
+    if (grant.kind !== 'spells') continue;
+    const rechosen = grant.rechosenOn;
+    const granted = (grant.fixed ?? [])[0];
+    if (rechosen === undefined || granted === undefined) continue;
+
+    const answer = choices.featureChoices[rechosenSpellKey(feature.id, granted)];
+    if (answer === undefined) continue;
+
+    if (answer.length !== 1) {
+      problems.push(
+        problem('wrong_rechosen_count', 'featureChoices', `${feature.name} replaces ${granted} with one spell, and ${answer.length} were named`),
+      );
+      continue;
+    }
+    const replacement = answer[0] as string;
+    problems.push(
+      // A cantrip is level 0, and the floor follows the ceiling exactly as it
+      // does for a feature's own spell choice.
+      ...checkSpellId(content, replacement, 'featureChoices', rechosen.fromClass, {
+        minLevel: rechosen.maxLevel === 0 ? 0 : 1,
+        maxLevel: rechosen.maxLevel,
+        what: feature.name,
+      }),
     );
   }
   return problems;
@@ -1159,6 +1251,8 @@ function checkFeatureChoices(
   const problems: CreationProblem[] = [...checkFeatureSpellcasting(choices, features)];
 
   for (const feature of features) {
+    problems.push(...checkRechosenSpells(content, choices, feature));
+
     // An answer to a question this character was never asked — a Protector who
     // named a cantrip, or a key nothing on the feature declares. Left alone it
     // is a line on a sheet nobody reads, which is how a player comes to believe
@@ -2300,7 +2394,7 @@ function originGrantedSpells(
     const ability = spellcastingAbilityFor(choices, feature, grant);
     if (ability === undefined) continue;
 
-    for (const spellId of grant.fixed ?? []) {
+    for (const spellId of grantedFixedSpells(choices, feature, grant)) {
       granted.push({
         spellId,
         source: feature.id,
@@ -3027,6 +3121,10 @@ export function planCharacter(
       ...(grant.size === undefined ? {} : { size: grant.size }),
       ...(grant.capSeconds === undefined ? {} : { capSeconds: grant.capSeconds }),
       ...(grant.endsOn === undefined ? {} : { endsOn: grant.endsOn }),
+      // SRD Divine Sense's radius and the three types it reports, carried
+      // whole: neither is a column of any class table, and what reads them is
+      // `detectedBy` at the moment somebody asks.
+      ...(grant.detects === undefined ? {} : { detects: grant.detects }),
       ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
       ...(grant.onlyIfUnmoved === undefined ? {} : { onlyIfUnmoved: grant.onlyIfUnmoved }),
       // Carried across whole, and read at the moment of use rather than here:
@@ -3078,6 +3176,28 @@ export function planCharacter(
       keeps: grant.keeps.abilities,
       ...(grant.forbidsCasting === undefined ? {} : { forbidsCasting: grant.forbidsCasting }),
       knownForms: [...(choices.knownForms ?? [])].sort(),
+    });
+  }
+
+  // A feature that makes a thing with statistics of its own — SRD Gnomish
+  // Lineage's clockwork device. Everything it needs is printed on the trait
+  // rather than read off a table, so it is carried across whole; what varies
+  // between two holders is the room, not the sheet.
+  const objectMakers: ObjectMaker[] = [];
+  for (const [feature, grant] of grantsIn(features)) {
+    if (grant.kind !== 'creates-object') continue;
+    objectMakers.push({
+      feature: feature.id,
+      name: feature.name,
+      castingSeconds: grant.castingSeconds,
+      spell: grant.spell,
+      size: grant.object.size,
+      armorClass: grant.object.armorClass,
+      hitPoints: grant.object.hitPoints,
+      lastsSeconds: grant.lastsSeconds,
+      atOnce: grant.atOnce,
+      functions: grant.functions,
+      activation: grant.activation,
     });
   }
 
@@ -3802,6 +3922,7 @@ export function planCharacter(
     ...(strikeStyles.length === 0 ? {} : { strikeStyles }),
     ...(activated.length === 0 ? {} : { activated }),
     ...(shapeShifts.length === 0 ? {} : { shapeShifts }),
+    ...(objectMakers.length === 0 ? {} : { objectMakers }),
     ...(reactions.length === 0 ? {} : { reactions }),
     ...(conferredReactions.length === 0 ? {} : { conferredReactions }),
     ...(onDroppingAHostile.length === 0 ? {} : { onDroppingAHostile }),
@@ -5312,12 +5433,33 @@ export function restRechoices(
   const { parts } = resolveParts(content, choices);
   if (parts === null) return offers;
   for (const [feature, grant] of grantsIn(grantedFeatures(content, choices, parts))) {
-    if (grant.kind !== 'rechosen-on-a-rest') continue;
+    if (grant.kind === 'rechosen-on-a-rest') {
+      offers.push({
+        feature: feature.id,
+        featureName: feature.name,
+        rest: grant.rest,
+        rechooses: grant.rechooses,
+      });
+      continue;
+    }
+    // SRD Elven Lineage's High Elf, whose re-choice is a mark on the grant that
+    // prints the cantrip rather than a grant of its own — so the terms of the
+    // offer are read off that grant, which is the only place they are written.
+    // A grant whose gate was not met is not in this list at all, so a Wood Elf
+    // is offered nothing without anything here naming a lineage.
+    const rechosen = grant.kind === 'spells' ? grant.rechosenOn : undefined;
+    const granted = grant.kind === 'spells' ? (grant.fixed ?? [])[0] : undefined;
+    if (rechosen === undefined || granted === undefined) continue;
     offers.push({
       feature: feature.id,
       featureName: feature.name,
-      rest: grant.rest,
-      rechooses: grant.rechooses,
+      rest: rechosen.rest,
+      rechooses: {
+        kind: 'granted-spell',
+        granted,
+        fromClass: rechosen.fromClass,
+        maxLevel: rechosen.maxLevel,
+      },
     });
   }
   return offers;

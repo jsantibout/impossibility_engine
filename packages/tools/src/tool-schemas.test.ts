@@ -134,12 +134,14 @@ describe('toolSchemas', () => {
     // it sits beside `take_action` rather than inside it because every kind
     // there names only the creature taking it. The DM surface also gained
     // `force_printed_save.willing`, the half of SRD Vampire Spawn's targeting
-    // clause no state can answer. Two pins, and they sum with whatever the
-    // other tracks of this batch moved.
-    expect(toolSchemas(player())).toHaveLength(79);
-    expect(toolSchemas(dm())).toHaveLength(96);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(109831);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(131334);
+    // clause no state can answer. The same night added the three doors a
+    // thing a feature makes needs — `create_device`, `dismantle_device` and
+    // `activate_device`, the whole of SRD Gnomish Lineage's clockwork device
+    // above the engine — and the pins sum.
+    expect(toolSchemas(player())).toHaveLength(82);
+    expect(toolSchemas(dm())).toHaveLength(99);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(113269);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(134772);
   });
 });
 
