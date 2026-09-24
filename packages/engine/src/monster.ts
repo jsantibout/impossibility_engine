@@ -23,7 +23,12 @@ import type {
 // The two readers of the branch shape, from the subpath that is schemas and no
 // data: a value imported from the barrel loads the whole parsed SRD into every
 // process that imports the engine, which `srd-barrel.test.ts` is the guard for.
-import { CREATURE_SIZES, entriesOfBranch, gateOfBranch } from '@ie/srd/schemas';
+import {
+  CREATURE_SIZES,
+  DECLARED_DAMAGE_TYPE,
+  entriesOfBranch,
+  gateOfBranch,
+} from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import { saveModifier, skillModifier } from './character.js';
 import type { ShapeShiftRow } from './progression.js';
@@ -1830,7 +1835,15 @@ export interface PrintedDamageRider {
   readonly dice: string;
   /** SRD's "(1d4 **+ 1**)", and 0 where the line prints none. */
   readonly flat: number;
-  readonly type: DamageType;
+  /**
+   * The type, or {@link DECLARED_DAMAGE_TYPE} where the block prints none.
+   *
+   * SRD Half-Dragon's Claw: "7 (2d6) damage of the type chosen for the
+   * Draconic Origin trait", and that trait ends "(GM's choice)". The word is
+   * not a damage type and the swing does not deal it — it asks for the real
+   * one and reports the clause unapplied until a DM has ruled.
+   */
+  readonly type: DamageType | typeof DECLARED_DAMAGE_TYPE;
   /** SRD's "If the target is a Medium or smaller creature". */
   readonly ifNoLargerThan?: CreatureSize;
   /**
@@ -2337,8 +2350,20 @@ const PRINTED_SAVE = new RegExp(
  * Poison damage" is conditioned on nothing — and {@link readClause} refuses an
  * ungated `or`, which would be a sentence nobody printed.
  */
-const PRINTED_DAMAGE =
-  /^(plus|or) \d+ \((\d+d\d+)(?: \+ (\d+))?\) ([A-Za-z]+) damage(?: if (.+))?\.$/;
+/**
+ * The type slot of a printed rider's amount, which the book writes two ways.
+ *
+ * `Poison damage` is the ordinary one and is captured. `damage of the type
+ * chosen for the Draconic Origin trait` is SRD Half-Dragon's Claw, and it
+ * captures **nothing** — there is no word there to capture, and the table is
+ * what supplies it. The same slot `printed-save.ts` reads on the other half of
+ * the sheet, and for the same reason.
+ */
+const RIDER_TYPE_SLOT = `(?:([A-Za-z]+) damage|damage of the type chosen for the [A-Za-z][A-Za-z' -]* trait)`;
+
+const PRINTED_DAMAGE = new RegExp(
+  `^(?:(plus|or) )?\\d+ \\((\\d+d\\d+)(?: \\+ (\\d+))?\\) ${RIDER_TYPE_SLOT}(?: if (.+))?\\.$`,
+);
 
 /** SRD's "the swarm is Bloodied", "the target is Bloodied". */
 const BLOODIED_GATE = /^the (.+?) is Bloodied$/;
@@ -2872,9 +2897,23 @@ function readClause(text: string): ClauseRead | null {
   // rather than with a gate, so no other pattern can claim it.
   const amount = PRINTED_DAMAGE.exec(text);
   if (amount !== null) {
-    const type = damageTypeWord(amount[4]!);
+    // **An absent type word is the book declining to name one**: SRD
+    // Half-Dragon's Claw deals "7 (2d6) damage of the type chosen for the
+    // Draconic Origin trait", and that trait ends "(GM's choice)". The amount
+    // is read and the type stays the table's, which is what
+    // {@link DECLARED_DAMAGE_TYPE} is a word for — the swing asks for it and
+    // will not roll until somebody has answered.
+    const declared = amount[4] === undefined;
+    const type = declared ? DECLARED_DAMAGE_TYPE : damageTypeWord(amount[4]!);
     if (type === null) return null;
-    const how = amount[1] === 'plus' ? 'extra' : 'instead';
+    // **And an absent connective belongs to that same line and no other.** The
+    // attack parser's damage chain eats the "plus" that introduced a component
+    // and then stops on the type it cannot read, so the clause arrives here
+    // without the book's own word in front of it. Every other rider the book
+    // prints keeps its connective, and a sentence that lost one would be a
+    // clause this reader had no business guessing the polarity of.
+    if (amount[1] === undefined && !declared) return null;
+    const how = amount[1] === 'or' ? 'instead' : 'extra';
     // "or N damage" with nothing to condition it on would be a line that
     // always rolled its alternative, which is not a sentence the book writes.
     if (amount[5] === undefined && how === 'instead') return null;

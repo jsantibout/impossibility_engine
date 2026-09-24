@@ -136,10 +136,20 @@ describe('toolSchemas', () => {
     // `force_printed_save.willing`, the half of SRD Vampire Spawn's targeting
     // clause no state can answer. Two pins, and they sum with whatever the
     // other tracks of this batch moved.
-    expect(toolSchemas(player())).toHaveLength(79);
-    expect(toolSchemas(dm())).toHaveLength(96);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(109831);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(131334);
+    // Re-pinned 2026-09-24 for the moments track, which opened two doors.
+    // `settle_saves` is on **both** surfaces: it rolls the saves the world
+    // already owes, which `end_turn` was the only way to reach — and a Death
+    // Burst raised in the middle of somebody's turn put them out of reach
+    // entirely, because the turn then refuses to end while the debt stands.
+    // `declare_damage_type` is on the DM's alone, for `declare_heads`' reason:
+    // SRD Half-Dragon's Draconic Origin ends "(GM's choice)", and a model
+    // choosing which damage its own monster deals would be writing the
+    // encounter. Two pins on the DM surface and one on the player's, and they
+    // sum with whatever the other tracks of this batch moved.
+    expect(toolSchemas(player())).toHaveLength(80);
+    expect(toolSchemas(dm())).toHaveLength(98);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(110482);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(132789);
   });
 });
 

@@ -20,6 +20,8 @@ import {
 // under `verbatimModuleSyntax` and emits `import {} from '@ie/srd'`, which
 // loads the whole parsed book to bind nothing at all.
 import type { CreatureSize, Weapon, WeaponMastery } from '@ie/srd';
+// From the subpath that is schemas and no data, for the same reason.
+import { DECLARED_DAMAGE_TYPE } from '@ie/srd/schemas';
 import {
   attackAbility,
   type AttackOptions,
@@ -483,13 +485,31 @@ function printedDamageOnASwing(
       }
     }
 
+    // **A type the block left to the table, asked for rather than rolled.**
+    // SRD Half-Dragon's Claw deals "7 (2d6) damage of the type chosen for the
+    // Draconic Origin trait". The swing has already landed, so a refusal here
+    // would be one with a footprint — and dealing the dice under a word that
+    // is not a damage type would be worse than either. So the clause is
+    // handed back with the reason, which is what this channel is for, and the
+    // same blow deals it in full the moment `declareDamageType` has answered.
+    const type =
+      read.type === DECLARED_DAMAGE_TYPE
+        ? (state.creatures[attacker]?.declaredDamageType ?? null)
+        : read.type;
+    if (type === null) {
+      unverified.push(
+        `${printed.name} deals damage "of the type chosen" by a trait the block leaves to the table, and nobody has said which type ${attacker}'s is — declare it and the clause lands`,
+      );
+      continue;
+    }
+
     if (read.how === 'instead') {
-      instead = [{ dice: read.dice, flat: read.flat, type: read.type }];
+      instead = [{ dice: read.dice, flat: read.flat, type }];
       continue;
     }
     extra.push({
       source: printed.name,
-      type: read.type,
+      type,
       dice: read.dice,
       ...(read.flat === 0 ? {} : { flat: read.flat }),
     });

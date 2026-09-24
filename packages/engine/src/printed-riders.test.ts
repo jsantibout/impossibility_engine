@@ -966,6 +966,8 @@ describe('the reader claims only the sentences it can execute', () => {
     // lowered by the blow, and a mode on one later roll. A line that takes two
     // sentences to say its rule is still null here and is
     // `readPrintedRiders`' answer instead.
-    expect(read).toBe(73);
+    // And one more with the damage type a block leaves to the table: the
+    // Half-Dragon's Claw, whose amount is read and whose type is the DM's.
+    expect(read).toBe(74);
   });
 });

@@ -15,7 +15,6 @@ import {
   applyConditionTo,
   beginCombat,
   declareCreatureSide,
-  declareCreatureType,
   declareDamageType,
   forcePrintedSave,
   placeCreatureInScene,
@@ -234,11 +233,10 @@ const damageOn = (
  */
 const seedWhere = (
   want: boolean,
-  settle: (seed: string) => { readonly success: boolean } | null,
+  settle: (seed: string) => { readonly success: boolean | null },
 ): string => {
   for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']) {
-    const got = settle(seed);
-    if (got !== null && got.success === want) return seed;
+    if (settle(seed).success === want) return seed;
   }
   throw new Error(`no seed made the save ${want ? 'succeed' : 'fail'}`);
 };

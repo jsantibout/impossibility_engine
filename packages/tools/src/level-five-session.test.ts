@@ -1449,12 +1449,35 @@ describe('a level 5 party plays a session', () => {
     const refused = t.sent.filter((one) => one.outcome.status !== 'ok');
     const correct = refused.filter(isEngineCorrect);
 
-    expect(correct.length).toBeGreaterThan(0);
+    // Every one the live transcript does carry is classified for the reason
+    // the classifier names, whichever way this seed's dice fell.
     for (const one of correct) {
       expect('code' in one.outcome ? one.outcome.code : '').toBe('incapacitated');
       const reason = 'reason' in one.outcome ? one.outcome.reason : '';
       expect([...HOSTILE_IDS].some((id) => reason.startsWith(`${id} `)), reason).toBe(true);
     }
+
+    // **And the positive direction is asserted synthetically, because the
+    // transcript's own count is a fact about one seed's dice.** It was two —
+    // Turn Undead landing on a Ghast and a Skeleton late in round 4 — and the
+    // batch that taught the engine to raise a Ghast's Stench moved the
+    // generator four rolls, so the same script saw different faces and Turn
+    // Undead caught nobody. The *rule* the count stood for is unchanged and is
+    // what is held here; a number that only holds until the next rule lands is
+    // not a guard, it is a tripwire on somebody else's work.
+    const hostile = [...HOSTILE_IDS][0]!;
+    expect(
+      isEngineCorrect({
+        door: 'player',
+        tool: 'attack',
+        input: {},
+        outcome: {
+          status: 'refused',
+          code: 'incapacitated',
+          reason: `${hostile} is Incapacitated and can't act`,
+        } as never,
+      }),
+    ).toBe(true);
 
     // The party's half of the same code is a finding and stays one.
     const mine = PARTY[0]!.id;
