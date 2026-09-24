@@ -29,11 +29,10 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import type { ClassDefinition } from '@ie/engine';
 import {
-  CAST_LINE_SHAPE,
-  hasUnspentCastLine,
   LEGENDARY_ECONOMY,
   MONSTER_LINE_SHAPES,
   auditPlayableLevels,
+  isExecutedLine,
   isReadLine,
   reachOf,
   spellsInReach,
@@ -288,32 +287,38 @@ describe('the ledger measures the three populations of the roadmap', () => {
   });
 
   /**
-   * **A line the parser read and nothing spends stays on the books**, which
-   * the read gate would otherwise hide.
+   * **A cast line has left the books**, which is the other direction the same
+   * argument runs in.
    *
-   * Every line this row counts is one `isReadLine` says was read, so the gate
-   * `accountsFor` applies to every other shape would take the whole row to
-   * zero — and the blocks carrying one would join the clean list with a
-   * sentence nothing performs. That is the failure the over-read list exists
-   * to prevent, asserted here rather than left to a byte comparison with the
-   * committed file: learning to recognise a sentence can never retire the
-   * debt of executing it.
+   * It was here as a row of its own for one batch — read, and not paid,
+   * because no door handed one of its spells to the casting pipeline — and it
+   * is gone because `castPrintedLine` is that door. So the shape is not among
+   * the rows at all, a block whose only debt was a cast line is counted clean,
+   * and `isExecutedLine` counts `casts`, which is what takes those lines out
+   * of the recharge and per-day rows as well.
+   *
+   * Asserted rather than left to a byte comparison with the committed file,
+   * for the reason the row itself was asserted: a shape that quietly came back
+   * would be a debt nobody was told about.
    */
-  it('keeps a cast line on the books, read and unspent, and off the clean list', () => {
-    const row = ledger.monsters.shapes.find((one) => one.shape === CAST_LINE_SHAPE);
-    expect(row?.lines).toBeGreaterThan(0);
-
-    const carrying = SRD_CONTENT.monsters.filter(
-      (monster) => monster.cr <= 5 && statBlockLines(monster).some(hasUnspentCastLine),
+  it('counts a cast line as executed, and carries no row for it', () => {
+    expect(ledger.monsters.shapes.map((one) => one.shape)).not.toContain(
+      'A line that casts, read and not spent',
     );
-    expect(carrying.length).toBe(row?.blocks);
-    // Non-vacuous in the direction that matters: every one of them is *read*,
-    // which is what makes the membership load-bearing rather than tidy.
-    for (const monster of carrying) {
-      expect(statBlockLines(monster).filter(hasUnspentCastLine).every(isReadLine)).toBe(true);
+
+    const casting = SRD_CONTENT.monsters.filter(
+      (monster) =>
+        monster.cr <= 5 && statBlockLines(monster).some((line) => line.casts !== undefined),
+    );
+    // Non-vacuous: the book does print such lines under CR 5.
+    expect(casting.length).toBeGreaterThan(0);
+    for (const monster of casting) {
+      const lines = statBlockLines(monster).filter((line) => line.casts !== undefined);
+      // Read, as they always were — and now executed, which is what takes them
+      // off every row that counts a debt.
+      expect(lines.every(isReadLine)).toBe(true);
+      expect(lines.every(isExecutedLine)).toBe(true);
     }
-    // And none of them is counted clean, which is the whole of what the row buys.
-    expect(ledger.monsters.clean).toBeLessThanOrEqual(ledger.monsters.blocks - carrying.length);
   });
 
   /**

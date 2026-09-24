@@ -167,7 +167,7 @@ describe('toolSchemas', () => {
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(103);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -180,13 +180,20 @@ describe('toolSchemas', () => {
     // Re-pinned again for the bookkeeping spells track: `cast_spell.object` (the
     // eighth stated fact — Remove Curse's attunement, Heat Metal's object) and
     // the Command word's slot grew both surfaces by the same amount.
+    // Re-pinned again for the cast-line track, which opened one more door on
+    // the DM's surface alone: `cast_printed_line` casts one of the spells a
+    // stat block prints on a line, at the heading's price and through the
+    // block's own numbers — and *which* spell off a menu of four is the same
+    // decision `teleport_printed_line`'s destination is, which is why neither
+    // is on a model's surface. One more pin on the DM surface and none on the
+    // player's; the lengths sum with whatever the other tracks moved.
     expect(toolSchemas(player())).toHaveLength(83);
-    expect(toolSchemas(dm())).toHaveLength(102);
+    expect(toolSchemas(dm())).toHaveLength(103);
     // Re-pinned again for the bestiary traits track: `end_turn.burns` — the
     // creatures a Fire Aura's holder chooses to burn, `fought`'s twin, on the
     // one tool both surfaces publish — grew both by the same amount.
     expect(JSON.stringify(toolSchemas(player())).length).toBe(118264);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(142394);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146241);
   });
 });
 

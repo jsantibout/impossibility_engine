@@ -106,7 +106,7 @@ const inTheChapel = (who: CharacterId, block: string): Table => {
   table.did('another ally arrives', (s) => addCreature(s, SRD_CONTENT, OTHER, 'commoner'));
   table.did('something hostile arrives', (s) => addCreature(s, SRD_CONTENT, FOE, 'goblin-warrior'));
   table.do('the chapel', (s) => setScene(s, { width: 200, depth: 200, height: 40 }));
-  table.do('the altar', (s) => addLandmark(s));
+  table.do('the altar', () => addLandmark());
   table.do('the caster at the altar', (s) =>
     placeCreatureInScene(s, who, { from: { landmark: 'the altar' }, feet: 0 }),
   );
@@ -134,7 +134,7 @@ const inTheChapel = (who: CharacterId, block: string): Table => {
   return table;
 };
 
-const addLandmark = (state: GameState): Result<readonly GameEvent[]> => ({
+const addLandmark = (): Result<readonly GameEvent[]> => ({
   ok: true,
   value: [{ type: 'landmark-added', name: 'the altar', at: { x: 100, y: 100, z: 0 } }],
 });
@@ -507,7 +507,7 @@ describe('the line is the only way to the route it opens', () => {
     table.did('the priest arrives', (s) => addCreature(s, content, PRIEST, 'orphaned-priest'));
     table.did('an ally arrives', (s) => addCreature(s, content, ALLY, 'commoner'));
     table.do('the chapel', (s) => setScene(s, { width: 200, depth: 200, height: 40 }));
-    table.do('the altar', (s) => addLandmark(s));
+    table.do('the altar', () => addLandmark());
     table.do('the priest at the altar', (s) =>
       placeCreatureInScene(s, PRIEST, { from: { landmark: 'the altar' }, feet: 0 }),
     );

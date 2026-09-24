@@ -63,12 +63,6 @@ const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   ...over,
 });
 
-const supply = () => ({
-  issuer: createRollIssuer('r'),
-  rng: createRng('messenger') as Rng,
-  content: SRD_CONTENT,
-});
-
 /** The druid, a level 2 slot, and the errand spell prepared. */
 const DRUID_ARRIVES: readonly GameEvent[] = [
   {

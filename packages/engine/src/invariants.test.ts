@@ -479,7 +479,7 @@ const BLINKING: readonly GameEvent[] = SETUP.map((event) =>
 const CASTING_LINE = {
   ...PRINTED_LINE,
   casts: { spells: ['bless'], ability: 'wis' as const, saveDc: 13 },
-} as const;
+};
 
 /**
  * The same world again, with that line under Actions and a route to cast it.
