@@ -125,6 +125,8 @@ const FORBIDDEN = [
   'rollD20',
   'rerollDice',
   'rollD20Recorded',
+  'rethrowCountedD20',
+  'electedRethrow',
   'rollRecorded',
   'rollBonusDice',
   'rerollTest',
@@ -195,6 +197,10 @@ const FORBIDDEN_BECAUSE: Readonly<Record<string, string>> = {
   rerollDice: 'rerolls faces that were never in a log to begin with',
   rollD20Recorded:
     'one of the two functions in rolls.ts that stamp a roll engine, which CLAUDE.md says only rolls.ts does',
+  rethrowCountedD20:
+    'throws the die a D20 Test counted again and stamps the new one engine, which is rollD20Recorded’s own act with the condition that fires it left to the caller',
+  electedRethrow:
+    'reads an election against a settled roll and does the same, so a caller holding both could throw the d20 until it liked the face — the very thing “you must use the new roll” forbids',
   rollRecorded: 'the other one, and the half of it that rolls damage',
   rollBonusDice: 'throws Bless and Guidance apart from the roll they belong to',
   rerollTest: 'throws the Indomitable die with no command behind it',

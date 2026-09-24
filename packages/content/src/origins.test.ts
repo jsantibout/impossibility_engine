@@ -825,13 +825,33 @@ describe('a Dragonborn resists what its Draconic Ancestry names', () => {
  * the sheet and no idea what it is owed.
  */
 describe('a species or background feature marked manual says what is left to do', () => {
-  it.each(
-    ORIGIN_FEATURES.filter((f) => f.automation === 'manual').map((f) => [f.id, f] as const),
-  )('%s carries a note', (_id, feature) => {
-    expect(feature.note.trim().length).toBeGreaterThan(0);
+  /**
+   * The rule, as a predicate, because **the population has emptied**.
+   *
+   * Resourceful was the last origin feature declaring `manual`, and the
+   * election executed it: a reroll the holder states on the command that rolls
+   * reaches the attack roll, the damage die and the made roll no window could
+   * open on. A table-driven sweep over an empty list goes green having
+   * asserted nothing, so the rule is stated once and asked of two things — the
+   * catalogue, whatever it holds tomorrow, and a note built to break it.
+   */
+  const saysWhatIsOwed = (note: string): boolean =>
+    note.trim().length > 0 &&
     // A bare negation naming nothing is the failure mode, not an empty string.
-    expect(feature.note.trim()).not.toMatch(
-      /^(?:this )?(?:feature |it )?(?:is )?not (?:modelled|automated|implemented|applied)\.?$/i,
+    !/^(?:this )?(?:feature |it )?(?:is )?not (?:modelled|automated|implemented|applied)\.?$/i.test(
+      note.trim(),
     );
+
+  it('holds every manual origin feature to it, and the catalogue has none left', () => {
+    const manual = ORIGIN_FEATURES.filter((f) => f.automation === 'manual');
+    for (const feature of manual) expect(saysWhatIsOwed(feature.note), feature.id).toBe(true);
+    expect(manual.map((f) => f.id)).toEqual([]);
+  });
+
+  it('catches the note that names nothing', () => {
+    expect(saysWhatIsOwed('')).toBe(false);
+    expect(saysWhatIsOwed('   ')).toBe(false);
+    expect(saysWhatIsOwed('Not modelled.')).toBe(false);
+    expect(saysWhatIsOwed('The DM rules on what the breath weapon catches.')).toBe(true);
   });
 });

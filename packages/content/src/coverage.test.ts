@@ -316,12 +316,22 @@ describe('the report counts what the catalogue holds', () => {
   });
 
   /**
-   * Neither column is vacuous: something is executed and something is not, so
-   * a predicate that answered one way for everything would be caught.
+   * Neither column is vacuous — and **the origins have run out of the second
+   * answer**, which is a fact about the catalogue rather than about the
+   * predicate.
+   *
+   * Resourceful was the last origin feature declaring `manual`, and an
+   * election executed it. So the executed column is asked of the catalogue,
+   * where it must not be empty, and the other answer is asked of a feature
+   * built to give it — because a predicate that had quietly started returning
+   * `true` for everything would otherwise pass this on the day the last
+   * `manual` origin left.
    */
   it('finds both answers among the origin features', () => {
     expect(originFeatures.some(isExecutedFeature)).toBe(true);
-    expect(originFeatures.some((feature) => !isExecutedFeature(feature))).toBe(true);
+    expect(originFeatures.filter((feature) => !isExecutedFeature(feature))).toEqual([]);
+    const handedOver = { ...originFeatures[0]!, automation: 'manual' as const };
+    expect(isExecutedFeature(handedOver)).toBe(false);
   });
 
   /** And the class table reads that same predicate, which is the point of it. */
