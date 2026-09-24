@@ -83,7 +83,16 @@ map for as long as the creature holds such a feature. And an `action-rule`
 allowance may carry a price — `spends`, a pool the feature declares beside it,
 and `temporaryHitPoints`, a number or the Proficiency Bonus as it stands —
 which the command taking the cheaper slot charges before anything is spent.
-SRD Adrenaline Rush is the whole of that third word.
+An `allows` rule may name `actions` rather than one `action` — one price
+buying two (SRD Patient Defense: "both the Disengage and the Dodge actions as
+a Bonus Action"): the first action taken charges the slot and the price and
+hands the rest to the turn as narrowed `GrantedAction`s. Where a creature
+holds two allowances for one pair, `allowsPrice` prefers the unpriced one, so
+a Rogue with Cunning Action is never charged an Orc's Adrenaline Rush for a
+Dash the book gives free; a caller wanting the priced one's benefit names it
+(`usingFeature`). A size a feature prints is read by every rule that asks
+through `effectiveSizeOf` — printed, then stated, then the map's — so a
+Goliath in Large Form is Large to a Grapple and not only on the map.
 
 A `spells` grant's `freeCasting` may name a sibling feature's pool (SRD Wild
 Companion spends Wild Shape's), print the slot route beside the free one
