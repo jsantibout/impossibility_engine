@@ -44,18 +44,30 @@ export const LONGEST_LONG_REST = hours(8);
 /**
  * What a `weapon-and-armor-training` grant may name, on each of its two sides.
  *
- * Typed against the grant and against `ArmorTraining` rather than written out
- * twice: a fifth flag on the sheet or a third weapon category on the grant
- * fails to compile here instead of validating a word nothing reads. The
- * weapons are the two whole categories the SRD's classes grant — the two
+ * **Exhaustive by construction rather than by eye.** A list typed as "an array
+ * of the grant's own union" would go on compiling the day the union grew, and
+ * the word nobody added here would be refused as unknown for ever — so each
+ * side is the keys of a `Record` over its union, which fails to compile when a
+ * member is added *or* invented. `ArmorTraining`'s four flags are the sheet's
+ * own; the weapons are the two whole categories a class grants, and the two
  * narrowed ones (`martial-light`, `martial-finesse-or-light`) are a class's own
- * proficiency list and no feature prints them.
+ * proficiency list that no feature prints.
  */
-const TRAINABLE_WEAPONS: readonly NonNullable<
+type TrainedWeapon = NonNullable<
   Extract<GatedFeatureGrant, { kind: 'weapon-and-armor-training' }>['weapons']
->[number][] = ['simple', 'martial'];
+>[number];
 
-const TRAINABLE_ARMOR: readonly (keyof ArmorTraining)[] = ['light', 'medium', 'heavy', 'shields'];
+const TRAINABLE_WEAPONS = Object.keys({
+  simple: true,
+  martial: true,
+} satisfies Record<TrainedWeapon, true>) as readonly TrainedWeapon[];
+
+const TRAINABLE_ARMOR = Object.keys({
+  light: true,
+  medium: true,
+  heavy: true,
+  shields: true,
+} satisfies Record<keyof ArmorTraining, true>) as readonly (keyof ArmorTraining)[];
 
 /**
  * Whether a feature definition is *coherent*, asked of a value rather than of a

@@ -674,6 +674,40 @@ describe('a homebrew feature asks two questions, and needs no engine change', ()
     expect(scout.armorTraining).toMatchObject({ heavy: false, shields: false });
   });
 
+  /**
+   * And the half a definition cannot answer about itself: a grant that reads
+   * an answer under a key its own feature files nothing under.
+   *
+   * `bad_choice_from`'s neighbour one segment along. A key nobody asks for is
+   * compiled from an answer nobody was asked for, which is a grant that reads
+   * an empty list and says nothing at all.
+   */
+  it('refuses a grant that reads an answer under a key nobody asks for', () => {
+    const copy = JSON.parse(WAYFINDER) as {
+      features: { grants: Record<string, unknown>[] }[];
+    };
+    copy.features[0]!.grants[1] = {
+      kind: 'spells',
+      choiceFrom: 'wayfinder:calling:a-question-nobody-asked',
+      onlyIfChoice: 'Scout',
+    };
+    expect(checkContent({ classes: [copy as never] }).map((problem) => problem.code)).toContain(
+      'unknown_choice_key',
+    );
+
+    // And the key the feature really asks under is accepted, so the refusal
+    // above is about the key rather than about the shape.
+    const sound = JSON.parse(WAYFINDER) as typeof copy;
+    sound.features[0]!.grants[1] = {
+      kind: 'expertise',
+      choiceFrom: 'wayfinder:calling:lore',
+      onlyIfChoice: 'Scout',
+    };
+    expect(checkContent({ classes: [sound as never] }).map((problem) => problem.code)).not.toContain(
+      'unknown_choice_key',
+    );
+  });
+
   /** The second question is a question: asked of the Scout and of nobody else. */
   it('refuses a Scout who answered nothing and a Shieldbearer who answered anyway', () => {
     const unanswered = createCharacter(content, wayfinder('Scout', null), WHO);

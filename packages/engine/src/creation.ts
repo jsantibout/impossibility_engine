@@ -863,10 +863,10 @@ function withGateMet(feature: FeatureDefinition, choices: CharacterChoices): Fea
     }
     if (grant.onlyIfChoice === undefined) return true;
     // **The gate reads a feature's primary answer**, whichever question the
-    // grant's content reads. A `choiceFrom` may name a keyed question — SRD
-    // Divine Order's cantrip is answered under `cleric:divine-order:cantrip` —
-    // and an option was never inside that answer: it is the answer to the
-    // question the feature asked first, under its own id.
+    // grant's content reads. A `choiceFrom` may name a keyed question — an
+    // answer filed under `<feature id>:<key>` — and an option was never inside
+    // that answer: it is the answer to the question the feature asked first,
+    // under its own id.
     return (
       choices.featureChoices[featureOfAnswerKey(grant.choiceFrom ?? feature.id)] ?? []
     ).includes(grant.onlyIfChoice);
@@ -969,11 +969,15 @@ function choicesGranting(
       picked.push(...grant.fixed);
       continue;
     }
-    // **The content reads the whole key**, where the gate above reads the
-    // primary answer out of it: a grant may be written in terms of a question
-    // asked on a sibling, or — SRD Divine Order's extra cantrip — of a keyed
-    // question asked beside the one that gates it.
-    picked.push(...(choices.featureChoices[grant.choiceFrom ?? feature.id] ?? []));
+    // **A keyed `choiceFrom` is read as content; a bare one is not.** The
+    // field has two jobs and they part here: pointed at a *sibling* it says
+    // where the gate's option was answered and nothing more — `content.ts`
+    // says so in as many words, and reading a sibling's option names as spell
+    // ids is exactly what that invariant forbids — while pointed at a keyed
+    // question it names the second answer this grant is compiled from.
+    const from = grant.choiceFrom;
+    const keyed = from !== undefined && featureOfAnswerKey(from) !== from;
+    picked.push(...(choices.featureChoices[keyed ? from : feature.id] ?? []));
   }
   return picked;
 }
