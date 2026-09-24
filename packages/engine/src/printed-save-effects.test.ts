@@ -26,6 +26,12 @@
  * is the one part of that clause the reader takes — a sentence that kills
  * outright is the last one to take a caller's word for.
  *
+ * And the one the fourth reader added, which is a **lifetime** rather than a
+ * clause: SRD Swarm of Ravens' Disadvantage lasts as long as the Deafened the
+ * same failure imposed, so the grant is sourced to that condition instance and
+ * lifts whichever way the instance does — the printed span, a cure, or never
+ * at all on a creature the condition could not reach.
+ *
  * Both branches of every save are exercised by running each line under a
  * handful of seeds and asserting the *rule* on whichever way the die fell —
  * a failure lands the clause, a success does not — and that both were seen.
@@ -50,6 +56,7 @@ import {
 import { createRng, type Rng } from './dice.js';
 import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { distanceBetween } from './positioning.js';
+import { grantedRollModes } from './roll-modifiers.js';
 import { createRollIssuer } from './rolls.js';
 import { speedOf } from './standing.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
@@ -60,6 +67,7 @@ const FOE = id('foe');
 const OGRE = id('ogre');
 const ZOMBIE = id('zombie');
 const GRISH = id('grish');
+const CUBE = id('cube');
 
 const supply = (seed: string) => ({
   issuer: createRollIssuer('r'),
@@ -441,6 +449,111 @@ describe('a condition the line says another one carries', () => {
       for (const timer of timersOn(state, BREN)) {
         expect(timer.deadline).toEqual({ kind: 'elapsed', at: before.elapsed + 3600 });
       }
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+});
+
+/**
+ * SRD Swarm of Ravens, Cacophony: "The target has the Deafened condition until
+ * the start of the swarm's next turn. **While Deafened, the target also has
+ * Disadvantage on ability checks and attack rolls.**"
+ *
+ * The mode is not a condition and cannot be one the Deafened *implies*, so it
+ * is a grant — and the whole of what is new is **how long it lasts**. The
+ * sentence names no span; it names a condition instance, so the grant is
+ * sourced to that instance's id and the instance lifting takes it, whichever
+ * way the instance lifts. Three doors, and all three are tested below: the
+ * printed span running out, a cure, and a target the condition never reached.
+ */
+describe('a mode a condition this line imposed carries', () => {
+  const SOURCE = `deafened:printed:${FOE}:Cacophony (Recharge 6)`;
+
+  const modesOn = (state: GameState, who: CharacterId, family: 'attack' | 'ability-check' | 'saving-throw') =>
+    grantedRollModes(state, { family, roller: who }).map((one) => one.mode);
+
+  it("puts Disadvantage on the target's own checks and attacks, sourced to the Deafened it imposed", () => {
+    const seen: { success: boolean }[] = [];
+    for (const seed of SEEDS) {
+      const { out, state } = forced('swarm-of-ravens', 'Cacophony (Recharge 6)', seed);
+      const [one] = out.outcomes;
+      seen.push({ success: one!.save.success });
+      if (one!.save.success) {
+        expect(has(state, BREN, 'deafened')).toBe(false);
+        expect(state.creatures[BREN]!.rollModifiers).toEqual([]);
+        continue;
+      }
+      expect(has(state, BREN, 'deafened')).toBe(true);
+      // The instance the *failure* created, and nothing else: no `grants`
+      // deadline beside it, because the instance is the deadline.
+      expect(state.creatures[BREN]!.rollModifiers.map((held) => held.source)).toEqual([
+        SOURCE,
+        SOURCE,
+      ]);
+      expect(
+        Object.values(state.timers).some((t) => t.target.kind === 'grants' && t.target.on === BREN),
+      ).toBe(false);
+      // The two rolls the sentence names, and not the third.
+      expect(modesOn(state, BREN, 'attack')).toEqual(['disadvantage']);
+      expect(modesOn(state, BREN, 'ability-check')).toEqual(['disadvantage']);
+      expect(modesOn(state, BREN, 'saving-throw')).toEqual([]);
+      // And nothing landed on the swarm that made the noise.
+      expect(modesOn(state, FOE, 'attack')).toEqual([]);
+    }
+    bothBranches(seen);
+  });
+
+  it('takes the Disadvantage away when the printed span lifts the Deafened', () => {
+    for (const seed of SEEDS) {
+      const { state } = forced('swarm-of-ravens', 'Cacophony (Recharge 6)', seed);
+      if (!has(state, BREN, 'deafened')) continue;
+      // "until the start of the swarm's next turn": the swarm goes first, so
+      // Bren's turn and then the swarm's start is the moment.
+      const later = applyEvent(applyEvent(state, { type: 'turn-advanced' }), {
+        type: 'turn-advanced',
+      });
+      expect(has(later, BREN, 'deafened')).toBe(false);
+      expect(later.creatures[BREN]!.rollModifiers).toEqual([]);
+      expect(modesOn(later, BREN, 'attack')).toEqual([]);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it('takes the Disadvantage away when a cure lifts the Deafened early', () => {
+    for (const seed of SEEDS) {
+      const { state } = forced('swarm-of-ravens', 'Cacophony (Recharge 6)', seed);
+      if (!has(state, BREN, 'deafened')) continue;
+      // SRD Lesser Restoration names the condition and says nothing about the
+      // cause; `liftConditionFrom` is the same `condition-removed`. The mode's
+      // lifetime is the instance's, so it goes in the same breath.
+      const cured = after(state, unwrap(liftConditionFrom(state, BREN, 'deafened'), 'cure'));
+      expect(has(cured, BREN, 'deafened')).toBe(false);
+      expect(cured.creatures[BREN]!.rollModifiers).toEqual([]);
+      expect(modesOn(cured, BREN, 'ability-check')).toEqual([]);
+      return;
+    }
+    throw new Error('no seed failed the save');
+  });
+
+  it('hangs nothing on a Gelatinous Cube the Deafened never reached, and says so', () => {
+    for (const seed of SEEDS) {
+      const { out, state } = forced(
+        'swarm-of-ravens',
+        'Cacophony (Recharge 6)',
+        seed,
+        [CUBE],
+        [{ id: CUBE, monster: 'gelatinous-cube' }],
+      );
+      const [one] = out.outcomes;
+      if (one!.save.success) continue;
+      expect(one!.immuneTo).toEqual(['deafened']);
+      // A grant sourced to an instance that was never created would be a
+      // Disadvantage nothing could ever lift, so it is not written — and the
+      // caller is told, which is the honesty `immuneTo` already has.
+      expect(state.creatures[CUBE]!.rollModifiers).toEqual([]);
+      expect(out.unverified.some((line) => line.includes('Deafened'))).toBe(true);
       return;
     }
     throw new Error('no seed failed the save');
