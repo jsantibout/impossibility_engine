@@ -942,6 +942,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "When the spell ends, the target is Incapacitated and has a Speed of 0 until the end of its next turn, as a wave of lethargy washes over it." Expiry is derived here, like Concentration breaking, and the log records an effect being scheduled rather than expiring — so a spell that punishes its target when it lapses has no hook to hang the lethargy on.',
     },
   ],
+  'heat-metal': [
+    {
+      clause: 'an object nobody is wearing or wielding',
+      why: 'table',
+      note: 'SRD: "Any creature in physical contact with the object takes 2d8 Fire damage when you cast the spell." **What the engine keeps is what a creature has equipped** — armour on a body, a weapon in a hand — and that is the whole of the contact it can see. A metal gate, a chain across a door and a coin in a pouch are all objects nothing here is holding, so who is touching one is the DM’s and always will be. What follows from the contact is the engine’s and is executed: the wearer takes the dice, fails the save, and lets go of the thing if it can.',
+    },
+  ],
   'hideous-laughter': [
     {
       clause: 'the second Wisdom save each time the target takes damage',
@@ -1896,26 +1903,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The spell ends if you drop to 0 Hit Points',
       why: 'a-casting-ended-by-a-trigger',
       note: 'dropping to 0 Hit Points is one of the causes that shape names as still missing, and the clause beside it — the two creatures drifting more than sixty feet apart — is another of them in the same sentence.',
-    },
-  ],
-  'heat-metal': [
-    {
-      marker: 'dice',
-      clause: 'takes 2d8 Fire damage when you cast the spell',
-      why: 'expressible',
-      note: 'the dice land on whoever is in physical contact with a glowing object, with neither an attack roll nor a saving throw between them \u2014 and the `auto-damage` effect says exactly that now, dice, type and all. Nothing blocks this clause; what blocks the spell is the two clauses below it, so the definition is not written and this sentence waits with them.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'the creature must succeed on a Constitution saving throw or drop the object if it can',
-      why: 'what-a-creature-is-holding',
-      note: 'what a creature holds is a fact now \u2014 hands are counted and a casting may fill one \u2014 but nothing takes a thing **out** of a hand against its holder\u2019s will. `dropConjured` ends a conjured thing, which ceases to exist; a hot Longsword let go of would land on a floor this engine does not keep, and no effect kind can make its holder do it.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'it has Disadvantage on attack rolls and ability checks until the start of your next turn',
-      why: 'what-a-creature-is-holding',
-      note: 'the mode and the deadline are both ordinary; what they hang on is a creature **choosing** to keep hold of the object rather than drop it, which is the branch the clause above has no writer for.',
     },
   ],
   'flaming-sphere': [

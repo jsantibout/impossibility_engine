@@ -28,6 +28,7 @@ import { handsOf } from '../character.js';
 import { type Content } from '../content.js';
 import { type ConjuredItems } from '../spell-definitions.js';
 import {
+  applyEvent,
   itemInstanceFor,
   type CreatureState,
   type GameEvent,
@@ -1064,6 +1065,76 @@ export function dropItem(
       },
     ]);
   });
+}
+
+/**
+ * What a forced drop did, or could not do.
+ *
+ * Two answers rather than one boolean, because the caller has a second clause
+ * to run when the first could not happen — SRD Heat Metal's "if it can",
+ * followed by "if it doesn't drop the object". A caller that got only the
+ * events could not tell a thing let go of from a thing that never could be.
+ */
+export interface ForcedDrop {
+  /** Whether the thing actually left the creature's hands. */
+  readonly dropped: boolean;
+  readonly events: readonly GameEvent[];
+}
+
+/**
+ * Take a thing out of a creature's hands against its will.
+ *
+ * > SRD Heat Metal: "the creature must succeed on a Constitution saving throw
+ * > or **drop the object if it can**."
+ *
+ * The half of `what-a-creature-is-holding` that was missing: hands are counted
+ * and a casting may put a thing *into* one, and nothing took one out.
+ * `dropConjured` is the door for a conjured thing, which ceases to exist and
+ * refuses everything else by name; this is the ordinary object, which has to
+ * land somewhere.
+ *
+ * **It is two commands and not a third way to write their events.** A thing in
+ * a hand is both owned and equipped, and {@link dropItem} refuses to put down
+ * what is still in hand — "take it off first" — so the drop is
+ * {@link unequipItem} and then that refusal satisfied. Writing the two events
+ * here instead would be a second spelling of two rules, and the placement, the
+ * pile on the floor and the pools that travel with a labelled copy are all
+ * `dropItem`'s.
+ *
+ * **"If it can" is a count of hands.** `handsFor` answers it off the printed
+ * record: a weapon or a shield is wielded and can be let go of, body armour is
+ * worn and comes off with a doffing no spell grants. A creature that is not
+ * holding the thing at all is the same answer — nothing was dropped — and the
+ * caller's second clause runs.
+ *
+ * Neither call carries a command id: this runs **inside** another command's
+ * batch, which has its own identity, and a second one here would be a second
+ * name for one thing.
+ */
+export function forcedDrop(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  itemId: string,
+): Result<ForcedDrop> {
+  const creature = creatureOf(state, id);
+  if (creature === null) return unknownCreature(id);
+
+  const kind = kindNamed(creature, itemId);
+  const item = content.item(kind);
+  if (item === null) return err('unknown_item', `${itemId} is not in the catalogue`);
+
+  const held = creature.equipped.find((worn) => worn.id === kind);
+  if (held === undefined || handsFor(item) === 0) return ok({ dropped: false, events: [] });
+
+  const off = unequipItem(state, content, id, kind);
+  if (!off.ok) return off;
+  const bare = off.value.reduce(applyEvent, state);
+
+  const down = dropItem(bare, content, id, { item: kind, quantity: 1 });
+  if (!down.ok) return down;
+
+  return ok({ dropped: true, events: [...off.value, ...down.value] });
 }
 
 /** What {@link takeItemUp} is asked. */

@@ -8,6 +8,7 @@ import { createRollIssuer } from '@ie/engine';
 import { fold, type GameEvent } from '@ie/engine';
 import { remaining, spellSlotKey } from '@ie/engine';
 import { declaredCasting } from '@ie/engine';
+import { dropsAnObject } from '@ie/engine';
 import { dmDecisionsIn } from '@ie/engine';
 import {
   advanceTime,
@@ -71,6 +72,9 @@ const FOE = id('foe');
 const BEAST = id('beast');
 const RAVEN = id('raven');
 const CORPSE = id('corpse');
+
+/** The one thing this table puts in a hand — see the setup below. */
+const HEATED = 'quarterstaff';
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -195,6 +199,12 @@ const SETUP: readonly GameEvent[] = [
   { type: 'sight-declared', from: WIZARD, to: BEAST, seen: true },
   { type: 'sight-declared', from: WIZARD, to: RAVEN, seen: true },
   { type: 'sight-declared', from: WIZARD, to: CORPSE, seen: true },
+  // **And a thing in the ally's hand**, for the spell that heats one: SRD Heat
+  // Metal refuses an object its target is neither wearing nor wielding, and
+  // the fixture supplies the wielding rather than the spell being excused the
+  // rule. A Quarterstaff, because it is wielded and so can be let go of.
+  { type: 'items-gained', id: ALLY, items: [{ id: HEATED, quantity: 1 }], source: 'the fixture' },
+  { type: 'item-equipped', id: ALLY, item: HEATED, armor: null },
   // The ally is falling, which is the same discipline the types above follow:
   // the fixture supplies the moment a Reaction spell answers rather than the
   // spell being excused its own casting time. A fall is momentary and this
@@ -228,6 +238,7 @@ const cast = (
   const wanted = definition.targets.mustBeType;
   const sized = definition.targets.mustBeSize;
   const raises = definition.effects.some((effect) => effect.kind === 'revive');
+  const heats = dropsAnObject(definition);
   const at = raises
     ? CORPSE
     :
@@ -254,6 +265,9 @@ const cast = (
   // about.
   const mine = definition.range.kind === 'self' && definition.targets.self === true;
   const targets = aimsAtNobody ? [] : [mine ? WIZARD : at];
+  // The eighth stated fact: a spell aimed at an object is refused until the
+  // caster names which, and one that touches none is refused for naming one.
+  const object = heats ? { object: HEATED } : {};
   // **A spell that fills an area needs somewhere to put it**, and a Cone, a
   // Cube or a Line needs somewhere to point it as well. No tracked definition
   // carries one — a tracked spell resolves nothing, so there is nothing for a
@@ -279,6 +293,7 @@ const cast = (
       spellId,
       targets,
       ...placed,
+      ...object,
       ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
       // A spell that prints a choice is refused until the caster makes it, and
       // the first printed value is the answer here for the reason the executed
@@ -1625,6 +1640,15 @@ describe('every spell this batch added is cast for real', () => {
     'find-steed',
     'fog-cloud',
     'goodberry',
+    // **Heat Metal leaves by the verb that takes a thing out of a hand.**
+    // `what-a-creature-is-holding` was half built — hands counted, a casting
+    // able to put a thing into one — and `OutcomeRiders.drops` is the other
+    // half: the failed Constitution save lets go of the object, "if it can" is
+    // `handsFor`, and the Disadvantage is the `orElse` that runs only where it
+    // could not be. The object is an equipped item, the Bonus Action deals the
+    // same damage again through the record, and what is left is an object
+    // nobody is wearing or wielding.
+    'heat-metal',
     // **Ice Knife leaves by a second parent rather than a sixth rider.** "Hit
     // or miss, the shard then explodes" hangs off neither branch of the
     // attack, so `attack.then` is a second resolution sequenced after the

@@ -52,7 +52,7 @@ import {
   rollsDealtTo,
   DIRECTIONAL_AREAS,
   isCreatureType,
-  breaksAttunement,
+  namesAnObject,
   ranged,
   type SpellArea,
   type SpellDefinition,
@@ -1013,20 +1013,22 @@ export function declaredFacts(
 
   // — which object it was aimed at ————————————————————————————————————————
   //
-  // The eighth stated fact, and the same two refusals a sixth time. SRD Remove
-  // Curse breaks "its owner's Attunement to the object" and a creature attuned
-  // to three has three answers, so the caster says which and the engine says
-  // none.
+  // The eighth stated fact, and the same two refusals a sixth time. Two
+  // clauses ask: SRD Remove Curse breaks "its owner's Attunement to the
+  // object", and SRD Heat Metal heats one and makes its holder let go of it.
+  // Either way a creature carrying three things has three answers, so the
+  // caster says which and the engine says none.
   //
   // **Only the symmetry lives here**, for the weapon's reason above it: that
-  // the object reaches an item and that the target is really attuned to it
-  // both need the catalogue, which this function has none of, and both are
-  // asked in `resolveSpell`'s pre-flight before anything is spent.
-  if (breaksAttunement(definition)) {
+  // the object reaches an item and that the relation the spell needs really
+  // holds — attuned to it, wearing it — both need the catalogue, which this
+  // function has none of, and both are asked in `resolveSpell`'s pre-flight
+  // before anything is spent.
+  if (namesAnObject(definition)) {
     if (request.object === undefined) {
       return err(
         'object_required',
-        `${definition.name} breaks an Attunement to one object and the engine will not choose which; name it`,
+        `${definition.name} is aimed at one object and the engine will not choose which; name it`,
       );
     }
   } else if (request.object !== undefined) {

@@ -1245,7 +1245,13 @@ function checkSaveWithoutCondition(
     further.length > 0 ||
     (effect.modifiers ?? []).length > 0 ||
     effect.light !== undefined ||
-    effect.breaksConcentration === true;
+    effect.breaksConcentration === true ||
+    // A failure that takes the object out of the creature's hands has decided
+    // something, which is the whole of what this guard asks. SRD Heat Metal's
+    // second sentence imposes no condition and hangs nothing unless the thing
+    // cannot be dropped, and a die that empties a hand is not a die thrown for
+    // nothing.
+    effect.drops !== undefined;
 
   if (!hangs && effect.recordsOutcome !== true) {
     found.push({
@@ -1842,6 +1848,7 @@ function checkRiders(
     readonly spends?: SpentBudget;
     readonly light?: LightRider;
     readonly breaksConcentration?: true;
+    readonly drops?: { readonly orElse?: readonly ModifierRider[] };
   },
   level: number,
   path: string,
@@ -1943,6 +1950,29 @@ function checkRiders(
       reason:
         'a spell either prints "and lose Concentration" or does not; the only value is true',
     });
+  }
+  // The eighth: a thing taken out of the target's hands, and the clause that
+  // runs where it cannot be — see {@link DropRider}. The rider itself has
+  // nothing to be wrong about: which object is the casting's stated fact, and
+  // whether it can be dropped is read off the item's own record. What may be
+  // wrong is the second clause, which is an ordinary modifier rider and is
+  // checked by the ordinary rule.
+  if (riders.drops !== undefined) {
+    if (
+      readsAsObject(
+        riders.drops,
+        `${path}.drops`,
+        'a forced drop is an object, which may name what happens instead where the thing cannot be let go of',
+        found,
+      )
+    ) {
+      const instead = riders.drops.orElse;
+      if (instead !== undefined && readsAsList(instead, `${path}.drops.orElse`, RIDER_LIST, found)) {
+        instead.forEach((rider, i) =>
+          checkModifierRider(rider as ModifierRider | undefined, `${path}.drops.orElse[${i}]`, found),
+        );
+      }
+    }
   }
   // The sixth: a glow the outcome hangs on its target, checked by the same
   // rule the `light` effect kind is — see {@link checkShedLight}.

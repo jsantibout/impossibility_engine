@@ -14,6 +14,8 @@
  * not.
  */
 
+import { type Content } from '../content.js';
+import { forcedDrop } from './inventory.js';
 import {
   type Ability,
   ABILITY_NAMES,
@@ -327,6 +329,17 @@ export function applyRiders(
     readonly held: Set<CharacterId>;
     /** The ability the host rolled its saving throw with, or null for none. */
     readonly saveAbility: Ability | null;
+    /** The catalogue, for the one rider that has to read an item's record. */
+    readonly content: Content;
+    /**
+     * The object this casting was pointed at, for {@link OutcomeRiders.drops}.
+     *
+     * Stated at the casting and refused there when a spell that names no
+     * object is given one, so a `drops` rider reaching here without it is the
+     * definition and the command layer disagreeing rather than a rules
+     * dispute.
+     */
+    readonly object?: string;
   },
 ): Result<{
   readonly events: readonly GameEvent[];
@@ -580,6 +593,41 @@ export function applyRiders(
       };
       events.push(broken);
       current = applyEvent(current, broken);
+    }
+  }
+
+  // **The thing let go of, before the glow and after the grants.** SRD Heat
+  // Metal: "must succeed on a Constitution saving throw **or drop the object
+  // if it can**. **If it doesn't drop the object**, it has Disadvantage…" —
+  // two sentences about one branch, where the second is conditional on what
+  // the first did, which is why they are one rider with an `orElse` rather
+  // than two riders the resolver would have to know to skip one of.
+  //
+  // The drop is `forcedDrop`'s: an unequip and then the refusal `dropItem`
+  // makes of a thing still in hand, so the placement, the pile on the floor
+  // and the pools a labelled copy carries are all the command's own rules
+  // rather than a second spelling of them here.
+  if (riders.drops !== undefined) {
+    const object = context.object;
+    if (object === undefined) {
+      throw new Error(
+        `${definition.name} makes its target drop an object and none was named; ` +
+          'the caller should have been refused `object_required` before reaching here',
+      );
+    }
+    const letGo = forcedDrop(current, context.content, target, object);
+    if (!letGo.ok) return letGo;
+    events.push(...letGo.value.events);
+    current = letGo.value.events.reduce(applyEvent, current);
+
+    // "If it doesn't drop the object" — the clause the book puts after the
+    // one above, and the branch the engine can actually see.
+    const instead = riders.drops.orElse ?? [];
+    if (!letGo.value.dropped && instead.length > 0) {
+      const hung = applyRiders(current, target, { modifiers: instead }, context);
+      if (!hung.ok) return hung;
+      events.push(...hung.value.events);
+      current = hung.value.events.reduce(applyEvent, current);
     }
   }
 

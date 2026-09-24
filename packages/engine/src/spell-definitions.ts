@@ -982,6 +982,66 @@ export type ModifierRider =
  * branch. A spell whose success clause does something — Flesh to Stone's
  * "its Speed is 0" — is one consumer and a different shape.
  */
+/**
+ * A thing taken out of a creature's hands against its will, and what happens
+ * where it cannot be.
+ *
+ * > SRD Heat Metal: "the creature must succeed on a Constitution saving throw
+ * > or **drop the object if it can**. **If it doesn't drop the object**, it
+ * > has Disadvantage on attack rolls and ability checks until the start of
+ * > your next turn."
+ *
+ * The half of `what-a-creature-is-holding` that was still missing.
+ * `dropConjured` ends a conjured thing, which ceases to exist and refuses
+ * everything else by name; this is the ordinary object, which has to land
+ * somewhere, and the floor is a thing the engine keeps.
+ *
+ * **It names no object**, for the reason `dispel` names no numbers: which
+ * thing is a decision the caster made at the casting, and it arrives as
+ * `CastSpellRequest.object` — required by a definition that carries this rider
+ * and refused by one that does not.
+ *
+ * **"If it can" is a count of hands.** A thing wielded in a hand can be let go
+ * of; body armour is worn, takes none, and comes off with a doffing the spell
+ * does not grant. `handsFor` is the one reader of that, so a homebrew item
+ * that prints its own `hands` answers here without anything being added.
+ *
+ * ### `orElse`, and why the second sentence is inside the rider
+ *
+ * The SRD prints two sentences about one branch, and the second is conditional
+ * on what the first did. Writing them as two riders side by side would make
+ * the Disadvantage unconditional — the creature that *did* drop the mace would
+ * take it too — and having the resolver quietly skip one rider when another
+ * fired would be a rule hidden in the engine rather than written in the
+ * definition. One rider with two clauses is the sentence as the book prints
+ * it, and the branch is visible to a reader of the definition.
+ *
+ * **A creature that succeeded on the save keeps the object and takes
+ * nothing**, which is this reading of the second sentence: the drop it refers
+ * back to is the one the *failure* demanded, and a creature that was never
+ * asked to drop anything has not failed to. The other reading — that anyone
+ * still holding the thing is hindered — makes the saving throw buy nothing at
+ * all, which is not a sentence the SRD writes anywhere else.
+ */
+export interface DropRider {
+  /**
+   * What the outcome does where the object cannot be let go of.
+   *
+   * {@link ModifierRider}s and not effects, because they are the same kind of
+   * leaf every other rider is: they roll nothing, target nobody of their own
+   * and spend nothing. The lifetime rules are the rider's own — SRD Heat
+   * Metal's "until the start of your next turn" is a `lasts` — so an
+   * Instantaneous host is caught by `checkGrantLifetimes` exactly as it is
+   * anywhere else.
+   *
+   * **A list, because the SRD clause names two rolls**: "Disadvantage on
+   * attack rolls **and** ability checks" is one sentence over two
+   * {@link RollSelector}s, and a selector says one family. The same plurality
+   * {@link OutcomeRiders.modifiers} has, for the same reason.
+   */
+  readonly orElse?: readonly ModifierRider[];
+}
+
 export interface OutcomeRiders {
   /**
    * Conditions the outcome imposes, alongside whatever else it does.
@@ -995,6 +1055,14 @@ export interface OutcomeRiders {
   readonly conditions?: readonly ConditionRider[];
   /** Grants the outcome imposes: see {@link ModifierRider}. */
   readonly modifiers?: readonly ModifierRider[];
+  /**
+   * A thing the outcome takes out of the target's hands: see {@link DropRider}.
+   *
+   * Singular, because the SRD sentence is: Heat Metal heats **the** object and
+   * the failure lets go of that one. A spell that emptied both hands would be
+   * a different clause and prints no rider here.
+   */
+  readonly drops?: DropRider;
   /** A second, smaller hit at a later moment: see {@link DelayedDamage}. */
   readonly delayed?: DelayedDamage;
   /**
@@ -2080,6 +2148,15 @@ export type SpellEffect =
        * writer: "or have the Prone condition **and lose Concentration**".
        */
       readonly breaksConcentration?: true;
+      /**
+       * The same failed save takes the object out of the target's hands: see
+       * {@link OutcomeRiders.drops}.
+       *
+       * Flat for the reason the two slots above it are, and SRD Heat Metal is
+       * the writer: "must succeed on a Constitution saving throw **or drop the
+       * object if it can**".
+       */
+      readonly drops?: DropRider;
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
@@ -5197,6 +5274,43 @@ export function breaksAttunement(definition: SpellDefinition): boolean {
   return definition.effects.some((effect) => effect.kind === 'end-attunement');
 }
 
+/**
+ * Whether this spell has to be told which object it is aimed at.
+ *
+ * Two clauses ask, and they are different sentences about the same fact: SRD
+ * Remove Curse breaks an Attunement to an object, and SRD Heat Metal heats one
+ * and makes its holder drop it. Both name a thing out of what the target has,
+ * neither can be picked by the engine, and both are refused before a slot is
+ * spent when the caster names none.
+ *
+ * **The casting's own list and its activation**, because Heat Metal's Bonus
+ * Action deals the damage again to the same object — the record pins it, so
+ * the activation needs no fresh request and the question is still "does this
+ * spell ever name one".
+ */
+export function namesAnObject(definition: SpellDefinition): boolean {
+  return breaksAttunement(definition) || dropsAnObject(definition);
+}
+
+/**
+ * Whether this spell makes its target let go of the object it names.
+ *
+ * {@link namesAnObject}'s other half, asked on its own by the pre-flight that
+ * checks the relation the *drop* needs — the target is wearing or wielding the
+ * thing — which is not the relation an Attunement needs.
+ *
+ * **The casting's own list and its activation.** SRD Heat Metal's Bonus Action
+ * deals the same damage to the same object, so the record pins it and the
+ * activation needs no fresh request; the question is still whether the spell
+ * ever writes the clause.
+ */
+export function dropsAnObject(definition: SpellDefinition): boolean {
+  const lists = [definition.effects, definition.activation?.effects ?? []];
+  return lists.some((effects) =>
+    effects.some((effect) => outcomeRidersOf(effect).drops !== undefined),
+  );
+}
+
 export function teleportOf(
   definition: SpellDefinition,
 ): Extract<SpellEffect, { kind: 'teleport' }> | null {
@@ -5601,6 +5715,12 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
       ? effect.breaksConcentration
       : undefined;
+  // The same three hosts again, and for the same reason: SRD Heat Metal writes
+  // the clause off a bare `save`, which keeps its flat spelling.
+  const drops =
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.drops
+      : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
@@ -5609,6 +5729,7 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
     ...(spends === undefined ? {} : { spends }),
     ...(light === undefined ? {} : { light }),
     ...(breaksConcentration === undefined ? {} : { breaksConcentration }),
+    ...(drops === undefined ? {} : { drops }),
   };
 }
 

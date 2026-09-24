@@ -642,6 +642,8 @@ function resolveOneAttackRoll(
     casterLevel: numbers.casterLevel,
     unverified,
     held,
+    content: supply.content,
+    ...(ctx.object === undefined ? {} : { object: ctx.object }),
     saveAbility: null,
   });
   if (!riders.ok) return riders;
@@ -1020,6 +1022,8 @@ export function resolveSaveDamageEffect(
       casterLevel: numbers.casterLevel,
       unverified,
       held,
+      content: supply.content,
+      ...(ctx.object === undefined ? {} : { object: ctx.object }),
       // SRD Sunburst: "another Constitution saving throw" — the one this
       // host just rolled, which is why a repeat save names no ability of
       // its own.
@@ -1284,6 +1288,8 @@ export function resolveSaveEffect(
     casterLevel: numbers.casterLevel,
     unverified,
     held,
+    content: supply.content,
+    ...(ctx.object === undefined ? {} : { object: ctx.object }),
     saveAbility: effect.ability,
   });
   if (!landed.ok) return landed;

@@ -21,6 +21,7 @@ import {
   statesFoughtFact,
   teleportOf,
   breaksAttunement,
+  dropsAnObject,
   weaponRiderOf,
 } from '@ie/engine';
 
@@ -141,6 +142,12 @@ const setupWith = (targetType: string, targetSize?: CreatureSize): readonly Game
  */
 const ATTUNED = 'cloak-of-elvenkind';
 
+/**
+ * The one thing this file puts in a hand — the Quarterstaff every creature
+ * here is already carrying, which is wielded and so can be let go of.
+ */
+const HEATED = 'quarterstaff';
+
 const SETUP: readonly GameEvent[] = setupWith('Humanoid');
 
 const base = (): GameState => fold('seed', SETUP);
@@ -196,6 +203,20 @@ const logFor = (spellId: string): readonly GameEvent[] => {
         { type: 'attuned', id: TARGET, item: ATTUNED } as GameEvent,
       ]
     : withTheDead;
+
+  // **And a thing in the target's hand, where the spell heats one.** SRD Heat
+  // Metal refuses an object its target is neither wearing nor wielding, and
+  // that refusal is the behaviour: the fixture puts the Quarterstaff everybody
+  // is already carrying into a hand rather than the spell being excused the
+  // rule. Written straight into the log for the attunement's reason — what is
+  // under test is the casting and not `equipItem`.
+  const heats = dropsAnObject(definition!);
+  const withTheObject: readonly GameEvent[] = heats
+    ? [
+        ...withTheAttunement,
+        { type: 'item-equipped', id: TARGET, item: HEATED, armor: null } as GameEvent,
+      ]
+    : withTheAttunement;
 
   // A rider that ends at a moment in the turn order needs there to *be* turns.
   // SRD gives "until the end of your next turn" no meaning outside combat and
@@ -295,10 +316,10 @@ const logFor = (spellId: string): readonly GameEvent[] => {
               ([{ type: 'fall-declared', id: TARGET }] as readonly GameEvent[])
             : [];
 
-  if (!anchored && triggered.length === 0) return withTheAttunement;
+  if (!anchored && triggered.length === 0) return withTheObject;
 
   return [
-    ...withTheAttunement,
+    ...withTheObject,
     ...(anchored
       ? ([
           {
@@ -390,7 +411,11 @@ const castAt = (
     // touches no object is refused for naming one. The sweep answers with the
     // cloak the fixture attuned the target to. `breaksAttunement` is the
     // runtime's own reader, for the reason the four above are.
-    ...(breaksAttunement(definition) ? { object: ATTUNED } : {}),
+    ...(breaksAttunement(definition)
+      ? { object: ATTUNED }
+      : dropsAnObject(definition)
+        ? { object: HEATED }
+        : {}),
   };
   // The caster's own square. Deliberate: a Cube or Cone excludes its point of
   // origin, so an area placed *on* the target would leave them out of it —

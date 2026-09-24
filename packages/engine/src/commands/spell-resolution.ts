@@ -78,6 +78,7 @@ import {
 import { remaining, tallied } from '../resources.js';
 import {
   breaksAttunement,
+  dropsAnObject,
   creatureTypesRead,
   delayedDuration,
   delaysDamage,
@@ -1115,6 +1116,27 @@ export function castOrRelease(
           definition.name,
         );
         if (!breakable.ok) return breakable;
+      }
+    }
+
+    // And the other clause that names an object, asked the same way: SRD Heat
+    // Metal heats a thing its target is wearing or wielding, and `equipped` is
+    // the holding fact the engine keeps. A caster who named a mace in the
+    // knight's pack rather than the breastplate on his back has aimed at
+    // nothing, and must hear so before the slot is gone.
+    if (request.object !== undefined && dropsAnObject(definition)) {
+      const item = supply.content.item(request.object);
+      if (item === null) {
+        return err('unknown_item', `${request.object} is not in the catalogue`);
+      }
+      for (const target of targets) {
+        const creature = state.creatures[target];
+        if (creature === undefined) continue;
+        if (creature.equipped.some((worn) => worn.id === item.id)) continue;
+        return err(
+          'not_equipped',
+          `${definition.name} is aimed at a thing its target is wearing or wielding, and ${target} has no ${item.name} in hand or on their back`,
+        );
       }
     }
 
@@ -2756,6 +2778,9 @@ export function resolveEffects(
         ...(becomes.anchoring === undefined ? {} : { anchoring: becomes.anchoring }),
         ...(becomes.unaffected === undefined ? {} : { unaffected: becomes.unaffected }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
+        // The object the casting was pointed at, so a later Bonus Action deals
+        // the damage again to the same thing — see `OngoingSpell.object`.
+        ...(context.object === undefined ? {} : { object: context.object }),
         ...(becomes.choice === undefined ? {} : { choice: becomes.choice }),
       },
     });

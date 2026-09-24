@@ -10,7 +10,7 @@
  * the conformance tests check against.
  */
 import { CREATURE_TYPES } from '@ie/engine';
-import type { ModifierRider, SpellDefinition } from '@ie/engine';
+import type { ModifierRider, SpellDefinition, SpellEffect } from '@ie/engine';
 
 /**
  * SRD Fire Bolt:
@@ -9713,11 +9713,72 @@ export const SHAPECHANGE: SpellDefinition = {
  * > If it doesn't drop the object, it has Disadvantage on attack rolls and
  * > ability checks until the start of your next turn."
  *
- * **The target is an object and every consequence reads who is touching it.**
- * A suit of armour a creature is wearing is a fact the engine keeps — armour
- * is equipped — and a weapon in somebody's hands is not, so "any creature in
- * physical contact with the object" has no answer to be derived from.
+ * **The object is an equipped item and the target is whoever has it.** That is
+ * the holding fact the engine keeps — a weapon in a hand or armour on a body,
+ * both `equipped` — so the caster names the creature and the thing, and the
+ * damage lands on the creature in contact with it. An unattended metal gate is
+ * still the table's: nothing in the engine is touching it.
+ *
+ * **"Or drop the object if it can" is the verb that was missing.**
+ * `what-a-creature-is-holding` was half built — hands are counted and a
+ * casting may put a thing into one — and nothing took a thing out of one
+ * against its holder's will. `OutcomeRiders.drops` is that verb, and "if it
+ * can" is `handsFor`: a thing wielded in a hand is let go of, a suit of armour
+ * is worn and comes off with a doffing no spell grants.
+ *
+ * **The two sentences are one rider**, because the second is conditional on
+ * what the first did: `orElse` is the Disadvantage, hung only where the thing
+ * could not be dropped. A creature that made its save keeps the object and
+ * takes nothing — the drop that second sentence refers back to is the one the
+ * failure demanded, and a creature never asked to drop anything has not failed
+ * to. The other reading makes the saving throw buy nothing at all.
+ *
+ * The Bonus Action is the `activation` the record already supports, with the
+ * range checked afresh and the object read off the record so a later turn
+ * heats the same thing.
  */
+/**
+ * The 2d8 that lands on whoever is in contact with the object.
+ *
+ * Named because the Bonus Action deals **the same** damage again: one value in
+ * two lists is what the sentence says, and two copies would be two places for
+ * the dice to come apart.
+ */
+const HEAT_METAL_BURN: SpellEffect = {
+  kind: 'auto-damage',
+  damage: { dice: '2d8' },
+  damageType: 'fire',
+};
+
+/**
+ * The Constitution save the damage forces, and both clauses that hang on it.
+ *
+ * Named beside the burn above for the same reason: the later Bonus Action
+ * forces the same save with the same consequences.
+ */
+const HEAT_METAL_GRIP: SpellEffect = {
+  kind: 'save',
+  ability: 'con',
+  drops: {
+    // "If it doesn't drop the object, it has Disadvantage on attack rolls and
+    // ability checks until the start of your next turn." Two selectors because
+    // a selector names one family of roll, and the deadline is the caster's
+    // own next turn, which is what the sentence prints.
+    orElse: [
+      {
+        kind: 'mode',
+        modifier: { mode: 'disadvantage', selector: { roll: 'attack', relation: 'roller' } },
+        lasts: 'start-of-casters-next-turn',
+      },
+      {
+        kind: 'mode',
+        modifier: { mode: 'disadvantage', selector: { roll: 'ability-check', relation: 'roller' } },
+        lasts: 'start-of-casters-next-turn',
+      },
+    ],
+  },
+};
+
 export const HEAT_METAL: SpellDefinition = {
   id: 'heat-metal',
   name: 'Heat Metal',
@@ -9726,15 +9787,24 @@ export const HEAT_METAL: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 0 },
+  // The creature wearing or wielding the heated thing. Which thing is
+  // `CastSpellRequest.object`, and the casting is refused before a slot is
+  // spent when the target has no such thing in hand or on their back.
+  targets: { count: 1, self: true },
   requiresSight: true,
-  effects: [],
+  effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
+  activation: {
+    action: 'bonus-action',
+    // "if the object is within range" — measured afresh from the caster on
+    // every later turn, which is what an activation's own range is for.
+    range: { kind: 'ranged', feet: 60 },
+    label: 'Heat Metal (again)',
+    effects: [HEAT_METAL_BURN, HEAT_METAL_GRIP],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the object is not chosen and nobody is burned: "Any creature in physical contact with the object takes 2d8 Fire damage" lands with neither an attack roll nor a saving throw, on whoever is touching a thing the engine does not track the touching of',
-    'the Bonus Action that deals the damage again on a later turn is an activation with no consumer, and the range check it carries is measured to the object',
-    'the Constitution save that makes a creature drop what it is holding has nothing to drop: what is in a creature’s hands is not a fact the engine keeps',
-    'the Disadvantage on attack rolls and ability checks for hanging on is ordinary, and it hangs off the failed save above it',
+    'an object nobody is wearing or wielding is the DM’s: "any creature in physical contact with the object" is a touching the engine keeps no record of, and what it does keep is what a creature has equipped',
+    'whether the thing chosen is manufactured, metal, and a weapon or a suit of Heavy or Medium armour is the DM’s; the catalogue records what an item is made of nowhere',
   ],
 };
 
