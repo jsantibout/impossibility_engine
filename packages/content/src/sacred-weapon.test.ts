@@ -172,6 +172,10 @@ describe('SRD Sacred Weapon: "you add your Charisma modifier to attack rolls"', 
       weapons: { weapons: [{ kind: 'melee' }] },
       attackBonusFrom: { ability: 'cha', minimum: 1 },
       damageTypes: ['radiant'],
+      // "This effect also ends if you aren't carrying the weapon", printed
+      // here rather than assumed of every imbuing: SRD Magic Weapon imbues a
+      // weapon for an hour and prints no such sentence.
+      endsWhenLetGo: true,
     });
   });
 

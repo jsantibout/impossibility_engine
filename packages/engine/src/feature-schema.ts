@@ -410,6 +410,18 @@ export function imbuedWeaponProblems(
   if (imbues['damageTypes'] !== undefined) {
     found.push(...weaponDamageTypeProblems(imbues as { readonly damageTypes?: unknown }, at));
   }
+
+  // The clause is printed or it is not; `false` is a sentence that says
+  // nothing, which is the reading `heldInTwoHands` above already takes.
+  const letGo = imbues['endsWhenLetGo'];
+  if (letGo !== undefined && letGo !== true) {
+    found.push({
+      field: `${at}.endsWhenLetGo`,
+      code: 'bad_imbued_weapon',
+      reason:
+        'SRD\'s "this effect also ends if you aren\'t carrying the weapon" is printed or it is not; `false` is a clause that says nothing, so the field is omitted instead',
+    });
+  }
   return found;
 }
 

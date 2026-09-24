@@ -1132,6 +1132,23 @@ export interface ImbuedWeapon {
    * makes from the casting's side, read by the same reader.
    */
   readonly damageTypes?: readonly string[];
+  /**
+   * SRD Sacred Weapon: "This effect also ends if you aren't carrying the
+   * weapon."
+   *
+   * **Declared rather than assumed of every imbuing**, which is the reading
+   * `GrantedWeaponRider.endsWhenLetGo` takes of a casting's: SRD Magic Weapon
+   * imbues a weapon for an hour and prints no such sentence, so a weapon put
+   * down under it is still a magic weapon when it is picked up. A benefit that
+   * is *on the object* survives the hand that held it unless its own text says
+   * otherwise, and a rule assumed here would end an hour of enchantment the
+   * book never ended.
+   *
+   * What ends is the whole activation and not merely the rider — "this
+   * **effect** also ends" is the imbuing, the light it shed and its deadline
+   * together — and `settleWeaponRiders` in the fold is where that is done.
+   */
+  readonly endsWhenLetGo?: true;
 }
 
 /**

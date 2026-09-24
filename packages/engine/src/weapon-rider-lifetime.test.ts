@@ -48,6 +48,8 @@ const id = (s: string): CharacterId => asCharacterId(s);
 const TEMPLAR = id('templar');
 const DUMMY = id('dummy');
 const BLESSED_BLADE = 'templar:blessed-blade';
+const WARDENS_GRIP = 'templar:wardens-grip';
+const VIGIL = 'templar:vigil';
 
 const TEMPLAR_CLASS = {
   id: 'templar',
@@ -88,9 +90,41 @@ const TEMPLAR_CLASS = {
           weapons: { weapons: [{ kind: 'melee' }] },
           attackBonusFrom: { ability: 'cha', minimum: 1 },
           damageTypes: ['radiant'],
+          endsWhenLetGo: true,
         },
         whileActive: [{ kind: 'light', level: 'bright', radius: 20, dimBeyond: 20 }],
       },
+    },
+    // The same imbuing **without** the ending clause, which is SRD Magic
+    // Weapon's shape said by a feature: what is done to the object survives the
+    // hand that held it, because the book prints no sentence undoing it.
+    {
+      id: WARDENS_GRIP,
+      name: "Warden's Grip",
+      level: 1,
+      automation: 'engine',
+      note: 'The Templar marks one Melee weapon for ten minutes. Nothing in the sentence ends it early, so putting the weapon down does not.',
+      grants: {
+        kind: 'activated',
+        action: 'none',
+        pool: null,
+        lastsSeconds: 600,
+        imbuesWeapon: {
+          weapons: { weapons: [{ kind: 'melee' }] },
+          attackBonusFrom: { ability: 'cha', minimum: 1 },
+        },
+      },
+    },
+    // And an activation that imbues nothing at all, which is every other
+    // feature in the book: naming a weapon on one is a fact it does not ask
+    // for.
+    {
+      id: VIGIL,
+      name: 'Vigil',
+      level: 1,
+      automation: 'engine',
+      note: 'The Templar stands watch until the end of their next turn, and nothing about a weapon comes into it.',
+      grants: { kind: 'activated', action: 'none', pool: null, lasts: 'end-of-next-turn' },
     },
   ],
 };
@@ -206,13 +240,14 @@ const imbue = (
   log: readonly GameEvent[],
   weapon: string | undefined,
   commandId?: string,
+  feature: string = BLESSED_BLADE,
 ): readonly GameEvent[] =>
   unwrap(
     activateFeature(
       at(log),
       TEMPLAR,
       {
-        feature: BLESSED_BLADE,
+        feature,
         ...(weapon === undefined ? {} : { weapon }),
         ...(commandId === undefined ? {} : { commandId }),
       },
@@ -332,15 +367,16 @@ describe('the weapon an imbuing may name', () => {
   });
 
   it('refuses a weapon named on a feature that imbues none', () => {
-    const log = field();
     const out = activateFeature(
-      at(log),
+      at(field()),
       TEMPLAR,
-      { feature: 'human:heroic-inspiration', weapon: 'longsword' },
+      { feature: VIGIL, weapon: 'longsword' },
       content,
     );
     expect(isErr(out)).toBe(true);
-    if (isErr(out)) expect(out.code).not.toBe('weapon_not_of_kind');
+    if (isErr(out)) expect(out.code).toBe('no_weapon_clause');
+    // And the same feature with nothing named is not refused at all.
+    expect(isErr(activateFeature(at(field()), TEMPLAR, { feature: VIGIL }, content))).toBe(false);
   });
 });
 
@@ -392,6 +428,21 @@ describe('a rider ends when its weapon is no longer carried', () => {
         (timer) => timer.target.kind === 'feature' && timer.target.feature === BLESSED_BLADE,
       ),
     ).toBe(false);
+  });
+
+  /**
+   * And the imbuing whose own sentence says nothing about letting go **runs
+   * on**, which is the whole reason the clause is declared rather than assumed
+   * of every rider: SRD Magic Weapon prints no such sentence, so a weapon put
+   * down under it is still enchanted when it is picked up, and a feature
+   * written the same way is read the same way.
+   */
+  it('leaves an imbuing that never said so alone', () => {
+    const log = field();
+    const held = [...log, ...imbue(log, 'longsword', 'grip', WARDENS_GRIP)];
+    const dropped = drop(held, 'longsword');
+    expect(ridersOn(dropped).map((rider) => rider.weapon)).toEqual(['longsword']);
+    expect(at(dropped).creatures[TEMPLAR]?.activeFeatures).toContain(WARDENS_GRIP);
   });
 
   it('runs on when something else is put down', () => {

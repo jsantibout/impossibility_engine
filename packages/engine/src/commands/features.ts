@@ -223,8 +223,11 @@ export function activateFeature(
           // the book opened again.
           name: definition.name,
           weapon: imbuing.value,
-          // "This effect also ends if you aren't carrying the weapon."
-          endsWhenLetGo: true,
+          // "This effect also ends if you aren't carrying the weapon", where
+          // the feature prints that sentence and not where it does not.
+          ...(definition.imbuesWeapon?.endsWhenLetGo === undefined
+            ? {}
+            : { endsWhenLetGo: definition.imbuesWeapon.endsWhenLetGo }),
           ...(definition.imbuesWeapon?.attackBonusFrom === undefined
             ? {}
             : { attackBonusFrom: definition.imbuesWeapon.attackBonusFrom }),

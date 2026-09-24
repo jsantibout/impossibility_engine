@@ -396,6 +396,8 @@ export const OATH_OF_DEVOTION: SubclassDefinition = {
           // hit rather than a die added beside it, so naming nothing leaves the
           // Longsword slashing and the total never moves.
           damageTypes: ['radiant'],
+          // "This effect also ends if you aren’t carrying the weapon."
+          endsWhenLetGo: true,
         },
         whileActive: [
           {
