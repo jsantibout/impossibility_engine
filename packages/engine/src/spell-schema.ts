@@ -20,6 +20,7 @@ import { LONG_CASTING_SECONDS } from './spells.js';
 import {
   conditionRiderOf,
   CREATURE_TYPES,
+  DIRECTIONAL_AREAS,
   DM_DECIDES,
   modifierRidersOf,
   persists as castingPersists,
@@ -2978,6 +2979,21 @@ function checkEffect(
     // measured on, and both are refused at zero: a jump of nothing is not a
     // jump, and one that costs nothing is a sentence the book does not print
     // and would hand a creature an unlimited number of free leaps a turn.
+    // SRD Levitate: "change the target's altitude by up to 20 feet in either
+    // direction." One field, and the same lattice rule the jump above keeps: a
+    // cap of nothing is an action spent on nothing, and a cap the 5-foot cubes
+    // cannot express would refuse every honest request made against it.
+    case 'change-altitude': {
+      if (!Number.isInteger(effect.upTo) || effect.upTo <= 0 || effect.upTo % 5 !== 0) {
+        found.push({
+          field: `${path}.upTo`,
+          code: 'bad_altitude_cap',
+          reason: `an altitude changes by a whole number of 5-foot spaces, not ${String(effect.upTo)}`,
+        });
+      }
+      return;
+    }
+
     case 'jump-allowance': {
       if (!Number.isInteger(effect.feet) || effect.feet <= 0 || effect.feet % 5 !== 0) {
         found.push({
@@ -5092,7 +5108,12 @@ export function checkSpellDefinition(
           'a later action measures from the caster or from the point the casting holds, never both',
       });
     }
-    if (activation.range === undefined && definition.origin === undefined && activation.movesArea === undefined) {
+    if (
+      activation.range === undefined &&
+      definition.origin === undefined &&
+      activation.movesArea === undefined &&
+      activation.redirects !== true
+    ) {
       found.push({
         field: 'activation.range',
         code: 'activation_reaches_nothing',
@@ -5123,12 +5144,42 @@ export function checkSpellDefinition(
     );
     // SRD Moonbeam's later Magic action *is* the move; every other activation
     // does something. One that does neither spends an action on nothing.
-    if (resolves && activation.effects.length === 0 && activation.movesArea === undefined) {
+    if (
+      resolves &&
+      activation.effects.length === 0 &&
+      activation.movesArea === undefined &&
+      activation.redirects !== true
+    ) {
       found.push({
         field: 'activation.effects',
         code: 'activation_does_nothing',
         reason: 'an activation with no effects must be the one whose whole content is moving the area',
       });
+    }
+    /*
+     * SRD Gust of Wind's "you can change the direction in which the Line
+     * blasts from you", held to what the sentence needs to mean anything: a
+     * shape to turn, and one with a direction to be wrong about.
+     *
+     * A Sphere, a Cylinder and an Emanation have no bearing at all, so a
+     * re-aim of one would write a bearing the geometry never reads — the
+     * `area_filter_without_area` reading, applied to the field that says which
+     * way rather than to the one that says who is caught.
+     */
+    if (activation.redirects === true) {
+      if (definition.area === undefined) {
+        found.push({
+          field: 'activation.redirects',
+          code: 'redirects_without_area',
+          reason: 'an action that re-aims the spell’s area needs the spell to have one',
+        });
+      } else if (!DIRECTIONAL_AREAS.has(definition.area.kind)) {
+        found.push({
+          field: 'activation.redirects',
+          code: 'redirects_without_a_direction',
+          reason: `a ${definition.area.kind} has no direction to change; only a Cone, a Cube or a Line is aimed`,
+        });
+      }
     }
     if (!lasts && !definition.concentration) {
       found.push({
@@ -5487,6 +5538,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkRecordedVerdict(effect as object, entry.kind, where, at, found);
       checkAreaBoundLifetime(effect as object, entry.kind, where, at, found);
       checkTeleportPlacement(entry.kind, where, at, found);
+      checkAltitudePlacement(entry.kind, where, at, found);
       checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
@@ -5760,6 +5812,33 @@ function checkRecordedVerdict(
  * written in either list would reach `resolveEffects` with nowhere to go.
  * Refused at authoring rather than left to be met at the table.
  */
+/**
+ * Where a `change-altitude` may be written, which is exactly one list.
+ *
+ * {@link checkTeleportPlacement}'s mirror, and the mirroring is the point:
+ * that kind reads a fact the **casting** stated, so it is refused anywhere but
+ * the casting's own list; this one reads a fact the **activation** states —
+ * SRD Levitate's "You can change the target's altitude by up to 20 feet in
+ * either direction on your turn" — so it is refused anywhere but the
+ * activation's. A casting has no such request to read and an area trigger
+ * firing at a turn boundary has none either, so either would move a creature
+ * by an amount nobody named.
+ */
+function checkAltitudePlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'change-altitude' || where === 'activation.effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'altitude_outside_an_activation',
+    reason:
+      'the caster states how far and which way when they take the later action, so only an activation’s own effect list can read it',
+  });
+}
+
 function checkTeleportPlacement(
   kind: unknown,
   where: string,
@@ -6701,6 +6780,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'damage-reduction',
   'fall-ward',
   'jump-allowance',
+  'change-altitude',
   'attack-rider',
   'weapon-rider',
   'weapon-attack',

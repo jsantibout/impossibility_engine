@@ -6833,10 +6833,23 @@ export const LEVITATE: SpellDefinition = {
       movement: { kind: 'lift', feet: 20 },
     },
   ],
+  // "Otherwise, you can take a Magic action to move the target, which must
+  // remain within the spell's range." The cap is the spell's and the distance
+  // and the direction are the caster's, stated on the turn they take the
+  // action — which is why `change-altitude` reads them off the request and
+  // prints only the twenty feet.
+  activation: {
+    action: 'action',
+    label: 'Levitate (the target’s altitude)',
+    // "within the spell's range", checked from the caster before the action is
+    // taken and again against the space the rise lands in: sixty feet up is
+    // sixty feet away on a lattice that measures the climb.
+    range: { kind: 'ranged', feet: 60 },
+    effects: [{ kind: 'change-altitude', upTo: 20 }],
+  },
   durationSeconds: 600,
   unmodelled: [
-    'moving the target afterwards is the DM’s: "You can change the target’s altitude by up to 20 feet in either direction on your turn" is a later action that moves the **target** rather than an area, which no activation shape expresses, and the climbing along a wall is fiction',
-    'what the levitating creature may do with its own Speed is the DM’s, and it is a gap this spell opens: "The target can move only by pushing or pulling against a fixed object or surface within reach" is the whole of SRD’s answer, and the engine refuses only a **rise** — a creature holding station twenty feet up may still walk its thirty feet sideways through the air and come down for nothing, because gravity is not a Speed and no rule asks what is under a creature that is already off the ground',
+    'what the levitating creature may do with its own Speed is the DM’s, and it is a gap this spell opens: "The target can move only by pushing or pulling against a fixed object or surface within reach" is the whole of SRD’s answer, and the engine refuses only a **rise** — a creature holding station twenty feet up may still walk its thirty feet sideways through the air and come down for nothing, because gravity is not a Speed and no rule asks what is under a creature that is already off the ground. The **half of the altitude sentence a creature spends on its own movement** is the same absence: "If you are the target, you can move up or down as part of your move" would have to count the feet this creature has already risen under the lift **this turn**, and a `GrantedLift` holds only whose magic it is — so `checkRise` goes on refusing a rise nothing else granted rather than allowing one it could not cap. The Magic action that moves somebody else is built; the climbing along a wall is fiction',
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
   ],
 };
@@ -8091,9 +8104,24 @@ export const GUST_OF_WIND: SpellDefinition = {
     label: 'Gust of Wind (the Line)',
     effects: [{ kind: 'save', ability: 'str', movement: { kind: 'push', feet: 15 } }],
   },
+  // "As a Bonus Action on your later turns, you can change the direction in
+  // which the Line blasts from you." The Line blasts *from the caster*, so
+  // nothing is carried anywhere: what changes is the bearing, which is the one
+  // fact about a persistent area that cannot be reconstructed.
+  //
+  // **And the turning rolls nothing.** The opening save is asked at the
+  // casting and the only one that recurs is the `areaTrigger` below — "A
+  // creature that ends its turn in the Line must make the same save" — which
+  // reads the new bearing when that moment arrives. A save at the re-aim would
+  // be a third sentence the spell does not print.
+  activation: {
+    action: 'bonus-action',
+    label: 'Gust of Wind (the direction the Line blasts)',
+    redirects: true,
+    effects: [],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the Bonus Action that changes the direction the Line blasts in on a later turn is not offered: an area is fixed where the casting put it, and re-aiming one from the caster is a fresh area in a direction chosen now — the shape SRD Sunbeam and Call Lightning wait on too',
     'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: a casting may make ground expensive now, and a patch is a property of the **square**, charging whoever crosses it at the rate it holds. Nothing on one can say "only while moving closer to you", which is a fact about the mover rather than about the ground, so `areaTerrain` cannot carry it',
     'the gas dispersed, the unprotected candles snuffed and the protected flames dancing are the DM’s, and so is the "50 percent chance to extinguish them", which is a random outcome that is not a d20',
   ],

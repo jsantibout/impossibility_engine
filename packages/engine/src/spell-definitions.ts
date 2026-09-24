@@ -2713,6 +2713,35 @@ export type SpellEffect =
    */
   | { readonly kind: 'jump-allowance'; readonly feet: number; readonly costsMovement: number }
   /**
+   * A later action that moves a creature this casting is holding off the
+   * ground, up or down, by a stated number of feet.
+   *
+   * SRD *Levitate*: "You can change the target's altitude by up to 20 feet in
+   * either direction on your turn. … you can take a Magic action to move the
+   * target, which must remain within the spell's range."
+   *
+   * **The one effect kind that is only ever an activation's**, and the
+   * validator says so: it reads the feet off the *request* rather than off the
+   * definition, so a casting's own effect list has no such request to read and
+   * an area trigger firing a minute later has none either. What the definition
+   * prints is the cap; the direction and the distance are the caster's, stated
+   * now, and every other kind that takes a fact from the request takes it at
+   * the casting.
+   *
+   * **Not `movement`, the rider.** A `ForcedMovement` of kind `lift` hangs off
+   * a settled outcome, is performed once and is never declined; this is an
+   * action a caster spends, at a distance they choose, on a creature the
+   * casting is already holding — and it is refused rather than reported when
+   * the room, the cap or the Range will not have it, because a refusal here
+   * costs nothing and the action has not been spent.
+   *
+   * **Lowering to the ground is not the spell ending.** The lift stays granted
+   * and the casting goes on running, so a later turn may take the creature
+   * back up — which is the whole reason this moves a position rather than
+   * releasing a grant.
+   */
+  | { readonly kind: 'change-altitude'; readonly upTo: number }
+  /**
    * An amount the spell takes off a hit **before** the target's defences meet
    * it — SRD Resistance: "When the creature takes damage of the chosen type
    * before the spell ends, the creature reduces the total damage taken by 1d4.
@@ -4801,6 +4830,30 @@ export interface SpellActivation {
    * declined.
    */
   readonly movesArea?: number;
+  /**
+   * Whether this action re-aims the Line, Cone or Cube the casting is blowing
+   * from its caster.
+   *
+   * SRD *Gust of Wind*: "As a Bonus Action on your later turns, you can change
+   * the direction in which the Line blasts from you." The area's origin is the
+   * caster, so nothing moves; what changes is the one fact about a persistent
+   * area that cannot be reconstructed — where it was pointed — and the request
+   * states the new bearing exactly as the casting stated the first.
+   *
+   * **Beside {@link movesArea} rather than inside it**, because the SRD writes
+   * two different sentences: Moonbeam's action *carries* a Cylinder to a new
+   * point and is measured in feet, and this one turns a shape that has not
+   * moved. A field that meant both would have nothing honest to put in the
+   * allowance.
+   *
+   * **And nothing is rolled by the turning**, which is what the printed text
+   * says: Gust of Wind's opening save is asked at the casting and the only one
+   * that recurs is "A creature that ends its turn in the Line must make the
+   * same save". So the Bonus Action changes the bearing and the spell's own
+   * `areaTrigger` catches whoever the new Line is over, at the moment the
+   * sentence names.
+   */
+  readonly redirects?: true;
   /** How the log reads: "Vampiric Touch (again)". */
   readonly label: string;
   /**
@@ -5922,6 +5975,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // own choice, stated at the casting, and no number about them decides it.
       case 'creature-type-override':
       case 'teleport':
+      // And an altitude changed reads nothing of the caster: how far and which
+      // way is the caster's own decision, stated at the activation, and no
+      // number about them decides whether it happens.
+      case 'change-altitude':
       case 'summon':
         break;
       default: {

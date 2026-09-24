@@ -23,10 +23,10 @@
  * casting's `unverified`, exactly as the Push mastery says it.
  */
 
-import { ok, type CharacterId, type Result } from '@ie/shared';
+import { err, ok, type CharacterId, type Result } from '@ie/shared';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { bearingBetween, distanceBetween, moveCreature } from '../positioning.js';
-import { type ForcedMovement } from '../spell-definitions.js';
+import { ranged, type ForcedMovement } from '../spell-definitions.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
 /** What a shove came to: the event it wrote, or the reason it wrote none. */
@@ -151,6 +151,99 @@ export function lift(
     ],
     unverified: [],
   };
+}
+
+/**
+ * Move a creature this casting is holding off the ground, up or down.
+ *
+ * SRD *Levitate*: "You can change the target's altitude by up to 20 feet in
+ * either direction on your turn. … you can take a Magic action to move the
+ * target, **which must remain within the spell's range**."
+ *
+ * **The only movement in this module that refuses.** Its three neighbours are
+ * riders on a settled outcome — the slot is spent and the save is rolled by
+ * the time they run, so a wall or a ceiling is reported on the casting's
+ * `unverified` rather than refused. This is not a rider: it is a Magic action
+ * a caster is *deciding* to take, and `activateSpell` discards the whole batch
+ * on a refusal, so a rise the room or the Range will not have costs its caster
+ * nothing at all.
+ *
+ * Three questions, and each is a refusal rather than a substitution:
+ *
+ * | | |
+ * |---|---|
+ * | is this creature aloft **by this casting** | `not_held_aloft` — the sentence moves "the target", and a casting holds up whom it lifted |
+ * | does the destination stay inside the Range | `out_of_range` — read from the caster afresh, because a lattice distance counts the climb |
+ * | is there room | whatever `moveCreature` says: a ceiling is the room's answer and not the spell's |
+ *
+ * **The cap is not asked here.** How far the caster may move the target is a
+ * fact about the request, and `activateSpell` refuses it before anything is
+ * spent — where every other pre-flight of a stated fact lives.
+ *
+ * **Lowering to the ground is not the spell ending.** The `GrantedLift` is
+ * untouched, so the casting goes on holding the creature and a later turn may
+ * take it back up — and the landing SRD prints for the casting's *end* stays
+ * `releaseCasting`'s, derived and written nowhere.
+ */
+export function resolveChangeAltitudeEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { casterId, events, outcomes, altitude, name } = ctx;
+  const { definition, castingId } = ctx.casting();
+
+  // Refused at the command, before anything is spent; a resolver reached
+  // without one is the command layer and the definition disagreeing.
+  if (altitude === undefined) {
+    return err(
+      'altitude_required',
+      `${name} moves a creature it is holding up, and nobody said how far`,
+    );
+  }
+
+  const scene = world.scene;
+  if (scene === null) {
+    return err('no_scene', `${name} needs a scene to move anybody about in`);
+  }
+
+  // "the target" is whoever this casting lifted. A creature aloft by somebody
+  // else's Levitate is that caster's to move, and one standing on the floor
+  // was never lifted at all.
+  const held = world.creatures[target]?.lifts ?? [];
+  if (!held.some((lift) => lift.source.includes(castingId))) {
+    return err(
+      'not_held_aloft',
+      `${name} moves the creature it is holding off the ground, and ${castingId} is not holding ${target}`,
+    );
+  }
+
+  const placement = { from: { creature: target }, feet: 0, elevation: altitude } as const;
+  const moved = moveCreature(scene, target, placement, { forced: true });
+  if (!moved.ok) return moved;
+
+  // "which must remain within the spell's range." Measured from the caster to
+  // where the creature **ends up**, because a Chebyshev distance on this
+  // lattice counts the climb: a target ten feet away and sixty feet up is
+  // sixty feet away. Read off the moved scene rather than added to the old
+  // reading, so the one measurement everything else uses answers this too.
+  const reach = ranged(definition.range);
+  if (reach !== null) {
+    const apart = distanceBetween(moved.value.state, casterId, target);
+    if (!apart.ok) return apart;
+    if (apart.value > reach) {
+      return err(
+        'out_of_range',
+        `${name} reaches ${reach} feet and that would leave ${target} ${apart.value} feet from ${casterId}`,
+      );
+    }
+  }
+
+  // The lift is untouched: the casting is still holding them, wherever it has
+  // just put them.
+  events.push({ type: 'creature-moved', id: target, placement, forced: true });
+  outcomes.push({ target, affected: true });
+  return ok(events.slice(-1).reduce(applyEvent, world));
 }
 
 /**

@@ -3836,6 +3836,16 @@ describe('every branch judges untyped input rather than throwing on it', () => {
      * is checking, and the junk sweep would pass for it.
      */
     readonly host?: Record<string, unknown>;
+    /**
+     * Which effect list this kind may be written in.
+     *
+     * Absent is the casting's own, which is every kind but one.
+     * `change-altitude` reads a fact the **activation** states — how far and
+     * which way, on the turn the later action is taken — so
+     * `checkAltitudePlacement` refuses it anywhere else, and a row driven
+     * through `effects` would refuse for that rather than for its junk.
+     */
+    readonly list?: 'activation';
   }[] = [
     {
       kind: 'attack',
@@ -4185,7 +4195,47 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       },
       host: { targets: { count: 1, self: true } },
     },
+    {
+      // SRD Levitate: "change the target's altitude by up to 20 feet in either
+      // direction." One printed number, required, and on the same 5-foot
+      // lattice the jump above it is measured on.
+      //
+      // **The one kind driven through an activation's list**, because that is
+      // the only list it may be written in — see `list`. Its host concentrates
+      // so that both lifetimes the junk sweep drives are legal definitions: an
+      // activation needs a casting that is still running, and the sweep's
+      // second pass supplies no duration.
+      kind: 'change-altitude',
+      base: { kind: 'change-altitude', upTo: 20 },
+      fields: { upTo: required(NUMBER_JUNK) },
+      host: { concentration: true },
+      list: 'activation',
+    },
   ];
+
+  /**
+   * The definition that carries one effect, in whichever list that kind lives
+   * in.
+   *
+   * One builder, two drivers: the base-validity check and the junk sweep both
+   * have to put the effect in the same place, and a second spelling of "wrap
+   * it in an activation" would be a second place for the wrapper to be wrong.
+   */
+  const carrying = (
+    effect: Record<string, unknown>,
+    list: 'activation' | undefined,
+  ): Record<string, unknown> =>
+    list === 'activation'
+      ? {
+          effects: [],
+          activation: {
+            action: 'action',
+            label: 'the later action',
+            range: { kind: 'ranged', feet: 30 },
+            effects: [effect],
+          },
+        }
+      : { effects: [effect] };
 
   /**
    * The fixtures are real, which is what makes every row below mean anything.
@@ -4193,15 +4243,15 @@ describe('every branch judges untyped input rather than throwing on it', () => {
    * A base that was itself malformed would make the sweep pass for the wrong
    * reason: every row would refuse, and none of them because of the junk.
    */
-  it.each(BRANCHES.map((b) => [b.kind, b.base, b.host ?? {}] as const))(
+  it.each(BRANCHES.map((b) => [b.kind, b.base, b.host ?? {}, b.list] as const))(
     'starts from a %s the validator accepts',
-    (_kind, base, host) => {
+    (_kind, base, host, list) => {
       expect(
         checkSpellDefinitionValue({
           ...FIRE_DART,
           durationSeconds: 60,
           ...host,
-          effects: [base],
+          ...carrying(base, list),
         }),
       ).toEqual([]);
     },
@@ -4253,7 +4303,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
     for (const kind of READ_NO_FIELD) expect(covered.has(kind)).toBe(false);
   });
 
-  const rows = BRANCHES.flatMap(({ kind, base, fields, host }) =>
+  const rows = BRANCHES.flatMap(({ kind, base, fields, host, list }) =>
     Object.entries(fields).flatMap(([field, junk]) =>
       junk.map(
         (value) =>
@@ -4263,6 +4313,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
             field,
             value,
             host ?? {},
+            list,
           ] as const,
       ),
     ),
@@ -4273,7 +4324,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
   // before the junk is read, and `isErr` cannot tell the two apart — the
   // sweep would go on passing while testing nothing. `summon` is the one kind
   // with a rule about its host, and Fire Dart throws its dart at somebody else.
-  it.each(rows)('answers with a refusal for %s', (_label, base, field, value, host) => {
+  it.each(rows)('answers with a refusal for %s', (_label, base, field, value, host, list) => {
     // Both lifetimes, because the rule that reads a rider a second time
     // returns early the moment a casting persists — which is exactly what kept
     // `grantCarried`'s unguarded walk out of reach of the case that found it.
@@ -4282,7 +4333,7 @@ describe('every branch judges untyped input rather than throwing on it', () => {
         ...FIRE_DART,
         ...lifetime,
         ...host,
-        effects: [{ ...base, [field]: value }],
+        ...carrying({ ...base, [field]: value }, list),
       };
       let parsed: ReturnType<typeof parseSpellDefinition> | undefined;
       expect(() => {

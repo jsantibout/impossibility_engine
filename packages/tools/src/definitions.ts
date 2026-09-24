@@ -2621,7 +2621,7 @@ const CONTINUE_CASTING = tool({
 const ACTIVATE_SPELL = tool({
   name: 'activate_spell',
   description:
-    'Use a spell that is still running, on a later turn — Vampiric Touch striking again, Spiritual Weapon moving and then striking, Moonbeam’s beam walked across the room. The engine spends the action the spell asks for, reads the numbers the casting was made with, and rolls what it does. Name `to` for where the area ends up, and `via` for the spaces it crossed getting there.',
+    'Use a spell that is still running, on a later turn — Vampiric Touch striking again, Spiritual Weapon moving and then striking, Moonbeam’s beam walked across the room, Levitate lifting its target higher, Gust of Wind blowing a new way. The engine spends the action the spell asks for, reads the numbers the casting was made with, and rolls what it does. Name `to` for where the area ends up and `via` for the spaces it crossed getting there, `altitude` for how far up or down to move a creature the spell is holding, and `towards` for the direction a Line blasts in now.',
   mutates: true,
   establishes: ['route'],
   input: z.object({
@@ -2638,18 +2638,47 @@ const ACTIVATE_SPELL = tool({
       .describe(
         'The 5-foot spaces the area crossed on the way, in order. Send it when an activation came back `route_required`: the same call again with this filled in is the whole of the answer. Each leg is settled where it happens, so a beam walked over three creatures is asked about all three.',
       ),
+    altitude: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        'How far up or down to move a creature the casting is holding off the ground, in feet: a positive number raises it and a negative one lowers it. SRD Levitate’s "you can change the target’s altitude by up to 20 feet in either direction on your turn". The cap is the spell’s and the engine refuses anything past it, anything the room will not hold, and anything that would carry the creature out of the spell’s range — none of which costs the action. Setting a creature back on the ground is not the spell ending: it is still holding them and a later turn may take them back up.',
+      ),
+    towardsCreature: creatureId
+      .optional()
+      .describe('Re-aim the Line, Cone or Cube this casting blows from its caster at this creature.'),
+    towardsLandmark: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Re-aim it at this landmark instead.'),
+    towards: pointSchema
+      .optional()
+      .describe(
+        'Or the space it points at, for SRD Gust of Wind’s "As a Bonus Action on your later turns, you can change the direction in which the Line blasts from you". Nothing is rolled by the turning: the Line points the new way and catches whoever ends a turn in it.',
+      ),
   }),
-  run: (context, args) =>
-    settle(
+  run: (context, args) => {
+    const state = context.campaign.state();
+    // The same three spellings of "which way" a casting takes, resolved by the
+    // same reader: a re-aim states its bearing exactly as the casting that
+    // laid the area stated the first one, and a second way of saying it would
+    // be a second place for a landmark to be looked up wrong.
+    const towards = towardsOf(state, args);
+    if (!towards.ok) return fromErr(towards, context.doorsFor);
+    return settle(
       context,
       activateSpell(
-        context.campaign.state(),
+        state,
         who(args.caster),
         {
           castingId: args.castingId,
           targets: args.targets.map(who),
           ...(args.to === undefined ? {} : { to: point(args.to) }),
           ...(args.via === undefined ? {} : { via: args.via.map(point) }),
+          ...(args.altitude === undefined ? {} : { altitude: args.altitude }),
+          ...(towards.value === undefined ? {} : { towards: towards.value }),
           ...identity(context),
         },
         context.campaign.supply(),
@@ -2657,7 +2686,8 @@ const ACTIVATE_SPELL = tool({
       (value) => value.events,
       (value) => ({ castingId: value.castingId, outcomes: value.outcomes }),
       (value) => value.unverified,
-    ),
+    );
+  },
 });
 
 const APPLY_CONDITION = tool({

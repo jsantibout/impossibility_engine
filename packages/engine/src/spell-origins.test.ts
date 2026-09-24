@@ -8,6 +8,7 @@ import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { movementLeftFor } from './standing.js';
 import type { Point } from './positioning.js';
+import { DIRECTIONAL_AREAS } from './spell-definitions.js';
 import {
   activateSpell,
   eligibleTargets,
@@ -1164,16 +1165,40 @@ describe('a definition says where its reach is measured from, once', () => {
    * to be within anything of, and the distance it *does* own — how far the
    * area may travel — is `movesArea` and is measured between two points of
    * the area's own rather than from the caster.
+   *
+   * **And SRD Gust of Wind is the second of those**, for the same reason read
+   * one field along: "you can change the direction in which the Line blasts
+   * from you" turns a shape whose origin is the caster and aims at nobody, so
+   * there is no target for a reach to bound and the only distance in the
+   * sentence is the Line's own printed length.
    */
   it('gives every activation that aims at somebody a range of its own', () => {
     const missing = SPELL_DEFINITIONS.filter(
       (d) =>
         d.activation !== undefined &&
         d.activation.movesArea === undefined &&
+        d.activation.redirects !== true &&
         d.origin === undefined &&
         d.activation.range === undefined,
     );
     expect(missing.map((d) => d.id)).toEqual([]);
+  });
+
+  /**
+   * And a re-aim is the movement-only activation's twin: it strikes nobody,
+   * so it has no range either — and it needs a **directional** area, because a
+   * Sphere has no bearing to be wrong about.
+   */
+  it('gives a re-aiming activation no range, no effects and a shape to turn', () => {
+    const wrong = SPELL_DEFINITIONS.filter(
+      (d) =>
+        d.activation?.redirects === true &&
+        (d.activation.range !== undefined ||
+          d.activation.effects.length > 0 ||
+          d.area === undefined ||
+          !DIRECTIONAL_AREAS.has(d.area.kind)),
+    );
+    expect(wrong.map((d) => d.id)).toEqual([]);
   });
 
   /** And an activation that only moves an area aims at nobody, so it has none. */

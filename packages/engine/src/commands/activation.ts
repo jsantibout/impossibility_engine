@@ -19,6 +19,7 @@ import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import { type Point } from '../positioning.js';
 import { actionRulesOn } from '../standing.js';
+import { type SpellActivation } from '../spell-definitions.js';
 import { lightPatchesOf, type Supply } from './casting.js';
 import { regionOfArea } from '../spells.js';
 import { creatureOf, unknownCreature } from './command.js';
@@ -75,6 +76,36 @@ export interface ActivateSpellCommand extends CommandIdentity {
    * caller who supplies none gets the honest gap instead.
    */
   readonly via?: readonly Point[];
+  /**
+   * How far to move a creature this casting is holding off the ground, signed:
+   * positive is up and negative is down.
+   *
+   * SRD *Levitate*: "You can change the target's altitude by **up to 20 feet
+   * in either direction** on your turn." The cap is the definition's and the
+   * distance is the caster's, which is why this is a field rather than a
+   * number anything derives — and it is a distance rather than a die, so it is
+   * a decision a caller may state.
+   *
+   * **Required** where the activation's effects change an altitude, and
+   * **refused** where they do not: the symmetry every stated fact on a casting
+   * already keeps, asked here because this is the one later action that takes
+   * a request of its own.
+   */
+  readonly altitude?: number;
+  /**
+   * Which way to re-aim a Line, Cone or Cube the casting blows from its caster.
+   *
+   * SRD *Gust of Wind*: "As a Bonus Action on your later turns, you can change
+   * the direction in which the Line blasts from you." A point to aim at rather
+   * than an angle, exactly as `CastSpellRequest.towards` is and for its reason:
+   * a model speaks in landmarks and creatures, and an angle would be raw
+   * geometry typed by the caller.
+   *
+   * **Required** where {@link SpellActivation.redirects} says the action is
+   * the re-aiming, and **refused** where it is not — a Bonus Action spent
+   * turning nothing is not a thing the book offers.
+   */
+  readonly towards?: Point;
 }
 
 /**
@@ -101,6 +132,26 @@ export interface ActivateSpellCommand extends CommandIdentity {
  * before it strikes — are blocked on geometry, and are listed as such rather
  * than half-served here.
  */
+/**
+ * How far a later action may move a creature this casting is holding, or null
+ * where it moves nobody.
+ *
+ * One reader for one question, asked twice and needing one answer: the
+ * command's *is a distance required, and is it inside the cap*, and the
+ * resolver's *move them*. Two spellings of it would be two places for one
+ * printed number to be got wrong.
+ *
+ * An activation's own effect list and nowhere else — `checkSpellDefinition`
+ * refuses the kind in a casting's list and in an area trigger's, because
+ * neither has a request to read the feet off.
+ */
+function altitudeCapOf(activation: SpellActivation): number | null {
+  for (const effect of activation.effects) {
+    if (effect.kind === 'change-altitude') return effect.upTo;
+  }
+  return null;
+}
+
 export function activateSpell(
   state: GameState,
   casterId: CharacterId,
@@ -174,7 +225,7 @@ export function activateSpell(
     // melee spell attack" — a target that may be declined. Moonbeam's later
     // Magic action has no attack to decline, so a named target is a caller
     // asking the beam to do something it does not do.
-    if (activation.movesArea !== undefined) {
+    if (activation.movesArea !== undefined || activation.redirects === true) {
       if (command.targets.length > 0) {
         return err(
           'wrong_target_count',
@@ -194,6 +245,61 @@ export function activateSpell(
     if (target !== null && creatureOf(state, target) === null) return unknownCreature(target);
 
     const unverified: string[] = [];
+
+    // — the two facts a later action states, and the symmetry both keep ————
+    //
+    // Before the action is charged and before the first die, which is where
+    // every stated fact of a casting is asked too: a Magic action refused for
+    // a number past its cap must cost its caster nothing.
+    const climbs = altitudeCapOf(activation);
+    if (climbs === null) {
+      if (command.altitude !== undefined) {
+        return err(
+          'no_altitude_clause',
+          `${record.spell}'s later action moves nobody up or down; how far is not a fact it asks for`,
+        );
+      }
+    } else {
+      if (command.altitude === undefined) {
+        return err(
+          'altitude_required',
+          `${record.spell} moves the creature it is holding up to ${climbs} feet in either direction, and nobody said how far`,
+        );
+      }
+      // "in either direction" is the sign, "up to 20 feet" is the cap, and the
+      // lattice is 5-foot cubes — so nought is an action spent on nothing and
+      // seven is a height no position can hold.
+      if (
+        !Number.isInteger(command.altitude) ||
+        command.altitude === 0 ||
+        command.altitude % 5 !== 0
+      ) {
+        return err(
+          'bad_altitude',
+          `an altitude changes by a whole number of 5-foot spaces, up or down, not ${String(command.altitude)}`,
+        );
+      }
+      if (Math.abs(command.altitude) > climbs) {
+        return err(
+          'altitude_beyond_the_cap',
+          `${record.spell} changes an altitude by up to ${climbs} feet, and ${Math.abs(command.altitude)} is more`,
+        );
+      }
+    }
+
+    if (activation.redirects !== true) {
+      if (command.towards !== undefined) {
+        return err(
+          'not_directional',
+          `${record.spell}'s later action re-aims nothing; which way is not a fact it asks for`,
+        );
+      }
+    } else if (command.towards === undefined) {
+      return err(
+        'direction_required',
+        `${record.spell}'s later action changes the direction it blasts in; name which way`,
+      );
+    }
 
     // — the point moves first, and the attack is measured from where it ends —
     //
@@ -257,6 +363,21 @@ export function activateSpell(
       by: casterId,
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **The direction, which is the whole of what the Bonus Action does.**
+    // SRD Gust of Wind prints no save on the turning: the opening one is asked
+    // at the casting and the only one that recurs is "A creature that ends its
+    // turn in the Line must make the same save". So the record's bearing
+    // changes here and the spell's own `areaTrigger` catches whoever the new
+    // Line is over, at the moment that sentence names — which is why nothing
+    // is rolled, settled or moved by this line.
+    if (activation.redirects === true && command.towards !== undefined) {
+      happened({
+        type: 'spell-aim-changed',
+        castingId: record.castingId,
+        towards: command.towards,
+      });
+    }
 
     // — the route, one leg at a time —————————————————————————————————————————
     //
@@ -347,6 +468,9 @@ export function activateSpell(
       // thing it was cast on, and an activation that asked again could heat
       // one object on this turn and another on the next.
       ...(record.object === undefined ? {} : { object: record.object }),
+      // The one fact a later action states rather than reads off the record:
+      // how far, and which way — see {@link ActivateSpellCommand.altitude}.
+      ...(command.altitude === undefined ? {} : { altitude: command.altitude }),
       ...(reached === null ? {} : { from: reached }),
     });
     if (!resolved.ok) return resolved;

@@ -925,11 +925,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'gust-of-wind': [
     {
-      clause: 'the Bonus Action that changes the direction the Line blasts in on a later turn',
-      why: 'an-activation-that-resolves-an-area',
-      note: 'SRD: "As a Bonus Action on your later turns, you can change the direction in which the Line blasts from you." The push and both saving throws are executed and this is the clause left. An area is fixed where the casting put it, and `activateSpell` resolves an attack at a named target or walks an area along a stated route — a Line re-aimed from the caster is a **fresh** area in a direction chosen now, which is the sentence SRD Sunbeam and Call Lightning wait on too.',
-    },
-    {
       clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
       why: 'difficult-terrain-an-area-creates',
       note: 'a doubled cost is Difficult Terrain by another name and an area may write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you", which is a fact about the mover. That is the directional arm of this shape and `areaTerrain` does not reach it.',
@@ -1050,12 +1045,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'what the levitating creature may do with its own Speed',
       why: 'movement-modes',
-      note: 'SRD: "The target can move only by pushing or pulling against a fixed object or surface within reach" — "which allows it to move as if it were climbing". The climbing is the shape: the engine distinguishes no Climb Speed and charges no surcharge for one, so there is nothing to narrow a levitating creature’s movement **to**. What the lift itself opened is the other side of the same absence — `checkRise` refuses a creature ending a move higher than it began and asks nothing of one already off the ground, so a creature the spell is holding may walk sideways through the air on its ordinary Speed and descend for free. Both are one missing distinction rather than two.',
-    },
-    {
-      clause: 'moving the target afterwards is the DM’s',
-      why: 'an-activation-that-forces-a-saving-throw',
-      note: 'SRD: "You can change the target’s altitude by up to 20 feet in either direction on your turn." An activation resolves effects at a named target or walks the casting’s own **area** along a route; moving the creature the casting is *holding* is neither, and no activation shape reaches a target’s position — which is the same later-action gap this shape names, read from the movement side rather than from a saving throw.',
+      note: 'SRD: "The target can move only by pushing or pulling against a fixed object or surface within reach" — "which allows it to move as if it were climbing". The climbing is the shape: the engine distinguishes no Climb Speed and charges no surcharge for one, so there is nothing to narrow a levitating creature’s movement **to**. What the lift itself opened is the other side of the same absence — `checkRise` refuses a creature ending a move higher than it began and asks nothing of one already off the ground, so a creature the spell is holding may walk sideways through the air on its ordinary Speed and descend for free. **And the clause that used to sit beside this one has joined it.** "You can change the target’s altitude by up to 20 feet in either direction on your turn" was filed under an activation shape and half of it is built: `change-altitude` is the Magic action, refused past the cap, past the Range and on a creature the casting is not holding. What is left is the sentence that follows it — "If you are the target, you can move up or down as part of your move" — which is the *creature’s own* movement and needs the feet it has already risen this turn counted against the twenty. A `GrantedLift` records whose magic is holding the creature and nothing else, so widening `checkRise` for that holder would allow a rise nobody could cap. One missing distinction, now with three sentences waiting on it rather than two.',
     },
   ],
   light: [

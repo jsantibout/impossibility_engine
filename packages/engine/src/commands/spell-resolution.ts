@@ -83,6 +83,7 @@ import {
   creatureTypesRead,
   delayedDuration,
   delaysDamage,
+  DIRECTIONAL_AREAS,
   handedOver,
   onCaster,
   persists,
@@ -185,7 +186,11 @@ import {
   resolveSpeedEffect,
   resolveWeaponRiderEffect,
 } from './spell-effect-grants.js';
-import { resolveFallWardEffect, resolveJumpEffect } from './spell-effect-movement.js';
+import {
+  resolveChangeAltitudeEffect,
+  resolveFallWardEffect,
+  resolveJumpEffect,
+} from './spell-effect-movement.js';
 import {
   resolveHealEffect,
   resolveTempHpEffect,
@@ -1793,6 +1798,29 @@ function resolveOnTargets(
   // which is where the two lists part company.
   const willing = willingFor(request);
 
+  /**
+   * Which way a **carried** directional area was pointed.
+   *
+   * The other half of what `area` above pins, and it needs a binding of its
+   * own because a carried area has no point to pin beside it: SRD Gust of
+   * Wind's Line "blasts from you", so the origin is the caster and there is no
+   * `at` for the record to keep — but the bearing is still a decision taken
+   * once, at this casting, and `areaShapeOf` answers **null** for a Line, a
+   * Cone or a Cube without one. Left absent, the spell's own "A creature that
+   * ends its turn in the Line must make the same save" would fire at a shape
+   * nothing could construct, and every boundary would quietly catch nobody.
+   *
+   * Absent for a Sphere, a Cylinder and an Emanation, which have no direction
+   * to be wrong about, and for every point-origin area, whose bearing travels
+   * beside its point.
+   */
+  const carriedAim =
+    definition.area !== undefined &&
+    definition.area.origin === 'self' &&
+    DIRECTIONAL_AREAS.has(definition.area.kind)
+      ? request.towards
+      : undefined;
+
   // The fifth stated fact, in the shape the record wants rather than the one
   // the declaration wants. See `choicePinned`.
   const pinned = choicePinned(definition, request);
@@ -1835,7 +1863,13 @@ function resolveOnTargets(
     on: onCaster(definition) ? 'caster' : origin === null ? 'targets' : 'point',
     ...(definition.area === undefined ? {} : { fromArea: true as const }),
     ...(origin === null && area === null ? {} : { origin: origin ?? area!.at }),
-    ...(area?.towards === undefined ? {} : { towards: area.towards }),
+    // A point-origin area's bearing travels beside its point; a **carried**
+    // one's has no point to travel beside — see `carriedAim`.
+    ...(area?.towards === undefined
+      ? carriedAim === undefined
+        ? {}
+        : { towards: carriedAim }
+      : { towards: area.towards }),
     ...(area?.anchoring === undefined ? {} : { anchoring: area.anchoring }),
     // The facts the caster stated at the casting, kept because every later
     // sentence of the spell reads them and none can be recovered from
@@ -2472,6 +2506,8 @@ function resolveOneEffect(
       return resolveFallWardEffect(ctx, target, world);
     case 'jump-allowance':
       return resolveJumpEffect(ctx, effect, target, world);
+    case 'change-altitude':
+      return resolveChangeAltitudeEffect(ctx, target, world);
     case 'damage-reduction':
       return resolveDamageReductionEffect(ctx, effect, target, world);
     case 'action-rule':
@@ -2636,6 +2672,12 @@ export function resolveEffects(
      */
     readonly willing?: readonly CharacterId[];
     /**
+     * How far a `change-altitude` effect moves the creature, signed — stated
+     * at the activation, which is the one run that carries a request of its
+     * own. See `EffectContext.altitude`.
+     */
+    readonly altitude?: number;
+    /**
      * Where a `teleport` effect puts its target.
      *
      * The caster's decision, stated at the casting and never derived — the
@@ -2755,6 +2797,7 @@ export function resolveEffects(
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
     ...(context.willing === undefined ? {} : { willing: context.willing }),
+    ...(context.altitude === undefined ? {} : { altitude: context.altitude }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
     ...(context.object === undefined ? {} : { object: context.object }),
@@ -2917,6 +2960,7 @@ export interface EffectRun {
   readonly from?: Point;
   readonly fought?: readonly CharacterId[];
   readonly willing?: readonly CharacterId[];
+  readonly altitude?: number;
   readonly teleportTo?: Placement;
   readonly weapon?: string;
   readonly object?: string;
@@ -3207,6 +3251,7 @@ export function runEffects(
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
     ...(run.willing === undefined ? {} : { willing: run.willing }),
+    ...(run.altitude === undefined ? {} : { altitude: run.altitude }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
     ...(run.object === undefined ? {} : { object: run.object }),

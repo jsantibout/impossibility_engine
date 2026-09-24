@@ -867,6 +867,22 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // refuses to pick one. A readied casting does not carry it — nothing in the
   // book readies a summons — so the field is `cast_spell`'s alone.
   form_required: { fields: ['cast_spell.form'] },
+  // The two a **later action** states rather than a casting, and the only
+  // stated facts on this surface that belong to an activation: SRD Levitate's
+  // "you can change the target's altitude by up to 20 feet in either
+  // direction" and SRD Gust of Wind's "you can change the direction in which
+  // the Line blasts from you". Each is required by the one activation that
+  // prints it and refused by every other, and neither is a number the caller
+  // produced — one is a distance on the lattice and the other is a space to
+  // point at.
+  altitude_required: { fields: ['activate_spell.altitude'] },
+  direction_required: {
+    fields: [
+      'activate_spell.towards',
+      'activate_spell.towardsCreature',
+      'activate_spell.towardsLandmark',
+    ],
+  },
   // The eighth stated fact, and the only one whose answer is a list of
   // creatures: SRD Sleep's "each creature **of your choice** in a
   // 5-foot-radius Sphere". The area says who could be caught and the caster
