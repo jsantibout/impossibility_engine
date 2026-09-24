@@ -3276,6 +3276,19 @@ function itemGrantProblems(
         }
         return;
       }
+      // The far side of a saving throw, held to the same rule at this door as
+      // at a feature's: a bonus of nothing moves no DC, and a class narrowing
+      // that is not a class id matches no route for ever. SRD Robe of the
+      // Archmagi is the item that prints the sentence.
+      if (effect.kind === 'spell-save-dc-bonus') {
+        for (const problem of spellSaveDcBonusProblems(
+          effect as unknown as Record<string, unknown>,
+          on,
+        )) {
+          say(problem.code, problem.reason, problem.field);
+        }
+        return;
+      }
       if (effect.kind === 'attack-bonus') {
         for (const problem of attackBonusProblems(
           effect as unknown as Record<string, unknown>,
