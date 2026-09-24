@@ -679,6 +679,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // nothing, the lander left standing, the casting ending on that one creature
   // and running on for the other, and an unwarded faller taking the dice.
   'fall-ward-granted',
+  // A creature set alight and the fire put out — SRD Fire Elemental's Burn,
+  // SRD Magmin's Touch, and the glossary's own Burning hazard. Neither log was
+  // written when the engine had anywhere to hold one: the clause was carried
+  // verbatim and handed to the DM, `CreatureState` had no `hazards` at all,
+  // and both fixtures fold to exactly the states they always folded to with
+  // the list empty on every creature. `burning.test.ts` folds both and drives
+  // them end to end: the hit that lights it, the second hit that does not
+  // stack, the 1d4 Fire at the start of the caught creature's turn, the action
+  // that puts it out at the price of the Prone condition, and the boundary
+  // that costs nothing afterwards.
   // The two halves of a rule about hit points that a running effect states —
   // one standing in front of healing, one holding a maximum up. Neither log
   // was written when a spell could do either: no creature had a `healingRules`
@@ -692,16 +702,6 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // deadline, an Aid that carries the current total up with the maximum and
   // clamps it on the way down, and a level-up taken mid-Aid that is worth the
   // whole of its level.
-  // A creature set alight and the fire put out — SRD Fire Elemental's Burn,
-  // SRD Magmin's Touch, and the glossary's own Burning hazard. Neither log was
-  // written when the engine had anywhere to hold one: the clause was carried
-  // verbatim and handed to the DM, `CreatureState` had no `hazards` at all,
-  // and both fixtures fold to exactly the states they always folded to with
-  // the list empty on every creature. `burning.test.ts` folds both and drives
-  // them end to end: the hit that lights it, the second hit that does not
-  // stack, the 1d4 Fire at the start of the caught creature's turn, the action
-  // that puts it out at the price of the Prone condition, and the boundary
-  // that costs nothing afterwards.
   'hazard-caught',
   'hazard-ended',
   'healing-rule-granted',

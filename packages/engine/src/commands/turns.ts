@@ -651,9 +651,12 @@ function settleTurnPayouts(
   // A log that does not say how far the generator moved is a log that rewinds
   // on replay: a session resumed from it rebuilds the stream from where the
   // last record left it, and the next command draws the same faces under the
-  // same roll ids. **No log carries this hole**, because no SRD payout throws
-  // dice — every one of them hands over a printed number or an ability
-  // modifier — so this is a determinism defect fixed and not a migration.
+  // same roll ids. **No log carried this hole when the bracket was written**,
+  // because no SRD *spell's* payout throws dice — every one of them hands over
+  // a printed number or an ability modifier — so it was a determinism defect
+  // fixed and not a migration. It is load-bearing now: the glossary's Burning
+  // arrives here through {@link hazardsDue} carrying a 1d4, and that die is
+  // thrown at the boundary like any other.
   if (supply.issuer.count > issuedBefore) {
     events.push({
       type: 'rolls-issued',

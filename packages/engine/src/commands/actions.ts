@@ -3107,10 +3107,11 @@ function releaseSpell(
  * rather than fatal — the reading `resolveFall` already takes of the same
  * pairing, where "you then have the Prone condition" and a Prone immunity meet.
  *
- * The book's other three endings — "doused, submerged, or suffocated" — are
- * the table's: there is no water in this world and nothing that holds a
- * breath, so a DM who rules one of them says so and the fire goes out by their
- * word rather than by a rule nobody could state.
+ * **This is the only ending anything writes.** The book's other three —
+ * "doused, submerged, or suffocated" — have no writer and no door: what they
+ * would need is a world with water in it. Saying they are "the table's" would
+ * be a handover with nowhere to hand to, so they are named here as the gap
+ * they are, and the day a DM can rule one it emits `hazard-ended` like this.
  */
 export function extinguishFire(
   state: GameState,

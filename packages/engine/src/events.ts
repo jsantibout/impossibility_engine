@@ -825,10 +825,14 @@ export type GameEvent =
    *
    * One event for one ending, as an attach's is: the Prone the action costs
    * arrives through `condition-applied`, which is the door every condition
-   * comes in by, and the action through `action-spent`. What the book's other
-   * two endings — doused, submerged, suffocated — would need is a world with
-   * water in it, and until there is one they are the table's: a DM who rules
-   * the fire out says so, and this is the event that records it.
+   * comes in by, and the action through `action-spent`.
+   *
+   * **`extinguishFire` is the only thing that writes it**, and the book's
+   * other three endings — doused, submerged, suffocated — have no writer at
+   * all: what they would need is a world with water in it. They are not
+   * "handed to the table" either, because a table has nowhere to hand them
+   * *to*; a DM who rules a fire out has no door, and the day one exists it
+   * emits this.
    */
   | {
       readonly type: 'hazard-ended';

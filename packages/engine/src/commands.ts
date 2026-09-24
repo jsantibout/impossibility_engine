@@ -294,10 +294,10 @@ export type {
 export { activateSpell } from './commands/activation.js';
 export type { ActivateSpellCommand } from './commands/activation.js';
 export {
+  extinguishFire,
   forcePrintedSave,
   HELP,
   HIDE,
-  extinguishFire,
   HIDE_DC,
   INFLUENCE_SKILLS,
   readiedBy,

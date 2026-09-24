@@ -3039,10 +3039,19 @@ const PRINTED_ARMOR_PENALTY =
  * to 10."
  *
  * **Read and consumed rather than stored**, exactly as SRD Stirge's five-foot
- * detach is: it states the rule the swing already applies to every penalty it
- * writes, so a field for it would be a second copy of one number free to
- * disagree. A line printing a different ceiling would not match and would go
- * back to the table, which is the right answer — nothing here could apply it.
+ * detach is: it states the rule the swing already applies to every armour
+ * penalty, so a field for it would be a second copy of one number free to
+ * disagree.
+ *
+ * **The ceiling is the engine's, and the consumed sentence does not carry
+ * it.** Both lines in the book print the same 10, so reading the number off
+ * the page and reading it off `corrodeArmor` come to the same answer today —
+ * and a homebrew line that printed a *different* ceiling would have this
+ * sentence handed back while its penalty went on being destroyed at 10. That
+ * is a wrong rule rather than a refusal, and it is the one this shape has:
+ * the day a second ceiling is printed, the number joins
+ * {@link PrintedArmorPenaltyRider} and `HitOption.penalisesArmor` becomes a
+ * pair.
  */
 const ARMOR_DESTROYED_AT_TEN = /^The armor is destroyed if the penalty reduces its AC to 10\.$/;
 

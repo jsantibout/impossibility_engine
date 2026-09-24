@@ -658,21 +658,6 @@ export function applyHitRider(
 }
 
 /**
- * SRD Ankheg: "it has the Grappled condition (escape DC 13)."
- *
- * **Made the way the Attack action's own grapple is made**, and that is the
- * whole of why it is here rather than in the effect list: the condition is
- * filed under {@link grappleSource}, so `grapplesOn` can find it, SRD's two
- * automatic endings can lapse it and `escapeGrapple` can be attempted against
- * it. The escape check is pinned at the moment the grapple is made, because
- * the book makes the grapple's DC and the escape's one number and an escape
- * attempted an hour later is against the number it was made at.
- *
- * **A creature immune to Grappled is unaffected, not an error** — the blow
- * still landed and still dealt its damage, which is the reading
- * `conditionLanding` holds at every other door a condition arrives through.
- */
-/**
  * SRD Black Pudding's Dissolving Pseudopod: "Nonmagical armor worn by the
  * target takes a −1 penalty to the AC it offers. The armor is destroyed if the
  * penalty reduces its AC to 10."
@@ -745,6 +730,21 @@ function corrodeArmor(
   ];
 }
 
+/**
+ * SRD Ankheg: "it has the Grappled condition (escape DC 13)."
+ *
+ * **Made the way the Attack action's own grapple is made**, and that is the
+ * whole of why it is here rather than in the effect list: the condition is
+ * filed under {@link grappleSource}, so `grapplesOn` can find it, SRD's two
+ * automatic endings can lapse it and `escapeGrapple` can be attempted against
+ * it. The escape check is pinned at the moment the grapple is made, because
+ * the book makes the grapple's DC and the escape's one number and an escape
+ * attempted an hour later is against the number it was made at.
+ *
+ * **A creature immune to Grappled is unaffected, not an error** — the blow
+ * still landed and still dealt its damage, which is the reading
+ * `conditionLanding` holds at every other door a condition arrives through.
+ */
 function makeTheGrapple(
   world: GameState,
   hit: { readonly attacker: CharacterId; readonly target: CharacterId },

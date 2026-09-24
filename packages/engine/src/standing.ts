@@ -4899,6 +4899,46 @@ function d20RerollFor(
 }
 
 /**
+ * What acid has eaten out of the armour this creature is **wearing**, or 0.
+ *
+ * SRD Black Pudding's Dissolving Pseudopod and SRD Gray Ooze's Pseudopod are
+ * the two lines that write it, and `EquippedItem.penalty` is where it lands:
+ * on the copy rather than on the catalogue's record of what chain mail offers.
+ *
+ * **Narrowed to the piece the calculation actually used**, which is what makes
+ * this subtraction honest rather than a second opinion about a number. Two
+ * narrowings and no more, because two are all that can happen:
+ *
+ * - `sheet.armor` is the single piece of body armour `withEquipment` put on
+ *   the sheet out of everything equipped, so a shield is never what this eats
+ *   and a second suit in the pack is not being worn. Matching the equipped
+ *   record back to it by name is how the record and the sheet stay in step —
+ *   `withEquipment` picks the piece by that same record, so the two cannot
+ *   name different suits.
+ * - A creature whose **stated** Armour Class won is not standing behind the
+ *   mail at all: `armorClassCalculation` returns a printed number outright and
+ *   never looks at the armour, so a penalty taken off it would be acid eating
+ *   a number the suit never contributed to. No SRD stat block equips armour,
+ *   which is why nothing in the bestiary reaches this — and why it is a guard
+ *   rather than a case.
+ *
+ * A feature's own calculation needs no narrowing here and could not have one:
+ * `armorClassCalculation` weighs Unarmoured Defense only in the branch where
+ * no armour is worn, so a creature this function finds a suit on is wearing it.
+ */
+function wornArmorPenalty(creature: {
+  readonly sheet: CharacterSheet;
+  readonly equipped: readonly EquippedItem[];
+}): number {
+  const worn = creature.sheet.armor;
+  if (worn === null || creature.sheet.stated?.armorClass !== undefined) return 0;
+  const record = creature.equipped.find(
+    (held) => held.armor !== null && held.armor.name === worn.name,
+  );
+  return record?.penalty ?? 0;
+}
+
+/**
  * A creature's Armour Class, with whatever is currently raising it.
  *
  * `armorClass` reads a sheet: armour, Dexterity, a shield, or the number a
@@ -4914,36 +4954,6 @@ function d20RerollFor(
  * Cover is deliberately *not* here: it is a fact about one attacker's line to
  * one target, not about the target, and the attack that reads it adds it.
  */
-/**
- * What acid has eaten out of the armour this creature is **wearing**, or 0.
- *
- * SRD Black Pudding's Dissolving Pseudopod and SRD Gray Ooze's Pseudopod are
- * the two lines that write it, and `EquippedItem.penalty` is where it lands:
- * on the copy rather than on the catalogue's record of what chain mail offers.
- *
- * **Narrowed to the piece the sheet is using**, which is what makes this
- * subtraction honest rather than a second opinion about a number. A shield is
- * not body armour and is never what this eats; a suit in the pack is not being
- * worn; and a creature whose Unarmoured Defense beat its corroded mail is not
- * standing behind the mail at all, so nothing should come off. The sheet's own
- * `armor` is the one piece `withEquipment` put there, and matching on it is how
- * the two stay in step.
- *
- * Exported for `armorClassOf`'s sake and no other: a caller outside the engine
- * reads the finished number.
- */
-function wornArmorPenalty(creature: {
-  readonly sheet: CharacterSheet;
-  readonly equipped: readonly EquippedItem[];
-}): number {
-  const worn = creature.sheet.armor;
-  if (worn === null) return 0;
-  const record = creature.equipped.find(
-    (held) => held.armor !== null && held.armor.name === worn.name,
-  );
-  return record?.penalty ?? 0;
-}
-
 export function armorClassOf(state: GameState, who: CharacterId): number {
   const creature = state.creatures[who];
   if (creature === undefined) return 0;
@@ -4971,12 +4981,8 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   // target takes a −1 penalty to the AC it offers." A fact about **one copy**,
   // so it lives on the equipped record and is read here rather than written
   // into the armour record the catalogue prints, which is the same suit in
-  // everybody else's game.
-  //
-  // **Only where the suit is the one the calculation used.** `withEquipment`
-  // puts exactly one piece of body armour on the sheet, and a creature whose
-  // Unarmoured Defense beat it is not wearing its number at all — so a penalty
-  // taken off then would be acid eating a Barbarian's Constitution.
+  // everybody else's game. See `wornArmorPenalty` for the two narrowings that
+  // keep it off a number the suit did not contribute to.
   total -= wornArmorPenalty(creature);
   // And last of all, the floor — SRD Barkskin's "an Armor Class of 17 **if its
   // AC is lower than that**". Last because "its AC" in that sentence is the
