@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 93 spells | 60 | 0 | 33 |
+| Spells in reach, not executed | 89 spells | 56 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 9 features | 3 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -53,23 +53,19 @@ hold at all. An executed spell with nothing left is not here.
 | `a-choice-made-at-the-casting` | 4 | 2 |
 | `a-casting-ended-by-a-trigger` | 5 | 1 |
 | `a-fact-only-the-table-can-declare` | 4 | 1 |
+| `a-barrier-that-blocks-passage` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 3 | 1 |
-| `a-condition-that-ends-when-its-holder-leaves-an-area` | 2 | 1 |
 | `a-creature-fact-an-effect-overrides` | 2 | 1 |
-| `an-area-trigger-measured-from-a-point` | 2 | 1 |
 | `difficult-terrain-an-area-creates` | 2 | 1 |
 | `forced-movement-a-spell-causes` | 2 | 1 |
 | `what-a-creature-is-holding` | 2 | 1 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-reaction-window-that-opens-on-being-targeted` | 1 | 1 |
-| `a-wall-or-several-templates-in-one-area` | 1 | 1 |
 | `a-world-fact-nothing-can-represent` | 1 | 1 |
-| `falling` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
-| `jumping` | 1 | 1 |
 | `what-ends-attunement-besides-a-command` | 1 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 4 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
@@ -77,7 +73,6 @@ hold at all. An executed spell with nothing left is not here.
 | `a-check-another-creature-may-attempt` | 3 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 3 | 0 |
 | `a-second-place-to-put-a-creature` | 3 | 0 |
-| `a-barrier-that-blocks-passage` | 2 | 0 |
 | `a-damage-penalty-a-spell-grants` | 2 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
@@ -91,6 +86,7 @@ hold at all. An executed spell with nothing left is not here.
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
+| `a-condition-that-ends-when-its-holder-leaves-an-area` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
@@ -104,6 +100,7 @@ hold at all. An executed spell with nothing left is not here.
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 1 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
+| `an-area-trigger-measured-from-a-point` | 1 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 1 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 1 | 0 |
 | `an-effect-that-stabilises-a-dying-creature` | 1 | 0 |
@@ -146,6 +143,12 @@ sums to the population.
 - **Enthrall** (level 2) — tracked — also waits on 1
 - **Call Lightning** (level 3) — tracked — also waits on 1
 
+#### `a-barrier-that-blocks-passage` — blocks 3, finishes 1
+
+- **Magic Circle** (level 3) — tracked — also waits on 3
+- **Tiny Hut** (level 3) — tracked — also waits on 2
+- **Wind Wall** (level 3) — executed-partial
+
 #### `a-stat-block-created-mid-fight` — blocks 3, finishes 1
 
 - **Unseen Servant** (level 1) — tracked — also waits on 1
@@ -164,20 +167,10 @@ sums to the population.
 - **Gaseous Form** (level 3) — executed-partial — also waits on 2
 - **Haste** (level 3) — executed-partial — also waits on 2
 
-#### `a-condition-that-ends-when-its-holder-leaves-an-area` — blocks 2, finishes 1
-
-- **Silence** (level 2) — tracked — also waits on 1
-- **Web** (level 2) — executed-partial
-
 #### `a-creature-fact-an-effect-overrides` — blocks 2, finishes 1
 
 - **Arcanist's Magic Aura** (level 2) — tracked
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-
-#### `an-area-trigger-measured-from-a-point` — blocks 2, finishes 1
-
-- **Flaming Sphere** (level 2) — tracked
-- **Phantasmal Force** (level 2) — no-definition — also waits on 2
 
 #### `difficult-terrain-an-area-creates` — blocks 2, finishes 1
 
@@ -206,25 +199,13 @@ sums to the population.
 
 - **Shield** (level 1) — executed-partial
 
-#### `a-wall-or-several-templates-in-one-area` — blocks 1, finishes 1
-
-- **Wind Wall** (level 3) — tracked
-
 #### `a-world-fact-nothing-can-represent` — blocks 1, finishes 1
 
 - **Meld into Stone** (level 3) — tracked
 
-#### `falling` — blocks 1, finishes 1
-
-- **Feather Fall** (level 1) — tracked
-
 #### `healing-that-raises-the-dead` — blocks 1, finishes 1
 
 - **Revivify** (level 3) — tracked
-
-#### `jumping` — blocks 1, finishes 1
-
-- **Jump** (level 1) — tracked
 
 #### `what-ends-attunement-besides-a-command` — blocks 1, finishes 1
 
@@ -267,11 +248,6 @@ sums to the population.
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
-
-#### `a-barrier-that-blocks-passage` — blocks 2, finishes 0
-
-- **Magic Circle** (level 3) — tracked — also waits on 3
-- **Tiny Hut** (level 3) — tracked — also waits on 2
 
 #### `a-damage-penalty-a-spell-grants` — blocks 2, finishes 0
 
@@ -334,6 +310,10 @@ sums to the population.
 
 - **Magic Circle** (level 3) — tracked — also waits on 3
 
+#### `a-condition-that-ends-when-its-holder-leaves-an-area` — blocks 1, finishes 0
+
+- **Silence** (level 2) — tracked — also waits on 1
+
 #### `a-creature-type-predicate-an-area-reads` — blocks 1, finishes 0
 
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
@@ -385,6 +365,10 @@ sums to the population.
 #### `an-area-moved-by-the-casters-own-movement` — blocks 1, finishes 0
 
 - **Conjure Animals** (level 3) — tracked — also waits on 1
+
+#### `an-area-trigger-measured-from-a-point` — blocks 1, finishes 0
+
+- **Phantasmal Force** (level 2) — no-definition — also waits on 2
 
 #### `an-area-trigger-on-the-casters-turn` — blocks 1, finishes 0
 

@@ -1962,3 +1962,20 @@ Appended after wave seven's first spells track (2026-09-24):
   on `attack-damage` — the one effect a cast-on-hit carries — taking riders,
   which is a decision about what the settled outcome of a spell cast on a hit
   already landed is.
+- **Four spells finished in space and time, one partial, one stopped.** A
+  condition may end when its holder leaves the area that imposed it
+  (`endsWhenOutsideArea`, legal only under an `AreaTrigger` because the
+  trigger is pinned whole and the fold reads the mark and the geometry from
+  one value — Web); an area trigger may be measured from the casting's point
+  rather than its area and may catch the creature whose space the point is
+  rolled into (`within`, `onPointEntry` — Flaming Sphere, whose light is the
+  area's and whose burn is the point's); a casting may ward a fall
+  (`fall-ward`, read above the dice so a short landing still ends the spell —
+  Feather Fall); Jump is the 2024 sentence, a jump the spell bought at a price
+  the spell fixed, and the `jumping` shape retires; Wind Wall is the seventh
+  template and the only one the caster draws (`path`), executed for its save
+  and partial for its barrier. **Levitate stopped, and is ruled:** a save that
+  gates a lift is a **movement rider** — `OutcomeRiders` gains `movement`
+  (lift, push or pull, with feet), so a save may gate forced movement for
+  Levitate, Gust of Wind and any push a failure buys; one shape rather than a
+  save path in the movement resolver that Metamagic could not reach.
