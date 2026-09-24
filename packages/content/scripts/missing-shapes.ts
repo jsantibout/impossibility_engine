@@ -849,6 +849,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "If the creature ends its turn in a space where it doesn\'t have line of sight to you, the creature makes a Wisdom saving throw." A repeat save is raised by a turn boundary and owed by whoever holds the condition; this one is owed only where a pairwise sight declaration says the target cannot see the caster, which no boundary reads.',
     },
   ],
+  'feather-fall': [
+    {
+      clause: 'a creature you can see',
+      why: 'table',
+      note: 'the Reaction’s printed trigger names a falling creature its caster can see within 60 feet, and the engine checks both halves it can count: the range against every target, and that each of them is falling. What it does not check is that the caster perceived **this** fall — the same condition Counterspell’s trigger carries, on the same window machinery. A fall is a fact the table declares, and who saw it happen is declared with it.',
+    },
+  ],
   'find-familiar': [
     {
       clause: 'seeing through the familiar’s eyes and hearing what it hears',
@@ -2037,30 +2044,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'A creature can make a Dexterity saving throw to grab a fixed object it can reach',
       why: 'falling',
       note: 'the save is ordinary and what it avoids is a fall upward. A fall is a fact the table can now declare, which is the half Feather Fall needed — but nothing lets an effect *produce* one, so a failed save here has no way to say the creature fell, and the fall upward still ends against a ceiling nothing models.',
-    },
-  ],
-  /**
-   * The spell the `falling` shape was named for, and now a definition — so
-   * what it still owes is two sentences rather than the whole paragraph.
-   *
-   * Both are marker-less, and that is the form working as designed: the SRD
-   * writes a descent rate and a fall's damage in none of the guard's words —
-   * `speed` is `Speed` with a capital and this says "rate of descent",
-   * `movement-cost` wants "feet of movement" — so nothing demanded these
-   * entries and somebody read the paragraph.
-   */
-  'feather-fall': [
-    {
-      marker: null,
-      clause: 'rate of descent slows to 60 feet per round',
-      why: 'falling',
-      note: 'the declared fall says a creature is falling and nothing else: no height, no speed downward, and so no rate for this to slow. The SRD prints the new rate and leaves the distance to the DM, so a descent the engine measured would be one it had invented the number for.',
-    },
-    {
-      marker: null,
-      clause: 'the creature takes no damage from the fall',
-      why: 'falling',
-      note: 'the damage is modelled now — `resolveFall` throws a die per ten feet against a height the table states — and what this sentence needs is the half beside it: a **reduction** hung on a creature that the fall’s own damage roll reads. Nothing grants one, so there is still nothing here for the spell to prevent, and it is the same missing half the Monk’s Slow Fall waits on.',
     },
   ],
   sequester: [

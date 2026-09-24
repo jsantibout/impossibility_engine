@@ -3964,7 +3964,15 @@ describe('every branch judges untyped input rather than throwing on it', () => {
    * so the `kind` `checkShape` has already established is the whole effect and
    * there is nothing below it to be malformed.
    */
-  const READ_NO_FIELD: ReadonlySet<string> = new Set(['dispel', 'interrupt-casting']);
+  const READ_NO_FIELD: ReadonlySet<string> = new Set([
+    'dispel',
+    'interrupt-casting',
+    // The third, and it is the same entry for the same reason: SRD Feather
+    // Fall prints an outcome rather than an amount — "takes **no** damage from
+    // the fall" — so `fall-ward` carries no field at all and the `kind`
+    // `checkShape` has already established is the whole effect.
+    'fall-ward',
+  ]);
 
   /**
    * **The table is held against the union, in both directions.**

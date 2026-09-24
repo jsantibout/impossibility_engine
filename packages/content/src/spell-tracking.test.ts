@@ -625,6 +625,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'darkvision',
     'daylight',
     'expeditious-retreat',
+    // And the fifth kind of clean paragraph: SRD Feather Fall's prints a
+    // descent rate, a landing and a spell ending, and the marker list knows
+    // none of those words — `speed` is `Speed` with a capital and this says
+    // "rate of descent". The ward it hangs is executed all the same.
+    'feather-fall',
     'fog-cloud',
     'light',
     'magic-weapon',
@@ -1550,6 +1555,12 @@ describe('every spell this batch added is cast for real', () => {
     'enhance-ability',
     'expeditious-retreat',
     'faerie-fire',
+    // Feather Fall left the tracked bucket too, on the half the `falling`
+    // shape was still owed — a ward the landing reads, hung per creature so
+    // that one of five landing ends the spell on that one and leaves the other
+    // four in the air. It is **not** in this list, because this list is about
+    // the spells `ADDED` names and Feather Fall was written before that pass;
+    // `blocked-on.test.ts` is where its departure is recorded.
     'find-steed',
     // **Flaming Sphere leaves on a reach rather than on a template.** Its
     // clause is "within 5 feet of the sphere", measured from a point the

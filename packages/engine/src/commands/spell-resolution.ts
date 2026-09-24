@@ -168,6 +168,7 @@ import {
   resolveSpeedEffect,
   resolveWeaponRiderEffect,
 } from './spell-effect-grants.js';
+import { resolveFallWardEffect } from './spell-effect-movement.js';
 import {
   resolveHealEffect,
   resolveTempHpEffect,
@@ -2312,6 +2313,8 @@ function resolveOneEffect(
       return resolveLightEffect(ctx, effect, target, world);
     case 'sense':
       return resolveSenseEffect(ctx, effect, target, world);
+    case 'fall-ward':
+      return resolveFallWardEffect(ctx, target, world);
     case 'damage-reduction':
       return resolveDamageReductionEffect(ctx, effect, target, world);
     case 'action-rule':

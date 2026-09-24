@@ -23,10 +23,11 @@
  * casting's `unverified`, exactly as the Push mastery says it.
  */
 
-import { type CharacterId } from '@ie/shared';
-import { type GameEvent, type GameState } from '../events.js';
+import { ok, type CharacterId, type Result } from '@ie/shared';
+import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { bearingBetween, distanceBetween, moveCreature } from '../positioning.js';
 import { type ForcedMovement } from '../spell-definitions.js';
+import { type EffectContext } from './spell-effect-context.js';
 
 /** What a shove came to: the event it wrote, or the reason it wrote none. */
 export interface PushOutcome {
@@ -138,4 +139,35 @@ export function pullToward(
   }
 
   return { events: [{ type: 'creature-moved', id: target, placement, forced: true }], unverified: [] };
+}
+
+/**
+ * The casting takes the cost of landing away from its target.
+ *
+ * SRD *Feather Fall*: "If a creature lands before the spell ends, the creature
+ * takes **no damage** from the fall, and the spell ends for that creature."
+ *
+ * **A grant rather than something done now**, because the sentence is about a
+ * moment that has not arrived: the spell is cast while the creature is still
+ * in the air, and what it changes is what the landing costs. So this is the
+ * shape `resolveSenseEffect` and `resolveDamageReductionEffect` already are —
+ * nothing is rolled, the casting is in the source, and `releaseCasting`,
+ * `releaseOnTarget` and a `grants` deadline take it back — and the reading
+ * happens in `resolveFall`, which is where a fall is paid for and where the
+ * other half of the sentence ends the spell on whoever landed.
+ *
+ * It is in this module rather than beside those two because falling is
+ * movement, and this is what a spell does to a creature's movement through
+ * space.
+ */
+export function resolveFallWardEffect(
+  ctx: EffectContext,
+  target: CharacterId,
+  world: GameState,
+): Result<GameState> {
+  const { source, events, outcomes, held } = ctx;
+  held.add(target);
+  events.push({ type: 'fall-ward-granted', id: target, ward: { source } });
+  outcomes.push({ target, affected: true });
+  return ok(events.slice(-1).reduce(applyEvent, world));
 }

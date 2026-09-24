@@ -2679,20 +2679,25 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     expect(claimedShapes().has('an-armor-class-a-spell-floors')).toBe(true);
     expect(SRD_CONTENT.spell('barkskin')?.effects).toEqual([]);
 
-    // **A fourth, and the first to leave on a shape that was half built.**
-    // Feather Fall waited on `falling` and nothing else, and what it actually
-    // needed was the *trigger* half: a fall the engine can see. That is built
-    // — a declared fact and a Reaction window over it — so the spell is cast
-    // for real. The half with the numbers in it is not, and `falling` keeps
-    // two tracked claimants saying so rather than being retired on the
-    // strength of the half that landed.
+    // **A fourth, and the only row to leave this list in two steps.** Feather
+    // Fall waited on `falling` and nothing else. The *trigger* half arrived
+    // first — a fall the engine can see, a declared fact with a Reaction
+    // window over it — and the spell was written as a tracked definition that
+    // spent the slot and said what it still owed. The half with the number in
+    // it arrived second: `fall-ward` is a grant the landing reads, so "the
+    // creature takes no damage from the fall, and the spell ends for that
+    // creature" is executed and the spell is clean of the shape.
+    //
+    // **And the shape does not retire with it**, which is the pattern
+    // Scorching Ray's row records too: Reverse Gravity still needs a failed
+    // save to *produce* a fall, which nothing does, so `falling` keeps a
+    // claimant rather than being retired on the strength of the half that
+    // landed.
     expect(BLOCKED_ON['feather-fall']).toBeUndefined();
     expect(claimedShapes().has('falling')).toBe(true);
-    expect(SRD_CONTENT.spell('feather-fall')?.effects).toEqual([]);
-    expect((TRACKED_ADJUDICATED['feather-fall'] ?? []).map((entry) => entry.why)).toEqual([
-      'falling',
-      'falling',
-    ]);
+    expect(SRD_CONTENT.spell('feather-fall')?.effects).not.toEqual([]);
+    expect(TRACKED_ADJUDICATED['feather-fall']).toBeUndefined();
+    expect((ADJUDICATED['feather-fall'] ?? []).map((entry) => entry.why)).toEqual(['table']);
   });
 });
 

@@ -12,6 +12,7 @@
     "CommandStamp",
     "LastDamage",
     "FallMoment",
+    "GrantedFallWard",
     "PendingAttack",
     "PendingMove",
     "PendingCasting",

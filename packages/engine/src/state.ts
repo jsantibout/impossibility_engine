@@ -627,6 +627,32 @@ export interface CreatureState {
    */
   readonly damageReductions: readonly GrantedDamageReduction[];
   /**
+   * Running effects that take the cost of a **fall** away entirely.
+   *
+   * SRD *Feather Fall*: "If a creature lands before the spell ends, the
+   * creature takes no damage from the fall, and the spell ends for that
+   * creature."
+   *
+   * **Not {@link damageReductions}, and the difference is not a number.** That
+   * family subtracts a roll from a hit of a stated type, wherever the hit came
+   * from; this one is about *what happened* rather than about how much — a
+   * warded creature takes nothing from a fall of any height, and the same
+   * creature takes an ordinary Fire Bolt in the face. A reduction large enough
+   * to reach zero would also have had to name Bludgeoning, which would have
+   * warded it against a club.
+   *
+   * Read by `resolveFall`, which throws no dice at all where one is held: "no
+   * damage" is not a roll that came to nothing, and a creature who avoided the
+   * damage does not land Prone either — SRD ties the two together in one word
+   * ("**unless** you avoid taking damage from the fall ... You **then** have
+   * the Prone condition").
+   *
+   * Linked by the source like every other grant, so `releaseCasting`,
+   * `releaseOnTarget` and a `grants` deadline all end it through the door that
+   * already existed — and the landing itself ends it, because the book does.
+   */
+  readonly fallWards: readonly GrantedFallWard[];
+  /**
    * Extra damage a running effect adds to this creature's **later** attacks.
    *
    * The sixth member of the family the five above form, and the one whose
@@ -928,6 +954,25 @@ export interface LastDamage {
 export interface FallMoment {
   readonly turn: number | null;
   readonly elapsed: number;
+}
+
+/**
+ * A running effect that takes a fall's damage away, read only for what hung
+ * it.
+ *
+ * One field, because SRD *Feather Fall* prints one outcome and no number:
+ * "the creature takes **no** damage from the fall". A magnitude here would be
+ * {@link GrantedDamageReduction} written a second time, and the Monk's Slow
+ * Fall — which does print a number — is a feature's standing grant read from
+ * the sheet, not this.
+ *
+ * Declared here beside {@link FallMoment} for its reason: falling is a fact
+ * about a creature that the engine holds in exactly two places, the moment the
+ * table declares and the ward a casting hung, and neither belongs to a sheet.
+ */
+export interface GrantedFallWard {
+  /** The casting (`Feather Fall#cast:3`) that hung it. */
+  readonly source: string;
 }
 
 export interface PendingAttack {

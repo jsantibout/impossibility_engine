@@ -253,6 +253,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'effect-scheduled',
   'exhaustion-set',
   'fall-declared',
+  'fall-ward-granted',
   'feature-activated',
   'feature-ended',
   'feature-used',

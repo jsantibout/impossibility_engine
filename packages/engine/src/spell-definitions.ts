@@ -2159,6 +2159,25 @@ export type SpellEffect =
    */
   | { readonly kind: 'sense'; readonly sense: SenseName; readonly feet: number }
   /**
+   * The casting takes a **fall's** cost away from its target entirely — SRD
+   * *Feather Fall*: "If a creature lands before the spell ends, the creature
+   * takes no damage from the fall, and the spell ends for that creature."
+   *
+   * **No number, and that is the whole shape.** The Monk's Slow Fall prints
+   * one — five times the Monk level — and is a feature's standing grant read
+   * off the sheet; this sentence prints an outcome instead, so a magnitude
+   * here would be `damage-reduction` written twice and would have had to name
+   * Bludgeoning to be subtracted from anything, warding its holder against a
+   * club along the way.
+   *
+   * Read by `resolveFall`, which throws no dice where a ward is held — "no
+   * damage" is not a roll that came to nothing — and leaves the lander
+   * standing, because SRD makes the Prone conditional on having paid. The
+   * second half of the sentence is performed there too: the casting ends on
+   * the creature that lands and runs on for the other four.
+   */
+  | { readonly kind: 'fall-ward' }
+  /**
    * An amount the spell takes off a hit **before** the target's defences meet
    * it — SRD Resistance: "When the creature takes damage of the chosen type
    * before the spell ends, the creature reduces the total damage taken by 1d4.
@@ -5123,6 +5142,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // list of types, both the book's, with nothing of the caster's in
       // either — SRD Resistance's d4 is a d4 whoever cast it.
       case 'damage-reduction':
+      // And the ward that takes a fall's cost away, which carries no number at
+      // all: "no damage" is an outcome rather than an amount, so there is
+      // nothing of the caster's for it to pin.
+      case 'fall-ward':
       case 'attack-rider':
       // The ability it may pin is not one of these three: it is an *ability*
       // and not a number, which is `castersAbilityRead`'s question and not

@@ -5889,6 +5889,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'light',
   'sense',
   'damage-reduction',
+  'fall-ward',
   'attack-rider',
   'weapon-rider',
   'weapon-attack',

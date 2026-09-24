@@ -2317,11 +2317,14 @@ export const FEATHER_FALL: SpellDefinition = {
   // demand, and `self: true` because the trigger names the caster first: "when
   // **you** or a creature you can see ... falls".
   targets: { count: 5, self: true, mustBeFalling: true },
-  effects: [],
+  // "the creature takes no damage from the fall, and the spell ends for that
+  // creature" — both halves, and the second is why a ward is hung on each of
+  // the five separately rather than on the casting: one of them landing ends
+  // the spell on that one and leaves the other four in the air.
+  effects: [{ kind: 'fall-ward' }],
   durationSeconds: 60,
   unmodelled: [
     'the rate of descent is not slowed: nothing in the engine measures a descent, and the SRD gives the new rate as 60 feet per round against a height only the DM holds',
-    'a creature that lands before the spell ends takes no damage from the fall and the spell ends for that creature; falling damage is the table’s, so the DM decides what the landing costs and ends the casting for whoever reaches the ground',
     'the trigger’s "a creature you can see" goes unchecked, as Counterspell’s does: the 60 feet is the spell’s Range and is checked, and which falls a caster perceives the engine has never modelled',
   ],
 };

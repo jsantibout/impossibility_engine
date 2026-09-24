@@ -30,6 +30,7 @@ import {
   type MovementMode,
 } from '../character.js';
 import { bestPrintedMeleeAttack, hasPrintedTrait, printedLeap } from '../monster.js';
+import { castingIdOf } from '../spells.js';
 import {
   altitudeOf,
   canPassThrough,
@@ -1919,6 +1920,29 @@ function heightFallen(
   }
 }
 
+/**
+ * The castings that have taken the cost of landing away from this creature.
+ *
+ * SRD *Feather Fall*, and the whole of what the ward is: a list of sources,
+ * each carrying the casting that hung it. The casting ids are what the ending
+ * needs — "the spell ends for that creature" — and the list is what decides
+ * whether a die is thrown at all.
+ *
+ * Sorted, because `fall-ward-granted` sorts the grants by source and two
+ * readers of one state have to agree on the order the endings are written in.
+ * A ward from something that is not a casting ends nothing and is simply not
+ * here; nothing can write one today, and a ward that could not be ended would
+ * be a creature that never pays for a landing again.
+ */
+function wardsAgainstFalling(state: GameState, who: CharacterId): readonly string[] {
+  const found: string[] = [];
+  for (const ward of state.creatures[who]?.fallWards ?? []) {
+    const castingId = castingIdOf(ward.source);
+    if (castingId !== null) found.push(castingId);
+  }
+  return found;
+}
+
 export function resolveFall(
   state: GameState,
   id: CharacterId,
@@ -1968,6 +1992,47 @@ export function resolveFall(
     // and the descent says so.
     if (count === 0) {
       return ok({ ...nothing(false), events: descent, unverified: dropped.value.unverified });
+    }
+
+    // SRD *Feather Fall*: "If a creature lands before the spell ends, the
+    // creature takes **no damage** from the fall, and the spell ends for that
+    // creature."
+    //
+    // **The same word decides both halves.** "Unless you avoid taking damage
+    // from the fall" is what makes a warded creature land on its feet, so this
+    // branch is above the dice rather than a subtraction after them: nothing
+    // is thrown, because "no damage" is not a roll that came to nothing, and
+    // the generator does not move for a landing that cost nothing.
+    //
+    // And the spell ends **on that creature**, through the door a repeat save
+    // already uses — the other four the casting caught are still falling, and
+    // it is still holding them.
+    const warded = wardsAgainstFalling(state, id);
+    if (warded.length > 0) {
+      const ended = warded.map(
+        (castingId, at): GameEvent => ({
+          type: 'spell-ended',
+          castingId,
+          on: id,
+          // `spent`, which is the ending nobody decides: the ward was used up
+          // by the landing it paid for, exactly as SRD Mirror Image's last
+          // duplicate is used up by the blow that destroys it. Not `dismissed`
+          // — the caster did nothing — and not `dispelled`, which is somebody
+          // else's magic defeating theirs.
+          reason: 'spent',
+          // The stamp rides the first event this command writes, whichever it
+          // is: the descent where the engine knew the height, and otherwise
+          // the ending. Without it a retry would send `spell-ended` a second
+          // time — and the ward is gone with the first, so the retry finds
+          // nothing to end and writes nothing either way.
+          ...(stamp === null || descent.length > 0 || at > 0 ? {} : { command: stamp }),
+        }),
+      );
+      return ok({
+        ...nothing(false),
+        events: [...descent, ...ended],
+        unverified: dropped.value.unverified,
+      });
     }
 
     const dice = `${count}d6`;

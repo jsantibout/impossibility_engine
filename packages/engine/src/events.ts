@@ -81,6 +81,7 @@ import {
 import type {
   Attachment,
   CommandStamp,
+  GrantedFallWard,
   InventoryLine,
   PendingAttack,
   PendingCasting,
@@ -138,6 +139,7 @@ export type {
   CommandStamp,
   CreatureState,
   GameState,
+  GrantedFallWard,
   InventoryLine,
   LastDamage,
   PendingAttack,
@@ -508,6 +510,26 @@ export type GameEvent =
       readonly type: 'damage-reduction-granted';
       readonly id: CharacterId;
       readonly reduction: GrantedDamageReduction;
+    }
+  /**
+   * A running effect takes a **fall's** cost away from a creature entirely —
+   * SRD *Feather Fall*: "the creature takes no damage from the fall."
+   *
+   * Its own event rather than a `damage-reduction-granted`, because it carries
+   * no magnitude and names no damage type: what it says is that this creature
+   * does not pay for landing, at any height, while it lasts. A reduction big
+   * enough to reach zero would have had to name Bludgeoning, and would then
+   * have warded its holder against a club.
+   *
+   * Ended by the source it carries, exactly as the six grants above are, so
+   * there is no removal event: `releaseCasting`, `releaseOnTarget` and the
+   * `grants` timer are the doors — and the landing is a fourth, because the
+   * book ends the spell on the creature that lands.
+   */
+  | {
+      readonly type: 'fall-ward-granted';
+      readonly id: CharacterId;
+      readonly ward: GrantedFallWard;
     }
 
   /**

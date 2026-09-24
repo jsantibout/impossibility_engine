@@ -41,6 +41,7 @@ export const GRANTS_EVENTS = [
   'speed-modifier-granted',
   'sense-granted',
   'damage-reduction-granted',
+  'fall-ward-granted',
   'attack-rider-granted',
   'weapon-rider-granted',
   'condition-immunity-granted',
@@ -212,6 +213,20 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.reduction,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { damageReductions }, creature);
+    }
+
+    // SRD *Feather Fall*: "the creature takes no damage from the fall." The
+    // source alone is the identity, as it is for a reduction, a sense and a
+    // Speed: a second Feather Fall on one creature is a second casting rather
+    // than a second entry under the first, and two wards ward exactly as one
+    // does.
+    case 'fall-ward-granted': {
+      const creature = creatureOf(state, event, event.id);
+      const fallWards = [
+        ...creature.fallWards.filter((held) => held.source !== event.ward.source),
+        event.ward,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { fallWards }, creature);
     }
 
     case 'attack-rider-granted': {

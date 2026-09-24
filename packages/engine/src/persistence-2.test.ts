@@ -607,6 +607,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // opportunity appearing and disappearing on the same rule, and the spell
   // cast through the public API.
   'fall-declared',
+  // The ward SRD Feather Fall hangs on each falling creature it catches.
+  // Neither log could carry one: no casting could reach what a landing costs
+  // until `resolveFall` existed to charge for one, and the creature record had
+  // no `fallWards` list at all — so both fixtures fold to exactly the states
+  // they always folded to with that list empty on every creature.
+  // `feather-fall.test.ts` casts the spell in the falling window through the
+  // public API and drives it end to end: the sixty-foot fall that costs
+  // nothing, the lander left standing, the casting ending on that one creature
+  // and running on for the other, and an unwarded faller taking the dice.
+  'fall-ward-granted',
   // The two halves of a rule about hit points that a running effect states —
   // one standing in front of healing, one holding a maximum up. Neither log
   // was written when a spell could do either: no creature had a `healingRules`

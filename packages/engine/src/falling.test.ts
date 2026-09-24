@@ -7,7 +7,8 @@ import { fold, type GameEvent } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { createRollIssuer } from './rolls.js';
 import { declaredCasting } from './spellcasting.js';
-import { declareFalling, reactionOpportunities, resolveSpell } from './commands.js';
+import { declareFalling, reactionOpportunities, resolveFall, resolveSpell } from './commands.js';
+import { spellOn } from './fold/release.js';
 
 /**
  * A fall the engine can see.
@@ -254,11 +255,12 @@ describe('the whole spell, end to end through the public API', () => {
     expect(after.combat?.budgets[MAGE]?.reaction).toBe(false);
     expect(after.creatures[MAGE]?.resources.pools[spellSlotKey(1)]?.spent).toBe(1);
 
-    // The casting is a thing with an identity, aimed at the creature the
-    // caller named — which is the half a landing would have to reach into, on
-    // the day falling damage exists to end it early.
+    // The casting is a thing with an identity, and it is on the creature the
+    // caller named — through the ward it hung rather than through `aimed`,
+    // which holds only what the world cannot say. `spellOn` unions the two.
     const record = Object.values(after.ongoing).find((one) => one.spellId === 'feather-fall');
-    expect(record?.aimed).toEqual([CLIMBER]);
+    expect(record).toBeDefined();
+    expect(spellOn(after, record!)).toEqual([CLIMBER]);
 
     // SRD "Duration: 1 minute", on the clock and nowhere else — the spell
     // hangs nothing, so the minute is the whole of what runs out.
@@ -269,5 +271,124 @@ describe('the whole spell, end to end through the public API', () => {
       { type: 'time-advanced', seconds: 60, reason: 'the fall takes its time' },
     ]);
     expect(Object.keys(expired.timers)).toHaveLength(0);
+  });
+});
+
+// — what the landing costs a warded creature ————————————————————————————————
+
+/**
+ * SRD *Feather Fall*: "If a creature lands before the spell ends, the creature
+ * takes **no damage** from the fall, and the spell ends for that creature."
+ *
+ * The half the `falling` shape was still waiting on, and it is two sentences
+ * rather than one: the landing costs nothing, and the spell stops — for **that
+ * creature**, while it runs on for the other four the casting caught.
+ *
+ * **No damage is not a roll that came to nothing.** The dice are not thrown
+ * at all, which is observable from outside: a roll the engine issues moves the
+ * generator and leaves a `rolls-issued` behind, so a warded landing that threw
+ * 20d6 and subtracted them would be a different log from this one.
+ */
+describe('a warded creature pays nothing for landing', () => {
+  const FELL = 60;
+
+  /** The climber, falling, with the spell on them. */
+  const warded = (targets: readonly CharacterId[] = [CLIMBER]): readonly GameEvent[] => {
+    const declared = falls(FIGHTING);
+    const cast = unwrap(castFeatherFall(declared, targets), 'feather fall');
+    return [...declared, ...cast.events];
+  };
+
+  const land = (log: readonly GameEvent[], who: CharacterId = CLIMBER) =>
+    unwrap(resolveFall(fold('s', log), who, { feet: FELL }, supply()), `${who} landing`);
+
+  it('hangs the ward on the creature the casting caught', () => {
+    const state = fold('s', warded());
+    expect(state.creatures[CLIMBER]?.fallWards.map((ward) => ward.source)).toHaveLength(1);
+    expect(state.creatures[THUG]?.fallWards).toEqual([]);
+  });
+
+  it('turns a sixty-foot fall into no damage at all', () => {
+    const landed = land(warded());
+    expect(landed.damage).toBe(0);
+    expect(landed.dice).toBeNull();
+  });
+
+  /**
+   * SRD ties the Prone to having paid — "**unless** you avoid taking damage
+   * from the fall ... You **then** have the Prone condition" — so a creature
+   * that avoided it lands on its feet.
+   */
+  it('leaves the lander standing', () => {
+    const log = warded();
+    const landed = land(log);
+    expect(landed.prone).toBe(false);
+    expect(fold('s', [...log, ...landed.events]).creatures[CLIMBER]?.conditions.conditions).toEqual(
+      [],
+    );
+  });
+
+  /** And throws nothing: the generator does not move for a landing that cost nothing. */
+  it('throws no dice for it', () => {
+    const landed = land(warded());
+    expect(landed.events.some((event) => event.type === 'rolls-issued')).toBe(false);
+    expect(landed.events.some((event) => event.type === 'damage-taken')).toBe(false);
+  });
+
+  it('ends the spell for the creature that landed', () => {
+    const log = warded();
+    const landed = land(log);
+    expect(
+      landed.events.filter((event) => event.type === 'spell-ended' && event.on === CLIMBER),
+    ).toHaveLength(1);
+
+    const after = fold('s', [...log, ...landed.events]);
+    expect(after.creatures[CLIMBER]?.fallWards).toEqual([]);
+  });
+
+  /**
+   * **And runs on for the other one**, which is the reason the ward is hung
+   * per creature rather than on the casting: one of five landing must not take
+   * the spell away from the four still in the air.
+   */
+  it('leaves the casting running for everybody else it caught', () => {
+    const both = [
+      ...falls(FIGHTING),
+      ...unwrap(declareFalling(fold('s', falls(FIGHTING)), THUG), 'the thug falls'),
+    ];
+    const cast = unwrap(
+      resolveSpell(
+        fold('s', both),
+        MAGE,
+        { spellId: 'feather-fall', targets: [CLIMBER, THUG], slotLevel: 1 },
+        supply(),
+      ),
+      'feather fall on two',
+    );
+    const log = [...both, ...cast.events];
+    const landed = land(log);
+    const after = fold('s', [...log, ...landed.events]);
+
+    const record = Object.values(after.ongoing).find((one) => one.spellId === 'feather-fall');
+    expect(record).toBeDefined();
+    expect(after.creatures[THUG]?.fallWards).toHaveLength(1);
+    expect(after.creatures[CLIMBER]?.fallWards).toEqual([]);
+    expect(spellOn(after, record!)).toEqual([THUG]);
+  });
+
+  /** The control: a faller nobody warded pays the book's price. */
+  it('leaves an unwarded faller paying the dice', () => {
+    const landed = land(falls(FIGHTING));
+    expect(landed.dice).toBe('6d6');
+    expect(landed.damage).toBeGreaterThan(0);
+    expect(landed.prone).toBe(true);
+  });
+
+  /** Derived from the log alone, like everything else. */
+  it('folds to the same state from the log alone', () => {
+    const log = warded();
+    const landed = land(log);
+    const whole = [...log, ...landed.events];
+    expect(fold('s', JSON.parse(JSON.stringify(whole)) as GameEvent[])).toEqual(fold('s', whole));
   });
 });
