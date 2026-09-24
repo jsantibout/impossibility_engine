@@ -258,8 +258,8 @@ describe('a Warlock knows its spells, from the Warlock list', () => {
  * else reduces an enemy within 10 feet of you to 0 Hit Points."
  *
  * The catalogue's half of it: the grant the engine reads, and a note that says
- * what the scene answers. The engine's half â which enemy, whose enemy, and
- * both roads to 0 â is `at-zero-hit-points.test.ts`.
+ * what the scene answers. The engine's half — which enemy, whose enemy, and
+ * both roads to 0 — is `at-zero-hit-points.test.ts`.
  */
 describe("the Fiend's blessing is declared rather than left to a table", () => {
   const blessing = FIEND_PATRON.features.find(
@@ -280,7 +280,7 @@ describe("the Fiend's blessing is declared rather than left to a table", () => {
     expect(blessing.note).toContain('sides');
   });
 
-  it('reaches the sheet at the Warlockâs own class level', () => {
+  it('reaches the sheet at the Warlock’s own class level', () => {
     const state = built();
     expect(state.creatures[KAEL]!.sheet.onDroppingAHostile).toEqual([
       {

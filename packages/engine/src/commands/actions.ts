@@ -1154,6 +1154,12 @@ export function forcePrintedSave(
           current = hurt.value.events.reduce(applyEvent, current);
           dealt = hurt.value.amount;
           concentration = hurt.value.concentration;
+          // What a feature watching the blow could not settle — a side nobody
+          // has declared, a holder nobody has placed. The `drops-to-zero`
+          // clause reports the same thing through `applyPrintedClauses`, so a
+          // line's two arms would otherwise say different amounts about the
+          // same missing fact.
+          unsettled.push(...hurt.value.unverified);
         }
 
         // What the line does besides the damage: its failure clauses on a

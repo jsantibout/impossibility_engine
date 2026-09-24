@@ -269,11 +269,11 @@ describe('`look` says which printed lines the engine will roll', () => {
 
   /**
    * SRD Sea Hag's Death Glare and SRD Incubus' Nightmare each print a failure
-   * that branches on the target's Hit Points â "If the target has 20 Hit
-   * Points or fewer, â¦ . Otherwise, â¦" â and each stood on the other side of
+   * that branches on the target's Hit Points — "If the target has 20 Hit
+   * Points or fewer, … . Otherwise, …" — and each stood on the other side of
    * this flag until the branch was read.
    */
-  it('says true for the two lines that branch on the targetâs Hit Points', () => {
+  it('says true for the two lines that branch on the target’s Hit Points', () => {
     const hag = fight('the-hag-is-read', 'sea-hag');
     const glare = blockOf(hag, 'fang').actions.find((one) =>
       one.name.startsWith('Death Glare'),

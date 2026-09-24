@@ -399,12 +399,12 @@ function theWarlock(options: { readonly scene?: boolean } = {}) {
     step(placeCreatureInScene(state, FOE, { from: { creature: WARLOCK }, feet: 40, bearing: 315 }), 'the hag');
   }
 
-  step(declareCreatureSide(state, WARLOCK, 'party'), 'Kael\u2019s side');
-  step(declareCreatureSide(state, ALLY, 'party'), 'Rook\u2019s side');
+  step(declareCreatureSide(state, WARLOCK, 'party'), 'Kael’s side');
+  step(declareCreatureSide(state, ALLY, 'party'), 'Rook’s side');
   for (const goblin of [ADJACENT, NEAR, FAR]) {
-    step(declareCreatureSide(state, goblin, 'goblins'), `${goblin}\u2019s side`);
+    step(declareCreatureSide(state, goblin, 'goblins'), `${goblin}’s side`);
   }
-  step(declareCreatureSide(state, FOE, 'the deep'), 'the hag\u2019s side');
+  step(declareCreatureSide(state, FOE, 'the deep'), 'the hag’s side');
   step(
     beginCombat(state, [
       { id: WARLOCK, initiative: 20, speed: 30 },
@@ -420,13 +420,13 @@ function theWarlock(options: { readonly scene?: boolean } = {}) {
 }
 
 /** Swing until somebody connects, because a natural 1 misses whatever the target. */
-function swing(state: GameState, target: CharacterId, tag: string): GameState {
+function swing(state: GameState, target: CharacterId, tag: string) {
   for (const seed of SEEDS) {
     const out = unwrap(
       resolveAttack(
         state,
         WARLOCK,
-        // An Unarmed Strike, so no fixture depends on what a class\u2019s
+        // An Unarmed Strike, so no fixture depends on what a class’s
         // equipment pack happened to contain.
         { target, weapon: null, commandId: `${tag}-${seed}` },
         supply(`${tag}-${seed}`),
@@ -434,7 +434,7 @@ function swing(state: GameState, target: CharacterId, tag: string): GameState {
       'a swing',
     );
     const landed = after(state, out.events);
-    if (landed.creatures[target]!.vitals.hp === 0) return landed;
+    if (landed.creatures[target]!.vitals.hp === 0) return { out, state: landed };
   }
   throw new Error(`no seed dropped ${target}`);
 }
@@ -459,7 +459,7 @@ function glare(before: GameState, target: CharacterId) {
       forcePrintedSave(
         state,
         FOE,
-        { line: 'Death Glare (Recharge 5\u20136)', targets: [target], commandId: `glare-${seed}` },
+        { line: 'Death Glare (Recharge 5–6)', targets: [target], commandId: `glare-${seed}` },
         supply(seed),
       ),
       'the glare',
@@ -476,7 +476,7 @@ const temporaryHp = (state: GameState, who: CharacterId): number =>
 describe('the feature that watches an enemy fall', () => {
   it('pays a Warlock 3 with Charisma 16 six Temporary Hit Points for their own kill', () => {
     const table = theWarlock();
-    // The grant reached the sheet, with the Warlock\u2019s own class level on it.
+    // The grant reached the sheet, with the Warlock’s own class level on it.
     expect(table.state.creatures[WARLOCK]!.sheet.onDroppingAHostile).toEqual([
       {
         feature: 'fiend-patron:dark-ones-blessing',
@@ -488,7 +488,7 @@ describe('the feature that watches an enemy fall', () => {
       },
     ]);
 
-    const dropped = swing(table.state, ADJACENT, 'kael-swings');
+    const dropped = swing(table.state, ADJACENT, 'kael-swings').state;
     // Charisma 16 is +3, and the Warlock level is 3.
     expect(temporaryHp(dropped, WARLOCK)).toBe(6);
     expect(
@@ -497,21 +497,21 @@ describe('the feature that watches an enemy fall', () => {
   });
 
   it('refreshes rather than stacks on a second enemy falling', () => {
-    const first = swing(theWarlock().state, ADJACENT, 'kael-swings');
+    const first = swing(theWarlock().state, ADJACENT, 'kael-swings').state;
     expect(temporaryHp(first, WARLOCK)).toBe(6);
     // SRD: "you choose whether to keep the ones you have or gain the new ones"
-    // \u2014 and the larger pool is that choice made the only way it is ever made,
+    // — and the larger pool is that choice made the only way it is ever made,
     // so two sixes are six.
     const second = glare(first, NEAR);
     expect(temporaryHp(second.state, WARLOCK)).toBe(6);
   });
 
-  it('pays for somebody else\u2019s kill within ten feet, and not for one beyond', () => {
+  it('pays for somebody else’s kill within ten feet, and not for one beyond', () => {
     const table = theWarlock();
 
     const near = glare(table.state, NEAR);
     expect(near.state.creatures[NEAR]!.vitals.hp).toBe(0);
-    // And it was no blow at all: the hag\u2019s glare drops rather than hurts, and
+    // And it was no blow at all: the hag’s glare drops rather than hurts, and
     // the sentence counts it because "reduce an enemy to 0 Hit Points" is what
     // happened.
     expect(near.out.events.some((e) => e.type === 'damage-taken')).toBe(false);
@@ -525,13 +525,13 @@ describe('the feature that watches an enemy fall', () => {
     expect(temporaryHp(far.state, WARLOCK)).toBe(0);
   });
 
-  it('pays nothing for a creature on the Warlock\u2019s own side', () => {
-    const dropped = swing(theWarlock().state, ALLY, 'kael-turns-on-rook');
+  it('pays nothing for a creature on the Warlock’s own side', () => {
+    const dropped = swing(theWarlock().state, ALLY, 'kael-turns-on-rook').state;
     expect(dropped.creatures[ALLY]!.vitals.hp).toBe(0);
     expect(temporaryHp(dropped, WARLOCK)).toBe(0);
   });
 
-  it('counts only the Warlock\u2019s own kills where nobody has laid out a scene', () => {
+  it('counts only the Warlock’s own kills where nobody has laid out a scene', () => {
     const table = theWarlock({ scene: false });
     const { out, state } = glare(table.state, NEAR);
     expect(state.creatures[NEAR]!.vitals.hp).toBe(0);
@@ -554,6 +554,73 @@ describe('the feature that watches an enemy fall', () => {
       ),
     );
     const { out, state } = glare(unsided, NEAR);
+    expect(temporaryHp(state, WARLOCK)).toBe(0);
+    expect(
+      out.unverified.some((line) => line.includes(`nobody has said whose side ${NEAR} is on`)),
+    ).toBe(true);
+  });
+
+  /**
+   * And it says the same thing on the **other road to the same fall**.
+   *
+   * A creature reaches 0 two ways — a sentence that drops it, and damage that
+   * takes it there — and the two travel through different code: the printed
+   * clause executor and `dealSpellDamage`. A report written into one of them
+   * would be an engine that answers the same missing fact only when the fall
+   * happened to arrive by the road somebody remembered.
+   */
+  it('says the same about a missing side when the fall was dealt by damage', () => {
+    const unsided = fold(
+      'the-blessing',
+      theWarlock().log.filter(
+        (event) => !(event.type === 'creature-side-declared' && event.id === ADJACENT),
+      ),
+    );
+    const { out, state } = swing(unsided, ADJACENT, 'kael-swings-at-a-stranger');
+    expect(state.creatures[ADJACENT]!.vitals.hp).toBe(0);
+    expect(out.events.some((e) => e.type === 'damage-taken')).toBe(true);
+    expect(out.events.some((e) => e.type === 'hit-points-dropped-to-zero')).toBe(false);
+    expect(temporaryHp(state, WARLOCK)).toBe(0);
+    expect(
+      out.unverified.some((line) => line.includes(`nobody has said whose side ${ADJACENT} is on`)),
+    ).toBe(true);
+  });
+
+  /**
+   * And the **other arm of the same printed line** says it too.
+   *
+   * The glare reaches a creature two ways — a drop under its ceiling and 3d8
+   * over it — and only the first goes through the clause executor. The second
+   * is `dealSpellDamage`'s, reached from `forcePrintedSave`, and a report
+   * written into one of them would be a line that answers the same missing
+   * fact differently depending on how many Hit Points its target had.
+   */
+  it('says the same about a missing side when the line’s own damage does the dropping', () => {
+    const table = theWarlock();
+    // Over the ceiling, so the line rolls its 3d8 rather than dropping
+    // anybody outright — and Vulnerable to Psychic, so the 3d8 gets there.
+    const cursed: readonly GameEvent[] = [
+      { type: 'hit-point-maximum-raised', id: NEAR, amount: 20 },
+      {
+        type: 'damage-defense-granted',
+        id: NEAR,
+        defense: { source: 'a curse', damageTypes: ['psychic'], defense: 'vulnerable' },
+      },
+    ];
+    const over = after(
+      fold(
+        'the-blessing',
+        table.log.filter(
+          (event) => !(event.type === 'creature-side-declared' && event.id === NEAR),
+        ),
+      ),
+      cursed,
+    );
+
+    const { out, state } = glare(over, NEAR);
+    expect(state.creatures[NEAR]!.vitals.hp).toBe(0);
+    expect(out.events.some((e) => e.type === 'hit-points-dropped-to-zero')).toBe(false);
+    expect(out.events.some((e) => e.type === 'damage-taken')).toBe(true);
     expect(temporaryHp(state, WARLOCK)).toBe(0);
     expect(
       out.unverified.some((line) => line.includes(`nobody has said whose side ${NEAR} is on`)),

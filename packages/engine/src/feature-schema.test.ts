@@ -769,10 +769,11 @@ describe('the training a feature grants', () => {
 });
 
 describe('what a feature pays when an enemy falls', () => {
-  /** SRD Dark One's Blessing, which is the one line in the book of this shape. */
+  /** The shape SRD Dark One's Blessing prints, on the file's invented feature. */
   const blessing: FeatureDefinition = {
     ...sound,
-    id: 'wizard:grim-harvest',
+    id: 'wizard:a-blessed-feature',
+    name: 'A Blessed Feature',
     level: 3,
     automation: 'engine',
     grants: {
