@@ -600,13 +600,21 @@ export function releaseOnTarget(
  * Nothing here touches the casting itself. A casting whose grant has expired is
  * still running, still concentrated on, and still in `ongoing`.
  *
- * **It performs no landing, and nothing can reach it with a lift.** A
- * `GrantedLift` is hung by a movement rider, which carries no `lasts` and so
- * never gets a `grants` timer — the only thing that addresses a bare source.
- * Said out loud because the omission would otherwise be invisible: a deadline
- * that could end a lift here would leave a creature in the air with nothing
- * holding it, and the day a rider learns to end sooner than its casting this
- * function needs {@link landsWhenReleased} too.
+ * **It performs no landing, and it is the validator that keeps a lift away
+ * from it.** A `grants` timer is keyed by the casting's bare source and the
+ * creature, and every grant that casting hung carries that same string — a
+ * `GrantedLift` included. So a deadline arriving here would take the lift off
+ * and leave the creature in the air with nothing holding it up, because this
+ * function has a creature and no scene to set anybody down on. Nothing
+ * schedules such a timer unless some `modifiers` rider of the same casting
+ * names its own `lasts`, and `checkLiftAgainstDeadlines` refuses that anywhere
+ * in a definition that also lifts (`lift_beside_a_shorter_grant`).
+ *
+ * Said out loud because the omission would otherwise be invisible, and because
+ * the day an SRD sentence wants the pair it is this function that has to grow
+ * the landing — which means taking a scene, which means it stops being a
+ * function about one creature. That is the change, and it is why the refusal
+ * is at authoring instead.
  */
 export function releaseGrants(creature: CreatureState, source: string): CreatureState {
   return withoutGrants(creature, (held) => held === source);

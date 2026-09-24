@@ -1962,37 +1962,12 @@ function checkRiders(
           reason: `"${String(kind)}" is not a way a settled outcome moves a creature; the engine performs ${[...MOVEMENT_KINDS].join(' and ')}`,
         });
       }
-      // **A lift and a grant with a deadline of its own may not share a
-      // host**, and the reason is one line of plumbing rather than a rule
-      // about the book.
-      //
-      // Every rider on one outcome is filed under the **casting's** source,
-      // and a `modifiers` rider that names `lasts` schedules a `grants` timer
-      // against exactly that string. When the timer fires, `releaseGrants`
-      // takes off *everything* that source hung on the creature — which would
-      // include the lift, and `releaseGrants` has no scene to set anybody down
-      // on. The creature would be left hanging in the air with nothing holding
-      // it there, which is the one state SRD Levitate's last sentence exists
-      // to prevent.
-      //
-      // No SRD sentence writes the pair, so this is refused at authoring
-      // rather than answered: a deadline shorter than the casting is
-      // `EffectTarget.grants`' whole purpose, and giving it a landing would be
-      // building the other half of a sentence nobody has printed. `checkBudgetSpend`
-      // refuses `movement` for the same reason and in the same voice.
-      if (kind === 'lift' && Array.isArray(riders.modifiers)) {
-        const shorter = riders.modifiers.filter(
-          (rider) => (rider as { readonly lasts?: unknown } | undefined)?.lasts !== undefined,
-        );
-        if (shorter.length > 0) {
-          found.push({
-            field: `${path}.movement.kind`,
-            code: 'lift_beside_a_shorter_grant',
-            reason:
-              'a grant that ends before its casting takes every grant this casting hung on the creature with it, and a lift is one of them — the creature would be left in the air with nothing holding it up, so the two may not ride one outcome',
-          });
-        }
-      }
+      // A lift and a grant with a deadline of its own may not appear in one
+      // **definition**, and the rule is {@link checkLiftAgainstDeadlines}'
+      // rather than this walk's: the timer that would strand the creature is
+      // keyed by the casting's source and the target, neither of which is an
+      // effect, so a per-effect check would pass the same pair written two
+      // effects apart. Nothing about it is reported here.
     }
   }
   // The fifth slot, and the one that reaches the action economy: see
@@ -3664,6 +3639,73 @@ function checkGrantLifetimes(
 }
 
 /**
+ * A lift and a grant that ends before its casting may not be in one
+ * definition.
+ *
+ * **The scope is the definition because the hazard is.** Every rider a casting
+ * hangs is filed under one string — `castingSource(name, castingId)`, with no
+ * effect index in it — and a `modifiers` rider that names `lasts` schedules a
+ * `grants` timer keyed by *that source and the creature*. When the timer
+ * fires, `releaseGrants` takes off everything that source hung on the
+ * creature, and a `GrantedLift` is one of them. `releaseGrants` has a creature
+ * and no scene, so the landing SRD Levitate's last sentence promises could not
+ * happen there: the creature would be left in the air with nothing holding it
+ * up, which is the one state that sentence exists to prevent.
+ *
+ * So a check on one effect would refuse the pair written together and pass the
+ * same pair written two effects apart — and the second is not a different
+ * sentence, because both riders reach the same target under the same source.
+ * A refusal at authoring has to cover the shape it names.
+ *
+ * **Refused rather than answered**, because no SRD sentence writes the pair: a
+ * deadline shorter than the casting is what `EffectTarget.grants` exists for,
+ * and building the landing into `releaseGrants` would be writing the other
+ * half of a sentence nobody has printed. `checkBudgetSpend` refuses
+ * `movement` in the same voice and for the same reason.
+ *
+ * Reported at the lift, which is the field that would have to change: the
+ * deadline is an ordinary rider doing an ordinary thing, and the lift is the
+ * one the plumbing cannot carry beside it.
+ */
+function checkLiftAgainstDeadlines(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  const lists = effectLists(definition as unknown as Record<string, unknown>);
+  const holders: { readonly where: string; readonly at: number }[] = [];
+  let deadlines = 0;
+
+  for (const [where, effects] of lists) {
+    effects.forEach((effect, i) => {
+      if (typeof effect !== 'object' || effect === null) return;
+      const moved = (effect as { readonly movement?: { readonly kind?: unknown } }).movement;
+      if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
+        holders.push({ where, at: i });
+      }
+      // Read off the same slot `grantCarried` reads, and with the same
+      // tolerance for input nobody can walk: a `modifiers` that is not a list
+      // schedules nothing, and what is wrong with it is `checkRiders`' to say.
+      const modifiers = (effect as { readonly modifiers?: unknown }).modifiers;
+      if (!Array.isArray(modifiers)) return;
+      for (const rider of modifiers) {
+        if (typeof rider !== 'object' || rider === null) continue;
+        if ((rider as { readonly lasts?: unknown }).lasts !== undefined) deadlines += 1;
+      }
+    });
+  }
+
+  if (deadlines === 0) return;
+  for (const holder of holders) {
+    found.push({
+      field: `${holder.where}[${holder.at}].movement.kind`,
+      code: 'lift_beside_a_shorter_grant',
+      reason:
+        'a grant that ends before its casting takes every grant that casting hung on the creature with it, and a lift is one of them — the creature would be left in the air with nothing holding it up, so one casting may not both lift a creature and hand out a grant with a deadline of its own',
+    });
+  }
+}
+
+/**
  * The causes a trigger may name, as a set.
  *
  * The second place a runtime value restates a union, and here for the reason
@@ -5037,6 +5079,7 @@ export function checkSpellDefinition(
   // Last of the structural rules, so an effect's own problems are reported at
   // its own path first and this cross-check reads as the cross-check it is.
   checkGrantLifetimes(definition, lasts, found);
+  checkLiftAgainstDeadlines(definition, found);
 
   /**
    * The tracked rule, and the reason it belongs here rather than in a test.

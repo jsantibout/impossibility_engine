@@ -478,6 +478,64 @@ describe('the movement rider’s validator', () => {
     expect(found.map((problem) => problem.code)).toContain('lift_beside_a_shorter_grant');
   });
 
+  /**
+   * And the same pair written two effects apart, which is the form a
+   * per-effect check would have waved through.
+   *
+   * The timer that would strand the creature is keyed by the **casting's**
+   * source and the target, and neither of those is an effect: two effects of
+   * one definition landing on one creature share the string exactly as two
+   * riders on one outcome do. So the rule is the definition's.
+   */
+  it('refuses the same pair written in two effects of one spell', () => {
+    const split = {
+      ...lasting({ feet: 20, kind: 'lift' }),
+      effects: [
+        { kind: 'save', ability: 'con', movement: { feet: 20, kind: 'lift' } },
+        {
+          kind: 'save',
+          ability: 'con',
+          modifiers: [
+            { kind: 'speed-change', change: 'halve', lasts: 'start-of-casters-next-turn' },
+          ],
+        },
+      ],
+    } as unknown as SpellDefinition;
+    const found = checkSpellDefinition(split);
+    expect(found.map((problem) => problem.code)).toContain('lift_beside_a_shorter_grant');
+    // Reported at the lift, which is the field that would have to change.
+    expect(found.find((problem) => problem.code === 'lift_beside_a_shorter_grant')?.field).toBe(
+      'effects[0].movement.kind',
+    );
+  });
+
+  /**
+   * And across the two lists an `areaTrigger` puts beside the spell's own,
+   * because one casting hangs both under one source.
+   */
+  it('refuses a lift in the effects beside a deadline in the area trigger', () => {
+    const split = {
+      ...lasting({ feet: 20, kind: 'lift' }),
+      area: { kind: 'sphere', radius: 20, origin: 'point' },
+      areaTrigger: {
+        at: 'start-of-turn',
+        label: 'Homebrew Gale (the air)',
+        effects: [
+          {
+            kind: 'save',
+            ability: 'con',
+            modifiers: [
+              { kind: 'speed-change', change: 'halve', lasts: 'start-of-casters-next-turn' },
+            ],
+          },
+        ],
+      },
+    } as unknown as SpellDefinition;
+    expect(checkSpellDefinition(split).map((problem) => problem.code)).toContain(
+      'lift_beside_a_shorter_grant',
+    );
+  });
+
   /** And the same pair without the deadline, which nothing schedules a timer for. */
   it('accepts a lift beside a grant that lasts as long as the casting', () => {
     expect(
