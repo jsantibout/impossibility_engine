@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, SKILL_ABILITY } from '@ie/shared';
 import { checkContent } from './content.js';
+import { fold, type GameEvent, type GameState } from './events.js';
+import { standingSpellSaveDcBonus } from './standing.js';
 import {
   rollSelectorProblems,
   selectorMatches,
@@ -158,6 +160,70 @@ describe('what a selector may not say', () => {
     expect(
       problems({ roll: 'attack', relation: 'roller', onlyThroughClass: 'sorcerer' }),
     ).toContain('class_narrowing_without_a_spell');
+  });
+});
+
+/**
+ * The reader, on the axis the selector's twin is read on: which class a
+ * casting was made through, and the three answers that are not one.
+ */
+describe('what a spell-save-dc-bonus adds, and to whose casting', () => {
+  const holding = (grant: Record<string, unknown>): GameState =>
+    fold('seed', [
+      {
+        type: 'creature-added',
+        id: CASTER,
+        name: 'a caster',
+        sheet: {
+          level: 5,
+          abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 16 },
+          skills: {},
+          saveProficiencies: [],
+          armor: null,
+          shield: null,
+          armorTraining: { light: false, medium: false, heavy: false, shields: false },
+          baseSpeed: 30,
+          spellcastingAbility: 'cha',
+          standing: [
+            {
+              feature: 'a-feature',
+              name: 'A Feature',
+              reach: { kind: 'self' },
+              grant,
+            },
+          ],
+        },
+        maxHp: 30,
+        diesAtZero: false,
+        creatureType: 'Humanoid',
+      } as GameEvent,
+    ]);
+
+  it('adds the flat number to a casting made through the class it names', () => {
+    const state = holding({ kind: 'spell-save-dc-bonus', flat: 1, onlyThroughClass: 'sorcerer' });
+    expect(standingSpellSaveDcBonus(state, CASTER, 'sorcerer')).toBe(1);
+  });
+
+  it('adds nothing to the same caster’s other class', () => {
+    const state = holding({ kind: 'spell-save-dc-bonus', flat: 1, onlyThroughClass: 'sorcerer' });
+    expect(standingSpellSaveDcBonus(state, CASTER, 'wizard')).toBe(0);
+  });
+
+  /**
+   * A feat's granted route, a stat block's declaration and an item's are all
+   * "through no class", and a narrowed bonus reaches none of them — which the
+   * `wizard` case above cannot prove, because a null is not another class.
+   */
+  it('adds nothing to a casting made through no class at all', () => {
+    const state = holding({ kind: 'spell-save-dc-bonus', flat: 1, onlyThroughClass: 'sorcerer' });
+    expect(standingSpellSaveDcBonus(state, CASTER, null)).toBe(0);
+  });
+
+  /** An unnarrowed grant is the item's sentence, and reaches every casting. */
+  it('reaches every route when it names no class', () => {
+    const state = holding({ kind: 'spell-save-dc-bonus', flat: 2 });
+    expect(standingSpellSaveDcBonus(state, CASTER, 'wizard')).toBe(2);
+    expect(standingSpellSaveDcBonus(state, CASTER, null)).toBe(2);
   });
 });
 
