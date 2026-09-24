@@ -390,8 +390,8 @@ function rechoiceEvents(
  * that line is handed to the table whole today, so no adjustment in any log
  * this engine writes is marked to survive. The mark is
  * `GrantedHitPointMaximum`'s to grow when a reader for the line is built; a
- * third clause in the filter before then would be a guard over a fact nothing
- * can state.
+ * clause for it in the filter before then would be a guard over a fact
+ * nothing can state.
  */
 function loweringsALongRestEnds(
   state: GameState,
