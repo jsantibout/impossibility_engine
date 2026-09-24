@@ -673,6 +673,17 @@ export function defendingModes(
    * reads as a miss.
    */
   ability?: Ability | null,
+  /**
+   * What a **spell's** attack roll knows about itself and a weapon's does not:
+   * that a spell made it, and which class the casting was made through.
+   *
+   * SRD Innate Sorcery: "You have Advantage on the attack rolls of Sorcerer
+   * spells you cast." Only the spell attack site can answer either half —
+   * `resolveAttack` passes nothing, which is what makes a club not a spell —
+   * and `castThrough` is read off the casting's own route, absent for a feat's
+   * granted route, a stat block's declaration and an item's.
+   */
+  spell?: { readonly through?: string },
 ): { readonly modes: readonly ModeSource[]; readonly unverified: readonly string[] } {
   return rollModesFor(
     state,
@@ -681,6 +692,8 @@ export function defendingModes(
       roller: attacker,
       against: target,
       ...(ability === undefined || ability === null ? {} : { ability }),
+      ...(spell === undefined ? {} : { spellAttack: true as const }),
+      ...(spell?.through === undefined ? {} : { castThrough: spell.through }),
       // SRD Blur: "An attacker is immune to this effect if it perceives you
       // with Blindsight or Truesight." The **attacker's** senses, read at the
       // one roll that has two participants, so a selector on the defender can

@@ -168,8 +168,8 @@ export const SORCERER: ClassDefinition = {
       id: 'sorcerer:innate-sorcery',
       name: 'Innate Sorcery',
       level: 1,
-      automation: 'manual',
-      note: 'Half of it is applied, which is why this is not marked as executed. SRD: "As a Bonus Action, you can unleash that magic for 1 minute ... You can use this feature twice, and you regain all expended uses when you finish a Long Rest" — the Bonus Action, the two uses (which Sorcery Incarnate at level 7 buys back with Sorcery Points) and the minute on the clock are the engine’s, so the feature is switched on and off like any other and nothing maintains it. The rest is not: the +1 to spell save DC and Advantage on spell attacks are two benefits no standing effect states.',
+      automation: 'engine',
+      note: 'Applied whole. SRD: "As a Bonus Action, you can unleash that magic for 1 minute ... You can use this feature twice, and you regain all expended uses when you finish a Long Rest" — the Bonus Action, the two uses (which Sorcery Incarnate at level 7 buys back with Sorcery Points) and the minute on the clock switch the feature on and off like any other, and nothing maintains it. Both benefits are standing effects hung on the minute: "The spell save DC of Sorcerer spells you cast increases by 1" is a spell-save-dc-bonus added where numbersFor settles a casting\'s numbers and pinned onto the casting there, and "You have Advantage on the attack rolls of Sorcerer spells you cast" is a roll-mode narrowed by onlySpellAttacks. Both carry the sentence\'s own word Sorcerer as onlyThroughClass, so a Sorcerer/Wizard gets neither on the half she casts through the other class, and a feat\'s or a wand\'s casting — which is made through no class at all — gets neither either.',
       grants: {
         kind: 'activated',
         action: 'bonus-action',
@@ -181,6 +181,25 @@ export const SORCERER: ClassDefinition = {
         minimum: 2,
         recovers: 'long-rest',
         lastsSeconds: 60,
+        whileActive: [
+          // "The spell save DC of Sorcerer spells you cast increases by 1."
+          { kind: 'spell-save-dc-bonus', flat: 1, onlyThroughClass: 'sorcerer' },
+          // "You have Advantage on the attack rolls of Sorcerer spells you
+          // cast." The roller is the caster, which is the only end a sentence
+          // about what *you* cast can be written from.
+          {
+            kind: 'roll-mode',
+            modifier: {
+              mode: 'advantage',
+              selector: {
+                roll: 'attack',
+                relation: 'roller',
+                onlySpellAttacks: true,
+                onlyThroughClass: 'sorcerer',
+              },
+            },
+          },
+        ],
       },
     },
     {

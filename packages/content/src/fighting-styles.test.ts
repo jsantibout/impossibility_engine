@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import {
+  applyEvent,
+  armorClassOf,
   createCharacter,
   createRng,
   createRollIssuer,
+  equipItem,
   fold,
   resolveAttack,
   type CharacterChoices,
@@ -21,24 +24,26 @@ import { FIGHTING_STYLE_FEATS } from './origins.js';
  *
  * Every one of the four was a `FeatDefinition` with no grant at all —
  * arithmetic the catalogue described in a note and the engine never applied.
- * Two of them are declarations now, and the two that are not are blocked on
- * different things, which is the finding this file records:
+ * All four are declarations now, and what each of them wanted was different,
+ * which is the finding this file records:
  *
- * | | SRD's own clause | What it needs |
+ * | | SRD's own clause | What it needed |
  * |---|---|---|
- * | **Archery** | "+2 bonus to attack rolls you make with **Ranged weapons**" | a weapon narrowing — built |
- * | **Great Weapon Fighting** | "a **Melee** weapon that you are **holding with two hands** … **Two-Handed or Versatile**" | the same narrowing, and a rule about the dice — built |
+ * | **Archery** | "+2 bonus to attack rolls you make with **Ranged weapons**" | a weapon narrowing |
+ * | **Great Weapon Fighting** | "a **Melee** weapon that you are **holding with two hands** … **Two-Handed or Versatile**" | the same narrowing, and a rule about the dice |
  * | **Defense** | "While you're **wearing Light, Medium, or Heavy armor**" | a `StandingRequirement` about **armour**, which is a different clause entirely |
- * | **Two-Weapon Fighting** | "an extra attack as a result of using the **Light** property" | which hand an attack came from, which nothing records |
+ * | **Two-Weapon Fighting** | "an extra attack as a result of using the **Light** property" | which Light weapon the turn had already swung |
  *
- * Defense is here because an earlier note filed it under the weapon clause and
- * it was never one: `unarmored` and `not-wearing-heavy-armor` are its
- * opposites, and no member of the union says "wearing armour".
+ * Defense was the last of them because an earlier note filed it under the
+ * weapon clause and it was never one: `unarmored` and `not-wearing-heavy-armor`
+ * are its opposites, and no member of the union said "wearing armour" until
+ * `wearing-armor` was written beside them.
  */
 
 const id = (s: string) => asCharacterId(s);
 const SHOOTER = id('shooter');
 const HEWER = id('hewer');
+const WARDEN = id('warden');
 const GOBLIN = id('goblin');
 const ORC = id('orc');
 
@@ -116,6 +121,9 @@ const field = (who: CharacterId, featId: string): readonly GameEvent[] => [
       { id: 'longsword', quantity: 1 },
       { id: 'greatsword', quantity: 1 },
       { id: 'arrow', quantity: 20 },
+      // Owned rather than equipped, so it changes nothing until a test puts it
+      // on: SRD Defense is about armour and a Shield is the thing beside it.
+      { id: 'shield', quantity: 1 },
     ],
     source: 'the quartermaster',
   },
@@ -329,21 +337,72 @@ describe('SRD Great Weapon Fighting: "treat any 1 or 2 on a damage die as a 3"',
   });
 });
 
-describe('the one that is still a note, and what it is really blocked on', () => {
-  /**
-   * Defense's blocker is an **armour** clause, not a weapon one. The union has
-   * `unarmored` and `not-wearing-heavy-armor`, which are its opposites, and
-   * nothing that says "while wearing armour".
-   */
-  it('leaves Defense a note naming the requirement it wants', () => {
-    const defense = styleOf('defense');
-    expect(defense?.grants).toBeUndefined();
-    expect(defense?.note).toContain('StandingRequirement');
-    expect(defense?.note).toContain('wearing');
-    // And the blocker it no longer has: a feat carries a standing grant now.
-    expect(defense?.note).not.toContain('FEAT_GRANT_KINDS');
+/**
+ * SRD Defense: "While you're wearing Light, Medium, or Heavy armor, you gain a
+ * +1 bonus to Armor Class."
+ *
+ * The clause is about **armour**, not about a weapon, which is why this style
+ * was the last of the four to be written: `unarmored` and
+ * `not-wearing-heavy-armor` are its two opposites and neither could be negated
+ * into it — a Barbarian in a chain shirt satisfies `not-wearing-heavy-armor`
+ * and a Wizard in a robe satisfies both. `wearing-armor` is the third member
+ * on the axis and it reads the same slot the other two read.
+ */
+describe('SRD Defense: "While you’re wearing Light, Medium, or Heavy armor"', () => {
+  const armourClassWith = (featId: string, items: readonly string[]): number => {
+    let state = fold('seed', field(WARDEN, featId));
+    for (const item of items) {
+      state = unwrap(equipItem(state, SRD_CONTENT, WARDEN, item), `equip ${item}`).reduce(
+        applyEvent,
+        state,
+      );
+    }
+    return armorClassOf(state, WARDEN);
+  };
+
+  it('declares the bonus and the armour clause that gates it', () => {
+    const grant = styleOf('defense')?.grants;
+    expect(grant?.kind).toBe('standing');
+    if (grant?.kind !== 'standing') throw new Error('unreachable');
+    expect(grant.effects?.[0]).toEqual({ kind: 'flat-bonus', applies: ['ac'], flat: 1 });
+    expect(grant.requires).toEqual([{ kind: 'wearing-armor' }]);
   });
 
+  it('gives a Fighter in Chain Mail the point', () => {
+    expect(armourClassWith('defense', ['chain-mail'])).toBe(
+      armourClassWith('archery', ['chain-mail']) + 1,
+    );
+  });
+
+  it('gives the same Fighter nothing wearing nothing', () => {
+    expect(armourClassWith('defense', [])).toBe(armourClassWith('archery', []));
+  });
+
+  /**
+   * A Shield is not armour, which is the half of the clause a requirement
+   * written about "the sheet's two slots" would have got wrong: `unarmored`
+   * asks about both slots because its own sentence names both, and Defense's
+   * names one.
+   */
+  it('gives nothing for a Shield alone', () => {
+    expect(armourClassWith('defense', ['shield'])).toBe(armourClassWith('archery', ['shield']));
+  });
+
+  /** And the armour and the Shield together is still one point, not two. */
+  it('gives one point to armour worn behind a Shield', () => {
+    expect(armourClassWith('defense', ['chain-mail', 'shield'])).toBe(
+      armourClassWith('archery', ['chain-mail', 'shield']) + 1,
+    );
+  });
+
+  it('says in its own note that it is applied', () => {
+    const defense = styleOf('defense');
+    expect(defense?.note).toContain('Applied');
+    expect(defense?.note).not.toContain('is not applied');
+  });
+});
+
+describe('the last one to stop being a note', () => {
   /**
    * And Two-Weapon Fighting has left this describe by building: its note used
    * to say "the engine does not model which hand an attack came from", and the

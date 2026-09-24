@@ -394,10 +394,32 @@ export type ActionRule =
    * they may have it, which is the same direction every other rule here runs
    * in — an allowance nobody invokes changes nothing, exactly as a Dodge
    * nobody takes does.
+   *
+   * **One action or a bundle of them, and the SRD prints both.** Conjure
+   * Woodland Beings moves one action to a cheaper slot; SRD Patient Defense
+   * prints "expend 1 Focus Point to take **both** the Disengage and the Dodge
+   * actions as a Bonus Action", and Step of the Wind the same shape with Dash
+   * and Disengage. A bundle is one allowance rather than two, because it is
+   * one price: a Monk who paid for the pair and then took only the Disengage
+   * has spent the point, and two separate allowances would have let them take
+   * either for the same point twice.
+   *
+   * Exactly one of {@link action} and {@link actions} is written, which
+   * `checkActionRule` enforces — a rule naming both would have two answers to
+   * "what does this buy", and one naming neither buys nothing.
    */
   | {
       readonly kind: 'allows';
-      readonly action: NamedAction;
+      readonly action?: NamedAction;
+      /**
+       * The actions one spend of {@link from} buys **together**, at least two.
+       *
+       * The first one taken charges the slot and whatever the allowance
+       * prices; the rest are handed to the turn as {@link GrantedAction}s and
+       * spent for nothing before it ends. A bundle of one is {@link action},
+       * which is the same sentence with fewer words.
+       */
+      readonly actions?: readonly NamedAction[];
       readonly from: ActionSlot;
     }
   /**
@@ -508,9 +530,23 @@ export function actionRuleKey(source: string, rule: ActionRule): string {
     source,
     rule.kind,
     rule.kind === 'permits-only' ? rule.slot : '',
-    rule.kind === 'allows' ? rule.action : '',
+    // The whole bundle, in the order it was written: SRD Patient Defense's
+    // pair and SRD Step of the Wind's are two statements of one feature that
+    // happen to share an action, and a key that read only the first would have
+    // let the second evict it.
+    rule.kind === 'allows' ? allowedActions(rule).join(',') : '',
   ].join('|');
 }
+
+/**
+ * What one `allows` rule buys, however its sentence was written.
+ *
+ * One reader, so every site that asks "does this allowance reach the Dodge"
+ * asks it the same way and a bundle is never half-read. See
+ * {@link ActionRule}'s `allows` member for why the two spellings exist.
+ */
+export const allowedActions = (rule: Extract<ActionRule, { kind: 'allows' }>): readonly NamedAction[] =>
+  rule.action === undefined ? (rule.actions ?? []) : [rule.action];
 
 /**
  * Whether a rule reaches this spend at all.
@@ -579,7 +615,14 @@ const SLOT_NAMES: Readonly<Record<ActionSlot, string>> = {
  * the engine's spelling rather than the SRD's. One table, so the sentence and
  * the vocabulary cannot come apart.
  */
-const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
+/**
+ * What a refusal calls each named action, so every door says it the same way.
+ *
+ * Exported for the one caller outside this module: `refuseGrantMismatch` in
+ * `commands/actions.ts` names the action an extra was **not** granted for, and
+ * a second spelling of "the Dodge action" is a second place for it to drift.
+ */
+export const ACTION_TITLES: Readonly<Record<NamedAction, string>> = {
   attack: 'Attack',
   dash: 'Dash',
   disengage: 'Disengage',
@@ -648,18 +691,68 @@ export function allowsPrice(
   action: NamedAction,
   from: ActionSlot,
   rules: readonly GrantedActionRule[],
+  /**
+   * What the caller said about **which** allowance to take, where they said
+   * anything.
+   *
+   * Two creatures' worth of sentences make this necessary and neither is
+   * exotic. An Orc Rogue 2 holds `orc:adrenaline-rush` and
+   * `rogue:cunning-action`, both of which offer a Dash as a Bonus Action and
+   * only one of which charges for it; and a Monk's Focus offers the Disengage
+   * free *and* in a priced pair with the Dodge. Left unsaid, the answer is the
+   * cheapest allowance that reaches the action — the Rogue Dashes for nothing
+   * and keeps the Orc's uses — which is the only default that can never take
+   * something away the book gave for free.
+   */
+  choice: {
+    /** The feature or casting whose allowance to take, by its source. */
+    readonly usingFeature?: string;
+    /** The other actions this one spend is buying — SRD Patient Defense's pair. */
+    readonly alsoTaking?: readonly NamedAction[];
+  } = {},
 ): Result<GrantedActionRule> {
   // The rule itself rather than a bare yes, because an allowance may carry a
   // price of its own — a use, Temporary Hit Points — that the command taking
   // the cheaper slot has to charge.
-  for (const held of rules) {
-    if (held.rule.kind === 'allows' && held.rule.action === action && held.rule.from === from) {
-      return ok(held);
-    }
+  const matching = rules.filter(
+    (held) =>
+      held.rule.kind === 'allows' &&
+      held.rule.from === from &&
+      allowedActions(held.rule).includes(action) &&
+      (choice.alsoTaking ?? []).every((also) =>
+        allowedActions(held.rule as Extract<ActionRule, { kind: 'allows' }>).includes(also),
+      ),
+  );
+
+  // **The feature the caller named, and a refusal where they do not hold it.**
+  // An Orc who wants the Temporary Hit Points says so; anything else is a
+  // caller asking for a benefit this creature has not got, which is a
+  // rules-legal refusal rather than a quiet substitution.
+  if (choice.usingFeature !== undefined) {
+    const named = matching.find((held) => held.source === choice.usingFeature);
+    if (named !== undefined) return ok(named);
+    return err(
+      'no_such_allowance',
+      `${choice.usingFeature} does not let ${id} take the ${ACTION_TITLES[action]} action as ${SLOT_NAMES[from]}`,
+    );
   }
+
+  if (matching.length > 0) {
+    // **The free one first.** A priced allowance and an unpriced one for the
+    // same pair is a real state — SRD Cunning Action beside SRD Adrenaline
+    // Rush — and charging the price nobody asked for meant a Rogue whose Orc
+    // uses were spent was refused an action the book gives them for nothing.
+    const free = matching.find(
+      (held) => held.spends === undefined && held.temporaryHitPoints === undefined,
+    );
+    return ok(free ?? matching[0]!);
+  }
+
   return err(
     'action_not_allowed',
-    `nothing lets ${id} take the ${ACTION_TITLES[action]} action as ${SLOT_NAMES[from]}`,
+    (choice.alsoTaking ?? []).length === 0
+      ? `nothing lets ${id} take the ${ACTION_TITLES[action]} action as ${SLOT_NAMES[from]}`
+      : `nothing lets ${id} take the ${listed([action, ...(choice.alsoTaking ?? [])])} action${(choice.alsoTaking ?? []).length === 0 ? '' : 's'} together as ${SLOT_NAMES[from]}`,
   );
 }
 
@@ -1195,6 +1288,23 @@ export function spendAction(
   id: CharacterId,
   conditions?: ConditionState,
   spend?: Spend,
+  /**
+   * The extra action to spend **by name**, where the caller is spending one
+   * the turn was handed rather than the turn's own.
+   *
+   * SRD Patient Defense hands the Dodge to the turn when the Disengage is
+   * bought, and the Monk then takes it for nothing — which the preference
+   * below could not express: the turn's own action is still there, and an
+   * extra narrowed to one action is worth nothing to anything else. So the
+   * caller names it, exactly as a mover names the grant half a Speed came out
+   * of, and `action-spent` carries the name so the reducer performs the same
+   * spend the command did.
+   *
+   * Matched on the source alone. The narrowing is the *command's* to check,
+   * because only a command knows which action it is taking — the reducer
+   * folds a bare `action-spent` and never did.
+   */
+  grant?: string,
 ): Result<CombatState> {
   const capable = requireCapable(id, conditions);
   if (!capable.ok) return capable;
@@ -1204,6 +1314,21 @@ export function spendAction(
 
   const budget = requireTheirTurn(state, id);
   if (!budget.ok) return budget;
+
+  if (grant !== undefined) {
+    const index = budget.value.extraActions.findIndex((extra) => extra.source === grant);
+    if (index === -1) {
+      return err('no_such_grant', `nothing ${grant} handed ${id} this turn is left to spend`);
+    }
+    return ok(
+      withBudget(
+        state,
+        id,
+        { extraActions: budget.value.extraActions.filter((_, at) => at !== index) },
+        budget.value,
+      ),
+    );
+  }
 
   // **The turn's own action first, and the extras after it.** SRD Action Surge
   // adds to a turn rather than replacing what it had, so nothing is spent out
@@ -1239,6 +1364,18 @@ export function spendAction(
 const permitsExtra = (extra: GrantedAction, as: NamedAction | undefined): boolean =>
   (as === undefined || !(extra.except ?? []).includes(as)) &&
   (extra.only === undefined || (as !== undefined && extra.only.includes(as)));
+
+/**
+ * The same predicate, asked by a **command** about a grant it is naming.
+ *
+ * Exported because that question cannot be asked here: `spendAction` matches a
+ * named grant on its source alone, since the reducer folds `action-spent`
+ * without knowing which action it was. So the narrowing is checked by whoever
+ * knows — see `refuseGrantMismatch` in `commands/actions.ts` — and both ends
+ * read this one predicate rather than two spellings of it.
+ */
+export const permitsGrantedAction = (extra: GrantedAction, as: NamedAction): boolean =>
+  permitsExtra(extra, as);
 
 function spendExtraAction(
   state: CombatState,

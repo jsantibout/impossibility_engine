@@ -153,7 +153,11 @@ describe('a paladin made from choices radiates a real aura', () => {
     expect(standing.map((e) => e.feature)).toEqual([
       'paladin:aura-of-protection',
       'oath-of-devotion:aura-of-devotion',
-      // The third is not an aura and is not on until it is switched on: SRD
+      // The third is the Fighting Style this Paladin took: SRD Defense's +1 to
+      // Armour Class, a standing grant a *feat* carries, gated on the armour
+      // its holder is wearing rather than on anything being switched on.
+      'defense',
+      // The fourth is not an aura and is not on until it is switched on: SRD
       // Sacred Weapon's Charisma bonus is a standing effect requiring the
       // feature to be active, which is what every `whileActive` grant becomes.
       'oath-of-devotion:sacred-weapon',
@@ -350,14 +354,18 @@ describe('a multiclassed paladin still radiates, and a junior one does not', () 
         'junior',
       ) as GameEvent[],
     );
-    // Nothing that radiates. Sacred Weapon arrives at 3 and is on the sheet,
-    // gated on being switched on, so the claim this test makes is about the
-    // aura rather than about the length of the list — and the remainder is
-    // named rather than dropped, so a second standing effect arriving at a
-    // level below 6 is still a diff somebody has to read.
+    // Nothing that radiates. Defense is the Fighting Style taken at 2 and
+    // Sacred Weapon arrives at 3, both on the sheet — one gated on the armour
+    // worn and one on being switched on — so the claim this test makes is
+    // about the aura rather than about the length of the list, and the
+    // remainder is named rather than dropped, so a standing effect arriving at
+    // a level below 6 is still a diff somebody has to read.
     const standing = junior.creatures.aelric!.sheet.standing ?? [];
     expect(standing.filter((one) => one.reach.kind === 'aura')).toEqual([]);
-    expect(standing.map((one) => one.feature)).toEqual(['oath-of-devotion:sacred-weapon']);
+    expect(standing.map((one) => one.feature)).toEqual([
+      'defense',
+      'oath-of-devotion:sacred-weapon',
+    ]);
   });
 });
 

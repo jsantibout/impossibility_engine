@@ -181,8 +181,19 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
     // it widens `action-spent`, which every emitter and both frozen logs
     // already write. Whoever needs the fold to hold this line should add the
     // name there first, and then this call can ask with what the command had.
+    // `grant` is the extra action the command spent, where it spent one: the
+    // reducer performs the same spend rather than guessing, exactly as
+    // `movement-spent` already names the grant a Tactical Shift's feet came
+    // out of. Absent is the turn's own action.
     case 'action-spent':
-      return withCombat(next, state, must(event, spendAction(combatOf(state, event), event.id)));
+      return withCombat(
+        next,
+        state,
+        must(
+          event,
+          spendAction(combatOf(state, event), event.id, undefined, undefined, event.grant),
+        ),
+      );
 
     case 'bonus-action-spent':
       return withCombat(

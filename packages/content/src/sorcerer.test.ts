@@ -6,6 +6,13 @@ import { armorClass, armorClassCalculation, proficiencyBonusForLevel } from '@ie
 import { fold, type GameEvent, type GameState } from '@ie/engine';
 import { cumulativeFeatures } from '@ie/engine';
 import { createCharacter, planCharacter, type CharacterChoices } from '@ie/engine';
+import {
+  activateFeature,
+  advanceTime,
+  createRng,
+  createRollIssuer,
+  resolveSpell,
+} from '@ie/engine';
 
 /**
  * The third and last spellcasting style: a Sorcerer **knows** their spells.
@@ -29,6 +36,7 @@ import { createCharacter, planCharacter, type CharacterChoices } from '@ie/engin
 
 const id = (s: string) => asCharacterId(s);
 const VESKA = id('veska');
+const BANDIT = id('bandit');
 
 const sorcerer = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   name: 'Veska',
@@ -223,6 +231,174 @@ describe('Metamagic is a set of named options, not a set of feats', () => {
       },
       'missing_feature_choice',
     );
+  });
+});
+
+/**
+ * SRD Innate Sorcery, the two benefits the minute buys:
+ *
+ * > "The spell save DC of Sorcerer spells you cast increases by 1. You have
+ * > Advantage on the attack rolls of Sorcerer spells you cast."
+ *
+ * The feature's switch, its two uses and its printed minute were the engine's
+ * from the day the class was written; both benefits were a note, because
+ * nothing could say either sentence. Now `spell-save-dc-bonus` says the first
+ * and a `roll-mode` narrowed by `onlySpellAttacks` says the second — and both
+ * carry the narrowing the SRD prints in the same breath, **Sorcerer** spells:
+ * a Sorcerer/Wizard's Fire Bolt through the Wizard half is not one, and
+ * neither is a feat's own cantrip.
+ */
+describe('SRD Innate Sorcery: "for 1 minute … the spell save DC … increases by 1"', () => {
+  const VESKA_CHOICES = (): CharacterChoices =>
+    sorcerer({
+      // A wizard-list cantrip this Sorcerer does not know, so the feat's own
+      // route is the only one it has and can be told apart from the class's.
+      feats: {
+        'sage:magic-initiate-wizard': {
+          featId: 'magic-initiate',
+          spellList: 'wizard',
+          spellcastingAbility: 'int',
+          cantrips: ['poison-spray', 'light'],
+          levelOneSpell: 'find-familiar',
+        },
+        'human:versatile': { featId: 'alert' },
+      },
+    });
+
+  const field = (): readonly GameEvent[] => [
+    ...(unwrap(createCharacter(SRD_CONTENT, VESKA_CHOICES(), VESKA), 'create') as GameEvent[]),
+    { type: 'creature-side-declared', id: VESKA, side: 'party' },
+    {
+      type: 'creature-added',
+      id: BANDIT,
+      name: 'a bandit',
+      sheet: {
+        level: 1,
+        abilities: { str: 7, dex: 15, con: 9, int: 8, wis: 7, cha: 8 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: false, medium: false, heavy: false, shields: false },
+        baseSpeed: 30,
+        spellcastingAbility: null,
+      },
+      maxHp: 40,
+      diesAtZero: true,
+      creatureType: 'Humanoid',
+      side: 'bandits',
+    },
+    { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
+    { type: 'landmark-added', name: 'the gully', at: { x: 200, y: 200, z: 0 } },
+    { type: 'creature-placed', id: VESKA, placement: { from: { landmark: 'the gully' }, feet: 0 } },
+    {
+      type: 'creature-placed',
+      id: BANDIT,
+      placement: { from: { creature: VESKA }, feet: 10, bearing: 0 },
+    },
+    // Charm Person is aimed at "a Humanoid you can see", and an undeclared
+    // sight line is a fact the engine asks for rather than assumes.
+    { type: 'sight-declared', from: VESKA, to: BANDIT, seen: true },
+    { type: 'sight-declared', from: BANDIT, to: VESKA, seen: true },
+  ];
+
+  const supply = (state: GameState, seed: string) => ({
+    issuer: createRollIssuer('r', state.rollsIssued),
+    rng: createRng(seed),
+    content: SRD_CONTENT,
+  });
+
+  const run = (
+    log: readonly GameEvent[],
+    step: (state: GameState) => ReturnType<typeof activateFeature>,
+  ): readonly GameEvent[] => [...log, ...unwrap(step(fold('seed', log)), 'step')];
+
+  /** The minute switched on, out of the pool the feature declares. */
+  const unleashed = (log: readonly GameEvent[]): readonly GameEvent[] =>
+    run(log, (state) => activateFeature(state, VESKA, { feature: 'sorcerer:innate-sorcery' }));
+
+  /** And the minute over, which is the control every benefit is measured against. */
+  const later = (log: readonly GameEvent[]): readonly GameEvent[] =>
+    run(log, (state) => advanceTime(state, 60, 'the minute runs out'));
+
+  const cast = (
+    log: readonly GameEvent[],
+    request: Parameters<typeof resolveSpell>[2],
+    seed = 'cast',
+  ) => unwrap(resolveSpell(fold('seed', log), VESKA, request, supply(fold('seed', log), seed)), 'cast');
+
+  /** Charm Person is a Sorcerer spell and forces one creature's Wisdom save. */
+  const saveDcOf = (log: readonly GameEvent[], commandId: string): number | null =>
+    cast(log, { spellId: 'charm-person', targets: [BANDIT], slotLevel: 1, fought: [], commandId })
+      .outcomes[0]
+      ?.save?.dc ?? null;
+
+  /** Fire Bolt is a Sorcerer cantrip and makes a ranged spell attack. */
+  const boltMode = (log: readonly GameEvent[], commandId: string): string | null =>
+    cast(log, { spellId: 'fire-bolt', targets: [BANDIT], commandId }).outcomes[0]?.attack?.roll
+      .mode ?? null;
+
+  /** Poison Spray comes through the feat, which is not the Sorcerer class. */
+  const featBoltMode = (log: readonly GameEvent[], commandId: string): string | null =>
+    cast(log, { spellId: 'poison-spray', targets: [BANDIT], commandId }).outcomes[0]?.attack?.roll
+      .mode ?? null;
+
+  it('declares both benefits on the activation rather than describing them', () => {
+    const feature = SORCERER.features.find((one) => one.id === 'sorcerer:innate-sorcery');
+    const declared = feature?.grants;
+    const grant = Array.isArray(declared) ? declared[0] : declared;
+    expect(grant?.kind).toBe('activated');
+    if (grant === undefined || grant.kind !== 'activated') throw new Error('unreachable');
+    expect(grant.lastsSeconds).toBe(60);
+    expect(grant.whileActive).toEqual([
+      { kind: 'spell-save-dc-bonus', flat: 1, onlyThroughClass: 'sorcerer' },
+      {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'advantage',
+          selector: {
+            roll: 'attack',
+            relation: 'roller',
+            onlySpellAttacks: true,
+            onlyThroughClass: 'sorcerer',
+          },
+        },
+      },
+    ]);
+    expect(feature?.automation).toBe('engine');
+  });
+
+  it('leaves the save DC where the sheet puts it until the minute starts', () => {
+    // 8 + Proficiency 2 + Charisma 15 (+2).
+    expect(saveDcOf(field(), 'before')).toBe(12);
+  });
+
+  it('adds one to the save DC of a Sorcerer spell while it runs', () => {
+    expect(saveDcOf(unleashed(field()), 'during')).toBe(13);
+  });
+
+  it('takes the point back when the minute is over', () => {
+    expect(saveDcOf(later(unleashed(field())), 'after')).toBe(12);
+  });
+
+  it('rolls a Sorcerer spell attack flat until the minute starts', () => {
+    expect(boltMode(field(), 'bolt-before')).toBe('normal');
+  });
+
+  it('rolls a Sorcerer spell attack with Advantage while it runs', () => {
+    expect(boltMode(unleashed(field()), 'bolt-during')).toBe('advantage');
+  });
+
+  it('rolls it flat again once the minute is over', () => {
+    expect(boltMode(later(unleashed(field())), 'bolt-after')).toBe('normal');
+  });
+
+  /**
+   * "**Sorcerer** spells you cast." The feat brings its own spellcasting
+   * ability and its own route, and the sentence does not reach it.
+   */
+  it('leaves a feat’s own spell attack flat while the minute runs', () => {
+    expect(featBoltMode(unleashed(field()), 'feat-bolt')).toBe('normal');
   });
 });
 

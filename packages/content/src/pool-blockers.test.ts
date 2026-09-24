@@ -35,12 +35,13 @@ import {
 } from '../scripts/missing-feature-shapes.js';
 
 /**
- * The five the owner's ruling of 2026-09-21 named, less the three that were
- * built: Font of Magic and Arcane Recovery are `trade` grants now, and Wild
- * Shape is a `shape-shift` grant, so the derivation below no longer finds any
- * of them and their blocked-on lines are gone.
+ * The five the owner's ruling of 2026-09-21 named, less the four that were
+ * built: Font of Magic and Arcane Recovery are `trade` grants now, Wild Shape
+ * is a `shape-shift` grant, and Monk's Focus buys all three thirds of its page
+ * — so the derivation below no longer finds any of them and their blocked-on
+ * lines are gone.
  */
-const WIDENED = ['monk:focus', 'paladin:channel-divinity'];
+const WIDENED = ['paladin:channel-divinity'];
 
 /** A pool grant with only the fields that say how big it is and when it refills. */
 const barePool = (id: string, automation: 'engine' | 'manual' = 'engine') =>
@@ -136,8 +137,8 @@ describe('a pool with nothing to buy is a shape, so it is derived', () => {
  * entry whose clauses anchor in its own note.
  */
 describe('a pool that buys some of what its page prints is declared', () => {
-  it('is these, and no others', () => {
-    expect(POOLS_ONLY_PARTLY_BOUGHT).toEqual(['monk:focus']);
+  it('is empty, and the arm that would hold one stays', () => {
+    expect(POOLS_ONLY_PARTLY_BOUGHT).toEqual([]);
   });
 
   it('declares nothing the bare-pool derivation already finds', () => {
@@ -214,7 +215,7 @@ describe('the ledger population is the four arms together', () => {
    * its own note — and the complement is pinned by name, so a feat joining
    * or leaving is somebody's reading rather than a silent drift.
    */
-  it('answers for the two feats whose own notes record a debt', () => {
+  it('answers for no feat at all, and holds the machinery that would', () => {
     expect([...FEATS_ANSWERED_FOR]).toEqual([...FEATS_ANSWERED_FOR].sort());
     const feats = new Map(SRD_CONTENT.feats.map((one) => [one.id, one]));
     for (const id of FEATS_ANSWERED_FOR) {
@@ -225,10 +226,10 @@ describe('the ledger population is the four arms together', () => {
       expect(entry, id).toBeDefined();
       expect(unanchoredFeatureClauses(id, entry ?? []), id).toEqual([]);
     }
-    // And the seven in reach this list does **not** answer for, by name. Each
-    // says in its own note that the whole of the feat is applied — Two-Weapon
-    // Fighting most recently, which left this list when the extra attack the
-    // Light property buys became a swing a command takes.
+    // And the nine in reach this list does **not** answer for, by name. Each
+    // says in its own note that the whole of the feat is applied — Defense
+    // most recently, which left this list when `wearing-armor` gave the
+    // clause the +1 to Armour Class was gated on somewhere to be written.
     const inReach = SRD_CONTENT.feats
       .filter((one) => (one.minimumLevel ?? 1) <= 5)
       .map((one) => one.id)
@@ -238,6 +239,7 @@ describe('the ledger population is the four arms together', () => {
       'ability-score-improvement',
       'alert',
       'archery',
+      'defense',
       'great-weapon-fighting',
       'magic-initiate',
       'savage-attacker',
@@ -286,11 +288,16 @@ describe('what the rest wait on', () => {
     expect(ledgerFeatureIds()).not.toContain('druid:wild-shape');
   });
 
-  it('files what is left of the trade gap under the pool that still waits', () => {
-    expect(featureBlockersOf('monk:focus')).toContain('a-resource-traded-for-another');
-    // And the two that were built are off the map entirely, in both
+  it('files what is left of the trade gap under the option that still waits', () => {
+    // Monk's Focus was the pool that carried it and no longer does: an
+    // allowance takes a price now and one spend buys two actions, so Patient
+    // Defense and Step of the Wind are executed. What is left of the gap is
+    // Cunning Strike, whose Sneak Attack dice are neither a pool nor a slot.
+    expect(featureBlockersOf('rogue:cunning-strike')).toContain('a-resource-traded-for-another');
+    expect(featureBlockersOf('monk:focus')).toEqual([]);
+    // And the three that were built are off the map entirely, in both
     // directions: no blockers, and nothing claiming they have any.
-    for (const id of ['sorcerer:font-of-magic', 'wizard:arcane-recovery']) {
+    for (const id of ['sorcerer:font-of-magic', 'wizard:arcane-recovery', 'monk:focus']) {
       expect(featureBlockersOf(id), id).toEqual([]);
       expect(ledgerFeatureIds(), id).not.toContain(id);
     }

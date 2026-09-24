@@ -1154,19 +1154,18 @@ export const EPIC_BOON_FEATS: readonly FeatDefinition[] = [
  * one, so the prerequisite is enforced by where the choice is offered rather
  * than by a rule here.
  *
- * **Two of the four are declarations now, and two are still notes** — and the
- * two that are left are blocked on different things, which an earlier version
- * of this comment got wrong. It said three of them wanted one *narrowing*; in
- * fact only two ever did.
+ * **All four are declarations now**, and each wanted something different,
+ * which an earlier version of this comment got wrong. It said three of them
+ * wanted one *narrowing*; in fact only two ever did.
  *
  * | | The clause | What it wanted |
  * |---|---|---|
  * | **Archery** | "with **Ranged weapons**" | a weapon narrowing — built |
  * | **Great Weapon Fighting** | "a **Melee** weapon that you are **holding with two hands** … **Two-Handed or Versatile**" | the same narrowing, and a rule about the dice — built |
- * | **Defense** | "while you're **wearing Light, Medium, or Heavy armor**" | a `StandingRequirement` about **armour**, which is a different clause |
- * | **Two-Weapon Fighting** | "an extra attack as a result of using the **Light** property" | which hand an attack came from, which nothing records |
+ * | **Defense** | "while you're **wearing Light, Medium, or Heavy armor**" | a `StandingRequirement` about **armour**, which is a different clause — built |
+ * | **Two-Weapon Fighting** | "an extra attack as a result of using the **Light** property" | which Light weapon the turn had already swung — built |
  *
- * What the two that are built needed besides the narrowing was a *reader*:
+ * What the two narrowed ones needed besides the narrowing was a *reader*:
  * `FEAT_GRANT_KINDS` admits a grant kind only once `creation.ts` reads it off a
  * feat, and `standing` joined that list with `standingFromFeats`. So a feat
  * carries a standing grant now, which is why Defense's note names one blocker
@@ -1212,7 +1211,16 @@ export const FIGHTING_STYLE_FEATS: readonly FeatDefinition[] = [
     category: 'fighting-style',
     requires: { kind: 'none' },
     repeatable: false,
-    note: 'The +1 to Armour Class is not applied, and one thing is left between the feat and the number. The arithmetic is a standing flat-bonus applying to ac, which magic armour already uses; a feat carries a standing grant now, which is how Archery and Great Weapon Fighting beside it are declared. What is missing is a StandingRequirement for "while wearing Light, Medium, or Heavy armour" — an **armour** clause rather than the weapon clause the other two wanted, and the union has unarmored and not-wearing-heavy-armor, which are its opposites.',
+    grants: {
+      kind: 'standing',
+      reach: 'self',
+      effects: [{ kind: 'flat-bonus', applies: ['ac'], flat: 1 }],
+      // SRD: "While you're wearing Light, Medium, or Heavy armor" — the
+      // armour slot, asked on every read, so the point goes the moment the
+      // suit comes off and nothing has to remember it.
+      requires: [{ kind: 'wearing-armor' }],
+    },
+    note: 'Applied. The +1 is a standing flat-bonus applying to ac, gathered by armorClassOf from the sheet exactly as magic armour\'s is, and "while you\'re wearing Light, Medium, or Heavy armor" is the wearing-armor requirement — the positive polarity of the axis unarmored and not-wearing-heavy-armor were the two negative ends of. It reads the armour slot alone, because the sentence names the three armour categories and not the Shield: a Fighter holding a Shield and wearing nothing gains nothing.',
   },
   {
     id: 'great-weapon-fighting',

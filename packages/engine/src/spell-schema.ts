@@ -1267,12 +1267,43 @@ export function checkActionRule(
   }
 
   if (rule.kind === 'allows') {
-    if (typeof rule.action !== 'string' || !ACTION_NAMES.has(rule.action)) {
-      bad(noSuchAction(rule.action));
+    // **One action or a bundle of them, and never both.** SRD Conjure
+    // Woodland Beings moves one action to a cheaper slot and SRD Patient
+    // Defense buys two with one, so the member carries both spellings — but a
+    // rule writing both has two answers to what the slot buys, and one writing
+    // neither buys nothing at all.
+    if ((rule.action === undefined) === (rule.actions === undefined)) {
+      bad(
+        'an allowance names one action it moves to a cheaper slot, or a list of the actions one spend buys together, and exactly one of the two',
+      );
+      return;
+    }
+    if (rule.actions !== undefined && !Array.isArray(rule.actions)) {
+      bad('the actions one spend of an allowance buys together are a list');
+      return;
+    }
+    // **A bundle of one is the other spelling**, and two ways of writing one
+    // sentence is two places for it to be wrong: `actionRuleKey` reads the
+    // list, so `{ actions: ['dash'] }` and `{ action: 'dash' }` would be two
+    // rules that mean the same thing and could stand together.
+    if (rule.actions !== undefined && rule.actions.length < 2) {
+      bad('an allowance buying one action writes it as `action`; `actions` is for a spend that buys two or more together');
+      return;
+    }
+    const buys = rule.action === undefined ? (rule.actions ?? []) : [rule.action];
+    const strange = strangers(buys, ACTION_NAMES);
+    if (strange.length > 0) {
+      bad(noSuchAction(strange.join('", "')));
       return;
     }
     if (typeof rule.from !== 'string' || !SLOT_NAMES.has(rule.from)) {
       bad(noSuchSlot(rule.from));
+      return;
+    }
+    // A bundle with a repeated action is a sentence that says one thing twice
+    // and would hand the turn a granted action for something it already took.
+    if (new Set(buys).size !== buys.length) {
+      bad('an allowance that names the same action twice buys it once; say it once');
       return;
     }
     // **An allowance has to change the price**, or it grants what the rules
@@ -1281,7 +1312,7 @@ export function checkActionRule(
     // Disengage as an Action" is simply the book. Reported before the pair
     // check below, because it is the more useful complaint about the same
     // clause: it says the sentence is redundant rather than unsupported.
-    if (NORMAL_PRICE[rule.action] === rule.from) {
+    if (rule.action !== undefined && NORMAL_PRICE[rule.action] === rule.from) {
       bad(`the ${rule.action} action already costs ${rule.from}, so this allowance grants nothing`);
       return;
     }
@@ -1292,11 +1323,22 @@ export function checkActionRule(
     // and, before this was a pair, one whose command spent a different slot
     // than the one the spell named. `STATABLE_PRICES` is that map, and
     // `takeDisengage` refuses against the same one.
-    if (!isStatablePrice(rule.action, rule.from)) {
+    //
+    // **A bundle needs one such member and not all of them**, because the
+    // spend happens once: the action taken first pays the slot, which only a
+    // command that charges that pair can do, and the rest are handed to the
+    // turn and spent out of what was bought. SRD Patient Defense is exactly
+    // that asymmetry — a Disengage can be bought with a Bonus Action and a
+    // Dodge never can, and the pair is legal because the Disengage opens it.
+    if (!buys.some((action) => isStatablePrice(action, rule.from))) {
       const offered = Object.entries(STATABLE_PRICES)
-        .map(([action, slots]) => `${action} as ${(slots ?? []).join(' or ')}`)
+        .map(([named, slots]) => `${named} as ${(slots ?? []).join(' or ')}`)
         .join('; ');
-      bad(`no command will charge ${rule.from} for the ${rule.action} action, so an allowance saying so would be read by nothing; the engine offers ${offered}`);
+      bad(
+        buys.length === 1
+          ? `no command will charge ${rule.from} for the ${buys[0]} action, so an allowance saying so would be read by nothing; the engine offers ${offered}`
+          : `no command will charge ${rule.from} for any of ${buys.join(', ')}, so one spend could never open this bundle; the engine offers ${offered}`,
+      );
     }
     return;
   }
