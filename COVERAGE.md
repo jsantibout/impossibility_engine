@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 172 (50.7%) | 161 (47.5%) | 45 | 121 (35.7%) |
+| 339 | 171 (50.4%) | 162 (47.8%) | 45 | 122 (36.0%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -157,6 +157,7 @@ a plain statement of what the table decides.
 - **Produce Flame** (cantrip) — verified
 - **Protection from Energy** (level 3) — verified
 - **Protection from Poison** (level 2) — verified
+- **Ray of Enfeeblement** (level 2) — verified
 - **Ray of Frost** (cantrip) — verified
 - **Ray of Sickness** (level 1) — verified
 - **Regenerate** (level 7) — verified
@@ -342,7 +343,6 @@ every casting; only one of them is waiting for anything.
 - **Protection from Evil and Good** (level 1) — 4 noted
 - **Purify Food and Drink** (level 1) — 2 noted, 1 read
 - **Raise Dead** (level 5) — 4 noted
-- **Ray of Enfeeblement** (level 2) — 5 noted
 - **Reincarnate** (level 5) — 3 noted
 - **Resilient Sphere** (level 4) — 5 noted
 - **Resurrection** (level 7) — 5 noted
@@ -456,7 +456,6 @@ of *Tracked* and is never added to it.
 | `a-creature-fact-an-effect-overrides` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
-| `a-selector-for-every-d20-test` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 4 | 0 | 0 | 2 | 2 | 0 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
@@ -466,14 +465,14 @@ of *Tracked* and is never added to it.
 | `a-deadline-anchored-to-a-rest` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
 | `a-filter-on-the-attackers-creature-type` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
-| `a-success-branch-that-does-something` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| `a-selector-for-every-d20-test` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `an-area-that-moves-by-itself` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `healing-that-raises-the-dead` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
-| `a-damage-penalty-a-spell-grants` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-dc-the-caster-does-not-set` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-flat-amount-with-no-dice` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
 | `a-roll-result-an-effect-replaces` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
+| `a-success-branch-that-does-something` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-world-fact-nothing-can-represent` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `an-ability-score-a-spell-changes` | 2 | 0 | 0 | 1 | 0 | 0 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
@@ -486,6 +485,7 @@ of *Tracked* and is never added to it.
 | `a-condition-a-spell-suppresses` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
+| `a-damage-penalty-a-spell-grants` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `a-duration-the-slot-changes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
@@ -1072,24 +1072,24 @@ never added.
 |---|---|---|---|---|---|
 | 1 | 32 | 31 | 211 | 74 | 137 |
 | 2 | 53 | 52 | 211 | 74 | 137 |
-| 3 | 91 | 90 | 345 | 117 | 225 |
-| 4 | 104 | 103 | 345 | 117 | 225 |
-| 5 | 120 | 119 | 481 | 172 | 303 |
-| 6 | 132 | 126 | 481 | 172 | 303 |
-| 7 | 144 | 132 | 562 | 215 | 341 |
-| 8 | 156 | 144 | 562 | 215 | 341 |
-| 9 | 165 | 148 | 668 | 288 | 372 |
-| 10 | 176 | 152 | 668 | 288 | 372 |
-| 11 | 183 | 154 | 727 | 324 | 393 |
-| 12 | 195 | 166 | 727 | 324 | 393 |
-| 13 | 200 | 167 | 784 | 370 | 404 |
-| 14 | 211 | 173 | 784 | 370 | 404 |
-| 15 | 218 | 176 | 821 | 391 | 419 |
-| 16 | 230 | 188 | 821 | 391 | 419 |
-| 17 | 235 | 188 | 859 | 426 | 420 |
-| 18 | 245 | 190 | 859 | 426 | 420 |
-| 19 | 257 | 202 | 859 | 426 | 420 |
-| 20 | 269 | 206 | 859 | 426 | 420 |
+| 3 | 91 | 90 | 345 | 115 | 227 |
+| 4 | 104 | 103 | 345 | 115 | 227 |
+| 5 | 120 | 119 | 481 | 170 | 305 |
+| 6 | 132 | 126 | 481 | 170 | 305 |
+| 7 | 144 | 132 | 562 | 213 | 343 |
+| 8 | 156 | 144 | 562 | 213 | 343 |
+| 9 | 165 | 148 | 668 | 286 | 374 |
+| 10 | 176 | 152 | 668 | 286 | 374 |
+| 11 | 183 | 154 | 727 | 322 | 395 |
+| 12 | 195 | 166 | 727 | 322 | 395 |
+| 13 | 200 | 167 | 784 | 368 | 406 |
+| 14 | 211 | 173 | 784 | 368 | 406 |
+| 15 | 218 | 176 | 821 | 389 | 421 |
+| 16 | 230 | 188 | 821 | 389 | 421 |
+| 17 | 235 | 188 | 859 | 424 | 422 |
+| 18 | 245 | 190 | 859 | 424 | 422 |
+| 19 | 257 | 202 | 859 | 424 | 422 |
+| 20 | 269 | 206 | 859 | 424 | 422 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1156,5 +1156,5 @@ something other than its heading.
 | Paladin (Oath of Devotion) | 8/5/13 | 8/5/13 | 8/5/13 | 8/5/13 | 16/8/24 | 16/8/24 | 16/8/24 | 16/8/24 | 20/10/30 | 20/10/30 | 20/10/30 | 20/10/30 | 21/13/34 | 21/13/34 | 21/13/34 | 21/13/34 | 21/17/38 | 21/17/38 | 21/17/38 | 21/17/38 |
 | Ranger (Hunter) | 8/5/13 | 8/5/13 | 8/5/13 | 8/5/13 | 17/11/28 | 17/11/28 | 17/11/28 | 17/11/28 | 23/17/40 | 23/17/40 | 23/17/40 | 23/17/40 | 26/19/45 | 26/19/45 | 26/19/45 | 26/19/45 | 26/22/48 | 26/22/48 | 26/22/48 | 26/22/48 |
 | Sorcerer (Draconic Sorcery) | 28/9/37 | 28/9/37 | 48/15/64 | 48/15/64 | 63/21/85 | 63/21/85 | 73/24/98 | 73/24/98 | 78/31/110 | 78/31/110 | 84/36/121 | 84/36/121 | 85/43/129 | 85/43/129 | 88/46/135 | 88/46/135 | 88/50/140 | 88/50/140 | 88/50/140 | 88/50/140 |
-| Warlock (Fiend Patron) | 10/9/19 | 10/9/19 | 18/11/29 | 18/11/29 | 26/14/40 | 26/14/40 | 30/15/45 | 30/15/45 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 | 31/21/52 |
-| Wizard (Evoker) | 30/15/45 | 30/15/45 | 53/27/81 | 53/27/81 | 69/39/110 | 69/39/110 | 80/54/136 | 80/54/136 | 84/73/160 | 84/73/160 | 91/84/179 | 91/84/179 | 93/97/194 | 93/97/194 | 98/103/206 | 98/103/206 | 99/113/218 | 99/113/218 | 99/113/218 | 99/113/218 |
+| Warlock (Fiend Patron) | 10/9/19 | 10/9/19 | 19/10/29 | 19/10/29 | 27/13/40 | 27/13/40 | 31/14/45 | 31/14/45 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 | 32/20/52 |
+| Wizard (Evoker) | 30/15/45 | 30/15/45 | 54/26/81 | 54/26/81 | 70/38/110 | 70/38/110 | 81/53/136 | 81/53/136 | 85/72/160 | 85/72/160 | 92/83/179 | 92/83/179 | 94/96/194 | 94/96/194 | 99/102/206 | 99/102/206 | 100/112/218 | 100/112/218 | 100/112/218 | 100/112/218 |

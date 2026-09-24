@@ -33,7 +33,7 @@ state is displayed as zero.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
-| Spells in reach, not executed | 84 spells | 49 | 0 | 35 |
+| Spells in reach, not executed | 83 spells | 48 | 0 | 35 |
 | Features manual, or a pool with nothing to buy | 2 features | 2 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
@@ -65,12 +65,10 @@ hold at all. An executed spell with nothing left is not here.
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 3 | 0 |
 | `a-second-place-to-put-a-creature` | 3 | 0 |
-| `a-damage-penalty-a-spell-grants` | 2 | 0 |
 | `a-filter-on-the-attackers-creature-type` | 2 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 2 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
-| `a-selector-for-every-d20-test` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `an-action-the-engine-has-no-spender-for` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
@@ -83,14 +81,15 @@ hold at all. An executed spell with nothing left is not here.
 | `a-condition-that-ends-when-its-holder-leaves-an-area` | 1 | 0 |
 | `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
+| `a-damage-penalty-a-spell-grants` | 1 | 0 |
 | `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 0 |
 | `a-range-that-scales-with-caster-level` | 1 | 0 |
 | `a-repeat-save-with-no-condition-to-hang-it-on` | 1 | 0 |
+| `a-selector-for-every-d20-test` | 1 | 0 |
 | `a-self-cure-a-spell-forbids` | 1 | 0 |
 | `a-speed-an-effect-multiplies` | 1 | 0 |
-| `a-success-branch-that-does-something` | 1 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 1 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 1 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
@@ -206,11 +205,6 @@ sums to the population.
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
 
-#### `a-damage-penalty-a-spell-grants` — blocks 2, finishes 0
-
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Ray of Enfeeblement** (level 2) — tracked — also waits on 2
-
 #### `a-filter-on-the-attackers-creature-type` — blocks 2, finishes 0
 
 - **Protection from Evil and Good** (level 1) — tracked — also waits on 1
@@ -230,11 +224,6 @@ sums to the population.
 
 - **Ensnaring Strike** (level 1) — tracked — also waits on 2
 - **Bestow Curse** (level 3) — tracked — also waits on 2
-
-#### `a-selector-for-every-d20-test` — blocks 2, finishes 0
-
-- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
-- **Ray of Enfeeblement** (level 2) — tracked — also waits on 2
 
 #### `a-spells-effects-applied-to-different-targets` — blocks 2, finishes 0
 
@@ -289,6 +278,10 @@ sums to the population.
 
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
 
+#### `a-damage-penalty-a-spell-grants` — blocks 1, finishes 0
+
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+
 #### `a-die-behaviour-a-spell-asks-for` — blocks 1, finishes 0
 
 - **Chromatic Orb** (level 1) — executed-partial — also waits on 1
@@ -309,6 +302,10 @@ sums to the population.
 
 - **Slow** (level 3) — executed-partial — also waits on 2
 
+#### `a-selector-for-every-d20-test` — blocks 1, finishes 0
+
+- **Enlarge/Reduce** (level 2) — tracked — also waits on 3
+
 #### `a-self-cure-a-spell-forbids` — blocks 1, finishes 0
 
 - **Hideous Laughter** (level 1) — executed-partial — also waits on 1
@@ -316,10 +313,6 @@ sums to the population.
 #### `a-speed-an-effect-multiplies` — blocks 1, finishes 0
 
 - **Haste** (level 3) — executed-partial — also waits on 2
-
-#### `a-success-branch-that-does-something` — blocks 1, finishes 0
-
-- **Ray of Enfeeblement** (level 2) — tracked — also waits on 2
 
 #### `an-action-a-spell-compels-or-forbids` — blocks 1, finishes 0
 

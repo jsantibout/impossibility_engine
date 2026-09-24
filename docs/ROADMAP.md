@@ -2172,3 +2172,23 @@ Appended after wave seven's first spells track (2026-09-24):
   feet risen counted per turn on `GrantedLift` — a record the brief said not
   to invent; it sits under `movement-modes`. Longstrider and Death Ward print
   no consent clause and were dropped from the brief's list.
+- **A family of D20 Tests, a penalty on the target's own damage, a success
+  that costs something.** `RollFamily` gains `d20-test` — the glossary's union
+  of check, attack and save — legal only narrowed by an ability, because every
+  consumer in reach prints "Strength-based" and the bare phrase is Foresight's
+  at level 9; Initiative and the death save are outside it, being made with no
+  ability. The twentieth sourced grant is a **damage penalty** on the creature
+  that rolls (`GrantedDamagePenalty`, the mirror of the reduction on the other
+  side of a blow), read at the two funnels — `dealSpellDamage` and
+  `landDamage` seeding the held damage's adjustments — so every weapon attack,
+  spell, scheduled hit and smite meets it and damage with no dealer does not,
+  which is right. `save.onSuccessRiders` hangs a mode, a condition, a movement
+  or a spend on a made save and refuses damage there on the book's authority.
+  A repeat save on a failure that imposes no condition rides the **casting's
+  own deadline** (`castingHostedRepeat`, Searing Smite's road), which the brief
+  did not commission and the spell could not be written without. Ray of
+  Enfeeblement executes from the 5.2.1 text, whose success rider ends at the
+  start of the caster's next turn and whose repeat ends the spell — the
+  brief quoted the 2014 words. `docs/design/rolls-and-damage.md`'s "no member
+  for D20 Tests" sentence is amended. Owed: `applyRiders`' docstring said
+  "there is no success branch", now false — the coordinator corrects it.

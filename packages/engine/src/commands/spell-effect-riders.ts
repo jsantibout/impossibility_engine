@@ -296,10 +296,13 @@ export function conditionLanding(
  * once for `riderOptions`, applied to the whole of what an outcome carries.
  *
  * **The branch is the host's and never this function's.** A caller reaches
- * here having already decided that the affirmative outcome happened — the
- * attack hit, the save failed — so there is no success branch, no miss branch
- * and no predicate. That is the invariant the whole rider design rests on, and
- * what makes it hold is that there is nowhere here for one to be written.
+ * here having already decided which outcome happened — the attack hit, the
+ * save failed, or, since `save.onSuccessRiders` (SRD Ray of Enfeeblement),
+ * the save was made — and hands over the riders that branch carries, so there
+ * is no branch, no miss branch and no predicate *here*: the slot's name on the
+ * definition is the branch. That is the invariant the whole rider design rests
+ * on, and what makes it hold is that there is nowhere here for one to be
+ * written.
  *
  * **Order is fixed: conditions, then modifiers, then delayed, then the
  * shove.** It is observable in the log and nowhere else, so it is decided once
