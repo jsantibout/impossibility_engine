@@ -43,8 +43,9 @@ homebrew.
   list**: the DM's door rolls it, the engine applies the failure's damage,
   condition, grapple, push, Speed cut or lowered maximum, and hands over each
   sentence it could not read; a printed teleport is spent at its distance, a
-  printed Reaction adds to an ally's roll, and a block's aura, absorption and
-  frenzy are read off its traits.
+  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a Parry
+  raises Armour Class in the hit window and a printed Reaction may spend
+  another printed line.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
@@ -70,7 +71,10 @@ homebrew.
   the defender elects nothing. A casting may revive the dead, break an
   attunement, mask a type for magic alone, heat an object out of a hand, cap
   its own running copies, ward a fall, or lift a creature a save did not spare;
-  a spell may print branches and run the one named.
+  a spell may print branches and run the one named, hang a rider on a made
+  save, make a creature subtract from its own damage rolls, or pick out D20
+  Tests by ability; Shield answers both its triggers; a tracked spell read to
+  the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
 - **Items and objects** — grants live while worn or wielded, attunement,
@@ -121,9 +125,8 @@ homebrew.
   Restrained and extra damage execute; what nothing read is handed back and
   the ledger keeps the block. A repeat save may deepen its condition and stop
   asking, and Resistance's d4 comes off the total before defences.
-- **Nothing brings a jumper down.** A High Jump leaves the creature at the
-  elevation it reached and no rule ends that; a lifted one is set down when
-  its casting ends.
+- **Nothing brings a jumper down** from a High Jump; a lifted creature is set
+  down when its casting ends.
 - No ammunition spent. **An object cannot make an ability check** — a door
   asked for one rolls at −5 and can succeed, where it should refuse; and
   nothing stops a caller putting an object in the turn order, which would
@@ -133,8 +136,7 @@ homebrew.
 - **Two corpus migrations are owed**: a weapon mastery is a ceiling rather than
   a quota, and a size nobody chooses defaults rather than refusing. Making
   either required is a fixture migration.
-- Overriding printed content with homebrew of the same id is refused; only
-  adding beside it is supported.
+- Homebrew may add beside printed content, never override an id.
 
 ## Rulings that stand
 
@@ -152,22 +154,17 @@ rolling its own dice. **Each is quoted in full, with its argument, in
 `docs/archive/status-2026-09-21.md`** — they are settled, and repeating them
 here costs the words this file is capped at.
 
-**Taken by a builder and recorded here rather than drifted into.** A creature
-at 0 hit points, or dead, keeps its hit points when a maximum rises: raising
-them would lift the Unconscious that having none caused, and the SRD lifts that
-"until you regain any Hit Points", which a maximum does not do. It is a reading
-rather than a printed sentence, argued in `vitals.ts` and pinned by two
-fixtures, so changing it is a decision rather than a drift.
+**A builder's ruling, recorded rather than drifted into.** A creature at 0
+hit points, or dead, keeps its hit points when a maximum rises: raising them
+would lift the Unconscious that having none caused, which SRD lifts only on
+regaining hit points. Argued in `vitals.ts`, pinned by two fixtures.
 
 **Owner, 2026-09-21.** Infinite Realms is the AI-DM product, Nimbus Quill the
 human DM's companion · **"playable to level 5" means everything a level 1–5
 character can reach is executed**, not the common turn executed and the rest
 narrated · persistence is Supabase with the event log as the only truth · one
-player per campaign for the first release · Infinite Realms calls OpenAI, so
-the wire format is OpenAI function calling and
-`docs/design/claude-integration.md` describes a provider that is not the
-product's · movement modes are ordinary spatial dynamics and are built,
-reversing an archived refusal · Find Familiar names a bestiary id at the
+player per campaign for the first release · Infinite Realms calls OpenAI, so the wire format is OpenAI function
+calling · movement modes are ordinary spatial dynamics and are built · Find Familiar names a bestiary id at the
 casting, and Find Steed's and Phantom Steed's stat blocks are catalogue
 entries · the sight model is built · the feature blocker map was widened to
 pool-only features.

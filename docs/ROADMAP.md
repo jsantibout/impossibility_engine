@@ -2212,3 +2212,24 @@ Appended after wave seven's first spells track (2026-09-24):
   the same two points the unheld road does, tested with a Bard in the room.
   Owed: `docs/design/rolls-and-damage.md`'s "Reaction windows" paragraph
   (the coordinator's), and a STATUS.md sentence. Main re-ingested.
+- **Read to the end.** A spell whose every clause is the table's is finished
+  business and the ledger counts it apart: `LedgerRow.handedOver`, a fourth
+  column, and a heading of its own in §1 — "Read to the end, handed over
+  whole" — listing each by name, the way a handed-over trait is already
+  counted apart from the bestiary's items. Thirty-two of the thirty-five left
+  the population that way: their `unmodelled` debts are gone and the book's
+  own sentences sit in `dmDecides`, verbatim, which eleven definitions already
+  used and a guard file already held. **Three did not survive the reading and
+  are filed as debts:** Gentle Repose (its "extends the time limit on raising
+  the target from the dead" is arithmetic over `Vitals.diedAt` that
+  `revive.within` really reads — a corpse under this casting is refused by a
+  Revivify the book allows), Magic Mouth (`a-casting-dismissed-early`) and
+  Major Image (`a-duration-the-slot-changes`: at a level 4 slot the engine
+  takes a Concentration the book says it does not require). **No clause was
+  found expressible** — the five hard candidates each have their reason in
+  the definition's comment. **Ruling on the decision the track raised:**
+  Gentle Repose's sentence is *a window another casting widens*, not a longer
+  window on its own; the id `a-window-another-casting-widens` is minted for it
+  and goes into the next odds-and-ends spells brief with Magic Mouth and Major
+  Image. "Spells in reach, not executed" is 52 by that count, all of them
+  waiting on a shape.

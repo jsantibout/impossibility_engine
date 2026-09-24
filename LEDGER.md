@@ -29,15 +29,24 @@ first two. The point of splitting them out: a measurement over adjudications
 has to **rise** when somebody reads the book, and it cannot while the unread
 state is displayed as zero.
 
+**And a fourth, which takes items out of a size rather than out of a**
+**column.** A spell that has been read to the end and handed over whole is
+finished: every sentence it prints is the table’s or the engine’s, nobody
+will ever build it, and counting it in the size of the population the
+roadmap ranks by put the road to zero through work nobody may do. So it
+leaves the size and is counted in the last column, and §1 lists every one of
+them by name — the bestiary’s row already counts a handed-over trait apart
+for exactly this reason.
+
 ## The five populations
 
-| Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
-|---|---|---|---|---|
-| Spells in reach, not executed | 82 spells | 47 | 0 | 35 |
-| Features manual, or a pool with nothing to buy | 2 features | 2 | 0 | 0 |
-| Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
-| Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
-| CR ≤ 5 stat-block items handed over or unapplied | 134 items | on 97 of 244 blocks | 0 | 147 blocks already clean |
+| Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
+|---|---|---|---|---|---|
+| Spells in reach, not executed | 50 spells | 50 | 0 | 0 | 32 |
+| Features manual, or a pool with nothing to buy | 2 features | 2 | 0 | 0 | 0 |
+| Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
+| Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 | 0 |
+| CR ≤ 5 stat-block items handed over or unapplied | 134 items | on 97 of 244 blocks | 0 | 147 blocks already clean | 0 |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -46,6 +55,17 @@ it is finished. `executed-partial` is a spell the engine resolves that
 still carries a clause nobody has built; `tracked` is one it casts and
 hands the effect over; `no-definition` is a spell the catalogue does not
 hold at all. An executed spell with nothing left is not here.
+
+**The size above is what this population still owes, and a spell read to**
+**the end is not owed.** The last column counts the spells whose every
+printed sentence somebody has read and found to be the table’s or the
+engine’s: they are finished business by the definition of *waits on none*
+above, they will never be built, and while they counted in the size the
+road to zero ran through work nobody may do. The bestiary’s row had
+already drawn that line for a trait the engine hands to the table, and
+this is the same line drawn for a spell. They are **listed** below under a
+heading of their own, because a count subtracted with no list behind it is
+exactly the silently-missing entry this report’s header refuses.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
@@ -57,8 +77,11 @@ hold at all. An executed spell with nothing left is not here.
 | `a-barrier-that-blocks-passage` | 3 | 1 |
 | `a-stat-block-created-mid-fight` | 3 | 1 |
 | `movement-modes` | 3 | 1 |
+| `a-casting-dismissed-early` | 2 | 1 |
 | `a-choice-made-at-the-casting` | 2 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
+| `a-duration-the-slot-changes` | 1 | 1 |
+| `healing-that-raises-the-dead` | 1 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 4 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 3 | 0 |
@@ -73,7 +96,6 @@ hold at all. An executed spell with nothing left is not here.
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 2 | 0 |
-| `a-casting-dismissed-early` | 1 | 0 |
 | `a-condition-a-spell-suppresses` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 1 | 0 |
@@ -159,6 +181,11 @@ sums to the population.
 - **Levitate** (level 2) — executed-partial
 - **Gaseous Form** (level 3) — executed-partial — also waits on 2
 
+#### `a-casting-dismissed-early` — blocks 2, finishes 1
+
+- **Magic Mouth** (level 2) — tracked
+- **Gaseous Form** (level 3) — executed-partial — also waits on 2
+
 #### `a-choice-made-at-the-casting` — blocks 2, finishes 1
 
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
@@ -167,6 +194,14 @@ sums to the population.
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 
 - **Command** (level 1) — executed-partial
+
+#### `a-duration-the-slot-changes` — blocks 1, finishes 1
+
+- **Major Image** (level 3) — tracked
+
+#### `healing-that-raises-the-dead` — blocks 1, finishes 1
+
+- **Gentle Repose** (level 2) — tracked
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 4, finishes 0
 
@@ -244,10 +279,6 @@ sums to the population.
 
 - **Hex** (level 1) — tracked — also waits on 1
 - **Hunter's Mark** (level 1) — executed-partial — also waits on 1
-
-#### `a-casting-dismissed-early` — blocks 1, finishes 0
-
-- **Gaseous Form** (level 3) — executed-partial — also waits on 2
 
 #### `a-condition-a-spell-suppresses` — blocks 1, finishes 0
 
@@ -360,7 +391,13 @@ reading, or one the existing kinds already say and nobody has written — and
 both are work, which is why they are no longer printed as finished business.
 
 
-#### Waiting on no shape — 35
+#### Read to the end, handed over whole — 32
+
+Somebody read every printed sentence of each of these against the
+definition and the blocker map, and every clause left is the table’s to
+narrate or the engine’s to roll. **Nothing here is work.** It is out of
+the size above and is listed here so a reader can see what the table is
+being asked for — which is the whole of what these spells are.
 
 - **Druidcraft** (level 0) — tracked
 - **Elementalism** (level 0) — tracked
@@ -383,15 +420,12 @@ both are work, which is why they are no longer printed as finished business.
 - **Speak with Animals** (level 1) — tracked
 - **Arcane Lock** (level 2) — tracked
 - **Find Traps** (level 2) — tracked
-- **Gentle Repose** (level 2) — tracked
 - **Locate Animals or Plants** (level 2) — tracked
 - **Locate Object** (level 2) — tracked
-- **Magic Mouth** (level 2) — tracked
 - **Rope Trick** (level 2) — tracked
 - **See Invisibility** (level 2) — tracked
 - **Clairvoyance** (level 3) — tracked
 - **Create Food and Water** (level 3) — tracked
-- **Major Image** (level 3) — tracked
 - **Meld into Stone** (level 3) — tracked
 - **Speak with Dead** (level 3) — tracked
 - **Tongues** (level 3) — tracked
