@@ -682,7 +682,11 @@ function paymentOf(printed: PrintedHoldPayout): HitHoldPayout {
 function coveredByTheRoll(option: HitOption, mode: RollMode): HitOption {
   const attach = option.attaches;
   if (attach?.coverNeedsAdvantage !== true || mode === 'advantage') return option;
-  const { whileHeld: _dropped, coverNeedsAdvantage: _asked, ...bare } = attach;
+  // The cover and the question about it both go; everything else the attach
+  // carries — the DC, the Speed, the payment — is not gated on the roll.
+  const bare = Object.fromEntries(
+    Object.entries(attach).filter(([field]) => field !== 'whileHeld' && field !== 'coverNeedsAdvantage'),
+  ) as HitAttach;
   return { ...option, attaches: bare };
 }
 

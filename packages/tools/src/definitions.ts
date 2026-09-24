@@ -2161,6 +2161,12 @@ const ATTACK = tool({
       .describe(
         'Name a damage type where something gives this blow a choice of one — SRD Divine Strike is "Necrotic or Radiant damage (your choice)" and SRD Shillelagh’s staff "can be Force damage or the weapon’s normal damage type". A map from what offers the choice to the type chosen: a feature by its id, and a spell that imbued the weapon by the spell’s name. Written "your choice" in the book, so leaving one out declines it and the blow deals what it would otherwise deal. A type the offer does not print, and an offerer this creature has nothing from, are each refused before anything is rolled.',
       ),
+    hold_instead_of_damage: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Take the hold this line offers **in place of** its damage — SRD Animated Rug of Smothering: "the rug **can** give it the Grappled condition (escape DC 13) instead of dealing damage." Written "can", so silence takes the damage; sending this deals none and makes the hold, with everything the line says goes with it. A line that offers no such choice refuses this before the Action is spent and before a die is thrown.',
+      ),
     onHit: hitRiderSchema
       .optional()
       .describe(
@@ -2189,6 +2195,7 @@ const ATTACK = tool({
           ...(args.mastery === undefined ? {} : { mastery: masteryOf(args.mastery) }),
           ...(args.light_attack === undefined ? {} : { lightAttack: args.light_attack }),
           ...(args.onHit === undefined ? {} : { onHit: args.onHit }),
+          ...(args.hold_instead_of_damage === true ? { holdInsteadOfDamage: true as const } : {}),
           ...(args.cantrip === undefined
             ? {}
             : {

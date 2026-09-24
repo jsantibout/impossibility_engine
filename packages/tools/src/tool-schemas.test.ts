@@ -121,8 +121,8 @@ describe('toolSchemas', () => {
     // that printed such a line would reach it through the same door.
     expect(toolSchemas(player())).toHaveLength(78);
     expect(toolSchemas(dm())).toHaveLength(95);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(105175);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(126097);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(105669);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(126591);
   });
 });
 

@@ -18,7 +18,6 @@ import {
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { distanceBetween } from './positioning.js';
 import { createRollIssuer } from './rolls.js';
 import { attachmentsOf, attachmentsOn, grapplesOn } from './commands/unarmed.js';
 
@@ -254,7 +253,7 @@ describe('a creature that attaches to the one it hit', () => {
     table.did('Brenâ€™s turn ends', (s) => resolveTurn(s, supply('b')));
 
     const off = table.did('the friend pulls it off', (s) =>
-      detachFrom(s, MATE, { holder: BEAST, from: BREN, commandId: 'pull' }),
+      detachFrom(s, MATE, { holder: BEAST, from: BREN, commandId: 'pull' }, supply()),
     );
     expect(attachmentsOf(off, BEAST)).toEqual([]);
 
@@ -280,7 +279,12 @@ describe('a creature that attaches to the one it hit', () => {
   /** A creature nothing is attached to has nothing to pull off. */
   it('refuses a detach where nothing is attached', () => {
     const table = field('stirge');
-    const out = detachFrom(table.state, BREN, { holder: BEAST, from: BREN, commandId: 'pull' });
+    const out = detachFrom(
+      table.state,
+      BREN,
+      { holder: BEAST, from: BREN, commandId: 'pull' },
+      supply(),
+    );
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.code).toBe('not_attached');
   });
@@ -294,7 +298,7 @@ describe('a creature that attaches to the one it hit', () => {
     swing(table, 'Proboscis');
     table.did('the stirge’s turn ends', (s) => resolveTurn(s, supply('a')));
     table.did('Bren’s turn ends', (s) => resolveTurn(s, supply('b')));
-    const out = detachFrom(table.state, MATE, { holder: BEAST, from: BREN, commandId: 'pull' });
+    const out = detachFrom(table.state, MATE, { holder: BEAST, from: BREN, commandId: 'pull' }, supply());
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.code).toBe('out_of_reach');
   });
