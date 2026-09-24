@@ -490,12 +490,12 @@ export interface CastCommand extends CommandIdentity {
    * from the definition beside `dmDecides` and for one rule: SRD Silence's
    * "Casting a spell that includes a Verbal component is impossible there."
    *
-   * **Absent means the spell has one**, which is the book's own default —
-   * three hundred and twenty-nine of the SRD's three hundred and thirty-nine
-   * spells print a V — and is therefore also what the low-level door says when
-   * nobody tells it. A caller with no definition in hand cannot know, and the
-   * conservative answer to "may this be cast in a Silence" is the one the book
-   * gives almost every spell. See `SpellDefinition.noVerbalComponent`.
+   * **Absent means the spell has one**, which is the book's own default — all
+   * but a handful of the SRD's spells print a Verbal component — and is
+   * therefore also what the low-level door says when nobody tells it. A caller
+   * with no definition in hand cannot know, and the conservative answer to
+   * "may this be cast in a Silence" is the one the book gives almost every
+   * spell. See `SpellDefinition.noVerbalComponent`.
    *
    * **A casting, not a spell**, which is the one place it differs from the
    * definition's field it is copied from: SRD Subtle Spell casts a spell

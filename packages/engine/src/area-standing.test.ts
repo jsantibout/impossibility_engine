@@ -296,6 +296,107 @@ describe('what the validator holds a standing area effect to', () => {
       'areaStanding[0].change:bad_speed_change',
     );
   });
+
+  it('refuses a lone clause where the format holds a list of them', () => {
+    // SRD Silence writes three about one Sphere, so the field grew an arity.
+    // A record written before it means a list of one and `upgradeOngoing` says
+    // so; a *definition* written now is held to the shape the format has.
+    expect(codes(definition({ kind: 'speed', change: 'halve' }))).toContain(
+      'areaStanding:standing_is_a_list',
+    );
+  });
+
+  it('holds "entirely inside" to the narrowing a clause either prints or does not', () => {
+    expect(
+      codes(definition([{ kind: 'condition', condition: 'deafened', whollyInside: false }])),
+    ).toContain('areaStanding[0].whollyInside:bad_wholly_inside');
+  });
+
+  it('holds an area bonus to the one family a gatherer reaches', () => {
+    // Widening `applies` would be a bonus no roll ever reads, which is the
+    // failure the content validator exists to prevent.
+    expect(
+      codes(definition([{ kind: 'bonus', applies: 'save', flat: 10, only: { skill: 'stealth' } }])),
+    ).toContain('areaStanding[0].applies:unreadable_area_bonus');
+    // And a bonus of no points is no bonus, which is the `speed` member's own
+    // reading of a change of no feet.
+    expect(codes(definition([{ kind: 'bonus', applies: 'ability-check', flat: 0 }]))).toContain(
+      'areaStanding[0].flat:bad_area_bonus',
+    );
+    // The narrowing is `bonusesFor`'s and is held to its own pairing: an
+    // ability on an ability check is a filter `checkBonuses` is never handed.
+    expect(
+      codes(
+        definition([{ kind: 'bonus', applies: 'ability-check', flat: 10, only: { ability: 'dex' } }]),
+      ).join(' '),
+    ).toContain('narrowing_unreadable');
+  });
+
+  it('holds a condition and a defence to the vocabularies the engine already has', () => {
+    expect(codes(definition([{ kind: 'condition', condition: 'bemused' }]))).toContain(
+      'areaStanding[0].condition:unknown_condition',
+    );
+    expect(
+      codes(definition([{ kind: 'damage-defense', defense: 'allergic', damageTypes: ['thunder'] }])),
+    ).toContain('areaStanding[0].defense:bad_damage_defense');
+    expect(
+      codes(definition([{ kind: 'damage-defense', defense: 'immune', damageTypes: [] }])),
+    ).toContain('areaStanding[0].damageTypes:bad_damage_defense');
+    expect(
+      codes(definition([{ kind: 'damage-defense', defense: 'immune', damageTypes: ['boredom'] }])),
+    ).toContain('areaStanding[0].damageTypes[0]:unknown_damage_type');
+  });
+
+  it('accepts the three sentences Silence writes about one Sphere', () => {
+    expect(
+      codes(
+        definition([
+          { kind: 'damage-defense', defense: 'immune', damageTypes: ['thunder'], whollyInside: true },
+          { kind: 'condition', condition: 'deafened', whollyInside: true },
+          { kind: 'no-verbal-casting' },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('what the validator holds the list a caster chooses to', () => {
+  const definition = (over: Record<string, unknown>) => ({
+    id: 'homebrew-aura',
+    name: 'Homebrew Aura',
+    level: 2,
+    school: 'abjuration',
+    castingTime: 'action',
+    concentration: true,
+    range: { kind: 'self' },
+    targets: { count: 0 },
+    effects: [],
+    durationSeconds: 60,
+    unmodelled: ['what the aura looks like'],
+    ...over,
+  });
+
+  const codes = (value: unknown): readonly string[] =>
+    checkSpellDefinitionValue(value).map((p) => `${p.field}:${p.code}`);
+
+  it('refuses a list of who an area reaches on a spell with no area', () => {
+    expect(codes(definition({ designatesChosen: true }))).toContain(
+      'designatesChosen:chosen_without_area',
+    );
+  });
+
+  it('refuses a spell that names both polarities of one decision', () => {
+    expect(
+      codes(
+        definition({
+          area: { kind: 'emanation', distance: 30, origin: 'self', includesOrigin: true },
+          designatesChosen: true,
+          designatesUnaffected: true,
+          areaStanding: [{ kind: 'bonus', applies: 'ability-check', flat: 10 }],
+        }),
+      ),
+    ).toContain('designatesChosen:both_polarities');
+  });
 });
 
 // — the other three things an area does to whoever is standing in it ————————
@@ -475,6 +576,21 @@ describe('a bonus an area gives whoever stands in it and is on its list', () => 
     // is in their own aura because the sentence says so rather than because the
     // geometry puts them there.
     expect(lane.stealth(RANGER)).toEqual([{ source: 'Pass without Trace', flat: 10 }]);
+  });
+
+  it('reaches its caster and nobody else when the caster chose nobody', () => {
+    const lane = new Lane();
+    passWithoutTrace(lane, []);
+
+    // "**you** and each creature you choose", with nobody chosen. An empty
+    // list is not an absent one here, which is where this fact parts company
+    // with the designation it mirrors: eliding it would hand the aura to
+    // whoever the geometry caught, which is the rule inverted rather than
+    // narrowed.
+    expect(lane.stealth(RANGER)).toEqual([{ source: 'Pass without Trace', flat: 10 }]);
+    expect(lane.stealth(ROGUE)).toEqual([]);
+    expect(lane.stealth(FIGHTER)).toEqual([]);
+    expect(ongoingSpellOf(lane.state, passWithoutTrace(new Lane(), []))?.chosen).toEqual([RANGER]);
   });
 
   it('withholds the bonus from a check it does not name', () => {

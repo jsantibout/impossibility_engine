@@ -831,12 +831,19 @@ export const willingFor = (request: {
  * the complete answer to "whom does this aura reach", and every reader of it
  * is a set membership test.
  *
- * Sorted for {@link foughtFor}'s reason and **elided when nothing was named**,
- * which is where it follows the designation: a spell that prints no such
- * clause reaches whoever the geometry catches, and so does a casting of a
- * spell that prints one and stated nobody — the caster alone is not a list the
- * SRD asks for, because the clause exists to widen the aura beyond its caster
- * rather than to narrow it onto them.
+ * **And the empty list is where it parts company with the designation, which
+ * is the one thing about this field that cannot be read off its sibling.** An
+ * empty `unaffected` means the caster spared nobody, which is the same casting
+ * as a spell that prints no such clause — so that field is elided. An empty
+ * `chosen` on a spell that *offers* the clause is the opposite: the caster
+ * chose nobody, and "you and each creature you choose" then reaches the caster
+ * and nobody else. Eliding it would hand the aura to whoever the geometry
+ * caught, enemies included, which is the rule inverted rather than narrowed.
+ * So the offer decides: a spell that prints the clause always pins a list, and
+ * a spell that prints none pins nothing however many names arrive — those are
+ * refused by {@link declaredFacts} before this is reached.
+ *
+ * Sorted for {@link foughtFor}'s reason.
  *
  * **Deliberately not `unaffected`'s list read backwards.** That one names who
  * an area lets alone; this names the only creatures it touches. One field
@@ -846,10 +853,10 @@ export const willingFor = (request: {
 export const chosenFor = (
   request: { readonly chosen?: readonly CharacterId[] },
   caster: CharacterId,
+  /** Whether the spell prints the clause — `SpellDefinition.designatesChosen`. */
+  offered: boolean,
 ): readonly CharacterId[] | undefined =>
-  request.chosen === undefined || request.chosen.length === 0
-    ? undefined
-    : [...new Set([caster, ...request.chosen])].sort();
+  offered ? [...new Set([caster, ...(request.chosen ?? [])])].sort() : undefined;
 
 /**
  * A casting that has already been paid for and is waiting to be let go.

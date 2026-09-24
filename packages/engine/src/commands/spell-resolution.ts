@@ -361,7 +361,7 @@ export function resolveDeclaredCast(
     // was written on. Normalised already — this is the same function that
     // normalised it, and it is idempotent precisely so that the settlement
     // does not have to spell the copy out a second time.
-    const stated = statedFacts(pending, pending.caster);
+    const stated = statedFacts(pending, pending.caster, definition.designatesChosen === true);
     // And the choice, in the record's shape: the declaration kept the bare
     // value and this is where it becomes a pair. See `choicePinned`.
     const settledChoice = choicePinned(definition, pending);
@@ -1944,7 +1944,7 @@ function resolveOnTargets(
   // Normalised here, once, and read by both paths out of this file: the
   // ongoing record an atomic casting writes, and the declaration a held one
   // writes for its own settlement to read back.
-  const stated = statedFacts(request, casterId);
+  const stated = statedFacts(request, casterId, definition.designatesChosen === true);
 
   // The third stated fact, normalised beside them and **not through them**,
   // for two reasons that both matter. `statedFacts` also feeds the ongoing
@@ -3699,6 +3699,16 @@ function statedFacts(
    * See `chosenFor`, which is where the first word of that sentence lives.
    */
   caster: CharacterId,
+  /**
+   * Whether the spell prints that clause at all.
+   *
+   * The one thing this normalisation cannot read off the request, and the
+   * reason it is here rather than inside `chosenFor`'s own signature-free
+   * shape: a casting of a spell that offers the choice and names nobody
+   * reaches its caster and nobody else, and a casting of a spell that offers
+   * none reaches whoever the geometry catches. Absence cannot say both.
+   */
+  offersChosen: boolean,
 ): {
   readonly damageType?: string;
   readonly unaffected?: readonly CharacterId[];
@@ -3713,7 +3723,7 @@ function statedFacts(
     // set is what puts them there, so a settlement may run this over a pending
     // record without naming them twice.
     ...(() => {
-      const chosen = chosenFor(stated, caster);
+      const chosen = chosenFor(stated, caster, offersChosen);
       return chosen === undefined ? {} : { chosen };
     })(),
     ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),

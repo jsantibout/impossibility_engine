@@ -202,11 +202,13 @@ describe('toolSchemas', () => {
     // eleventh stated fact — SRD Pass without Trace’s “you and each creature
     // you choose”, which is the designation with its polarity turned over — is
     // one field on one tool, so both surfaces grew by the same 482 characters
-    // and neither gained a tool.
+    // and neither gained a tool; `ready.response.chosen` is the same field on
+    // the door that holds a spell rather than casts one, and grew both by the
+    // same 95, because a readied casting states the facts a cast one does.
     expect(toolSchemas(player())).toHaveLength(84);
     expect(toolSchemas(dm())).toHaveLength(103);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(122509);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146639);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(122604);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(146734);
   });
 });
 

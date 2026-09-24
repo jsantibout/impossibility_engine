@@ -5628,9 +5628,14 @@ function areaDefenses(
  * be two facts that can disagree the first time something moves a creature
  * without remembering.
  *
- * The instance is sourced on the *casting*, so two Sphere s over one goblin are
- * two instances of one condition and the goblin is Deafened once, which is what
- * `ConditionState` derives anyway.
+ * **The instance is sourced on the spell's pinned name rather than on the
+ * casting**, so two Spheres over one goblin are one instance and not two. That
+ * is the same reading the bonus beside it takes and for the SRD's own reason —
+ * "when two or more game features have the same name, only the effects of one
+ * of them applies" — and it costs nothing either way, because a condition is a
+ * set: a goblin standing in two Silences is Deafened exactly once whichever
+ * spelling is used. The name is what a log reader recognises; a casting id
+ * would put two indistinguishable instances on a creature to say one thing.
  */
 function areaConditionsOn(
   state: GameState,

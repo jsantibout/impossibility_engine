@@ -5176,6 +5176,7 @@ const TAKE_READY = tool({
         choice: z.string().min(1).optional(),
         fought: z.array(creatureId).optional(),
         unaffected: z.array(creatureId).optional(),
+        chosen: z.array(creatureId).optional(),
         teleportTo: placementSchema.optional(),
         weapon: z.string().min(1).optional(),
       }),
@@ -5204,6 +5205,9 @@ const TAKE_READY = tool({
                   ...(response.unaffected === undefined
                     ? {}
                     : { unaffected: response.unaffected.map(who) }),
+                  ...(response.chosen === undefined
+                    ? {}
+                    : { chosen: response.chosen.map(who) }),
                   ...(response.teleportTo === undefined
                     ? {}
                     : { teleportTo: placementOf(response.teleportTo) }),

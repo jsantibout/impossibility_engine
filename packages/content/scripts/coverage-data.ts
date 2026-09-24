@@ -291,6 +291,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'mind-spike',
   'misty-step',
   'moonbeam',
+  // `area-standing.test.ts`: the Ranger's aura, the Rogue on the list taking
+  // the +10 on a Stealth check and nothing on a Perception one, the Fighter
+  // inside it and off the list taking nothing, the Rogue five feet too far
+  // taking nothing, and the pair walking forty feet with the bonus travelling
+  // and no grant hung on anybody.
+  'pass-without-trace',
   // Driven end to end by `casting-terrain.test.ts`: the Overgrowth cast at a
   // point, the four feet per foot its own paragraph prints charged over the
   // Sphere, and the patch left standing because the casting is Instantaneous
@@ -368,6 +374,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // advances the generator, so the same seed no longer rolls the same sword.
   'shining-smite',
   'shocking-grasp',
+  // `area-standing.test.ts`: the Sphere placed at a point, a goblin entirely
+  // inside it Deafened and immune to Thunder with no event written, an ogre
+  // straddling its edge neither, a Thunderwave that deals the goblin nothing,
+  // the goblin walking out and losing both, and a Verbal casting refused there
+  // where one with no Verbal component is not.
+  'silence',
   // Driven end to end by `repeat-save-deepens.test.ts`: the 5-foot Sphere
   // catching two sleepers and not a third, the Incapacitated, the repeat at
   // the end of the sleeper's own next turn, a seeded second failure deepening

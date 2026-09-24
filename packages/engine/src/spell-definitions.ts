@@ -4462,12 +4462,25 @@ export interface SpellDefinition {
    * exists to prevent.
    *
    * **Absent means the spell has one, which is the book's own default and not
-   * a guess.** SRD 5.2.1 prints 339 spells and ten of them omit the V; a
-   * positive marker would have left Silence inert for every definition nobody
-   * had thought to annotate, which is a rule quietly switched off. So the
-   * exception is what is written down, on the ten entries that are the
+   * a guess.** All but a handful of the SRD's spells print a Verbal component;
+   * a positive marker would have left Silence inert for every definition
+   * nobody had thought to annotate, which is a rule quietly switched off. So
+   * the exception is what is written down, on the entries that are the
    * exception, and a definition that says nothing says what the book says
    * about almost everything.
+   *
+   * **The polarity is the reason it is guarded rather than trusted.** Either
+   * marker set the wrong way is silent — one refuses a casting the book
+   * allows, the other allows one the book refuses — so `@ie/content` checks
+   * every definition's answer against the components `@ie/srd` parsed, in both
+   * directions. See `spell-catalogue.test.ts`.
+   *
+   * **A spell cast from an item carries the spell's answer**, which is a
+   * reading rather than an omission: SRD says an item's casting spends no slot
+   * and says nothing about dropping the words, so a wand's Fireball still
+   * includes a Verbal component and a Silence still stops it. An item that
+   * means otherwise would say so, and there is no field for it because no SRD
+   * item does.
    */
   readonly noVerbalComponent?: true;
   /**

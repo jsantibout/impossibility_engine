@@ -4237,6 +4237,9 @@ export const CREATE_FOOD_AND_WATER: SpellDefinition = {
  */
 export const DEMIPLANE: SpellDefinition = {
   id: 'demiplane',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Demiplane',
   level: 8,
   school: 'conjuration',
@@ -6632,6 +6635,9 @@ export const IDENTIFY: SpellDefinition = {
  */
 export const ILLUSORY_SCRIPT: SpellDefinition = {
   id: 'illusory-script',
+  // SRD prints no Verbal component on this spell, which is what SRD Silence
+  // asks about — see `SpellDefinition.noVerbalComponent`.
+  noVerbalComponent: true,
   name: 'Illusory Script',
   level: 1,
   school: 'illusion',
