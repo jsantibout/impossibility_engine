@@ -1008,6 +1008,16 @@ a qualified defence uses, on the hit it belongs to. A rider silently
 dropped would make the creature weaker than the book prints it, which is
 the failure the split exists to prevent.
 
+**And it reports it clause by clause**, which is why two rows below count
+riders rather than one. The reader goes sentence by sentence, so the
+Gibbering Mouther’s Prone lands and the sentence about its victim being
+absorbed is handed back on the same hit. *An effect a hit buys* is the
+lines nothing at all was read from; *a hit whose line says more than the
+engine applies* is the lines with a residue. Both are unpaid, and they
+overlap — the Salamander’s whole rider is one handed-over sentence — so
+that learning to recognise three quarters of a sentence can never retire a
+debt on its own.
+
 **A monster’s spellcasting is in that prose too**, which is why
 `declareSpellcasting` states it and nothing infers it: reading a caster’s
 ability and list out of a trait’s sentence would be the engine deciding a
@@ -1036,8 +1046,9 @@ and a bite whose hit buys a save.
 |---|---|---|
 | A save a line forces | 127 | 187 |
 | A recharge | 87 | 87 |
-| An effect a hit buys | 80 | 84 |
 | A use the block limits per day | 54 | 60 |
+| A hit whose line says more than the engine applies | 52 | 53 |
+| An effect a hit buys | 45 | 46 |
 | A legendary action’s own economy | 30 | 82 |
 | A save whose line says more than the engine spends | 26 | 26 |
 | How many attacks the Attack action holds | 2 | 2 |
