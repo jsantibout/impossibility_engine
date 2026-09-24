@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
+import { SRD_CONTENT } from '@ie/content';
+import { asCharacterId, type CharacterId, expect as unwrap, type Result } from '@ie/shared';
+import {
+  addCreature,
+  addSceneLandmark,
+  beginCombat,
+  declareCreatureSide,
+  escapeGrapple,
+  joinCombat,
+  placeCreatureInScene,
+  resolveAttack,
+  resolveMove,
+  resolveTurn,
+  setScene,
+} from './commands.js';
+import { createCharacter, type CharacterChoices } from './creation.js';
+import { createRng, type Rng } from './dice.js';
+import { fold, type GameEvent, type GameState } from './events.js';
 import { readPrintedRider, readPrintedRiders } from './monster.js';
+import { distanceBetween } from './positioning.js';
+import { createRollIssuer } from './rolls.js';
+import { speedOf } from './standing.js';
+import { healingRuleOf } from './vitals.js';
 
 /**
  * **What a stat block's hit does, read as a sequence rather than as one shape.**
@@ -387,5 +409,519 @@ describe('reading a printed rider as a sequence', () => {
     expect(read.riders).toEqual([]);
     expect(read.handedOver).toHaveLength(2);
     expect(readPrintedRider(mummy)).toBeNull();
+  });
+});
+
+// — through the commands ——————————————————————————————————————————————————————
+
+const id = (s: string) => asCharacterId(s);
+const BREN = id('bren');
+const BEAST = id('beast');
+const OTHER = id('other');
+const THIRD = id('third');
+const BIG = id('big');
+const SEED = 'hooves';
+
+const supply = (seed = SEED) => ({
+  issuer: createRollIssuer('r'),
+  rng: createRng(seed) as Rng,
+  content: SRD_CONTENT,
+});
+
+/** A level 1 Fighter, Medium, for the beasts to run at. */
+const walkOn = (name: string): CharacterChoices => ({
+  name,
+  classId: 'fighter',
+  level: 1,
+  speciesId: 'human',
+  backgroundId: 'sage',
+  abilities: {
+    method: 'standard-array',
+    assignment: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+  },
+  abilityIncreases: { con: 2, wis: 1 },
+  classSkills: ['athletics', 'survival'],
+  languages: ['Dwarvish', 'Orc'],
+  alignment: 'Neutral',
+  cantrips: [],
+  spellbook: [],
+  preparedSpells: [],
+  classEquipment: 'A',
+  backgroundEquipment: 'A',
+  equipped: ['chain-mail'],
+  hitPoints: { method: 'fixed' },
+  featureChoices: { 'human:skillful': ['perception'], 'fighter:weapon-mastery': [] },
+  feats: {
+    'sage:magic-initiate-wizard': {
+      featId: 'magic-initiate',
+      spellList: 'wizard',
+      spellcastingAbility: 'int',
+      cantrips: ['mage-hand', 'light'],
+      levelOneSpell: 'ray-of-sickness',
+    },
+    'human:versatile': { featId: 'alert' },
+    'fighter:fighting-style': { featId: 'archery' },
+  },
+  dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard' },
+});
+
+/** A log built only out of what the engine produced. */
+class Table {
+  readonly log: GameEvent[] = [];
+
+  get state(): GameState {
+    return fold(SEED, this.log);
+  }
+
+  do(step: string, produce: (state: GameState) => Result<readonly GameEvent[]>): GameState {
+    this.log.push(...unwrap(produce(this.state), step));
+    return this.state;
+  }
+
+  did(
+    step: string,
+    produce: (state: GameState) => Result<{ readonly events: readonly GameEvent[] }>,
+  ): GameState {
+    this.log.push(...unwrap(produce(this.state), step).events);
+    return this.state;
+  }
+}
+
+/** A fighter in a field with a beast a stated distance due south of him. */
+const field = (block: string, away: number, inCombat = true, victim = walkOn('Bren')): Table => {
+  const table = new Table();
+  table.do('the fighter arrives', () => createCharacter(SRD_CONTENT, victim, BREN));
+  table.did('the beast arrives', (s) => addCreature(s, SRD_CONTENT, BEAST, block));
+  table.do('the field', (s) => setScene(s, { width: 400, depth: 400, height: 100 }));
+  table.do('the oak', (s) => addSceneLandmark(s, 'the oak', { x: 200, y: 200, z: 0 }));
+  table.do('Bren by the oak', (s) =>
+    placeCreatureInScene(s, BREN, { from: { landmark: 'the oak' }, feet: 0 }),
+  );
+  table.do('the beast downfield', (s) =>
+    placeCreatureInScene(s, BEAST, { from: { creature: BREN }, feet: away, bearing: 180 }),
+  );
+  table.do('Bren’s side', (s) => declareCreatureSide(s, BREN, 'party'));
+  table.do('the beast’s side', (s) => declareCreatureSide(s, BEAST, 'wild'));
+  if (inCombat) {
+    table.do('the order', (s) =>
+      beginCombat(s, [
+        { id: BEAST, initiative: 20, speed: 40 },
+        { id: BREN, initiative: 1, speed: 30 },
+      ]),
+    );
+  }
+  return table;
+};
+
+/** A move the beast makes on its own turn, stated as feet along a bearing. */
+const run = (table: Table, feet: number, bearing: number, step: string): GameState =>
+  table.did(step, (s) =>
+    resolveMove(
+      s,
+      BEAST,
+      { placement: { from: { creature: BEAST }, feet, bearing }, commandId: step },
+      supply(),
+    ),
+  );
+
+/** A swing with the attack roll forced to land: a miss answers nothing here. */
+const swing = (
+  table: Table,
+  /** The stat-block line this swing is, or null for a character's own fist. */
+  action: string | null,
+  options: {
+    readonly who?: CharacterId;
+    readonly target?: CharacterId;
+    readonly seed?: string;
+    readonly commandId?: string;
+    /** SRD's "_Melee or Ranged Attack Roll:_": which of the two this swing is. */
+    readonly thrown?: true;
+  } = {},
+) => {
+  const out = unwrap(
+    resolveAttack(
+      table.state,
+      options.who ?? BEAST,
+      {
+        target: options.target ?? BREN,
+        weapon: null,
+        ...(action === null ? {} : { action }),
+        attackBonuses: [{ source: 'forced', flat: 40 }],
+        ...(options.thrown === undefined ? {} : { thrown: options.thrown }),
+        ...(options.commandId === undefined ? {} : { commandId: options.commandId }),
+      },
+      supply(options.seed ?? SEED),
+    ),
+    `the ${action ?? 'swing'}`,
+  );
+  const log = [...table.log, ...out.events];
+  return { ...out, log, state: fold(SEED, log) };
+};
+
+const conditionsOn = (state: GameState, who: CharacterId): readonly string[] =>
+  state.creatures[who]?.conditions.conditions ?? [];
+
+/** The slices a blow was made of, as the log recorded the faces. */
+const slices = (events: readonly GameEvent[]): readonly { source: string; type: string }[] =>
+  events.flatMap((e) => (e.type === 'damage-dice-recorded' ? [...e.components] : []));
+
+const apart = (state: GameState, a: CharacterId, b: CharacterId): number | null =>
+  state.scene === null ? null : unwrap(distanceBetween(state.scene, a, b), 'the gap');
+
+// — the charge ————————————————————————————————————————————————————————————————
+
+/**
+ * SRD Boar, Gore: "If the target is a Medium or smaller creature **and the
+ * boar moved 20+ feet straight toward it immediately before the hit**, the
+ * target takes an extra 3 (1d6) Piercing damage and has the Prone condition."
+ *
+ * The gate `readPrintedRider`'s own comment refused for as long as it did:
+ * "nothing records the shape of the move that preceded a swing." Something
+ * does now — `movement-spent` carries the two ends of the move and the combat
+ * seam keeps the turn's segments on the budget — so the question is answered
+ * off the engine's own record rather than asked of the table.
+ */
+describe('the move that preceded the swing', () => {
+  it('knocks a charged target Prone and deals the extra die', () => {
+    const table = field('boar', 25);
+    run(table, 20, 0, 'the boar charges');
+    const out = swing(table, 'Gore');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).toContain('prone');
+    // The extra die is a **component of the blow**, so it meets the target's
+    // defences with it and a critical would double it — which is why it is in
+    // the damage the line rolls rather than dealt separately afterwards.
+    expect(slices(out.events).filter((c) => c.type === 'piercing')).toHaveLength(2);
+    expect(out.unverified.join(' ')).not.toContain('the engine does not apply that');
+  });
+
+  /** Fifteen feet is not twenty, and the line says twenty. */
+  it('leaves a short run alone', () => {
+    const table = field('boar', 20);
+    run(table, 15, 0, 'the boar trots');
+    const out = swing(table, 'Gore');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).not.toContain('prone');
+    expect(slices(out.events).filter((c) => c.type === 'piercing')).toHaveLength(1);
+  });
+
+  /**
+   * **"Straight" is the half feet cannot express.** Twenty feet north and then
+   * ten feet west is thirty feet of movement and a run of ten, because the run
+   * is read back from the swing only while the bearing holds.
+   */
+  it('leaves a run that bent alone', () => {
+    const table = field('boar', 25);
+    run(table, 20, 0, 'the boar starts north');
+    run(table, 5, 90, 'the boar turns');
+    const out = swing(table, 'Gore');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).not.toContain('prone');
+  });
+
+  /**
+   * **And the bearing is measured against where the target is standing at the
+   * swing.** A boar that ran twenty feet north straight past its target and
+   * gored backwards did not move toward it, which is the same sentence "a move
+   * away" is.
+   */
+  it('leaves a run that went past the target alone', () => {
+    const table = field('boar', 20);
+    run(table, 25, 0, 'the boar overshoots');
+    const out = swing(table, 'Gore');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).not.toContain('prone');
+  });
+
+  /**
+   * **No record is no charge, said out loud.** Outside a fight there is no
+   * turn and therefore no budget, so the engine records no moves at all — and
+   * a gate that cannot be answered is reported rather than assumed either way.
+   */
+  it('says why the gate was not met where there is no turn keeping the record', () => {
+    const table = field('boar', 5, false);
+    const out = swing(table, 'Gore');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).not.toContain('prone');
+    expect(out.unverified.join(' ')).toContain('straight at bren before the hit');
+    expect(out.unverified.join(' ')).toContain('outside a fight');
+  });
+});
+
+// — the shove on a hit ————————————————————————————————————————————————————————
+
+describe('a shove the hit itself delivers', () => {
+  /**
+   * SRD Satyr, Hooves: "If the target is a Medium or smaller creature, the
+   * satyr pushes the target up to 10 feet straight away from itself."
+   */
+  it('pushes a Medium target ten feet away', () => {
+    const table = field('satyr', 5);
+    const out = swing(table, 'Hooves');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(apart(out.state, BREN, BEAST)).toBe(15);
+  });
+
+  /**
+   * SRD Merrow, Harpoon: "the merrow pulls the target up to 15 feet straight
+   * toward itself" — the same arithmetic with the bearing reversed, thrown
+   * from the far end of the line's own range.
+   */
+  it('pulls a target fifteen feet toward the puller', () => {
+    const table = field('merrow', 20);
+    // A Large merrow's own volume fills five of the twenty feet between the
+    // two anchors, so the gap the rules measure is fifteen — the whole of
+    // what the line pulls.
+    expect(apart(table.state, BREN, BEAST)).toBe(15);
+    const out = swing(table, 'Harpoon', { thrown: true });
+
+    expect(out.attack?.hit).toBe(true);
+    expect(apart(out.state, BREN, BEAST)).toBe(0);
+  });
+
+  /**
+   * **"Up to", capped at the gap.** A pull is the one direction that can run
+   * out of room: fifteen feet of pull across a five-foot gap would drag the
+   * target through the thing pulling it.
+   */
+  it('stops a pull at the puller’s own face', () => {
+    const table = field('merrow', 10);
+    const out = swing(table, 'Harpoon');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(apart(out.state, BREN, BEAST)).toBe(0);
+  });
+
+  /** The size the line prints, evaluated rather than assumed. */
+  it('leaves a creature the size gate does not reach standing where it was', () => {
+    const table = field('satyr', 5);
+    table.did('an elephant wanders in', (s) => addCreature(s, SRD_CONTENT, BIG, 'elephant'));
+    table.do('the elephant beside the satyr', (s) =>
+      placeCreatureInScene(s, BIG, { from: { creature: BEAST }, feet: 5, bearing: 90 }),
+    );
+
+    const out = swing(table, 'Hooves', { target: BIG });
+
+    expect(out.attack?.hit).toBe(true);
+    expect(apart(out.state, BIG, BEAST)).toBe(5);
+    expect(out.unverified.join(' ')).toContain('medium or smaller');
+  });
+});
+
+// — a mode on one later roll ——————————————————————————————————————————————————
+
+describe('a mode a hit puts on one later roll', () => {
+  /**
+   * SRD Worg, Bite: "the next attack roll made against the target before the
+   * start of the worg's next turn has Advantage." `RollModifier.oneShot` is
+   * the half that says *the next*; the span is the half that says *before*.
+   */
+  it('gives the next attack roll against the target Advantage, and the one after it none', () => {
+    const table = field('worg', 10);
+    for (const [who, bearing, initiative] of [
+      [OTHER, 90, 15],
+      [THIRD, 270, 10],
+    ] as const) {
+      table.did(`a guard at ${bearing}`, (s) => addCreature(s, SRD_CONTENT, who, 'guard'));
+      table.do(`the guard at ${bearing} beside Bren`, (s) =>
+        placeCreatureInScene(s, who, { from: { creature: BREN }, feet: 5, bearing }),
+      );
+      table.do(`its side at ${bearing}`, (s) => declareCreatureSide(s, who, 'wild'));
+      table.do(`it joins at ${bearing}`, (s) =>
+        joinCombat(s, { id: who, initiative, speed: 40 }),
+      );
+    }
+
+    const bitten = swing(table, 'Bite');
+    expect(bitten.attack?.hit).toBe(true);
+    table.log.push(...bitten.events);
+    table.did('the worg’s turn ends', (s) =>
+      resolveTurn(s, supply(), { commandId: 'the worg is done' }),
+    );
+
+    const first = swing(table, 'Spear', { who: OTHER, commandId: 'the first spear' });
+    expect(first.attack?.mode).toBe('advantage');
+    table.log.push(...first.events);
+    table.did('the first guard’s turn ends', (s) =>
+      resolveTurn(s, supply(), { commandId: 'the first guard is done' }),
+    );
+
+    const second = swing(table, 'Spear', { who: THIRD, commandId: 'the second spear' });
+    expect(second.attack?.mode).toBe('normal');
+  });
+
+  /**
+   * SRD Ettin, Morningstar: "the target has Disadvantage on the next attack
+   * roll **it makes**" — the same mechanic from the other end of the relation,
+   * which is a different rule and not a different wording.
+   */
+  it('puts Disadvantage on the target’s own next attack and no other', () => {
+    // An ogre rather than the fighter, because the Ettin's morningstar puts a
+    // level 1 character on the floor and an Incapacitated creature makes no
+    // attack roll for the clause to be about.
+    const table = field('ettin', 10);
+    table.did('an ogre arrives', (s) => addCreature(s, SRD_CONTENT, OTHER, 'ogre'));
+    table.do('the ogre beside the ettin', (s) =>
+      placeCreatureInScene(s, OTHER, { from: { creature: BEAST }, feet: 10, bearing: 180 }),
+    );
+    table.do('its side', (s) => declareCreatureSide(s, OTHER, 'party'));
+    table.do('it joins', (s) => joinCombat(s, { id: OTHER, initiative: 10, speed: 40 }));
+
+    const hit = swing(table, 'Morningstar', { target: OTHER });
+    expect(hit.attack?.hit).toBe(true);
+    table.log.push(...hit.events);
+    expect(table.state.creatures[OTHER]!.rollModifiers).toHaveLength(1);
+    table.did('the ettin’s turn ends', (s) =>
+      resolveTurn(s, supply(), { commandId: 'the ettin is done' }),
+    );
+
+    const swung = swing(table, 'Greatclub', {
+      who: OTHER,
+      target: BEAST,
+      commandId: 'the ogre swings',
+    });
+    expect(swung.attack?.mode).toBe('disadvantage');
+    table.log.push(...swung.events);
+
+    // **The roll it reached, not the roll it changed**: one attack spends it,
+    // and `roll-modifier-consumed` is how it ends. Nothing of the ettin's is
+    // left on the ogre for the next one.
+    expect(swung.events.some((e) => e.type === 'roll-modifier-consumed')).toBe(true);
+    expect(table.state.creatures[OTHER]!.rollModifiers).toEqual([]);
+  });
+});
+
+// — a maximum lowered by the blow ——————————————————————————————————————————————
+
+describe('a Hit Point maximum the blow lowers', () => {
+  /**
+   * SRD Specter, Life Drain: "its Hit Point maximum decreases by an amount
+   * equal to **the damage taken**" — what the target actually took, after its
+   * own defences, which is why the number is read off the settled damage and
+   * not off the roll.
+   */
+  it('lowers the maximum by exactly what the blow dealt', () => {
+    const table = field('specter', 5);
+    const before = table.state.creatures[BREN]!.vitals.hpMax;
+    const out = swing(table, 'Life Drain');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(out.damage).toBeGreaterThan(0);
+    expect(out.state.creatures[BREN]!.vitals.hpMax).toBe(before - out.damage!);
+  });
+});
+
+// — a hold that implies a condition ————————————————————————————————————————————
+
+describe('a grapple that carries a condition for as long as it lasts', () => {
+  /**
+   * SRD Crocodile, Bite: "it has the Grappled condition (escape DC 12). While
+   * Grappled, the target has the Restrained condition."
+   *
+   * The lifetime is `ConditionInstance.impliedBy` — the one Unconscious
+   * carries Prone with — so the Restrained is lifted by whatever lifts the
+   * grapple, through the door that already existed.
+   */
+  it('leaves the target Grappled and Restrained, and the escape lifts both', () => {
+    const table = field('crocodile', 10);
+    const bitten = swing(table, 'Bite');
+    expect(bitten.attack?.hit).toBe(true);
+    expect(conditionsOn(bitten.state, BREN)).toContain('grappled');
+    expect(conditionsOn(bitten.state, BREN)).toContain('restrained');
+    table.log.push(...bitten.events);
+
+    // Bren's turn, and an escape check the table hands enough to pass.
+    table.did('the crocodile’s turn ends', (s) =>
+      resolveTurn(s, supply(), { commandId: 'end of the crocodile’s turn' }),
+    );
+    const escaped = unwrap(
+      escapeGrapple(
+        table.state,
+        BREN,
+        { ability: 'str', bonuses: [{ source: 'forced', flat: 40 }] },
+        supply(),
+      ),
+      'the escape',
+    );
+    expect(escaped.success).toBe(true);
+    const after = fold(SEED, [...table.log, ...escaped.events]);
+    expect(conditionsOn(after, BREN)).not.toContain('grappled');
+    expect(conditionsOn(after, BREN)).not.toContain('restrained');
+  });
+});
+
+// — the residue ———————————————————————————————————————————————————————————————
+
+describe('a composite line applies what it read and reports the rest', () => {
+  /**
+   * SRD Gibbering Mouther, Bite: the Prone the engine has executed for a year
+   * on every line that prints it alone, followed by two sentences about a
+   * victim being absorbed that nothing in the engine does.
+   *
+   * Before this the whole line was the DM's, including the Prone. Now the
+   * Prone lands and the residue is reported — and the ledger counts the line
+   * as **unpaid** on the strength of that residue, which is what keeps
+   * learning to recognise three quarters of a sentence from retiring a debt.
+   */
+  it('knocks the target Prone and hands back the sentences it read nothing of', () => {
+    const table = field('gibbering-mouther', 5);
+    const out = swing(table, 'Bite');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).toContain('prone');
+    const said = out.unverified.join(' ');
+    expect(said).toContain('The target dies if it is reduced to 0 Hit Points by this attack.');
+    expect(said).toContain('absorbed into the mouther');
+    // And not the half it executed.
+    expect(said).not.toContain('it has the Prone condition.');
+  });
+});
+
+// — a Speed the hit cuts, and a healing the poison forbids ————————————————————
+
+describe('the rest of what a printed hit buys', () => {
+  /**
+   * SRD Merfolk Skirmisher, Ocean Spear: "If the target is a creature, its
+   * Speed decreases by 10 feet until the end of its next turn. _Hit or Miss:_
+   * The spear magically returns to the merfolk's hand."
+   *
+   * The Speed cut is the `speed-modifier-granted` grant a spell's slow already
+   * hangs, released by the `grants` deadline `fileDeadlines` files over it.
+   * The returning spear is a sentence about an object nobody is tracking, so
+   * it goes back to the table — which is what leaves the line **unpaid** even
+   * though half of it now runs.
+   */
+  it('cuts the Speed and hands back the spear that comes home', () => {
+    const table = field('merfolk-skirmisher', 5);
+    const before = speedOf(table.state, BREN);
+    const out = swing(table, 'Ocean Spear');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(speedOf(out.state, BREN)).toBe(before - 10);
+    expect(out.unverified.join(' ')).toContain('The spear magically returns');
+  });
+
+  /**
+   * SRD Bearded Devil, Beard: "the target has the Poisoned condition until the
+   * start of the devil's next turn. Until this poison ends, the target can't
+   * regain Hit Points."
+   *
+   * Two sentences about one span, so they are one `HitOption`: the condition
+   * and a `healing-rule` grant that ends with it.
+   */
+  it('poisons the target and stops its healing while the poison lasts', () => {
+    const table = field('bearded-devil', 5);
+    const out = swing(table, 'Beard');
+
+    expect(out.attack?.hit).toBe(true);
+    expect(conditionsOn(out.state, BREN)).toContain('poisoned');
+    expect(healingRuleOf(out.state.creatures[BREN]!.healingRules)).toBe('prevented');
+    expect(out.unverified.join(' ')).not.toContain('the engine does not apply that');
   });
 });

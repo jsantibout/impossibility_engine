@@ -1771,16 +1771,7 @@ export type PrintedHitGate =
   | { readonly kind: 'bloodied'; readonly who: HitRiderAnchor }
   /** SRD Goblin Warrior's "if the attack roll had Advantage". */
   | { readonly kind: 'attack-had-advantage' }
-  /**
-   * SRD Boar: "the boar moved 20+ feet straight toward it immediately before
-   * the hit".
-   *
-   * The feet the line prints, which is 10 for the Minotaur of Baphomet, 20 for
-   * most of the bestiary and 30 for the Allosaurus — so it is a number rather
-   * than a flag. What answers it is the mover's own turn budget: see
-   * `TurnBudget.movementSegments`.
-   */
-  | { readonly kind: 'charged'; readonly feet: number }
+  | PrintedChargeGate
   /**
    * SRD Mimic's Bite: "if the target is Grappled by the mimic".
    *
@@ -1789,6 +1780,28 @@ export type PrintedHitGate =
    * not a handover.
    */
   | { readonly kind: 'grappled-by-attacker' };
+
+/**
+ * SRD Boar: "the boar moved 20+ feet straight toward it immediately before the
+ * hit".
+ *
+ * The feet the line prints, which is 10 for the Minotaur of Baphomet, 20 for
+ * most of the bestiary and 30 for the Allosaurus — so it is a number rather
+ * than a flag. What answers it is the mover's own turn budget: see
+ * `TurnBudget.movementSegments`.
+ *
+ * **Its own type because it is the only gate a condition clause can carry.**
+ * The other three are facts about the blow — the roll's mode, half a
+ * creature's Hit Points, a hold — and the book prints them on the damage; the
+ * charge is a fact about the turn, knowable before the die. What a hit *buys*
+ * is settled before the d20 so a hold can pin it, so a condition clause gated
+ * on the roll could not be answered at the moment it is built, and a type that
+ * could say it would be a clause that quietly never fired.
+ */
+export interface PrintedChargeGate {
+  readonly kind: 'charged';
+  readonly feet: number;
+}
 
 /** A condition the hit imposes, with or without a saving throw against it. */
 export interface PrintedConditionRider {
@@ -1828,13 +1841,13 @@ export interface PrintedConditionRider {
    */
   readonly lastsOn?: HitRiderAnchor;
   /**
-   * What the clause is conditioned on — SRD Gorgon's charge.
+   * What the clause is conditioned on — SRD Gorgon's charge, and nothing else.
    *
-   * The same gate {@link PrintedDamageRider} carries, for the reason
-   * {@link PrintedHitGate} gives: one printed sentence can be an extra die and
-   * a condition behind one "if".
+   * One printed sentence can be an extra die and a condition behind one "if",
+   * which is why the gate is on both riders; it is narrowed to the charge here
+   * for the reason {@link PrintedChargeGate} gives.
    */
-  readonly when?: PrintedHitGate;
+  readonly when?: PrintedChargeGate;
   /**
    * SRD Bearded Devil's Beard: "Until this poison ends, the target can't
    * regain Hit Points."

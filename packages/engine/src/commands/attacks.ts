@@ -465,6 +465,7 @@ function printedDamageOnASwing(
  * not "somebody offered Advantage": a mode cancelled to `normal` by a
  * Disadvantage is a roll that did not have Advantage, and the book's gate is
  * about the roll rather than about what was offered.
+ *
  */
 function gateHolds(
   state: GameState,
@@ -767,15 +768,13 @@ function printedRiderOnASwing(
       case 'condition': {
         if (!passesSize(rider.ifNoLargerThan, 'clause')) break;
         // SRD Boar's charge, evaluated off the turn's own record of what it
-        // was made of. A gate that fails for want of a record says so.
+        // was made of — and the only gate a condition clause can carry, for
+        // the reason `PrintedChargeGate` gives: this is settled before the d20
+        // and the other three gates are facts about the blow.
         if (rider.when !== undefined) {
-          if (rider.when.kind === 'charged') {
-            const charged = chargeRun(state, attacker, target, rider.when.feet);
-            if (charged.unverified !== null) unverified.push(charged.unverified);
-            if (!charged.met) break;
-          } else if (!gateHolds(state, attacker, target, rider.when, 'normal')) {
-            break;
-          }
+          const charged = chargeRun(state, attacker, target, rider.when.feet);
+          if (charged.unverified !== null) unverified.push(charged.unverified);
+          if (!charged.met) break;
         }
         // SRD Ghast's "If the target is a non-Undead creature", the other gate
         // the engine holds the fact for — read off the creature rather than
