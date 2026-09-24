@@ -3266,12 +3266,30 @@ export function planCharacter(
       // benefit misapplied rather than one never applied; creation refuses the
       // sheet for the missing answer, and this makes sure a plan built past
       // that refusal hands out nothing.
+      //
+      // **Three kinds read it, because three features of the caster stand on
+      // one named spell**: Agonizing Blast's modifier on its damage, Eldritch
+      // Spear's feet on its range, and Repelling Blast's shove on its hit.
+      // Every one of them narrows a `when` of the same shape, which is what
+      // makes this one branch rather than three.
       if (grant.spellFromChoice === true) {
-        if (effect.kind !== 'casting-damage') continue;
+        if (
+          effect.kind !== 'casting-damage' &&
+          effect.kind !== 'casting-range' &&
+          effect.kind !== 'casting-rider'
+        ) {
+          continue;
+        }
         const named = choices.featureChoices[grant.choiceFrom ?? feature.id] ?? [];
         const spell = named[0];
         if (spell === undefined) continue;
         effect = { ...effect, when: { ...effect.when, spell } };
+      }
+
+      // SRD Eldritch Spear: "30 times your Warlock level" — the granting
+      // class's own level, pinned here for the reason Slow Fall's is.
+      if (effect.kind === 'casting-range') {
+        effect = { ...effect, classLevel: classLevelFor(choices, feature.id) };
       }
 
       // SRD Sneak Attack's dice are a column of the Rogue table, read at that

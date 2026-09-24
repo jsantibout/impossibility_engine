@@ -141,6 +141,7 @@ export const WARLOCK: ClassDefinition = {
             'Ascendant Step',
             "Devil's Sight",
             'Eldritch Mind',
+            'Eldritch Spear',
             'Fiendish Vigor',
             'Lessons of the First Ones',
             'Mask of Many Faces',
@@ -148,6 +149,7 @@ export const WARLOCK: ClassDefinition = {
             'Misty Visions',
             'Otherworldly Leap',
             'Pact of the Tome',
+            'Repelling Blast',
           ],
           // "If an invocation has a prerequisite, you must meet it to learn
           // that invocation." Every line the SRD prints over an offered
@@ -156,12 +158,14 @@ export const WARLOCK: ClassDefinition = {
             { option: 'Agonizing Blast', level: 2 },
             { option: 'Ascendant Step', level: 5 },
             { option: "Devil's Sight", level: 2 },
+            { option: 'Eldritch Spear', level: 2 },
             { option: 'Fiendish Vigor', level: 2 },
             { option: 'Lessons of the First Ones', level: 2 },
             { option: 'Mask of Many Faces', level: 2 },
             { option: 'Master of Myriad Forms', level: 5 },
             { option: 'Misty Visions', level: 2 },
             { option: 'Otherworldly Leap', level: 2 },
+            { option: 'Repelling Blast', level: 2 },
           ],
         },
         // "Choose one of your known Warlock cantrips that deals damage" — the
@@ -172,6 +176,26 @@ export const WARLOCK: ClassDefinition = {
           choose: 1,
           maxLevel: 0,
           onlyIfChoice: 'Agonizing Blast',
+        },
+        // Eldritch Spear: "Choose one of your known Warlock cantrips that deals
+        // damage" — the same sentence Agonizing Blast prints, over a different
+        // number, so it is the same question asked of whoever took it.
+        {
+          key: 'eldritch-spear',
+          kind: 'spell',
+          choose: 1,
+          maxLevel: 0,
+          onlyIfChoice: 'Eldritch Spear',
+        },
+        // Repelling Blast: "Choose one of your known Warlock cantrips that
+        // deals damage with an attack roll" — the third feature of the caster
+        // written over one named cantrip, and the third asking of one question.
+        {
+          key: 'repelling-blast',
+          kind: 'spell',
+          choose: 1,
+          maxLevel: 0,
+          onlyIfChoice: 'Repelling Blast',
         },
         // "You have received knowledge from an elder entity of the multiverse,
         // allowing you to gain one Origin feat of your choice."
@@ -219,6 +243,42 @@ export const WARLOCK: ClassDefinition = {
               kind: 'casting-damage',
               when: { dealsDamage: true },
               alters: { kind: 'ability-modifier', ability: 'cha', everyRoll: true },
+            },
+          ],
+        },
+        // Eldritch Spear: "When you cast the chosen cantrip, its range
+        // increases by a number of feet equal to 30 times your Warlock level."
+        // The spell is the answer to the question above; the level is the
+        // Warlock's own, pinned by creation.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Eldritch Spear',
+          choiceFrom: 'warlock:eldritch-invocations:eldritch-spear',
+          spellFromChoice: true,
+          effects: [
+            {
+              kind: 'casting-range',
+              when: { dealsDamage: true },
+              perClassLevel: 30,
+            },
+          ],
+        },
+        // Repelling Blast: "When you hit a Large or smaller creature with the
+        // chosen cantrip, you can push the creature up to 10 feet straight away
+        // from you." The shove a spell's own rider already performs, hung on
+        // the caster's side because the sentence is printed on the Warlock.
+        {
+          kind: 'standing',
+          reach: 'self',
+          onlyIfChoice: 'Repelling Blast',
+          choiceFrom: 'warlock:eldritch-invocations:repelling-blast',
+          spellFromChoice: true,
+          effects: [
+            {
+              kind: 'casting-rider',
+              when: { dealsDamage: true },
+              rides: { movement: { feet: 10, kind: 'push', targetNoLargerThan: 'large' } },
             },
           ],
         },

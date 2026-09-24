@@ -59,7 +59,7 @@ import {
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
 import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
-import type { SpellArea, SpellEffect } from './spell-definitions.js';
+import type { OutcomeRiders, SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import { tallied, type Recovery } from './resources.js';
 // `featureOfSource` is a runtime import and no cycle: everything `progression.ts`
@@ -1273,6 +1273,77 @@ export type StandingGrant =
       readonly when: CastingHealingWhen;
       /** What it does to what they restore. */
       readonly alters: CastingHealingAlteration;
+    }
+  /**
+   * A feature of the caster that reaches into how far a casting **carries**.
+   *
+   * SRD Eldritch Spear: "When you cast the chosen cantrip, its range increases
+   * by a number of feet equal to 30 times your Warlock level."
+   *
+   * **The third member of the `casting-*` family, and a third because a third
+   * reader asks it.** Damage is settled once the effect list is in hand,
+   * healing once per creature healed, and the reach is settled *before either*
+   * — before a target is validated, before the slot goes, before anything is
+   * rolled. A fourth arm of `CastingDamageAlteration` would have been a number
+   * asked for at a moment that half of its arms cannot be asked at.
+   *
+   * **It is not the option a Sorcerer buys.** `CastingCostAlteration`'s
+   * `range` arm multiplies a printed distance and is priced out of a pool;
+   * this adds feet, is free, and stands on one spell for as long as its holder
+   * holds the feature — which is why {@link CastingDamageWhen} is the
+   * narrowing and `alteredCasting` is not the reader. Both end up on the same
+   * `reachFeet`, in that order: the option multiplies what the book printed
+   * and this lengthens what the option left.
+   *
+   * A range that is not a distance — Self, Touch, or the DM's — is left
+   * exactly as it was. There is nothing in the book that lengthens a range of
+   * Self, and a feature that reaches nothing is a feature that did nothing
+   * rather than a refusal: unlike a bought option, no price was paid for it.
+   */
+  | {
+      readonly kind: 'casting-range';
+      /** Which castings it reaches; absent fields ask nothing. */
+      readonly when: CastingDamageWhen;
+      /** SRD's "30 times your Warlock level", in feet per level. */
+      readonly perClassLevel: number;
+      /**
+       * Pinned by creation; absent on content, which never knows the level.
+       *
+       * The reading `fall-damage-reduction` already takes of "five times your
+       * Monk level": the level is the **granting class's**, so a Warlock 5 /
+       * Fighter 3 lengthens by 150 feet and not 240.
+       */
+      readonly classLevel?: number;
+    }
+  /**
+   * A feature of the caster that hangs **its own rider** on one spell's
+   * settled outcomes.
+   *
+   * SRD Repelling Blast: "When you hit a Large or smaller creature with the
+   * chosen cantrip, you can push the creature up to 10 feet straight away from
+   * you."
+   *
+   * **The rider vocabulary, reached from the caster's side.** A definition
+   * writes {@link OutcomeRiders} onto the outcome the book prints it on; this
+   * writes the same value onto the outcomes of a spell whose *definition* says
+   * nothing about it, because the sentence is printed on the Warlock rather
+   * than on Eldritch Blast. Nothing new is executed: what is carried is the
+   * value `applyRiders` already applies, which is what keeps a feature from
+   * being a second, quieter effect format.
+   *
+   * **It reaches an attack's hit and nothing else.** Every rider is hung on an
+   * affirmative outcome, and the only affirmative outcome a caster's feature
+   * can name without knowing the spell is the hit — "when you **hit** ... with
+   * the chosen cantrip". A save a spell forces is the target's branch and a
+   * grant that rode it would be a feature deciding what somebody else's failure
+   * costs; `checkContent` refuses a rider this vocabulary has no landing for.
+   */
+  | {
+      readonly kind: 'casting-rider';
+      /** Which castings it reaches; absent fields ask nothing. */
+      readonly when: CastingDamageWhen;
+      /** What a hit carries besides what the definition printed. */
+      readonly rides: OutcomeRiders;
     };
 
 /**
@@ -5751,6 +5822,58 @@ export function castingDamageFeatures(
       alters: grant.alters,
       ...(grant.costs === undefined ? {} : { costs: grant.costs }),
     });
+  }
+  return found;
+}
+
+/**
+ * What the caster's features add to how far this casting reaches, in feet.
+ *
+ * {@link castingDamageFeatures}' reading one question earlier, and the answer
+ * is a list of named bonuses for that gatherer's reason: two features
+ * lengthening one casting both land and the log can name each.
+ *
+ * Asked of the **caster** and derived on every read, so a feature suppressed
+ * by its own requirement lengthens nothing. Nothing here decides *whether*
+ * there is a distance to lengthen — a range of Self has none, and that is the
+ * caller's question because the caller is the one holding the printed range.
+ */
+export function castingRangeBonus(
+  state: GameState,
+  who: CharacterId,
+  query: CastingDamageQuery,
+): readonly Bonus[] {
+  const found: Bonus[] = [];
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'casting-range') continue;
+    if (!castingReached(grant.when, query)) continue;
+    const feet = grant.perClassLevel * (grant.classLevel ?? 0);
+    if (feet === 0) continue;
+    found.push({ source: effect.name, flat: feet });
+  }
+  return found;
+}
+
+/**
+ * The riders the caster's own features hang on this casting's hits.
+ *
+ * {@link castingRangeBonus}'s twin one seam along, and it returns the values
+ * rather than a number for the reason that gatherer returns names: two
+ * features riding one casting both land, and the caller composes them onto the
+ * effect list in the order they were found.
+ */
+export function castingRiders(
+  state: GameState,
+  who: CharacterId,
+  query: CastingDamageQuery,
+): readonly OutcomeRiders[] {
+  const found: OutcomeRiders[] = [];
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'casting-rider') continue;
+    if (!castingReached(grant.when, query)) continue;
+    found.push(grant.rides);
   }
   return found;
 }

@@ -109,6 +109,8 @@ import {
 import {
   actionRulesOn,
   castingDamageFeatures,
+  castingRangeBonus,
+  castingRiders,
   type CastingDamageFeature,
   sheetAsItStands,
   ritualsFromBookOn,
@@ -137,7 +139,12 @@ import {
   numbersFor,
   routeLabel,
 } from './item-casting.js';
-import { alteredCasting, electedCastingOptions, type AlteredCasting } from './casting-options.js';
+import {
+  alteredCasting,
+  electedCastingOptions,
+  withCastingRiders,
+  type AlteredCasting,
+} from './casting-options.js';
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
@@ -347,10 +354,26 @@ export function resolveDeclaredCast(
     // declaration rather than dropping it. What reaches here is every feature
     // that needs no election — Foe Slayer's die, Potent Cantrip's floor — which
     // is the whole of what a long casting could have wanted.
-    const running = statedChoice(
-      statedDamageType(definition.effects, pending.damageType),
-      definition.choiceStated?.of,
-      pending.choice,
+    const running = withCastingRiders(
+      statedChoice(
+        statedDamageType(definition.effects, pending.damageType),
+        definition.choiceStated?.of,
+        pending.choice,
+      ),
+      // The caster's own riders, re-derived here for the reason the route and
+      // the damage features are: a fact about a sheet nothing between the
+      // declaration and the settlement can have changed.
+      castingRiders(state, pending.caster, {
+        spell: definition.id,
+        school: definition.school,
+        classId:
+          chosen.value?.kind === 'cantrip' || chosen.value?.kind === 'prepared'
+            ? chosen.value.classId
+            : null,
+        damageTypes: damageTypesDealt(definition.effects),
+        slotLevel: pending.level,
+        using: [],
+      }),
     );
     const damage = castingDamageOf(state, pending.caster, caster, {
       definition,
@@ -796,7 +819,30 @@ export function castOrRelease(
     // Two ways a spell finds its targets, and they do not mix. A named-target
     // spell is handed ids; an area spell is handed a place and works out for
     // itself who is standing in it.
-    const reach = altered.value.reachFeet;
+    // **And what the caster's own standing features do to it.** SRD Eldritch
+    // Spear lengthens one named cantrip's range by feet scaled off a class
+    // level; it is free and standing where an elected option is bought, so it
+    // is read here rather than in `alteredCasting` and added to what the
+    // options left — the book multiplies the printed distance and this adds
+    // feet to whatever that came to. A range that is not a distance has
+    // nothing to lengthen and nothing was paid for the attempt.
+    const lengthened = castingRangeBonus(state, casterId, {
+      spell: definition.id,
+      school: definition.school,
+      classId:
+        route.kind === 'cantrip' || route.kind === 'prepared' ? route.classId : null,
+      // The definition's own list, because the stated type has not been
+      // substituted yet and no narrowing this seam offers reads *which* type:
+      // "a cantrip that deals damage" is the whole of what a range feature can
+      // ask about the damage.
+      damageTypes: damageTypesDealt(definition.effects),
+      slotLevel: castLevel,
+      using: [],
+    });
+    const reach =
+      altered.value.reachFeet === null
+        ? null
+        : altered.value.reachFeet + lengthened.reduce((feet, bonus) => feet + (bonus.flat ?? 0), 0);
     let targets: readonly CharacterId[];
 
     // — the point it keeps ——————————————————————————————————————————————————
@@ -1772,10 +1818,25 @@ function resolveOnTargets(
   // The caster's answer, or the one the route fixes — SRD Wild Companion's
   // Fey — read once here for the roll and for the record a held casting keeps.
   const answeredChoice = request.choice ?? fixedChoiceOf(route);
-  const running = statedChoice(
-    statedDamageType(definition.effects, request.damageType),
-    definition.choiceStated?.of,
-    answeredChoice,
+  // And the third substitution: the riders the **caster's** own features hang
+  // on this spell's hits — SRD Repelling Blast's shove, which Eldritch Blast's
+  // definition says nothing about because the sentence is printed on the
+  // Warlock.
+  const running = withCastingRiders(
+    statedChoice(
+      statedDamageType(definition.effects, request.damageType),
+      definition.choiceStated?.of,
+      answeredChoice,
+    ),
+    castingRiders(state, casterId, {
+      spell: definition.id,
+      school: definition.school,
+      classId:
+        route?.kind === 'cantrip' || route?.kind === 'prepared' ? route.classId : null,
+      damageTypes: damageTypesDealt(definition.effects),
+      slotLevel: castLevel,
+      using: [],
+    }),
   );
 
   // The numbers this casting is made with, worked out once and read by

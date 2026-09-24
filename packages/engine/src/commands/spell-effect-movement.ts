@@ -25,9 +25,15 @@
 
 import { ok, type CharacterId, type Result } from '@ie/shared';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
-import { bearingBetween, distanceBetween, moveCreature } from '../positioning.js';
+import { bearingBetween, distanceBetween, moveCreature, sizeAtMost } from '../positioning.js';
+import { effectiveSizeOf } from '../size.js';
+import type { CreatureSize } from '@ie/srd';
 import { type ForcedMovement } from '../spell-definitions.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
+
+/** A size as the book prints it, for a reason a person reads. */
+const printed = (size: CreatureSize): string =>
+  `${size.charAt(0).toUpperCase()}${size.slice(1)}`;
 
 /** What a shove came to: the event it wrote, or the reason it wrote none. */
 export interface PushOutcome {
@@ -60,11 +66,36 @@ export function shoveAwayFrom(
     };
   }
 
+  // **The ceiling the sentence prints, where it prints one.** SRD Repelling
+  // Blast pushes "a Large or smaller creature" and nothing bigger; the reading
+  // is `masteryAfterHit`'s Push word for word — what somebody *said* before
+  // what the map assumed, a creature too big left standing rather than the
+  // casting refused, and the reason said out loud. A rider with no ceiling
+  // asks nothing, which is SRD Thunderwave.
+  const assumed: string[] = [];
+  if (movement.targetNoLargerThan !== undefined) {
+    const limit = movement.targetNoLargerThan;
+    const size = effectiveSizeOf(state, target);
+    if (size !== null && !sizeAtMost(size, limit)) {
+      return {
+        events: [],
+        unverified: [
+          `${name}: ${target} is ${size}, and this pushes a creature that is ${printed(limit)} or smaller`,
+        ],
+      };
+    }
+    if (state.creatures[target]?.size == null) {
+      assumed.push(
+        `${name}: nobody has said how big ${target} is, so this took them for Medium; a creature larger than ${printed(limit)} would not have moved`,
+      );
+    }
+  }
+
   // Two creatures in the same space have no bearing between them, and that is
   // the honest answer rather than north: SRD's "straight away from yourself"
   // names no direction when there is no distance.
   const bearing = bearingBetween(scene, source, target);
-  if (!bearing.ok) return { events: [], unverified: [`${name}: ${bearing.reason}`] };
+  if (!bearing.ok) return { events: [], unverified: [...assumed, `${name}: ${bearing.reason}`] };
 
   const placement = {
     from: { creature: target },
@@ -78,12 +109,18 @@ export function shoveAwayFrom(
   // same flag the fold applies this event under.
   const moved = moveCreature(scene, target, placement, { forced: true });
   if (!moved.ok) {
-    return { events: [], unverified: [`${name}: ${target} could not be pushed: ${moved.reason}`] };
+    return {
+      events: [],
+      unverified: [...assumed, `${name}: ${target} could not be pushed: ${moved.reason}`],
+    };
   }
 
   // Nobody spent their Speed on this, nobody provoked anything, and no
   // Difficult Terrain was charged — a shove is not the creature's movement.
-  return { events: [{ type: 'creature-moved', id: target, placement, forced: true }], unverified: [] };
+  return {
+    events: [{ type: 'creature-moved', id: target, placement, forced: true }],
+    unverified: assumed,
+  };
 }
 
 /**

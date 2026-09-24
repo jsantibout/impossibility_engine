@@ -725,3 +725,197 @@ describe('replacing an invocation on a level-up', () => {
     expect(spellsOf(after)).not.toContain('mage-armor');
   });
 });
+
+// ─── Eldritch Spear ─────────────────────────────────────────────────────────
+
+/**
+ * "When you cast the chosen cantrip, its range increases by a number of feet
+ * equal to 30 times your Warlock level."
+ *
+ * A Warlock 5 adds 150 feet, so Eldritch Blast reaches 270 and not 275 — and
+ * Fire Bolt, which prints the same 120, reaches exactly what it printed.
+ */
+describe('Eldritch Spear', () => {
+  const SPEAR = [
+    'Eldritch Spear',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const WITHOUT = [
+    'Misty Visions',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const SPEAR_AT = { [`${FIEND}:eldritch-spear`]: ['eldritch-blast'] };
+
+  const DISTANT = asCharacterId('the-far-ogre');
+
+  /** The table above with a second ogre standing a long way off. */
+  const farTable = (choices: CharacterChoices, feet: number): GameEvent[] => [
+    ...table(choices),
+    {
+      type: 'creature-added',
+      id: DISTANT,
+      name: 'a distant ogre',
+      maxHp: 200,
+      diesAtZero: true,
+      creatureType: 'Giant',
+      sheet: {
+        level: 1,
+        abilities: { str: 19, dex: 8, con: 16, int: 5, wis: 7, cha: 7 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: false, medium: false, heavy: false, shields: false },
+        baseSpeed: 40,
+        spellcastingAbility: null,
+        stated: { armorClass: 11, proficiencyBonus: 2, initiative: -1 },
+      },
+    },
+    {
+      type: 'creature-placed',
+      id: DISTANT,
+      placement: { from: { creature: WHO }, feet, bearing: 90 },
+    },
+    { type: 'sight-declared', from: WHO, to: DISTANT, seen: true },
+  ];
+
+  const castAt = (
+    invocations: readonly string[],
+    answers: Record<string, readonly string[]>,
+    spellId: string,
+    feet: number,
+  ) =>
+    resolveSpell(
+      fold('seed', farTable(warlock(invocations, answers), feet)),
+      WHO,
+      { spellId, targets: [DISTANT] },
+      supply('spear'),
+    );
+
+  it('reaches 270 feet with the cantrip it named, and 275 is still too far', () => {
+    expect(castAt(SPEAR, SPEAR_AT, 'eldritch-blast', 270).ok).toBe(true);
+
+    const beyond = castAt(SPEAR, SPEAR_AT, 'eldritch-blast', 275);
+    expect(beyond.ok).toBe(false);
+    expect(beyond.ok ? null : beyond.code).toBe('out_of_range');
+  });
+
+  it('leaves a cantrip it did not name at its printed range', () => {
+    const bolt = castAt(SPEAR, SPEAR_AT, 'fire-bolt', 270);
+    expect(bolt.ok).toBe(false);
+    expect(bolt.ok ? null : bolt.code).toBe('out_of_range');
+    expect(castAt(SPEAR, SPEAR_AT, 'fire-bolt', 120).ok).toBe(true);
+  });
+
+  it('does nothing at all for a Warlock who did not take it', () => {
+    const blast = castAt(WITHOUT, {}, 'eldritch-blast', 270);
+    expect(blast.ok).toBe(false);
+    expect(blast.ok ? null : blast.code).toBe('out_of_range');
+  });
+});
+
+// ─── Repelling Blast ────────────────────────────────────────────────────────
+
+/**
+ * "When you hit a Large or smaller creature with the chosen cantrip, you can
+ * push the creature up to 10 feet straight away from you."
+ *
+ * The shove `applyRiders` already performs, hung on the caster's side: the
+ * definition of Eldritch Blast says nothing about pushing anybody, and the
+ * sentence is printed on the Warlock.
+ */
+describe('Repelling Blast', () => {
+  const REPEL = [
+    'Repelling Blast',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const WITHOUT = [
+    'Misty Visions',
+    'Armor of Shadows',
+    'Eldritch Mind',
+    "Devil's Sight",
+    'Fiendish Vigor',
+  ];
+  const REPEL_AT = { [`${FIEND}:repelling-blast`]: ['eldritch-blast'] };
+
+  const MOB = asCharacterId('the-mob');
+
+  /** The table above with one more creature of a stated size standing near. */
+  const sized = (choices: CharacterChoices, size: 'medium' | 'huge'): GameEvent[] => [
+    ...table(choices),
+    {
+      type: 'creature-added',
+      id: MOB,
+      name: `a ${size} thing`,
+      maxHp: 200,
+      diesAtZero: true,
+      creatureType: 'Humanoid',
+      size,
+      sheet: {
+        level: 1,
+        abilities: { str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: false, medium: false, heavy: false, shields: false },
+        baseSpeed: 30,
+        spellcastingAbility: null,
+        stated: { armorClass: 10, proficiencyBonus: 2, initiative: 2 },
+      },
+    },
+    {
+      type: 'creature-placed',
+      id: MOB,
+      placement: { from: { creature: WHO }, feet: 40, bearing: 90 },
+    },
+    { type: 'sight-declared', from: WHO, to: MOB, seen: true },
+  ];
+
+  const blastAt = (
+    invocations: readonly string[],
+    answers: Record<string, readonly string[]>,
+    size: 'medium' | 'huge',
+  ) =>
+    unwrap(
+      resolveSpell(
+        fold('seed', sized(warlock(invocations, answers), size)),
+        WHO,
+        { spellId: 'eldritch-blast', targets: [MOB] },
+        // The bonus makes every beam hit, so what is asserted is the rider
+        // rather than the die.
+        supply('repel', 50),
+      ),
+      'blast',
+    );
+
+  /** Every forced move this casting made the thing take. */
+  const shoves = (events: readonly GameEvent[]) =>
+    events.filter(
+      (event) => event.type === 'creature-moved' && event.id === MOB && event.forced === true,
+    );
+
+  it('pushes a Medium creature ten feet for each beam that hits', () => {
+    // A Warlock 5's Eldritch Blast throws two beams, and each hit shoves.
+    expect(shoves(blastAt(REPEL, REPEL_AT, 'medium').events)).toHaveLength(2);
+  });
+
+  it('leaves a Huge creature standing, and says why', () => {
+    const huge = blastAt(REPEL, REPEL_AT, 'huge');
+    expect(shoves(huge.events)).toHaveLength(0);
+    expect(huge.unverified.join(' ')).toContain('Large or smaller');
+  });
+
+  it('shoves nobody for a Warlock who did not take it', () => {
+    expect(shoves(blastAt(WITHOUT, {}, 'medium').events)).toHaveLength(0);
+  });
+});

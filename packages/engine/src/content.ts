@@ -422,6 +422,13 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // and read by the same gatherer: `castingHealingBonus` walks `standingFor`,
   // which a worn item's grants are already part of.
   'casting-healing',
+  // The reach and the rider, on the same test as the two above:
+  // `castingRangeBonus` and `castingRiders` walk `standingFor`, so a rod that
+  // lengthened its bearer's Eldritch Blast, or a glove that made it shove,
+  // would be executed rather than transcribed and ignored. No SRD item prints
+  // either sentence today.
+  'casting-range',
+  'casting-rider',
   // A rule about the action economy, on the same test as the two above: the
   // gatherer is `actionRulesOn`, which reads `standingFor`, so a pair of boots
   // whose wearer may Dash out of a Bonus Action would be executed rather than
