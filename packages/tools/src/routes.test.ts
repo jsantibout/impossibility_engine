@@ -130,6 +130,7 @@ const DRUID: Record<string, unknown> = {
   featureChoices: {
     'human:skillful': ['perception'],
     'druid:primal-order': ['Magician'],
+    'druid:primal-order:cantrip': ['mending'],
   },
   feats: {
     'sage:magic-initiate-wizard': {

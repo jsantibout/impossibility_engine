@@ -172,6 +172,7 @@ const fenn = (over: Partial<CharacterChoices> = {}): CharacterChoices => ({
   featureChoices: {
     'human:skillful': ['perception'],
     'druid:primal-order': ['Magician'],
+    'druid:primal-order:cantrip': ['mending'],
   },
   feats: {
     'sage:magic-initiate-wizard': {
@@ -206,12 +207,15 @@ const preparedOf = (state: GameState, who: CharacterId): readonly string[] =>
   state.creatures[who]?.spellcasting?.classes[0]?.prepared ?? [];
 
 /**
- * The land spells this creature holds prepared.
+ * The land spells this creature holds.
  *
  * A subclass's fixed `spells` grant lands in the class's own prepared list,
  * exactly as Life Domain's does — so the question "which land is this Druid
- * in" is asked of the prepared list, filtered to the twelve spells the four
- * tables print.
+ * in" is asked of that list, filtered to the twelve spells the four tables
+ * print. **And of the cantrips beside it**, because each land's row prints one
+ * and a cantrip is known rather than prepared: a granted level 0 spell filed
+ * with the prepared ones would be a Fire Bolt resolved as a route that spends
+ * a slot.
  */
 const LAND_SPELLS = [
   'blur', 'burning-hands', 'fire-bolt',
@@ -221,7 +225,7 @@ const LAND_SPELLS = [
 ];
 
 const landOf = (state: GameState, who: CharacterId): readonly string[] =>
-  preparedOf(state, who)
+  [...preparedOf(state, who), ...(state.creatures[who]?.spellcasting?.classes[0]?.cantrips ?? [])]
     .filter((one) => LAND_SPELLS.includes(one))
     .slice()
     .sort();

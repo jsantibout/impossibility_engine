@@ -349,6 +349,7 @@ describe('a trade the book does limit is still limited', () => {
     featureChoices: {
       'human:skillful': ['perception'],
       'druid:primal-order': ['Magician'],
+      'druid:primal-order:cantrip': ['mending'],
     },
     feats: {
       ...common.feats,
