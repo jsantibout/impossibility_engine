@@ -103,7 +103,13 @@ export interface GrantedHealingRule {
 /** A hit point maximum a running effect is holding up, ended by its source. */
 export interface GrantedHitPointMaximum {
   readonly source: string;
-  /** Always positive: SRD Aid's five, and the five more each slot level buys. */
+  /**
+   * Positive for a raise — SRD Aid's five, and the five more each slot level
+   * buys — and negative for a lowering: a Specter's Life Drain, a Wight's, a
+   * printed save's "Hit Point maximum decreases by an amount equal to the
+   * damage taken". A Long Rest completing releases every lowering with no
+   * lifetime of its own (`hit-point-maximum-restored`).
+   */
   readonly amount: number;
 }
 
@@ -160,12 +166,14 @@ export const maximisedHealing = (name: string): DieEffect => ({
  * this function a table might settle the other way; `healing-and-hit-point-maxima.test.ts`
  * drives both creatures so that changing it is a decision rather than a drift.
  *
- * **There is no floor, because nothing can reach one.** `adjustment` is a sum
- * of raises: the effect kind carries no reduction, `checkSpellDefinition`
- * refuses a non-positive amount at authoring and the fold refuses one in the
- * log, so `base + adjustment` can never fall below the maximum the creature
- * was born with. A `Math.max(1, …)` here would be a guard for the reduction
- * that is deliberately not built, written before the rule it guards.
+ * **There is no floor, and that is an open question rather than a rule.**
+ * `adjustment` was once a sum of raises; a printed line may lower a maximum
+ * now, and two Life Drains on a small creature take `base + adjustment` below
+ * zero with the creature still alive. SRD 5.2.1 prints no sentence that a
+ * creature dies when its maximum reaches 0 (2014's did), so a `Math.max(1, …)`
+ * here would be a ruling written as arithmetic; `docs/ROADMAP.md` §10 holds
+ * the question for the owner, and a Long Rest bounds the accumulation until
+ * it is answered.
  */
 export function settleHitPointMaximum(v: Vitals, adjustment: number): Vitals {
   const base = v.hpMax - v.hpMaxAdjustment;

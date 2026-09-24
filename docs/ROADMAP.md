@@ -1672,7 +1672,17 @@ Appended after wave four (2026-09-23), four tracks merged and one in flight:
   Long Rest says so of every reduction, so the rule lives in the rest, not in
   the lines that lower one: every lowering with no lifetime of its own is
   released and a raise keeps its casting's. Mummy's "doesn't return to normal"
-  is the printed exception, a mark for a later reader. In flight as W4-R.
+  is the printed exception, a mark for a later reader. **Merged** as
+  `hit-point-maximum-restored`, released narrowly (a night's sleep is not a
+  dispel: a condition the same line hung stays) and folded in the upkeep seam
+  beside `resources-restored`, the sentence before it in the same paragraph.
+  Two follow-ons it left: **for the owner, a maximum has no floor** — two Life
+  Drains on a 13-hit-point creature fold to a maximum of −6 and a living
+  creature, and SRD 5.2.1 prints no "dies when its maximum reaches 0" sentence
+  (that was 2014's), so the answer is a ruling, not a fix; and Greater
+  Restoration's and Aura of Life's `unmodelled` reasons are stale now that a
+  maximum can be lowered and restored — Greater Restoration's undo is the new
+  event, a cheap content-and-resolver follow-on.
 - **A repeat save may deepen.** `onFailure` applies the deeper condition under
   the same source and ends the timer that raised the save, so the boundary
   stops asking — Sleep's second failure, and the Cockatrice's shape for the
