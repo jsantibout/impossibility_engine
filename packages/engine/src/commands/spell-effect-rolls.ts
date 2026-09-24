@@ -364,6 +364,10 @@ function resolveOneAttackRoll(
 
     events.push(...splashed.value.events);
     current = splashed.value.events.reduce(applyEvent, current);
+    // **And what a feature watching the fall could not settle.** The funnel
+    // reports a side nobody declared or a holder nobody placed, and a caller
+    // that dropped it would be an engine that knew and did not say.
+    unverified.push(...splashed.value.unverified);
     outcomes.push({
       target,
       attack: attack.value,
@@ -490,6 +494,10 @@ function resolveOneAttackRoll(
 
   events.push(...hurt.value.events);
   current = hurt.value.events.reduce(applyEvent, current);
+  // **And what a feature watching the fall could not settle.** The funnel
+  // reports a side nobody declared or a holder nobody placed, and a caller
+  // that dropped it would be an engine that knew and did not say.
+  unverified.push(...hurt.value.unverified);
 
   // SRD Vampiric Touch: "you regain Hit Points equal to **half the
   // amount of Necrotic damage dealt**." Half of what actually landed, so
@@ -586,6 +594,7 @@ export function resolveAutoDamageEffect(
     castLevel,
     numbers,
     supply,
+    unverified,
     events,
     outcomes,
     alters,
@@ -642,6 +651,10 @@ export function resolveAutoDamageEffect(
 
     events.push(...hurt.value.events);
     current = hurt.value.events.reduce(applyEvent, current);
+    // **And what a feature watching the fall could not settle.** The funnel
+    // reports a side nobody declared or a holder nobody placed, and a caller
+    // that dropped it would be an engine that knew and did not say.
+    unverified.push(...hurt.value.unverified);
 
     // One outcome per hit, which is what the attack beside it reports and for
     // the same reason: a creature that took three darts took three lots of
@@ -848,6 +861,10 @@ export function resolveSaveDamageEffect(
 
   events.push(...hurt.value.events);
   current = hurt.value.events.reduce(applyEvent, current);
+  // **And what a feature watching the fall could not settle.** The funnel
+  // reports a side nobody declared or a holder nobody placed, and a caller
+  // that dropped it would be an engine that knew and did not say.
+  unverified.push(...hurt.value.unverified);
 
   // SRD Sunbeam: "takes 6d8 Radiant damage **and** has the Blinded
   // condition"; Vitriolic Sphere: "On a successful save, a creature

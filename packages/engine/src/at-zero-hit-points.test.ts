@@ -723,3 +723,85 @@ describe('the watcher is paid on every road that drops a hostile', () => {
     ).toBe(true);
   });
 });
+
+/**
+ * **And the report reaches whoever called, on every road that deals damage.**
+ *
+ * `dealSpellDamage` has reported what a watching feature could not settle
+ * since the Resistance cantrip needed a sentence for it, and eleven commands
+ * call it. One of them threaded the report into the accumulator it already
+ * returns and ten dropped it on the floor — so the engine knew a side had not
+ * been declared, said so to itself, and handed the caller a clean outcome.
+ *
+ * A side is fiction and re-declarable, so a table that has not said is a real
+ * state rather than a broken fixture, and it is the missing fact every one of
+ * these fixtures is built on: it needs no scene, no distance and no second
+ * creature, so what each test discriminates is the road rather than the rule.
+ */
+describe('what the engine could not check reaches the caller on every road', () => {
+  /** The same table, with one goblin's side never declared. */
+  const unsided = (who: CharacterId, options: { readonly scene?: boolean } = {}): GameState =>
+    fold(
+      'the-blessing',
+      theWarlock(options).log.filter(
+        (event) => !(event.type === 'creature-side-declared' && event.id === who),
+      ),
+    );
+
+  /**
+   * The watcher's own sentence, and not merely a line naming the same gap.
+   *
+   * A missing side is reported by more than one rule — a ranged attack's
+   * Disadvantage asks it too — so the tail is matched as well as the head, or
+   * this whole block would pass on a road that still drops the report.
+   */
+  const watcherSaid = (lines: readonly string[], who: CharacterId): boolean =>
+    lines.some(
+      (line) =>
+        line.includes(`nobody has said whose side ${who} is on`) &&
+        line.includes("Dark One's Blessing") &&
+        line.includes('reaching 0 Hit Points was an enemy falling'),
+    );
+
+  /**
+   * A spell attack that drops its target — SRD Eldritch Blast.
+   *
+   * `resolveAttackEffect`'s road, which is `dealSpellDamage`'s caller for
+   * every spell that rolls to hit.
+   */
+  it('reports it on a spell attack’s casting', () => {
+    const state = unsided(ADJACENT);
+    const out = zap(state, ADJACENT, 'kael-zaps-a-stranger');
+    expect(after(state, out.events).creatures[ADJACENT]!.vitals.hp).toBe(0);
+    expect(temporaryHp(after(state, out.events), WARLOCK)).toBe(0);
+    expect(watcherSaid(out.unverified, ADJACENT)).toBe(true);
+  });
+
+  /**
+   * A spell whose damage a saving throw halves — SRD Sacred Flame, which Kael
+   * holds through Magic Initiate. `resolveSaveDamageEffect`'s road, and the
+   * one a Fireball and a Hellish Rebuke both take.
+   */
+  it('reports it on a save-damage casting', () => {
+    // Sacred Flame's target must be one the caster can see, and sight is a
+    // fact the table declares rather than one the engine derives.
+    const state = after(unsided(NEAR), [
+      { type: 'sight-declared', from: WARLOCK, to: NEAR, seen: true },
+    ]);
+    for (const seed of SEEDS) {
+      const out = unwrap(
+        resolveSpell(
+          state,
+          WARLOCK,
+          { spellId: 'sacred-flame', targets: [NEAR], commandId: `flame-${seed}` },
+          supply(`flame-${seed}`),
+        ),
+        'sacred flame',
+      );
+      if (after(state, out.events).creatures[NEAR]!.vitals.hp > 0) continue;
+      expect(watcherSaid(out.unverified, NEAR)).toBe(true);
+      return;
+    }
+    throw new Error('no seed dropped the goblin with Sacred Flame');
+  });
+});
