@@ -798,6 +798,7 @@ function printedRiderOnASwing(
   let forcedMove: HitForcedMove | undefined;
   let lowersHitPointMaximum: 'damage-taken' | undefined;
   let hazard: HazardName | undefined;
+  let penalisesArmor: number | undefined;
   let onDroppingToZero: HitDropToZero | undefined;
   let saveDc: number | undefined;
   let span: { readonly lasts: TurnAnchor; readonly lastsOn: HitRiderAnchor } | undefined;
@@ -957,6 +958,15 @@ function printedRiderOnASwing(
         hazard = rider.hazard;
         break;
 
+      // SRD Black Pudding's Dissolving Pseudopod, SRD Gray Ooze's Pseudopod.
+      // The points ride on the option and `applyHitRider` finds the suit: a
+      // target wearing nothing is said out loud there rather than here,
+      // because the blow has already landed and what it found is a fact about
+      // the world at the settlement.
+      case 'armor-penalty':
+        penalisesArmor = (penalisesArmor ?? 0) + rider.points;
+        break;
+
       // SRD Phase Spider, SRD Vampire Familiar, SRD Gibbering Mouther. **No
       // span is claimed for it**, deliberately: the hour it prints is a number
       // of seconds carried on the clause itself, and `claimSpan` is about the
@@ -1104,6 +1114,7 @@ function printedRiderOnASwing(
     lowersHitPointMaximum === undefined &&
     onDroppingToZero === undefined &&
     hazard === undefined &&
+    penalisesArmor === undefined &&
     attaches === undefined
   ) {
     return { option: null, unverified };
@@ -1131,6 +1142,7 @@ function printedRiderOnASwing(
       ...(lowersHitPointMaximum === undefined ? {} : { lowersHitPointMaximum }),
       ...(onDroppingToZero === undefined ? {} : { onDroppingToZero }),
       ...(hazard === undefined ? {} : { hazard }),
+      ...(penalisesArmor === undefined ? {} : { penalisesArmor }),
     },
     unverified,
   };

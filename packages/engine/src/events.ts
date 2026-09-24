@@ -1559,6 +1559,39 @@ export type GameEvent =
       readonly item: string;
       readonly command?: CommandStamp;
     }
+
+  /**
+   * Acid eating into the armour somebody is wearing — SRD Black Pudding's
+   * Dissolving Pseudopod, SRD Gray Ooze's: "Nonmagical armor worn by the
+   * target takes a −1 penalty to the AC it offers."
+   *
+   * **Cumulative, and that is the sentence rather than a convention.** Every
+   * other record in the inventory seam is restated by the event that writes
+   * it; this one is a thing that has *happened to* a suit, and a second
+   * pseudopod is a second point. `decoy-destroyed` is the only other event in
+   * the engine that moves a number rather than replacing a record, and for the
+   * same reason.
+   *
+   * It carries the catalogue id rather than the copy's instance, because
+   * `equipped` is what wears armour and a creature wears one suit: the record
+   * this lands on is the one being worn, and a second suit in the pack is not
+   * the one the acid touched.
+   *
+   * **The destruction is not here.** "The armor is destroyed if the penalty
+   * reduces its AC to 10" is the same ending any lost item has, and the swing
+   * writes it as an `item-unequipped` and an `items-lost` — so a caller
+   * watching for armour leaving a creature has one thing to watch rather than
+   * two.
+   */
+  | {
+      readonly type: 'armor-penalised';
+      readonly id: CharacterId;
+      /** The catalogue id of the suit being worn. */
+      readonly item: string;
+      /** How many points of Armour Class this event eats. SRD prints 1. */
+      readonly points: number;
+      readonly command?: CommandStamp;
+    }
   /**
    * SRD Magic Items: attuning to one, which takes a Short Rest focused on it.
    *

@@ -2319,7 +2319,8 @@ export type PrintedRider =
   | PrintedModeRider
   | PrintedDroppedToZeroRider
   | PrintedAttachRider
-  | PrintedHazardRider;
+  | PrintedHazardRider
+  | PrintedArmorPenaltyRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -2564,6 +2565,29 @@ export interface PrintedMaximumRider {
 export interface PrintedHazardRider {
   readonly kind: 'hazard';
   readonly hazard: HazardName;
+}
+
+/**
+ * Armour the hit **wears down** — SRD Black Pudding's Dissolving Pseudopod and
+ * SRD Gray Ooze's Pseudopod: "Nonmagical armor worn by the target takes a −1
+ * penalty to the AC it offers."
+ *
+ * The points are the sentence's own number and the destruction is not a field:
+ * "The armor is destroyed if the penalty reduces its AC to 10" is a second
+ * sentence stating the rule the swing then applies, so it is read and consumed
+ * rather than carried — the reading {@link ATTACH_DETACH_ACTION} already gets.
+ * A line printing some *other* ceiling would not match and would go back to
+ * the table, which is the right answer: nothing here could apply it.
+ *
+ * "Nonmagical" is carried by nothing, and that is honest rather than a gap: no
+ * armour in the SRD catalogue is magical, so there is no record to narrow on
+ * and a flag nothing could ever read would be the speculative member the
+ * sweeps refuse. The day a +1 Breastplate exists, the swing asks the record.
+ */
+export interface PrintedArmorPenaltyRider {
+  readonly kind: 'armor-penalty';
+  /** SRD's "a −1 penalty", as a positive number of points eaten. */
+  readonly points: number;
 }
 
 /**
@@ -2999,6 +3023,29 @@ const STARTS_BURNING = new RegExp(
   `^If the target is a creature(?: or a flammable object)?(?: that isn${APOSTROPHE}t being worn or carried)?, it starts burning\\.$`,
 );
 
+/**
+ * SRD Black Pudding's Dissolving Pseudopod and SRD Gray Ooze's Pseudopod:
+ * "Nonmagical armor worn by the target takes a −1 penalty to the AC it
+ * offers."
+ *
+ * Both the hyphen-minus and the book's own minus sign, because a transcription
+ * may carry either and they are the same number.
+ */
+const PRINTED_ARMOR_PENALTY =
+  /^Nonmagical armor worn by the target takes a [-−](\d+) penalty to the AC it offers\.$/;
+
+/**
+ * SRD's second sentence: "The armor is destroyed if the penalty reduces its AC
+ * to 10."
+ *
+ * **Read and consumed rather than stored**, exactly as SRD Stirge's five-foot
+ * detach is: it states the rule the swing already applies to every penalty it
+ * writes, so a field for it would be a second copy of one number free to
+ * disagree. A line printing a different ceiling would not match and would go
+ * back to the table, which is the right answer — nothing here could apply it.
+ */
+const ARMOR_DESTROYED_AT_TEN = /^The armor is destroyed if the penalty reduces its AC to 10\.$/;
+
 /** SRD Ettin: a mode on the roll the creature that was hit makes next. */
 const PRINTED_MODE_ON_TARGET = new RegExp(
   `^and the target has (Advantage|Disadvantage) on the next attack roll it makes before ${NEXT_TURN_MOMENT}\\.$`,
@@ -3431,6 +3478,14 @@ type ClauseRead =
       readonly detail: Partial<Omit<PrintedAttachRider, 'kind'>>;
       readonly handedOver?: string;
     }
+  /**
+   * "The armor is destroyed if the penalty reduces its AC to 10" — a sentence
+   * about the sentence before it, and the rule the swing already keeps. Its
+   * own member rather than an empty rider list, for `attach-detail`'s reason:
+   * standing alone it names a penalty that is not there, and a reader that
+   * swallowed it anywhere would consume it off a line that never wrote one.
+   */
+  | { readonly kind: 'armor-detail' }
   | { readonly kind: 'no-healing' };
 
 /** One rider and no residue, which is what most clauses read to. */
@@ -3556,6 +3611,11 @@ function readClause(text: string): ClauseRead | null {
   if (PRINTED_MAXIMUM.test(text)) return one({ kind: 'hit-point-maximum' });
 
   if (STARTS_BURNING.test(text)) return one({ kind: 'hazard', hazard: 'burning' });
+
+  const corroded = PRINTED_ARMOR_PENALTY.exec(text);
+  if (corroded !== null) return one({ kind: 'armor-penalty', points: Number(corroded[1]) });
+
+  if (ARMOR_DESTROYED_AT_TEN.test(text)) return { kind: 'armor-detail' };
 
   const ownRoll = PRINTED_MODE_ON_TARGET.exec(text);
   if (ownRoll !== null) {
@@ -3886,6 +3946,15 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
           held === carrier ? { ...held, implies: [...(held.implies ?? []), read.implies] } : held,
         ),
       };
+      continue;
+    }
+
+    if (read.kind === 'armor-detail') {
+      const host = riders.at(-1);
+      // The ceiling belongs to the penalty before it, and the swing already
+      // keeps it. Nothing is stored; a clause with no penalty in front of it
+      // names a rule about nothing, and it goes back to the table.
+      if (host === undefined || host.kind !== 'armor-penalty') handedOver.push(clause);
       continue;
     }
 

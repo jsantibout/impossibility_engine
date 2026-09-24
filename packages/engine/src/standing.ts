@@ -59,6 +59,7 @@ import {
   type SenseName,
 } from './positioning.js';
 import type { CreatureState, GameState } from './events.js';
+import type { EquippedItem } from './state.js';
 import { creaturesStandingInCastingArea, spellOfSource, type CastingTime } from './spells.js';
 import type { OutcomeRiders, SpellArea, SpellEffect } from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
@@ -2533,6 +2534,21 @@ export interface HitOption {
    */
   readonly hazard?: HazardName;
   /**
+   * Points of Armour Class the blow eats out of the armour the target is
+   * **wearing** — SRD Black Pudding's Dissolving Pseudopod: "Nonmagical armor
+   * worn by the target takes a −1 penalty to the AC it offers."
+   *
+   * Beside {@link effects} for {@link lowersHitPointMaximum}'s reason: what it
+   * changes is not a creature but a *thing the creature is wearing*, and an
+   * effect list hangs what it hangs on a creature. `EquippedItem.penalty` is
+   * where it lands, so two suits of mail in one party wear down separately.
+   *
+   * The destruction is not a second field: "The armor is destroyed if the
+   * penalty reduces its AC to 10" is arithmetic over the armour's own record
+   * and the points already here, and `applyHitRider` does it.
+   */
+  readonly penalisesArmor?: number;
+  /**
    * What the blow leaves behind **only if it was the blow that emptied them**
    * — SRD Phase Spider: "If this damage reduces the target to 0 Hit Points,
    * the target becomes Stable, and it has the Poisoned condition for 1 hour."
@@ -4898,6 +4914,36 @@ function d20RerollFor(
  * Cover is deliberately *not* here: it is a fact about one attacker's line to
  * one target, not about the target, and the attack that reads it adds it.
  */
+/**
+ * What acid has eaten out of the armour this creature is **wearing**, or 0.
+ *
+ * SRD Black Pudding's Dissolving Pseudopod and SRD Gray Ooze's Pseudopod are
+ * the two lines that write it, and `EquippedItem.penalty` is where it lands:
+ * on the copy rather than on the catalogue's record of what chain mail offers.
+ *
+ * **Narrowed to the piece the sheet is using**, which is what makes this
+ * subtraction honest rather than a second opinion about a number. A shield is
+ * not body armour and is never what this eats; a suit in the pack is not being
+ * worn; and a creature whose Unarmoured Defense beat its corroded mail is not
+ * standing behind the mail at all, so nothing should come off. The sheet's own
+ * `armor` is the one piece `withEquipment` put there, and matching on it is how
+ * the two stay in step.
+ *
+ * Exported for `armorClassOf`'s sake and no other: a caller outside the engine
+ * reads the finished number.
+ */
+function wornArmorPenalty(creature: {
+  readonly sheet: CharacterSheet;
+  readonly equipped: readonly EquippedItem[];
+}): number {
+  const worn = creature.sheet.armor;
+  if (worn === null) return 0;
+  const record = creature.equipped.find(
+    (held) => held.armor !== null && held.armor.name === worn.name,
+  );
+  return record?.penalty ?? 0;
+}
+
 export function armorClassOf(state: GameState, who: CharacterId): number {
   const creature = state.creatures[who];
   if (creature === undefined) return 0;
@@ -4920,6 +4966,18 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   // anything having to remember to. No item is used to *gain* an Armour Class,
   // so there is nothing for a narrowing to match and none may be declared.
   for (const bonus of standingBonuses(state, who, 'ac')) total += bonus.flat ?? 0;
+  // And what acid has eaten out of the suit this creature is actually wearing
+  // — SRD Black Pudding's Dissolving Pseudopod: "Nonmagical armor worn by the
+  // target takes a −1 penalty to the AC it offers." A fact about **one copy**,
+  // so it lives on the equipped record and is read here rather than written
+  // into the armour record the catalogue prints, which is the same suit in
+  // everybody else's game.
+  //
+  // **Only where the suit is the one the calculation used.** `withEquipment`
+  // puts exactly one piece of body armour on the sheet, and a creature whose
+  // Unarmoured Defense beat it is not wearing its number at all — so a penalty
+  // taken off then would be acid eating a Barbarian's Constitution.
+  total -= wornArmorPenalty(creature);
   // And last of all, the floor — SRD Barkskin's "an Armor Class of 17 **if its
   // AC is lower than that**". Last because "its AC" in that sentence is the
   // finished number: the calculation, the Shield, every flat bonus and

@@ -482,6 +482,17 @@ function declaredEventTypes(): readonly string[] {
  */
 const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'action-rule-granted',
+  // Acid eating into worn armour — SRD Black Pudding's Dissolving Pseudopod,
+  // SRD Gray Ooze's Pseudopod. Neither log was written when a *copy* of an
+  // item could hold a fact of its own: the sentence was carried verbatim and
+  // handed to the DM, `EquippedItem` had no `penalty`, and both fixtures fold
+  // to exactly the states they always folded to with the field absent on
+  // every equipped record. `worn-armour.test.ts` folds it and drives it end
+  // to end: the point off the mail and off the Armour Class it offers, the
+  // next point on top of it, the suit destroyed by the point that would take
+  // what it offers to 10, a target wearing nothing, and the Mending sentence
+  // handed back.
+  'armor-penalised',
   'attack-rider-granted',
   'attuned',
   'attunement-ended',

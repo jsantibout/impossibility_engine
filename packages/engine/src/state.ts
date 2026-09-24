@@ -112,6 +112,28 @@ export interface EquippedItem {
    * grant anything.
    */
   readonly grants?: readonly StandingEffect[];
+  /**
+   * Points of Armour Class acid has eaten out of **this copy** — SRD Black
+   * Pudding's Dissolving Pseudopod: "Nonmagical armor worn by the target takes
+   * a −1 penalty to the AC it offers."
+   *
+   * **On the equipped record because the record is the copy.** The catalogue
+   * says what chain mail offers and is the same book in every campaign; this
+   * says what has happened to the suit this creature is wearing, and the two
+   * could not share a home — a penalty written into the armour record would be
+   * a pudding corroding every coat of mail in the world.
+   *
+   * Cumulative, like `decoy-destroyed`'s count and unlike every sourced grant:
+   * a second pseudopod eats a second point rather than restating the first.
+   * Absent is no wear at all, which is what every log written before acid
+   * could bite says — so both frozen fixtures fold unchanged.
+   *
+   * Read by `armorClassOf` alone. The armour is *destroyed* rather than
+   * penalised once the penalty would take what it offers to 10, and that is
+   * the command's arithmetic rather than a state this can hold: a destroyed
+   * suit leaves the inventory through the door every lost item leaves by.
+   */
+  readonly penalty?: number;
 }
 
 /**
