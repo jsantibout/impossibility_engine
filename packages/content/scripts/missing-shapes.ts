@@ -1108,6 +1108,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "Up to five creatures of your choice who remain within range for the spell\'s entire casting gain the benefits of a Short Rest". Range is measured against where the five stand when the rite settles, and nothing records where anybody stood for the ten minutes before it; a position history kept only so that one spell could read it would be a rule nothing else asks for, so whether they stayed is the DM\'s.',
     },
   ],
+  revivify: [
+    {
+      clause: 'died of old age',
+      why: 'table',
+      note: 'SRD refuses it by name: "a creature that has died of old age". **The engine holds no cause of death**, and the field that would have to hold one is not missing by oversight: `creature-died.cause` is prose for the audit trail, and three of the four ways a creature dies write no such event at all. So the corpse this spell may not touch is one the table declines to hand it, exactly as the body parts it does not restore are an anatomy nothing here has. What the engine does own — whether the creature is dead, and how long it has been — it checks before a slot is spent.',
+    },
+  ],
   sanctuary: [
     {
       clause: 'choose a new target',
@@ -2235,14 +2242,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'which is cast in shades of gray',
       why: 'table',
       note: 'what the caster can perceive of the plane they left is narration end to end, and the clause the markers can see in that sentence is the sixty feet — a distance between two places the engine does not hold, so there is nothing here to measure even in principle. This unit names no mechanic at all and somebody read the paragraph.',
-    },
-  ],
-  revivify: [
-    {
-      marker: 'hit-points',
-      clause: 'That creature revives with 1 Hit Point',
-      why: 'healing-that-raises-the-dead',
-      note: 'not a heal of one: healCreature refuses a corpse and the refusal costs no slot, which is the rule docs/design/spell-definitions.md states this shape has to get past. Lifting death is not hit points with a small number in them.',
     },
   ],
   'wind-wall': [

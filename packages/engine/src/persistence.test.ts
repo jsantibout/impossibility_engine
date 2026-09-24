@@ -229,6 +229,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'creature-moved',
   'creature-placed',
   'creature-removed',
+  'creature-revived',
   'creature-side-declared',
   'creature-summoned',
   'creature-type-declared',

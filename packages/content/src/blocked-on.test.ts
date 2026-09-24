@@ -2680,13 +2680,15 @@ describe('a spell with one blocker is the leverage the map is for', () => {
    */
   it('records the two that left, and which way each went', () => {
     // A third way out, and the plainest: Revivify was the only spell this list
-    // held for `healing-that-raises-the-dead`, and it is a tracked definition
-    // now. The shape keeps four undefined claimants and one tracked one, so
-    // what changed is which population owes it rather than whether it is owed.
+    // held for `healing-that-raises-the-dead`. It became a tracked definition,
+    // and then the shape was **built** — the `revive` effect and
+    // `creature-revived` — so it is executed now and owes the table only the
+    // old age and the body parts. The shape keeps its four undefined
+    // claimants, which is why it is still claimed: what changed is which
+    // population owes it and by how much, rather than whether it is owed.
     expect(BLOCKED_ON['revivify']).toBeUndefined();
-    expect(TRACKED_ADJUDICATED['revivify']?.map((entry) => entry.why)).toEqual([
-      'healing-that-raises-the-dead',
-    ]);
+    expect(TRACKED_ADJUDICATED['revivify']).toBeUndefined();
+    expect(ADJUDICATED['revivify']?.map((entry) => entry.why)).toEqual(['table']);
     expect(claimedShapes().has('healing-that-raises-the-dead')).toBe(true);
 
     // Built: the printed half of the amount shape exists, so Heal executes and

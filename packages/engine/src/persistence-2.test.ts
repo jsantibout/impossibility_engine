@@ -542,6 +542,17 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // swings a declared count holds, the re-declaration that replaces it, and
   // the count the fold gives back with no content open.
   'creature-heads-declared',
+  // Death lifted. Neither log was written when anything could lift it: `heal`
+  // refused a corpse and nothing else in the engine touched `dead`, so a
+  // revival had no event and no effect kind could ask for one. Both fixtures
+  // fold to exactly the states they always folded to — the creature that dies
+  // in the second one stays dead, and `Vitals.diedAt` arrives on it derived
+  // from the death the log already held rather than from anything new.
+  // `revive.test.ts` folds it and drives it end to end: the corpse thirty
+  // seconds old that comes back at one hit point with its death saves afresh,
+  // the one ninety seconds old that is refused, the living creature that is
+  // refused, and the slot neither refusal spends.
+  'creature-revived',
   // A summons: the fixtures predate it, and appending a type here is the
   // acknowledgement this list exists to collect.
   'creature-summoned',

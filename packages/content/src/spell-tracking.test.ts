@@ -70,6 +70,7 @@ const ALLY = id('ally');
 const FOE = id('foe');
 const BEAST = id('beast');
 const RAVEN = id('raven');
+const CORPSE = id('corpse');
 
 const sheet = (over: Partial<CharacterSheet> = {}): CharacterSheet => ({
   level: 9,
@@ -161,6 +162,14 @@ const SETUP: readonly GameEvent[] = [
   added(FOE),
   added(BEAST, 'Beast'),
   added(RAVEN, 'Beast', 'tiny'),
+  added(CORPSE),
+  // **And one creature who has just died**, for the spell that raises one.
+  // SRD Revivify reaches "a creature that has died within the last minute",
+  // and a corpse is what it is aimed at — the refusal of a living target is
+  // the spell working rather than the fixture being in the way, which is the
+  // rule the types and the size above are held to. Nothing here moves the
+  // clock, so the death is always this instant.
+  { type: 'creature-died', id: CORPSE, cause: 'the fixture' },
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(
     (level): GameEvent => ({
       type: 'resource-pool-declared',
@@ -180,10 +189,12 @@ const SETUP: readonly GameEvent[] = [
   { type: 'creature-placed', id: FOE, placement: { from: { creature: WIZARD }, feet: 5, bearing: 90 } },
   { type: 'creature-placed', id: BEAST, placement: { from: { creature: WIZARD }, feet: 5, bearing: 180 } },
   { type: 'creature-placed', id: RAVEN, placement: { from: { creature: WIZARD }, feet: 5, bearing: 270 } },
+  { type: 'creature-placed', id: CORPSE, placement: { from: { creature: WIZARD }, feet: 5, bearing: 45 } },
   { type: 'sight-declared', from: WIZARD, to: ALLY, seen: true },
   { type: 'sight-declared', from: WIZARD, to: FOE, seen: true },
   { type: 'sight-declared', from: WIZARD, to: BEAST, seen: true },
   { type: 'sight-declared', from: WIZARD, to: RAVEN, seen: true },
+  { type: 'sight-declared', from: WIZARD, to: CORPSE, seen: true },
   // The ally is falling, which is the same discipline the types above follow:
   // the fixture supplies the moment a Reaction spell answers rather than the
   // spell being excused its own casting time. A fall is momentary and this
@@ -216,7 +227,10 @@ const cast = (
   if (definition === null) throw new Error(`${spellId} has no definition`);
   const wanted = definition.targets.mustBeType;
   const sized = definition.targets.mustBeSize;
-  const at =
+  const raises = definition.effects.some((effect) => effect.kind === 'revive');
+  const at = raises
+    ? CORPSE
+    :
     sized !== undefined
       ? SIZED[`${wanted ?? 'Humanoid'}/${sized}`]
       : wanted === undefined
@@ -1613,6 +1627,16 @@ describe('every spell this batch added is cast for real', () => {
     // ledger, so the only sentence it hands the table is whether the creature
     // touched was willing.
     'resistance',
+    // **Revivify leaves by the one thing healing is not allowed to do.**
+    // `healCreature` refuses a corpse in its first line, and the refusal is
+    // the rule rather than an obstacle: hit points do not lift death. So the
+    // `revive` effect is its own kind and `creature-revived` its own event,
+    // and the minute the spell reaches back is subtraction over
+    // `Vitals.diedAt` — a stamp the fold derives from the fact itself, because
+    // a creature dies four ways and only one of them says so in an event. Old
+    // age and the body parts are the two sentences left, and neither is a fact
+    // the engine holds.
+    'revivify',
     'sanctuary',
     // **Sleep leaves by the repeat save's new failure branch.** The save and
     // the Incapacitated were always ordinary; what had nowhere to go was "at

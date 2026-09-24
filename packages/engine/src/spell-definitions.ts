@@ -1598,6 +1598,51 @@ export type SpellEffect =
       readonly addSpellcastingModifier: boolean;
     }
   /**
+   * A creature brought back from being dead.
+   *
+   * SRD Revivify: "You touch a creature that has died within the last minute.
+   * That creature revives with 1 Hit Point."
+   *
+   * **Not `heal` with a small number in it**, which is the shape
+   * `healing-that-raises-the-dead` was named for and the reason this is its
+   * own kind. `healCreature` refuses a corpse in its first line and the
+   * refusal costs no slot — `docs/design/spell-definitions.md` states it as
+   * the rule this shape has to get past — because hit points do not lift
+   * death. A kind that reached the same event would have made every Cure
+   * Wounds a resurrection.
+   *
+   * **The window is the spell's and the clock is the engine's.** How long a
+   * creature has been dead is subtraction over `Vitals.diedAt` and
+   * `state.elapsed`, and the fact is derived by the fold from the only thing
+   * that is reliably true — a creature that was alive and now is not — rather
+   * than from any one of the four events that can kill somebody.
+   *
+   * What the spell leaves to the table is what it says it leaves: dying of old
+   * age, and the body parts it does not restore. Neither is a fact the engine
+   * holds, and neither would be settled by holding one.
+   */
+  | {
+      readonly kind: 'revive';
+      /**
+       * How long after death the spell still reaches, in whole seconds.
+       *
+       * SRD Revivify's minute. A window rather than a boolean because the
+       * higher-level resurrections print longer ones and this is the number
+       * that differs between them; a spell with no window at all would be a
+       * different sentence and prints none here.
+       */
+      readonly within: number;
+      /**
+       * What the creature comes back at — SRD Revivify's one Hit Point.
+       *
+       * A flat whole number rather than a {@link DiceScaling}, because every
+       * SRD sentence of this shape prints a flat number and none of them
+       * scales: what a bigger slot buys in this family is a longer window and
+       * a wider spell, never more hit points.
+       */
+      readonly hitPoints: number;
+    }
+  /**
    * Something handed over at every one of the target's turn boundaries, for as
    * long as the casting runs.
    *
@@ -5376,6 +5421,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // modifier written down here would be a copy nobody would ever read.
       case 'weapon-attack':
       case 'heal':
+      // A revival reads nothing of the caster either: the window and the hit
+      // points are the spell's own printed numbers, and whose spell it was
+      // changes neither.
+      case 'revive':
       case 'turn-payout':
       case 'action-rule':
       case 'healing-rule':

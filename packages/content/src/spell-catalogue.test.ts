@@ -163,6 +163,16 @@ const logFor = (spellId: string): readonly GameEvent[] => {
       ? SETUP
       : setupWith(wanted ?? 'Humanoid', sized);
 
+  // **And a target who has died**, where the spell raises one. SRD Revivify
+  // touches "a creature that has died within the last minute" and refuses a
+  // living one; that refusal is the behaviour, so the fixture supplies the
+  // corpse rather than the spell being excused the rule. Nothing in this file
+  // moves the clock, so the death is always this instant.
+  const raises = (definition?.effects ?? []).some((effect) => effect.kind === 'revive');
+  const withTheDead: readonly GameEvent[] = raises
+    ? [...typed, { type: 'creature-died', id: TARGET, cause: 'the fixture' } as GameEvent]
+    : typed;
+
   // A rider that ends at a moment in the turn order needs there to *be* turns.
   // SRD gives "until the end of your next turn" no meaning outside combat and
   // the engine refuses rather than inventing six seconds, so a spell carrying
@@ -261,10 +271,10 @@ const logFor = (spellId: string): readonly GameEvent[] => {
               ([{ type: 'fall-declared', id: TARGET }] as readonly GameEvent[])
             : [];
 
-  if (!anchored && triggered.length === 0) return typed;
+  if (!anchored && triggered.length === 0) return withTheDead;
 
   return [
-    ...typed,
+    ...withTheDead,
     ...(anchored
       ? ([
           {

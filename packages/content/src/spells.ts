@@ -10706,7 +10706,18 @@ export const PLANT_GROWTH: SpellDefinition = {
  *
  * Three sentences, and the middle one is a rule the engine refuses by design:
  * `healCreature` will not heal a corpse, and the refusal costs no slot. Reviving
- * is not healing with a small number in it.
+ * is not healing with a small number in it — so it is its own effect kind and
+ * its own event, which is the whole of `healing-that-raises-the-dead`.
+ *
+ * **The minute is subtraction.** `Vitals.diedAt` is the clock instant a
+ * creature stopped being alive, derived by the fold from the fact itself
+ * rather than from any one of the four events that can kill somebody, and
+ * `state.elapsed` is now. A corpse older than sixty seconds is refused before
+ * the slot is spent, and so is a creature who is standing up.
+ *
+ * What is left is what the spell says it leaves: a creature that died of old
+ * age, and the body parts it does not restore. Neither is a fact the engine
+ * holds, and holding one would not settle either.
  */
 export const REVIVIFY: SpellDefinition = {
   id: 'revivify',
@@ -10717,10 +10728,10 @@ export const REVIVIFY: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 1 },
-  effects: [],
+  effects: [{ kind: 'revive', within: 60, hitPoints: 1 }],
   unmodelled: [
-    'nobody is revived: "That creature revives with 1 Hit Point" is not a heal of one — healing refuses a dead creature outright, and lifting death is the rule that refusal exists to keep out of a hit point total',
-    'the minute since the creature died is not measured, and neither is old age or a missing body part; all three are the DM’s',
+    'whether the creature died of old age is the DM’s, and the engine holds no such cause: a corpse the table says died of age is one the table declines to let this spell touch',
+    'the body parts the spell does not restore are the DM’s; the engine holds no anatomy for one to be missing from',
   ],
 };
 

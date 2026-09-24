@@ -142,6 +142,7 @@ import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
 import { replacedCastings } from './ongoing.js';
+import { resolveReviveEffect, reviveProblem } from './spell-effect-creatures.js';
 import {
   type CastingAlterations,
   castingAlterations,
@@ -1051,6 +1052,20 @@ export function castOrRelease(
         const requests = contextRequestsOf(asked);
         if (requests.length === 0) return asked;
         needs.push(...requests);
+      }
+    }
+
+    // And whether there is a creature here this spell could raise at all,
+    // asked at the same moment and for the same two reasons the teleport
+    // below is. SRD Revivify reaches "a creature that has died within the last
+    // minute", and both ways of missing that — a living target, a corpse gone
+    // cold — must cost the Cleric nothing. `reviveProblem` is the pre-flight
+    // rather than a second reading of it: the resolver asks the same function.
+    for (const effect of definition.effects) {
+      if (effect.kind !== 'revive') continue;
+      for (const target of targets) {
+        const raisable = reviveProblem(state, target, effect.within, definition.name);
+        if (!raisable.ok) return raisable;
       }
     }
 
@@ -2377,6 +2392,8 @@ function resolveOneEffect(
       return resolveWeaponRiderEffect(ctx, effect, target, world);
     case 'heal':
       return resolveHealEffect(ctx, effect, target, victim, world);
+    case 'revive':
+      return resolveReviveEffect(ctx, effect, target, world);
     case 'turn-payout':
       return resolveTurnPayoutEffect(ctx, effect, target, world);
     case 'healing-rule':

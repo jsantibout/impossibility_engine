@@ -2547,6 +2547,34 @@ function checkEffect(
       checkScaling(effect.healing, level, `${path}.healing`, found);
       return;
 
+    /*
+     * A revival: how far back it reaches, and what the creature comes back at.
+     *
+     * Both are whole numbers with a floor of one, and both floors are a
+     * sentence rather than a taste. A window of nothing reaches no corpse at
+     * all — the creature would have to have died at the instant of the cast —
+     * and a revival to no hit points brings back something that is dead again
+     * before anybody looks at it, which is the `ends_nothing` defect one kind
+     * along.
+     */
+    case 'revive': {
+      if (!Number.isInteger(effect.within) || effect.within < 1) {
+        found.push({
+          field: `${path}.within`,
+          code: 'bad_window',
+          reason: `a revival reaches back a whole number of seconds, at least one; got ${String(effect.within)}`,
+        });
+      }
+      if (!Number.isInteger(effect.hitPoints) || effect.hitPoints < 1) {
+        found.push({
+          field: `${path}.hitPoints`,
+          code: 'bad_revival',
+          reason: `a creature comes back at a whole number of hit points, at least one; got ${String(effect.hitPoints)}`,
+        });
+      }
+      return;
+    }
+
     case 'temp-hp':
       checkScaling(effect.amount, level, `${path}.amount`, found);
       return;
@@ -6074,6 +6102,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'temp-hp',
   'buff',
   'heal',
+  'revive',
   'attack-damage',
   'save',
   'condition',
