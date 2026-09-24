@@ -2473,3 +2473,22 @@ Appended after wave seven's first spells track (2026-09-24):
   Curse's level 9 arm is now one line (`untilDispelledAtSlot: 9`) — both
   handed to the compulsions brief. Merged after the Haste/Slow track with
   `double` and `only` composed in one union, in that order.
+- **A web that holds, a hand that grades its failure, a swarm read whole,
+  the swing asks the form gate, and a fire the player puts out.** A printed
+  save may create the object its condition is held by (`heldByObject`,
+  `raisePrintedObject` under an id derived from the use, the Restrained filed
+  under `held-by:<object>` and lifted by a derived pass when the web burns —
+  nobody decides that a web has burned); a hit's rider save is lifted out at
+  ingest (`MonsterAttack.riderSave`) and handed to the printed-save reader, so
+  nothing grades a failure twice and four spellings the reader could not hold
+  are read; a trait may carry what it hands over (`MonsterTrait.handedOver`,
+  the Swarm's two space sentences beside its no-healing rule, read off the
+  printed trait at the two heal sites because a swarm's anatomy is ended by
+  nothing); `resolveAttack` asks `wrongFormFor` the moment a printed line is
+  found; `extinguish_fire` is on both surfaces. **Not built, with the seam
+  named:** the infernal wound (a wound clause, an ending on "a spell restores
+  Hit Points", and a check a *named neighbour* may attempt — the creatures
+  brief builds that check for Ensnaring Strike first) and the long clocks (a
+  re-arming deadline has no member in `timers.ts` or `Deadline`; the two rest
+  denials have no record) — `a-clock-that-runs-for-days` stands. Main
+  re-ingested.

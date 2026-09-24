@@ -41,9 +41,9 @@ homebrew.
   list**: the DM's door rolls it, the engine applies the failure's damage,
   condition, grapple, push, Speed cut or lowered maximum, and hands over each
   sentence it could not read; a printed teleport is spent at its distance, a
-  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (a
-  hazard beside its conditions, 1d4 at its turns, an action to put out) or
-  wear its armour down; a Parry raises Armour Class in the hit window, a printed Reaction may spend
+  printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (a hazard beside its conditions, put
+  out by its own action), wear its armour down, or hand a graded failure to
+  the printed-save reader; a save may spin the web that holds its target; a Parry raises Armour Class in the hit window, a printed Reaction may spend
   another printed line, a cast line is spent at its heading's price, a creature carries its
   Challenge Rating and may take the form its block prints, and a Roper reels
   what it holds.
@@ -119,11 +119,9 @@ homebrew.
 - **Jumping is half**; Slow Fall is elected on the landing rather than in a
   window; **nothing stands a creature up** by its own act, so a spell that
   forbids standing has nothing to forbid.
-- **A printed hit is read clause by clause**: the charge, a push or pull, a
-  Speed cut, a lowered maximum, a one-roll mode, a grapple that implies
-  Restrained and extra damage execute; what nothing read is handed back and
-  the ledger keeps the block. A repeat save may deepen its condition and stop
-  asking, and Resistance's d4 comes off the total before defences.
+- **A printed hit is read clause by clause** and what nothing read is handed
+  back, the ledger keeping the block. A repeat save may deepen its condition
+  and stop asking; Resistance's d4 comes off the total before defences.
 - **Nothing brings a jumper down** from a High Jump; a lifted creature is set
   down when its casting ends.
 - No ammunition spent. **An object cannot make an ability check** — a door
