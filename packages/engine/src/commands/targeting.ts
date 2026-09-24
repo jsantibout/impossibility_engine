@@ -1988,23 +1988,6 @@ export function eligibleTargets(
 }
 
 /**
- * {@link eligibleTargets} for a spell that fills a template.
- *
- * Three answers, and the middle one is the whole of why this exists:
- *
- * | | |
- * |---|---|
- * | the area places | the catch, exactly as the casting settles it, and the reason the catch wrote for everyone it dropped |
- * | the area does not place | a `route` request for the field that would place it — never a guessed point, and never the Range standing in for the template |
- * | a creature the template never covered | off the list, and told so in the geometry's terms rather than the target rule's |
- *
- * **The placement refusal is a `route` and not a `refusal`**, because that is
- * what it is: `no_origin`, `no_direction` and `out_of_range` are all answered
- * by the caller asking again with the field corrected, which is `route`'s own
- * definition. Where the refusal already carries its own requests — no scene,
- * an unplaced caster — those are the better ones and they travel unchanged.
- */
-/**
  * Which fields would place this template, in the words a caller can act on.
  *
  * **A self-origin area is never told to supply an `at`**, and that is the
@@ -2023,6 +2006,23 @@ const howToPlace = (area: SpellArea): string => {
   return aim === null ? `\`at\` placing the ${area.kind}` : `\`at\` and ${aim}`;
 };
 
+/**
+ * {@link eligibleTargets} for a spell that fills a template.
+ *
+ * Three answers, and the middle one is the whole of why this exists:
+ *
+ * | | |
+ * |---|---|
+ * | the area places | the catch, exactly as the casting settles it, and the reason the catch wrote for everyone it dropped |
+ * | the area does not place | a `route` request for the field that would place it — never a guessed point, and never the Range standing in for the template |
+ * | a creature the template never covered | off the list, and told so in the geometry's terms rather than the target rule's |
+ *
+ * **The placement refusal is a `route` and not a `refusal`**, because that is
+ * what it is: `no_origin`, `no_direction` and `out_of_range` are all answered
+ * by the caller asking again with the field corrected, which is `route`'s own
+ * definition. Where the refusal already carries its own requests — no scene,
+ * an unplaced caster — those are the better ones and they travel unchanged.
+ */
 function areaShortlist(
   state: GameState,
   casterId: CharacterId,
