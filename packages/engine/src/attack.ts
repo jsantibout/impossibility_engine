@@ -1,6 +1,13 @@
 import { err, ok, type Ability, type CharacterId, type Result, type RollMode } from '@ie/shared';
 import type { Weapon, WeaponMastery, WeaponProperty } from '@ie/srd';
-import { parseNotation, type DieEffect, type Rng, type RollRule } from './dice.js';
+import {
+  parseNotation,
+  rerollDice,
+  type DieEffect,
+  type DieRoll,
+  type Rng,
+  type RollRule,
+} from './dice.js';
 import type { Content } from './content.js';
 // Type-only, and deliberately: `events.ts` reads this module's damage types
 // the same way, so a value edge in either direction would be a real cycle.
@@ -26,10 +33,13 @@ import {
   type TargetContext,
 } from './conditions.js';
 import {
+  electedRethrow,
+  electionProblem,
   rollD20Recorded,
   rollRecorded,
   type RecordedD20,
   type RecordedRoll,
+  type RollElection,
   type RollIssuer,
 } from './rolls.js';
 
@@ -612,6 +622,27 @@ export interface AttackOptions {
   readonly targetContext?: TargetContext;
   /** The attacker is within 5 feet — flips Prone, and enables automatic crits. */
   readonly withinFiveFeet?: boolean;
+  /**
+   * A reroll of the **attack roll** the attacker elected before it was thrown
+   * — see {@link RollElection}.
+   *
+   * `'misses'` and a face are what an attack can be elected on; `'fails'` is a
+   * D20 Test's word and is refused here. Whether the attacker holds the pool
+   * and can afford it is the command's question, asked before anything rolls.
+   */
+  readonly election?: RollElection;
+  /**
+   * A reroll of one of the **attack's own damage dice**, elected before they
+   * were thrown.
+   *
+   * A face and nothing else: a damage die has no outcome to read. It reaches
+   * the weapon's own roll — or a stat block line's, which is the same
+   * component from the other source — and never a rider's or a bonus's, for
+   * the reason {@link weaponRollRule} does not: the dice a player names are
+   * "the attack's damage dice", and a Sneak Attack riding on the same hit is
+   * a different sentence's dice.
+   */
+  readonly damageElection?: RollElection;
 }
 
 const has = (weapon: Weapon | null, property: string): boolean =>
@@ -825,6 +856,13 @@ export function rollAttack(
   const valid = validateBonusDice(options.attackBonuses);
   if (!valid.ok) return valid;
 
+  // And the election's shape, for the same reason: a refused one costs nothing.
+  const election = options.election;
+  if (election !== undefined) {
+    const problem = electionProblem(election, 'attack');
+    if (problem !== null) return err('bad_election', problem);
+  }
+
   // **What the attack was made with, and what it can honestly say it was made
   // with.** For everything but one case these are the same answer.
   // `attackAbility` has to return an `Ability` because the damage modifier is
@@ -857,12 +895,11 @@ export function rollAttack(
       ? ok(rollD20Recorded(issuer, rng, mode, modifier, sheet.rerollsD20On ?? null))
       : resolveStatedD20(issuer, options.statedRoll, mode, modifier);
   if (!stated.ok) return stated;
-  const roll = stated.value;
 
   const bonuses = rollBonusDice(issuer, rng, options.attackBonuses);
   if (!bonuses.ok) return bonuses;
 
-  const total = roll.total + sumResolved(bonuses.value);
+  const added = sumResolved(bonuses.value);
 
   // SRD "Rolling 20 or 1": a natural 20 hits regardless of modifiers or AC, and
   // a natural 1 misses regardless. This is the one D20 Test where the die face
@@ -878,8 +915,45 @@ export function rollAttack(
   // A natural 1 is untouched. No SRD feature raises the miss face, and the
   // sentence that sets it names the number rather than a rule.
   const criticalOn = options.criticalOn ?? 20;
-  const naturalCritical = roll.natural >= criticalOn && !roll.isCriticalMiss;
-  const hit = naturalCritical || (!roll.isCriticalMiss && total >= options.targetAc);
+  const lands = (
+    thrown: RecordedD20,
+    sum: number,
+  ): { readonly naturalCritical: boolean; readonly hit: boolean } => {
+    const naturalCritical = thrown.natural >= criticalOn && !thrown.isCriticalMiss;
+    return {
+      naturalCritical,
+      hit: naturalCritical || (!thrown.isCriticalMiss && sum >= options.targetAc),
+    };
+  };
+
+  // **The election, read against the roll as it stands**, which is the die
+  // plus everything that has landed on it — the modifier and every bonus die.
+  // "Misses" is the attack's own hit rule and not a comparison with the AC: a
+  // natural 1 misses an Armour Class of 5 and a Champion's 19 hits one of 25,
+  // so the same function answers it here and below, once. A die the table
+  // threw is untouched, for the reason SRD Luck cannot reach one.
+  const roll =
+    options.statedRoll === undefined
+      ? electedRethrow(
+          issuer,
+          rng,
+          stated.value,
+          mode,
+          modifier,
+          stated.value.total + added,
+          election === undefined
+            ? null
+            : {
+                pool: election.pool,
+                fires: (thrown, sum) =>
+                  typeof election.when === 'object'
+                    ? thrown.natural <= election.when.faceAtOrBelow
+                    : !lands(thrown, sum).hit,
+              },
+        )
+      : stated.value;
+  const total = roll.total + added;
+  const { naturalCritical, hit } = lands(roll, total);
 
   // SRD Paralyzed and Unconscious: "Any attack roll that hits you is a Critical
   // Hit if the attacker is within 5 feet of you." A hit that was not a natural
@@ -939,6 +1013,15 @@ export interface AttackDamage {
   readonly reductions: readonly DamageReduction[];
   /** Sum of every component less any reductions, before the target's defences. */
   readonly total: number;
+  /**
+   * The pool an elected reroll spent on one of these dice, where one fired.
+   *
+   * `RecordedD20.elected`'s twin on the other kind of roll, and there for the
+   * same reason: the die that was thrown again is already in the log —
+   * `rerollDice` leaves it `rerolled` beside its replacement — and what the
+   * dice cannot say is who paid.
+   */
+  readonly elected?: string;
 }
 
 /** SRD Unarmed Strike damage: 1 Bludgeoning plus the Strength modifier. */
@@ -972,6 +1055,62 @@ function averageDamage(dice: string | null, fixed: number | null): number {
   return flat + (parsed.value.count * (parsed.value.sides + 1)) / 2;
 }
 
+/**
+ * Read a damage election against a roll that has landed, and rethrow one die.
+ *
+ * **One die, and which one is the caller's to name.** SRD Heroic Inspiration
+ * rerolls "any die", singular, and the caller who names none gets the lowest
+ * die that counted — the one a player weighing a single reroll would pick, and
+ * an answer rather than a question with no reason behind it. The face read is
+ * what the die **showed**, not what a substitution made of it: the sentence is
+ * about the die, and Great Weapon Fighting's 3 is still a 1 on the table.
+ *
+ * **`die` is a position among the dice that counted, and nothing else is
+ * nameable.** A dropped die is not a die this roll used — SRD Savage
+ * Attacker's losing throw rides along `dropped`, and `rerollDice` keeps a
+ * replacement for one dropped — so naming one would burn a use and move no
+ * total. A position past the end of that list names no die of this roll, and
+ * the election simply does not fire: nothing is spent, and every face is in
+ * the log with its disposition for a reader to see why. **It is not a
+ * refusal**, and that is a trade rather than an oversight: how many dice a
+ * swing throws is settled by the critical and by whatever rule doubled the
+ * notation, so a caller cannot know the count before the die, and refusing
+ * here would refuse a swing the engine had already rolled — leaving the
+ * generator advanced, so the retry would be a different swing. A better error
+ * message is not worth a divergent replay.
+ *
+ * `rerollDice` keeps the replaced die in the roll marked `rerolled`, so "you
+ * must use the new roll" and the audit trail are the same act. The roll id is
+ * the one already issued: this is one damage roll with a die thrown twice, and
+ * two ids would claim two rolls.
+ */
+function electedDamageRethrow(
+  rng: Rng,
+  rolled: RecordedRoll,
+  election: RollElection | undefined,
+  effects: readonly DieEffect[],
+): Result<{ readonly roll: RecordedRoll; readonly spent: string | null }> {
+  if (election === undefined || typeof election.when !== 'object') {
+    return ok({ roll: rolled, spent: null });
+  }
+
+  const counted = rolled.dice.filter((die) => die.disposition === 'counted');
+  const die =
+    election.die === undefined
+      ? counted.reduce<DieRoll | null>(
+          (best, one) => (best === null || one.rolled < best.rolled ? one : best),
+          null,
+        )
+      : (counted[election.die] ?? null);
+  if (die === null || die.rolled > election.when.faceAtOrBelow) {
+    return ok({ roll: rolled, spent: null });
+  }
+
+  const again = rerollDice(rng, rolled, [die.index], election.pool, effects);
+  if (!again.ok) return again;
+  return ok({ roll: { ...again.value, provenance: rolled.provenance }, spent: election.pool });
+}
+
 export function rollAttackDamage(
   issuer: RollIssuer,
   rng: Rng,
@@ -988,6 +1127,18 @@ export function rollAttackDamage(
     ...(options.extraDamage ?? []).map((e) => ({ source: e.source, ...(e.dice === undefined ? {} : { dice: e.dice }) })),
   ]);
   if (!valid.ok) return valid;
+
+  // And the election's shape, before a die is thrown, for the same reason.
+  const damageElection = options.damageElection;
+  if (damageElection !== undefined) {
+    const problem = electionProblem(damageElection, 'damage');
+    if (problem !== null) return err('bad_election', problem);
+  }
+  // What the attack's own damage roll spent, filled once below. That roll is
+  // one roll however the line printed it, so at most one die of it is thrown
+  // again and at most one use is paid for.
+  let elected: string | null = null;
+  let offered = false;
 
   const effects = options.damageEffects ?? [];
   const ownModifier = modifierFor(sheet, attackAbility(sheet, options));
@@ -1020,12 +1171,22 @@ export function rollAttackDamage(
       if (!notation.ok) return notation;
       const outcome = rollRecorded(issuer, rng, notation.value, effects);
       if (!outcome.ok) return outcome;
+      // The line's own dice, which is what a printed attack has instead of a
+      // weapon's. Only the first rolled component is offered the election: the
+      // Ghoul's Piercing is what the block calls the bite, and its Necrotic is
+      // the rider — the same split `ownType` below already makes.
+      const after = offered
+        ? ok({ roll: outcome.value, spent: null })
+        : electedDamageRethrow(rng, outcome.value, damageElection, effects);
+      if (!after.ok) return after;
+      offered = true;
+      elected = elected ?? after.value.spent;
       components.push({
         source: stated.source,
         type: part.type,
-        roll: outcome.value,
+        roll: after.value.roll,
         flat: part.flat,
-        total: outcome.value.total + part.flat,
+        total: after.value.roll.total + part.flat,
       });
     }
 
@@ -1043,6 +1204,7 @@ export function rollAttackDamage(
       critical,
       reductions: [],
       total: all.reduce((sum, c) => sum + Math.max(0, c.total), 0),
+      ...(elected === null ? {} : { elected }),
     });
   }
 
@@ -1117,12 +1279,18 @@ export function rollAttackDamage(
       options.weaponRollRule ?? null,
     );
     if (!outcome.ok) return outcome;
+    // "The attack's damage dice", which for a weapon is this roll and no
+    // other: a bonus of the weapon's own type and a rider's extra damage are
+    // both a different sentence's dice. See {@link AttackOptions.damageElection}.
+    const after = electedDamageRethrow(rng, outcome.value, damageElection, effects);
+    if (!after.ok) return after;
+    elected = after.value.spent;
     components.push({
       source,
       type,
-      roll: outcome.value,
+      roll: after.value.roll,
       flat: modifier,
-      total: outcome.value.total + modifier,
+      total: after.value.roll.total + modifier,
     });
   }
 
@@ -1132,7 +1300,13 @@ export function rollAttackDamage(
 
   const total = all.reduce((sum, c) => sum + Math.max(0, c.total), 0);
 
-  return ok({ components: all, critical, reductions: [], total });
+  return ok({
+    components: all,
+    critical,
+    reductions: [],
+    total,
+    ...(elected === null ? {} : { elected }),
+  });
 }
 
 /**

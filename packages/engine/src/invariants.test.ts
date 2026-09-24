@@ -3749,6 +3749,8 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
   resolveFall:
     'the ground: the one thing it spends is the Reaction a faller elects to land with — SRD Slow Fall — and that is a Reaction taken while falling, on whoever’s turn the fall happens, which is `takeOpportunityAttack`’s exemption. The height is a fact the table states rather than an action anybody takes, and a guard would refuse to let a creature hit the floor because somebody else owed a saving throw',
   takeAttackReaction: 'a Reaction, and it answers a window somebody else opened',
+  resolveTest:
+    'a D20 Test the table asked for, which is not an action in anybody’s turn: SRD spends no Action, Bonus Action or Reaction on a check or a save, and a guard here would refuse a creature the very saving throw an outstanding area effect is owed as. What the closure sees is the pool an **election** spends — SRD Heroic Inspiration bought before the die rather than answered after it — and that is a use the roller elected on the roll itself, priced, refused if unaffordable, and spent only where the condition the roller stated was met',
   takeDamageReaction: 'a Reaction, and it closes a window somebody else opened',
   takeTestReaction: 'a Reaction, and it closes a window somebody else opened',
   takeDamageResponse: 'a Reaction, and it closes a window somebody else opened',

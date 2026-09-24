@@ -212,10 +212,16 @@ describe('toolSchemas', () => {
     // `activate_feature` may now **conjure** rather than find, and the third
     // span `extend_feature` refuses. One tool on each surface; the lengths sum
     // with whatever the other tracks of this batch moved.
+    // And again for the elected-reroll track: `attack.reroll` and
+    // `attack.reroll_damage` on the player's surface, `ability_check.reroll`
+    // and `saving_throw.reroll` on the DM's. Four fields on three tools that
+    // already existed, so neither count moves — the player's grew by 3,883 and
+    // the DM's by 8,058, because `attack` is published on both doors and the
+    // two checks are the DM's alone.
     expect(toolSchemas(player())).toHaveLength(85);
     expect(toolSchemas(dm())).toHaveLength(105);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(123995);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(151972);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(127878);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(160030);
   });
 });
 

@@ -65,6 +65,38 @@ one would refuse the second use where the book charges for it — and its damage
 is dealt against no defences at all, which is what "ignores Resistance and
 Immunity" names.
 
+**A second reroll is elected before the die and read against it.** SRD Heroic
+Inspiration — "you can expend it to reroll any die immediately after rolling
+it, and you must use the new roll" — reaches a roll that succeeded, an attack
+roll and a damage die, and none of those lands in a window. A window on every
+die was tried and withdrawn: a table would then settle one before every next
+roll. So the roller states the *condition* on the command that rolls — reroll
+if this misses, if this fails, or if the die shows a named face or lower —
+naming a pool that a `reroll` Reaction of theirs spends. `RollElection` is the
+statement, `electedRethrow` reads it against the roll as it stands, and
+`rethrowCountedD20` is the one rethrow it shares with Halfling Luck, so the
+two can never disagree about which die counted. It is intent from the caller
+and a number from the engine, and it is still a decision made knowing the die,
+because the condition is a function of the face. The pool is spent only where
+the condition was met, the first face rides on `roll-recorded.supersedes`, and
+the second roll stands whatever it shows. **Only a reroll of "any die" may be
+elected**, read off the `tests` its Reaction declares: naming both kinds of
+D20 Test is how "any die" is already spelled on that window, so a reroll
+naming both is electable anywhere and a narrower one keeps the window road it
+has. Indomitable is the narrower one — "if you **fail** a saving throw", with
+a bonus equal to your Fighter level — and electing it would go wrong twice: a
+face condition would throw a *made* save again, and the pipeline rethrow
+carries no `Bonus`, so the Fighter level would vanish. A grant with a bonus on
+it is refused for that second reason alone, whatever its `tests` say. The
+window keeps its arm, because Indomitable and Cutting Words share it and a
+player may prefer to look first; what the same pool may not do is buy a second
+reroll of a die an election already threw again. A damage election names a die
+by its position **among those that counted**, and a position past the end
+simply does not fire — how many dice a swing throws is settled by the critical
+and by whatever doubled the notation, so a caller cannot know the count
+beforehand, and refusing a swing the engine had already rolled would leave the
+generator advanced and make the retry a different swing.
+
 **A selector may name a family of D20 Tests, and it must then name the ability
 behind them.** `RollFamily`'s sixth member is the glossary's own union of the
 other three — an ability check, an attack roll, a saving throw — and it

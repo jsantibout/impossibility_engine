@@ -117,6 +117,8 @@ const FORBIDDEN_HERE = [
   'rollD20',
   'rerollDice',
   'rollD20Recorded',
+  'rethrowCountedD20',
+  'electedRethrow',
   'rollRecorded',
   'rollBonusDice',
   'rerollTest',

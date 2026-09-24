@@ -93,6 +93,7 @@ import {
   standingReductionOf,
   statedFrom,
 } from './damage.js';
+import { type RollElection } from '../rolls.js';
 import { applyHitRider } from './hit-riders.js';
 import { completeIfSettled, pendingCastingsOf } from './holds.js';
 import { reactionSwing } from './movement.js';
@@ -101,6 +102,7 @@ import {
   mergedModes,
   recordD20Test,
   rollSpellDice,
+  electionRefusal,
   savingSupport,
   spentRollModifiers,
 } from './rolls.js';
@@ -643,6 +645,18 @@ export interface TestCommand extends CommandIdentity {
    * {@link EffectCheckCommand.senses}.
    */
   readonly senses?: CheckContext;
+  /**
+   * A reroll the roller elects **before** the die — see {@link RollElection}.
+   *
+   * The other half of the `test-rolled` window, and the half a window could
+   * not be: SRD Heroic Inspiration rerolls "any die immediately after rolling
+   * it", which includes a roll that succeeded and a die nobody is offered
+   * anything about. The condition is stated on the command and read against
+   * the die the command threw, so the reroll costs no second call and holds
+   * nothing open. The window keeps its arm; a player who would rather look
+   * first simply elects nothing.
+   */
+  readonly election?: RollElection;
 }
 
 export interface TestResolution {
@@ -709,6 +723,14 @@ export function resolveTest(
       return err('bad_dc', `${String(command.dc)} is not a Difficulty Class`);
     }
 
+    // The election, before the die: a pool the roller does not hold, cannot
+    // afford, or whose feature's sentence does not reach this test is refused
+    // with nothing rolled and nothing spent.
+    if (command.election !== undefined) {
+      const allowed = electionRefusal(state, who, command.election, 'test');
+      if (!allowed.ok) return allowed;
+    }
+
     const label =
       command.label ??
       `${ABILITY_NAMES[command.ability]} ${command.kind === 'saving-throw' ? 'save' : 'check'}`;
@@ -764,6 +786,7 @@ export function resolveTest(
               conditions: support.conditions,
               modes: support.modes,
               bonuses: support.bonuses,
+              ...(command.election === undefined ? {} : { election: command.election }),
             });
           })()
         : rollAbilityCheck(supply.issuer, supply.rng, sheet, command.ability, {
@@ -783,6 +806,7 @@ export function resolveTest(
             // the *identity rule*, and they do not — both merge by source and
             // let the caller's copy win.
             bonuses: checkBonuses(state, who, saidBonuses, command.skill),
+            ...(command.election === undefined ? {} : { election: command.election }),
           });
     if (!rolled.ok) return rolled;
 
@@ -794,6 +818,20 @@ export function resolveTest(
         // miss never deals.
         ...(stamp === null ? {} : { command: stamp }),
       },
+      // **What an election that fired owes.** The pool is spent beside the
+      // roll and only where the condition was met: an election nobody's die
+      // answered costs nothing at all, which is the whole difference between
+      // stating one and taking a Reaction.
+      ...(rolled.value.roll.elected === undefined
+        ? []
+        : [
+            {
+              type: 'resource-spent' as const,
+              id: who,
+              key: rolled.value.roll.elected,
+              amount: 1,
+            },
+          ]),
       { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
       // **The one-shot grants an ability check spends.** SRD Help: "that ally
       // has Advantage on the next ability check they make with the chosen
@@ -899,6 +937,22 @@ export function takeTestReaction(
 
     const creature = creatureOf(state, reactor);
     if (creature === null) return unknownCreature(reactor);
+
+    // **Once per die, whatever the pool has left.** SRD says "you must use the
+    // new roll", which is one new roll: a roll the roller already elected a
+    // reroll of out of this pool is not one the same pool may throw again at
+    // the window. The balance is not what refuses it — a pool of two would pay
+    // twice — the sentence is.
+    if (
+      feature.does.kind === 'reroll' &&
+      feature.pool !== null &&
+      pending.result.roll.elected === feature.pool
+    ) {
+      return err(
+        'election_spent',
+        `${pending.who} already elected a reroll of this roll out of ${feature.pool}; "you must use the new roll"`,
+      );
+    }
 
     const spent = spendReactionCost(state, reactor, creature, feature);
     if (!spent.ok) return spent;

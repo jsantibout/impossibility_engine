@@ -243,6 +243,12 @@ const AUDIT: readonly {
       cantrip: because(
         'which cantrip is cast **with** this swing, and which damage type its offer takes — SRD True Strike, whose whole text is one attack made through a casting. A decision and not a number twice over: whether to spend the Action on the spell rather than on the Attack action, and whether the blow is Radiant or the weapon’s own type. It is refused outright to anybody who cannot cast such a spell, and neither benchmark character has one on their list — the Cleric’s list does not carry it and the Mage does not carry a weapon — so a published field would be refused every value it could be sent today. `packages/tools` publishes it, because a campaign can',
       ),
+      election: because(
+        'the same reroll, elected on the attack roll — "reroll if this misses", or a face. `packages/tools` publishes it as `reroll`; it is withheld here for the reason every other pool-bought decision on this command is, that neither benchmark character holds a feature that spends one',
+      ),
+      damageElection: because(
+        'the same again, on one of the swing’s own damage dice, where a face is the only condition there is to state. `packages/tools` publishes it as `reroll_damage`, and it is withheld here for `election`’s reason',
+      ),
     },
   },
   {
@@ -283,6 +289,9 @@ const AUDIT: readonly {
       senses: expose('requires_sight'),
       modes: because('same as the attack roll: a DM granting Advantage by fiat wants its own decision'),
       bonuses: because('a number that would decide an outcome'),
+      election: because(
+        'a reroll the roller states before the die — SRD Heroic Inspiration’s "reroll any die immediately after rolling it", bought out of a pool and read against the face. A condition rather than a number, and `packages/tools` publishes it on both checks as `reroll`. It is not on **this** surface because this one is a benchmark held fixed: neither benchmark character holds a pool that buys a reroll, so a published field would be refused every value it could be sent today',
+      ),
     },
   },
   {

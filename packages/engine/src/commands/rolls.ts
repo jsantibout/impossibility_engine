@@ -22,7 +22,14 @@ import {
 import { type DamageComponent, rollAttackDamage } from '../attack.js';
 import { type DieEffect, explodeOnMax, parseNotation, rerollDice } from '../dice.js';
 import { type Bonus, bonusesFor, flatBonusTotal, type ModeSource } from '../bonuses.js';
-import { type RecordedRoll } from '../rolls.js';
+import {
+  electionProblem,
+  type ElectionSite,
+  type RecordedRoll,
+  type RollElection,
+} from '../rolls.js';
+import { reactionsOf } from '../reactions.js';
+import { remaining } from '../resources.js';
 import { abilityModifier, type CharacterSheet } from '../character.js';
 import { type D20TestResult, skillName } from '../checks.js';
 import { type ConditionState, isIncapacitated } from '../conditions.js';
@@ -74,6 +81,77 @@ export function spentRollModifiers(state: GameState, query: RollQuery): GameEven
     id: spent.holder,
     source: spent.source,
   }));
+}
+
+/**
+ * Whether this creature may elect this reroll on this roll, and what it costs.
+ *
+ * **Three questions, and the engine names no feature to ask them.** An
+ * election names a *pool*; the pool has to belong to a Reaction this creature
+ * holds whose effect is a reroll, because a pool with no reroll behind it
+ * would let any resource on any sheet buy one; and the roll it is elected on
+ * has to be one that feature's sentence reaches.
+ *
+ * **Only a reroll of "any die" may be elected, and that is the whole rule.**
+ * `ReactionGrantEffect`'s `tests` says of itself that "SRD Heroic Inspiration
+ * answers 'any die', which on this window is both kinds of test" — so a reroll
+ * naming **both** is a reroll of any die and is electable anywhere, and one
+ * naming fewer is a narrower sentence that keeps the window road it already
+ * has. SRD Indomitable is the narrower one: "if you **fail** a saving throw",
+ * with a bonus equal to your Fighter level. Electing it would go wrong twice —
+ * a face condition would let a *made* save be thrown again, which
+ * `progression.ts` says is withheld on purpose, and the pipeline rethrow
+ * carries no `Bonus`, so the Fighter level `rerollTest` adds at the window
+ * would silently vanish. A `bonus` on the grant is refused outright for that
+ * second reason, so a homebrew "any die" reroll that priced one cannot lose it
+ * quietly either.
+ *
+ * No new field and no engine file naming a feature: both questions are asked
+ * of the grant the creature is holding.
+ *
+ * Asked **before** anything is rolled, so a refused election leaves the
+ * generator and the roll counter where it found them.
+ */
+export function electionRefusal(
+  state: GameState,
+  who: CharacterId,
+  election: RollElection,
+  site: ElectionSite,
+): Result<null> {
+  const shape = electionProblem(election, site);
+  if (shape !== null) return err('bad_election', shape);
+
+  const creature = state.creatures[who];
+  if (creature === undefined) {
+    return err('bad_election', `${who} is not a creature in this game`);
+  }
+
+  const held = reactionsOf(creature).find(
+    (reaction) => reaction.pool === election.pool && reaction.does.kind === 'reroll',
+  );
+  if (held === undefined || held.does.kind !== 'reroll') {
+    return err('bad_election', `${who} has nothing that spends ${election.pool} on a reroll`);
+  }
+
+  const tests = held.does.tests ?? ['saving-throw'];
+  if (!tests.includes('ability-check') || !tests.includes('saving-throw')) {
+    return err(
+      'bad_election',
+      `${held.name} rerolls ${tests.join(' or a ')} and nothing else, so it is answered at the window rather than elected before the die`,
+    );
+  }
+  if (held.does.bonus !== undefined) {
+    return err(
+      'bad_election',
+      `${held.name} adds to the roll it throws again, and an election carries no addend; answer it at the window`,
+    );
+  }
+
+  if (remaining(creature.resources, election.pool) < 1) {
+    return err('cannot_afford', `${who} has no uses of ${held.name} left`);
+  }
+
+  return ok(null);
 }
 
 /**

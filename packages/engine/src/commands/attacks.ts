@@ -161,7 +161,13 @@ import {
 import { grapplesOn } from './unarmed.js';
 import { effectiveSizeOf } from '../size.js';
 import { typeMagicSees } from '../creature-type.js';
-import { allyWithinFiveFeetOf, defendingModes, enemyWithinFiveFeet } from './rolls.js';
+import { type RollElection } from '../rolls.js';
+import {
+  allyWithinFiveFeetOf,
+  defendingModes,
+  electionRefusal,
+  enemyWithinFiveFeet,
+} from './rolls.js';
 import { consumedRollModifiers } from '../roll-modifiers.js';
 import { answerTheBlow, wardAgainst } from './passive-defenses.js';
 
@@ -1241,6 +1247,27 @@ export interface AttackCommand extends CommandIdentity {
   readonly finesseAbility?: 'str' | 'dex';
   /** Advantage or disadvantage from the fiction, which the engine cannot see. */
   readonly modes?: readonly (RollMode | ModeSource)[];
+  /**
+   * A reroll of the **attack roll** the attacker elects before it is thrown —
+   * see `RollElection`.
+   *
+   * SRD Heroic Inspiration reaches an attack roll and the `test-rolled` window
+   * does not, so the swing carries the condition rather than opening a moment
+   * nobody has to settle: "reroll if this misses", or a face. The pool is
+   * spent only where the condition was met.
+   */
+  readonly election?: RollElection;
+  /**
+   * The same, of one of the swing's **own damage dice** — a face and nothing
+   * else, because a damage die has no outcome to read.
+   *
+   * Refused beside `hold`, which rolls no damage here: the election would have
+   * nothing to read and a caller who filled it in would be told nothing. It is
+   * also refused beside {@link election} when the two name one pool, because
+   * one use cannot buy two rerolls and which of them it buys is the player's
+   * to say rather than the engine's to pick.
+   */
+  readonly damageElection?: RollElection;
   /** Modifiers the caller knows about: Archery, a magic weapon's plus. */
   readonly attackBonuses?: readonly Bonus[];
   readonly damageBonuses?: readonly Bonus[];
@@ -1769,6 +1796,34 @@ export function resolveAttack(
       return unknownCreature(command.target, 'has no record here yet; add it first');
     }
     if (attacker.vitals.dead) return err('dead', `${id} is dead and swings at nothing`);
+
+    // — what the attacker elected before anything is thrown ————————————————
+    //
+    // A pool they do not hold, cannot afford, or whose feature's sentence does
+    // not reach this roll is refused here, so a refused election costs no die
+    // and no roll id. The two clashes the swing itself can hold are refused
+    // beside them: a damage election on a swing that rolls no damage, and two
+    // elections buying one use.
+    if (command.election !== undefined) {
+      const allowed = electionRefusal(state, id, command.election, 'attack');
+      if (!allowed.ok) return allowed;
+    }
+    if (command.damageElection !== undefined) {
+      if (command.hold === true) {
+        return err(
+          'bad_election',
+          `a held swing rolls no damage here, so ${id} has nothing to elect a reroll of`,
+        );
+      }
+      if (command.election?.pool === command.damageElection.pool) {
+        return err(
+          'bad_election',
+          `one use of ${command.damageElection.pool} cannot buy two rerolls; elect the attack roll or the damage, not both`,
+        );
+      }
+      const allowed = electionRefusal(state, id, command.damageElection, 'damage');
+      if (!allowed.ok) return allowed;
+    }
 
     // — the attack this creature's own block prints ————————————————————————
     //
@@ -2426,6 +2481,7 @@ export function resolveAttack(
       ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
       ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
       ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
+      ...(command.election === undefined ? {} : { election: command.election }),
       modes: [...defending.modes, ...packing.modes, ...(command.modes ?? [])],
       beyondNormalRange: reach.value.beyondNormal,
       nearbyEnemy: nearby.near,
@@ -2495,6 +2551,19 @@ export function resolveAttack(
       // and a missed swing must not be retryable.
       ...(stamp === null ? {} : { command: stamp }),
     });
+
+    // **What an election that fired owes**, beside the roll and before the
+    // miss returns — an elected reroll of a miss is still a reroll, and the
+    // sentence counts the die rather than what it came to. An election the
+    // die did not answer costs nothing and is recorded nowhere.
+    if (attack.value.roll.elected !== undefined) {
+      events.push({
+        type: 'resource-spent',
+        id,
+        key: attack.value.roll.elected,
+        amount: 1,
+      });
+    }
 
     // **Beside the roll, and before the miss returns.** SRD Vicious Mockery
     // says "the next attack roll it makes" and Guiding Bolt "the next attack
@@ -2795,6 +2864,9 @@ export function resolveAttack(
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
         ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
         ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
+        ...(command.damageElection === undefined
+          ? {}
+          : { damageElection: command.damageElection }),
         damageBonuses: [
           // "…and damage rolls made with this magic weapon": a bonus of the
           // weapon's own type, so it meets Resistance with the blade.
@@ -2848,6 +2920,11 @@ export function resolveAttack(
       attack.value.critical,
     );
     if (!rolled.ok) return rolled;
+
+    // And what an election on the damage dice owes, on the same terms.
+    if (rolled.value.elected !== undefined) {
+      events.push({ type: 'resource-spent', id, key: rolled.value.elected, amount: 1 });
+    }
 
     events.push({
       type: 'rolls-issued',
