@@ -30,6 +30,7 @@ import { resolveSpell, resolveTest, resolveTurn, type TurnResolution } from './c
 
 const id = (s: string) => asCharacterId(s);
 const WIZARD = id('wizard');
+const SORCERER = id('sorcerer');
 const FIGHTER = id('fighter');
 const GOBLIN = id('goblin');
 const HOBGOBLIN = id('hobgoblin');
@@ -67,6 +68,7 @@ const slots = (who: CharacterId): readonly GameEvent[] =>
 
 const FIELD: readonly GameEvent[] = [
   added(WIZARD, 'party'),
+  added(SORCERER, 'party'),
   added(FIGHTER, 'party'),
   added(GOBLIN, 'foes'),
   added(HOBGOBLIN, 'foes'),
@@ -76,34 +78,45 @@ const FIELD: readonly GameEvent[] = [
     spellcasting: declaredCasting({
       ability: 'int',
       classId: 'wizard',
-      prepared: ['haste', 'slow'],
+      prepared: ['haste'],
     }),
   },
+  {
+    type: 'spellcasting-declared',
+    id: SORCERER,
+    spellcasting: declaredCasting({ ability: 'cha', classId: 'sorcerer', prepared: ['slow'] }),
+  },
   ...slots(WIZARD),
+  ...slots(SORCERER),
   { type: 'scene-set', extent: { width: 600, depth: 600, height: 40 } },
   { type: 'landmark-added', name: 'the door', at: { x: 200, y: 200, z: 0 } },
-  { type: 'landmark-added', name: 'the pit', at: { x: 200, y: 100, z: 0 } },
-  { type: 'landmark-added', name: 'the well', at: { x: 205, y: 100, z: 0 } },
+  { type: 'landmark-added', name: 'the arch', at: { x: 200, y: 180, z: 0 } },
+  { type: 'landmark-added', name: 'the pit', at: { x: 200, y: 160, z: 0 } },
+  { type: 'landmark-added', name: 'the well', at: { x: 205, y: 160, z: 0 } },
   { type: 'creature-placed', id: WIZARD, placement: { from: { landmark: 'the door' }, feet: 0 } },
   {
     type: 'creature-placed',
-    id: FIGHTER,
+    id: SORCERER,
     placement: { from: { creature: WIZARD }, feet: 5, bearing: 90 },
   },
+  { type: 'creature-placed', id: FIGHTER, placement: { from: { landmark: 'the arch' }, feet: 0 } },
   { type: 'creature-placed', id: GOBLIN, placement: { from: { landmark: 'the pit' }, feet: 0 } },
   {
     type: 'creature-placed',
     id: HOBGOBLIN,
     placement: { from: { landmark: 'the well' }, feet: 0 },
   },
-  ...[FIGHTER, GOBLIN, HOBGOBLIN].flatMap((who): readonly GameEvent[] => [
-    { type: 'sight-declared', from: WIZARD, to: who, seen: true },
-    { type: 'sight-declared', from: who, to: WIZARD, seen: true },
-  ]),
+  ...[FIGHTER, GOBLIN, HOBGOBLIN].flatMap((who): readonly GameEvent[] =>
+    [WIZARD, SORCERER].flatMap((caster): readonly GameEvent[] => [
+      { type: 'sight-declared', from: caster, to: who, seen: true },
+      { type: 'sight-declared', from: who, to: caster, seen: true },
+    ]),
+  ),
   {
     type: 'combat-started',
     combatants: [
       { id: WIZARD, initiative: 20, speed: 30 },
+      { id: SORCERER, initiative: 18, speed: 30 },
       { id: FIGHTER, initiative: 15, speed: 30 },
       { id: GOBLIN, initiative: 10, speed: 30 },
       { id: HOBGOBLIN, initiative: 5, speed: 30 },
@@ -135,6 +148,7 @@ class Game {
   }
 
   cast(
+    caster: CharacterId,
     spellId: string,
     targets: readonly CharacterId[],
     flat?: number,
@@ -143,7 +157,7 @@ class Game {
     const out = unwrap(
       resolveSpell(
         this.state,
-        WIZARD,
+        caster,
         { spellId, targets: [...targets], ...extra },
         supply(this.state, flat),
       ),
@@ -154,14 +168,14 @@ class Game {
 
   /** Haste, on a target who has said they are willing. */
   haste(target: CharacterId): this {
-    return this.cast('haste', [target], undefined, { willing: [target] });
+    return this.until(WIZARD).cast(WIZARD, 'haste', [target], undefined, { willing: [target] });
   }
 
   /** Slow, centred on the point the goblins are standing around. */
   slow(targets: readonly CharacterId[], flat?: number): this {
-    return this.cast('slow', targets, flat, {
-      at: { x: 200, y: 120, z: 0 },
-      towards: { x: 200, y: 80, z: 0 },
+    return this.until(SORCERER).cast(SORCERER, 'slow', targets, flat, {
+      at: { x: 200, y: 200, z: 0 },
+      towards: { x: 200, y: 160, z: 0 },
     });
   }
 
@@ -267,7 +281,7 @@ describe('SRD Haste, and SRD Slow over the top of it', () => {
     game.haste(FIGHTER);
     expect(game.speed(FIGHTER)).toBe(60);
 
-    game.until(FIGHTER).slow([FIGHTER], DOOMED);
+    game.slow([FIGHTER], DOOMED);
     expect(game.speed(FIGHTER)).toBe(30);
   });
 });

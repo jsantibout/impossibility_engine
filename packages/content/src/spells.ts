@@ -6952,22 +6952,29 @@ export const HEAL: SpellDefinition = {
  * > "When the spell ends, the target is Incapacitated and has a Speed of 0
  * > until the end of its next turn, as a wave of lethargy washes over it."
  *
- * **Three of the four benefits in that run are things the engine owns**, and
- * they are written: the +2 is Shield of Faith's sentence word for word, the
+ * **All four benefits in that run are things the engine owns now**, and they
+ * are written: the +2 is Shield of Faith's sentence word for word, the
  * Advantage is a `roll-mode` narrowed to saving throws and to one ability,
- * which Beacon of Hope already writes twice in one definition, and the extra
+ * which Beacon of Hope already writes twice in one definition, the extra
  * action is `ActionRule`'s fourth member — the one that creates rather than
  * governs — minted into the budget at the start of each of the target's turns
- * and never taken by anybody but the table.
+ * and never taken by anybody but the table, and the doubled Speed is
+ * `SpeedChange`'s third operation, which arrived with the rule that settles
+ * how it meets a halving: doubled first and halved second, so SRD Slow over
+ * this brings the target back to the Speed it walked at.
  *
- * The fourth is not, and it is a named shape rather than a shortcut: a doubled
- * Speed is the one sentence in the book that multiplies one, and `SpeedChange`
- * composes from a halving and a zero and has no third member. **The sentence
- * after the extra action is a second absence and a narrower one**: the five
- * actions it may be spent on include Utilize, which nothing spends, so the
- * list can be said four-fifths or not at all and is left unsaid. The lethargy
- * fires when the casting *ends*, and expiry is derived rather than recorded,
- * so there is no hook to hang it on.
+ * **And the sentence after the extra action is written too.** "That action can
+ * be used to take only the Attack ... Dash, Disengage, Hide, or Utilize
+ * action" is `only` on the granted action, failing closed: a spend that does
+ * not name itself as one of the five is refused, which is the polarity SRD
+ * Expeditious Retreat already writes and the opposite of Action Surge's
+ * `except`. All five are in `NAMED_ACTIONS` and all five have a spender.
+ *
+ * What is left is the parenthesis and the lethargy. "One attack only" counts
+ * the attacks *inside* one Attack action, and the economy counts the action
+ * rather than the swings in it. The lethargy fires when the casting ends, on
+ * the target, under the spell's own bare name so that it outlives the casting
+ * that caused it.
  */
 export const HASTE: SpellDefinition = {
   id: 'haste',
@@ -6983,6 +6990,9 @@ export const HASTE: SpellDefinition = {
   targets: { count: 1, self: true, willing: true },
   requiresSight: true,
   effects: [
+    // "the target's Speed is doubled" — the one sentence in the book that
+    // multiplies a Speed, and the order it composes in is `combineSpeed`'s.
+    { kind: 'speed', change: 'double' },
     // "it gains a +2 bonus to Armor Class"
     {
       kind: 'buff',
@@ -6996,19 +7006,21 @@ export const HASTE: SpellDefinition = {
       modifier: { mode: 'advantage', selector: { roll: 'saving-throw', relation: 'roller', ability: 'dex' } },
     },
     // "it gains an additional action on each of its turns" — the rule stands on
-    // the target and the turn boundary mints one every turn the casting sees.
-    // **Unnarrowed on purpose**: the five actions the next sentence lists
-    // include Utilize, which `NAMED_ACTIONS` leaves out because no spender
-    // could be told apart as having taken one, so an `only` naming the other
-    // four would forbid the one the book allows. The narrowing stays in the
-    // notes below.
-    { kind: 'action-rule', rule: { kind: 'grants', at: 'each-turn' } },
+    // the target and the turn boundary mints one every turn the casting sees —
+    // and "That action can be used to take only the Attack ..., Dash,
+    // Disengage, Hide, or Utilize action" is the `only` list, failing closed.
+    {
+      kind: 'action-rule',
+      rule: {
+        kind: 'grants',
+        at: 'each-turn',
+        only: ['attack', 'dash', 'disengage', 'hide', 'utilize'],
+      },
+    },
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the doubled Speed: "the target’s Speed is doubled" is the only sentence in SRD that multiplies one, and a Speed is composed from a halving, which is presence rather than count, and a zero, which is last and wins — there is no third operation and no rule saying how a doubling meets a halving',
-    'the five that extra action may be spent on: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action" — the extra action itself is granted now, and what cannot be written is the list it is narrowed to: `GrantedAction.only` would say four of the five and nothing spends a Utilize, so a narrowing here would forbid an action the book allows',
-    'the lethargy: "When the spell ends, the target is Incapacitated and has a Speed of 0 until the end of its next turn" fires at the moment the casting runs out, and expiry is derived rather than recorded, so nothing hangs a consequence on it',
+    '"(one attack only)" is not enforced: the parenthesis counts the attacks inside one Attack action, and the economy counts one Attack action and not the swings in it',
   ],
 };
 
