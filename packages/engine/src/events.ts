@@ -31,7 +31,12 @@ import { type ActivePassiveDefense } from './passive-defenses.js';
 import type { DieRoll, RngState } from './dice.js';
 import { type PoolDeclaration, type Recovery } from './resources.js';
 import type { CharacterRecord } from './creation.js';
-import type { DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
+import type {
+  DamageDefenses,
+  DamageReduction,
+  GrantedDamagePenalty,
+  GrantedDefense,
+} from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
 import type { GrantedCreatureType } from './creature-type.js';
 import type { D20TestResult } from './checks.js';
@@ -515,6 +520,26 @@ export type GameEvent =
       readonly type: 'damage-reduction-granted';
       readonly id: CharacterId;
       readonly reduction: GrantedDamageReduction;
+    }
+  /**
+   * A running effect makes a creature take an amount off the damage **it
+   * deals** — SRD Ray of Enfeeblement's "it also subtracts 1d8 from all its
+   * damage rolls."
+   *
+   * Its own event rather than the one above it, because the two sit on
+   * opposite sides of a blow: a reduction is read where damage lands and this
+   * is read where a creature's own damage is totalled. One event carrying both
+   * would have made a Ray of Enfeeblement on the ogre protect the ogre.
+   *
+   * What it grants is a **notation**, for the reason the reduction's is:
+   * the die is thrown when the blow arrives, not at the cast. Ended by the
+   * source it carries, so there is no removal event — `releaseCasting`,
+   * `releaseOnTarget` and the `grants` timer are the doors.
+   */
+  | {
+      readonly type: 'damage-penalty-granted';
+      readonly id: CharacterId;
+      readonly penalty: GrantedDamagePenalty;
     }
   /**
    * A running effect takes a **fall's** cost away from a creature entirely —

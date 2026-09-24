@@ -26,7 +26,13 @@ import {
 } from './conditions.js';
 import { type ResourceState } from './resources.js';
 import type { CharacterRecord } from './creation.js';
-import type { DamageComponent, DamageDefenses, DamageReduction, GrantedDefense } from './attack.js';
+import type {
+  DamageComponent,
+  DamageDefenses,
+  DamageReduction,
+  GrantedDamagePenalty,
+  GrantedDefense,
+} from './attack.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedCreatureType } from './creature-type.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
@@ -643,6 +649,22 @@ export interface CreatureState {
    * through the door that already existed.
    */
   readonly damageReductions: readonly GrantedDamageReduction[];
+  /**
+   * Amounts a running effect makes this creature take off the damage **it
+   * deals** — SRD Ray of Enfeeblement's "it also subtracts 1d8 from all its
+   * damage rolls".
+   *
+   * **{@link damageReductions}' mirror, and the axis is which side of the blow
+   * the grant sits on.** That family is read where damage *lands* on this
+   * creature; this one is read where the damage this creature *rolls* is
+   * totalled, by `damagePenaltyOf` in `commands/damage.ts`. A single family
+   * would have made a Ray of Enfeeblement on the ogre protect the ogre.
+   *
+   * Linked by the source like every other grant, so `releaseCasting`,
+   * `releaseOnTarget` and a `grants` deadline all end it through the door that
+   * already existed.
+   */
+  readonly damagePenalties: readonly GrantedDamagePenalty[];
   /**
    * Running effects that take the cost of a **fall** away entirely.
    *

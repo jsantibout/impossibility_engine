@@ -300,6 +300,11 @@ export const ROLL_FAMILIES: ReadonlySet<string> = new Set([
   'saving-throw',
   'initiative',
   'death-save',
+  // The glossary's own union of the first three, which a selector may name and
+  // a roll never is — see {@link RollFamily}. Refused without an ability by
+  // `rollSelectorProblems`, which is what keeps it from reaching every roll its
+  // holder makes.
+  'd20-test',
 ]);
 const AREA_KINDS: ReadonlySet<string> = new Set([
   'sphere',
@@ -1640,6 +1645,59 @@ function checkBudgetSpend(
  * apply — shared rather than restated, because a second copy is a second
  * place for a rolled Armour Class to slip through.
  */
+/**
+ * The amount a rider makes its target take off the damage it deals.
+ *
+ * SRD prints three of these and they are two shapes: a notation (Ray of
+ * Enfeeblement's 1d8, Enlarge/Reduce's 1d4) and a number (the Gold Dragon
+ * Wyrmling's "subtracts 2"). So one of the two has to be there — a penalty
+ * that subtracts nothing is a sentence the book never writes and a grant the
+ * damage path would consult at every blow to take nought off it.
+ *
+ * **The floor is a whole number of hit points and at least one**, because that
+ * is the only value the parenthesis prints: "this can't reduce the damage
+ * below 1". A floor of nought is the absence of one and is written by leaving
+ * the field off, which is what Ray of Enfeeblement does.
+ */
+function checkDamagePenalty(
+  rider: { readonly dice?: unknown; readonly flat?: unknown; readonly floor?: unknown },
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (
+    rider.dice !== undefined &&
+    (typeof rider.dice !== 'string' || !parseNotation(rider.dice).ok)
+  ) {
+    found.push({
+      field: `${path}.dice`,
+      code: 'bad_dice',
+      reason: `"${String(rider.dice)}" is not dice notation`,
+    });
+  }
+  if (rider.flat !== undefined && (!Number.isInteger(rider.flat) || (rider.flat as number) < 1)) {
+    found.push({
+      field: `${path}.flat`,
+      code: 'bad_damage_penalty',
+      reason: `a penalty takes a whole number of hit points off, and "${String(rider.flat)}" is not one`,
+    });
+  }
+  if (rider.dice === undefined && rider.flat === undefined) {
+    found.push({
+      field: path,
+      code: 'penalty_subtracts_nothing',
+      reason:
+        'a penalty that subtracts nothing would be consulted at every blow its holder struck and take nought off; name the dice the sentence rolls or the number it prints',
+    });
+  }
+  if (rider.floor !== undefined && (!Number.isInteger(rider.floor) || (rider.floor as number) < 1)) {
+    found.push({
+      field: `${path}.floor`,
+      code: 'bad_damage_floor',
+      reason: `the book floors this at 1 hit point, so a floor is a whole number and at least one; leave it off where the sentence prints none, rather than writing "${String(rider.floor)}"`,
+    });
+  }
+}
+
 function checkModifierRider(
   rider: ModifierRider | undefined,
   path: string,
@@ -1647,6 +1705,10 @@ function checkModifierRider(
 ): void {
   if (rider?.kind === 'bonus') {
     checkBonusGrant(rider.bonus, rider.applies, path, found);
+    return;
+  }
+  if (rider?.kind === 'damage-penalty') {
+    checkDamagePenalty(rider, path, found);
     return;
   }
   if (rider?.kind === 'mode') {
@@ -1748,7 +1810,7 @@ function checkModifierRider(
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, grants a mode, changes a Speed, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, grants a mode, changes a Speed, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
   });
 }
 
@@ -4096,6 +4158,14 @@ function grantCarried(effect: SpellEffect): string | null {
         switch (rider?.kind) {
           case 'bonus':
             return 'a bonus';
+          // The twentieth sourced grant, and it carries no deadline of its own
+          // for the reason `bonus` carries none: both sentences in reach run
+          // for the casting's own duration — SRD Ray of Enfeeblement's "for
+          // the duration" and Enlarge/Reduce's reduced half — so an
+          // Instantaneous casting would take a d8 off every blow its target
+          // ever struck, for ever.
+          case 'damage-penalty':
+            return 'an amount taken off the damage the target deals';
           case 'mode':
             // The third rider with an escape of its own, and it arrived with
             // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
@@ -6567,6 +6637,7 @@ const RIDER_DEPTH_LIMIT = 6;
  */
 export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'bonus',
+  'damage-penalty',
   'mode',
   'speed-change',
   'action',

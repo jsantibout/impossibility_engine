@@ -1289,6 +1289,61 @@ export interface GrantedDefense {
 }
 
 /**
+ * An amount a running effect makes a creature take off the damage **it deals**.
+ *
+ * SRD Ray of Enfeeblement: "it also subtracts 1d8 from all its damage rolls."
+ * SRD Enlarge/Reduce, the reduce half: "deal 1d4 less damage on a hit (this
+ * can't reduce the damage below 1)." The Gold Dragon Wyrmling's Weakening
+ * Breath prints the third: "subtracts 2 (1d4) from its damage rolls."
+ *
+ * **The mirror of {@link GrantedDamageReduction}, and the axis is who holds
+ * it.** That grant sits on the creature being *hit* and is read where the blow
+ * lands; this sits on the creature *swinging* and is read where its own damage
+ * is totalled. Folding the two together would have made a Ray of Enfeeblement
+ * on the ogre protect the ogre.
+ *
+ * **Not a {@link Bonus} aimed at damage.** `BonusApplies` has no damage member
+ * and widening it was refused on evidence — a spell that adds damage adds it as
+ * a rider or as `extraDamage` on the casting that deals it, so there is a
+ * moment, a source and a type, and `bonusesFor` has never had a damage reader.
+ * This sentence has no such moment: it is a standing arrangement consulted by
+ * every damage roll its holder makes afterwards, whatever made it, which is
+ * exactly the lifetime `damageReductions` has on the other side.
+ *
+ * **A notation is thrown when the blow arrives, never at the cast**, the rule
+ * every other grant that carries dice keeps: rolling the d8 at the casting
+ * would put the answer in the log a minute before the question.
+ *
+ * **The subtraction is not damage of a type**, so it comes off the total as an
+ * adjustment rather than out of a component — which is `reduceDamage`'s own
+ * argument and `adjustmentsFor`'s: taking it out of the Slashing half of a
+ * flaming sword would give a fire-immune target the wrong answer. SRD's "Order
+ * of Application" puts a penalty first and Resistance second, which is where
+ * the reader applies it.
+ */
+export interface GrantedDamagePenalty {
+  /** The casting (`Ray of Enfeeblement#cast:3`) or the feature that granted it. */
+  readonly source: string;
+  /** What the log calls it when the die is thrown. */
+  readonly label: string;
+  /** Thrown at the blow, never at the cast. Absent where the sentence prints a number. */
+  readonly dice?: string;
+  /** A printed number, where the sentence prints one instead of dice. */
+  readonly flat?: number;
+  /**
+   * The least the damage may be left at — SRD Enlarge/Reduce's "this can't
+   * reduce the damage below 1".
+   *
+   * Absent is no floor at all, which is what Ray of Enfeeblement prints: a 1d8
+   * off a 1d4 dagger leaves nothing, and nothing is what the creature deals.
+   * A floor is read against the blow's **total**, because that is the number
+   * the parenthesis is about — the damage the target takes, not any one
+   * component of it.
+   */
+  readonly floor?: number;
+}
+
+/**
  * SRD "Order of Application": adjustments such as bonuses, penalties or
  * multipliers first; Resistance second; Vulnerability third.
  *

@@ -44,7 +44,7 @@ import { applySpellEffect, type SpellEffectOptions } from './casting.js';
 import { schedule } from './conditions.js';
 import { lift, shoveAwayFrom } from './spell-effect-movement.js';
 import { effectCheckFrom } from './rolls.js';
-import { lightShedOn } from './spell-effect-grants.js';
+import { damagePenaltyGranted, lightShedOn } from './spell-effect-grants.js';
 
 /**
  * The `damage-scheduled` event a delayed hit needs, or nothing.
@@ -391,7 +391,13 @@ export function applyRiders(
     // Instantaneous host has no alternative to.
     held.add(target);
     const granted: GameEvent =
-      modifier.kind === 'action'
+      // SRD Ray of Enfeeblement: "it also subtracts 1d8 from all its damage
+      // rolls." The payload is assembled by `damagePenaltyGranted`, beside the
+      // resolver for the grant on the other side of a blow, so the two are one
+      // reading of one family rather than two.
+      modifier.kind === 'damage-penalty'
+        ? damagePenaltyGranted(target, source, definition.name, modifier)
+        : modifier.kind === 'action'
         ? {
             type: 'action-rule-granted',
             id: target,

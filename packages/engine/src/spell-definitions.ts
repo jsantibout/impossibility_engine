@@ -812,6 +812,51 @@ export type ModifierRider =
       readonly direction: 'add' | 'subtract';
     }
   /**
+   * An amount the same roll makes its target take off the damage **it** deals.
+   *
+   * SRD Ray of Enfeeblement: "On a failed save, the target has Disadvantage on
+   * Strength-based D20 Tests for the duration. During that time, it **also
+   * subtracts 1d8 from all its damage rolls**." One Constitution save, two
+   * consequences, which is the argument every member of this union makes —
+   * and writing the second as an effect of its own would roll a second save
+   * for one sentence.
+   *
+   * **It is not a `bonus` aimed at damage, and the refusal is older than this
+   * rider.** {@link BonusApplies} has no damage member on purpose: a spell
+   * that *adds* damage adds it at a moment, with a source and a type, so it is
+   * a rider on the casting that deals it and `bonusesFor` has never needed a
+   * damage reader. This sentence names no moment and no type. It is a standing
+   * arrangement consulted by every damage roll its holder makes afterwards,
+   * whatever made it — the lifetime `GrantedDamageReduction` already has on
+   * the other side of a blow, and `GrantedDamagePenalty` is the mirror of it.
+   *
+   * **The subtraction is not damage of a type.** It comes off the blow's total
+   * as an adjustment, before Resistance, which is SRD's own Order of
+   * Application and is observable: 10 Fire less 7 against a fire-resistant
+   * target is 1 in that order and 0 in the other.
+   *
+   * **It carries no `lasts`**, for the reason `bonus` carries none: both
+   * sentences in reach run for the casting's own duration — Ray of
+   * Enfeeblement's "for the duration", Enlarge/Reduce's reduced half — so
+   * `checkGrantLifetimes` refuses the rider on an Instantaneous host rather
+   * than offering a deadline nothing asks for.
+   */
+  | {
+      readonly kind: 'damage-penalty';
+      /** SRD Ray of Enfeeblement's "1d8", thrown at the blow and never at the cast. */
+      readonly dice?: string;
+      /** A printed number, where the sentence prints one instead of dice. */
+      readonly flat?: number;
+      /**
+       * SRD Enlarge/Reduce: "this can't reduce the damage below 1."
+       *
+       * Absent is no floor, which is what Ray of Enfeeblement prints. Read
+       * against the blow's **total**, because that is the number the
+       * parenthesis is about.
+       */
+      readonly floor?: number;
+    }
+  /**
    * A mode the same roll grants, and — where the sentence says so — the moment
    * it ends at and the creature it is about.
    *

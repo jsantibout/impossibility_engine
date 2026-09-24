@@ -41,7 +41,7 @@ import { SENSE_NAMES, type SenseName } from './positioning.js';
 /**
  * Which kind of roll a modifier reaches.
  *
- * Five members, and the two that look redundant are the two the SRD is most
+ * Six members. The two that look redundant are the two the SRD is most
  * insistent about:
  *
  * - **`initiative` is not `ability-check`.** Initiative *is* an ability check
@@ -56,21 +56,63 @@ import { SENSE_NAMES, type SenseName } from './positioning.js';
  *   one. Beacon of Hope names both in one sentence and means two different
  *   things by them.
  *
- * **There is deliberately no member for "D20 Tests".** Three SRD spells write
- * that phrase — Foresight, Resurrection, Ray of Enfeeblement — and every one
- * of them is blocked on something else entirely: a casting time of a minute, a
- * penalty linked to no casting, a repeat save that ends a spell hanging no
- * condition. A vocabulary member no definition can use is a guess. The phrase
- * does not even mean "all five of these": a death save is a D20 Test and
- * Initiative is one already counted as a check. When a castable spell needs
- * it, it arrives with that spell.
+ * **And a sixth that is the other five's union, narrowed.** `d20-test` is the
+ * glossary's own phrase — "a D20 Test is an ability check, an attack roll, or
+ * a saving throw" — and it names exactly those three. It arrived with the
+ * spell that needed it, which is the rule this member's own absence used to
+ * state: SRD Ray of Enfeeblement's "Disadvantage on **Strength-based** D20
+ * Tests" is one sentence over three families, and writing it as three
+ * selectors would be three grants a reader of the spell could not tell from
+ * three sentences.
+ *
+ * **It requires an ability**, and that is what keeps it from being a guess.
+ * Every consumer in reach prints the narrowing — Ray of Enfeeblement's
+ * "Strength-based", Enlarge/Reduce's "Strength checks and Strength saving
+ * throws", the Gold Dragon Wyrmling's Weakening Breath — and the bare phrase
+ * is printed only by spells out of reach (Foresight at level 9, Resurrection's
+ * week-long toll). `rollSelectorProblems` refuses the family without one, so
+ * the day the bare phrase is wanted it arrives with the spell that writes it,
+ * exactly as this member did.
+ *
+ * **Initiative and the death save are not in it**, and the reason is the one
+ * the two members above give: the phrase would have to reach them through an
+ * ability, and neither has one. An Initiative roll is granted by that name
+ * rather than as a Dexterity check, and a death save "isn't tied to an ability
+ * score" — so a Strength-based selector could never pick out either, and a
+ * member that swept them in would be claiming a reach nothing could use.
  */
 export type RollFamily =
   | 'attack'
   | 'ability-check'
   | 'saving-throw'
   | 'initiative'
-  | 'death-save';
+  | 'death-save'
+  | 'd20-test';
+
+/**
+ * The three families {@link RollFamily}'s `d20-test` member stands for.
+ *
+ * The glossary's list, written once: "**D20 Test.** An ability check, an
+ * attack roll, or a saving throw." Read by {@link selectorMatches} and by
+ * nothing else — a query is never of this family, because a roll is one of
+ * the three and the union is a thing only a *selector* can be.
+ */
+const D20_TEST_FAMILIES: ReadonlySet<RollFamily> = new Set<RollFamily>([
+  'attack',
+  'ability-check',
+  'saving-throw',
+]);
+
+/**
+ * Whether the family a selector names covers the family a roll is of.
+ *
+ * Equality for five of the six members and membership for the sixth, in one
+ * place so `selectorMatches` reads as it always did and the union has exactly
+ * one definition.
+ */
+function familyReaches(selector: RollFamily, rolled: RollFamily): boolean {
+  return selector === 'd20-test' ? D20_TEST_FAMILIES.has(rolled) : selector === rolled;
+}
 
 /**
  * Whose roll this is, relative to the creature carrying the effect.
@@ -643,7 +685,7 @@ export function selectorMatches(
   holder: CharacterId,
   query: RollQuery,
 ): boolean {
-  if (selector.roll !== query.family) return false;
+  if (!familyReaches(selector.roll, query.family)) return false;
 
   const against = query.against ?? null;
 
@@ -775,6 +817,20 @@ export function rollSelectorProblems(
     found.push({
       code: 'skill_off_ability_check',
       reason: `a ${selector.roll} roll uses no skill`,
+    });
+  }
+
+  // **The one member that must be narrowed**, and the refusal is what keeps it
+  // from being a vocabulary member nothing could use. Every SRD sentence in
+  // reach says which ability the tests are "based" on, and a selector that
+  // said none would take Disadvantage off every roll its holder ever made —
+  // the confident wrong answer rather than the missing one. See
+  // {@link RollFamily}.
+  if (selector.roll === 'd20-test' && selector.ability === undefined) {
+    found.push({
+      code: 'd20_test_without_an_ability',
+      reason:
+        'every sentence in reach names the ability its D20 Tests are based on — "Strength-based D20 Tests" — and a selector for the bare phrase would reach every ability check, attack roll and saving throw its holder ever makes',
     });
   }
 

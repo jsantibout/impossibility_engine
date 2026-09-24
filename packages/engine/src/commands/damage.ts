@@ -15,7 +15,12 @@
  */
 
 import { type Ability, type CharacterId, err, ok, type Result } from '@ie/shared';
-import { applyDamage, type DamageComponent, rawDamageTotal } from '../attack.js';
+import {
+  applyDamage,
+  type DamageComponent,
+  type DamageReduction,
+  rawDamageTotal,
+} from '../attack.js';
 import { parseNotation } from '../dice.js';
 import { canUseFeatureThisTurn, spendReaction } from '../combat.js';
 import { damageReductionsOf, reductionApplies } from '../damage-reduction.js';
@@ -247,6 +252,109 @@ export function standingReductionOf(
   return ok({ events, amount });
 }
 
+/** What the penalties standing on a dealer take off this blow, and its dice. */
+export interface DealtPenalty {
+  readonly events: readonly GameEvent[];
+  /** One entry per penalty, for the record a held blow carries. */
+  readonly reductions: readonly DamageReduction[];
+  /** What comes off the total, before any defence is applied. */
+  readonly amount: number;
+}
+
+/**
+ * What the penalties standing on the creature **dealing** this blow take off it.
+ *
+ * SRD Ray of Enfeeblement: "it also subtracts 1d8 from all its damage rolls."
+ * SRD Enlarge/Reduce, reduced: "deal 1d4 less damage on a hit (this can't
+ * reduce the damage below 1)." The Gold Dragon Wyrmling's Weakening Breath
+ * prints the third.
+ *
+ * **{@link standingReductionOf}'s mirror, one creature along.** That reads
+ * the grants on whoever is *hit*; this reads the grants on whoever *swung*,
+ * and the two feed the same adjustment because SRD's "Order of Application"
+ * puts every penalty in one step before Resistance. They are two functions
+ * rather than one because they read two creatures and two grant families, and
+ * a single walk would have had to be told which end it was standing at.
+ *
+ * **The die is thrown here and its faces reach the log**, the rule every die
+ * this engine throws keeps: a `roll-recorded` names the spell, the notation
+ * and what it took off, so the number a blow lost can be read back out of the
+ * log rather than taken on trust.
+ *
+ * **The floor is read against the blow's total**, because that is what SRD's
+ * parenthesis is about — the damage the target takes, not any one component of
+ * it. Absent is no floor, which is what Ray of Enfeeblement prints: a 1d8 off
+ * a dagger can leave nothing at all. Where several penalties stand at once the
+ * strictest floor wins and the surplus is trimmed off the last of them, so the
+ * entries a held blow carries still sum to what actually came off.
+ *
+ * **Nothing at all where nobody is named as the dealer**, which is a fall, a
+ * poison and a DM's improvised amount: those are not a creature's damage roll,
+ * and a sentence about "its damage rolls" has nothing to say about them.
+ */
+export function damagePenaltyOf(
+  state: GameState,
+  dealer: CharacterId | undefined,
+  components: readonly DamageComponent[],
+  supply: Supply,
+): Result<DealtPenalty> {
+  const nothing: DealtPenalty = { events: [], reductions: [], amount: 0 };
+  if (dealer === undefined) return ok(nothing);
+
+  // Sorted by source, for `damageReductionsOf`'s reason: two penalties would
+  // otherwise be rolled in whatever order the grants happened to be filed in,
+  // and the order *is* which penalty gets which die.
+  const standing = [...(state.creatures[dealer]?.damagePenalties ?? [])].sort((a, b) =>
+    a.source < b.source ? -1 : a.source > b.source ? 1 : 0,
+  );
+  if (standing.length === 0) return ok(nothing);
+
+  // A blow that came to nothing has no damage roll to subtract from, so no die
+  // is thrown: throwing one would move the generator for a subtraction that
+  // could take nothing off, which is a replay divergence bought for no rule.
+  const raw = rawDamageTotal(components);
+  if (raw === 0) return ok(nothing);
+
+  const events: GameEvent[] = [];
+  const entries: { source: string; roll: DamageReduction['roll']; amount: number }[] = [];
+  let floor = 0;
+
+  for (const penalty of standing) {
+    let rolled: DamageReduction['roll'] = null;
+    if (penalty.dice !== undefined) {
+      const outcome = rollRecorded(supply.issuer, supply.rng, penalty.dice);
+      if (!outcome.ok) return outcome;
+      rolled = outcome.value;
+    }
+    const amount = (rolled?.total ?? 0) + (penalty.flat ?? 0);
+    if (penalty.floor !== undefined) floor = Math.max(floor, penalty.floor);
+    entries.push({ source: penalty.label, roll: rolled, amount });
+
+    events.push({
+      type: 'roll-recorded',
+      who: dealer,
+      label: penalty.label,
+      natural: amount,
+      total: amount,
+      contributions: [{ source: penalty.dice ?? String(penalty.flat ?? 0), amount }],
+      outcome: `${amount} subtracted from the damage`,
+    });
+  }
+
+  // "This can't reduce the damage below 1": the cap is on the total, and the
+  // surplus comes off the last entry so the record still adds up.
+  const ceiling = Math.max(0, raw - floor);
+  let total = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  for (let i = entries.length - 1; i >= 0 && total > ceiling; i -= 1) {
+    const over = total - ceiling;
+    const off = Math.min(over, entries[i]!.amount);
+    entries[i] = { ...entries[i]!, amount: entries[i]!.amount - off };
+    total -= off;
+  }
+
+  return ok({ events, reductions: entries, amount: total });
+}
+
 /**
  * The generator moving, as an event, or nothing where it did not move.
  *
@@ -331,6 +439,18 @@ export function landDamage(
     });
   }
 
+  // **What the swinger's own penalty takes off, on the road a defender is
+  // holding open.** SRD Ray of Enfeeblement subtracts from the damage *roll*,
+  // so it is settled where the roll is rather than where the blow lands — and
+  // the debt already has a slot for it, `PendingDamage.reductions`, which
+  // `heldDamageTotal` subtracts and `settleDamage` feeds to `adjustmentsFor`
+  // beside the defender's own ward. So neither this road nor the other has a
+  // rule of its own, and the unheld one asks {@link dealSpellDamage} for the
+  // very same answer one line above.
+  const issuedBefore = supply.issuer.count;
+  const penalty = damagePenaltyOf(state, options.by, components, supply);
+  if (!penalty.ok) return penalty;
+
   const damage: PendingDamage = {
     target,
     by: options.by ?? null,
@@ -338,13 +458,17 @@ export function landDamage(
     components,
     critical: options.critical === true,
     fromAttack: options.fromAttack === true,
-    reductions: [],
+    reductions: penalty.value.reductions,
     offers: possible.offers,
     ...(options.rider === undefined ? {} : { rider: options.rider }),
   };
 
   return ok({
-    events: [{ type: 'damage-rolled', damage }],
+    events: [
+      ...penalty.value.events,
+      ...rollsIssuedSince(supply, issuedBefore),
+      { type: 'damage-rolled', damage },
+    ],
     offers: possible.offers,
     unverified: possible.unverified,
   });
@@ -489,6 +613,20 @@ export function dealSpellDamage(
   const victim = state.creatures[target];
   if (victim === undefined) return unknownCreature(target);
 
+  // **What the creature that swung has to take off its own roll, first.** SRD
+  // Ray of Enfeeblement: "it also subtracts 1d8 from all its damage rolls."
+  // The subtraction is part of the damage *roll*, so its die is thrown before
+  // the defender's ward is asked about anything — which is the chronology the
+  // events below are written in, and the order is what decides which die each
+  // of the two gets. Nothing at all where nobody is named as the dealer — a
+  // fall, a poison, a DM's stated amount — for the reason `damagePenaltyOf`
+  // gives; and both amounts then go into one adjustment, because SRD's Order
+  // of Application puts every penalty in one step before Resistance.
+  const issuedBeforePenalty = supply.issuer.count;
+  const penalty = damagePenaltyOf(state, options.by, components, supply);
+  if (!penalty.ok) return penalty;
+  const penaltyCounted = rollsIssuedSince(supply, issuedBeforePenalty);
+
   // **What a ward standing on the defender takes off, before anything else.**
   // SRD's order of application puts an adjustment first and Resistance second,
   // so this is computed here and handed to `applyDamage` as the adjustment
@@ -526,7 +664,7 @@ export function dealSpellDamage(
   const applied = applyDamage(
     components,
     options.ignoresDefenses === true ? {} : defensesOf(state, target),
-    adjustmentsFor(components, warded.value.amount),
+    adjustmentsFor(components, warded.value.amount + penalty.value.amount),
   );
   const resolved = resolveDamage(
     state,
@@ -570,6 +708,8 @@ export function dealSpellDamage(
     // is owed until the creature is down.
     events: [
       ...(dice === null ? [] : [dice]),
+      ...penalty.value.events,
+      ...penaltyCounted,
       ...warded.value.events,
       ...wardCounted,
       ...resolved.value.events,
