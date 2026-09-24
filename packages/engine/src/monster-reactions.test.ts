@@ -427,6 +427,11 @@ describe('a Reaction a stat block prints against the blow that triggered it', ()
       'the parry',
     );
     expect(parried.missed).toBe(true);
+    // **And the clause it could not check is said out loud.** A stat block's
+    // gear is printed and read by nothing, so "while holding a weapon" is a
+    // fact nobody has declared about this knight — the Reaction is allowed and
+    // the reader is told, which is the direction every undeclared fact takes.
+    expect(parried.unverified.join(' ')).toContain('what knight is holding');
 
     const after = table.do('the parry', () => ({ ok: true, value: parried.events }));
     // The hold is closed and no damage was ever rolled: 18 against a 20 is a

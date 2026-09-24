@@ -1948,15 +1948,18 @@ function resolveOnTargets(
 
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
-    // **Which casting this one was taken against**, where the definition says
-    // its benefit is narrowed to that casting. SRD *Shield*'s "you take no
-    // damage from *Magic Missile*" is the only sentence of this shape in the
-    // book, and it is answered by an id rather than by a spell: the Reaction
-    // was taken against the darts that were coming, not against the spell.
+    // **What this casting turns aside**, where the definition says its benefit
+    // does. SRD *Shield*'s "you take no damage from *Magic Missile*" is the
+    // only sentence of this shape in the book, and both halves of what is
+    // pinned come off the casting that triggered it: the spell, which is what
+    // the negation reads for as long as the barrier stands, and the casting
+    // itself, so a log can say what the barrier went up against.
     ...(definition.negatesTriggeringCasting === true
       ? (() => {
           const answered = targetedCasting(state, casterId, definition, request.answers);
-          return answered === null ? {} : { negates: answered.castingId };
+          return answered === null
+            ? {}
+            : { negates: { casting: answered.castingId, spell: answered.spellId } };
         })()
       : {}),
     // **Three answers, stated rather than inferred.** A Range: Self spell is
@@ -2577,28 +2580,33 @@ function creatureTypeNeeds(
  * Whether this effect is one that would deal the target damage.
  *
  * The three kinds that roll damage at a creature, named once so the negation
- * above and a reader can agree about what "you take no damage" covers. An
- * `attack` still *misses* or hits on its own terms — what is turned aside here
- * is the whole roll, because the Reaction was taken against the casting rather
- * than against one of its dice.
+ * above and a reader can agree about what "you take no damage" covers. The
+ * whole roll is turned aside rather than the dice after it: a spell attack
+ * that would deal none is not rolled at all, because what the sentence
+ * withholds is the damage and the roll exists only to decide it.
  */
 const dealsDamage = (effect: SpellEffect): boolean =>
   effect.kind === 'auto-damage' || effect.kind === 'save-damage' || effect.kind === 'attack';
 
 /**
- * Whether this creature is holding a Reaction taken against **this** casting.
+ * Whether a Reaction this creature is holding turns this spell's damage aside.
  *
  * SRD *Shield*'s "you take no damage from *Magic Missile*", read off the
- * record that Reaction left running: `OngoingSpell.negates` is the casting id
- * it was taken against, and a casting whose id nobody pinned is answered by
- * nobody. An item's conferral and a feature's use are not castings and have no
- * id, so neither can be negated — which is right rather than a limit: the
- * sentence is about a spell somebody was in the middle of casting.
+ * record that Reaction left running: `OngoingSpell.negates.spell` is the id it
+ * was raised against, pinned at the cast off the casting that triggered it, so
+ * this compares two ids and names neither. The comparison is per **spell** and
+ * not per casting because the clause sits inside the spell's duration — "until
+ * the start of your next turn … and you take no damage from Magic Missile" —
+ * so a second caster's volley in the same round is stopped too.
+ *
+ * An item's conferral and a feature's use are not castings and have no
+ * definition here, so neither can be negated — which is right rather than a
+ * limit: the sentence is about a spell somebody was casting.
  */
 function negatedBy(world: GameState, target: CharacterId, origin: EffectOrigin): boolean {
   if (origin.kind !== 'casting') return false;
   return ongoingSpellsOn(world, target).some(
-    (casting) => casting.negates === origin.castingId,
+    (casting) => casting.negates?.spell === origin.definition.id,
   );
 }
 
@@ -3498,8 +3506,8 @@ function aimedAt(
 interface OngoingRecordPlan {
   readonly spellId: string;
   readonly on: 'caster' | 'targets' | 'point';
-  /** The casting this one answered and negates — see `OngoingSpell.negates`. */
-  readonly negates?: string;
+  /** What this casting answered and turns aside — see `OngoingSpell.negates`. */
+  readonly negates?: { readonly casting: string; readonly spell: string };
   /** Set when the geometry chose the targets rather than the caller. */
   readonly fromArea?: true;
   readonly origin?: Point;

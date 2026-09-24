@@ -352,8 +352,10 @@ export const COUNTERSPELL: SpellDefinition = {
  * casting that has been *declared* has settled its targets and not resolved
  * its effects, which is where Counterspell already stands — so the same hold
  * answers both, from opposite ends. `targetedBy` names the spell and
- * `negatesTriggeringCasting` is the benefit, narrowed to the **casting** this
- * Reaction was taken against rather than to Magic Missile at large.
+ * `negatesTriggeringCasting` is the benefit: the spell is pinned off the
+ * casting that triggered it and its damage is turned aside for as long as the
+ * barrier stands, which is where the SRD puts it — inside the same duration as
+ * the +5, so a second caster's volley in the same round is stopped too.
  *
  * What the second trigger costs is a declaration: a Magic Missile resolved in
  * one command passes through the moment without stopping, so a table that
@@ -374,10 +376,12 @@ export const SHIELD: SpellDefinition = {
   // named its targets and not yet resolved on them — which is the hold
   // Counterspell already answers, read from the other end of it.
   targetedBy: 'magic-missile',
-  // "…and you take no damage from _Magic Missile_." Narrowed to the casting
-  // this Reaction was taken against rather than to the spell, which is what
-  // keeps it out of `damage-defense` — that names a damage type, and a second
-  // wizard's darts are not the ones this Shield went up against.
+  // "Until the start of your next turn … and you take no damage from _Magic
+  // Missile_." Both halves of the sentence are inside the duration, so what
+  // the barrier turns aside is the spell for as long as it stands — a second
+  // caster's volley included. The spell is pinned off the casting that
+  // triggered it, which is why this is not `damage-defense`: that vocabulary
+  // names a damage type, and nothing in the engine names this one.
   negatesTriggeringCasting: true,
   concentration: false,
   range: { kind: 'self' },

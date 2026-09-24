@@ -4438,19 +4438,23 @@ export interface SpellDefinition {
    */
   readonly targetedBy?: string;
   /**
-   * SRD *Shield*: "…and you take no damage from *Magic Missile*."
+   * SRD *Shield*: "**Until the start of your next turn**, you have a +5 bonus
+   * to AC … **and you take no damage from *Magic Missile***."
    *
-   * The benefit that hangs on {@link targetedBy}, and it is narrowed to **one
-   * casting** rather than to a spell: the casting id this Reaction answered is
-   * pinned on the record it leaves running, and the damage that one casting
-   * would deal the reactor is not dealt. That is what keeps it out of
-   * `damage-defense`, which names a damage *type* and rightly refuses to name
-   * a spell — a second Magic Missile from a second caster is not answered by
-   * this Shield, exactly as the SRD's Reaction answers the casting it was
-   * taken against.
+   * The benefit that hangs on {@link targetedBy}: the spell the trigger named
+   * is pinned onto the record this casting leaves running, and a casting of
+   * that spell deals the reactor nothing for as long as the record stands.
+   * Both halves of the SRD's sentence are inside the duration, so a second
+   * caster's volley in the same round is turned aside too.
    *
-   * Legal only beside `targetedBy`, because there is otherwise no casting for
-   * it to be narrowed to; `spell-schema.ts` refuses the pair apart.
+   * **It is not `damage-defense` and could not be.** That vocabulary names a
+   * damage *type* and rightly refuses to name a spell; what happens here is
+   * that a *casting* pins the id it read from its own trigger, which is the
+   * rule every other pinned fact on an ongoing record follows, and the engine
+   * compares two ids without knowing either.
+   *
+   * Legal only beside `targetedBy`, because there is otherwise no spell for it
+   * to be about; `spell-schema.ts` refuses the pair apart.
    */
   readonly negatesTriggeringCasting?: true;
   /**

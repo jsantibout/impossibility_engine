@@ -239,11 +239,13 @@ describe('what the Reaction turns aside', () => {
     return { log: [...withDarts, ...cast.events], castingId: declared.castingId! };
   };
 
-  it('pins the casting it was taken against on the record it leaves running', () => {
+  it('pins the spell it turns aside, and the casting it was taken against', () => {
     const { log, castingId } = shielded();
     const running = ongoingSpellsOn(at(log), WIZARD).filter((one) => one.spellId === 'shield');
     expect(running).toHaveLength(1);
-    expect(running[0]!.negates).toBe(castingId);
+    // The spell is what the negation reads and the casting is what the log
+    // narrates with — see `OngoingSpell.negates`.
+    expect(running[0]!.negates).toEqual({ casting: castingId, spell: 'magic-missile' });
   });
 
   it('takes no damage from the darts, while the fighter beside it takes three', () => {
@@ -264,19 +266,20 @@ describe('what the Reaction turns aside', () => {
   });
 
   /**
-   * And the Reaction is spent on the thing it was taken against: a **second**
-   * caster's darts are a different casting, and this Shield does not answer
-   * them. That is the whole reason the pin is a casting id.
+   * **And the barrier stands until it ends rather than until it is used.** SRD
+   * puts both halves of the sentence inside one duration — "Until the start of
+   * your next turn, you have a +5 bonus to AC … and you take no damage from
+   * *Magic Missile*" — so a **second** caster's volley in the same round is
+   * turned aside too. That is what makes the pinned fact the spell rather than
+   * the one casting the Reaction happened to answer.
    */
-  it('turns aside only the casting it names', () => {
+  it('turns aside a second caster’s volley while it stands', () => {
     const { log, castingId } = shielded();
     // The first volley lands and the wizard takes none of it.
     const first = unwrap(resolveDeclaredCast(at(log), castingId, supply()), 'the first volley');
     let events: readonly GameEvent[] = [...log, ...first.events];
-    // The turn passes to a **second** caster, who throws a second volley at
-    // the wizard. The Shield is still up — it lasts until the start of the
-    // wizard's next turn — and it was taken against the first volley, which is
-    // the whole reason the pin is a casting id rather than a spell.
+    // The turn passes to a second caster, still inside the Shield's duration:
+    // it ends at the start of the *wizard's* next turn, which has not come.
     const turned = unwrap(resolveTurn(at(events), supply()), 'the turn');
     events = [...events, ...turned.events];
 
@@ -286,7 +289,7 @@ describe('what the Reaction turns aside', () => {
         OTHER,
         {
           spellId: 'magic-missile',
-          targets: [WIZARD],
+          targets: [WIZARD, FIGHTER],
           slotLevel: 1,
           hold: true,
           commandId: 'second-volley',
@@ -297,16 +300,30 @@ describe('what the Reaction turns aside', () => {
     );
     const withSecond = [...events, ...again.events];
     const before = at(withSecond);
-    // Still running, and still pinned to the first casting.
     expect(
-      ongoingSpellsOn(before, WIZARD).find((one) => one.spellId === 'shield')?.negates,
-    ).toBe(castingId);
+      ongoingSpellsOn(before, WIZARD).find((one) => one.spellId === 'shield')?.negates?.spell,
+    ).toBe('magic-missile');
 
     const settled = unwrap(
       resolveDeclaredCast(before, again.castingId!, supply('again')),
       'the second volley lands',
     );
-    expect(hp(at([...withSecond, ...settled.events]), WIZARD)).toBeLessThan(hp(before, WIZARD));
+    const after = at([...withSecond, ...settled.events]);
+    expect(hp(after, WIZARD)).toBe(hp(before, WIZARD));
+    // And the fighter, who raised nothing, takes this one as well.
+    expect(hp(after, FIGHTER)).toBeLessThan(hp(before, FIGHTER));
+  });
+
+  /**
+   * And it turns aside **that spell** and nothing else: a Bane from the same
+   * caster reaches the wizard through the barrier, because what was pinned is
+   * the id the trigger named.
+   */
+  it('turns aside nothing but the spell it was raised against', () => {
+    const { log } = shielded();
+    const running = ongoingSpellsOn(at(log), WIZARD).find((one) => one.spellId === 'shield');
+    expect(running?.negates?.spell).toBe('magic-missile');
+    expect(running?.negates?.spell).not.toBe('bane');
   });
 
   it('spends the slot and the Reaction, as any Reaction spell does', () => {

@@ -51,6 +51,7 @@ import {
   reactionAddends,
   reactionFeatureOf,
   reactionsOf,
+  undeclaredFacts,
   type ReactionEffect,
   type ReactionFeature,
   type ReactionOffer,
@@ -61,6 +62,7 @@ import { remaining } from '../resources.js';
 import { type Content } from '../content.js';
 import { type SpellDefinition } from '../spell-definitions.js';
 import {
+  canSee,
   defensesOf,
   effectiveConditions,
   rollModesFor,
@@ -179,12 +181,14 @@ export function takeAttackReaction(
 
     // The same question the offer asked, of the same facts — see
     // `attackReactionRefusal`, which is the one place either is decided.
-    const refusal = attackReactionRefusal(feature, {
+    const context = {
       target: reactor,
       attacker: pending.attacker,
       melee: heldSwingIsMelee(state, supply.content, pending),
       holdsAWeapon: holdsAWeapon(supply.content, creature),
-    });
+      canSeeAttacker: canSee(state, reactor, pending.attacker),
+    };
+    const refusal = attackReactionRefusal(feature, context);
     if (refusal !== null) return err(refusal.code, refusal.reason);
 
     // Nothing is decided until everything has been paid for, which is the rule
@@ -194,7 +198,11 @@ export function takeAttackReaction(
     const events: GameEvent[] = [...spent.value];
 
     const does = feature.does;
-    const unverified: string[] = [];
+    // **What the Reaction was allowed on without being checked.** A stat
+    // block's hands are undeclared rather than empty, so a Parry taken by a
+    // knight nobody has equipped says so — the same channel, and the same
+    // three-valued reading, the offer reports it through.
+    const unverified: string[] = [...undeclaredFacts(feature, context)];
     let missed = false;
     if (does.kind === 'raise-ac') {
       const again = reconsiderHeldAttack(pending, does.amount);
@@ -1408,6 +1416,7 @@ export function reactionOpportunities(state: GameState, content: Content): reado
           attacker: attack.attacker,
           melee: heldSwingIsMelee(state, content, attack),
           holdsAWeapon: holdsAWeapon(content, target),
+          canSeeAttacker: canSee(state, attack.target, attack.attacker),
         }).offers) {
       found.push({
         window: 'hit-by-attack',

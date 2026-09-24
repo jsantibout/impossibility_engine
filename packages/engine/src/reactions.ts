@@ -780,6 +780,16 @@ export interface AttackContext {
    * Reaction; a declared one that is false does.
    */
   readonly holdsAWeapon: boolean | null;
+  /**
+   * Whether the target can see the attacker — `null` where nobody has said.
+   *
+   * The same three values and the same reading {@link seen} takes for the
+   * other windows: absence from state is not evidence of blindness. No SRD
+   * line under this heading prints the clause, so it decides nothing today and
+   * is here because a feature carrying `requiresSight` must not have the field
+   * silently ignored.
+   */
+  readonly canSeeAttacker: boolean | null;
 }
 
 /**
@@ -802,18 +812,41 @@ export function offersForAttack(state: GameState, context: AttackContext): React
   for (const feature of [...featuresFor(state, context.target, 'hit-by-attack')].sort(byFeature)) {
     if (attackReactionRefusal(feature, context) !== null) continue;
     if (!canAfford(state, context.target, feature)) continue;
-    if (!reaches(state, context.target, feature, context.attacker, unverified)) continue;
-    if (feature.does.kind === 'raise-ac' && feature.does.requiresWeapon === true) {
-      if (context.holdsAWeapon === null) {
-        unverified.push(
-          `nobody has said what ${context.target} is holding, and ${feature.name} is taken while holding a weapon; the offer was made rather than withheld`,
-        );
-      }
-    }
+    unverified.push(...undeclaredFacts(feature, context));
     offers.push(offerOf(context.target, feature));
   }
 
   return { offers, unverified };
+}
+
+/**
+ * What this Reaction was offered without being able to check — one string per
+ * fact nobody has declared.
+ *
+ * The other half of {@link attackReactionRefusal}'s three-valued reading, and
+ * shared by the same two callers for the same reason: a fact that merely goes
+ * unsaid does not withhold the Reaction, and a Reaction taken on an unsaid
+ * fact has to *say so* — otherwise the engine has quietly decided something
+ * nobody told it. The command puts these on its own `unverified`, which is
+ * where every other command puts what it could not check.
+ */
+export function undeclaredFacts(
+  feature: ReactionFeature,
+  context: AttackContext,
+): readonly string[] {
+  const said: string[] = [];
+  const does = feature.does;
+  if (does.kind === 'raise-ac' && does.requiresWeapon === true && context.holdsAWeapon === null) {
+    said.push(
+      `nobody has said what ${context.target} is holding, and ${feature.name} is taken while holding a weapon; it was offered rather than withheld`,
+    );
+  }
+  if (feature.requiresSight === true && context.canSeeAttacker === null) {
+    said.push(
+      `nobody has said whether ${context.target} can see ${context.attacker}, and ${feature.name} needs that; it was offered rather than withheld`,
+    );
+  }
+  return said;
 }
 
 /**
@@ -822,8 +855,11 @@ export function offersForAttack(state: GameState, context: AttackContext): React
  * **One rule, two callers**: the offer above and the command that takes it ask
  * the same question of the same facts, so a Reaction the engine offers is one
  * the engine will let a creature spend, and a Reaction it refuses is one it
- * never offered. An *undeclared* fact is not a refusal — see
- * {@link AttackContext.holdsAWeapon} — and the offer reports it instead.
+ * never offered. That is why the reach and the sight are decided here as well
+ * as the printed clauses: a check the offer made and the command did not would
+ * be a Reaction takeable at a moment nobody was shown it at. An *undeclared*
+ * fact is not a refusal — see {@link AttackContext.holdsAWeapon} — and
+ * {@link undeclaredFacts} is what says so instead.
  */
 export function attackReactionRefusal(
   feature: ReactionFeature,
@@ -836,6 +872,30 @@ export function attackReactionRefusal(
       reason: `${feature.name} does not answer a hit`,
     };
   }
+
+  // **Every sentence at this window is about the creature that was hit.** SRD
+  // Parry and SRD Reflexive Antennae both begin with their own holder, so the
+  // reach is `self` and a feature reaching further would be answering somebody
+  // else's blow — which is a rule this window does not hold and a shape no
+  // printed line compiles. Refused rather than read past, on the discipline
+  // the parser keeps about a sentence it only half recognises.
+  if (feature.reach.kind !== 'self') {
+    return {
+      code: 'no_such_feature',
+      reason: `${feature.name} answers a hit on somebody else, and this window reaches only the creature that was hit`,
+    };
+  }
+
+  // "An attacker **that you can see**", where a feature prints the clause. No
+  // SRD line under this heading does; an undeclared sight line is reported
+  // rather than refused, which is the reading every other window takes.
+  if (feature.requiresSight === true && context.canSeeAttacker === false) {
+    return {
+      code: 'cannot_see_target',
+      reason: `${feature.name} answers an attacker ${context.target} can see, and they cannot see ${context.attacker}`,
+    };
+  }
+
   if (does.kind !== 'raise-ac') return null;
 
   if (does.meleeOnly === true && !context.melee) {
