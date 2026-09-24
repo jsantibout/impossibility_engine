@@ -138,10 +138,16 @@ describe('toolSchemas', () => {
     // thing a feature makes needs — `create_device`, `dismantle_device` and
     // `activate_device`, the whole of SRD Gnomish Lineage's clockwork device
     // above the engine — and the pins sum.
+    // Re-pinned 2026-09-24 for Metamagic's other six: `cast_spell` gained
+    // `usingOptions`, `unaffected` and `saveModes` — which of the caster's own
+    // priced options a casting buys, the creatures it leaves alone, and how a
+    // named creature rolls the saves it forces. The tool count does not move
+    // (three fields on one tool), and both lengths move by the same 1,963
+    // bytes, because `cast_spell` is published on both doors.
     expect(toolSchemas(player())).toHaveLength(82);
     expect(toolSchemas(dm())).toHaveLength(99);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(113269);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(134772);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(115232);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(136735);
   });
 });
 

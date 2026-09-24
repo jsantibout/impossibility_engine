@@ -80,6 +80,18 @@ export const SPENT_BY = {
   /** Elected on a casting rather than spent on its own — `usingFeatures`. */
   'casting-election': 'cast_spell',
   /**
+   * Elected on a casting and **paid for** — SRD Metamagic, `usingOptions`.
+   *
+   * `casting-election` with a price on it, and it is a second entry rather
+   * than the same one because the two are typed differently on the call: a
+   * free feature is named in `usingFeatures` and a priced option in
+   * `usingOptions`, and a caller handed one list for both would be refused
+   * `no_such_feature` for an option it holds. The menu is the character's own
+   * two of ten, so the line carries it: a caller shown "you have Metamagic"
+   * and not which two has been told half of what it needs to type the call.
+   */
+  'casting-option': 'cast_spell',
+  /**
    * Invoked as a cheaper price on a named action: SRD Cunning Action, SRD
    * Adrenaline Rush.
    *
@@ -190,6 +202,23 @@ export interface HeldPool {
 }
 
 /** One item off a pool's menu, named by the call that spends a use on it. */
+/**
+ * One option a casting may buy, as the sheet reports it.
+ *
+ * {@link HeldPoolOption} one door along and narrower: a casting option costs
+ * no action of its own — it rides on a casting somebody was making anyway —
+ * so what is left is the id `cast_spell.usingOptions` takes, what to call it,
+ * and what it costs out of the pool on the line above.
+ */
+export interface HeldCastingOption {
+  /** The id `cast_spell.usingOptions` takes — SRD's `distant-spell`. */
+  readonly option: string;
+  /** What the log calls it: SRD's "Distant Spell". */
+  readonly name: string;
+  /** What electing it costs out of the feature's pool. */
+  readonly cost: number;
+}
+
 export interface HeldPoolOption {
   /** The id `use_pool_option.option` takes — SRD's `turn-undead`. */
   readonly option: string;
@@ -483,6 +512,15 @@ export interface HeldFeature {
    */
   readonly options?: readonly HeldPoolOption[];
   /**
+   * What a casting may buy, for a feature a casting elects from.
+   *
+   * `options` one door along and named apart from it for that door's reason:
+   * these are elected through `cast_spell.usingOptions` and never through
+   * `use_pool_option`, and a caller dispatching on `spentBy` would otherwise
+   * be handed a menu for a call that does not take it.
+   */
+  readonly castingOptions?: readonly HeldCastingOption[];
+  /**
    * What a landed blow buys, for a feature a swing elects.
    *
    * `options` one trigger along, and kept apart from it because the call is a
@@ -760,11 +798,17 @@ function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
   // is one pool selling room in the turn's budget, and the day a subclass adds
   // an effect list to the same pool the two claims meet under one id.
   const buys = first.buys ?? second.buys;
+  // And a fifth, which a casting elects from rather than a use spending:
+  // SRD Metamagic is one feature and one pool, and a subclass that hung an
+  // activation on that pool would claim the id first and drop the menu — the
+  // whole failure this merge exists to prevent, one menu along.
+  const castingOptions = first.castingOptions ?? second.castingOptions;
   if (
     options === first.options &&
     onHit === first.onHit &&
     trades === first.trades &&
-    buys === first.buys
+    buys === first.buys &&
+    castingOptions === first.castingOptions
   ) {
     return first;
   }
@@ -780,6 +824,7 @@ function alsoHolding(first: HeldFeature, second: HeldFeature): HeldFeature {
     ...(onHit === undefined ? {} : { onHit }),
     ...(trades === undefined ? {} : { trades }),
     ...(buys === undefined ? {} : { buys }),
+    ...(castingOptions === undefined ? {} : { castingOptions }),
     ...(doors.length === 0 ? {} : { alsoSpentBy: doors }),
   };
 }
@@ -1102,6 +1147,45 @@ export function holdingsOf(state: GameState, id: CharacterId): Holdings | null {
       left: leftIn(state, who, one.pool),
       active: false,
       options,
+    });
+  }
+
+  /**
+   * A menu a **casting** buys from, reported once per feature.
+   *
+   * The pool-with-a-menu shape one door along: SRD Metamagic is one feature
+   * whose Sorcery Points buy any of the options the character took, and the
+   * call is `cast_spell.usingOptions` rather than `use_pool_option`. The
+   * options ride on one line for the same reason Channel Divinity's do —
+   * several lines would report several pools where there is one — and the
+   * price is per option, because the SRD prints one per entry.
+   *
+   * **The two the player took, not the ten the book prints.** Creation filters
+   * the menu by the names the `option` choice was answered with, so a caller
+   * is shown exactly what this character may elect and is refused
+   * `no_such_casting_option` for the other eight.
+   */
+  const electable = new Map<string, HeldCastingOption[]>();
+  for (const one of sheet.castingOptions ?? []) {
+    const found = electable.get(one.feature);
+    const entry = { option: one.option, name: one.name, cost: one.cost };
+    if (found === undefined) electable.set(one.feature, [entry]);
+    else found.push(entry);
+  }
+  for (const one of sheet.castingOptions ?? []) {
+    add({
+      feature: one.feature,
+      name: one.featureName,
+      kind: 'casting-option',
+      spentBy: SPENT_BY['casting-option'],
+      // An option rides on a casting, so it costs nothing in the action
+      // economy of its own — and one of them changes what the *casting* costs,
+      // which is the casting's line rather than this one.
+      action: null,
+      pool: one.pool,
+      left: leftIn(state, who, one.pool),
+      active: false,
+      castingOptions: electable.get(one.feature) ?? [],
     });
   }
 

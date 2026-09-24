@@ -353,6 +353,15 @@ export function resolveDeclaredCast(
       castLevel: pending.level,
       using: [],
     });
+    // **And the one thing an elected option left on the record**, read back
+    // rather than re-derived: SRD Heightened Spell's mode was bought and paid
+    // for at the declaration, and the settlement has no election to read it
+    // off. The two rerolls are refused on a declaration for that very reason;
+    // this one is pinned, so it survives.
+    const settledAlters: CastingAlterations =
+      pending.saveModes === undefined
+        ? damage.alters
+        : { ...damage.alters, saveModes: pending.saveModes };
     const charged = chargingWith(
       state,
       pending.caster,
@@ -445,7 +454,7 @@ export function resolveDeclaredCast(
             },
           }
         : {}),
-      alters: damage.alters,
+      alters: settledAlters,
       // The same patch the atomic path lays, from the point the declaration
       // pinned rather than from a request there is none of. A Web held open
       // for a Counterspell and then settled is webbing in the same square.
@@ -718,7 +727,20 @@ export function castOrRelease(
     if (!elected.ok) return elected;
     const altered = alteredCasting(
       definition,
-      { castLevel: paidLevel, castingTime: casting.value.castingTime },
+      {
+        castLevel: paidLevel,
+        castingTime: casting.value.castingTime,
+        // The head count two of the ten options are measured in — SRD's "up to
+        // your Charisma modifier" — read off the same numbers every other
+        // derivation of this casting reads, and therefore off the sheet as it
+        // stands.
+        spellcastingModifier: numbersFor(
+          state,
+          casterId,
+          sheetAsItStands(state, casterId) ?? caster.sheet,
+          route,
+        ).spellcastingModifier,
+      },
       elected.value,
     );
     if (!altered.ok) return altered;
@@ -750,7 +772,17 @@ export function castOrRelease(
     // nothing. Both are clauses transcribed from the book, and both refuse to be
     // used by a spell that does not print them — a field quietly ignored is a
     // caller who thinks they said something.
-    const declared = declaredFacts(state, definition, request, fixedChoiceOf(route));
+    const declared = declaredFacts(
+      state,
+      definition,
+      request,
+      fixedChoiceOf(route),
+      // What the caster's elected options let this casting say — the
+      // designation SRD Careful Spell buys, the mode SRD Heightened Spell
+      // buys, the damage type SRD Transmuted Spell buys. Settled and refused
+      // above, before anything was spent.
+      altered.value.resolving,
+    );
     if (!declared.ok) return declared;
 
     // — targets ————————————————————————————————————————————————————————————
@@ -845,6 +877,26 @@ export function castOrRelease(
       );
       if (!named.ok) return named;
       targets = named.value;
+    }
+
+    // — the creatures an option spared ————————————————————————————————————
+    //
+    // SRD Careful Spell: "A chosen creature **automatically succeeds** on its
+    // saving throw against the spell, and it takes no damage if it would
+    // normally take half damage on a successful save." Both halves of that
+    // sentence are "this casting does nothing to them", so the creatures come
+    // out of the catch here — after the geometry and the target rule have both
+    // had their say, and before a save is rolled or a die is thrown.
+    //
+    // **Only the designation an option bought.** A spell that *prints* the
+    // clause keeps the reading it has always had: SRD Spirit Guardians
+    // designates nobody out of its own casting, because the sentence is about
+    // the aura it leaves behind, and `creaturesStandingInCastingArea` is where
+    // that is applied. Widening this to every designation would change what
+    // two spells in the book do, which is not what this option bought.
+    if (altered.value.resolving.spares !== undefined && (request.unaffected ?? []).length > 0) {
+      const spared = new Set<CharacterId>(request.unaffected);
+      targets = targets.filter((who) => !spared.has(who));
     }
 
     // SRD Ring of Jumping: "but can target only yourself when you do so."
@@ -1696,7 +1748,41 @@ function resolveOnTargets(
     castLevel,
     using: elected.value,
   });
-  const alters = reaching.alters;
+  // **And what the caster's elected *options* do to it**, which travels in the
+  // same bag for the same reason the four features do: the seams that read it
+  // — the save roll, the damage roll, the attack roll — already have it in
+  // hand, and a second parallel bag would be a second thing to forget to pass.
+  // `alteredCasting` settled and refused these before anything was spent; what
+  // is left here is carrying them.
+  const alters: CastingAlterations = {
+    ...reaching.alters,
+    ...(altered.resolving.saveMode === undefined
+      ? {}
+      : {
+          saveModes: Object.fromEntries(
+            Object.entries(request.saveModes ?? {}).map(([who, mode]) => [
+              who,
+              { mode, source: altered.resolving.saveMode!.name },
+            ]),
+          ),
+        }),
+    ...(altered.resolving.rerollDamage === undefined
+      ? {}
+      : {
+          reroll: {
+            count: altered.resolving.rerollDamage.count,
+            source: altered.resolving.rerollDamage.name,
+          },
+        }),
+    ...(altered.resolving.rerollMissedAttack === undefined
+      ? {}
+      : {
+          rerollMissedAttack: {
+            source: altered.resolving.rerollMissedAttack.name,
+            cost: altered.resolving.rerollMissedAttack.cost,
+          },
+        }),
+  };
 
   // — paying for it ——————————————————————————————————————————————————————
   //
@@ -1773,6 +1859,30 @@ function resolveOnTargets(
     );
   }
 
+  // **And the same sentence for two of the ten options**, for exactly the
+  // reason above and with the same answer. Four of the six carried-through
+  // options survive a declaration because what they need is already pinned on
+  // it: the sparing comes out of the targets the declaration fixed, the
+  // restated type is `damageType`, the mode is `saveModes`, and Subtle Spell's
+  // mark is `subtle` — and the four numbers are pinned as the level, the
+  // range, the span and the casting time. SRD Empowered Spell's rerolled dice
+  // and SRD Seeking Spell's rerolled d20 are the two whose mark is neither a
+  // number nor a stated fact: they are read at a roll the settlement makes,
+  // off a bag the settlement rebuilds from the sheet, and a declaration
+  // records no election for it to rebuild them from.
+  const unpinnable = [
+    ...(altered.resolving.rerollDamage === undefined ? [] : [altered.resolving.rerollDamage.name]),
+    ...(altered.resolving.rerollMissedAttack === undefined
+      ? []
+      : [altered.resolving.rerollMissedAttack.name]),
+  ];
+  if (declaring && unpinnable.length > 0) {
+    return err(
+      'election_on_a_declaration',
+      `${definition.name} is declared now and settled later, and nothing on the declaration records ${unpinnable.join(' or ')}; cast it without holding it, or leave the option out`,
+    );
+  }
+
   // SRD: a Ritual "doesn't expend a spell slot" — nor a feat's free casting,
   // nor anything else. So there is no payment to choose and none is asked for;
   // `castingOf` has already refused a caller who named one. An item's casting
@@ -1815,6 +1925,25 @@ function resolveOnTargets(
       );
     }
     events.push({ type: 'resource-spent', id: casterId, key: cost.key, amount: cost.amount });
+  }
+
+  // **And what an option will cost if its condition happens**, checked here
+  // and spent nowhere near here. SRD Seeking Spell buys a reroll the caster
+  // pays for only on a miss, so the pool is asked the same question at the
+  // same moment — before the first die, while refusing is still free — and the
+  // `resource-spent` lands later in this same batch, beside the reroll. The
+  // sum accounts for what the paragraph above has already taken out.
+  for (const cost of altered.contingent) {
+    const spent = altered.costs
+      .filter((other) => other.key === cost.key)
+      .reduce((sum, other) => sum + other.amount, 0);
+    const left = remaining(caster.resources, cost.key) - spent;
+    if (left < cost.amount) {
+      return err(
+        'no_points',
+        `the options named on this casting of ${definition.name} cost ${cost.amount} of ${cost.key} if they fire, and ${casterId} has ${left}`,
+      );
+    }
   }
 
   // **The charge stands exactly where the free casting stands**, and that is
@@ -1973,6 +2102,13 @@ function resolveOnTargets(
               // `statedFacts` — see where it is bound above.
               ...stated,
               ...(fought === undefined ? {} : { fought }),
+              // And the two marks an elected option leaves on the record
+              // itself: the mode it hung on one target's saves, and whether
+              // the casting can be perceived being made at all.
+              ...(Object.keys(alters.saveModes).length === 0
+                ? {}
+                : { saveModes: alters.saveModes }),
+              ...(altered.resolving.subtle === undefined ? {} : { subtle: true as const }),
               // The bare value, not the pair: a settlement re-reads the whole
               // definition anyway, so the half it cannot work out again is the
               // caster's answer and nothing else.

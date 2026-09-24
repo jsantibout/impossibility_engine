@@ -1235,6 +1235,12 @@ export function reactionOpportunities(state: GameState, content: Content): reado
   // caster would be indistinguishable, and the ambiguity refusal would then
   // tell a caller to name an id they could not see.
   for (const casting of pendingCastingsOf(state)) {
+    // SRD Subtle Spell: a spell cast "without any Verbal, Somatic, or Material
+    // components" cannot be identified or Counterspelled, because there is
+    // nothing to see or hear. The mark is on the record the declaration wrote,
+    // so the window simply does not open — a Counterspell holder is offered
+    // nothing rather than offered something the casting would then refuse.
+    if (casting.subtle === true) continue;
     for (const key of Object.keys(state.creatures).sort()) {
       const who = key as CharacterId;
       if (who === casting.caster || !canReact(who)) continue;

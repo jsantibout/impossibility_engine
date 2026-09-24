@@ -1879,40 +1879,75 @@ export interface HitPointBudget {
 }
 
 /**
+ * A number an option counts off the caster rather than printing.
+ *
+ * SRD writes two of the Metamagic options with the same phrase — "up to your
+ * Charisma modifier (minimum of one)" — and Charisma is the Sorcerer's
+ * spellcasting ability, which is the only end of that sentence a feature may
+ * say out loud: an option naming an ability would be content deciding which
+ * ability a *different* class's version of the same option counted off.
+ * `DieRule`'s cap is the same derivation on the same word, and this is it on a
+ * head count.
+ *
+ * The number is read off what the casting pinned, so a Headband of Intellect
+ * moves it exactly as it moves the save DC — and a modifier of zero or less
+ * still buys {@link minimum}, because the book puts a floor under it rather
+ * than making the option do nothing.
+ */
+export type CastingOptionCount =
+  /**
+   * SRD Careful Spell and SRD Empowered Spell: "up to your Charisma modifier
+   * (minimum of one)".
+   */
+  | {
+      readonly of: 'spellcasting-modifier';
+      /** SRD's "(minimum of one)". Absent means the derivation stands alone. */
+      readonly minimum?: number;
+    }
+  /**
+   * SRD Heightened Spell: "give **one** target of the spell Disadvantage".
+   *
+   * A number the book printed, which is not a derivation wearing a floor: a
+   * count of one written as "the modifier, but at least one" would grow with
+   * the caster's Charisma, which is precisely what that sentence does not do.
+   */
+  | { readonly of: 'printed'; readonly count: number };
+
+/**
  * What one purchased option does to the casting that bought it.
  *
- * **Four arms, one per number the casting command works out before it spends
+ * **Four arms rewrite a number the casting command works out before it spends
  * anything**: how far the spell reaches, how long it runs, which part of the
- * turn it takes, and what level it counts as. That is the whole of the
- * boundary — each arm rewrites a value the cost-and-route half of a casting
- * already holds in its hand, and not one of them brings machinery of its own
- * or reaches an effect that has begun to resolve.
+ * turn it takes, and what level it counts as. Each of those rewrites a value
+ * the cost-and-route half of a casting already holds in its hand, brings no
+ * machinery of its own and reaches no effect that has begun to resolve.
+ *
+ * **Six more reach past that half into the resolution**, and they are here
+ * rather than in a union of their own for the reason the first four are one
+ * field rather than four grants: they are asked for at one moment, by one
+ * reader, off one menu, under one price and one `perCasting` limit. A second
+ * union would have been a second election, a second refusal path and a second
+ * place for the price to be paid. What they have in common with the four is
+ * the whole of what this type is: **a thing a casting buys**. Where they
+ * differ is stated on each arm — the six are settled at the cast and *carried*
+ * to the seam that reads them, so `alteredCasting` refuses them for a spell
+ * that offers them nothing and then hands them on rather than applying them.
  *
  * The shape {@link CastingDamageAlteration} above already wears, asked of a
- * different half of the same command: that one alters what a casting *deals*,
- * this one alters what it *costs*. Its own declaration says why four arms of
- * one field beat four grants — "All four are asked for at one moment, by one
- * reader, and each is a single arithmetic operation on a notation already in
- * hand" — and the argument carries over word for word.
+ * different half of the same command: that one alters what a casting *deals*
+ * for a feature that is free, this one alters what a casting *does* for an
+ * option that is bought. Its own declaration says why arms of one field beat
+ * one grant each — "All four are asked for at one moment, by one reader" — and
+ * the argument carries over word for word.
  *
- * **Narrowings live on the arm rather than in a fifth `when` record**, which
- * is where this parts company with `CastingDamageWhen`: each option's
- * precondition is a fact about the very value it rewrites — a range that is a
- * distance at all, a duration of at least a minute, a casting time that is an
- * Action, a target count that moves with the slot — so a shared `when` would
- * be four fields of which three are always absent.
+ * **Narrowings live on the arm rather than in an eleventh `when` record**,
+ * which is where this parts company with `CastingDamageWhen`: each option's
+ * precondition is a fact about the very thing it rewrites — a range that is a
+ * distance at all, a duration of at least a minute, a save the spell forces, a
+ * damage die it throws — so a shared `when` would be ten fields of which nine
+ * are always absent.
  *
- * SRD publishes **ten** Metamagic options and four of them are these arms. The
- * other six are deliberately not here, and none of them is a fifth arm waiting
- * to be written — each wants a mechanism that lives somewhere else entirely:
- *
- * | SRD | Why not |
- * |---|---|
- * | Careful Spell | it changes who the casting catches, not what it costs: creatures that automatically succeed on a save the resolver is about to roll |
- * | Heightened Spell | a roll mode hung on one target's saves for one casting — a modifier, which `roll-modifiers.ts` owns |
- * | Subtle Spell | a `SpellDefinition` holds no components at all, so there is nothing for it to remove |
- * | Transmuted Spell | the damage type a casting deals, which is `CastingDamageAlteration` above rather than anything a casting *costs* — and that union has no arm that substitutes one |
- * | Empowered Spell, Seeking Spell | a damage die and a d20 thrown again. `rerollDice` in `dice.ts` does it and no casting passes it, which is a gap in what an effect may ask the dice for |
+ * SRD publishes **ten** Metamagic options and these ten arms are them.
  */
 export type CastingCostAlteration =
   /**
@@ -1994,6 +2029,140 @@ export type CastingCostAlteration =
        * a homebrew feature that simply upcast would want.
        */
       readonly onlyIfTargetsScale?: true;
+    }
+  /**
+   * SRD Careful Spell: "choose a number of those creatures up to your Charisma
+   * modifier (minimum of one creature). A chosen creature **automatically
+   * succeeds** on its saving throw against the spell, and it takes no damage
+   * if it would normally take half damage on a successful save."
+   *
+   * **The designation the request already carries, priced.**
+   * `CastSpellRequest.unaffected` is SRD Spirit Guardians' "you can designate
+   * creatures to be unaffected by it", and the two sentences ask for the same
+   * thing from opposite ends: one spell offers it and this option buys it for
+   * a spell that does not. So the option unlocks that field on a spell whose
+   * definition prints no such clause, caps how many may be named, and the
+   * creatures come out of the casting's catch before a save is rolled or a die
+   * is thrown.
+   *
+   * **A creature left out of the catch is an automatic success exactly where
+   * the SRD says what a success buys**, which is the pair of sentences above:
+   * no save, and no damage where a success would have halved it. Where a
+   * spell's success branch does something *other* than halve — SRD Hypnotic
+   * Pattern's success is simply nothing, SRD Hold Person's likewise — leaving
+   * the creature out gives them what succeeding would have given them anyway.
+   * The one reading this loses is a spell whose *success* is itself a
+   * consequence, and the SRD prints none: a save that a creature has to make
+   * and pass to be affected is not a sentence in the book.
+   *
+   * Refused for a spell that forces no save at all, which is the SRD's own
+   * "a spell that forces other creatures to make a saving throw".
+   */
+  | {
+      readonly kind: 'spare-from-saves';
+      /** How many creatures may be spared. */
+      readonly upTo: CastingOptionCount;
+    }
+  /**
+   * SRD Heightened Spell: "you can spend 2 Sorcery Points to give one target of
+   * the spell Disadvantage on saves against the spell."
+   *
+   * **A mode on a named creature's saves, for this casting and no other.** The
+   * caster names which creature on the request and the option says which mode
+   * and how many — so the engine validates a choice rather than making one,
+   * and a caller who names a mode no option of theirs offers is refused rather
+   * than quietly obeyed.
+   *
+   * The plural in "saves against the spell" is the casting's whole life: the
+   * mode is carried on the casting rather than on the roll, so a repeat save
+   * the same casting forces at a later turn boundary takes it too.
+   */
+  | {
+      readonly kind: 'save-mode';
+      /** What the named creature's saves against this casting are rolled at. */
+      readonly mode: RollMode;
+      /** How many of the casting's targets may be named. */
+      readonly upTo: CastingOptionCount;
+    }
+  /**
+   * SRD Empowered Spell: "When you roll damage for a spell, you can spend 1
+   * Sorcery Point to reroll a number of the damage dice up to your Charisma
+   * modifier (minimum of one), and you must use the new rolls."
+   *
+   * **The lowest dice, and the reroll is compulsory once bought.** The book
+   * lets the player pick which dice; picking the lowest is the only choice a
+   * player who wants more damage makes, so a stated *count* is the whole of
+   * the choice and the engine takes it from the bottom. That is a ruling and
+   * it is written here rather than buried: the alternative is a request field
+   * carrying die indices, which is a caller reaching into a roll the engine
+   * made.
+   *
+   * "When you roll damage" is one roll, so the count is taken by the first
+   * damage roll the casting makes and is zero for every roll after —
+   * `takeCastingAddend`'s rule on a different quantity, and for the same
+   * reason: a Fireball catching six goblins rolls six times in this engine.
+   */
+  | {
+      readonly kind: 'reroll-damage-dice';
+      /** How many dice go back in the cup. */
+      readonly upTo: CastingOptionCount;
+    }
+  /**
+   * SRD Seeking Spell: "If you make an attack roll for a spell and miss, you
+   * can spend 1 Sorcery Point to reroll the d20, and you must use the new
+   * roll."
+   *
+   * **Elected at the cast and paid for at the miss.** Every other option's
+   * price goes inside the casting's own batch before the first die; this one's
+   * condition is a die that has already been thrown, so the pool is checked
+   * where the others are checked — a casting whose caster cannot afford the
+   * reroll is refused before anything is rolled — and the `resource-spent`
+   * lands in the same batch at the moment the reroll happens. A casting whose
+   * attack hits pays nothing, which is the sentence.
+   *
+   * The whole attack is thrown again rather than the bare d20, because a spell
+   * attack's modes, bonuses and Armour Class are the same on the second throw
+   * and the only thing that can differ is the face. Both throws reach the log,
+   * and the second names the first it superseded.
+   */
+  | { readonly kind: 'reroll-a-missed-attack' }
+  /**
+   * SRD Subtle Spell: "you can spend 1 Sorcery Point to cast it without any
+   * Verbal, Somatic, or Material components, except Material components that
+   * are consumed by the spell or that have a cost specified in the spell."
+   *
+   * **The components are not modelled and the consequence is.** A
+   * `SpellDefinition` carries no components at all, so there is nothing here
+   * to take away; what the point buys is the rule the SRD attaches to a spell
+   * cast without perceivable components — nobody can tell it is being cast, so
+   * there is nothing for a Counterspell to answer. The casting is marked on
+   * its own pending record and the `casting-a-spell` window does not open for
+   * anybody else.
+   *
+   * What is therefore **not** bought is the half a caller might expect: a
+   * Silenced caster still cannot cast, and a bound caster still cannot make
+   * the gestures, because neither of those is a rule this engine holds. The
+   * option says what it does and no more.
+   */
+  | { readonly kind: 'unperceived' }
+  /**
+   * SRD Transmuted Spell: "When you cast a spell that deals a type of damage
+   * from the following list, you can spend 1 Sorcery Point to change that
+   * damage type to one of the other listed types: Acid, Cold, Fire, Lightning,
+   * Poison, Thunder."
+   *
+   * **The caster restates the type, through the door a casting already has.**
+   * `CastSpellRequest.damageType` is SRD Chromatic Orb's printed list answered
+   * by its caster, and `statedDamageType` is the substitution; what this option
+   * buys is that door for a spell whose definition prints one fixed type. The
+   * list is the option's — the engine names no damage type — and both halves
+   * of the SRD sentence are checked against it: the type the spell prints has
+   * to be on it, and so does the one the caster names.
+   */
+  | {
+      readonly kind: 'restate-damage-type';
+      /** The types this option moves between. SRD prints six. */
+      readonly among: readonly string[];
     };
 
 /**

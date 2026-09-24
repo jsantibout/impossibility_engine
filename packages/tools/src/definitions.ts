@@ -2371,6 +2371,31 @@ const CAST_SPELL = tool({
       .describe(
         'Features of the caster’s that this casting uses — the ones the SRD writes as “you can”, which do nothing unless the casting names them. `sheet` lists them; a feature the caster has not got is refused, and one they have that does not reach this spell is not, because casting outside a feature’s narrowing is legal. This carries no number: the engine reads the feature off the sheet and does the arithmetic itself.',
       ),
+    usingOptions: z
+      .array(z.string().min(1))
+      .optional()
+      .describe(
+        'Options of the caster’s that this casting buys, by id — SRD Metamagic’s Distant Spell, Subtle Spell and the rest. `sheet` lists the ones this character took and what each costs; an option they did not take is refused, and so is one that cannot reach this spell, because the book writes every one of them as a condition on the spending. The price comes out of the pool inside this casting’s own batch, so a refused casting costs nothing. Only as many as the feature allows on one casting — the SRD allows one. This carries no number: the engine reads the price and the rule off the sheet.',
+      ),
+    unaffected: z
+      .array(creatureId)
+      .optional()
+      .describe(
+        'Creatures this casting leaves alone, for a spell that offers the choice — Spirit Guardians’ "you can designate creatures to be unaffected by it" — or for a casting that buys it, which is what Careful Spell does. They roll no saving throw and take no damage. Naming somebody through a spell that offers neither is refused, and so is naming more than the option pays for.',
+      ),
+    saveModes: z
+      .array(
+        z.strictObject({
+          target: creatureId,
+          mode: z
+            .enum(['advantage', 'disadvantage'])
+            .describe('How that creature rolls its saves against this casting.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'How a named creature rolls the saving throws this casting forces on it, for a casting that has bought the right to say so — SRD Heightened Spell’s "give one target of the spell Disadvantage on saves against the spell". Refused outright unless an option in `usingOptions` offers it, refused for a mode that option does not offer, and refused for more creatures than it reaches. This is not a roll and never could be: the engine still throws every die.',
+      ),
     ritual: z
       .literal(true)
       .optional()
@@ -2419,6 +2444,18 @@ const CAST_SPELL = tool({
       ...(args.payment === undefined ? {} : { payment: args.payment }),
       ...(args.source === undefined ? {} : { source: args.source }),
       ...(args.usingFeatures === undefined ? {} : { usingFeatures: args.usingFeatures }),
+      ...(args.usingOptions === undefined ? {} : { usingOptions: args.usingOptions }),
+      ...(args.unaffected === undefined ? {} : { unaffected: args.unaffected.map(who) }),
+      // A list of pairs on the wire and a map in the engine: a schema that
+      // took an object keyed by creature id could not name the key, so the
+      // description a model reads would have had nowhere to say what a key is.
+      ...(args.saveModes === undefined
+        ? {}
+        : {
+            saveModes: Object.fromEntries(
+              args.saveModes.map((one) => [who(one.target), one.mode]),
+            ),
+          }),
       ...(args.hold === true ? { hold: true } : {}),
       ...(args.ritual === true ? { ritual: true as const } : {}),
       ...(args.answers === undefined ? {} : { answers: args.answers }),

@@ -19,9 +19,14 @@
  */
 
 import { ABILITY_NAMES, type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
-import { type DamageComponent, rollAttack, rollAttackDamage } from '../attack.js';
+import {
+  type AttackResult,
+  type DamageComponent,
+  rollAttack,
+  rollAttackDamage,
+} from '../attack.js';
 import { type DieEffect } from '../dice.js';
-import { bonusesFor } from '../bonuses.js';
+import { bonusesFor, type ModeSource } from '../bonuses.js';
 import { rollSavingThrow } from '../checks.js';
 import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { apartFromSource } from '../positioning.js';
@@ -49,13 +54,16 @@ import { applyConditionTo } from './conditions.js';
 import { healCreature } from './creatures.js';
 import { dealSpellDamage } from './damage.js';
 import {
+  type CastingAlterations,
   defendingModes,
   enemyWithinFiveFeet,
   recordD20Test,
   declaredDieEffects,
+  rerollLowestDamageDice,
   rollSpellDice,
   savingSupport,
   takeCastingAddend,
+  takeCastingReroll,
   withFlatAddend,
   alteredCastingDice,
 } from './rolls.js';
@@ -80,6 +88,49 @@ const dieEffectsOf = (ctx: EffectContext): readonly DieEffect[] =>
   ctx.origin.kind === 'casting'
     ? declaredDieEffects(ctx.origin.definition.dieRule, ctx.numbers.spellcastingModifier, ctx.name)
     : [];
+
+/**
+ * The mode an elected option hung on this creature's saves against this
+ * casting, as the one-entry list a roller takes.
+ *
+ * SRD Heightened Spell is the only sentence in the book that writes it and the
+ * engine names none of it: what arrives is a map the casting pinned, keyed by
+ * the creature the caster named, carrying the mode the option prints and the
+ * option's own name for the log. Empty for every other save in the game, which
+ * is why the two save sites can call it unconditionally.
+ */
+const saveModeFor = (
+  alters: CastingAlterations,
+  target: CharacterId,
+): readonly ModeSource[] => {
+  const hung = alters.saveModes[target];
+  return hung === undefined ? [] : [{ source: hung.source, mode: hung.mode }];
+};
+
+/**
+ * The casting's damage dice as SRD Empowered Spell leaves them.
+ *
+ * Called at each of the four sites a casting rolls its own damage, and a no-op
+ * at every one of them but the first of a casting that bought the option:
+ * "when you roll damage for a spell" is one roll, so the mark is taken once —
+ * `takeCastingAddend`'s rule on the reroll beside it.
+ *
+ * **A roll with no dice in it does not count as the roll**, which is the one
+ * subtlety: SRD Magic Missile's dart is "1d4 + 1" and a maximised casting's
+ * payload is a flat number with no dice at all, so taking the mark there would
+ * spend a Sorcery Point on nothing. The mark stays for a roll that has dice.
+ */
+const empowered = (
+  ctx: EffectContext,
+  components: readonly DamageComponent[],
+): Result<readonly DamageComponent[]> => {
+  const hasDice = components.some((component) =>
+    (component.roll?.dice ?? []).some((die) => die.disposition === 'counted'),
+  );
+  if (ctx.alters.reroll === null || !hasDice) return ok(components);
+  const taken = takeCastingReroll(ctx.alters)!;
+  return rerollLowestDamageDice(ctx.supply, components, taken.count, taken.source);
+};
 
 /**
  * This creature's share of one effect's aimed rolls.
@@ -242,7 +293,8 @@ function resolveOneAttackRoll(
   const crowding = enemyWithinFiveFeet(current, casterId);
   unverified.push(...crowding.unverified);
 
-  const attack = rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
+  const throwIt = (): Result<AttackResult> =>
+    rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
     weapon: null,
     // **SRD: "Spell attack modifier = your spellcasting ability modifier plus
     // your Proficiency Bonus."** Both terms are inside `attackModifier`
@@ -277,17 +329,59 @@ function resolveOneAttackRoll(
       ? {}
       : { withinFiveFeet: apartFromSource(current, from, casterId, target)! <= 5 }),
   });
-  if (!attack.ok) return attack;
 
-  events.push({
-    type: 'roll-recorded',
-    who: casterId,
-    label: `${label} attack`,
-    natural: attack.value.roll.natural,
-    total: attack.value.total,
-    contributions: [{ source: 'spell attack', amount: attackModifier }],
-    outcome: attack.value.hit ? 'hit' : 'miss',
-  });
+  const first = throwIt();
+  if (!first.ok) return first;
+
+  const record = (result: AttackResult, superseded?: AttackResult): void => {
+    events.push({
+      type: 'roll-recorded',
+      who: casterId,
+      label: `${label} attack`,
+      natural: result.roll.natural,
+      total: result.total,
+      contributions: [{ source: 'spell attack', amount: attackModifier }],
+      outcome: result.hit ? 'hit' : 'miss',
+      ...(superseded === undefined
+        ? {}
+        : { supersedes: { natural: superseded.roll.natural, total: superseded.total } }),
+    });
+  };
+  record(first.value);
+
+  // — SRD Seeking Spell ——————————————————————————————————————————————————
+  //
+  // "If you make an attack roll for a spell and **miss**, you can spend 1
+  // Sorcery Point to reroll the d20, and you must use the new roll." Elected at
+  // the casting, which is where the pool was checked; spent here, because here
+  // is where the sentence's condition is known.
+  //
+  // **The whole attack is thrown again**, not the bare face. The modes, the
+  // bonuses and the Armour Class are the same on the second throw, so the only
+  // thing that can differ is the die — and reaching inside the result to swap a
+  // number would be a second arithmetic for what `rollAttack` already does
+  // once. Both throws are in the log and the second names the first, exactly
+  // as `rerollTest` records a save thrown again.
+  //
+  // **Nulled by the throw that uses it**, for `takeCastingReroll`'s reason: the
+  // point buys one reroll and a Scorching Ray misses five times.
+  let attack = first;
+  const seeking = alters.rerollMissedAttack;
+  if (!first.value.hit && seeking !== null) {
+    alters.rerollMissedAttack = null;
+    const again = throwIt();
+    if (!again.ok) return again;
+    record(again.value, first.value);
+    const spent: GameEvent = {
+      type: 'resource-spent',
+      id: casterId,
+      key: seeking.cost.key,
+      amount: seeking.cost.amount,
+    };
+    events.push(spent);
+    current = applyEvent(current, spent);
+    attack = again;
+  }
 
   // **A spell attack is an attack roll**, which is the sentence this whole
   // resolver keeps having to say: a one-shot grant SRD Guiding Bolt hung on a
@@ -346,16 +440,24 @@ function resolveOneAttackRoll(
     );
     if (!splash.ok) return splash;
 
-    const splashed = dealSpellDamage(
-      current,
-      target,
+    const splashEmpowered = empowered(
+      ctx,
       withFlatAddend(
         splash.value,
         scaledFlatFor(effect.damage, definition.level, castLevel) +
           (effect.addSpellcastingModifier === true ? numbers.spellcastingModifier : 0) +
           splashDice.value.flat +
           takeCastingAddend(alters),
-      ).map((component) => ({ ...component, total: Math.floor(component.total / 2) })),
+      ),
+    );
+    if (!splashEmpowered.ok) return splashEmpowered;
+    const splashed = dealSpellDamage(
+      current,
+      target,
+      splashEmpowered.value.map((component) => ({
+        ...component,
+        total: Math.floor(component.total / 2),
+      })),
       definition.name,
       supply,
       { by: casterId },
@@ -465,11 +567,13 @@ function resolveOneAttackRoll(
   // number beside the *spell's* dice — Hunter's Mark's 1d6 is not part of
   // Finger of Death's "+ 30".
   const riderNames = new Set(carried.map((rider) => rider.source));
-  const hurt = dealSpellDamage(
-    current,
-    target,
-    [
-      ...withFlatAddend(
+  // The spell's own dice, and only those: SRD Empowered Spell rerolls "the
+  // damage dice" of the spell, and a rider hanging off another casting —
+  // Hunter's Mark's 1d6 — is not this spell's damage any more than it is part
+  // of Finger of Death's "+ 30".
+  const own = empowered(
+    ctx,
+    withFlatAddend(
         rolled.value.components.filter((c) => c.source === definition.name),
         // SRD Flame Blade: "3d6 **plus your spellcasting ability
         // modifier**" — the chosen route's, so a feat's version adds its
@@ -484,8 +588,12 @@ function resolveOneAttackRoll(
           scaled.value.flat +
           takeCastingAddend(alters),
       ),
-      ...rolled.value.components.filter((c) => riderNames.has(c.source)),
-    ],
+  );
+  if (!own.ok) return own;
+  const hurt = dealSpellDamage(
+    current,
+    target,
+    [...own.value, ...rolled.value.components.filter((c) => riderNames.has(c.source))],
     definition.name,
     supply,
     { by: casterId, ...(attack.value.critical ? { critical: true } : {}) },
@@ -631,9 +739,8 @@ export function resolveAutoDamageEffect(
     );
     if (!rolled.ok) return rolled;
 
-    const hurt = dealSpellDamage(
-      current,
-      target,
+    const dealt = empowered(
+      ctx,
       withFlatAddend(
         rolled.value,
         // SRD prints "1d4 **+ 1**" on the dart, so the addend lands on every
@@ -643,6 +750,12 @@ export function resolveAutoDamageEffect(
           scaled.value.flat +
           takeCastingAddend(alters),
       ),
+    );
+    if (!dealt.ok) return dealt;
+    const hurt = dealSpellDamage(
+      current,
+      target,
+      dealt.value,
       name,
       supply,
       { by: casterId },
@@ -743,6 +856,13 @@ export function resolveSaveDamageEffect(
       ...(singled === 'disadvantage'
         ? [{ source: `${name} (${victim.creatureType})`, mode: 'disadvantage' as const }]
         : []),
+      // SRD Heightened Spell: "give one target of the spell Disadvantage on
+      // **saves against the spell**." Bought at the casting, named per target,
+      // and presence rather than arithmetic exactly as the clause above it is
+      // — so a target who is also somehow helped rolls a normal save and the
+      // record still says both were in play. It reaches every save this
+      // casting forces on that creature, which is the plural in the sentence.
+      ...saveModeFor(alters, target),
     ],
     bonuses: support.bonuses,
     // The die is still thrown and recorded; the total is overridden, so
@@ -844,10 +964,15 @@ export function resolveSaveDamageEffect(
   // *before* the target's own Resistance — which then halves again.
   // Without Evasion the success is halved; with it the *failure* is,
   // and the success took nothing at all above.
+  // The dice as SRD Empowered Spell leaves them, **before** the halving: "you
+  // must use the new rolls" is about what the spell deals, and a made save
+  // halves whatever that came to.
+  const thrown = empowered(ctx, rolledParts);
+  if (!thrown.ok) return thrown;
   const halve = evading ? !save.value.success : save.value.success;
   const components = halve
-    ? rolledParts.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
-    : rolledParts;
+    ? thrown.value.map((c) => ({ ...c, total: Math.floor(c.total / 2) }))
+    : thrown.value;
 
   const hurt = dealSpellDamage(
     current,
@@ -953,6 +1078,7 @@ export function resolveSaveEffect(
     held,
     saveDc,
     fought,
+    alters,
   } = ctx;
   let current = world;
 
@@ -1006,6 +1132,10 @@ export function resolveSaveEffect(
             },
           ]
         : []),
+      // SRD Heightened Spell, on the other save resolver: two resolvers roll
+      // two saves, and an option that reached one of them would work against a
+      // Fireball and not against a Hold Person.
+      ...saveModeFor(alters, target),
     ],
     bonuses: support.bonuses,
   });
