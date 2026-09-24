@@ -6766,9 +6766,21 @@ export const GASEOUS_FORM: SpellDefinition = {
  * > rises vertically up to 20 feet and remains suspended there for the
  * > duration. ... An unwilling creature that succeeds on a Constitution saving
  * > throw is unaffected."
+ * > "When the spell ends, the target floats gently to the ground if it is
+ * > still aloft."
  *
- * Tracked, because the only thing the save decides is a lift the engine cannot
- * perform: nothing moves a creature vertically, and nothing holds one there.
+ * **A save that gates a movement, which is a rider rather than a resolver of
+ * its own.** The whole of what the Constitution save decides is whether the
+ * creature goes up, so the lift hangs off the settled outcome exactly as
+ * Thunderwave's shove does — and, being a rider, it gets Heightened Spell's
+ * Disadvantage and Careful Spell's sparing for nothing, which a movement with
+ * a saving throw inside it could not have.
+ *
+ * **The lift is the one rider the casting keeps**, because the sentence says
+ * so twice: "remains suspended there for the duration", and the landing when
+ * the spell ends. `GrantedLift` is the hold and `releaseCasting` is the
+ * landing, so a dispel, a broken Concentration and the ten minutes running out
+ * all set the target down the same way and none of them is a fall.
  */
 export const LEVITATE: SpellDefinition = {
   id: 'levitate',
@@ -6784,14 +6796,23 @@ export const LEVITATE: SpellDefinition = {
   // legal target of it.
   targets: { count: 1, self: true },
   requiresSight: true,
-  effects: [],
+  effects: [
+    {
+      kind: 'save',
+      ability: 'con',
+      // "rises vertically up to 20 feet and remains suspended there for the
+      // duration." The save is the gate and the lift is the whole of what it
+      // gates: a creature that fails goes up, and a creature that makes it is
+      // "unaffected" in as many words.
+      movement: { kind: 'lift', feet: 20 },
+    },
+  ],
   durationSeconds: 600,
   unmodelled: [
-    'the lift is not applied: "rises vertically up to 20 feet and remains suspended there for the duration" is forced movement a spell causes, and no effect reaches the one function that performs it',
-    'the Constitution saving throw is not rolled, because a save is written as the gate on an outcome and the outcome here is that lift — "An unwilling creature that succeeds on a Constitution saving throw is unaffected", with nothing to be affected by',
-    'moving the target afterwards is the DM’s: the 20 feet of altitude a turn, the climbing along a wall, and the Magic action somebody else spends to move it are all that same missing movement',
+    'the save is asked of every target, and SRD asks it of an **unwilling** creature only — "An unwilling creature that succeeds on a Constitution saving throw is unaffected" — so a willing ally may make the save and not be lifted; willingness is a fact about the fiction and a casting has no word for it, which is the same gap SRD Mage Armor’s "a willing creature" leaves and the first one here with a die behind it',
+    'moving the target afterwards is the DM’s: "You can change the target’s altitude by up to 20 feet in either direction on your turn" is a later action that moves the **target** rather than an area, which no activation shape expresses, and the climbing along a wall is fiction',
+    'what the levitating creature may do with its own Speed is the DM’s, and it is a gap this spell opens: "The target can move only by pushing or pulling against a fixed object or surface within reach" is the whole of SRD’s answer, and the engine refuses only a **rise** — a creature holding station twenty feet up may still walk its thirty feet sideways through the air and come down for nothing, because gravity is not a Speed and no rule asks what is under a creature that is already off the ground',
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
-    '"the target floats gently to the ground if it is still aloft" ends a lift that never happened',
   ],
 };
 
@@ -7994,11 +8015,22 @@ export const ANIMAL_MESSENGER: SpellDefinition = {
  * > them. As a Bonus Action on your later turns, you can change the direction
  * > in which the Line blasts from you."
  *
- * A Line is a shape the engine has and a Line that **turns** is not: the
- * Bonus Action re-aims it every round, and an area is fixed where the casting
- * put it. So the wind is tracked, and the three sentences underneath it — a
- * save that pushes, a doubled cost to walk into it, and a coin flip over a
- * lantern — are three different missing shapes stacked in one paragraph.
+ * **The push needed no new movement at all.** "Pushed 15 feet away from you in
+ * a direction following the Line" is the bearing from the caster to the
+ * creature, which is what `shoveAwayFrom` has measured since Thunderwave — and
+ * for a creature standing *in* a Line that blasts from the caster, the bearing
+ * to it and the Line's own direction are the same reading. What was missing
+ * was the **host**: the wind deals no damage, so the rider had to hang off a
+ * bare `save`, and the slot lived only on the two kinds that carry
+ * `& OutcomeRiders` whole.
+ *
+ * Two clauses ask the same save at two moments, which is exactly the pair an
+ * `areaTrigger` is: everyone caught when the Line is conjured, and "a creature
+ * that ends its turn in the Line" every round after.
+ *
+ * A Line that **turns** is still not a shape the engine has — the Bonus Action
+ * re-aims it every round, and an area is fixed where the casting put it, which
+ * is the same sentence SRD Sunbeam's later Magic action waits on.
  */
 export const GUST_OF_WIND: SpellDefinition = {
   id: 'gust-of-wind',
@@ -8009,13 +8041,33 @@ export const GUST_OF_WIND: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
-  effects: [],
+  area: { kind: 'line', length: 60, width: 10, origin: 'self' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'str',
+      // "or be pushed 15 feet away from you in a direction following the
+      // Line." Away from the caster is the only direction this rider has, and
+      // for a creature standing in a Line that blasts from the caster it is
+      // the direction the Line follows.
+      //
+      // Written out rather than left absent, which means the same thing: this
+      // is the spell whose own sentence names the direction, and Thunderwave
+      // beside it is what keeps the omitted spelling driven.
+      movement: { kind: 'push', feet: 15 },
+    },
+  ],
+  // "A creature that ends its turn in the Line must make the same save." The
+  // same save, so the same effect, written at the moment the sentence names.
+  areaTrigger: {
+    at: 'end-of-turn',
+    label: 'Gust of Wind (the Line)',
+    effects: [{ kind: 'save', ability: 'str', movement: { kind: 'push', feet: 15 } }],
+  },
   durationSeconds: 60,
   unmodelled: [
-    'the Strength saving throw is not rolled: what a failure buys is "pushed 15 feet away from you in a direction following the Line", and no spell effect reaches the forced movement `moveCreature` already performs',
-    'the Line is not a template: 60 feet long and 10 feet wide is a shape the engine has, and the Bonus Action that changes the direction it blasts in on a later turn re-aims an area a casting fixed where it was put',
-    'the repeat save a creature makes for ending its turn in the Line is not raised, because the Line is not there to end a turn in',
-    'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: a casting may make ground expensive now, and a patch is a property of the **square**, charging whoever crosses it at the rate it holds. Nothing on one can say "only while moving closer to you", which is a fact about the mover',
+    'the Bonus Action that changes the direction the Line blasts in on a later turn is not offered: an area is fixed where the casting put it, and re-aiming one from the caster is a fresh area in a direction chosen now — the shape SRD Sunbeam and Call Lightning wait on too',
+    'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: a casting may make ground expensive now, and a patch is a property of the **square**, charging whoever crosses it at the rate it holds. Nothing on one can say "only while moving closer to you", which is a fact about the mover rather than about the ground, so `areaTerrain` cannot carry it',
     'the gas dispersed, the unprotected candles snuffed and the protected flames dancing are the DM’s, and so is the "50 percent chance to extinguish them", which is a random outcome that is not a d20',
   ],
 };

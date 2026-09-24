@@ -1251,6 +1251,11 @@ function checkSaveWithoutCondition(
     further.length > 0 ||
     (effect.modifiers ?? []).length > 0 ||
     effect.light !== undefined ||
+    // SRD Gust of Wind: "must succeed on a Strength saving throw **or be
+    // pushed 15 feet away from you**", and SRD Levitate's lift. A failure
+    // whose whole content is a movement decided plenty, and reading the slots
+    // above without this one would call the wind a die thrown for nothing.
+    effect.movement !== undefined ||
     effect.breaksConcentration === true;
 
   if (!hangs && effect.recordsOutcome !== true) {
@@ -1839,12 +1844,24 @@ function checkShedLight(
   }
 }
 
+/**
+ * The ways a settled outcome moves a creature, as data.
+ *
+ * {@link ForcedMovement.kind}'s members, restated here for the reason every
+ * other vocabulary in this file is: content arrives as JSON through
+ * `loadContent` and the compiler was never asked. A member added to the type
+ * and not here is refused rather than silently accepted, which is the safe
+ * direction — `applyRiders` dispatches on this value, and a kind it does not
+ * know would land as a push.
+ */
+const MOVEMENT_KINDS: ReadonlySet<string> = new Set(['push', 'lift']);
+
 function checkRiders(
   riders: {
     readonly conditions?: readonly ConditionRider[];
     readonly modifiers?: readonly ModifierRider[];
     readonly delayed?: { readonly damage: DiceScaling; readonly damageType: string };
-    readonly movement?: { readonly feet: number };
+    readonly movement?: { readonly feet: number; readonly kind?: string };
     readonly spends?: SpentBudget;
     readonly light?: LightRider;
     readonly breaksConcentration?: true;
@@ -1910,28 +1927,47 @@ function checkRiders(
       }
     }
   }
-  // A shove says one thing and there is one way to get it wrong: SRD writes
-  // "pushed 10 feet away from you", and the lattice everything else is
-  // measured on has no spaces smaller than five feet. A push of nought feet is
-  // a sentence the book never prints and an event that would move nobody while
-  // reading as though it had.
+  // A movement says two things and there are two ways to get it wrong. SRD
+  // writes "pushed 10 feet away from you" and "rises vertically up to 20
+  // feet", and the lattice everything else is measured on has no spaces
+  // smaller than five feet: a movement of nought feet is a sentence the book
+  // never prints and an event that would move nobody while reading as though
+  // it had.
+  //
+  // **And the way it goes is a closed vocabulary**, because `applyRiders`
+  // dispatches on it: a kind nothing performs is a rider that would land
+  // silently as a push, which is the confident wrong answer rather than the
+  // missing one.
   if (riders.movement !== undefined) {
     if (
       readsAsObject(
         riders.movement,
         `${path}.movement`,
-        'a shove is an object naming how far the creature is pushed',
+        'a movement is an object naming how far the creature goes',
         found,
       )
     ) {
-      const { feet } = riders.movement;
+      const { feet, kind } = riders.movement;
       if (!Number.isInteger(feet) || feet < 5 || feet % 5 !== 0) {
         found.push({
           field: `${path}.movement.feet`,
           code: 'bad_push_distance',
-          reason: `a shove moves a whole number of spaces of the 5-foot lattice everything else is measured on, and "${String(feet)}" is not one`,
+          reason: `a movement covers a whole number of spaces of the 5-foot lattice everything else is measured on, and "${String(feet)}" is not one`,
         });
       }
+      if (kind !== undefined && !MOVEMENT_KINDS.has(kind)) {
+        found.push({
+          field: `${path}.movement.kind`,
+          code: 'bad_push_kind',
+          reason: `"${String(kind)}" is not a way a settled outcome moves a creature; the engine performs ${[...MOVEMENT_KINDS].join(' and ')}`,
+        });
+      }
+      // A lift and a grant with a deadline of its own may not appear in one
+      // **definition**, and the rule is {@link checkLiftAgainstDeadlines}'
+      // rather than this walk's: the timer that would strand the creature is
+      // keyed by the casting's source and the target, neither of which is an
+      // effect, so a per-effect check would pass the same pair written two
+      // effects apart. Nothing about it is reported here.
     }
   }
   // The fifth slot, and the one that reaches the action economy: see
@@ -3603,6 +3639,73 @@ function checkGrantLifetimes(
 }
 
 /**
+ * A lift and a grant that ends before its casting may not be in one
+ * definition.
+ *
+ * **The scope is the definition because the hazard is.** Every rider a casting
+ * hangs is filed under one string — `castingSource(name, castingId)`, with no
+ * effect index in it — and a `modifiers` rider that names `lasts` schedules a
+ * `grants` timer keyed by *that source and the creature*. When the timer
+ * fires, `releaseGrants` takes off everything that source hung on the
+ * creature, and a `GrantedLift` is one of them. `releaseGrants` has a creature
+ * and no scene, so the landing SRD Levitate's last sentence promises could not
+ * happen there: the creature would be left in the air with nothing holding it
+ * up, which is the one state that sentence exists to prevent.
+ *
+ * So a check on one effect would refuse the pair written together and pass the
+ * same pair written two effects apart — and the second is not a different
+ * sentence, because both riders reach the same target under the same source.
+ * A refusal at authoring has to cover the shape it names.
+ *
+ * **Refused rather than answered**, because no SRD sentence writes the pair: a
+ * deadline shorter than the casting is what `EffectTarget.grants` exists for,
+ * and building the landing into `releaseGrants` would be writing the other
+ * half of a sentence nobody has printed. `checkBudgetSpend` refuses
+ * `movement` in the same voice and for the same reason.
+ *
+ * Reported at the lift, which is the field that would have to change: the
+ * deadline is an ordinary rider doing an ordinary thing, and the lift is the
+ * one the plumbing cannot carry beside it.
+ */
+function checkLiftAgainstDeadlines(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  const lists = effectLists(definition as unknown as Record<string, unknown>);
+  const holders: { readonly where: string; readonly at: number }[] = [];
+  let deadlines = 0;
+
+  for (const [where, effects] of lists) {
+    effects.forEach((effect, i) => {
+      if (typeof effect !== 'object' || effect === null) return;
+      const moved = (effect as { readonly movement?: { readonly kind?: unknown } }).movement;
+      if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
+        holders.push({ where, at: i });
+      }
+      // Read off the same slot `grantCarried` reads, and with the same
+      // tolerance for input nobody can walk: a `modifiers` that is not a list
+      // schedules nothing, and what is wrong with it is `checkRiders`' to say.
+      const modifiers = (effect as { readonly modifiers?: unknown }).modifiers;
+      if (!Array.isArray(modifiers)) return;
+      for (const rider of modifiers) {
+        if (typeof rider !== 'object' || rider === null) continue;
+        if ((rider as { readonly lasts?: unknown }).lasts !== undefined) deadlines += 1;
+      }
+    });
+  }
+
+  if (deadlines === 0) return;
+  for (const holder of holders) {
+    found.push({
+      field: `${holder.where}[${holder.at}].movement.kind`,
+      code: 'lift_beside_a_shorter_grant',
+      reason:
+        'a grant that ends before its casting takes every grant that casting hung on the creature with it, and a lift is one of them — the creature would be left in the air with nothing holding it up, so one casting may not both lift a creature and hand out a grant with a deadline of its own',
+    });
+  }
+}
+
+/**
  * The causes a trigger may name, as a set.
  *
  * The second place a runtime value restates a union, and here for the reason
@@ -3860,6 +3963,20 @@ function grantCarried(effect: SpellEffect): string | null {
     case 'hit-point-maximum':
       return 'a hit point maximum held up';
     default: {
+      // **The rider whose undoing is part of the sentence that imposed it.**
+      // SRD Levitate: "remains suspended there for the duration ... When the
+      // spell ends, the target floats gently to the ground." The landing is
+      // `releaseCasting`'s, so a casting that is over the moment it resolves
+      // would leave a creature in the air with nothing that could ever bring
+      // it down — the same defect a Feather Fall with no duration is, arriving
+      // through a rider rather than through an effect kind.
+      //
+      // A push carries no such debt and is deliberately not here: a shove is
+      // finished the instant it lands, and Thunderwave is Instantaneous.
+      const moved = (effect as { readonly movement?: { readonly kind?: unknown } }).movement;
+      if (typeof moved === 'object' && moved !== null && moved.kind === 'lift') {
+        return 'a creature this casting is holding in the air';
+      }
       for (const rider of conditionRiderOf(withReadableRiders(effect))) {
         // Unreadable first, lifetime second. A rider that is missing, null or
         // not an object at all has no lifetime to be wrong about, and is
@@ -4962,6 +5079,7 @@ export function checkSpellDefinition(
   // Last of the structural rules, so an effect's own problems are reported at
   // its own path first and this cross-check reads as the cross-check it is.
   checkGrantLifetimes(definition, lasts, found);
+  checkLiftAgainstDeadlines(definition, found);
 
   /**
    * The tracked rule, and the reason it belongs here rather than in a test.

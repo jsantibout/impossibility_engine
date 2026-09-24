@@ -110,9 +110,32 @@ const run = (
   command: (s: GameState) => Result<readonly GameEvent[]>,
 ): readonly GameEvent[] => [...log, ...unwrap(command(fold('seed', log)), 'command')];
 
+/**
+ * A room for the wind to blow down.
+ *
+ * Gust of Wind fills a Line and a Line has to be somewhere, so the fan is
+ * waved in a scene like any other area spell. Nobody stands in the Line: what
+ * this file is about is the fan, and a creature being thrown by it is
+ * `movement-rider.test.ts`'s.
+ */
+const ROOM: readonly GameEvent[] = [
+  { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+  { type: 'landmark-added', name: 'the courtyard', at: { x: 100, y: 100, z: 0 } },
+  {
+    type: 'creature-placed',
+    id: WIELDER,
+    placement: { from: { landmark: 'the courtyard' }, feet: 0 },
+  },
+  {
+    type: 'creature-placed',
+    id: OTHER,
+    placement: { from: { creature: WIELDER }, feet: 100, bearing: 270 },
+  },
+];
+
 /** Owned and in hand, which is the whole of SRD's "while holding this fan". */
 const holding = (item = FAN): readonly GameEvent[] => {
-  const base = run([added(WIELDER), added(OTHER)], (s) =>
+  const base = run([added(WIELDER), added(OTHER), ...ROOM], (s) =>
     awardItems(s, supply('the-hoard'), WIELDER, [{ id: item }], 'the hoard'),
   );
   return run(base, (s) => equipItem(s, CONTENT, WIELDER, item));
@@ -142,6 +165,8 @@ const wave = (log: readonly GameEvent[], seed: string, item = FAN, commandId?: s
     {
       spellId: 'gust-of-wind',
       targets: [],
+      // Due east, away from the only other creature in the courtyard.
+      towards: { x: 200, y: 100, z: 0 },
       item,
       ...(commandId === undefined ? {} : { commandId }),
     },

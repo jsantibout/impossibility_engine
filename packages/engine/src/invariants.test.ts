@@ -2261,7 +2261,14 @@ const GUARDED: readonly Guarded[] = [
     name: 'resolveSpell (a use of an item that fails)',
     log: TORN_NEXT,
     run: (s, commandId) =>
-      resolveSpell(s, A, { spellId: 'gust-of-wind', targets: [], item: 'wind-fan', commandId }, supply()),
+      resolveSpell(
+        s,
+        A,
+        // The wind blows down a Line, so it needs a direction like any other
+        // aimed area — which is the spell's own shape and not the fan's.
+        { spellId: 'gust-of-wind', targets: [], towards: { x: 200, y: 100, z: 0 }, item: 'wind-fan', commandId },
+        supply(),
+      ),
   },
   {
     name: 'resolveEffectCheck',

@@ -87,6 +87,73 @@ export function shoveAwayFrom(
 }
 
 /**
+ * Raise a creature straight up, and record whose magic is holding it there.
+ *
+ * SRD *Levitate*: "rises vertically up to 20 feet and **remains suspended
+ * there for the duration**."
+ *
+ * **Its siblings' arithmetic with the one axis a bearing cannot name.** A push
+ * projects along a compass bearing; there is no bearing that means *up*, so
+ * the lattice's own elevation is what a lift moves and `Placement.elevation`
+ * is the field that carries it — the same one `resolveFall` uses to drop a
+ * creature, with the sign reversed. Zero feet along the ground, because
+ * nothing moved the creature sideways.
+ *
+ * **Two events, because the lift is two facts.** The rise is an ordinary
+ * `creature-moved` and belongs to the scene; the *hold* is a grant on the
+ * creature under the casting's own source, and it is the half that makes the
+ * ending possible — SRD gives this rider an undoing no other has, and
+ * `releaseCasting` performs it off exactly this grant. A rise with no grant
+ * beside it would be a creature nothing could ever bring down.
+ *
+ * **`checkRise` is not asked and must not be**, which is the rule it already
+ * writes down: a creature ends a move higher than it began only if it flew,
+ * climbed or jumped — *unless something else put it there*, and forced
+ * movement is exempt by name. Being held up by somebody's magic is the
+ * clearest case of the exemption there is.
+ *
+ * A lift that cannot happen is reported rather than refused, exactly as a
+ * shove is and for the same reason: by the time a rider runs the slot is spent
+ * and the save is rolled, so a ceiling is a gap in the casting's own
+ * `unverified` rather than an event the fold could not apply.
+ */
+export function lift(
+  state: GameState,
+  target: CharacterId,
+  movement: ForcedMovement,
+  /** What the casting files the hold under: `Levitate#cast:3`. */
+  source: string,
+  /** What the log calls the thing that lifted them: the spell's name. */
+  name: string,
+): PushOutcome {
+  const scene = state.scene;
+  if (scene === null) {
+    return {
+      events: [],
+      unverified: [`nobody has said where anybody is standing, so ${target} was not lifted`],
+    };
+  }
+
+  const placement = { from: { creature: target }, feet: 0, elevation: movement.feet } as const;
+
+  // Forced, for the reason every other movement in this module is: nobody
+  // spent a Speed on it, it provokes nothing, and the space it ends in is not
+  // the creature's to willingly choose.
+  const raised = moveCreature(scene, target, placement, { forced: true });
+  if (!raised.ok) {
+    return { events: [], unverified: [`${name}: ${target} could not be lifted: ${raised.reason}`] };
+  }
+
+  return {
+    events: [
+      { type: 'creature-moved', id: target, placement, forced: true },
+      { type: 'creature-lifted', id: target, lift: { source } },
+    ],
+    unverified: [],
+  };
+}
+
+/**
  * Pull a creature straight toward the creature that caused it.
  *
  * SRD Merrow: "the merrow pulls the target up to 15 feet straight toward

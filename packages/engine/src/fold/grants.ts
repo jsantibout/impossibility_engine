@@ -42,6 +42,7 @@ export const GRANTS_EVENTS = [
   'sense-granted',
   'damage-reduction-granted',
   'fall-ward-granted',
+  'creature-lifted',
   'jump-allowance-granted',
   'jump-allowance-spent',
   'attack-rider-granted',
@@ -229,6 +230,20 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.ward,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { fallWards }, creature);
+    }
+
+    // SRD *Levitate*: "remains suspended there for the duration." The source
+    // alone is the identity, as it is for the ward above: a second Levitate on
+    // one creature is a second casting rather than a second entry under the
+    // first, and two castings hold a creature up exactly as one does — what
+    // the second buys is that the creature stays up when the first ends.
+    case 'creature-lifted': {
+      const creature = creatureOf(state, event, event.id);
+      const lifts = [
+        ...creature.lifts.filter((held) => held.source !== event.lift.source),
+        event.lift,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { lifts }, creature);
     }
 
     // SRD *Jump*: "that creature can jump up to 30 feet by spending 10 feet of

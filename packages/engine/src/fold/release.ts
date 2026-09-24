@@ -6,8 +6,8 @@
  * `releaseOnTarget` is the same operation narrowed to one creature, which is
  * the whole of Dispel Magic's "one creature, object, or magical effect"
  * distinction. Beneath them is the grant enumerator: `grantsOf`,
- * `grantSourcesOf` and `withoutGrants`, the one walk over the eighteen sourced
- * grant families that five call sites used to make by hand.
+ * `grantSourcesOf` and `withoutGrants`, the one walk over every sourced grant
+ * family that five call sites used to make by hand.
  *
  * `spellOn` and `withoutTarget` are here for the same reason as each other:
  * they are the two directions of being *on* a creature. `spellOn` is the one
@@ -24,6 +24,7 @@
  */
 import type { CharacterId } from '@ie/shared';
 import { removeConditionInstance } from '../conditions.js';
+import { settleToGround } from '../positioning.js';
 import { type EffectTarget, type ScheduledDamage, type TimedEffect } from '../timers.js';
 import { castingIdOf, castingNumber, type AreaTriggerStamp, type OngoingSpell } from '../spells.js';
 
@@ -32,7 +33,7 @@ import type { CreatureState, GameState, PendingCasting } from '../state.js';
 /**
  * A grant a running effect hung on a creature, read only for what hung it.
  *
- * The eighteen families below all carry more than this — a `Bonus`, a base Armour
+ * Every family below carries more than this — a `Bonus`, a base Armour
  * Class, a `RollModifier`, a list of damage types, a change to a Speed, a die
  * on later attacks, a list of condition names, a payout at a turn boundary, a
  * rule about what a turn may be spent on —
@@ -74,7 +75,7 @@ type GrantFamily = Exclude<
 type HeldGrants = { readonly [K in GrantFamily]: readonly SourcedGrant[] };
 
 /**
- * The eighteen families as one value, and the only place the list is written.
+ * Every family as one value, and the only place the list is written.
  *
  * The annotation is a mapped type over {@link GrantFamily}, so a family
  * declared on `CreatureState` makes **this literal** a compile error naming the
@@ -101,6 +102,7 @@ const grantsOf = (creature: CreatureState): HeldGrants => ({
   senseModifiers: creature.senseModifiers,
   damageReductions: creature.damageReductions,
   fallWards: creature.fallWards,
+  lifts: creature.lifts,
   jumpAllowances: creature.jumpAllowances,
   attackRiders: creature.attackRiders,
   weaponRiders: creature.weaponRiders,
@@ -122,14 +124,14 @@ const countGrants = (held: Record<string, readonly SourcedGrant[]>): number =>
 /**
  * Every source that has hung a grant on this creature.
  *
- * One enumerator over the eighteen families — the bonuses Bless adds, the Armour
+ * One enumerator over every family — the bonuses Bless adds, the Armour
  * Class Mage Armor supplies, the Advantage Blur grants, the Resistance
  * Stoneskin grants, the ten feet Longstrider adds, the die Divine Favor hangs
  * on later attacks, the d8 Shillelagh puts in a Quarterstaff, the Charmed Mind
  * Blank refuses, the Temporary Hit Points Heroism pays each turn, the Action
  * Stinking Cloud forbids, the die a Bard put in somebody's hand — so a reader
  * asking "is this casting still holding anything here" asks it once rather
- * than eighteen times.
+ * than once per family.
  *
  * **Sorted and deduplicated**, so the answer is fixed however the families are
  * visited and whatever order the grants arrived in; serialised state reaches
@@ -158,7 +160,7 @@ export function grantSourcesOf(creature: CreatureState): readonly string[] {
 }
 
 /**
- * Every grant whose source the predicate names, taken off all eighteen families.
+ * Every grant whose source the predicate names, taken off every family.
  *
  * The one removal. The three callers differ only in which sources they name —
  * `releaseCasting` and `releaseOnTarget` match the casting id inside the
@@ -207,12 +209,27 @@ export function releaseCasting(
 ): GameState {
   const creatures: Record<string, CreatureState> = {};
   let changed = false;
+  let scene = state.scene;
 
   for (const key of Object.keys(state.creatures)) {
     const creature = state.creatures[key];
     if (creature === undefined) continue;
 
     let updated = creature;
+
+    // **The one grant whose release the book gives a consequence to.** SRD
+    // *Levitate*: "When the spell ends, the target floats gently to the ground
+    // if it is still aloft." Read *before* the grant goes, because the grant is
+    // the whole of what says this casting is what was holding them up.
+    //
+    // Derived and written nowhere, exactly as the endings around it are: a
+    // deadline arriving is nobody's decision, and a `creature-moved` the fold
+    // invented would be an event no command issued. `landsWhenReleased` is the
+    // one reader of the rule, so the two doors out of a casting cannot come to
+    // disagree about who is set down.
+    if (scene !== null && landsWhenReleased(creature, (source) => castingIdOf(source) === castingId)) {
+      scene = settleToGround(scene, creature.id);
+    }
 
     const doomed = creature.conditions.instances.filter(
       (instance) => castingIdOf(instance.source) === castingId,
@@ -327,6 +344,8 @@ export function releaseCasting(
     changed = true;
   }
 
+  if (scene !== state.scene) changed = true;
+
   return changed
     ? {
         ...state,
@@ -338,8 +357,33 @@ export function releaseCasting(
         owedAreaEffects,
         areaTriggers,
         pendingCastings,
+        scene,
       }
     : state;
+}
+
+/**
+ * Whether ending what the predicate names leaves this creature with nothing
+ * holding it up.
+ *
+ * SRD *Levitate*'s "if it is still aloft", asked as the only question the fold
+ * can answer about it: the lattice holds a height and the creature holds the
+ * list of castings suspending it, and the landing happens when the **last** of
+ * them lets go. Two Levitates on one creature is not a contradiction and the
+ * first ending must not drop it — which is the whole reason `lifts` is a list
+ * like every other grant family rather than a single hold.
+ *
+ * A creature the casting never lifted answers `false` and is left where it is,
+ * so a Bless ending does not set down a flier, and a Fly Speed is not this
+ * rule's business at all: nothing granted it through this door, nothing here
+ * takes it away, and a creature flying under its own power is still flying.
+ */
+function landsWhenReleased(
+  creature: CreatureState,
+  doomed: (source: string) => boolean,
+): boolean {
+  const held = creature.lifts;
+  return held.some((lift) => doomed(lift.source)) && held.every((lift) => doomed(lift.source));
 }
 
 /**
@@ -506,9 +550,22 @@ export function releaseOnTarget(
     if (!mine) timers[key] = timer;
   }
 
+  // **And the same landing the other door performs**, asked of the one
+  // creature this call is about. SRD *Levitate*'s "When the spell ends, the
+  // target floats gently to the ground" is as true of a Dispel Magic aimed at
+  // the levitating creature as it is of the deadline running out, and a door
+  // that lifted the grant without setting the creature down would leave it
+  // hanging in the air with nothing holding it there. Read before the grant
+  // goes, for the reason `releaseCasting` reads it before the grant goes.
+  const scene =
+    base.scene !== null && landsWhenReleased(creature, (source) => castingIdOf(source) === castingId)
+      ? settleToGround(base.scene, targetId)
+      : base.scene;
+
   return {
     ...base,
     timers,
+    ...(scene === base.scene ? {} : { scene }),
     // **The grants go too.** The bonuses were computed and then dropped on the
     // floor here from the day this function was written, and nothing noticed
     // because every spell that released on one target hung a *condition* —
@@ -542,6 +599,22 @@ export function releaseOnTarget(
  *
  * Nothing here touches the casting itself. A casting whose grant has expired is
  * still running, still concentrated on, and still in `ongoing`.
+ *
+ * **It performs no landing, and it is the validator that keeps a lift away
+ * from it.** A `grants` timer is keyed by the casting's bare source and the
+ * creature, and every grant that casting hung carries that same string — a
+ * `GrantedLift` included. So a deadline arriving here would take the lift off
+ * and leave the creature in the air with nothing holding it up, because this
+ * function has a creature and no scene to set anybody down on. Nothing
+ * schedules such a timer unless some `modifiers` rider of the same casting
+ * names its own `lasts`, and `checkLiftAgainstDeadlines` refuses that anywhere
+ * in a definition that also lifts (`lift_beside_a_shorter_grant`).
+ *
+ * Said out loud because the omission would otherwise be invisible, and because
+ * the day an SRD sentence wants the pair it is this function that has to grow
+ * the landing — which means taking a scene, which means it stops being a
+ * function about one creature. That is the change, and it is why the refusal
+ * is at authoring instead.
  */
 export function releaseGrants(creature: CreatureState, source: string): CreatureState {
   return withoutGrants(creature, (held) => held === source);

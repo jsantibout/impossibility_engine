@@ -669,6 +669,24 @@ export interface CreatureState {
    */
   readonly fallWards: readonly GrantedFallWard[];
   /**
+   * The castings holding this creature off the ground — see {@link GrantedLift}.
+   *
+   * SRD *Levitate*: "rises vertically up to 20 feet and remains suspended
+   * there for the duration."
+   *
+   * Linked by the source like every other grant, so `releaseCasting`,
+   * `releaseOnTarget` and a `grants` deadline all end it through the door that
+   * already existed — and ending it is not merely dropping the entry, because
+   * this is the one grant whose removal the book gives a consequence to: "the
+   * target floats gently to the ground if it is still aloft", which
+   * `releaseCasting` performs on the lattice in the same derived pass.
+   *
+   * **A list, not a single hold**, because every grant family here is one and
+   * two castings holding one creature up is not a contradiction: the ground is
+   * where it goes when the **last** of them lets go.
+   */
+  readonly lifts: readonly GrantedLift[];
+  /**
    * Jumps a running effect has bought this creature, and what each costs.
    *
    * SRD *Jump*: "Once on each of its turns until the spell ends, that creature
@@ -1009,6 +1027,37 @@ export interface FallMoment {
  */
 export interface GrantedFallWard {
   /** The casting (`Feather Fall#cast:3`) that hung it. */
+  readonly source: string;
+}
+
+/**
+ * A casting holding a creature off the ground.
+ *
+ * SRD *Levitate*: "rises vertically up to 20 feet and **remains suspended
+ * there for the duration** ... When the spell ends, the target floats gently
+ * to the ground if it is still aloft."
+ *
+ * **One field, because the whole of what this records is that somebody's magic
+ * is what is holding the creature up.** How high they are is not here and must
+ * not be: the lattice already holds it, the caster may change it, and a second
+ * copy of an altitude is a second answer to where the creature is. What the
+ * grant buys is the *link* — whose casting, so that `releaseCasting` knows
+ * whom to set down and `spellOn` can say the spell is on them.
+ *
+ * **It is the clause `flightLost` names and cannot read.** SRD's Flying rules
+ * except a creature "being held aloft by magic" from falling when its Speed
+ * drops to 0, and that docstring says in as many words that nothing records
+ * the fact. This is the record; a creature with no Fly Speed was never in that
+ * rule's way to begin with, which is why Levitate needs nothing else.
+ *
+ * Declared here beside {@link GrantedFallWard} and {@link GrantedJump} for
+ * their reason: what holds a creature up, what it does about coming down and
+ * what it may leap over are one family, held in this file and read in
+ * `commands/movement.ts` and `fold/release.ts`, and none of the three is a
+ * fact about a sheet.
+ */
+export interface GrantedLift {
+  /** The casting (`Levitate#cast:3`) that is holding them there. */
   readonly source: string;
 }
 

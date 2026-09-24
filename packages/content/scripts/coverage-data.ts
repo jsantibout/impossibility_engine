@@ -230,6 +230,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'greater-invisibility',
   'guidance',
   'guiding-bolt',
+  // `movement-rider.test.ts` (engine): the Strength save, the fifteen feet
+  // down the Line for a creature that fails it and nothing for one that makes
+  // it, and no damage to anybody either way. `metamagic.test.ts` spares a
+  // named ally the save with Careful Spell.
+  'gust-of-wind',
   'harm',
   'healing-word',
   'heroism',
@@ -246,6 +251,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'insect-plague',
   'invisibility',
   'lesser-restoration',
+  // `movement-rider.test.ts` (engine): the Constitution save, twenty feet of
+  // air for a creature that fails it, the hold recorded under the casting's
+  // own source, and the gentle landing the fold performs when the casting
+  // ends. `metamagic.test.ts` rolls the save at Disadvantage with Heightened
+  // Spell.
+  'levitate',
   // `sight.test.ts` (engine): carried by its bearer and moving with them, out
   // with the hour and put out by a Darkness cast over it.
   'light',

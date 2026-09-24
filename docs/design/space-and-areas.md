@@ -76,6 +76,27 @@ leaves (reach read from the weapon in the content), and holds the move open
 provokes nobody, but still raises the area entry a Web is owed. Mounting is
 a position relation; the rider moves when the mount does.
 
+**Forced movement is a rider on a settled outcome**, never a resolver of its
+own: a `save` or an attack decides, and the movement is the consequence it
+carries, so Heightened Spell's Disadvantage and Careful Spell's sparing reach
+it without knowing it exists. Two performers — a **push** along the bearing
+from the caster, SRD Thunderwave and Gust of Wind; and a **lift** straight up,
+SRD Levitate, on the one axis a bearing cannot name. Neither spends a Speed,
+charges Difficult Terrain or provokes anything, and neither refuses: a shove
+into a wall or a lift into a ceiling is reported on the casting's `unverified`,
+because by the time a rider runs the slot is spent.
+
+A lift is the one movement a casting **keeps**. "Remains suspended there for
+the duration" is not a Speed and not a movement mode — it is the elevation the
+lattice already holds, plus a `GrantedLift` saying whose magic is holding the
+creature there — so `flightLost`'s "held aloft by magic" clause finally has a
+record, and a creature with no Fly Speed was never in that rule's way anyway.
+SRD's other half is the one ending in this engine that undoes a position:
+"the target floats gently to the ground if it is still aloft" is performed by
+`releaseCasting` and `releaseOnTarget` off that grant, derived and written
+nowhere, exactly as a deadline arriving and a broken Concentration are. It is
+not a fall: nothing is declared, nothing is rolled and nobody lands Prone.
+
 ## Combat
 
 Initiative order, the action budget (action, bonus action, reaction,

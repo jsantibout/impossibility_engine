@@ -156,9 +156,19 @@ const improvementSlots = (classId: string, level: number): readonly string[] =>
  * of one)" here counts off is **+3**. That number is the subject of two of
  * the six, so it is stated rather than left to be read off a sheet.
  */
-const sorcerer = (metamagic: readonly string[]): CharacterChoices => {
+const sorcerer = (
+  metamagic: readonly string[],
+  /**
+   * Spells this test needs prepared beside the four every test here uses.
+   *
+   * The four are what the six options are demonstrated on; a test about an
+   * option reaching a *different* effect kind needs its own spell prepared,
+   * and asking for it by name is cheaper than a second character.
+   */
+  extra: readonly string[] = [],
+): CharacterChoices => {
   const classSkills = ['arcana', 'insight'];
-  const needs = ['fireball', 'charm-person', 'chromatic-orb', 'magic-missile'];
+  const needs = ['fireball', 'charm-person', 'chromatic-orb', 'magic-missile', ...extra];
   return {
     name: 'Vashti',
     classId: 'sorcerer',
@@ -428,6 +438,72 @@ describe('Heightened Spell puts Disadvantage on one target’s save', () => {
       saveModes: { [TARGET]: 'disadvantage' },
     } as Request);
     expect(isErr(refused) && refused.code).toBe('option_does_not_reach');
+  });
+});
+
+// — the two options over a save whose whole outcome is a movement ————————
+//
+// SRD Levitate and SRD Gust of Wind gate a movement on a saving throw and
+// deal no damage at all, which is a shape neither option had ever been asked
+// about. **That they reach it is the argument for making the lift a rider**:
+// a movement resolver with a saving throw inside it would have been a second
+// place a save is rolled, and neither Heightened's mode nor Careful's sparing
+// would have found it there.
+
+describe('the two save options reach a failure whose whole content is a movement', () => {
+  /** SRD Levitate: "An unwilling creature that succeeds ... is unaffected." */
+  it('rolls a Heightened Levitate’s Constitution save at Disadvantage', () => {
+    const { events } = cast(table(sorcerer(['Heightened Spell', 'Subtle Spell'], ['levitate'])), {
+      spellId: 'levitate',
+      targets: [TARGET],
+      slotLevel: 2,
+      usingOptions: ['heightened-spell'],
+      saveModes: { [TARGET]: 'disadvantage' },
+    } as Request);
+
+    const saves = events.flatMap((event) =>
+      event.type === 'roll-recorded' && event.label.includes('save')
+        ? [{ who: event.who, modes: event.modes ?? [] }]
+        : [],
+    );
+    expect(saves).toHaveLength(1);
+    expect(saves[0]!.who).toBe(TARGET);
+    expect(saves[0]!.modes).toEqual([{ source: 'Heightened Spell', mode: 'disadvantage' }]);
+  });
+
+  /**
+   * SRD Gust of Wind: "Each creature in the Line must succeed on a Strength
+   * saving throw or be pushed 15 feet away from you."
+   *
+   * Careful Spell spares a chosen creature the save itself, so the wind blows
+   * past an ally and throws whoever else was standing in it.
+   */
+  it('spares a named ally the Strength save a Careful Gust of Wind forces', () => {
+    const log = table(sorcerer(['Careful Spell', 'Subtle Spell'], ['gust-of-wind']));
+    const blown = (over: Record<string, unknown> = {}) =>
+      cast(log, {
+        spellId: 'gust-of-wind',
+        targets: [],
+        towards: BLAST,
+        slotLevel: 2,
+        ...over,
+      } as Request);
+
+    const caught = blown().outcome.outcomes.map((one) => one.target);
+    expect(caught.length).toBeGreaterThan(1);
+    expect(caught).toContain(TARGET);
+
+    const spared = blown({ usingOptions: ['careful-spell'], unaffected: [TARGET] });
+    expect(spared.outcome.outcomes.map((one) => one.target)).not.toContain(TARGET);
+    const asked = spared.events.flatMap((event) =>
+      event.type === 'roll-recorded' && event.label.includes('save') ? [event.who] : [],
+    );
+    expect(asked).not.toContain(TARGET);
+    expect(asked.length).toBeGreaterThan(0);
+    // And nobody the wind spared was moved by it.
+    expect(
+      spared.events.some((event) => event.type === 'creature-moved' && event.id === TARGET),
+    ).toBe(false);
   });
 });
 

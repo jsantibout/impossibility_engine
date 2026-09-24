@@ -227,7 +227,7 @@ export const MISSING_SHAPES = {
   falling:
     '`docs/design/casting.md` lists the one Reaction trigger left after Counterspell: "Feather Fall | a creature falling | **falling, which is not modelled at all**". **Two of its three halves are built now.** The trigger is a declared fact, `fall-declared` beside `lastDamage`, and the Reaction window derived from it is what let Feather Fall be written; and the landing is a rule — `resolveFall` throws 1d6 Bludgeoning per ten feet to a maximum of 20d6 against a height the table states, and lands the faller Prone unless the drop cost nothing, through the same damage path a Fire Bolt takes. What is still missing is the half both claimants here actually need, which is **a reduction**: Feather Fall takes the fall damage away outright and Slow Fall subtracts five times the Monk level from it, and a number hung on a creature that one damage roll reads is a grant the format does not have. `FeatureReactionWindow` still excludes `creature-falling` for exactly that reason, and the descent rate is a separate absence — nothing measures a descent, so the sixty feet a round has nothing to be measured against.',
   'forced-movement-a-spell-causes':
-    '**The rider half is built and the standalone half is not.** `OutcomeRiders` gained a fourth slot — a shove a settled outcome carries, ten feet straight away from the caster, spending no Speed and provoking nobody — and SRD Thunderwave writes it, which is what closed the recurring finding `docs/design/space-and-areas.md` recorded: that `moveCreature` took `forced: true` and no `SpellEffect` reached it. A rider is a leaf, and every claimant left here is one that is **not**: each of the three needs a push that is the whole of an outcome rather than something riding one, gated by a saving throw the push is the only consequence of. `save` requires a condition and has never carried the last two rider slots, so none of them can say it — Levitate’s lift, Gust of Wind’s fifteen feet and the Forceful Hand’s five are the same missing arm of the union, and every one of them is blocked on a second shape besides.',
+    '**The rider is built on all three hosts now, and one claimant is left.** `OutcomeRiders.movement` began as a shove a settled outcome carries — ten feet straight away from the caster, spending no Speed and provoking nobody, which SRD Thunderwave writes and which closed the recurring finding `docs/design/space-and-areas.md` recorded, that `moveCreature` took `forced: true` and no `SpellEffect` reached it — and it has since grown the two things the rest of the book asked for: a `kind`, so that SRD Levitate’s "rises **vertically** up to 20 feet" is performed on the one axis a bearing cannot name and the casting holds the creature there until it ends, and a **third host**, because `save` keeps its flat spelling and SRD Gust of Wind’s failure deals no damage at all. Both of those spells are executed. What is left is the Forceful Hand’s "the hand pushes the target up to 5 feet", and it is not this arm: the distance is "5 feet plus five times your spellcasting ability modifier", and `ForcedMovement.feet` is a printed number with no scaling beside it — the same `DiceScaling` question one field along, on a rider that rolls nothing. It is blocked on `a-stat-block-created-mid-fight` besides.',
   'an-activation-that-resolves-an-area':
     '`docs/design/casting.md`: "An activation that resolves an area at a point chosen now | Call Lightning, Storm of Vengeance". `activateSpell` resolves an attack at a named target and moves an area along a stated route; resolving a **fresh** area in a direction chosen now is neither.',
   'an-activation-that-forces-a-saving-throw':
@@ -241,7 +241,7 @@ export const MISSING_SHAPES = {
   'a-condition-benefit-an-effect-takes-away':
     'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets. **And Mind Spike is finished too**: the further shape it needed was the denial narrowed to the caster alone, which is this shape meeting the-effects-source-as-a-participant, and `DeniedBenefit.against` is it — an id bound from a role at the cast, read by `deniedBenefitsOf` off the creature on the other side of the question, and absent for a roll with no second participant, so the Initiative Advantage the spell does not take away goes on standing. A blanket denial would have been wrong for it rather than merely coarse. What is left is Shining Smite, which hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target — and needs `attack-damage`, the cast-on-hit host, to carry riders at all.',
   'a-random-outcome-that-is-not-a-d20':
-    '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **One consumer left the count without the gap closing, and it is recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count.',
+    '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **Two consumers have now left the count without the gap closing, and both are recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count. **Gust of Wind left the same way and for the same reason**: it was tracked and filed here for the 50 percent chance of snuffing a lantern, the push and both saving throws are executed now, and the clause went with it into that spell’s own `unmodelled` list. So the census fell by one on a day nothing was built, which is what this paragraph exists to say out loud.',
   'a-rest-an-effect-gives-or-denies':
     'a rest is a span the engine measures and its payout is `endRest`’s — `docs/design/time-and-turns.md`, "**A rest is a span, not a button**". No effect confers the benefits of one without the hours, and none takes them away from a rest that was completed.',
   'damage-with-neither-an-attack-roll-nor-a-save':
@@ -923,6 +923,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The target can’t talk or manipulate objects, and any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with." Forbidding a named action is `ActionRule`’s `forbids` and four definitions write it; what this sentence forbids is **talking** and **handling an object**, and no command takes either — the second is the Utilize action, which `NAMED_ACTIONS` leaves out because no spender could be told apart as having taken one. Gate G1 read it as mis-filed for that reason, and the gap it names is the feature book’s.',
     },
   ],
+  'gust-of-wind': [
+    {
+      clause: 'the Bonus Action that changes the direction the Line blasts in on a later turn',
+      why: 'an-activation-that-resolves-an-area',
+      note: 'SRD: "As a Bonus Action on your later turns, you can change the direction in which the Line blasts from you." The push and both saving throws are executed and this is the clause left. An area is fixed where the casting put it, and `activateSpell` resolves an attack at a named target or walks an area along a stated route — a Line re-aimed from the caster is a **fresh** area in a direction chosen now, which is the sentence SRD Sunbeam and Call Lightning wait on too.',
+    },
+    {
+      clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
+      why: 'difficult-terrain-an-area-creates',
+      note: 'a doubled cost is Difficult Terrain by another name and an area may write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you", which is a fact about the mover. That is the directional arm of this shape and `areaTerrain` does not reach it.',
+    },
+  ],
   harm: [
     {
       clause: 'Hit Point maximum reduction',
@@ -1019,6 +1031,23 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // did, arriving in the executed population with **one** clause left — and it
   // is the table's rather than a shape's, which is the honest end of a
   // prediction that was wrong for two tranches.
+  levitate: [
+    {
+      clause: 'the save is asked of every target',
+      why: 'a-fact-only-the-table-can-declare',
+      note: 'SRD asks the Constitution saving throw of an **unwilling** creature only — "An unwilling creature that succeeds on a Constitution saving throw is unaffected" — so a willing ally is lifted with no roll at all. Whether a creature consents is fiction the engine does not hold and must not derive: `side` is a different question, a Charmed ally is on the party’s side and an unfought enemy is not, and no other spell’s consent clause has a die behind it for this one to borrow from. What is missing is the word on the request that names who consents.',
+    },
+    {
+      clause: 'what the levitating creature may do with its own Speed',
+      why: 'movement-modes',
+      note: 'SRD: "The target can move only by pushing or pulling against a fixed object or surface within reach" — "which allows it to move as if it were climbing". The climbing is the shape: the engine distinguishes no Climb Speed and charges no surcharge for one, so there is nothing to narrow a levitating creature’s movement **to**. What the lift itself opened is the other side of the same absence — `checkRise` refuses a creature ending a move higher than it began and asks nothing of one already off the ground, so a creature the spell is holding may walk sideways through the air on its ordinary Speed and descend for free. Both are one missing distinction rather than two.',
+    },
+    {
+      clause: 'moving the target afterwards is the DM’s',
+      why: 'an-activation-that-forces-a-saving-throw',
+      note: 'SRD: "You can change the target’s altitude by up to 20 feet in either direction on your turn." An activation resolves effects at a named target or walks the casting’s own **area** along a route; moving the creature the casting is *holding* is neither, and no activation shape reaches a target’s position — which is the same later-action gap this shape names, read from the movement side rather than from a saving throw.',
+    },
+  ],
   light: [
     {
       clause: 'the spell targets an object, and objects are not modelled',
@@ -1592,14 +1621,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the 5 feet a creature spends stepping through is charged by the DM, because the far plant is at any distance — off the scene entirely — and there is no destination to move anybody to.',
     },
   ],
-  levitate: [
-    {
-      marker: 'saving-throw',
-      clause: 'An unwilling creature that succeeds on a Constitution saving throw is unaffected',
-      why: 'forced-movement-a-spell-causes',
-      note: 'the save is written as the gate on an outcome, and the whole outcome here is the lift: rising 20 feet and hanging there is forced movement, and no SpellEffect reaches the one function that performs it. A save gating nothing would be a die thrown for no reason.',
-    },
-  ],
   scrying: [
     {
       marker: 'saving-throw',
@@ -1710,26 +1731,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The target has the Prone condition and then ends its turn',
       why: 'a-creature-somebody-else-is-playing',
       note: 'the Prone half is an ordinary `condition` effect, and the clause beside it is the nearest of the five to sayable: a turn ended is every slot of it gone, which a spell may now spend. What still refuses it is that this is one option of five a creature **chose to obey**, so writing Grovel alone would be a Command that only ever meant one word — which is the whole reason all five options are the table’s together.',
-    },
-  ],
-  'gust-of-wind': [
-    {
-      marker: 'saving-throw',
-      clause: 'be pushed 15 feet away from you in a direction following the Line',
-      why: 'forced-movement-a-spell-causes',
-      note: 'the Strength save is ordinary and the shove is not: `moveCreature` already takes `forced: true` and reports whose space is being shared, and no spell effect reaches it — so the save would gate a push nothing can perform.',
-    },
-    {
-      marker: 'movement-cost',
-      clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'a doubled cost is Difficult Terrain by another name and an area may now write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you". That is the directional arm of this shape and the writer does not reach it.',
-    },
-    {
-      marker: 'chance',
-      clause: 'has a 50 percent chance to extinguish them',
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'the generator throws any notation `parseNotation` reads and no spell effect asks it for one that is not a D20 Test, so a coin flip over a lantern has nothing to ask and nowhere for the answer to be read.',
     },
   ],
   'freedom-of-movement': [

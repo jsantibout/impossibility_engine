@@ -83,6 +83,7 @@ import type {
   CommandStamp,
   GrantedFallWard,
   GrantedJump,
+  GrantedLift,
   InventoryLine,
   PendingAttack,
   PendingCasting,
@@ -142,6 +143,7 @@ export type {
   GameState,
   GrantedFallWard,
   GrantedJump,
+  GrantedLift,
   InventoryLine,
   LastDamage,
   PendingAttack,
@@ -532,6 +534,33 @@ export type GameEvent =
       readonly type: 'fall-ward-granted';
       readonly id: CharacterId;
       readonly ward: GrantedFallWard;
+    }
+  /**
+   * A casting is holding this creature off the ground — SRD *Levitate*: "rises
+   * vertically up to 20 feet and **remains suspended there for the duration**."
+   *
+   * **Beside the `creature-moved` that raised them, rather than instead of
+   * it.** The rise itself is an ordinary forced move, because it is one: the
+   * lattice already knows how to put a creature twenty feet up and the log
+   * already has the event that says so. What this adds is the half a position
+   * cannot hold — *whose magic* is holding them there — and that is what makes
+   * the ending possible, because SRD gives the ending a consequence: "the
+   * target floats gently to the ground if it is still aloft."
+   *
+   * Two events rather than one for the reason every grant in this family is
+   * its own event: a seam owns a region of state, the rise belongs to the
+   * scene and the hold belongs to the creature, and an event that wrote both
+   * would be one reducer reaching across the partition.
+   *
+   * Ended by the source it carries, exactly as the grants above are, so there
+   * is no removal event: `releaseCasting`, `releaseOnTarget` and the `grants`
+   * timer are the doors — and the first two set the creature down on the way
+   * through, which is the one grant whose release is more than a deletion.
+   */
+  | {
+      readonly type: 'creature-lifted';
+      readonly id: CharacterId;
+      readonly lift: GrantedLift;
     }
   /**
    * A running effect buys a creature a jump, at a price the effect fixes —
