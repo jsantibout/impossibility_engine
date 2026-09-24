@@ -13,6 +13,7 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { loadContent, type Content } from './content.js';
+import { spendBonusAction, spendReaction, startCombat } from './combat.js';
 import { checkSpellDefinition, checkSpellDefinitionValue } from './spell-schema.js';
 import {
   endConcentration,
@@ -294,6 +295,65 @@ const BINDING_JAR = JSON.stringify({
 });
 
 /**
+ * SRD Slow, SRD Dretch, SRD Copper Dragon Wyrmling: "it can take either an
+ * action or a Bonus Action on its turn, not both."
+ *
+ * The fifth member, and the one none of the four above could state: every
+ * other rule here judges one slot considered alone, and a `forbids` naming
+ * both would refuse the turn entirely rather than offering a choice of one.
+ */
+const COUPLING_WORD = JSON.stringify({
+  id: 'coupling-word',
+  name: 'Coupling Word',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  durationSeconds: 60,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'poisoned',
+      modifiers: [
+        { kind: 'action', rule: { kind: 'one-of', slots: ['action', 'bonus-action'] } },
+      ],
+    },
+  ],
+});
+
+/**
+ * SRD Ice Devil's Ice Spear: "it can **move or take one action** on its turn,
+ * not both."
+ *
+ * The same rule over a different pair, which is why the member holds a list
+ * rather than the two slots the commoner sentence names. Movement is the slot
+ * nothing spends by name, so this is also the one fixture that proves the
+ * foreclosure is read off the feet a turn has already spent.
+ */
+const ROOTING_WORD = JSON.stringify({
+  id: 'rooting-word',
+  name: 'Rooting Word',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'action',
+  concentration: true,
+  durationSeconds: 60,
+  range: { kind: 'ranged', feet: 60 },
+  targets: { count: 1 },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'wis',
+      condition: 'poisoned',
+      modifiers: [{ kind: 'action', rule: { kind: 'one-of', slots: ['movement', 'action'] } }],
+    },
+  ],
+});
+
+/**
  * Something for the victim to cast as a **Bonus Action**, so that slot has a
  * spender the fixtures can actually reach.
  */
@@ -341,6 +401,8 @@ const HOMEBREW = unwrap(
       JSON.parse(STILLING_WORD),
       JSON.parse(BEFUDDLING_WORD),
       JSON.parse(BINDING_JAR),
+      JSON.parse(COUPLING_WORD),
+      JSON.parse(ROOTING_WORD),
       JSON.parse(QUICK_SPARK),
       JSON.parse(STEADY_SPARK),
     ],
@@ -355,6 +417,8 @@ const PREPARED = [
   'stilling-word',
   'befuddling-word',
   'binding-jar',
+  'coupling-word',
+  'rooting-word',
 ];
 
 const PLACED: readonly GameEvent[] = [
@@ -779,6 +843,176 @@ describe('a compulsion is a fact about what is legal, not an instruction', () =>
   });
 });
 
+// — the coupling ———————————————————————————————————————————————————————————
+
+/**
+ * "It can take either an action or a Bonus Action on its turn, not both."
+ *
+ * The fifth member, and the one the other four could not say between them.
+ * Every one of them is about a single slot considered alone — taken away,
+ * narrowed, re-priced, added to — so the pair had nowhere to be written: a
+ * `forbids` naming both slots refuses the turn entirely, and a `forbids`
+ * naming one takes away a choice the book offers.
+ *
+ * What it needed is an input the refusal did not have: whether the *other*
+ * slot has gone yet. The rules standing on a creature and the spend being
+ * attempted cannot answer that between them; the turn's own budget can, and
+ * the spenders in `combat.ts` have held it all along.
+ */
+describe('a rule may couple two slots of a turn, so the first spent forecloses the rest', () => {
+  const coupled = (log: readonly GameEvent[] = SETUP): GameState => {
+    const cast = [...log, ...castAt(log, 'coupling-word', [TARGET], 1)];
+    return fold('seed', turnOf(cast, TARGET));
+  };
+
+  const asBonusAction = (state: GameState) =>
+    resolveSpell(state, TARGET, { spellId: 'quick-spark', targets: [CASTER] }, supply('spark'));
+
+  it('refuses the Bonus Action once the action has gone', () => {
+    const state = coupled();
+    const acted = applyAll(state, must(takeDodge(state, TARGET, {})));
+
+    const refused = asBonusAction(acted);
+    expect(isErr(refused) && refused.code).toBe('slot_foreclosed');
+    if (!isErr(refused)) return;
+    // The refusal names the slot that went, the rule that coupled them and
+    // when it lifts — "you cannot do this" with no reason is the least useful
+    // true thing a rules engine can say.
+    expect(refused.reason).toContain('Coupling Word');
+    expect(refused.reason).toContain('already spent an action');
+    expect(refused.reason).toContain('the spell ends');
+  });
+
+  it('refuses the action once the Bonus Action has gone', () => {
+    const state = coupled();
+    const spent = applyAll(state, must(asBonusAction(state)).events);
+
+    const refused = takeDodge(spent, TARGET, {});
+    expect(isErr(refused) && refused.code).toBe('slot_foreclosed');
+    if (isErr(refused)) expect(refused.reason).toContain('already spent a Bonus Action');
+  });
+
+  /** Either one, on a turn that has spent neither: it is a choice, not a closure. */
+  it('permits whichever of the two is asked for first', () => {
+    expect(must(takeDodge(coupled(), TARGET, {})).some((e) => e.type === 'action-spent')).toBe(
+      true,
+    );
+    expect(
+      must(asBonusAction(coupled())).events.some((e) => e.type === 'bonus-action-spent'),
+    ).toBe(true);
+  });
+
+  /**
+   * **And it is a rule about a turn**, so the next one starts with the choice
+   * open again. A foreclosure that outlived the turn would be a `forbids` in
+   * disguise, and the budget is what keeps the two apart.
+   */
+  it('opens the choice again on the next turn', () => {
+    const cast = [...SETUP, ...castAt(SETUP, 'coupling-word', [TARGET], 1)];
+    const theirTurn = turnOf(cast, TARGET);
+    const state = fold('seed', theirTurn);
+    const acted = [...theirTurn, ...must(takeDodge(state, TARGET, {}))];
+    expect(isErr(asBonusAction(fold('seed', acted)))).toBe(true);
+
+    const later = fold('seed', turnOf(nextTurn(acted), TARGET));
+    // The rule is still standing — the minute has not run out — and the turn
+    // is fresh, so the Bonus Action is there to take.
+    expect(later.creatures[TARGET]?.actionRules ?? []).toHaveLength(1);
+    expect(must(asBonusAction(later)).events.some((e) => e.type === 'bonus-action-spent')).toBe(
+      true,
+    );
+  });
+
+  it('leaves a slot the rule does not name alone', () => {
+    const state = coupled();
+    const acted = applyAll(state, must(takeDodge(state, TARGET, {})));
+    // Movement is not in this pair, so the sentence says nothing about it.
+    const moved = resolveMove(
+      acted,
+      TARGET,
+      { placement: { from: { landmark: 'here' }, feet: 10, bearing: 180 } },
+      supply('walk'),
+    );
+    expect(isErr(moved)).toBe(false);
+  });
+
+  /**
+   * **The Reaction, at the primitive**, because no SRD line couples it and a
+   * homebrew may.
+   *
+   * The lines the book prints in this position take the Reaction away outright
+   * — SRD Dretch and SRD Copper Dragon Wyrmling both do, beside the coupling —
+   * so there is no spell to drive this through, and the branch would otherwise
+   * be a sentence nothing holds. Said where the ambiguity is smallest: on the
+   * holder's **own** turn, where the budget's Reaction flag and the turn that
+   * is running are the same fact. That is exactly what `slotSpent` says about
+   * the member, written down as a test.
+   */
+  it('forecloses the Reaction at the budget, on the holder’s own turn', () => {
+    const rules = [
+      {
+        source: 'a word#cast:9',
+        rule: { kind: 'one-of', slots: ['bonus-action', 'reaction'] },
+        label: 'A Word',
+        until: 'the spell ends',
+      },
+    ] as const;
+    const fight = must(startCombat([{ id: TARGET, initiative: 20, speed: 30 }]));
+
+    // Either, on a turn that has spent neither.
+    expect(isErr(spendReaction(fight, TARGET, undefined, { rules: [...rules] }))).toBe(false);
+
+    const spent = must(spendBonusAction(fight, TARGET, undefined, { rules: [...rules] }));
+    const refused = spendReaction(spent, TARGET, undefined, { rules: [...rules] });
+    expect(isErr(refused) && refused.code).toBe('slot_foreclosed');
+  });
+
+  /**
+   * SRD Ice Devil: "it can move or take one action on its turn, not both."
+   *
+   * The same rule over movement, which is the slot nothing spends by name —
+   * so the question the budget is asked is "have any feet gone yet", and the
+   * move command asks it before it spends exactly as the action commands do.
+   */
+  describe('the same rule over movement and the action', () => {
+    const rooted = (): GameState => {
+      const cast = [...SETUP, ...castAt(SETUP, 'rooting-word', [TARGET], 1)];
+      return fold('seed', turnOf(cast, TARGET));
+    };
+
+    const walk = (state: GameState) =>
+      resolveMove(
+        state,
+        TARGET,
+        { placement: { from: { landmark: 'here' }, feet: 10, bearing: 180 } },
+        supply('walk'),
+      );
+
+    it('refuses the move after the action', () => {
+      const state = rooted();
+      const acted = applyAll(state, must(takeDodge(state, TARGET, {})));
+      const refused = walk(acted);
+      expect(isErr(refused) && refused.code).toBe('slot_foreclosed');
+      if (isErr(refused)) expect(refused.reason).toContain('Rooting Word');
+    });
+
+    it('refuses the action after the move', () => {
+      const state = rooted();
+      const walked = applyAll(state, must(walk(state)).events);
+      expect(walked.combat?.budgets[TARGET]?.movementSpent).toBeGreaterThan(0);
+
+      const refused = takeDodge(walked, TARGET, {});
+      expect(isErr(refused) && refused.code).toBe('slot_foreclosed');
+      if (isErr(refused)) expect(refused.reason).toContain('already spent movement');
+    });
+
+    it('permits either on a turn that has spent neither', () => {
+      expect(isErr(walk(rooted()))).toBe(false);
+      expect(isErr(takeDodge(rooted(), TARGET, {}))).toBe(false);
+    });
+  });
+});
+
 // — the allowance ——————————————————————————————————————————————————————————
 
 describe('a spell may widen what a turn permits as well as narrow it', () => {
@@ -915,6 +1149,38 @@ describe('the validator holds the vocabulary', () => {
     expect(
       bad({ kind: 'action-rule', rule: { kind: 'allows', action: 'disengage', from } }),
     ).toContain('bad_action_rule');
+  });
+
+  /**
+   * The coupling's own guards, and both arms say what the sentence lacks:
+   * one slot is not a pair to choose between, and the same slot twice is a
+   * rule that forecloses itself the instant it is read.
+   */
+  it('refuses a coupling of fewer than two slots', () => {
+    expect(bad({ kind: 'action-rule', rule: { kind: 'one-of', slots: ['action'] } })).toContain(
+      'bad_action_rule',
+    );
+    expect(bad({ kind: 'action-rule', rule: { kind: 'one-of', slots: [] } })).toContain(
+      'bad_action_rule',
+    );
+  });
+
+  it('refuses a coupling that names one slot twice', () => {
+    expect(
+      bad({ kind: 'action-rule', rule: { kind: 'one-of', slots: ['action', 'action'] } }),
+    ).toContain('bad_action_rule');
+  });
+
+  it('refuses a coupling of a slot the action economy does not have', () => {
+    expect(
+      bad({ kind: 'action-rule', rule: { kind: 'one-of', slots: ['action', 'ki'] } }),
+    ).toContain('bad_action_rule');
+  });
+
+  it('accepts the two couplings the fixtures above are written with', () => {
+    for (const json of [COUPLING_WORD, ROOTING_WORD]) {
+      expect(checkSpellDefinition(JSON.parse(json))).toEqual([]);
+    }
   });
 
   it('refuses a slot narrowed to a few when nothing is ever named in it', () => {

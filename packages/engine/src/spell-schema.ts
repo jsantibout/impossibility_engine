@@ -1454,6 +1454,34 @@ export function checkActionRule(
     return;
   }
 
+  if (rule.kind === 'one-of') {
+    if (!Array.isArray(rule.slots)) {
+      bad('the slots a rule couples to one another are a list');
+      return;
+    }
+    const slots = strangers(rule.slots, SLOT_NAMES);
+    if (slots.length > 0) {
+      bad(noSuchSlot(slots.join('", "')));
+      return;
+    }
+    // **A choice needs something to choose between.** One slot forecloses
+    // nothing but itself, which is what `forbids` says in fewer words, and a
+    // list of none says nothing at all — the same complaint a `forbids`
+    // naming nothing gets, for the same reason.
+    if (rule.slots.length < 2) {
+      bad(
+        'a rule that couples slots names at least two of them; one slot on its own forecloses nothing, which is what forbidding it says in fewer words',
+      );
+      return;
+    }
+    // And the same slot twice is a rule that closes the instant it is read:
+    // the first spend of it would foreclose the very slot it was spent on.
+    if (new Set(rule.slots as readonly string[]).size !== rule.slots.length) {
+      bad('a rule that names the same slot twice would foreclose the slot it was just spent on; say each one once');
+    }
+    return;
+  }
+
   if (rule.kind === 'grants') {
     // **The moment is not optional and has no default**, because the wrong one
     // is silent either way: a per-turn Expeditious Retreat is a free Dash
@@ -1489,7 +1517,7 @@ export function checkActionRule(
   }
 
   bad(
-    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, or grants`,
+    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, grants, or couples one of several slots`,
   );
 }
 
