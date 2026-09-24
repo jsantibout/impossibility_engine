@@ -9,7 +9,8 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { altitudeOf, distanceBetween } from './positioning.js';
 import { movementLeftFor } from './standing.js';
-import { endConcentration, resolveSpell } from './commands.js';
+import { endConcentration, resolveDamage, resolveSpell } from './commands.js';
+import { extendContent } from './content.js';
 import { checkSpellDefinition } from './spell-schema.js';
 import type { SpellDefinition } from './spell-definitions.js';
 
@@ -80,17 +81,28 @@ const SETUP: readonly GameEvent[] = [
   added(CASTER),
   added(TARGET),
   added(BYSTANDER),
-  ...[1, 2, 3].map(
-    (level): GameEvent => ({
-      type: 'resource-pool-declared',
-      id: CASTER,
-      pool: { key: spellSlotKey(level), label: `level ${level}`, max: 4, recovers: 'long-rest' },
-    }),
+  ...[CASTER, BYSTANDER].flatMap((who) =>
+    [1, 2, 3].map(
+      (level): GameEvent => ({
+        type: 'resource-pool-declared',
+        id: who,
+        pool: { key: spellSlotKey(level), label: `level ${level}`, max: 4, recovers: 'long-rest' },
+      }),
+    ),
   ),
   {
     type: 'spellcasting-declared',
     id: CASTER,
     spellcasting: declaredCasting({ ability: 'int', prepared: ['levitate', 'gust-of-wind'] }),
+  },
+  // **The bystander is a second wizard**, which is the only way one creature
+  // can be held up by two castings at once: Concentration is one casting per
+  // creature, so a caster who levitated the same target twice would have ended
+  // their own first spell. Two casters is what the `lifts` list is a list for.
+  {
+    type: 'spellcasting-declared',
+    id: BYSTANDER,
+    spellcasting: declaredCasting({ ability: 'int', prepared: ['levitate'] }),
   },
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 60 } },
   { type: 'landmark-added', name: 'the hall', at: { x: 100, y: 100, z: 0 } },
@@ -108,6 +120,7 @@ const SETUP: readonly GameEvent[] = [
   // Levitate names one creature and asks whether the caster can see it.
   { type: 'sight-declared', from: CASTER, to: TARGET, seen: true },
   { type: 'sight-declared', from: CASTER, to: BYSTANDER, seen: true },
+  { type: 'sight-declared', from: BYSTANDER, to: TARGET, seen: true },
   {
     type: 'combat-started',
     combatants: [
@@ -128,17 +141,38 @@ const supply = (seed: string, flat?: number) => ({
 
 const state = (log: readonly GameEvent[] = SETUP): GameState => fold('seed', log);
 
+/**
+ * The turns between whoever is acting and the creature named, as events.
+ *
+ * A casting is a Magic action and an action is taken on a turn, so the second
+ * wizard has to be given one. Written rather than played, because what is
+ * being tested is two castings holding one creature and not the turn order:
+ * `turn-advanced` is the event `resolveTurn` emits and the fold moves the
+ * order on either way.
+ */
+const turnPassesTo = (who: CharacterId, log: readonly GameEvent[] = SETUP): GameEvent[] => {
+  const order = fold('seed', log).combat!;
+  const seat = order.order.findIndex((one) => one.id === who);
+  const steps = (seat - order.turnIndex + order.order.length) % order.order.length;
+  return Array.from({ length: steps }, () => ({ type: 'turn-advanced' }));
+};
+
 const apart = (world: GameState, a: CharacterId, b: CharacterId): number =>
   unwrap(distanceBetween(world.scene!, a, b), 'a distance');
 
 const height = (world: GameState, who: CharacterId): number | null =>
   altitudeOf(world.scene!, who);
 
-const levitate = (flat: number, log: readonly GameEvent[] = SETUP, seed = 'lift') =>
+const levitate = (
+  flat: number,
+  log: readonly GameEvent[] = SETUP,
+  seed = 'lift',
+  by: CharacterId = CASTER,
+) =>
   unwrap(
     resolveSpell(
       fold('seed', log),
-      CASTER,
+      by,
       { spellId: 'levitate', targets: [TARGET], slotLevel: 2 },
       supply(seed, flat),
     ),
@@ -238,6 +272,114 @@ describe('Levitate: a Constitution save, and twenty feet of air', () => {
       fold('seed', log).creatures[TARGET]!.vitals.hp,
     );
   });
+
+  /**
+   * "…if it is still aloft." Two castings holding one creature is not a
+   * contradiction, and the **first** of them ending is not the creature being
+   * let go of — which is the whole reason `lifts` is a list like every other
+   * grant family rather than a single hold.
+   */
+  it('keeps a creature up while a second casting is still holding it', () => {
+    const first = levitate(-40);
+    // The second wizard is third in the order, so the fight is walked round to
+    // them: a casting is a Magic action and an action is taken on a turn.
+    const held = [...SETUP, ...first.events, ...turnPassesTo(BYSTANDER)];
+    const second = levitate(-40, held, 'second', BYSTANDER);
+    const both = [...held, ...second.events];
+
+    expect(fold('seed', both).creatures[TARGET]!.lifts).toHaveLength(2);
+
+    // The first wizard lets go, and the creature is still in the air.
+    const letGo = unwrap(
+      endConcentration(fold('seed', both), CASTER, 'voluntary'),
+      'the first wizard lets go',
+    );
+    const after = [...both, ...letGo];
+    expect(fold('seed', after).creatures[TARGET]!.lifts).toHaveLength(1);
+    expect(height(fold('seed', after), TARGET)).toBeGreaterThan(0);
+
+    // And the second, which is the last: now it comes down.
+    const alsoLetGo = unwrap(
+      endConcentration(fold('seed', after), BYSTANDER, 'voluntary'),
+      'the second wizard lets go',
+    );
+    const grounded = fold('seed', [...after, ...alsoLetGo]);
+    expect(grounded.creatures[TARGET]!.lifts).toHaveLength(0);
+    expect(height(grounded, TARGET)).toBe(0);
+  });
+
+  /**
+   * The same landing through the **other** door, and no SRD spell goes through
+   * it yet.
+   *
+   * `releaseCasting` ends a spell everywhere; `releaseOnTarget` ends it on one
+   * creature and leaves it running for the rest, which is the shape a repeat
+   * save and an `endsEarly` that names `ends: 'target'` both take. Levitate
+   * writes neither, and a convergence point that forgot one kind of debt is
+   * exactly the hole `releaseOnTarget`'s own docstring records its bonuses
+   * being. So the rule is driven by a **homebrew** spell through the public
+   * door — which is also what says the landing is the engine's and not
+   * Levitate's.
+   */
+  it('sets a creature down when the casting ends on them alone', () => {
+    const UPDRAFT = 'homebrew-updraft';
+    const content = unwrap(
+      extendContent(SRD_CONTENT, {
+        spells: [
+          {
+            id: UPDRAFT,
+            name: 'Homebrew Updraft',
+            level: 2,
+            school: 'transmutation',
+            castingTime: 'action',
+            concentration: false,
+            range: { kind: 'ranged', feet: 60 },
+            targets: { count: 1 },
+            requiresSight: true,
+            effects: [{ kind: 'save', ability: 'con', movement: { kind: 'lift', feet: 20 } }],
+            durationSeconds: 60,
+            // "the updraft fails the moment anything strikes the creature it
+            // is holding" — which ends it on that creature and would leave an
+            // upcast one holding everybody else.
+            endsEarly: [{ on: 'target-takes-damage', ends: 'target' }],
+          },
+        ],
+      }),
+      'the homebrew updraft',
+    );
+
+    const log: readonly GameEvent[] = SETUP.map((e) =>
+      e.type === 'spellcasting-declared' && e.id === CASTER
+        ? { ...e, spellcasting: declaredCasting({ ability: 'int', prepared: [UPDRAFT] }) }
+        : e,
+    );
+    const lifted = unwrap(
+      resolveSpell(
+        fold('seed', log),
+        CASTER,
+        { spellId: UPDRAFT, targets: [TARGET], slotLevel: 2 },
+        { ...supply('updraft', -40), content },
+      ),
+      'the updraft',
+    );
+    const aloft = [...log, ...lifted.events];
+    expect(height(fold('seed', aloft), TARGET)).toBe(20);
+
+    const struck = unwrap(
+      resolveDamage(
+        fold('seed', aloft),
+        TARGET,
+        { amount: 3, source: 'a sling stone', types: ['bludgeoning'] },
+        { ...supply('stone'), content },
+      ),
+      'a sling stone',
+    );
+    const after = fold('seed', [...aloft, ...struck.events]);
+
+    expect(after.creatures[TARGET]!.lifts).toHaveLength(0);
+    expect(height(after, TARGET)).toBe(0);
+    expect(after.creatures[TARGET]!.falling).toBeNull();
+  });
 });
 
 describe('Gust of Wind: a Strength save, and fifteen feet along the Line', () => {
@@ -245,7 +387,7 @@ describe('Gust of Wind: a Strength save, and fifteen feet along the Line', () =>
     const out = gust(-40);
 
     // Both creatures stand in the Line and both are thrown. The order is the
-    // sorted one an area resolution always uses � nobody named anybody, so a
+    // sorted one an area resolution always uses — nobody named anybody, so a
     // casting that folded differently for two spellings of one set would not
     // be replayable.
     const moved = out.events.filter((e) => e.type === 'creature-moved');
@@ -275,7 +417,7 @@ describe('Gust of Wind: a Strength save, and fifteen feet along the Line', () =>
 });
 
 describe('the movement rider’s validator', () => {
-  const definition = (movement: unknown): SpellDefinition =>
+  const definition = (movement: unknown, over: Record<string, unknown> = {}): SpellDefinition =>
     ({
       id: 'homebrew-gale',
       name: 'Homebrew Gale',
@@ -285,11 +427,67 @@ describe('the movement rider’s validator', () => {
       concentration: false,
       range: { kind: 'ranged', feet: 30 },
       targets: { count: 1 },
-      effects: [{ kind: 'save', ability: 'str', movement }],
+      effects: [{ kind: 'save', ability: 'str', movement, ...over }],
     }) as unknown as SpellDefinition;
+
+  /** The same spell with somewhere for a lift to last: a minute of it. */
+  const lasting = (movement: unknown, over: Record<string, unknown> = {}): SpellDefinition =>
+    ({ ...definition(movement, over), durationSeconds: 60 }) as SpellDefinition;
 
   it('accepts a save whose whole outcome is a movement', () => {
     expect(checkSpellDefinition(definition({ feet: 15 }))).toEqual([]);
+  });
+
+  it('accepts a lift on a spell with a duration to hold it for', () => {
+    expect(checkSpellDefinition(lasting({ feet: 20, kind: 'lift' }))).toEqual([]);
+  });
+
+  /**
+   * A lift is held for the casting's life and given back when it ends, so an
+   * Instantaneous one would leave a creature in the air with nothing that
+   * could ever bring it down — the debt a Feather Fall with no duration is,
+   * arriving through a rider rather than through an effect kind.
+   */
+  it('refuses a lift on a casting that is over the moment it resolves', () => {
+    const found = checkSpellDefinition(definition({ feet: 20, kind: 'lift' }));
+    expect(found.map((problem) => problem.code)).toEqual(['grant_without_lifetime']);
+  });
+
+  /**
+   * And the pairing the plumbing cannot survive: a `modifiers` rider with a
+   * deadline of its own schedules a `grants` timer against the **casting's**
+   * source, and everything that source hung — the lift included — goes when it
+   * fires. `releaseGrants` has a creature and no scene, so the landing could
+   * not happen there.
+   */
+  it('refuses a lift beside a grant that ends before the casting does', () => {
+    const found = checkSpellDefinition(
+      lasting(
+        { feet: 20, kind: 'lift' },
+        {
+          modifiers: [
+            {
+              kind: 'speed-change',
+              change: 'halve',
+              lasts: 'start-of-casters-next-turn',
+            },
+          ],
+        },
+      ),
+    );
+    expect(found.map((problem) => problem.code)).toContain('lift_beside_a_shorter_grant');
+  });
+
+  /** And the same pair without the deadline, which nothing schedules a timer for. */
+  it('accepts a lift beside a grant that lasts as long as the casting', () => {
+    expect(
+      checkSpellDefinition(
+        lasting(
+          { feet: 20, kind: 'lift' },
+          { modifiers: [{ kind: 'speed-change', change: 'halve' }] },
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it('refuses a kind of movement the engine cannot perform', () => {

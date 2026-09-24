@@ -1962,6 +1962,37 @@ function checkRiders(
           reason: `"${String(kind)}" is not a way a settled outcome moves a creature; the engine performs ${[...MOVEMENT_KINDS].join(' and ')}`,
         });
       }
+      // **A lift and a grant with a deadline of its own may not share a
+      // host**, and the reason is one line of plumbing rather than a rule
+      // about the book.
+      //
+      // Every rider on one outcome is filed under the **casting's** source,
+      // and a `modifiers` rider that names `lasts` schedules a `grants` timer
+      // against exactly that string. When the timer fires, `releaseGrants`
+      // takes off *everything* that source hung on the creature — which would
+      // include the lift, and `releaseGrants` has no scene to set anybody down
+      // on. The creature would be left hanging in the air with nothing holding
+      // it there, which is the one state SRD Levitate's last sentence exists
+      // to prevent.
+      //
+      // No SRD sentence writes the pair, so this is refused at authoring
+      // rather than answered: a deadline shorter than the casting is
+      // `EffectTarget.grants`' whole purpose, and giving it a landing would be
+      // building the other half of a sentence nobody has printed. `checkBudgetSpend`
+      // refuses `movement` for the same reason and in the same voice.
+      if (kind === 'lift' && Array.isArray(riders.modifiers)) {
+        const shorter = riders.modifiers.filter(
+          (rider) => (rider as { readonly lasts?: unknown } | undefined)?.lasts !== undefined,
+        );
+        if (shorter.length > 0) {
+          found.push({
+            field: `${path}.movement.kind`,
+            code: 'lift_beside_a_shorter_grant',
+            reason:
+              'a grant that ends before its casting takes every grant this casting hung on the creature with it, and a lift is one of them — the creature would be left in the air with nothing holding it up, so the two may not ride one outcome',
+          });
+        }
+      }
     }
   }
   // The fifth slot, and the one that reaches the action economy: see

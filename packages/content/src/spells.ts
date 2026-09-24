@@ -6811,6 +6811,7 @@ export const LEVITATE: SpellDefinition = {
   unmodelled: [
     'the save is asked of every target, and SRD asks it of an **unwilling** creature only — "An unwilling creature that succeeds on a Constitution saving throw is unaffected" — so a willing ally may make the save and not be lifted; willingness is a fact about the fiction and a casting has no word for it, which is the same gap SRD Mage Armor’s "a willing creature" leaves and the first one here with a die behind it',
     'moving the target afterwards is the DM’s: "You can change the target’s altitude by up to 20 feet in either direction on your turn" is a later action that moves the **target** rather than an area, which no activation shape expresses, and the climbing along a wall is fiction',
+    'what the levitating creature may do with its own Speed is the DM’s, and it is a gap this spell opens: "The target can move only by pushing or pulling against a fixed object or surface within reach" is the whole of SRD’s answer, and the engine refuses only a **rise** — a creature holding station twenty feet up may still walk its thirty feet sideways through the air and come down for nothing, because gravity is not a Speed and no rule asks what is under a creature that is already off the ground',
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
   ],
 };

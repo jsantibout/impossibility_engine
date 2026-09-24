@@ -2427,7 +2427,14 @@ describe('a consumer count is a query', () => {
     // changed is that the definition now resolves something, so they are an
     // executed spell's debt. A shape that spanned two populations still spans
     // two, which is the property this test is about.
-    expect(modes.executed).toEqual(['gaseous-form', 'wind-walk']);
+    //
+    // And a third executed claimant arrived with the lift: SRD Levitate's
+    // "which allows it to move as if it were climbing" is the same missing
+    // distinction, and the lift opened the other side of it — a creature held
+    // twenty feet up walks its ordinary Speed sideways through the air,
+    // because `checkRise` refuses a rise and asks nothing of a creature that
+    // is already off the ground.
+    expect(modes.executed).toEqual(['gaseous-form', 'levitate', 'wind-walk']);
     // **Fly and Spider Climb left the shape rather than moving column**,
     // which is what building a writer looks like from here: the two are
     // executed definitions now, and neither has a clause this shape still
