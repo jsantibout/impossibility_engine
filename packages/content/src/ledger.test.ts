@@ -29,6 +29,8 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import type { ClassDefinition } from '@ie/engine';
 import {
+  CAST_LINE_SHAPE,
+  hasUnspentCastLine,
   LEGENDARY_ECONOMY,
   MONSTER_LINE_SHAPES,
   auditPlayableLevels,
@@ -283,6 +285,35 @@ describe('the ledger measures the three populations of the roadmap', () => {
     }
     expect(handed).toBe(ledger.monsters.handedOver);
     expect(lost).toBe(0);
+  });
+
+  /**
+   * **A line the parser read and nothing spends stays on the books**, which
+   * the read gate would otherwise hide.
+   *
+   * Every line this row counts is one `isReadLine` says was read, so the gate
+   * `accountsFor` applies to every other shape would take the whole row to
+   * zero — and the blocks carrying one would join the clean list with a
+   * sentence nothing performs. That is the failure the over-read list exists
+   * to prevent, asserted here rather than left to a byte comparison with the
+   * committed file: learning to recognise a sentence can never retire the
+   * debt of executing it.
+   */
+  it('keeps a cast line on the books, read and unspent, and off the clean list', () => {
+    const row = ledger.monsters.shapes.find((one) => one.shape === CAST_LINE_SHAPE);
+    expect(row?.lines).toBeGreaterThan(0);
+
+    const carrying = SRD_CONTENT.monsters.filter(
+      (monster) => monster.cr <= 5 && statBlockLines(monster).some(hasUnspentCastLine),
+    );
+    expect(carrying.length).toBe(row?.blocks);
+    // Non-vacuous in the direction that matters: every one of them is *read*,
+    // which is what makes the membership load-bearing rather than tidy.
+    for (const monster of carrying) {
+      expect(statBlockLines(monster).filter(hasUnspentCastLine).every(isReadLine)).toBe(true);
+    }
+    // And none of them is counted clean, which is the whole of what the row buys.
+    expect(ledger.monsters.clean).toBeLessThanOrEqual(ledger.monsters.blocks - carrying.length);
   });
 
   /**

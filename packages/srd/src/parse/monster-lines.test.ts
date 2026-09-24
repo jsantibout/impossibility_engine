@@ -146,12 +146,21 @@ describe('a line that casts', () => {
     });
   });
 
-  it('leaves a line whose heading rations it by a recharge as prose', () => {
-    // A recharge is a die at a turn boundary and no pool: a casting paid for
-    // out of a pool the block never declared would be a use nothing could ever
-    // run out of, which is the one direction a limit may not be got wrong.
-    expect(lineOf('drider', 'Magic of the Spider Queen (Recharge 5–6)').casts).toBeUndefined();
-    expect(lineOf('stone-golem', 'Slow (Recharge 5–6)').casts).toBeUndefined();
+  it('reads a line whose heading rations it by a recharge, and leaves the rationing to the heading', () => {
+    // How often a line may be taken is the economy's answer and not this
+    // reader's: `printed-line-expended` and `line_expended` already spend a
+    // recharge correctly for every line in the book, so a sentence read off a
+    // recharging heading is read exactly as readily as any other.
+    expect(lineOf('drider', 'Magic of the Spider Queen (Recharge 5–6)').casts).toEqual({
+      spells: ['darkness', 'faerie-fire', 'web'],
+      ability: 'wis',
+      saveDc: 14,
+    });
+    expect(lineOf('stone-golem', 'Slow (Recharge 5–6)').casts).toEqual({
+      spells: ['slow'],
+      ability: 'con',
+      saveDc: 17,
+    });
   });
 });
 
@@ -245,12 +254,17 @@ describe('the corpus', () => {
 
   it('reads exactly the cast lines the book prints in this shape', () => {
     // Asserted over the corpus rather than assumed, which is how every other
-    // claim about "no SRD line does X" in this parser is held down.
+    // claim about "no SRD line does X" in this parser is held down. Every cast
+    // line is a heading a creature spends: none of them declares a spell list
+    // as well, because the two are different sentences and the second is
+    // `parseSpellcastingLine`'s.
     const casting = lines.filter((line) => line.casts !== undefined);
-    expect(casting.every((line) => line.recharge === undefined)).toBe(true);
-    // Every cast line is a heading a creature spends: none of them declares a
-    // spell list as well, because the two are different sentences.
+    expect(casting.length).toBeGreaterThan(0);
     expect(casting.every((line) => line.spellcasting === undefined)).toBe(true);
+    // And no cast line prints an attack roll or the save template, which is
+    // what keeps the four openings one apiece.
+    expect(casting.every((line) => line.attack === undefined)).toBe(true);
+    expect(casting.every((line) => line.save === undefined)).toBe(true);
   });
 
   it('never reads two of the three shapes out of one sentence', () => {

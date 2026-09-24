@@ -1291,9 +1291,15 @@ export function takePrintedTeleport(
       const bonus = action === null ? statedBonusActionOf(creature.sheet, command.line) : null;
       const line: StatedAction | StatedBonusAction | null = action ?? bonus;
       if (line === null) {
+        // **It says what was searched and claims nothing about the rest of the
+        // block.** The reason its two siblings give — "with nothing the engine
+        // could read beneath it" — is false on this door, where the lines that
+        // *are* found are precisely the ones something was read out of; a
+        // caller who typed a Reaction's heading would be told the opposite of
+        // what is true.
         return err(
           'no_such_line',
-          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions with nothing the engine could read beneath it; a heading the parser did read as an attack, and a heading printed under another section, are each taken by the command that owns them`,
+          `no line called ${command.line} is printed under this creature's Actions or Bonus Actions; a printed attack is taken by the command that swings it, and a heading printed under another section by the command that owns that one`,
         );
       }
 

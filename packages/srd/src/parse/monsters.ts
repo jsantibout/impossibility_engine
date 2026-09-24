@@ -1618,15 +1618,13 @@ function parseFeatures(
       // Asked of every line for the reason `save` is asked of every line: what
       // a line says is not a property of the heading it is printed under.
       const spellcasting = parseSpellcastingLine(text);
-      // The book's fourth opening. **Refused where the heading rations the
-      // line by a recharge**, which is the same conservative direction
-      // `printedBonusActionAllowance` already refuses in: a per-day count is a
-      // pool the block declares and the casting pipeline spends, and a
-      // recharge is a die at a turn boundary with no pool behind it — so a
-      // recharging cast line compiled into a route would be a casting nothing
-      // could run out of. Six SRD lines print this sentence with a per-day
-      // count or no limit at all; the four that recharge stay prose.
-      const casts = recharge === null ? parseCastLine(text) : null;
+      // The book's fourth opening, read off the sentence like the other three
+      // and asked of every line for the same reason: what a line says is not a
+      // property of the heading it is printed under. **Including a heading
+      // that prints a recharge** — how often a line may be taken is the
+      // economy's answer, which `printed-line-expended` and `line_expended`
+      // already give correctly for every line in the book.
+      const casts = parseCastLine(text);
       const teleports = parseTeleportLine(text);
       const addsToRoll = parseRollAddendLine(text);
       features.push({
