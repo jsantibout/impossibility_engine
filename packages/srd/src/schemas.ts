@@ -1665,6 +1665,158 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
       .array(z.enum(['ability-check', 'attack-roll', 'saving-throw']))
       .min(1),
   }),
+  z.object({
+    /**
+     * SRD Freeze, on the Water Elemental: "If the elemental takes Cold damage,
+     * its Speed decreases by 20 feet until the end of its next turn."
+     *
+     * `penalised-after-taking-a-damage-type`'s sibling — the same trigger and
+     * the same span with a Speed on the end of it instead of a roll mode — and
+     * its own kind because the two grant different things and a union member
+     * that carried either would be a shape nothing could read without asking
+     * which half it was.
+     */
+    kind: z.literal('speed-cut-after-taking-a-damage-type'),
+    damageType: z.string().min(1),
+    feet: z.number().int().min(1),
+  }),
+  z.object({
+    /**
+     * SRD Blurred Form, on the Steam Mephit: "Attack rolls against the mephit
+     * are made with Disadvantage unless the mephit has the Incapacitated
+     * condition."
+     *
+     * A bare kind for `magic-resistance`'s reason — one mode, one family, one
+     * gate — and it is the first printed trait whose mode sits on the rolls
+     * made **against** its holder rather than on the holder's own.
+     */
+    kind: z.literal('disadvantage-on-attacks-against-it'),
+  }),
+  z.object({
+    /**
+     * SRD Beast of Burden, on the Mule: "The mule counts as one size larger
+     * for the purpose of determining its carrying capacity."
+     *
+     * SRD Powerful Build's sentence on a stat block, which is the grant the
+     * engine already reads: a *step* rather than a named size, because the
+     * book writes it as a relation and a named one would be wrong the moment
+     * the holder were enlarged.
+     */
+    kind: z.literal('carries-as-a-larger-creature'),
+    sizesLarger: z.number().int().min(1),
+  }),
+
+  // ---------------------------------------------------------------------
+  // What follows is the **third answer**: sentences the parser reads so that
+  // the table gets them, and that no rule will ever consult. See
+  // `HANDOVER_TRAIT_KINDS` in `packages/content/scripts/coverage-data.ts`,
+  // which carries the reason per kind and is pinned the opposite way round
+  // from the reader roster — a kind named there must be named *nowhere* in
+  // `packages/engine/src`, because a handover with a reader is a mislabelled
+  // debt.
+  //
+  // **Bare, every one of them.** The other members carry numbers because a
+  // rule reads them; nothing reads these, and the block's own sentence is on
+  // the line beside the shape for whoever is narrating. A field here would be
+  // a number kept for nobody.
+  // ---------------------------------------------------------------------
+
+  z.object({
+    /**
+     * SRD Mimicry, on the Green Hag and the Raven: "The hag can mimic animal
+     * sounds and humanoid voices. A creature that hears the sounds can tell
+     * they are imitations only with a successful DC 14 Wisdom (Insight)
+     * check."
+     *
+     * Two sentences at two DCs and one kind, because what a mimic *is* is the
+     * same either way and the DC is the table's to call for.
+     */
+    kind: z.literal('mimics-sounds'),
+  }),
+  z.object({
+    /** SRD Telepathic Bond, on the Homunculus: two creatures on one plane. */
+    kind: z.literal('speaks-telepathically-with-its-master'),
+  }),
+  z.object({
+    /**
+     * SRD Vampiric Connection: the bond above, and a master who sees through
+     * the familiar's eyes.
+     */
+    kind: z.literal('is-perceived-through-by-its-master'),
+  }),
+  z.object({
+    /** SRD Shark Telepathy: "can magically control sharks within 120 feet". */
+    kind: z.literal('controls-a-kind-of-creature'),
+  }),
+  z.object({
+    /**
+     * SRD Iron Scent and SRD Treasure Sense: "can pinpoint the location of
+     * ferrous metal within 30 feet of itself."
+     */
+    kind: z.literal('pinpoints-a-substance'),
+  }),
+  z.object({
+    /** SRD Speak with Beasts and Plants, on the Dryad. */
+    kind: z.literal('speaks-with-a-kind-of-creature'),
+  }),
+  z.object({
+    /** SRD Ethereal Sight, on the Ghost and the Phase Spider. */
+    kind: z.literal('sees-into-another-plane'),
+  }),
+  z.object({
+    /** SRD Transparent, on the Gelatinous Cube: a check to notice it at all. */
+    kind: z.literal('goes-unnoticed-until-it-moves'),
+  }),
+  z.object({
+    /** SRD Shielded Mind, on the Couatl. */
+    kind: z.literal('thoughts-cannot-be-read'),
+  }),
+  z.object({
+    /** SRD Immutable Form, on the Flesh Golem: "The golem can't shape-shift." */
+    kind: z.literal('cannot-shape-shift'),
+  }),
+  z.object({
+    /**
+     * SRD Diabolical Restoration and SRD Hellish Restoration: a body that
+     * comes back somewhere the engine has no map of.
+     */
+    kind: z.literal('revives-on-another-plane'),
+  }),
+  z.object({
+    /** SRD Sense Magic, on the Chuul: *Detect Magic* that is not magical. */
+    kind: z.literal('senses-magic-nearby'),
+  }),
+  z.object({
+    /** SRD Training, on the Commoner: a skill the GM chooses. */
+    kind: z.literal('has-a-skill-the-gm-chooses'),
+  }),
+  z.object({
+    /** SRD Draconic Origin, on the Half-Dragon: a damage type the GM chooses. */
+    kind: z.literal('has-a-damage-type-the-gm-chooses'),
+  }),
+  z.object({
+    /**
+     * SRD Water Susceptibility and SRD Running Water: damage from water, which
+     * is a substance this world does not hold.
+     */
+    kind: z.literal('is-hurt-by-water'),
+  }),
+  z.object({
+    /** SRD Confer Fire Resistance, on the Nightmare: a Resistance for a rider. */
+    kind: z.literal('grants-a-resistance-to-its-rider'),
+  }),
+  z.object({
+    /** SRD Forbiddance, on the Vampire Spawn: a threshold and an invitation. */
+    kind: z.literal('cannot-enter-a-home-uninvited'),
+  }),
+  z.object({
+    /**
+     * SRD Vampire Weakness: "The vampire has these weaknesses:" — a heading
+     * the book prints over the three lines that follow it, and a rule of
+     * nothing on its own.
+     */
+    kind: z.literal('a-heading-over-the-lines-that-follow'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 

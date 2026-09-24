@@ -25,6 +25,7 @@ import {
   printedAbsorption,
   printedLineSource,
   printedTypeAversion,
+  printedTypeSlow,
 } from '../monster.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { endOfNextTurn } from '../time.js';
@@ -291,6 +292,30 @@ function printedTypeTriggers(
         });
       }
       events.push(timer.value);
+    }
+  }
+
+  // SRD Freeze: "If the elemental takes Cold damage, its Speed decreases by 20
+  // feet until the end of its next turn." The same trigger, the same span, and
+  // a Speed on the end of it instead of a roll mode — so the reading of
+  // "takes" is the same and so is the deadline.
+  const slowed = printedTypeSlow(sheet);
+  if (slowed !== null && (byType[slowed.damageType] ?? 0) > 0) {
+    const hung = printedLineSource(target, `Speed cut after ${slowed.damageType} damage`);
+    const timer = schedule(state, { kind: 'grants', on: target, source: hung }, endOfNextTurn(target));
+    if (!timer.ok) {
+      unverified.push(
+        `${target} took ${slowed.damageType} damage and its block cuts its Speed by ${slowed.feet} feet until the end of its next turn; there is no turn order for that moment to be pinned in, so nothing was hung`,
+      );
+    } else {
+      events.push(
+        {
+          type: 'speed-modifier-granted',
+          id: target,
+          modifier: { source: hung, change: 'add', feet: -slowed.feet },
+        },
+        timer.value,
+      );
     }
   }
 

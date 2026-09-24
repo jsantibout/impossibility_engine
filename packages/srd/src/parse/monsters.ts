@@ -759,6 +759,227 @@ const damageTypeOf = (printed: string): string | null => {
   return DAMAGE_TYPES.some((known) => known === word) ? word : null;
 };
 
+/**
+ * SRD Freeze: "If the elemental takes Cold damage, its Speed decreases by 20
+ * feet until the end of its next turn."
+ *
+ * {@link AVERSION_TO_A_TYPE}'s sibling, and anchored end to end for the same
+ * reason: the span is the sentence's and a line naming another is a different
+ * rule.
+ */
+const SPEED_CUT_BY_A_TYPE = new RegExp(
+  `^If ${SUBJECT} takes (\\w+) damage, its Speed decreases by (\\d+) feet until the end of its next turn\\.$`,
+);
+
+/**
+ * SRD Blurred Form: "Attack rolls against the mephit are made with
+ * Disadvantage unless the mephit has the Incapacitated condition."
+ *
+ * The Incapacitated clause is required, for {@link ALLY_AURA}'s reason: a
+ * blur without a gate is a different rule, and reading the clause away would
+ * keep a Stunned mephit hard to hit.
+ */
+const BLURRED_FORM = new RegExp(
+  `^Attack rolls against ${SUBJECT} are made with Disadvantage unless ${SUBJECT} ` +
+    `has the Incapacitated condition\\.$`,
+);
+
+/**
+ * SRD Beast of Burden: "The mule counts as one size larger for the purpose of
+ * determining its carrying capacity."
+ *
+ * The book writes the step in words and prints exactly one of them, so the
+ * word is matched and the number it stands for is the shape.
+ */
+const CARRIES_AS_A_LARGER_CREATURE = new RegExp(
+  `^${SUBJECT} counts as one size larger for the purpose of determining its carrying capacity\\.$`,
+);
+
+/**
+ * The sentences the parser reads so that the **table** gets them, and that no
+ * rule will ever consult.
+ *
+ * `docs/design/content.md` settles the test — "a table fact that a rule then
+ * reads is a debt; a table fact nothing reads afterwards is a handover" — and
+ * every regex below is on the second side of it. They are anchored exactly as
+ * hard as the rest: a sentence that says one more thing than the one quoted is
+ * a different sentence and gets nothing, because a kind is a claim about what
+ * was read and not a label somebody stuck on a heading.
+ *
+ * Each of them is named in `HANDOVER_TRAIT_KINDS`, which carries the reason in
+ * the sentence's own terms and is pinned the opposite way round from the
+ * reader roster: a kind on that list must be named **nowhere** in
+ * `packages/engine/src`, because a handover with a reader is a mislabelled
+ * debt.
+ */
+const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
+  // SRD Mimicry, two sentences at two DCs: the hag's voices and the raven's
+  // whisper. What a mimic *is* is the same either way, and the check is the
+  // table's to call for.
+  [
+    new RegExp(
+      `^${SUBJECT} can mimic animal sounds and humanoid voices\\. A creature that hears the sounds ` +
+        `can tell they are imitations only with a successful DC \\d+ Wisdom \\(Insight\\) check\\.$`,
+    ),
+    'mimics-sounds',
+  ],
+  [
+    new RegExp(
+      `^${SUBJECT} can mimic simple sounds it has heard, such as a whisper or chitter\\. ` +
+        `A hearer can discern the sounds are imitations with a successful DC \\d+ Wisdom \\(Insight\\) check\\.$`,
+    ),
+    'mimics-sounds',
+  ],
+
+  // SRD Telepathic Bond, and SRD Vampiric Connection which is that bond with
+  // a second clause: the master sees through the familiar's eyes. Two kinds,
+  // because they are two sentences and the second says more.
+  [
+    new RegExp(
+      `^While ${SUBJECT} is on the same plane of existence as its master, the two of them can ` +
+        `communicate telepathically with each other\\.$`,
+    ),
+    'speaks-telepathically-with-its-master',
+  ],
+  [
+    new RegExp(
+      `^While ${SUBJECT} are on the same plane of existence, the vampire can communicate with the ` +
+        `familiar telepathically, and the vampire can perceive through the familiar['’]s senses\\.$`,
+    ),
+    'is-perceived-through-by-its-master',
+  ],
+
+  // SRD Shark Telepathy.
+  [
+    new RegExp(
+      `^${SUBJECT} can magically control [a-z]+ within \\d+ feet of itself, using a special telepathy\\.$`,
+    ),
+    'controls-a-kind-of-creature',
+  ],
+
+  // SRD Iron Scent and SRD Treasure Sense.
+  [
+    new RegExp(`^${SUBJECT} can pinpoint the location of [a-z ]+ within \\d+ feet of itself\\.$`),
+    'pinpoints-a-substance',
+  ],
+
+  // SRD Speak with Beasts and Plants.
+  [
+    new RegExp(
+      `^${SUBJECT} can communicate with Beasts and Plants as if they shared a language\\.$`,
+    ),
+    'speaks-with-a-kind-of-creature',
+  ],
+
+  // SRD Ethereal Sight, printed two ways: the ghost looks one way and the
+  // phase spider both.
+  [
+    new RegExp(
+      `^${SUBJECT} can see \\d+ feet into the Ethereal Plane (?:when it is on|while on) the ` +
+        `Material Plane(?: and vice versa)?\\.$`,
+    ),
+    'sees-into-another-plane',
+  ],
+
+  // SRD Transparent.
+  [
+    new RegExp(
+      `^Even when ${SUBJECT} is in plain sight, a creature must succeed on a DC \\d+ Wisdom ` +
+        `\\(Perception\\) check to notice ${SUBJECT} if the creature hasn['’]t witnessed ` +
+        `${SUBJECT} move or otherwise act\\.$`,
+    ),
+    'goes-unnoticed-until-it-moves',
+  ],
+
+  // SRD Shielded Mind.
+  [
+    new RegExp(
+      `^${SUBJECT}['’]s thoughts can['’]t be read by any means, and other creatures can ` +
+        `communicate with it telepathically only if it allows them\\.$`,
+    ),
+    'thoughts-cannot-be-read',
+  ],
+
+  // SRD Immutable Form.
+  [new RegExp(`^${SUBJECT} can['’]t shape-shift\\.$`), 'cannot-shape-shift'],
+
+  // SRD Diabolical Restoration and SRD Hellish Restoration.
+  [
+    new RegExp(
+      `^If ${SUBJECT} dies outside the Nine Hells, its body disappears in sulfurous smoke, and it ` +
+        `gains a new body instantly, reviving with all its Hit Points somewhere in the Nine Hells\\.$`,
+    ),
+    'revives-on-another-plane',
+  ],
+  [
+    new RegExp(
+      `^If ${SUBJECT} dies in the Nine Hells, it revives with all its Hit Points in \\d+d\\d+ days ` +
+        `unless it is killed by a creature under the effects of a _Bless_ spell or its remains are ` +
+        `sprinkled with Holy Water\\.$`,
+    ),
+    'revives-on-another-plane',
+  ],
+
+  // SRD Sense Magic.
+  [
+    new RegExp(
+      `^${SUBJECT} senses magic within \\d+ feet of itself\\. This trait otherwise works like the ` +
+        `_Detect Magic_ spell but isn['’]t itself magical\\.$`,
+    ),
+    'senses-magic-nearby',
+  ],
+
+  // SRD Training.
+  [
+    new RegExp(
+      `^${SUBJECT} has proficiency in one skill of the GM['’]s choice and has Advantage whenever ` +
+        `it makes an ability check using that skill\\.$`,
+    ),
+    'has-a-skill-the-gm-chooses',
+  ],
+
+  // SRD Draconic Origin.
+  [
+    new RegExp(
+      `^${SUBJECT} is related to a type of dragon associated with one of the following damage types ` +
+        `\\(GM['’]s choice\\): [A-Za-z, ]+\\. This choice affects other aspects of the stat block\\.$`,
+    ),
+    'has-a-damage-type-the-gm-chooses',
+  ],
+
+  // SRD Water Susceptibility and SRD Running Water.
+  [
+    new RegExp(
+      `^${SUBJECT} takes \\d+ \\(\\d+d\\d+\\) \\w+ damage for every \\d+ feet ${SUBJECT} moves in ` +
+        `water or for every gallon of water splashed on it\\.$`,
+    ),
+    'is-hurt-by-water',
+  ],
+  [
+    new RegExp(`^${SUBJECT} takes \\d+ \\w+ damage if it ends its turn in running water\\.$`),
+    'is-hurt-by-water',
+  ],
+
+  // SRD Confer Fire Resistance.
+  [
+    new RegExp(
+      `^${SUBJECT} can grant Resistance to \\w+ damage to a rider while it is on the nightmare\\.$`,
+    ),
+    'grants-a-resistance-to-its-rider',
+  ],
+
+  // SRD Forbiddance.
+  [
+    new RegExp(
+      `^${SUBJECT} can['’]t enter a residence without an invitation from an occupant\\.$`,
+    ),
+    'cannot-enter-a-home-uninvited',
+  ],
+
+  // SRD Vampire Weakness: a heading, and a rule of nothing on its own.
+  [new RegExp(`^${SUBJECT} has these weaknesses:$`), 'a-heading-over-the-lines-that-follow'],
+];
+
 /** The book's nouns for the rolls, in the kind's own three words. */
 const BLOODIED_ROLLS: Readonly<Record<string, readonly ('attack-roll' | 'saving-throw')[]>> = {
   'attack rolls': ['attack-roll'],
@@ -916,6 +1137,25 @@ export function parseTraitShape(text: string): MonsterTrait | null {
     if (damageType !== null && rolls !== undefined) {
       return { kind: 'penalised-after-taking-a-damage-type', damageType, rolls: [...rolls] };
     }
+  }
+
+  const slowed = SPEED_CUT_BY_A_TYPE.exec(text);
+  if (slowed !== null) {
+    const damageType = damageTypeOf(slowed[1]!);
+    if (damageType !== null) {
+      return { kind: 'speed-cut-after-taking-a-damage-type', damageType, feet: Number(slowed[2]) };
+    }
+  }
+
+  if (BLURRED_FORM.test(text)) return { kind: 'disadvantage-on-attacks-against-it' };
+  if (CARRIES_AS_A_LARGER_CREATURE.test(text)) {
+    return { kind: 'carries-as-a-larger-creature', sizesLarger: 1 };
+  }
+
+  // Last, because every sentence above states a mechanic and these state
+  // none: a handover that matched first would be a rule read as fiction.
+  for (const [pattern, kind] of HANDOVERS) {
+    if (pattern.test(text)) return { kind } as MonsterTrait;
   }
 
   return null;

@@ -1085,6 +1085,25 @@ export const printedTypeAversion = (
 };
 
 /**
+ * SRD Freeze: the Speed a damage type costs a block, and which type.
+ *
+ * "If the elemental takes Cold damage, its Speed decreases by 20 feet until
+ * the end of its next turn." {@link printedTypeAversion}'s sibling — the same
+ * trigger and the same span with a Speed on the end of it — so "takes" is read
+ * the same way: the cut follows damage that landed.
+ */
+export const printedTypeSlow = (
+  sheet: CharacterSheet,
+): { readonly damageType: string; readonly feet: number } | null => {
+  for (const trait of sheet.stated?.traits ?? []) {
+    if (trait.kind === 'speed-cut-after-taking-a-damage-type') {
+      return { damageType: trait.damageType, feet: trait.feet };
+    }
+  }
+  return null;
+};
+
+/**
  * The Speeds a block prints beside its walking one, onto the sheet.
  *
  * The parser has read "Speed 20 ft., Fly 40 ft." into five numbers and a flag
@@ -1373,6 +1392,60 @@ function printedFrenzy(
 }
 
 /**
+ * SRD Blurred Form, onto the sheet as the standing effect it is.
+ *
+ * "Attack rolls against the mephit are made with Disadvantage unless the
+ * mephit has the Incapacitated condition."
+ *
+ * `printedSunlight`'s shape from the other end of the blow: the first printed
+ * trait whose mode sits on the rolls made **against** its holder, which is
+ * what `relation: 'against-holder'` has meant since Dodge and Blur. The gate
+ * is on the holder and is the sentence's last clause word for word.
+ */
+function printedBlur(line: MonsterLine, key: string): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'disadvantage-on-attacks-against-it') return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: {
+        kind: 'roll-mode',
+        modifier: {
+          mode: 'disadvantage',
+          selector: { roll: 'attack', relation: 'against-holder' },
+        },
+      },
+      requires: [{ kind: 'not-incapacitated' }],
+    },
+  ];
+}
+
+/**
+ * SRD Beast of Burden, onto the sheet as the grant SRD Powerful Build already
+ * is.
+ *
+ * "The mule counts as one size larger for the purpose of determining its
+ * carrying capacity." One sentence, one grant, and `capacitySizeOf` has read
+ * that grant since the Goliath's own line landed — so this is the stat block
+ * saying the same thing and nothing else changes.
+ */
+function printedCarryingCapacity(
+  line: MonsterLine,
+  key: string,
+): readonly StandingEffect[] {
+  if (line.trait?.kind !== 'carries-as-a-larger-creature') return [];
+  return [
+    {
+      feature: key,
+      name: line.name,
+      reach: { kind: 'self' },
+      grant: { kind: 'carrying-capacity', sizesLarger: line.trait.sizesLarger },
+    },
+  ];
+}
+
+/**
  * SRD Nimble Escape, SRD Cunning Action, SRD Deathless Agility and SRD Shadow
  * Stealth: a named action paid for out of a Bonus Action.
  *
@@ -1481,6 +1554,8 @@ function printedStanding(monster: Monster): { readonly standing?: readonly Stand
         ...printedMagicResistance(line, key),
         ...printedAllyAura(line, key),
         ...printedFrenzy(line, key),
+        ...printedBlur(line, key),
+        ...printedCarryingCapacity(line, key),
         ...printedBonusActionAllowance(line, key, costsABonusAction),
       ];
     }),

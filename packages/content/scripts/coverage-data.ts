@@ -1179,6 +1179,9 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Aberrant Ground | `terrainAt`, which derives a carried patch the way `lightAt` does |
  * | SRD Lightning Absorption | `dealSpellDamage`, which heals what the blow rolled before Immunity |
  * | SRD Aversion to Fire | the same, hanging a `roll-mode` on a turn-order deadline |
+ * | SRD Freeze | the same again, with a Speed on the end of it |
+ * | SRD Blurred Form | `adaptMonster`, as the first printed `against-holder` mode |
+ * | SRD Beast of Burden | `capacitySizeOf`, which reads SRD Powerful Build's own grant |
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1192,9 +1195,11 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-when-ally-is-within-5-feet-of-the-target',
   'advantage-while-bloodied',
   'allies-in-emanation-have-advantage',
+  'carries-as-a-larger-creature',
   'climbs-without-a-check',
   'deals-double-damage-to-objects',
   'disadvantage-in-sunlight',
+  'disadvantage-on-attacks-against-it',
   'does-not-provoke-when-flying-out-of-reach',
   'does-not-provoke-when-leaving-reach',
   'emanation-is-difficult-terrain',
@@ -1204,6 +1209,7 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'magic-resistance',
   'penalised-after-taking-a-damage-type',
   'sheds-light',
+  'speed-cut-after-taking-a-damage-type',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',
 ];
@@ -1234,14 +1240,61 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * The reason is per kind rather than one sentence for the list, because the
  * day one of them stops being a handover it will be one of them and not all
  * three.
+ *
+ * **The breathing traits were the first three and are no longer alone.** The
+ * test that admitted them admits every sentence below: each names planes,
+ * minds, substances, sounds or a GM's choice, and not one of them names a
+ * thing a rule consults. What is deliberately *not* here is the other half of
+ * the residue — a sentence stating a mechanic the engine has no seam for. An
+ * Amorphous that squeezes through an inch, an Incorporeal Movement that walks
+ * through a wall, a Web Walker that ignores a web's restriction: each is a
+ * rule, each would be executed the day the lattice held spaces, materials and
+ * surfaces, and calling one fiction would retire a debt by renaming it. Those
+ * stay unread and stay on the ledger's residue list.
  */
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
+  'a-heading-over-the-lines-that-follow':
+    'SRD Vampire Weakness: "The vampire has these weaknesses:". A heading the book prints over the three lines that follow it, each of which is counted on its own. It states no rule, so there is nothing to build and nothing to wait for.',
   'breathes-air-and-water':
     'SRD Amphibious. The engine models no drowning and no suffocation, so "can breathe air and water" — and the four hours a Limited Amphibiousness gives before it must submerge — say what the fiction is and name nothing a rule reads afterwards.',
   'breathes-only-water':
     'SRD Water Breathing, the same sentence the other way round. A creature that can breathe only underwater is a fact about where the DM may put it; nothing in the engine happens when it is put somewhere else.',
+  'cannot-enter-a-home-uninvited':
+    'SRD Forbiddance: "The vampire can\'t enter a residence without an invitation from an occupant." A residence is not a thing the scene holds — the lattice has spaces, landmarks and creatures, and no doorway that could be crossed or refused — so the threshold is the DM\'s to keep.',
+  'cannot-shape-shift':
+    'SRD Immutable Form: "The golem can\'t shape-shift." A creature shape-shifts here by holding a feature that says so, and the golem holds none; the sentence forbids a thing nothing was going to offer it, which is a promise to the table rather than a rule the engine enforces.',
+  'controls-a-kind-of-creature':
+    'SRD Shark Telepathy: "can magically control sharks within 120 feet of itself". The engine has nothing that makes one creature act at another\'s word — a compulsion is a creature somebody else is playing — and no notion of what kind of animal a stat block is beyond its own type. Who the sharks obey is the table\'s.',
+  'goes-unnoticed-until-it-moves':
+    'SRD Transparent: a DC 15 Wisdom (Perception) check to notice the cube at all. Whether anybody has looked, and what they were looking for, is the table\'s to say; the engine rolls the check when a DM asks for one and nothing in it waits on the answer.',
+  'grants-a-resistance-to-its-rider':
+    'SRD Confer Fire Resistance: "can grant Resistance to Fire damage to a rider while it is on the nightmare." A Resistance is a rule and its span is not: nothing in the requirement vocabulary says "while riding this creature", so the grant would have no lifetime and the gift is the table\'s to remember.',
+  'has-a-damage-type-the-gm-chooses':
+    'SRD Draconic Origin: "a type of dragon associated with one of the following damage types (GM\'s choice)". The block states no type, so there is nothing to pin; the attack lines that read it already ask for the ruling and refuse to roll until somebody has answered.',
+  'has-a-skill-the-gm-chooses':
+    'SRD Training: "proficiency in one skill of the GM\'s choice and Advantage whenever it makes an ability check using that skill." Both halves are mechanics the engine holds, and the block names no skill for either to be about — so the sentence is a slot the DM fills rather than a rule the sheet can carry.',
   'holds-its-breath':
     'SRD Hold Breath. A span with nothing at the end of it: the clock could count the hour, but there is no rule waiting for it to run out, so the number is the table\'s to narrate.',
+  'is-hurt-by-water':
+    'SRD Water Susceptibility and SRD Running Water. Water is a substance this world does not hold: there is no wet square, no gallon and no river, so nothing could ever raise the damage. The day the lattice holds a material, this stops being a handover.',
+  'is-perceived-through-by-its-master':
+    'SRD Vampiric Connection: a master who sees through the familiar\'s senses. Sight is asked of the creature rolling, and there is nothing that could borrow one creature\'s senses for another; what the vampire knows is narration.',
+  'mimics-sounds':
+    'SRD Mimicry, on the Green Hag and the Raven. What a sound is, who heard it and whether they believed it are all the table\'s; the Insight check is one a DM calls for and nothing afterwards reads the answer.',
+  'pinpoints-a-substance':
+    'SRD Iron Scent and SRD Treasure Sense: "can pinpoint the location of ferrous metal within 30 feet of itself." The scene holds creatures, landmarks and declared objects, and none of them has a substance the sense could find — so what is in the room is the DM\'s to say and the trait tells them the creature already knows.',
+  'revives-on-another-plane':
+    'SRD Diabolical Restoration and SRD Hellish Restoration: a body that comes back in the Nine Hells. There is one plane here and no map of any other, so a death that moves a creature somewhere the engine cannot address is a thing that happens to the story.',
+  'sees-into-another-plane':
+    'SRD Ethereal Sight: "can see 60 feet into the Ethereal Plane." There is nothing on the Ethereal Plane to see, because the engine holds one scene and no second place for anybody to stand in.',
+  'senses-magic-nearby':
+    'SRD Sense Magic: "works like the Detect Magic spell but isn\'t itself magical." What is magical in the room is a fact about the fiction the engine keeps no register of, and the spell it points at is itself a handover for the same reason.',
+  'speaks-telepathically-with-its-master':
+    'SRD Telepathic Bond. The engine holds no conversation, no language and no distance a thought has to cross; who can speak to whom is the whole of what this says and nothing reads it.',
+  'speaks-with-a-kind-of-creature':
+    'SRD Speak with Beasts and Plants: "can communicate with Beasts and Plants as if they shared a language." A language is a fact on the sheet that nothing consults, and what a Beast says back is the DM\'s.',
+  'thoughts-cannot-be-read':
+    'SRD Shielded Mind: "The couatl\'s thoughts can\'t be read by any means." Nothing here reads a thought, so the defence guards a door that was never there; it is a fact about the couatl for whoever is narrating.',
 };
 
 /** Whether this line's trait is one the engine reads and hands over. */

@@ -1130,7 +1130,15 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And four more when a damage type became a trigger: two Lightning
       // Absorptions, the Iron Golem's Fire Absorption under another heading
       // over the same sentence, and one Aversion to Fire.
-      traits: { printed: 337, read: 162 },
+      // And thirty-eight more when the residue was sorted: three sentences
+      // the engine already had a seam for — Freeze, Blurred Form and Beast of
+      // Burden — and thirty-five that are the **third answer**, read so the
+      // table gets them and consulted by no rule, which `HANDOVER_TRAIT_KINDS`
+      // holds the reason for one kind at a time. The other half of the residue
+      // is still prose and still on the ledger: an Amorphous that squeezes
+      // through an inch and a Web Walker that ignores a web are rules, and
+      // calling one fiction would retire a debt by renaming it.
+      traits: { printed: 337, read: 200 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read

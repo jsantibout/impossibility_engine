@@ -34,6 +34,7 @@ import { asCharacterId, type CharacterId, isErr, expect as unwrap } from '@ie/sh
 import {
   addCreature,
   addSceneLandmark,
+  carryingCapacity,
   declareCreatureSide,
   declareLight,
   declareObject,
@@ -51,7 +52,7 @@ import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { adaptMonster } from './monster.js';
 import { createRollIssuer } from './rolls.js';
-import { actionRulesOn, rollModesFor } from './standing.js';
+import { actionRulesOn, rollModesFor, speedOf } from './standing.js';
 
 const id = (s: string) => asCharacterId(s);
 const SEED = 'trait-readers';
@@ -995,6 +996,33 @@ describe('a trait a damage type sets off', () => {
     expect(rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes).toEqual([]);
   });
 
+  /**
+   * SRD Freeze: "If the elemental takes Cold damage, its Speed decreases by
+   * 20 feet until the end of its next turn." The same trigger and the same
+   * span with a Speed on the end of it.
+   */
+  it('cuts the Speed the cold costs, and gives it back', () => {
+    const log = golemAt(0, 'water-elemental');
+    const before = speedOf(at(log), GOLEM);
+    const struck = unwrap(burn(log, 'cold', 7), 'the frost');
+    const cut = [...log, ...struck.events];
+    expect(speedOf(at(cut), GOLEM)).toBe(before - 20);
+
+    const turned = [
+      ...cut,
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+      { type: 'turn-advanced' as const, ended: WATCHER, begun: GOLEM },
+      { type: 'turn-advanced' as const, ended: GOLEM, begun: WATCHER },
+    ];
+    expect(speedOf(at(turned), GOLEM)).toBe(before);
+  });
+
+  it('cuts nothing for a type its sentence does not name', () => {
+    const log = golemAt(0, 'water-elemental');
+    const struck = unwrap(burn(log, 'fire', 7), 'the flame');
+    expect(speedOf(at([...log, ...struck.events]), GOLEM)).toBe(speedOf(at(log), GOLEM));
+  });
+
   /** A block that prints neither sentence is burnt and healed by nothing. */
   it('gives a block that prints neither sentence nothing', () => {
     const log = golemAt(20, 'ogre');
@@ -1002,5 +1030,68 @@ describe('a trait a damage type sets off', () => {
     expect(struck.amount).toBe(11);
     const after = fold(SEED, [...log, ...struck.events]);
     expect(rollModesFor(after, { roller: GOLEM, family: 'ability-check' }).modes).toEqual([]);
+  });
+});
+
+describe('SRD Blurred Form: a mode on the rolls made against its holder', () => {
+  const MEPHIT = id('mephit');
+
+  const swungAt = (state: GameState): readonly string[] =>
+    rollModesFor(state, { roller: WATCHER, against: MEPHIT, family: 'attack' }).modes.map(
+      (mode) => mode.source,
+    );
+
+  /**
+   * "Attack rolls against the mephit are made with Disadvantage unless the
+   * mephit has the Incapacitated condition." The first printed trait whose
+   * mode sits at the other end of the blow.
+   */
+  it('gives the attacker Disadvantage and the mephit nothing', () => {
+    const log = field('steam-mephit', MEPHIT);
+    expect(swungAt(at(log))).toEqual(['Blurred Form']);
+    // And it is a rule about rolls *against* it, not about its own.
+    expect(
+      rollModesFor(at(log), { roller: MEPHIT, against: WATCHER, family: 'attack' }).modes,
+    ).toEqual([]);
+  });
+
+  /** The gate is the sentence's last clause, and it is read on every roll. */
+  it('gives nobody anything while the mephit is Incapacitated', () => {
+    const log = [
+      ...field('steam-mephit', MEPHIT),
+      {
+        type: 'condition-applied' as const,
+        id: MEPHIT,
+        condition: 'incapacitated' as const,
+        source: 'the test',
+      },
+    ];
+    expect(swungAt(at(log))).toEqual([]);
+  });
+});
+
+describe('SRD Beast of Burden: SRD Powerful Build on a stat block', () => {
+  const MULE = id('mule');
+
+  /**
+   * "The mule counts as one size larger for the purpose of determining its
+   * carrying capacity." A Large row off a Medium creature, which is the grant
+   * `capacitySizeOf` has read since the Goliath's own line landed.
+   */
+  it('reads the mule’s capacity a row up from the size it is', () => {
+    const mule = at(field('mule', MULE));
+    const strength = mule.creatures[MULE]!.sheet.abilities.str;
+
+    // Still Medium: the sentence is about this table and about nothing else.
+    expect(mule.creatures[MULE]!.size).toBe('medium');
+    // SRD: a Medium creature carries 15 pounds per point of Strength and a
+    // Large one twice that, so the step is the doubling and nothing else.
+    expect(carryingCapacity(mule, MULE).carry).toBe(strength * 15 * 2);
+
+    // Not vacuous: a Medium block that prints no such sentence reads its own
+    // row. The pony is the same size and the same shape of creature.
+    const pony = at(field('pony', id('pony')));
+    const ponyStrength = pony.creatures[id('pony')]!.sheet.abilities.str;
+    expect(carryingCapacity(pony, id('pony')).carry).toBe(ponyStrength * 15);
   });
 });

@@ -502,6 +502,97 @@ describe('a trait a damage type sets off', () => {
   });
 });
 
+describe('three more sentences the engine already had a seam for', () => {
+  /**
+   * SRD Freeze: the same trigger SRD Aversion to Fire prints, with a Speed on
+   * the end of it instead of a roll mode.
+   */
+  it('reads the Speed a damage type costs', () => {
+    expect(traitOf('water-elemental', 'Freeze')).toEqual({
+      kind: 'speed-cut-after-taking-a-damage-type',
+      damageType: 'cold',
+      feet: 20,
+    });
+  });
+
+  /**
+   * SRD Blurred Form, which is the first printed trait whose mode sits on the
+   * rolls made **against** its holder.
+   */
+  it('reads the Disadvantage an attacker takes, gate and all', () => {
+    expect(traitOf('steam-mephit', 'Blurred Form')).toEqual({
+      kind: 'disadvantage-on-attacks-against-it',
+    });
+    expect(
+      parseTraitShape('Attack rolls against the mephit are made with Disadvantage.'),
+    ).toBeNull();
+  });
+
+  /** SRD Beast of Burden, which is SRD Powerful Build on a stat block. */
+  it('reads the step a carrying capacity is read at', () => {
+    expect(traitOf('mule', 'Beast of Burden')).toEqual({
+      kind: 'carries-as-a-larger-creature',
+      sizesLarger: 1,
+    });
+  });
+});
+
+/**
+ * The **third answer**: sentences read so that the table gets them, and that
+ * no rule will ever consult.
+ *
+ * `docs/design/content.md` settles the test — "a table fact that a rule then
+ * reads is a debt; a table fact nothing reads afterwards is a handover" — and
+ * every kind below is on the second side of it. They are anchored as hard as
+ * everything else here, because a kind is a claim about what was read and not
+ * a label stuck on a heading.
+ */
+describe('the sentences that are fiction, read so the table gets them', () => {
+  const handovers: readonly (readonly [string, string, string])[] = [
+    ['green-hag', 'Mimicry', 'mimics-sounds'],
+    ['raven', 'Mimicry', 'mimics-sounds'],
+    ['homunculus', 'Telepathic Bond', 'speaks-telepathically-with-its-master'],
+    ['vampire-familiar', 'Vampiric Connection', 'is-perceived-through-by-its-master'],
+    ['sahuagin-warrior', 'Shark Telepathy', 'controls-a-kind-of-creature'],
+    ['rust-monster', 'Iron Scent', 'pinpoints-a-substance'],
+    ['xorn', 'Treasure Sense', 'pinpoints-a-substance'],
+    ['dryad', 'Speak with Beasts and Plants', 'speaks-with-a-kind-of-creature'],
+    ['ghost', 'Ethereal Sight', 'sees-into-another-plane'],
+    ['phase-spider', 'Ethereal Sight', 'sees-into-another-plane'],
+    ['gelatinous-cube', 'Transparent', 'goes-unnoticed-until-it-moves'],
+    ['couatl', 'Shielded Mind', 'thoughts-cannot-be-read'],
+    ['flesh-golem', 'Immutable Form', 'cannot-shape-shift'],
+    ['barbed-devil', 'Diabolical Restoration', 'revives-on-another-plane'],
+    ['lemure', 'Hellish Restoration', 'revives-on-another-plane'],
+    ['chuul', 'Sense Magic', 'senses-magic-nearby'],
+    ['commoner', 'Training', 'has-a-skill-the-gm-chooses'],
+    ['half-dragon', 'Draconic Origin', 'has-a-damage-type-the-gm-chooses'],
+    ['fire-elemental', 'Water Susceptibility', 'is-hurt-by-water'],
+    ['vampire-spawn', 'Running Water', 'is-hurt-by-water'],
+    ['nightmare', 'Confer Fire Resistance', 'grants-a-resistance-to-its-rider'],
+    ['vampire-spawn', 'Forbiddance', 'cannot-enter-a-home-uninvited'],
+    ['vampire-spawn', 'Vampire Weakness', 'a-heading-over-the-lines-that-follow'],
+  ];
+
+  it.each(handovers)('reads %s’s %s as %s', (block, line, kind) => {
+    expect(traitOf(block, line)).toEqual({ kind });
+  });
+
+  /**
+   * And each of them is still anchored: the shortest sentence on the list is
+   * the Flesh Golem's four words, and a fifth word is a different rule.
+   */
+  it('refuses a handover sentence that says one more thing', () => {
+    expect(parseTraitShape("The golem can't shape-shift.")).toEqual({
+      kind: 'cannot-shape-shift',
+    });
+    expect(parseTraitShape("The golem can't shape-shift or be shape-shifted.")).toBeNull();
+    expect(
+      parseTraitShape('The dryad can communicate with Beasts and Plants as if they shared a language, and they obey it.'),
+    ).toBeNull();
+  });
+});
+
 describe('the reader is a list of matched sentences and not an interpreter', () => {
   it('reads nothing out of a trait nobody has matched', () => {
     expect(parseTraitShape('The elemental can move through a space as narrow as 1 inch.')).toBeNull();
