@@ -2650,6 +2650,14 @@ export type SpellEffect =
       /** SRD Shillelagh's "the attack and damage rolls of **melee** attacks". */
       readonly meleeOnly?: true;
       /**
+       * SRD Shillelagh: "The spell ends early if you cast it again or if you
+       * let go of the weapon." The rider carries the clause and the fold's
+       * `settleWeaponRiders` ends the casting when the weapon leaves the
+       * holder's inventory; SRD Magic Weapon prints no such sentence and
+       * leaves this off, so it is declared rather than assumed.
+       */
+      readonly endsWhenLetGo?: true;
+      /**
        * SRD Magic Weapon's "a +1 bonus to attack rolls and damage rolls".
        *
        * One number reaching both rolls, because the SRD writes one number

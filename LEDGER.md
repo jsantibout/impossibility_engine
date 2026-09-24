@@ -34,7 +34,7 @@ state is displayed as zero.
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none |
 |---|---|---|---|---|
 | Spells in reach, not executed | 89 spells | 56 | 0 | 33 |
-| Features manual, or a pool with nothing to buy | 9 features | 3 | 0 | 6 |
+| Features manual, or a pool with nothing to buy | 8 features | 2 | 0 | 6 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 |
 | Glossary general rules nothing executes | 22 rules | 0 | 0 | 22 |
 | CR ≤ 5 stat-block items handed over or unapplied | 189 items | on 117 of 244 blocks | 0 | 127 blocks already clean |
@@ -457,7 +457,7 @@ entries in it, and the complement pinned by name. Its bracket is the level:
 an Origin feat and a Fighting Style print none and are taken at 1, so nine
 of the sixteen are in a level 1–5 character's reach.
 
-Of the 9, 8 are class or subclass features printed at level 5 or below, 1 are species or background traits and 0 are feats.
+Of the 8, 7 are class or subclass features printed at level 5 or below, 1 are species or background traits and 0 are feats.
 The snapshot of 2026-09-21 in `docs/dev/roadmap-ledger-2026-09-21.md`
 counted the first group only, and did not see the pools; the traits are in
 reach of a level 5 character too, which is where the difference in the size
@@ -466,12 +466,10 @@ comes from.
 | Shape | Blocks | Finishes |
 |---|---|---|
 | `a-reroll-outside-the-test-window` | 1 | 1 |
-| `an-attack-the-class-redefines` | 2 | 0 |
-| `a-casting-ended-by-a-trigger` | 1 | 0 |
 | `a-feature-that-changes-what-a-casting-costs` | 1 | 0 |
-| `a-rider-on-a-later-weapon-attack` | 1 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 1 | 0 |
 | `a-stat-block-created-mid-fight` | 1 | 0 |
+| `an-attack-the-class-redefines` | 1 | 0 |
 | `an-option-re-chosen-on-a-rest` | 1 | 0 |
 | `movement-modes` | 1 | 0 |
 
@@ -484,28 +482,19 @@ sums to the population.
 
 - `human:resourceful` — Resourceful (level 1, species, manual)
 
-#### `an-attack-the-class-redefines` — blocks 2, finishes 0
-
-- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
-- `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
-
-#### `a-casting-ended-by-a-trigger` — blocks 1, finishes 0
-
-- `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
-
 #### `a-feature-that-changes-what-a-casting-costs` — blocks 1, finishes 0
 
 - `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
-
-#### `a-rider-on-a-later-weapon-attack` — blocks 1, finishes 0
-
-- `oath-of-devotion:sacred-weapon` — Sacred Weapon (level 3, subclass, manual) — also waits on 2
 
 #### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 1, finishes 0
 
 - `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
 
 #### `a-stat-block-created-mid-fight` — blocks 1, finishes 0
+
+- `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
+
+#### `an-attack-the-class-redefines` — blocks 1, finishes 0
 
 - `warlock:eldritch-invocations` — Eldritch Invocations (level 1, class, manual) — also waits on 5
 

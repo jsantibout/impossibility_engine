@@ -8284,6 +8284,10 @@ export const SHILLELAGH: SpellDefinition = {
   effects: [
     {
       kind: 'weapon-rider',
+      // "The spell ends early if you cast it again or if you let go of the
+      // weapon": the rider carries the clause, and the fold ends the casting
+      // when the weapon leaves the Druid's inventory.
+      endsWhenLetGo: true,
       // "A Club or Quarterstaff you are holding".
       weapons: ['club', 'quarterstaff'],
       // "the attack and damage rolls of **melee** attacks using that weapon".
@@ -8304,9 +8308,6 @@ export const SHILLELAGH: SpellDefinition = {
   durationSeconds: 60,
   // SRD: "The spell ends early if you cast it again."
   replacesPriorCasting: true,
-  unmodelled: [
-    'the spell does not end when you let go of the weapon: the rule is built — a rider that says it ends when its weapon leaves the holder’s inventory ends the casting with it — and a `weapon-rider` effect has no field to say so with, which Magic Weapon is the reason it may not simply be assumed of every rider',
-  ],
 };
 
 /**

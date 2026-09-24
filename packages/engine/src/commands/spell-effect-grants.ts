@@ -544,6 +544,7 @@ export function resolveWeaponRiderEffect(
       source,
       weapon,
       ...(effect.meleeOnly === undefined ? {} : { meleeOnly: effect.meleeOnly }),
+      ...(effect.endsWhenLetGo === undefined ? {} : { endsWhenLetGo: effect.endsWhenLetGo }),
       ...(bonus === undefined ? {} : { bonus }),
       ...(die === undefined ? {} : { die }),
       // "your spellcasting ability", resolved to the one this casting went

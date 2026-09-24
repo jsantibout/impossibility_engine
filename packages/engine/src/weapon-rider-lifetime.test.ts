@@ -553,15 +553,13 @@ const druidSupply = (state: GameState) => ({
 const grown = (log: readonly GameEvent[]): GameState => fold('the grove', log);
 
 /**
- * Cast the spell, then restate its rider with the clause the definition cannot
- * yet print.
+ * Cast the spell and, where asked, restate its rider with the let-go clause.
  *
- * SRD Shillelagh ends "if you let go of the weapon"; a `SpellDefinition` has
- * no field for that sentence and adding one is a change to the spell
- * vocabulary, which is another track's this batch. The rule underneath it is
- * the engine's and is what this asserts: a rider that says it ends when the
- * weapon is let go takes its casting with it, and one that does not — SRD
- * Magic Weapon, which prints no such clause — runs on.
+ * The restatement is the older half of this file: it proves the fold's rule
+ * on a hand-written rider, independent of any definition. SRD Shillelagh now
+ * prints the clause itself (`weapon-rider.endsWhenLetGo`), and the test below
+ * that casts it with no restatement is the one that proves the catalogue
+ * says so; SRD Magic Weapon prints no such sentence and runs on.
  */
 const castImbuing = (spellId: string, weapon: string, letGo: boolean): readonly GameEvent[] => {
   const log = grove();
@@ -602,6 +600,15 @@ describe('a casting whose rider ends when the weapon is let go', () => {
   it('ends the whole casting, not merely the rider', () => {
     const log = castImbuing('shillelagh', 'quarterstaff', true);
     expect(Object.keys(grown(log).ongoing)).toHaveLength(1);
+    const dropped = putDown(log, 'quarterstaff');
+    expect(grown(dropped).creatures[DRUID]?.weaponRiders).toEqual([]);
+    expect(Object.keys(grown(dropped).ongoing)).toEqual([]);
+  });
+
+  it('ends SRD Shillelagh as the catalogue writes it, with no restatement', () => {
+    const log = castImbuing('shillelagh', 'quarterstaff', false);
+    const granted = log.find((event) => event.type === 'weapon-rider-granted');
+    expect(granted?.type === 'weapon-rider-granted' ? granted.rider.endsWhenLetGo : null).toBe(true);
     const dropped = putDown(log, 'quarterstaff');
     expect(grown(dropped).creatures[DRUID]?.weaponRiders).toEqual([]);
     expect(Object.keys(grown(dropped).ongoing)).toEqual([]);

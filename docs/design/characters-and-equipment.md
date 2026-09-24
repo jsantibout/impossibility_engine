@@ -94,6 +94,17 @@ Dash the book gives free; a caller wanting the priced one's benefit names it
 through `effectiveSizeOf` — printed, then stated, then the map's — so a
 Goliath in Large Form is Large to a Grapple and not only on the map.
 
+An `activated` grant may **imbue one weapon** (`imbuesWeapon`: the kind it
+may be, an ability-sized attack bonus, a damage-type offer, and whether it
+ends when the weapon is let go): the activation names the weapon by its item
+id and hangs a feature-sourced weapon rider on that id — the shape a casting
+already uses for Shillelagh and Magic Weapon — so the benefit reaches one
+object rather than a kind. The fold's `settleWeaponRiders` ends a rider whose
+weapon has left the holder's inventory, taking the activation or the casting
+with it when the rider says so (`endsWhenLetGo`); it compares item ids the
+creature already holds and opens no catalogue. SRD Sacred Weapon is the whole
+of it, and Shillelagh's let-go clause rides the same rule.
+
 A `spells` grant's `freeCasting` may name a sibling feature's pool (SRD Wild
 Companion spends Wild Shape's), print the slot route beside the free one
 (`withSlots`), fix a `choiceStated` value (`fixesChoice`) and put a Long Rest

@@ -1979,3 +1979,16 @@ Appended after wave seven's first spells track (2026-09-24):
   (lift, push or pull, with feet), so a save may gate forced movement for
   Levitate, Gust of Wind and any push a failure buys; one shape rather than a
   save path in the movement resolver that Metamagic could not reach.
+- **Sacred Weapon executes, and a feature keys a benefit to one object.** An
+  `activated` grant may imbue one weapon (`imbuesWeapon`): the activation
+  names the item and hangs a feature-sourced weapon rider on its id, so the
+  Charisma bonus and the Radiant offer reach that longsword and not the dagger
+  beside it; a second use ends the first. The fold's `settleWeaponRiders` ends a
+  rider whose weapon has left the holder's inventory — comparing ids the
+  creature already holds, no catalogue opened — and takes the activation or
+  the casting with it **when the rider says so**: the ruling's "whatever
+  sourced it" was wrong for SRD Magic Weapon, which imbues for an hour and
+  prints no let-go clause, so `endsWhenLetGo` is declared, not assumed. The
+  coordinator added the three lines the track could not: the `weapon-rider`
+  effect carries the clause and SRD Shillelagh prints it. Features waiting on
+  a shape: two (Eldritch Invocations' second half, Resourceful's window).
