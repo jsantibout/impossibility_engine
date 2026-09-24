@@ -24,7 +24,6 @@ import {
 } from '@ie/shared';
 import { type AttackResult } from '../attack.js';
 import { type D20TestResult } from '../checks.js';
-import { hasCondition } from '../conditions.js';
 import { type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity } from '../idempotency.js';
 import {
@@ -1282,20 +1281,22 @@ export function areaTargets(
     // SRD Hypnotic Pattern: "Each creature in the area who can see the
     // pattern."
     //
-    // **Two facts, composed here because they live in two places.** Blinded is
-    // the book's own sentence about the looker — "You can't see" — and it is a
-    // condition; the line to the pattern is the sight model's and it is a
-    // question about a place. `canSeePoint` deliberately answers only the
-    // second (its note says why), so the clause that needs both joins them,
-    // and no other rule in the engine has its sight answer changed by this.
+    // **One question, asked once.** This used to compose two facts that lived
+    // in two places — the looker's Blinded condition here, and the line to the
+    // pattern in `canSeePoint` — because the helper deliberately did not read
+    // the condition while `canSee` did not either. Both read it now, so the
+    // clause is the helper's answer and nothing else, and a blind creature
+    // gets the same answer from this spell as from every other sight question
+    // in the engine. `canSeePoint` takes the null origin too, for the same
+    // reason: a place with no coordinates is still a place a blind creature
+    // cannot see.
     //
     // **Unsettled is caught, and reported.** Nobody can declare a line of
     // sight to a patch of air, so a null here is not homework anybody could
     // do — it is the ruling SRD Faerie Fire's gate already takes, applied and
     // then named in the outcome so the table can overrule it.
     if (source.mustSeeTheOrigin === true) {
-      if (hasCondition(creature.conditions, 'blinded')) return false;
-      const seen = originSpace === null ? null : canSeePoint(state, who, originSpace);
+      const seen = canSeePoint(state, who, originSpace);
       if (seen === false) return false;
       if (seen === null) {
         unverified.push(
