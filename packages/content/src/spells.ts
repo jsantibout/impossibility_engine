@@ -7884,12 +7884,18 @@ export const FAERIE_FIRE: SpellDefinition = {
           },
         },
       ],
+      // "For the duration, objects and **affected** creatures shed Dim Light
+      // in a 10-foot radius" — on exactly the creatures the die outlined,
+      // which is what makes it a rider: a `light` effect beside the save would
+      // light the ones that made it too. The patch has the creature for its
+      // origin, so it walks with them, and it is the casting's, so a dispel
+      // puts it out.
+      light: { level: 'dim', radius: 10 },
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    'the objects in the Cube are not outlined: objects are not modelled, so which of them the light picks out is the DM’s',
-    'the Dim Light each outlined thing sheds in a 10-foot radius is not applied: a light a casting carries hangs on its target, and a save’s riders do not yet include one',
+    'the objects in the Cube are not outlined, and neither is the Dim Light they would shed: objects are not modelled, so which of them the light picks out is the DM’s',
   ],
 };
 

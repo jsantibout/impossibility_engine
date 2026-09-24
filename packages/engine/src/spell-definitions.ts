@@ -993,6 +993,50 @@ export interface OutcomeRiders {
    * has to be standing before this asks whether the Reaction is available.
    */
   readonly spends?: SpentBudget;
+  /**
+   * Light the same roll makes its target shed.
+   *
+   * SRD Faerie Fire: "Each creature in the Cube is also outlined if it fails a
+   * Dexterity saving throw. For the duration, objects and **affected**
+   * creatures shed Dim Light in a 10-foot radius." One save, a benefit taken
+   * away and a glow, and the glow is on exactly the creatures the die
+   * outlined — so a `light` effect beside the save would light the ones that
+   * made it too, which is the argument every member of this interface makes.
+   *
+   * **The same landing as the `light` effect kind**, reached from the other
+   * host: `lightShedOn` writes the patches, whose region has the creature for
+   * its origin so the glow walks with them, and whose source is the casting so
+   * it lapses when the casting does. It is a leaf like every other rider —
+   * nothing is rolled and nobody new is targeted.
+   *
+   * **Sixth, and last, because it changes nothing any of the other five
+   * reads.** Light is a fact about the scene rather than about the creature,
+   * so the order it lands in relative to a condition or a grant is invisible;
+   * it goes after the shove for the reason the shove goes after the grants,
+   * which is that the shove moves the creature the patch is hung on.
+   *
+   * It carries no `lasts` of its own, for the reason the `light` effect
+   * carries none: every SRD sentence in this position runs for the spell's own
+   * duration, and `checkGrantLifetimes` refuses it on an Instantaneous host.
+   */
+  readonly light?: LightRider;
+}
+
+/**
+ * A glow a settled outcome hangs on its target — see {@link
+ * OutcomeRiders.light}.
+ *
+ * Spelled out rather than shared with the `light` effect kind's own fields,
+ * for the reason `SpellRepeatSave` was pulled out of two inline literals: one
+ * exported type is what keeps two slots from being widened out of step. The
+ * effect kind still spells its own, because rewriting three definitions would
+ * change no rule.
+ */
+export interface LightRider {
+  readonly level: LightLevel;
+  readonly radius: number;
+  /** SRD "Dim Light for an additional N feet": a dim sphere N wider. */
+  readonly dimBeyond?: number;
 }
 
 /**
@@ -1870,6 +1914,17 @@ export type SpellEffect =
        * The host made the roll; the rider is the arithmetic.
        */
       readonly modifiers?: readonly ModifierRider[];
+      /**
+       * Light the same failed save makes its target shed: see
+       * {@link OutcomeRiders.light}.
+       *
+       * Spelled flat for the reason `condition` and `modifiers` are — this
+       * host keeps its own layout — and read through {@link outcomeRidersOf},
+       * so `applyRiders` never learns which host it is serving. SRD Faerie
+       * Fire is the one writer, and it is the third of the three hosts to
+       * carry the slot rather than a fourth spelling of it.
+       */
+      readonly light?: LightRider;
       /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
@@ -5225,12 +5280,21 @@ export function outcomeRidersOf(effect: SpellEffect): OutcomeRiders {
   // hit" and "on a failed save" and nowhere else that a rider hangs.
   const spends =
     effect.kind === 'attack' || effect.kind === 'save-damage' ? effect.spends : undefined;
+  // **All three hosts**, and the third is why this reads the field rather than
+  // the interface: SRD Faerie Fire writes the glow off a bare `save`, which
+  // keeps its flat spelling, so the slot is declared there as well and read
+  // here in one place.
+  const light =
+    effect.kind === 'attack' || effect.kind === 'save-damage' || effect.kind === 'save'
+      ? effect.light
+      : undefined;
   return {
     ...(conditions.length === 0 ? {} : { conditions }),
     ...(modifiers.length === 0 ? {} : { modifiers }),
     ...(delayed === undefined ? {} : { delayed }),
     ...(movement === undefined ? {} : { movement }),
     ...(spends === undefined ? {} : { spends }),
+    ...(light === undefined ? {} : { light }),
   };
 }
 
@@ -5250,7 +5314,8 @@ export function hasOutcomeRiders(riders: OutcomeRiders): boolean {
     riders.modifiers !== undefined ||
     riders.delayed !== undefined ||
     riders.movement !== undefined ||
-    riders.spends !== undefined
+    riders.spends !== undefined ||
+    riders.light !== undefined
   );
 }
 

@@ -42,6 +42,7 @@ import { applySpellEffect, type SpellEffectOptions } from './casting.js';
 import { schedule } from './conditions.js';
 import { shoveAwayFrom } from './spell-effect-movement.js';
 import { effectCheckFrom } from './rolls.js';
+import { lightShedOn } from './spell-effect-grants.js';
 
 /**
  * The `damage-scheduled` event a delayed hit needs, or nothing.
@@ -543,6 +544,30 @@ export function applyRiders(
       events.push(spent);
       current = applyEvent(current, spent);
     }
+  }
+
+  // **The glow, last, and after the shove** — SRD Faerie Fire's "For the
+  // duration, objects and affected creatures shed Dim Light in a 10-foot
+  // radius." The patch's region has the creature for its origin, so it walks
+  // with them and a push before it or after it makes no difference; it is last
+  // because it is a fact about the *scene* rather than about the creature, and
+  // reading it before the shove would put the first reading of the lattice
+  // ahead of the move that changed it.
+  //
+  // The same landing the `light` effect kind takes, reached from the other
+  // host: two hosts, one geometry. Sourced to the casting, so a dispel, a
+  // broken Concentration and the deadline all take it away.
+  if (riders.light !== undefined) {
+    const shed = lightShedOn(current, target, riders.light, {
+      name: definition.name,
+      source,
+      castingId,
+      spellLevel: definition.level,
+    });
+    held.add(target);
+    events.push(...shed.events);
+    current = shed.events.reduce(applyEvent, current);
+    context.unverified.push(...shed.unverified);
   }
 
   return ok({ events, conditions });

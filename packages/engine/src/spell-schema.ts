@@ -29,6 +29,7 @@ import type {
   AttackRollCount,
   ConditionRider,
   DiceScaling,
+  LightRider,
   ModifierRider,
   RiderDuration,
   SpellArea,
@@ -1234,7 +1235,12 @@ function checkSaveWithoutCondition(
   found: SpellDefinitionProblem[],
 ): void {
   const further = Array.isArray(effect.conditions) ? effect.conditions : [];
-  const hangs = further.length > 0 || (effect.modifiers ?? []).length > 0;
+  // **Every rider slot this host carries**, because the question is whether
+  // the die decided anything at all: a failure that only makes its target glow
+  // is SRD's sentence perfectly well, and reading `modifiers` alone would call
+  // it a die thrown for nothing.
+  const hangs =
+    further.length > 0 || (effect.modifiers ?? []).length > 0 || effect.light !== undefined;
 
   if (!hangs && effect.recordsOutcome !== true) {
     found.push({
@@ -1773,6 +1779,44 @@ function withReadableRiders<E extends SpellEffect>(effect: E): E {
 const readableRiderList = (slot: unknown): boolean => slot === undefined || Array.isArray(slot);
 
 /** Every rider one host carries, in the order `applyRiders` applies them. */
+/**
+ * A sentence about shed light, wherever it is written.
+ *
+ * Two hosts — the `light` effect kind and {@link OutcomeRiders.light} — so one
+ * checker, for the reason `lightShedOn` is one landing: a second reading of
+ * "a 10-foot radius" is a second place for it to mean something else.
+ */
+function checkShedLight(
+  light: { readonly level?: unknown; readonly radius?: unknown; readonly dimBeyond?: unknown },
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!(LIGHT_LEVELS as readonly string[]).includes(light.level as string)) {
+    found.push({
+      field: `${path}.level`,
+      code: 'bad_light_level',
+      reason: `"${String(light.level)}" is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
+    });
+  }
+  if (!Number.isInteger(light.radius) || (light.radius as number) < 5) {
+    found.push({
+      field: `${path}.radius`,
+      code: 'bad_light_radius',
+      reason: `light reaches a whole number of feet, at least one space, not ${String(light.radius)}`,
+    });
+  }
+  if (
+    light.dimBeyond !== undefined &&
+    (!Number.isInteger(light.dimBeyond) || (light.dimBeyond as number) < 5)
+  ) {
+    found.push({
+      field: `${path}.dimBeyond`,
+      code: 'bad_light_radius',
+      reason: `dim light beyond the bright reaches a whole number of feet, at least one space, not ${String(light.dimBeyond)}`,
+    });
+  }
+}
+
 function checkRiders(
   riders: {
     readonly conditions?: readonly ConditionRider[];
@@ -1780,6 +1824,7 @@ function checkRiders(
     readonly delayed?: { readonly damage: DiceScaling; readonly damageType: string };
     readonly movement?: { readonly feet: number };
     readonly spends?: SpentBudget;
+    readonly light?: LightRider;
   },
   level: number,
   path: string,
@@ -1870,6 +1915,20 @@ function checkRiders(
   // {@link SpentBudget}.
   if (riders.spends !== undefined) {
     checkBudgetSpend(riders.spends as SpentBudget | undefined, `${path}.spends`, found);
+  }
+  // The sixth: a glow the outcome hangs on its target, checked by the same
+  // rule the `light` effect kind is — see {@link checkShedLight}.
+  if (riders.light !== undefined) {
+    if (
+      readsAsObject(
+        riders.light,
+        `${path}.light`,
+        'shed light is an object naming its level and how far it reaches',
+        found,
+      )
+    ) {
+      checkShedLight(riders.light, `${path}.light`, found);
+    }
   }
 }
 
@@ -2669,30 +2728,9 @@ function checkEffect(
     // — a duration, Concentration or "until dispelled" — because the patch is
     // sourced to the casting and lapses with it; `checkSpellDefinition` says
     // so at the definition, where the duration is.
-    case 'light': {
-      if (!(LIGHT_LEVELS as readonly string[]).includes(effect.level)) {
-        found.push({
-          field: `${path}.level`,
-          code: 'bad_light_level',
-          reason: `"${String(effect.level)}" is not a level of light; the glossary prints ${LIGHT_LEVELS.join(', ')}`,
-        });
-      }
-      if (!Number.isInteger(effect.radius) || effect.radius < 5) {
-        found.push({
-          field: `${path}.radius`,
-          code: 'bad_light_radius',
-          reason: `light reaches a whole number of feet, at least one space, not ${String(effect.radius)}`,
-        });
-      }
-      if (effect.dimBeyond !== undefined && (!Number.isInteger(effect.dimBeyond) || effect.dimBeyond < 5)) {
-        found.push({
-          field: `${path}.dimBeyond`,
-          code: 'bad_light_radius',
-          reason: `dim light beyond the bright reaches a whole number of feet, at least one space, not ${String(effect.dimBeyond)}`,
-        });
-      }
+    case 'light':
+      checkShedLight(effect, path, found);
       return;
-    }
 
     // A sense conferred for the casting: one the glossary names, to a range.
     case 'sense': {
@@ -3729,6 +3767,16 @@ function grantCarried(effect: SpellEffect): string | null {
           default:
             break;
         }
+      }
+      // **And the sixth slot, which is not a `modifiers` member.** A glow the
+      // outcome hangs is sourced to the casting and lapses with its record, so
+      // an Instantaneous host would lay a patch on the lattice that nothing
+      // could ever put out — the same ending the standalone `light` kind is
+      // held to one branch up. It carries no `lasts`, for the reason that kind
+      // carries none: every SRD sentence in this position runs for the spell's
+      // own duration.
+      if ((effect as { readonly light?: unknown }).light !== undefined) {
+        return 'light the target sheds';
       }
       return null;
     }

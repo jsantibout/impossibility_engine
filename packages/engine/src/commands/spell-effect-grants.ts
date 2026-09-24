@@ -17,9 +17,9 @@
 
 import { ABILITY_NAMES, type CharacterId, err, ok, type Result } from '@ie/shared';
 import { type D20TestResult, rollSavingThrow } from '../checks.js';
-import { applyEvent, type CreatureState, type GameState } from '../events.js';
+import { applyEvent, type CreatureState, type GameEvent, type GameState } from '../events.js';
 import { weaponRiderBonusAt, weaponRiderDieAt } from '../spell-definitions.js';
-import { lightDispelledBy, type TerrainRegion } from '../positioning.js';
+import { lightDispelledBy, type LightLevel, type TerrainRegion } from '../positioning.js';
 import { armorClassOf, sheetAsItStands, speedOf } from '../standing.js';
 import { alteredRiderDice, recordD20Test, savingSupport } from './rolls.js';
 import { complementType, type PassiveDefenseState } from '../passive-defenses.js';
@@ -627,57 +627,103 @@ export function resolveLightEffect(
   world: GameState,
 ): Result<GameState> {
   const { source, events, outcomes, held, unverified } = ctx;
-  const spellLevel = ctx.origin.kind === 'casting' ? ctx.origin.definition.level : ctx.castLevel;
-  const name = ctx.origin.kind === 'casting' ? ctx.origin.definition.name : source;
+  const shed = lightShedOn(world, target, effect, {
+    name: ctx.origin.kind === 'casting' ? ctx.origin.definition.name : source,
+    source,
+    castingId: ctx.origin.kind === 'casting' ? ctx.origin.castingId : null,
+    spellLevel: ctx.origin.kind === 'casting' ? ctx.origin.definition.level : ctx.castLevel,
+  });
+
+  events.push(...shed.events);
+  unverified.push(...shed.unverified);
+  held.add(target);
+  outcomes.push({ target, affected: true });
+  return ok(shed.events.reduce(applyEvent, world));
+}
+
+/** What a sentence about shed light says, whether it is an effect or a rider. */
+export interface ShedLight {
+  readonly level: LightLevel;
+  readonly radius: number;
+  /** SRD "Dim Light for an additional N feet": a dim sphere N wider. */
+  readonly dimBeyond?: number;
+}
+
+/**
+ * The patches a casting lays on the creature carrying its light, and the
+ * darkness they put out — the whole of the landing, with no
+ * {@link EffectContext} in it.
+ *
+ * **Two hosts, one landing.** SRD Light writes the sentence as the whole of a
+ * spell and SRD Faerie Fire writes it as a consequence of a failed saving
+ * throw, so the `light` effect and the `light` rider are the same five lines
+ * of geometry reached from two places — and a second spelling of them would be
+ * a second answer to what "a 10-foot radius" means about a creature who walks.
+ */
+export function lightShedOn(
+  state: GameState,
+  target: CharacterId,
+  light: ShedLight,
+  by: {
+    /** The spell's name, for the patch a reader sees. */
+    readonly name: string;
+    /** The labelled source — `Faerie Fire#cast:3`. */
+    readonly source: string;
+    /** The casting the patch lapses with, or null where nothing holds it. */
+    readonly castingId: string | null;
+    /** The level the book's mutual dispel compares. */
+    readonly spellLevel: number;
+  },
+): { readonly events: readonly GameEvent[]; readonly unverified: readonly string[] } {
+  const { name, source, castingId, spellLevel } = by;
 
   // A patch lies on the lattice and there is none: the casting runs and is on
   // its bearer, and the light is the table's until a scene exists — the same
   // answer a beetle's own glow gives before anybody has placed it, said out
   // loud because a casting is a thing somebody asked for.
-  if (world.scene === null) {
-    unverified.push(
-      `${name}: no scene is set, so the light ${target} carries lies over no space and is the table's for this casting — declareLight lights the spot once a scene exists`,
-    );
-    held.add(target);
-    outcomes.push({ target, affected: true });
-    return ok(world);
+  if (state.scene === null) {
+    return {
+      events: [],
+      unverified: [
+        `${name}: no scene is set, so the light ${target} carries lies over no space and is the table's for this casting — declareLight lights the spot once a scene exists`,
+      ],
+    };
   }
   // The patch lapses with the casting's own record, so it is sourced to the
   // casting **id** — the key `state.ongoing` holds — and not to the labelled
   // source the grants above carry. A light an item confers (none does today)
   // has no record to lapse with and is left standing, as a declared patch is.
-  const lapsesWith = ctx.origin.kind === 'casting' ? { source: ctx.origin.castingId } : {};
+  const lapsesWith = castingId === null ? {} : { source: castingId };
   const sphere = (radius: number): TerrainRegion => ({
     origin: { creature: target },
     shape: { kind: 'sphere', radius },
   });
 
-  const before = events.length;
-  events.push({
-    type: 'light-declared',
-    patch: `${name} light (${source}) on ${target}`,
-    region: sphere(effect.radius),
-    level: effect.level,
-    magical: { spellLevel },
-    ...lapsesWith,
-  });
-  for (const dispelled of lightDispelledBy(world, sphere(effect.radius), effect.level, spellLevel)) {
+  const events: GameEvent[] = [
+    {
+      type: 'light-declared',
+      patch: `${name} light (${source}) on ${target}`,
+      region: sphere(light.radius),
+      level: light.level,
+      magical: { spellLevel },
+      ...lapsesWith,
+    },
+  ];
+  for (const dispelled of lightDispelledBy(state, sphere(light.radius), light.level, spellLevel)) {
     events.push({ type: 'spell-ended', castingId: dispelled, on: null, reason: 'dispelled' });
   }
-  if (effect.dimBeyond !== undefined) {
+  if (light.dimBeyond !== undefined) {
     events.push({
       type: 'light-declared',
       patch: `${name} dim light (${source}) on ${target}`,
-      region: sphere(effect.radius + effect.dimBeyond),
+      region: sphere(light.radius + light.dimBeyond),
       level: 'dim',
       magical: { spellLevel },
       ...lapsesWith,
     });
   }
 
-  held.add(target);
-  outcomes.push({ target, affected: true });
-  return ok(events.slice(before).reduce(applyEvent, world));
+  return { events, unverified: [] };
 }
 
 /**
