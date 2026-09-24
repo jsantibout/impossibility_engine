@@ -181,7 +181,7 @@ interface DuePayout {
   readonly target: CharacterId;
   /**
    * Whose boundary this fell due at, which is the creature the arrangement is
-   * on — and, where {@link GrantedPayout.to} names somebody else, the one
+   * on ï¿½ and, where {@link GrantedPayout.to} names somebody else, the one
    * dealing the damage. SRD Stirge is drinking, and a blow with no dealer is a
    * blow nothing can answer or attribute.
    */
@@ -251,6 +251,16 @@ function payoutsAt(
 function holdStillStands(state: GameState, holder: CharacterId, source: string): boolean {
   const grappler = grapplerOf(source);
   if (grappler !== null) {
+    // The ordinary form: the arrangement is on the creature being held, which
+    // is what SRD's "each of its turns" names. The other way round â€” a line
+    // collecting at the grappler's own boundary â€” is a hold that stands while
+    // that creature is holding anybody, because the source names the grappler
+    // and not the other end.
+    if (holder === grappler) {
+      return Object.keys(state.creatures).some((who) =>
+        grapplesOn(state, who as CharacterId).some((held) => held.grappler === grappler),
+      );
+    }
     return grapplesOn(state, holder).some((held) => held.grappler === grappler);
   }
   const other = attachedTo(source);
@@ -357,7 +367,7 @@ function settleTurnPayouts(
       // omitted rather than guessed at when the casting has outlived them.
       const castingId = castingIdOf(payout.source);
       // A casting names its caster; a printed hold names nobody, and the
-      // creature whose boundary this is *is* the one dealing it — SRD Stirge
+      // creature whose boundary this is *is* the one dealing it ï¿½ SRD Stirge
       // drinks at the start of its own turn. Where the two are the same
       // creature there is nothing to attribute and the field stays empty, as
       // it always has for a payout that lands on its own holder.
