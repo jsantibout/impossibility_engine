@@ -263,6 +263,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'feature-ended',
   'feature-used',
   'free-interaction-used',
+  'hazard-caught',
+  'hazard-ended',
   'healed',
   'healing-rule-granted',
   'help-given',

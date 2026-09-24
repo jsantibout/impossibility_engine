@@ -123,6 +123,7 @@ import {
   takeInfluence,
   takeSearch,
   takeStudy,
+  extinguishFire,
   takeUtilize,
   wakeCreature,
   declineDamageReaction,
@@ -1944,6 +1945,15 @@ const GUARDED: readonly Guarded[] = [
    * dice, and a Help is a second Advantage hung on the ally.
    */
   { name: 'takeUtilize', log: SETUP, run: (s, commandId) => takeUtilize(s, A, { commandId }) },
+  /**
+   * SRD *Burning*: an Action to put a fire out. A retry is a second Action
+   * gone and a second Prone, on a fire that was already out.
+   */
+  {
+    name: 'extinguishFire',
+    log: [...SETUP, { type: 'hazard-caught', id: A, hazard: { hazard: 'burning', lit: 'Burn' } }],
+    run: (s, commandId) => extinguishFire(s, A, { commandId }),
+  },
   {
     name: 'takeSearch',
     log: SETUP,
@@ -3375,6 +3385,9 @@ const SPENDERS: readonly Spender[] = [
   { name: 'wakeCreature', run: (s) => wakeCreature(s, B, { target: A }, {}) },
   { name: 'takeHide', run: (s) => takeHide(s, B, {}, supply()) },
   { name: 'takeUtilize', run: (s) => takeUtilize(s, B, {}) },
+  // The debt is asked before the fire is, so a creature who is not burning
+  // at all is still refused for the debt — the guard sitting where it does.
+  { name: 'extinguishFire', run: (s) => extinguishFire(s, B, {}) },
   { name: 'takeSearch', run: (s) => takeSearch(s, B, { skill: 'perception', dc: 10 }, supply()) },
   { name: 'takeStudy', run: (s) => takeStudy(s, B, { skill: 'arcana', dc: 10 }, supply()) },
   {

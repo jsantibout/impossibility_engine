@@ -11,6 +11,7 @@ import {
 } from '@ie/shared';
 import type { Bonus, ModeSource, StandingBonusApplies } from './bonuses.js';
 import type { CreatureSize } from '@ie/srd';
+import type { HazardName } from './hazards.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
 import {
   grantedRollModes,
@@ -2512,6 +2513,25 @@ export interface HitOption {
    * halves this too, and a blow that dealt nothing lowers nothing.
    */
   readonly lowersHitPointMaximum?: 'damage-taken';
+  /**
+   * A **hazard** the blow leaves the target standing in — SRD Fire Elemental's
+   * Burn: "If the target is a creature or a flammable object, it starts
+   * burning."
+   *
+   * Beside {@link effects} for {@link grapples}' reason, one step further: a
+   * hazard is not a condition — the glossary prints the fifteen under one
+   * heading and files this under another, so no condition immunity reaches it
+   * — and an effect list can only hang what a condition, a bonus or a grant
+   * can hold. It carries no span either, and that absence is the sentence: a
+   * fire runs until somebody rolls on the ground, so `lasts` would have had to
+   * be invented and `durationSeconds` would have put out a fire the book never
+   * ends.
+   *
+   * The die it costs is not here for the same reason it is not on the printed
+   * rider: the 1d4 is the glossary's, one rule behind three stat blocks, and a
+   * copy per hit is a copy that can disagree.
+   */
+  readonly hazard?: HazardName;
   /**
    * What the blow leaves behind **only if it was the blow that emptied them**
    * — SRD Phase Spider: "If this damage reduces the target to 0 Hit Points,

@@ -968,6 +968,10 @@ describe('the reader claims only the sentences it can execute', () => {
     // `readPrintedRiders`' answer instead.
     // And one more with the damage type a block leaves to the table: the
     // Half-Dragon's Claw, whose amount is read and whose type is the DM's.
-    expect(read).toBe(74);
+    // And two that set a creature alight — SRD Fire Elemental's Burn and SRD
+    // Magmin's Touch — where the hazard is the whole of the rule and the 1d4
+    // is the glossary's. SRD Barbed Devil's Hurl Flame is **not** among them:
+    // its sentence catches only a flammable object, and is still the table's.
+    expect(read).toBe(76);
   });
 });

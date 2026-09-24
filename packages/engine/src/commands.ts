@@ -297,6 +297,7 @@ export {
   forcePrintedSave,
   HELP,
   HIDE,
+  extinguishFire,
   HIDE_DC,
   INFLUENCE_SKILLS,
   readiedBy,

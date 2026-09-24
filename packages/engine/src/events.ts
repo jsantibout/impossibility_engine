@@ -39,6 +39,7 @@ import type {
 } from './attack.js';
 import type { DeniedBenefit, GrantedConditionImmunity } from './conditions.js';
 import type { GrantedCreatureType } from './creature-type.js';
+import type { CreatureHazard, HazardName } from './hazards.js';
 import type { D20TestResult } from './checks.js';
 import type { GrantedDamageReduction } from './damage-reduction.js';
 import type { GrantedReaction, ReactionWindow } from './reactions.js';
@@ -796,6 +797,43 @@ export type GameEvent =
       readonly id: CharacterId;
       /** The creature it was attached to. */
       readonly to: CharacterId;
+      readonly command?: CommandStamp;
+    }
+
+  /**
+   * A creature set alight — SRD Fire Elemental's Burn: "If the target is a
+   * creature or a flammable object, it starts burning."
+   *
+   * **The hazard is the identity and the event carries no number**, which is
+   * the two halves of {@link CreatureHazard}'s own reading: a second Burn
+   * re-lights one fire rather than adding a second, and the 1d4 belongs to the
+   * glossary rather than to any of the three lines that print the sentence. So
+   * nothing is pinned here that a stat block supplied — because a stat block
+   * supplies nothing but the fact.
+   */
+  | {
+      readonly type: 'hazard-caught';
+      readonly id: CharacterId;
+      readonly hazard: CreatureHazard;
+      readonly command?: CommandStamp;
+    }
+
+  /**
+   * A fire put out — SRD *Burning*: "As an action, you can extinguish fire on
+   * yourself by giving yourself the Prone condition and rolling on the
+   * ground."
+   *
+   * One event for one ending, as an attach's is: the Prone the action costs
+   * arrives through `condition-applied`, which is the door every condition
+   * comes in by, and the action through `action-spent`. What the book's other
+   * two endings — doused, submerged, suffocated — would need is a world with
+   * water in it, and until there is one they are the table's: a DM who rules
+   * the fire out says so, and this is the event that records it.
+   */
+  | {
+      readonly type: 'hazard-ended';
+      readonly id: CharacterId;
+      readonly hazard: HazardName;
       readonly command?: CommandStamp;
     }
 

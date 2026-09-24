@@ -98,7 +98,8 @@ import { startOfNextTurn } from '../time.js';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { routeLabel } from './item-casting.js';
-import { schedule } from './conditions.js';
+import { applyConditionTo, schedule } from './conditions.js';
+import { caughtIn, hazardSource } from '../hazards.js';
 import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
 import { teleportTo } from './teleport.js';
@@ -3080,5 +3081,81 @@ function releaseSpell(
   }
 
   return ok({ events, took: true, spell: resolved.value });
+}
+
+// — the glossary's hazards, and the one action that ends one ————————————————
+
+/**
+ * SRD *Burning* [Hazard]: "As an action, you can extinguish fire on yourself by
+ * giving yourself the Prone condition and rolling on the ground."
+ *
+ * **Not a {@link NAMED_ACTIONS} member**, and reading that list is what says
+ * so: every member of it has both a spender that names it *and* an SRD
+ * sentence that asks for it by name — "it takes the Attack action", "forced to
+ * take the Dodge action". Nothing in the book ever says "takes the Extinguish
+ * action", so a member here would be a name no rule could ask for, which is
+ * the wish that list is kept free of. This spends an Action like any other
+ * command and is told apart by nothing, exactly as the book leaves it.
+ *
+ * **On yourself, which the sentence says twice.** "Extinguish fire *on
+ * yourself*" by "giving *yourself* the Prone condition": there is no clause
+ * about a neighbour beating out somebody else's fire, so there is no target to
+ * refuse one with.
+ *
+ * **The Prone is the method and not a price the fire charges**, so a creature
+ * that cannot be given it still puts the fire out and the reason is reported
+ * rather than fatal — the reading `resolveFall` already takes of the same
+ * pairing, where "you then have the Prone condition" and a Prone immunity meet.
+ *
+ * The book's other three endings — "doused, submerged, or suffocated" — are
+ * the table's: there is no water in this world and nothing that holds a
+ * breath, so a DM who rules one of them says so and the fire goes out by their
+ * word rather than by a rule nobody could state.
+ */
+export function extinguishFire(
+  state: GameState,
+  id: CharacterId,
+  command: CommandIdentity = {},
+): Result<GameEvent[]> {
+  return once(state, `extinguish:${id}`, command, () => [], (stamp) => {
+    // A mandatory effect this creature has been caught by, or a turn whose
+    // start has not arrived. **After the duplicate check, never before it.**
+    const owedHere = mayAct(state, id);
+    if (owedHere !== null) return owedHere;
+
+    const creature = creatureOf(state, id);
+    if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+    if (!caughtIn(state, id, 'burning')) {
+      return err('not_burning', `${id} is not burning, and there is no fire here to put out`);
+    }
+    if (state.combat === null) {
+      return err(
+        'not_in_combat',
+        'an Action is a thing a turn holds; outside combat there is no turn to spend one on',
+      );
+    }
+
+    const spent = spendAction(state.combat, id, creature.conditions, {
+      rules: actionRulesOn(state, id),
+    });
+    if (!spent.ok) return spent;
+
+    const events: GameEvent[] = [
+      { type: 'action-spent', id },
+      { type: 'hazard-ended', id, hazard: 'burning', ...(stamp === null ? {} : { command: stamp }) },
+    ];
+    // Applied through the door every condition comes in by, and **after** the
+    // fire is out: a creature immune to Prone ends up standing with the flames
+    // gone rather than kneeling in them.
+    const floored = applyConditionTo(
+      events.reduce(applyEvent, state),
+      id,
+      'prone',
+      hazardSource('burning'),
+    );
+    if (floored.ok) events.push(...floored.value);
+
+    return ok(events);
+  });
 }
 

@@ -681,6 +681,18 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // deadline, an Aid that carries the current total up with the maximum and
   // clamps it on the way down, and a level-up taken mid-Aid that is worth the
   // whole of its level.
+  // A creature set alight and the fire put out — SRD Fire Elemental's Burn,
+  // SRD Magmin's Touch, and the glossary's own Burning hazard. Neither log was
+  // written when the engine had anywhere to hold one: the clause was carried
+  // verbatim and handed to the DM, `CreatureState` had no `hazards` at all,
+  // and both fixtures fold to exactly the states they always folded to with
+  // the list empty on every creature. `burning.test.ts` folds both and drives
+  // them end to end: the hit that lights it, the second hit that does not
+  // stack, the 1d4 Fire at the start of the caught creature's turn, the action
+  // that puts it out at the price of the Prone condition, and the boundary
+  // that costs nothing afterwards.
+  'hazard-caught',
+  'hazard-ended',
   'healing-rule-granted',
   // The Help action, and who it was taken for. Neither log was written when
   // the action existed at all — `combat.ts` named Help among the glossary

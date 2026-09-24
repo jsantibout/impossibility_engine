@@ -526,6 +526,20 @@ export function applyHitRider(
   });
   if (!resolved.ok) return resolved;
 
+  // **The hazard, before the hold and after the list**, because it is neither
+  // and holds nothing open: SRD Fire Elemental's Burn leaves a creature
+  // standing in a fire that nothing about this rider owns — no source to
+  // release it by, no deadline to lift it, and no condition immunity that
+  // reaches it. A creature already alight is re-lit rather than doubled, which
+  // is the fold's own reading of the mark.
+  if (option.hazard !== undefined) {
+    events.push({
+      type: 'hazard-caught',
+      id: hit.target,
+      hazard: { hazard: option.hazard, lit: option.name },
+    });
+  }
+
   // **The grapple, after the effect list and before the deadlines**, because
   // it is neither: it hangs no condition the option's own span is about — SRD
   // ends a grapple on facts about the grappler and never on the clock — and it

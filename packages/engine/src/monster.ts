@@ -33,6 +33,7 @@ import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import { saveModifier, skillModifier } from './character.js';
 import type { ShapeShiftRow } from './progression.js';
 import { isCreatureType } from './spell-definitions.js';
+import type { HazardName } from './hazards.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
 import type { HitRiderAnchor, StandingEffect, StandingRequirement } from './standing.js';
 import type { RollFamily } from './roll-modifiers.js';
@@ -2317,7 +2318,8 @@ export type PrintedRider =
   | PrintedMaximumRider
   | PrintedModeRider
   | PrintedDroppedToZeroRider
-  | PrintedAttachRider;
+  | PrintedAttachRider
+  | PrintedHazardRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -2537,6 +2539,31 @@ export interface PrintedSpeedCutRider {
  */
 export interface PrintedMaximumRider {
   readonly kind: 'hit-point-maximum';
+}
+
+/**
+ * A **hazard** the hit leaves the target standing in — SRD Fire Elemental's
+ * Burn: "If the target is a creature or a flammable object, it starts
+ * burning"; SRD Magmin's Touch, the same with the object qualified.
+ *
+ * It carries no number and no span, and neither is an omission. The 1d4 and
+ * the boundary it falls due at are the **glossary's** — every line that prints
+ * this sentence prints "it starts burning" and nothing else — so a copy here
+ * would be one of three transcriptions of one rule, free to disagree. And a
+ * fire has no deadline: it burns until somebody rolls on the ground or the
+ * table douses it, which is why this is not a {@link PrintedConditionRider}
+ * whose span the reader would then have had to invent.
+ *
+ * **Only the creature half is read.** The same sentence catches "a flammable
+ * object", and the engine holds no flammability — a declared object is a
+ * substance and a size, and whether the oak door in this room takes light is
+ * the table's. So the swing applies it to a creature and hands the object half
+ * back where the target is one; and SRD Barbed Devil's Hurl Flame, which
+ * catches **only** an object, is not read at all.
+ */
+export interface PrintedHazardRider {
+  readonly kind: 'hazard';
+  readonly hazard: HazardName;
 }
 
 /**
@@ -2956,6 +2983,21 @@ const PRINTED_SPEED_CUT = new RegExp(
 /** SRD Specter and SRD Wraith, word for word. */
 const PRINTED_MAXIMUM =
   /^If the target is a creature, its Hit Point maximum decreases by an amount equal to the damage taken\.$/;
+
+/**
+ * SRD Fire Elemental's Burn: "If the target is a creature or a flammable
+ * object, it starts burning." SRD Magmin's Touch qualifies the object — "that
+ * isn't being worn or carried" — and says the same thing about the creature.
+ *
+ * **"a creature" is required and the object half is optional**, which is what
+ * refuses SRD Barbed Devil's Hurl Flame: "If the target is a flammable object
+ * that isn't being worn or carried, it starts burning" catches no creature at
+ * all, and a reader that matched it would set fire to everybody the devil hit.
+ * The two sentences differ by four words and by the whole of the rule.
+ */
+const STARTS_BURNING = new RegExp(
+  `^If the target is a creature(?: or a flammable object)?(?: that isn${APOSTROPHE}t being worn or carried)?, it starts burning\\.$`,
+);
 
 /** SRD Ettin: a mode on the roll the creature that was hit makes next. */
 const PRINTED_MODE_ON_TARGET = new RegExp(
@@ -3512,6 +3554,8 @@ function readClause(text: string): ClauseRead | null {
   }
 
   if (PRINTED_MAXIMUM.test(text)) return one({ kind: 'hit-point-maximum' });
+
+  if (STARTS_BURNING.test(text)) return one({ kind: 'hazard', hazard: 'burning' });
 
   const ownRoll = PRINTED_MODE_ON_TARGET.exec(text);
   if (ownRoll !== null) {
