@@ -586,8 +586,6 @@ be the second spelling of one derivation.
 | `a-casting-paid-for-out-of-a-feature-pool` | 6 | 4 |
 | `a-roll-result-an-effect-replaces` | 4 | 3 |
 | `a-feature-that-changes-who-a-casting-catches` | 4 | 2 |
-| `an-option-re-chosen-on-a-rest` | 3 | 2 |
-| `a-declared-fact-a-feature-sets` | 2 | 2 |
 | `a-pool-refilled-to-a-floor` | 2 | 2 |
 | `a-spell-list-that-is-not-your-class-list` | 2 | 2 |
 | `healing-modified-by-an-effect` | 2 | 2 |
@@ -601,8 +599,10 @@ be the second spelling of one derivation.
 | `an-attack-the-class-redefines` | 3 | 1 |
 | `a-condition-a-feature-ends` | 2 | 1 |
 | `a-one-shot-roll-modifier` | 2 | 1 |
+| `an-option-re-chosen-on-a-rest` | 2 | 1 |
 | `a-concentration-rule-that-names-its-casting` | 1 | 1 |
 | `a-creature-fact-an-effect-overrides` | 1 | 1 |
+| `a-declared-fact-a-feature-sets` | 1 | 1 |
 | `a-reaction-effect-the-vocabulary-lacks` | 1 | 1 |
 | `a-reroll-outside-the-test-window` | 1 | 1 |
 | `a-roll-mode-a-feature-takes-away` | 1 | 1 |
@@ -611,7 +611,6 @@ be the second spelling of one derivation.
 | `an-area-an-item-creates` | 1 | 1 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 1 |
 | `an-effect-that-waits-for-a-later-trigger` | 1 | 1 |
-| `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `an-option-whose-span-is-a-turn-boundary` | 1 | 1 |
 | `heroic-inspiration` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 3 | 0 |
@@ -652,7 +651,7 @@ exactly like an entry nobody read:
 
 | Species | Backgrounds | Features | Executed by the engine |
 |---|---|---|---|
-| 9 | 4 | 37 | 34 |
+| 9 | 4 | 37 | 36 |
 
 A species trait and a class feature are the same `FeatureDefinition` and
 declare automation the same way, so this is the column above read by the
@@ -676,8 +675,8 @@ derived would be somebody’s opinion instead.
 | Criminal | background | 1 | 1 |
 | Dragonborn | species | 5 | 5 |
 | Dwarf | species | 4 | 4 |
-| Elf | species | 5 | 4 |
-| Gnome | species | 3 | 2 |
+| Elf | species | 5 | 5 |
+| Gnome | species | 3 | 3 |
 | Goliath | species | 3 | 3 |
 | Halfling | species | 4 | 4 |
 | Human | species | 3 | 2 |

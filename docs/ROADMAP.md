@@ -1865,3 +1865,17 @@ Appended after wave six's first two tracks (2026-09-24):
   for consent (`undeclared_consent`) rather than refusing, and the DM's door
   names the willing by id. The Trample lines now require a Prone target, which
   the book always said.
+- **Three features, three small shapes.** A `spells` grant may be re-chosen on
+  a rest (`rechosenOn`: the rest, the list, the ceiling — a mark on the grant
+  whose fixed spell is re-asked, not a second declaration of it), offered and
+  answered through the door a level-up already uses; a feature may **make an
+  object** (`creates-object`, the Rock Gnome's device — kept on the summon
+  bond, its eight hours a fifth read of `strandedSummons`, its function pinned
+  prose the Bonus Action hands back, three doors above it); a feature may
+  **detect** (`detects` on an `activated` grant, derived on every read beside
+  `sensesOf`, published in `look`'s `senses`) — Divine Sense, whose
+  consecrated half is the table's because nothing consecrates a place. **A
+  flagged shape:** `advance_character` accepts any `featureChoices` record, so
+  a level-up can swap a rest-re-chosen answer without the rest; every
+  rest-re-chosen answer already had that door open, and closing it is a rule
+  about which keys a level-up may write.
