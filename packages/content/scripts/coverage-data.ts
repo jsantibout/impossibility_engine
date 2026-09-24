@@ -1348,6 +1348,17 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * minds, sounds, a narrated substance or a GM's choice, and not one of them
  * names a thing a rule consults.
  *
+ * **And the world family joined them**, which is the same test pointed at the
+ * ground instead of at the air. A gap an inch wide, solid rock, a web, a sheet
+ * of ice, another creature's own space and a vampire's heart are all facts
+ * about the *place* rather than about the creature, and this scene holds
+ * creatures, landmarks, declared objects and declared regions and nothing that
+ * anything is made of. They share one reason, written once at the head of
+ * their group below and again per kind in the sentence's own terms, and the
+ * day the lattice holds materials it is false — which is not left to be
+ * noticed, because the inverted pin fails the moment one of them grows a
+ * reader.
+ *
  * **What is deliberately *not* here is the other half of the residue**, and it
  * is worth naming family by family, because a line with no note beside it
  * looks like a line nobody read. Each of these states a mechanic the engine
@@ -1357,16 +1368,17 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Amorphous ×4, Compression, Air Form, Fire Form, Water Form, Ooze Cube | a space narrower than the lattice's five feet, and a creature's space entered and stopped in |
- * | Earth Glide ×2, Tunneler, Incorporeal Movement ×4, Ephemeral, Ice Walk | ground and walls as material rather than as declared regions |
- * | Web Walker ×4, Adhesive, Spider Climb (the Swarm's) | a restriction with a *source*, so a web's Restrained can be told from a rope's |
+ * | Ooze Cube | `a-second-place-to-put-a-creature`: the cube holds a Large creature or four Medium ones **inside itself**, they have Total Cover there, and a neighbour pulls one out on a check. The narrow-gap half of its paragraph is the movement family below; the rest is not, and reading the whole as fiction would lose four rules |
  * | Swarm ×7 | a healing rule a stat block states. `HealingRule` exists and `healingRuleOf` reads granted state; nothing writes one when a block arrives, so "can't regain Hit Points" has no door |
  * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
- * | Berserk, Vampire Spawn's Stake to the Heart | a creature somebody else is playing: a d6 and a compulsion, a coup de grâce a DM adjudicates |
+ * | Berserk ×2 | a creature somebody else is playing: a d6 at the start of a turn and a compulsion that picks the golem's target for it. `a-creature-somebody-else-is-playing` |
+ * | Abduct ×2 | the price of dragging a creature you have Grappled. "Needn't spend extra movement to move a creature it is grappling" is a rule about a cost the engine charges, so it is a debt rather than a fact about the world |
  * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
- * | Succubus Form, Incubus Form, Troll Spawn, Soul Bag | one stat block becoming another, at a rest or on a 24-hour timer |
+ * | Succubus Form, Incubus Form, Troll Spawn | one stat block replaced by another, at a Long Rest or on a 24-hour timer. `assumeStatBlock` is the mechanism and Wild Shape is its one caller; what is missing is the door a *creature's own printed line* comes through, and the Troll Limb's d12 besides |
+ * | Soul Bag | an object a block is born holding. `declareObject` holds a thing with an Armour Class, Hit Points and a Resistance that can be broken; nothing gives one to a creature when its stat block arrives, and the hag's Nightmare Haunting is gated on carrying it |
+ * | Spider Climb (the Swarm's) | a **gate** on a kind that already has a reader: "If the swarm has a Climb Speed, the swarm can climb…". `climbs-without-a-check` is spent by `climbCheck`, so this is a field on that kind rather than a third answer — and a gate read away would be a rule nobody printed |
  * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
  *
@@ -1419,6 +1431,50 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
     'SRD Speak with Beasts and Plants: "can communicate with Beasts and Plants as if they shared a language." A language is a fact on the sheet that nothing consults, and what a Beast says back is the DM\'s.',
   'thoughts-cannot-be-read':
     'SRD Shielded Mind: "The couatl\'s thoughts can\'t be read by any means." Nothing here reads a thought, so the defence guards a door that was never there; it is a fact about the couatl for whoever is narrating.',
+
+  // ------------------------------------------------------------------
+  // **The world family**, and the movement half of it shares one reason.
+  //
+  // The scene holds creatures, landmarks, declared objects and declared
+  // regions. It does not hold what anything is *made of*, how wide a gap
+  // between two things is, or whether a creature's own space may be stood in
+  // — so squeezing through an inch, gliding through rock, walking a web and
+  // stepping inside another creature each name a fact nobody can state and no
+  // rule would read afterwards. That is the same test the breathing traits
+  // pass, pointed at the ground instead of at the air.
+  //
+  // **The day the lattice holds materials the shared reason is false**, and
+  // the guards say so rather than leaving it to be noticed: the moment one of
+  // these grows a reader in `packages/engine/src`, `coverage.test.ts` fails on
+  // the inverted pin, and whoever built the reader moves the kind to the
+  // roster in the same commit.
+  // ------------------------------------------------------------------
+  'moves-through-a-one-inch-gap':
+    'SRD Amorphous and SRD Compression: "can move through a space as narrow as 1 inch without expending extra movement to do so." The lattice\'s smallest unit is a five-foot space and nothing in the scene has a width, so there is no gap for the ooze to be refused and none for it to be let through; what the sentence does is tell a DM that the grating is not an obstacle.',
+  'enters-a-creature-space-and-a-one-inch-gap':
+    'SRD Air Form and SRD Water Form: "can enter a creature\'s space and stop there", beside the inch above. A creature\'s own space is not a place anything can be put — `positioning.ts` holds one occupant per space and a shared space has no meaning for reach, cover or a Grapple — so the permission is one the engine has nothing to grant.',
+  'burns-a-creature-whose-space-it-enters':
+    'SRD Fire Form: the two clauses above with "The first time it enters a creature\'s space on a turn, that creature takes 5 (1d10) Fire damage" after them. The damage is real and its trigger is the standing-inside clause the lattice cannot hold, so the whole sentence goes to the table together — a DM who narrates the elemental walking through somebody states the damage through the door that already takes one.',
+  'moves-through-creatures-and-objects':
+    'SRD Incorporeal Movement: "can move through other creatures and objects as if they were Difficult Terrain. It takes 5 (1d10) Force damage if it ends its turn inside an object." Difficult Terrain is a declared region rather than a property of what is standing there, and *inside an object* is a position with no address, so neither the licence nor the damage has anything to read.',
+  'burrows-through-earth-and-stone':
+    'SRD Earth Glide: "can burrow through nonmagical, unworked earth and stone." Ground and walls are narration here — the scene knows where a creature is and not what is between two of them — so there is no material for the elemental to be told apart from, and no move that would have been refused.',
+  'burrows-through-solid-rock':
+    'SRD Tunneler: "can burrow through solid rock at half its Burrow Speed and leaves a 10-foot-diameter tunnel in its wake." The same absent material as Earth Glide, and the tunnel besides: a hole left in the world is a change to the map the DM is drawing, and the engine draws none.',
+  'ignores-a-webs-restrictions':
+    'SRD Web Walker: "ignores movement restrictions caused by webs, and the spider knows the location of any other creature in contact with the same web." A web is not a thing in this scene — the Giant Spider\'s own Web line is a save the engine has not read either — so there is no restriction with a source for this to be an exception to, and no web for two creatures to be in contact with.',
+  'walks-on-ice':
+    'SRD Ice Walk: "can move across and climb icy surfaces without needing to make an ability check. Additionally, Difficult Terrain composed of ice or snow doesn\'t cost it extra movement." A patch of Difficult Terrain is declared and has no composition, and an icy surface is a description of a place rather than a fact about it, so the exemption names nothing the mover reads.',
+  'cannot-wear-or-carry-anything':
+    'SRD Ephemeral, on the will-o\'-wisp: "can\'t wear or carry anything." A stat block\'s inventory is whatever its printed Gear line gives it and nothing hands a monster anything else, so the sentence forbids something nobody was going to do — a promise to the table about what the wisp is, in the family of SRD Immutable Form.',
+  'adheres-to-what-touches-it':
+    'SRD Adhesive, on the mimic in object form: "adheres to anything that touches it", and then a Grappled condition at escape DC 13 with Disadvantage on the escape. The grapple, the DC and the Disadvantage are all rules the engine holds and a DM applies through doors that exist; what it has no notion of is one thing *touching* another, which is the clause the rest of the sentence hangs on. So the ruling is the table\'s and the mechanics are already built.',
+  'confers-a-resistance-to-a-rider':
+    'SRD Confer Fire Resistance, on the nightmare: "can grant Resistance to Fire damage to a rider while it is on the nightmare." Nothing here is ridden — there is no mount, no rider and no relation between two creatures that would end when one gets off — so the beneficiary of the Resistance is somebody only the fiction knows about.',
+  'destroyed-by-a-stake-through-the-heart':
+    'SRD Stake to the Heart, on the vampire spawn: "is destroyed if a weapon that deals Piercing damage is driven into the vampire\'s heart while the vampire has the Incapacitated condition." A heart is not a place, and driving a weapon into one is not an attack the engine could be asked for; it is the coup de grâce a DM adjudicates, and the death it ends in already has a door.',
+  'paralyzed-by-a-stake-through-the-heart':
+    'SRD Stake to the Heart, on the vampire, which is the other rule under that heading: the vampire "has the Paralyzed condition until the weapon is removed" rather than being destroyed. The condition is one the engine applies and the trigger is the same absent heart, so the sentence tells a DM which condition to state and the engine takes it through the door it already has.',
 };
 
 /** Whether this line's trait is one the engine reads and hands over. */

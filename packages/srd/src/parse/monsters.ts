@@ -1042,6 +1042,139 @@ const HANDOVERS: readonly (readonly [RegExp, MonsterTrait['kind']])[] = [
     ),
     'makes-a-noise',
   ],
+
+  // ------------------------------------------------------------------
+  // The sentences that describe a **world** rather than a creature: a gap
+  // narrower than five feet, solid rock, a web, a sheet of ice, a heart. The
+  // scene holds creatures, landmarks, declared objects and declared regions
+  // and no substance at all, so each of these names a fact nothing can be
+  // told and no rule would read. See `HANDOVER_TRAIT_KINDS` for the reason
+  // per kind, and the note on this table for why they are matched last.
+  // ------------------------------------------------------------------
+
+  // SRD Amorphous, on four blocks, and SRD Compression on the octopus: one
+  // sentence under two headings.
+  [
+    new RegExp(
+      `^${SUBJECT} can move through a space as narrow as 1 inch without expending extra movement ` +
+        `to do so\\.$`,
+    ),
+    'moves-through-a-one-inch-gap',
+  ],
+
+  // SRD Air Form and SRD Water Form — the same two clauses, and the book
+  // writes "a creature's space" for one elemental and "an enemy's space" for
+  // the other two.
+  [
+    new RegExp(
+      `^${SUBJECT} can enter an? (?:creature|enemy)['’]s space and stop there\\. It can move ` +
+        `through a space as narrow as 1 inch without expending extra movement to do so\\.$`,
+    ),
+    'enters-a-creature-space-and-a-one-inch-gap',
+  ],
+
+  // SRD Fire Form: those two clauses in the other order, with damage on the
+  // end of it. Its own entry because a regex loose enough to read it as the
+  // one above would have dropped the damage without saying so.
+  [
+    new RegExp(
+      `^${SUBJECT} can move through a space as narrow as 1 inch without expending extra movement ` +
+        `to do so, and it can enter a creature['’]s space and stop there\\. The first time it ` +
+        `enters a creature['’]s space on a turn, that creature takes \\d+ \\(\\d+d\\d+\\) \\w+ ` +
+        `damage\\.$`,
+    ),
+    'burns-a-creature-whose-space-it-enters',
+  ],
+
+  // SRD Incorporeal Movement, on the ghost, the specter, the wisp and the
+  // wraith.
+  [
+    new RegExp(
+      `^${SUBJECT} can move through other creatures and objects as if they were Difficult ` +
+        `Terrain\\. It takes \\d+ \\(\\d+d\\d+\\) \\w+ damage if it ends its turn inside an ` +
+        `object\\.$`,
+    ),
+    'moves-through-creatures-and-objects',
+  ],
+
+  // SRD Earth Glide.
+  [
+    new RegExp(
+      `^${SUBJECT} can burrow through nonmagical, unworked earth and stone\\. While doing so, ` +
+        `${SUBJECT} doesn['’]t disturb the material it moves through\\.$`,
+    ),
+    'burrows-through-earth-and-stone',
+  ],
+
+  // SRD Tunneler.
+  [
+    new RegExp(
+      `^${SUBJECT} can burrow through solid rock at half its Burrow Speed and leaves a ` +
+        `\\d+-foot-diameter tunnel in its wake\\.$`,
+    ),
+    'burrows-through-solid-rock',
+  ],
+
+  // SRD Web Walker. The second clause names the creature again on four blocks
+  // and says "it" on the fifth.
+  [
+    new RegExp(
+      `^${SUBJECT} ignores movement restrictions caused by webs, and (?:it|${SUBJECT}) knows the ` +
+        `location of any other creature in contact with the same web\\.$`,
+    ),
+    'ignores-a-webs-restrictions',
+  ],
+
+  // SRD Ice Walk. Not SRD Spider Climb: the surfaces are named by what they
+  // are made of, and a patch of Difficult Terrain here has no composition.
+  [
+    new RegExp(
+      `^${SUBJECT} can move across and climb icy surfaces without needing to make an ability ` +
+        `check\\. Additionally, Difficult Terrain composed of ice or snow doesn['’]t cost it ` +
+        `extra movement\\.$`,
+    ),
+    'walks-on-ice',
+  ],
+
+  // SRD Ephemeral.
+  [new RegExp(`^${SUBJECT} can['’]t wear or carry anything\\.$`), 'cannot-wear-or-carry-anything'],
+
+  // SRD Adhesive. The grapple and its DC are rules the engine holds; one
+  // thing *touching* another is not.
+  [
+    new RegExp(
+      `^${SUBJECT} adheres to anything that touches it\\. A \\w+ or smaller creature adhered to ` +
+        `${SUBJECT} has the Grappled condition \\(escape DC \\d+\\)\\. Ability checks made to ` +
+        `escape this grapple have Disadvantage\\.$`,
+    ),
+    'adheres-to-what-touches-it',
+  ],
+
+  // SRD Confer Fire Resistance. Nothing here is ridden.
+  [
+    new RegExp(
+      `^${SUBJECT} can grant Resistance to \\w+ damage to a rider while it is on ${SUBJECT}\\.$`,
+    ),
+    'confers-a-resistance-to-a-rider',
+  ],
+
+  // SRD Stake to the Heart, printed twice as two different rules: the spawn
+  // is destroyed and the vampire is Paralyzed until the weapon is drawn out.
+  [
+    new RegExp(
+      `^${SUBJECT} is destroyed if a weapon that deals \\w+ damage is driven into ` +
+        `${SUBJECT}['’]s heart while ${SUBJECT} has the Incapacitated condition\\.$`,
+    ),
+    'destroyed-by-a-stake-through-the-heart',
+  ],
+  [
+    new RegExp(
+      `^If a weapon that deals \\w+ damage is driven into ${SUBJECT}['’]s heart while ` +
+        `${SUBJECT} has the Incapacitated condition in its resting place, ${SUBJECT} has the ` +
+        `Paralyzed condition until the weapon is removed\\.$`,
+    ),
+    'paralyzed-by-a-stake-through-the-heart',
+  ],
 ];
 
 /** The book's nouns for the rolls, in the kind's own three words. */

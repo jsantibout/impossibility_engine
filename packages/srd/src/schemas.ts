@@ -1967,6 +1967,151 @@ export const MonsterTraitSchema = z.discriminatedUnion('kind', [
      */
     kind: z.literal('makes-a-noise'),
   }),
+
+  // ---------------------------------------------------------------------
+  // The sentences that describe a **world** rather than a creature.
+  //
+  // Each names a material, a gap, a web, a sheet of ice or a heart, and the
+  // scene holds creatures, landmarks, declared objects and declared regions
+  // and no substance at all — so there is no fact for a rule to read and no
+  // move that would be refused. They are handovers by the test
+  // `docs/design/content.md` sets, and `HANDOVER_TRAIT_KINDS` carries the
+  // reason for each in the sentence's own terms.
+  //
+  // **They stop being handovers the day the lattice holds materials**, and
+  // that is written down rather than left to be noticed: the reason on each
+  // says what would have to be true for it to be false.
+  // ---------------------------------------------------------------------
+  z.object({
+    /**
+     * SRD Amorphous, on four oozes and shadows, and SRD Compression on the
+     * octopus: "can move through a space as narrow as 1 inch without
+     * expending extra movement to do so."
+     *
+     * One kind over two headings, because the two print one sentence — the
+     * rule this file follows everywhere: the sentence is matched and the
+     * heading is not.
+     */
+    kind: z.literal('moves-through-a-one-inch-gap'),
+  }),
+  z.object({
+    /**
+     * SRD Air Form and SRD Water Form: "The elemental can enter a creature's
+     * space and stop there. It can move through a space as narrow as 1 inch
+     * without expending extra movement to do so."
+     *
+     * A kind of its own rather than the one above with a flag, because the
+     * first clause is the larger of the two claims and a flag on the narrow
+     * gap would have buried it.
+     */
+    kind: z.literal('enters-a-creature-space-and-a-one-inch-gap'),
+  }),
+  z.object({
+    /**
+     * SRD Fire Form: the sentence above with damage on the end of it — "The
+     * first time it enters a creature's space on a turn, that creature takes
+     * 5 (1d10) Fire damage."
+     *
+     * **Its own kind, and the damage is deliberately not carried.** The
+     * trigger is the clause the lattice cannot hold, so a die read out of
+     * this sentence would be a die nothing could ever throw; what the kind
+     * claims is that the sentence was recognised whole, damage included, and
+     * that the whole of it went to the table.
+     */
+    kind: z.literal('burns-a-creature-whose-space-it-enters'),
+  }),
+  z.object({
+    /**
+     * SRD Incorporeal Movement, on the ghost, the specter, the wisp and the
+     * wraith: "can move through other creatures and objects as if they were
+     * Difficult Terrain. It takes 5 (1d10) Force damage if it ends its turn
+     * inside an object."
+     *
+     * The damage is not carried for the reason above: *inside an object* is a
+     * position this lattice has no word for, so the condition on the damage
+     * can never be evaluated.
+     */
+    kind: z.literal('moves-through-creatures-and-objects'),
+  }),
+  z.object({
+    /**
+     * SRD Earth Glide: "can burrow through nonmagical, unworked earth and
+     * stone. While doing so, the elemental doesn't disturb the material it
+     * moves through."
+     */
+    kind: z.literal('burrows-through-earth-and-stone'),
+  }),
+  z.object({
+    /**
+     * SRD Tunneler: "can burrow through solid rock at half its Burrow Speed
+     * and leaves a 10-foot-diameter tunnel in its wake."
+     */
+    kind: z.literal('burrows-through-solid-rock'),
+  }),
+  z.object({
+    /**
+     * SRD Web Walker: "ignores movement restrictions caused by webs, and the
+     * spider knows the location of any other creature in contact with the
+     * same web."
+     */
+    kind: z.literal('ignores-a-webs-restrictions'),
+  }),
+  z.object({
+    /**
+     * SRD Ice Walk: "can move across and climb icy surfaces without needing
+     * to make an ability check. Additionally, Difficult Terrain composed of
+     * ice or snow doesn't cost it extra movement."
+     *
+     * Not the same sentence as SRD Spider Climb, which is why it is not that
+     * kind: the surfaces are named by what they are made of, and a patch of
+     * Difficult Terrain here is a declared region with no composition.
+     */
+    kind: z.literal('walks-on-ice'),
+  }),
+  z.object({
+    /** SRD Ephemeral, on the will-o'-wisp: "can't wear or carry anything." */
+    kind: z.literal('cannot-wear-or-carry-anything'),
+  }),
+  z.object({
+    /**
+     * SRD Adhesive, on the mimic in object form: "adheres to anything that
+     * touches it. A Huge or smaller creature adhered to the mimic has the
+     * Grappled condition (escape DC 13). Ability checks made to escape this
+     * grapple have Disadvantage."
+     *
+     * The grapple and its escape DC are rules the engine holds and there is a
+     * door a DM applies them through; what it has no notion of is one thing
+     * *touching* another, which is the clause the rest hangs on.
+     */
+    kind: z.literal('adheres-to-what-touches-it'),
+  }),
+  z.object({
+    /**
+     * SRD Confer Fire Resistance, on the nightmare: "can grant Resistance to
+     * Fire damage to a rider while it is on the nightmare." Nothing here is
+     * ridden.
+     */
+    kind: z.literal('confers-a-resistance-to-a-rider'),
+  }),
+  z.object({
+    /**
+     * SRD Stake to the Heart, on the vampire spawn: "is destroyed if a weapon
+     * that deals Piercing damage is driven into the vampire's heart while the
+     * vampire has the Incapacitated condition."
+     */
+    kind: z.literal('destroyed-by-a-stake-through-the-heart'),
+  }),
+  z.object({
+    /**
+     * SRD Stake to the Heart, on the vampire, which is a different rule under
+     * the same heading: the vampire "has the Paralyzed condition until the
+     * weapon is removed" rather than being destroyed.
+     *
+     * Two kinds because the book prints two rules, and one kind over both
+     * would have claimed the weaker of them about the stronger creature.
+     */
+    kind: z.literal('paralyzed-by-a-stake-through-the-heart'),
+  }),
 ]);
 export type MonsterTrait = z.infer<typeof MonsterTraitSchema>;
 
