@@ -1329,7 +1329,18 @@ export type MonsterForm = z.infer<typeof MonsterFormSchema>;
  * and reading it away would give the succubus a Speed the book withheld.
  */
 export const MonsterFormsSchema = z.object({
-  /** At least two, because a line that offers one form offers no choice. */
+  /**
+   * The forms, in printed order, and **the last is the one the line returns
+   * to**.
+   *
+   * At least two, because a line that offers one form offers no choice. The
+   * order is a contract rather than a convenience: a creature that has not
+   * used the line is in its own form already, and the reader that answers
+   * "which form is it in" reads this last entry when nothing has been stated.
+   * A list written any other way would silently give a homebrew creature the
+   * wrong default — which is why the rule is here, on the vocabulary, rather
+   * than only beside the reader.
+   */
   forms: z.array(MonsterFormSchema).min(2),
   /** Every sentence of the line this reader did not read, verbatim. */
   handedOver: z.array(z.string().min(1)),

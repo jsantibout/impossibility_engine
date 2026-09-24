@@ -552,3 +552,79 @@ describe('a printed cast line, taken through the door that casts it', () => {
     expect(out.code).toBe('unknown_tool');
   });
 });
+
+/**
+ * The two doors a printed line grew this batch.
+ *
+ * Their engine commands are covered end to end in `monster-forms.test.ts` and
+ * `monster-reel.test.ts`; what is asserted here is the half a tool test owns —
+ * that each door is on the DM's surface and not the model's, that `look`
+ * really reports the field its description sends a caller to, and that the
+ * word a call sends comes off that report rather than out of a guess.
+ */
+describe('the two doors a printed line grew this batch', () => {
+  /** A werewolf and a roper, each with a line the other does not have. */
+  function moonlight(seed = 'the-moon') {
+    const t = table(seed);
+    expectOk(t.call('add_creature', { id: 'greth', monsterId: 'werewolf' }));
+    expectOk(t.call('add_creature', { id: 'rope', monsterId: 'roper' }));
+    expectOk(t.call('declare_side', { who: 'greth', side: 'wolves' }));
+    expectOk(t.call('declare_side', { who: 'rope', side: 'caves' }));
+    expectOk(t.call('set_scene', { width: 80, depth: 60, height: 30 }));
+    expectOk(t.call('add_landmark', { name: 'the cairn', at: { x: 10, y: 10 } }));
+    expectOk(t.call('place_creature', { who: 'greth', fromLandmark: 'the cairn', feet: 0 }));
+    expectOk(t.call('place_creature', { who: 'rope', fromCreature: 'greth', feet: 20, bearing: 0 }));
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'greth' }, { who: 'rope' }] }));
+    return t;
+  }
+
+  it('reports the forms a line offers, and takes one of the words it reported', () => {
+    const t = moonlight();
+    turnOf(t, 'greth');
+
+    const greth = t.surface.observe().creatures.find((one) => one.id === 'greth');
+    const shift = greth?.printed?.bonusActions.find((line) => line.formsOffered.length > 0);
+    expect(shift?.formsOffered).toEqual(['hybrid', 'wolf', 'humanoid']);
+    // And the field really tells two kinds of line apart rather than being
+    // true of everything: the werewolf's Actions offer none.
+    expect(greth?.printed?.actions.every((line) => line.formsOffered.length === 0)).toBe(true);
+
+    const out = expectOk(
+      t.call('shape_shift_printed_line', {
+        who: 'greth',
+        line: shift!.name,
+        form: shift!.formsOffered[0],
+      }),
+    );
+    expect(out.resolution['form']).toBe('hybrid');
+    expect(out.resolution['size']).toBe('large');
+    expect(out.events.some((event) => event.type === 'form-assumed')).toBe(true);
+  });
+
+  it('reports which line the engine will pull with, and pulls nobody it is not holding', () => {
+    const t = moonlight('the-cave');
+    turnOf(t, 'rope');
+
+    const rope = t.surface.observe().creatures.find((one) => one.id === 'rope');
+    const reel = rope?.printed?.actions.find((line) => line.engineMakesThePull);
+    expect(reel?.name).toBe('Reel');
+
+    const out = expectOk(t.call('pull_printed_line', { who: 'rope', line: reel!.name }));
+    // Nobody is Grappled, so the Action goes and nobody moves — which is the
+    // sentence's own "each creature" over an empty list.
+    expect(out.resolution['pulled']).toEqual([]);
+    expect(out.events.some((event) => event.type === 'action-spent')).toBe(true);
+  });
+
+  it('are the DM’s doors and not the model’s', () => {
+    const surface = createSurface(createCampaign({ content: SRD_CONTENT, seed: 'the-moon' }));
+    const dm = createDmSurface(createCampaign({ content: SRD_CONTENT, seed: 'the-moon' }));
+    for (const tool of ['shape_shift_printed_line', 'pull_printed_line']) {
+      expect(dm.tools.map((definition) => definition.name)).toContain(tool);
+      const out = surface.call({ tool, input: {}, commandId: `toolu_${tool}` });
+      expect(out.status).toBe('invalid');
+      if (out.status !== 'invalid') continue;
+      expect(out.code).toBe('unknown_tool');
+    }
+  });
+});

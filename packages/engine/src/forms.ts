@@ -77,10 +77,18 @@ export function formWornBy(creature: CreatureState): string | null {
  * Why this creature may not use a line its heading gates on a form, or null
  * where it may.
  *
- * A line that names no form is never refused, and neither is one on a creature
- * whose block prints no forms: the gate is the *block's* own vocabulary, so a
- * homebrew line naming a form nothing offers is a line nobody can take, and
- * saying so is more use than silently allowing it.
+ * **A line that names no form is never refused**, which is every line in the
+ * book but seventeen.
+ *
+ * **A creature whose block prints no forms is refused**, and that is the
+ * deliberate half. The gate is the *block's* own vocabulary — a heading says
+ * "Wolf or Hybrid Form Only" about forms the same block's Shape-Shift prints —
+ * so a creature carrying the heading and no such line can never be in any of
+ * the forms it names. SRD Vampire is exactly that creature: its three
+ * qualified headings are read and its own Shape-Shift is refused whole,
+ * because the sentence is gated on sunlight and running water. Refusing is
+ * what says so; allowing would be the engine granting a permission on the
+ * grounds that it could not evaluate the condition.
  */
 export function wrongFormFor(
   creature: CreatureState,

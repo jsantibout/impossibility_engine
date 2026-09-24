@@ -571,7 +571,6 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'perDay',
       // What SRD Roper's Reel drags toward it, read out of the sentence.
       'pulls',
-
       'recharge',
       'save',
       'spellcasting',

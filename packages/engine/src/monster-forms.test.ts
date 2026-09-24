@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
 import {
@@ -184,12 +186,68 @@ describe('the adapter carries the forms a block prints', () => {
    * form its line returns to and not an absence. Reading `CreatureState.form`
    * directly would have made a werewolf standing in its own skin able to bite.
    */
+  /**
+   * **Which commands ask the gate, written down rather than left to be
+   * noticed.**
+   *
+   * `onlyInForms` reaches the sheet from fourteen attack headings and one
+   * Bonus Action, and today only the two hand-over doors read it: a werewolf
+   * in wolf form can still draw its longbow, because `commands/attacks.ts`
+   * belonged to another track the batch this field landed in. That is a debt
+   * and this is where it is recorded — a field carried and unread is the
+   * failure this repository finds most often, and a note in a docstring is
+   * not a thing that fails.
+   *
+   * The sweep is over the sources rather than over a list of names, in the
+   * shape `coverage.test.ts` uses: the day the swing asks, this fails and
+   * whoever wired it takes the entry out in the same commit.
+   */
+  it('names every command that asks the form gate, and the swing is not one', () => {
+    const here = fileURLToPath(new URL('.', import.meta.url));
+    const asking: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) walk(`${dir}${entry.name}/`);
+        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+          if (readFileSync(`${dir}${entry.name}`, 'utf8').includes('wrongFormFor(')) {
+            asking.push(entry.name);
+          }
+        }
+      }
+    };
+    walk(here);
+    // `forms.ts` declares it; `commands/actions.ts` is the one caller.
+    expect([...asking].sort()).toEqual(['actions.ts', 'forms.ts']);
+  });
+
   it('reads the printed default for a creature that has not shifted', () => {
     const state = inTheClearing().state;
     expect(state.creatures[WOLF]!.form).toBeNull();
     expect(formWornBy(state.creatures[WOLF]!)).toBe('humanoid');
     // And null for a block that prints no forms at all, which is most of them.
     expect(formWornBy(state.creatures[PREY]!)).toBeNull();
+  });
+
+  /**
+   * **A heading gated on a form its own block never prints is refused**, which
+   * is the half of {@link wrongFormFor} that looks like an accident and is
+   * not. SRD Vampire carries three "(… Form Only)" headings and its own
+   * Shape-Shift is refused whole — the sentence is gated on sunlight and
+   * running water, which the engine cannot evaluate — so the vampire can never
+   * be in vampire form as far as anything here can tell, and saying so is what
+   * keeps the engine from granting a permission because it could not read the
+   * condition.
+   */
+  it('refuses a heading gated on a form its block never prints', () => {
+    const vampire = adaptMonster(SRD_CONTENT.monsterById('vampire')!, id('vampire'));
+    expect(printedFormsOf(vampire.sheet)).toBeNull();
+    const gated = SRD_CONTENT.monsterById('vampire')!.actions.find((line) =>
+      line.name.startsWith('Grave Strike'),
+    )!.name;
+    const line = printedAttackOf(vampire.sheet, gated)!;
+    expect(line.onlyInForms).toEqual(['vampire']);
+    const creature = { sheet: vampire.sheet, form: null } as Parameters<typeof wrongFormFor>[0];
+    expect(wrongFormFor(creature, line)).toContain('no form its block prints');
   });
 });
 

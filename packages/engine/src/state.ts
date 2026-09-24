@@ -255,13 +255,6 @@ export interface DeviceRecord {
 }
 
 /**
- * What a creature wearing a form has set aside — see {@link CreatureState.shape}.
- *
- * `sceneSize` is the scene's own copy of the size at the moment of the change,
- * so the form's footprint can be taken back off the map as well as off the
- * creature; null where the creature stood in no scene.
- */
-/**
  * A form a creature's own stat block offers it — see
  * {@link CreatureState.form}.
  *
@@ -270,6 +263,10 @@ export interface DeviceRecord {
  * ends this but another use of the same line; and `original` holds only what a
  * form can move — the sheet, for the two blocks that print a Speed per form,
  * and the size every other printing names.
+ *
+ * `sceneSize` is the scene's own copy of the size at the moment of the change,
+ * so the form's footprint can be taken back off the map as well as off the
+ * creature; null where the creature stood in no scene.
  */
 export interface WornForm {
   /** The form's own name, as the line prints it: `wolf`, `hybrid`, `object`. */
@@ -290,6 +287,14 @@ export interface WornForm {
   };
 }
 
+/**
+ * What a creature wearing another creature's statistics has set aside — see
+ * {@link CreatureState.shape}.
+ *
+ * `sceneSize` is the scene's own copy of the size at the moment of the change,
+ * so the shape's footprint can be taken back off the map as well as off the
+ * creature; null where the creature stood in no scene.
+ */
 export interface AssumedShape {
   readonly feature: string;
   /** The stat block's id, for the record and for the sheet a caller reads. */

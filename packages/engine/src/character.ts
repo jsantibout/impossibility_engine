@@ -126,14 +126,20 @@ export interface StatedAttack extends MonsterAttack {
    * The forms this attack may be made in, where its **heading** says so.
    *
    * SRD Werewolf: "Bite (Wolf or Hybrid Form Only)", "Longbow (Humanoid or
-   * Hybrid Form Only)". Seventeen lines across five lycanthropes, the vampire
-   * and the mimic print the clause, and until a form was a fact on a creature
-   * nothing could evaluate it — a werewolf in wolf form could draw its longbow
-   * and a werewolf in its own skin could bite.
+   * Hybrid Form Only)". Fourteen attack headings across five lycanthropes and
+   * the vampire print the clause, and until a form was a fact on a creature
+   * nothing could evaluate it.
    *
    * **Carried from the line onto the attack** for the reason the recharge is:
-   * the book prints it on the heading, `Feature` owns it in `@ie/srd`, and
-   * what reads it here is the swing that would otherwise have happened.
+   * the book prints it on the heading, and `Feature` owns it in `@ie/srd`.
+   *
+   * **Carried and not yet read**, which is a debt and is written down as one:
+   * `wrongFormFor` is the reader, and today only the two hand-over doors in
+   * `commands/actions.ts` ask it. A swing at one of these headings is still
+   * made in whatever form the creature is in — a werewolf in wolf form can
+   * still draw its longbow — because `commands/attacks.ts` belonged to another
+   * track the batch this field landed in. `monster-forms.test.ts` pins which
+   * modules ask, so the day the swing asks too, the pin says so.
    */
   readonly onlyInForms?: readonly string[];
 }
