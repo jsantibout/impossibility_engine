@@ -3019,13 +3019,16 @@ function holdSpell(
   // SRD Priest's Divine Aid is a *use of a heading* whose price is the
   // heading's — a count between dawns, a recharge — and a Ready spends its
   // slot now and settles later through `releaseReady`, which never asks
-  // `castingOf` and so would apply none of that price. So it is refused here,
-  // before the slot, rather than left to be mispriced at the release: the line
-  // is taken with the door that prices it, and the casting goes with it.
+  // `castingOf`: the line is taken with the door that prices it, and the
+  // casting goes with it.
   //
-  // Reachable only by naming the source, which is the same road
-  // `route_through_line_only` closes one door along — a Ready that names none
-  // never finds the route at all, because `routesFor` leaves it out.
+  // **This refuses nothing `chooseRoute` would not refuse eleven lines below**,
+  // and is here for what it *says*. The licence closes both roads already — a
+  // Ready that names no source never finds the route, because `routesFor`
+  // leaves it out, and one that names the source is refused
+  // `route_through_line_only` because this command holds no licence and never
+  // will. What that code cannot say is which door the caller should have used,
+  // so the refusal a Ready meets is named for the Ready.
   const heldOpen = caster.spellcasting.granted.find(
     (grant) =>
       grant.throughLine !== undefined &&
