@@ -830,17 +830,17 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     // the word Attunement. No marker knows those words either.
     'prestidigitation',
     'remove-curse',
-    // And the seventh kind: SRD Tiny Hut's paragraph is a dome — creatures
-    // barred from passing through it, spells of a level that cannot be cast
-    // through it, a caster who leaves it — and the marker list knows none of
-    // those words. The barrier, the ward and the ending are executed all the
-    // same, off the Emanation the record pins where it rose.
-    'tiny-hut',
-    // And the eighth, Rope Trick, executed on the second place: its paragraph prints a
-    // rope, a portal, a count of climbers and a space that is elsewhere, and
-    // the marker list knows none of those words. The climb, the eight and
-    // the drop are executed all the same.
+    // And two more kinds. Rope Trick, executed on the second place: its
+    // paragraph prints a rope, a portal, a count of climbers and a space that
+    // is elsewhere, and the marker list knows none of those words. The climb,
+    // the eight and the drop are executed all the same.
     'rope-trick',
+    // And SRD Tiny Hut's paragraph is a dome — creatures barred from passing
+    // through it, spells of a level that cannot be cast through it, a caster
+    // who leaves it — and the marker list knows none of those words. The
+    // barrier, the ward and the ending are executed all the same, off the
+    // Emanation the record pins where it rose.
+    'tiny-hut',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {

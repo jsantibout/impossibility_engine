@@ -874,7 +874,7 @@ export const FEATURE_BLOCKED_ON: Readonly<Record<string, FeatureEntry>> = {
     {
       clause: 'it needs a creature removed from and returned to the battlefield',
       why: 'a-second-place-to-put-a-creature',
-      note: 'the spell map’s own id: there is one scene, so a creature sent elsewhere has nowhere to be.',
+      note: 'the spell map’s own id: the engine holds one scene and three kinds of elsewhere, and a plane or a demiplane with geometry of its own still has nowhere to be.',
     },
     {
       clause: 'the 8d10 Psychic damage on its return',

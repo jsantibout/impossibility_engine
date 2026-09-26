@@ -21,12 +21,11 @@ homebrew.
   with a lifetime, death saves, exhaustion; every ability a roll reads comes
   off `sheetAsItStands`, lowered scores included.
 - **Space and sight** — a cube lattice, distance between volumes, declared
-  sight and cover, seven area shapes, persistent and carried areas that may impose a Speed, a bonus, a
-  condition, a defence or a silence on whoever stands inside, bar passage,
+  sight and cover, seven area shapes, persistent and carried areas imposing a Speed, bonus, condition, defence or silence on whoever stands inside, bar passage,
   ward other magic or deflect arrows, teleportation, the glossary's senses, mounting. **Light and obscurement are patches on the lattice**, declared by the
   table or laid by a casting; magical darkness beats Darkvision, Devil's
   Sight beats that. A spell can push or lift a creature; a fall has a landing (1d6 per ten
-  feet to 20d6, and Prone); going up needs a way up.
+  feet to 20d6, and Prone); going up needs a way up. A creature may be **elsewhere**, ethereal, in an extradimensional space or swallowed, off the lattice with its way back pinned: Blink, Rope Trick, the familiar's pocket, the Swallows and the Ethereal lines run on it; Engulf waits on the save reader.
 - **Combat and time** — Initiative and Alert's swap, the action budget, an
   extra action a running effect grants, a slot of somebody else's turn spent
   by a spell, joining a running fight, the clock, turn-anchored deadlines,
@@ -52,16 +51,10 @@ homebrew.
   masteries, and the defender answering first on both paths. A feature may
   carry several grants, each gated on one option of its choice; a species may
   grant a spell; a feature may raise the hit point maximum; a reroll may be **elected**
-  on the roll command — if it misses, fails, or shows a named face or lower —
-  which is how Heroic Inspiration reaches every die without a window. **The glossary's
+  on the roll command — if it misses, fails, or shows a named face or lower (Heroic Inspiration). **The glossary's
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack carries Nick and Two-Weapon
-  Fighting, and Savage Attacker, Luck, Relentless Endurance, Powerful
-  Build, Tactical Shift, Fast Hands, Naturally Stealthy, Jack of All Trades,
-  Slow Fall, Second-Story Work, Adrenaline Rush, Stonecunning, Large Form,
-  Draconic Flight, Wild Companion, Ritual Adept, Paladin's Smite,
-  Innate Sorcery, Divine Order and Primal Order
-  execute; a feature may ask two questions, grant a language, or know a
+  Fighting, and the small named features, Savage Attacker to Primal Order, execute (`COVERAGE.md` lists each); a feature may ask two questions, grant a language, or know a
   marked quarry's defences through `look`. Eldritch Invocations executes
   whole, both Pacts included: a feature may conjure the weapon it imbues and
   widen the forms a summons offers. **Wild Shape executes**: a

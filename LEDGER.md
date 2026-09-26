@@ -42,11 +42,11 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 39 spells | 39 | 0 | 0 | 35 |
+| Spells in reach, not executed | 38 spells | 38 | 0 | 0 | 34 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
-| CR ≤ 5 stat-block items handed over or unapplied | 74 items | on 71 of 244 blocks | 0 | 173 blocks already clean | 0 |
+| CR ≤ 5 stat-block items handed over or unapplied | 69 items | on 67 of 244 blocks | 0 | 177 blocks already clean | 0 |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -85,9 +85,7 @@ exactly the silently-missing entry this report’s header refuses.
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
-| `a-second-place-to-put-a-creature` | 3 | 0 |
 | `a-check-another-creature-may-attempt` | 2 | 0 |
-| `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 0 |
@@ -100,8 +98,10 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-damage-penalty-a-spell-grants` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
+| `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 1 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 1 | 0 |
+| `a-second-place-to-put-a-creature` | 1 | 0 |
 | `a-selector-for-every-d20-test` | 1 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 1 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
@@ -194,21 +194,10 @@ sums to the population.
 
 - **Gentle Repose** (level 2) — executed-partial
 
-#### `a-second-place-to-put-a-creature` — blocks 3, finishes 0
-
-- **Find Familiar** (level 1) — executed-partial — also waits on 2
-- **Blink** (level 3) — tracked — also waits on 1
-- **Sending** (level 3) — no-definition — also waits on 2
-
 #### `a-check-another-creature-may-attempt` — blocks 2, finishes 0
 
 - **Detect Thoughts** (level 2) — tracked — also waits on 1
 - **Spike Growth** (level 2) — executed-partial — also waits on 1
-
-#### `a-random-outcome-that-is-not-a-d20` — blocks 2, finishes 0
-
-- **Blink** (level 3) — tracked — also waits on 1
-- **Sending** (level 3) — no-definition — also waits on 2
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 2, finishes 0
 
@@ -227,7 +216,7 @@ sums to the population.
 
 #### `an-activation-taken-by-somebody-other-than-the-caster` — blocks 2, finishes 0
 
-- **Find Familiar** (level 1) — executed-partial — also waits on 2
+- **Find Familiar** (level 1) — executed-partial — also waits on 1
 - **Dragon's Breath** (level 2) — tracked — also waits on 1
 
 #### `an-activation-that-resolves-an-area` — blocks 2, finishes 0
@@ -263,6 +252,10 @@ sums to the population.
 
 - **Spike Growth** (level 2) — executed-partial — also waits on 1
 
+#### `a-random-outcome-that-is-not-a-d20` — blocks 1, finishes 0
+
+- **Sending** (level 3) — no-definition — also waits on 2
+
 #### `a-repeat-save-raised-by-a-trigger` — blocks 1, finishes 0
 
 - **Fear** (level 3) — executed-partial — also waits on 1
@@ -270,6 +263,10 @@ sums to the population.
 #### `a-repeat-save-that-does-something-on-a-failure` — blocks 1, finishes 0
 
 - **Bestow Curse** (level 3) — executed-partial — also waits on 1
+
+#### `a-second-place-to-put-a-creature` — blocks 1, finishes 0
+
+- **Sending** (level 3) — no-definition — also waits on 2
 
 #### `a-selector-for-every-d20-test` — blocks 1, finishes 0
 
@@ -293,7 +290,7 @@ sums to the population.
 
 #### `senses-beyond-declared-sight` — blocks 1, finishes 0
 
-- **Find Familiar** (level 1) — executed-partial — also waits on 2
+- **Find Familiar** (level 1) — executed-partial — also waits on 1
 
 #### `what-a-creature-is-holding` — blocks 1, finishes 0
 
@@ -306,7 +303,7 @@ reading, or one the existing kinds already say and nobody has written — and
 both are work, which is why they are no longer printed as finished business.
 
 
-#### Read to the end, handed over whole — 35
+#### Read to the end, handed over whole — 34
 
 Somebody read every printed sentence of each of these against the
 definition and the blocker map, and every clause left is the table’s to
@@ -339,7 +336,6 @@ being asked for — which is the whole of what these spells are.
 - **Locate Animals or Plants** (level 2) — tracked
 - **Locate Object** (level 2) — tracked
 - **Magic Mouth** (level 2) — tracked
-- **Rope Trick** (level 2) — tracked
 - **See Invisibility** (level 2) — tracked
 - **Clairvoyance** (level 3) — tracked
 - **Create Food and Water** (level 3) — tracked
@@ -432,9 +428,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 679 and hands over 59. Reading is not spending: a further 12 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 74 items over 244 blocks — 173 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 684 and hands over 54. Reading is not spending: a further 12 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 69 items over 244 blocks — 177 of which already carry none of them.
 
-**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 74 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 69 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -461,7 +457,7 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 43
+### Handed-over lines matching no enumerated shape — 38
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
@@ -479,11 +475,8 @@ ledger keeps the list.
 - Fire Elemental (CR 5) [trait] Fire Aura
 - Flesh Golem (CR 5) [trait] Berserk
 - Gelatinous Cube (CR 2) [trait] Ooze Cube
-- Ghost (CR 4) [action] Etherealness
 - Giant Boar (CR 2) [trait] Bloodied Fury
-- Giant Frog (CR 0.25) [action] Swallow
 - Giant Seahorse (CR 0.5) [bonus action] Bubble Dash
-- Giant Toad (CR 1) [action] Swallow
 - Gray Ooze (CR 0.5) [trait] Corrosive Form
 - Green Hag (CR 3) [trait] Coven Magic
 - Half-Dragon (CR 5) [bonus action] Leap
@@ -492,8 +485,6 @@ ledger keeps the list.
 - Magmin (CR 0.5) [bonus action] Ignited Illumination
 - Night Hag (CR 5) [trait] Coven Magic
 - Night Hag (CR 5) [trait] Soul Bag
-- Nightmare (CR 3) [action] Ethereal Stride
-- Phase Spider (CR 3) [bonus action] Ethereal Jaunt
 - Roper (CR 5) [action] Tentacle
 - Rust Monster (CR 0.5) [action] Destroy Metal
 - Sahuagin Warrior (CR 0.5) [bonus action] Aquatic Charge

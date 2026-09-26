@@ -2578,3 +2578,27 @@ Appended after wave seven's first spells track (2026-09-24):
   Charge, both Engulfs, Possession, Luring Song). **Owed:** `look` does not
   yet publish a block's legendary lines or uses. The reviewer ran on Opus.
   Main re-ingested.
+- **A second place to put a creature.** `CreatureState.elsewhere` — ethereal,
+  extradimensional, or inside another creature — with the space left, the
+  clock, the source and the **pinned way back** (`returns`: a distance from an
+  anchor, sight where the book asks it, Prone where it says so) and what the
+  stay costs; the scene keeps `PositionState.away` beside `positions`, so
+  every reader that walks positions leaves an away creature out unknowing,
+  and the ruler answers `not_here` (told apart from `unplaced` because no
+  placement can answer it). Two events in `fold/elsewhere.ts`; one derived
+  pass frees the swallowed of a dead host. `commands/elsewhere.ts` holds
+  every door: the sending, `settleReturn` (the single qualifying space taken
+  unasked, `return_space_required` otherwise; Blink's nearest-space fallback
+  is a ring search), the boundary settlement (Blink's d6 at the finisher's
+  end and return at the beginner's start; a swallow's damage at the host's
+  boundary), the familiar's dismiss and recall, the climb into Rope Trick,
+  and the bestiary's two printed roads, `takePrintedSwallow` and
+  `takePrintedPlaneShift` (out and back by one line, with the Nightmare's
+  companions). Blink and Rope Trick execute; Find Familiar's pocket is pinned
+  on the bond. **The shape does not leave the spells table**: its eleven
+  remaining claimants are demiplanes, other planes and a distant copy of a
+  creature, which these three kinds do not cover honestly, and its
+  description now says so. **Engulf ×2 stays**: a save-template line whose
+  failure puts the target inside, waiting on the printed-save reader's arm.
+  `character.ts` gained `swallows` / `shiftsPlane` on the stated-action
+  records. The builder ran on Fable, the reviewer on Opus. Main re-ingested.

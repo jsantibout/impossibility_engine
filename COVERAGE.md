@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 159 (46.9%) | 174 (51.3%) | 48 | 140 (41.3%) |
+| 339 | 157 (46.3%) | 176 (51.9%) | 48 | 142 (41.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -55,6 +55,7 @@ a plain statement of what the table decides.
 - **Bless** (level 1) — verified
 - **Blight** (level 4) — verified
 - **Blindness/Deafness** (level 2) — verified
+- **Blink** (level 3) — verified
 - **Blur** (level 2) — verified
 - **Burning Hands** (level 1) — verified
 - **Chain Lightning** (level 6) — untested, partial — a clause the engine owns is still unbuilt
@@ -172,6 +173,7 @@ a plain statement of what the table decides.
 - **Remove Curse** (level 3) — verified
 - **Resistance** (cantrip) — verified
 - **Revivify** (level 3) — verified
+- **Rope Trick** (level 2) — verified
 - **Sacred Flame** (cantrip) — verified
 - **Sanctuary** (level 1) — untested
 - **Scorching Ray** (level 2) — verified
@@ -244,7 +246,6 @@ every casting; only one of them is waiting for anything.
 - **Aura of Life** (level 4) — 3 noted
 - **Awaken** (level 5) — 4 noted
 - **Blade Barrier** (level 6) — 4 noted
-- **Blink** (level 3) — 3 noted, 2 read
 - **Call Lightning** (level 3) — 4 noted
 - **Calm Emotions** (level 2) — 5 noted, 1 read
 - **Clairvoyance** (level 3) — 0 noted, 1 read, 6 handed to the DM
@@ -351,7 +352,6 @@ every casting; only one of them is waiting for anything.
 - **Resilient Sphere** (level 4) — 5 noted
 - **Resurrection** (level 7) — 5 noted
 - **Reverse Gravity** (level 7) — 3 noted
-- **Rope Trick** (level 2) — 0 noted, 1 read, 7 handed to the DM
 - **Scrying** (level 5) — 4 noted
 - **Secret Chest** (level 4) — 3 noted
 - **See Invisibility** (level 2) — 0 noted, 2 handed to the DM
@@ -431,10 +431,10 @@ of *Tracked* and is never added to it.
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | of which unseen | Undefined |
 |---|---|---|---|---|---|---|---|
 | `a-casting-ended-by-a-trigger` | 13 | 1 | 0 | 2 | 8 | 0 | 3 |
-| `a-random-outcome-that-is-not-a-d20` | 14 | 0 | 0 | 0 | 12 | 0 | 2 |
-| `a-second-place-to-put-a-creature` | 13 | 0 | 0 | 3 | 8 | 1 | 2 |
+| `a-random-outcome-that-is-not-a-d20` | 13 | 0 | 0 | 0 | 11 | 0 | 2 |
 | `a-stat-block-created-mid-fight` | 12 | 0 | 0 | 2 | 10 | 1 | 0 |
 | `a-choice-made-at-the-casting` | 11 | 0 | 0 | 2 | 9 | 2 | 0 |
+| `a-second-place-to-put-a-creature` | 11 | 0 | 0 | 2 | 7 | 0 | 2 |
 | `an-effect-that-suppresses-other-magic` | 10 | 0 | 0 | 0 | 9 | 1 | 1 |
 | `a-spells-effects-applied-to-different-targets` | 9 | 0 | 0 | 3 | 6 | 0 | 0 |
 | `a-wall-or-several-templates-in-one-area` | 9 | 0 | 0 | 0 | 9 | 0 | 0 |
@@ -938,7 +938,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 1082 |
+| 330 | 332 | 329 | 723 | 2 | 2 | 1330 | 1087 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -998,8 +998,8 @@ fact the book wrote for a person.
 | Line | Printed | Read |
 |---|---|---|
 | Traits | 337 | 242 |
-| Actions | 812 | 781 |
-| Bonus actions | 75 | 44 |
+| Actions | 812 | 785 |
+| Bonus actions | 75 | 45 |
 | Reactions | 24 | 13 |
 | Legendary actions | 82 | 2 |
 
@@ -1060,24 +1060,24 @@ never added.
 |---|---|---|---|---|---|
 | 1 | 32 | 32 | 211 | 62 | 149 |
 | 2 | 53 | 53 | 211 | 62 | 149 |
-| 3 | 91 | 91 | 345 | 96 | 246 |
-| 4 | 104 | 104 | 345 | 96 | 246 |
-| 5 | 120 | 120 | 481 | 139 | 336 |
-| 6 | 132 | 127 | 481 | 139 | 336 |
-| 7 | 144 | 133 | 562 | 182 | 374 |
-| 8 | 156 | 145 | 562 | 182 | 374 |
-| 9 | 165 | 149 | 668 | 254 | 406 |
-| 10 | 176 | 153 | 668 | 254 | 406 |
-| 11 | 183 | 155 | 727 | 290 | 427 |
-| 12 | 195 | 167 | 727 | 290 | 427 |
-| 13 | 200 | 168 | 784 | 336 | 438 |
-| 14 | 211 | 174 | 784 | 336 | 438 |
-| 15 | 218 | 177 | 821 | 357 | 453 |
-| 16 | 230 | 189 | 821 | 357 | 453 |
-| 17 | 235 | 189 | 859 | 392 | 454 |
-| 18 | 245 | 191 | 859 | 392 | 454 |
-| 19 | 257 | 203 | 859 | 392 | 454 |
-| 20 | 269 | 207 | 859 | 392 | 454 |
+| 3 | 91 | 91 | 345 | 95 | 247 |
+| 4 | 104 | 104 | 345 | 95 | 247 |
+| 5 | 120 | 120 | 481 | 136 | 339 |
+| 6 | 132 | 127 | 481 | 136 | 339 |
+| 7 | 144 | 133 | 562 | 179 | 377 |
+| 8 | 156 | 145 | 562 | 179 | 377 |
+| 9 | 165 | 149 | 668 | 251 | 409 |
+| 10 | 176 | 153 | 668 | 251 | 409 |
+| 11 | 183 | 155 | 727 | 287 | 430 |
+| 12 | 195 | 167 | 727 | 287 | 430 |
+| 13 | 200 | 168 | 784 | 333 | 441 |
+| 14 | 211 | 174 | 784 | 333 | 441 |
+| 15 | 218 | 177 | 821 | 354 | 456 |
+| 16 | 230 | 189 | 821 | 354 | 456 |
+| 17 | 235 | 189 | 859 | 389 | 457 |
+| 18 | 245 | 191 | 859 | 389 | 457 |
+| 19 | 257 | 203 | 859 | 389 | 457 |
+| 20 | 269 | 207 | 859 | 389 | 457 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1143,6 +1143,6 @@ something other than its heading.
 | Druid (Circle of the Land) | 20/9/29 | 20/9/29 | 37/13/50 | 37/13/50 | 44/19/63 | 44/19/63 | 51/30/81 | 51/30/81 | 55/41/96 | 55/41/96 | 59/47/106 | 59/47/106 | 60/52/112 | 60/52/112 | 63/57/120 | 63/57/120 | 63/61/124 | 63/61/124 | 63/61/124 | 63/61/124 |
 | Paladin (Oath of Devotion) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 18/6/24 | 18/6/24 | 18/6/24 | 18/6/24 | 23/7/30 | 23/7/30 | 23/7/30 | 23/7/30 | 24/10/34 | 24/10/34 | 24/10/34 | 24/10/34 | 24/14/38 | 24/14/38 | 24/14/38 | 24/14/38 |
 | Ranger (Hunter) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 21/7/28 | 21/7/28 | 21/7/28 | 21/7/28 | 27/13/40 | 27/13/40 | 27/13/40 | 27/13/40 | 30/15/45 | 30/15/45 | 30/15/45 | 30/15/45 | 30/18/48 | 30/18/48 | 30/18/48 | 30/18/48 |
-| Sorcerer (Draconic Sorcery) | 28/9/37 | 28/9/37 | 48/15/64 | 48/15/64 | 63/21/85 | 63/21/85 | 73/24/98 | 73/24/98 | 78/31/110 | 78/31/110 | 84/36/121 | 84/36/121 | 85/43/129 | 85/43/129 | 88/46/135 | 88/46/135 | 88/50/140 | 88/50/140 | 88/50/140 | 88/50/140 |
+| Sorcerer (Draconic Sorcery) | 28/9/37 | 28/9/37 | 48/15/64 | 48/15/64 | 64/20/85 | 64/20/85 | 74/23/98 | 74/23/98 | 79/30/110 | 79/30/110 | 85/35/121 | 85/35/121 | 86/42/129 | 86/42/129 | 89/45/135 | 89/45/135 | 89/49/140 | 89/49/140 | 89/49/140 | 89/49/140 |
 | Warlock (Fiend Patron) | 13/6/19 | 13/6/19 | 22/7/29 | 22/7/29 | 31/9/40 | 31/9/40 | 35/10/45 | 35/10/45 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 | 36/16/52 |
-| Wizard (Evoker) | 32/13/45 | 32/13/45 | 57/23/81 | 57/23/81 | 76/32/110 | 76/32/110 | 87/47/136 | 87/47/136 | 91/66/160 | 91/66/160 | 98/77/179 | 98/77/179 | 100/90/194 | 100/90/194 | 105/96/206 | 105/96/206 | 106/106/218 | 106/106/218 | 106/106/218 | 106/106/218 |
+| Wizard (Evoker) | 32/13/45 | 32/13/45 | 58/22/81 | 58/22/81 | 78/30/110 | 78/30/110 | 89/45/136 | 89/45/136 | 93/64/160 | 93/64/160 | 100/75/179 | 100/75/179 | 102/88/194 | 102/88/194 | 107/94/206 | 107/94/206 | 108/104/218 | 108/104/218 | 108/104/218 | 108/104/218 |
