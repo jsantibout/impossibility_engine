@@ -277,6 +277,21 @@ describe('the narrowing reads the weapon record, and never an id', () => {
   });
 
   /**
+   * SRD Two-Handed: "This weapon requires two hands when you attack with it."
+   * For that weapon the hand is the record's fact, so an unstated hand — or a
+   * stated one, which a held attack cannot tell from unstated — is two. A
+   * Versatile weapon has no such fact and still waits to be told.
+   */
+  it('reads two hands off a Two-Handed weapon, and only off one', () => {
+    const inTwoHands = { heldInTwoHands: true as const };
+    expect(weaponNarrowingHolds(inTwoHands, { weapon: weaponOf('greatsword') })).toBe(true);
+    expect(weaponNarrowingHolds(inTwoHands, { weapon: weaponOf('greatsword'), twoHanded: false })).toBe(true);
+    expect(weaponNarrowingHolds(inTwoHands, { weapon: weaponOf('longsword') })).toBe(false);
+    expect(weaponNarrowingHolds(inTwoHands, { weapon: weaponOf('longsword'), twoHanded: false })).toBe(false);
+    expect(weaponNarrowingHolds(inTwoHands, { weapon: null })).toBe(false);
+  });
+
+  /**
    * An Unarmed Strike is `null` and is in no set of weapons, which is
    * `weaponInSet`'s own rule — a style that covered the fist would say so in a
    * second clause, as SRD Martial Arts does.

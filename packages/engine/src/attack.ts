@@ -317,7 +317,10 @@ export interface WeaponNarrowing {
    * Not a property of the weapon and so not a {@link WeaponSelector} field: a
    * Versatile weapon has the property in either hand and the sentence is about
    * how it is being held, which is {@link AttackOptions.twoHanded} — the same
-   * fact the Versatile damage die is already read off.
+   * fact the Versatile damage die is already read off. A Two-Handed weapon is
+   * the exception the SRD itself makes: it "requires two hands when you
+   * attack with it", so for it the hand is read off the record — see
+   * {@link weaponNarrowingHolds}.
    */
   readonly heldInTwoHands?: true;
 }
@@ -330,18 +333,35 @@ export interface WieldingContext {
 }
 
 /**
+ * Whether this weapon is being held in two hands on this swing.
+ *
+ * SRD Two-Handed: "This weapon requires two hands when you attack with it."
+ * For such a weapon the hand is the record's fact and not the caller's, so an
+ * unstated hand is two — and so is a stated one, which is **overruled rather
+ * than refused**: a held attack writes an unstated hand down as `false`
+ * (`PendingAttack.twoHanded`), so once a blow is held the two cannot be told
+ * apart, and a swing must not settle differently for having been held. Every
+ * other weapon, a Versatile one above all, is held however the caller says,
+ * and unsaid is one hand.
+ */
+function heldInTwoHands(context: WieldingContext): boolean {
+  return context.twoHanded === true || context.weapon?.properties.includes('two-handed') === true;
+}
+
+/**
  * Whether this swing is one the narrowing's sentence covers.
  *
  * Conservative in the one direction that matters: a caller who does not say
- * how the weapon is held has not said it is held in two hands, so a benefit
- * asking for two hands is withheld rather than invented — the reading
- * `onlyWithItem` already takes of an absent item.
+ * how a weapon that may be held either way is held has not said it is held in
+ * two hands, so a benefit asking for two hands is withheld rather than
+ * invented — the reading `onlyWithItem` already takes of an absent item. A
+ * Two-Handed weapon leaves nothing to say; see {@link heldInTwoHands}.
  */
 export function weaponNarrowingHolds(
   narrowing: WeaponNarrowing,
   context: WieldingContext,
 ): boolean {
-  if (narrowing.heldInTwoHands === true && context.twoHanded !== true) return false;
+  if (narrowing.heldInTwoHands === true && !heldInTwoHands(context)) return false;
   if (narrowing.weapons === undefined) return true;
   return weaponInSet(context.weapon, narrowing.weapons);
 }
