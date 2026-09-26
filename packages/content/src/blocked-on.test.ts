@@ -2139,10 +2139,12 @@ describe('the split bundles add back up', () => {
   /** And the bundle id itself is gone from every map, not merely unused. */
   it.each(Object.keys(SPLIT_BUNDLES))('no longer files anything to %s', (bundle) => {
     if (Object.keys(MISSING_SHAPES).includes(bundle)) {
-      // `a-mode-on-the-save-a-spell-forces` kept its id and lost five of its
-      // six claimants: the audit found its *description* misstated its own
-      // blocker, not that the mechanism was imaginary. What must be true is
-      // that nothing it used to hold wrongly is still filed to it.
+      // A bundle that kept its id and lost claimants — the audit found its
+      // *description* misstated its own blocker, not that the mechanism was
+      // imaginary. What must be true is that nothing it used to hold wrongly
+      // is still filed to it. (`a-mode-on-the-save-a-spell-forces` was the
+      // first of these; W8-S24 paid its last spell claimant and it moved to
+      // the item vocabulary, so it now takes the branch below.)
       const held = new Set(
         SPLIT_BUNDLES[bundle]!.held.map(([id, clause]) => `${id}/${clause}`),
       );
