@@ -345,7 +345,7 @@ const AUDIT: readonly {
     fates: {
       weapon: expose('weapon'),
       action: because(
-        'which line of its own stat block a provoked monster swings — the same decision `AttackCommand.action` is, and withheld for the same reason: the door is `packages/tools` and the field waits on it. What changed with it is that the *default* is no longer a fabrication: naming nothing now reaches for the creature\'s best printed melee attack rather than an Unarmed Strike at a Strength the book never printed, so a caller that cannot send this still gets the Wolf\'s Bite',
+        'which line of its own stat block a provoked monster swings — the same decision `AttackCommand.action` is. `packages/tools` publishes it on `take_opportunity_attack` as `action`. It is not on **this** surface because this one is a benchmark held fixed and the default already answers it: naming nothing reaches for the creature’s best printed melee attack rather than an Unarmed Strike at a Strength the book never printed, and the one monster in either benchmark is an Ogre whose best line is the Greatclub a caller would name anyway. Publish it the day a benchmark has a monster whose Opportunity Attack a caller would want to be something else',
       ),
     },
   },
@@ -692,5 +692,49 @@ describe('the parameters this audit published actually work', () => {
     const body = sighted.body as { total: number; success: boolean };
     expect(body.total, 'the die comfortably beat the DC').toBeGreaterThanOrEqual(1);
     expect(body.success, 'and it failed anyway, because Blinded').toBe(false);
+  });
+
+  /**
+   * Owner ruling, 2026-09-20: a monster's Opportunity Attack is its best
+   * printed melee attack. The engine reaches for it when nobody names a
+   * weapon — which is the reason `action` above is withheld — but this surface
+   * turned an omitted `weapon` into `null`, the engine's way of being asked for
+   * an Unarmed Strike, so the Ogre punched with a Greatclub in its hands.
+   */
+  it('lets a provoked Ogre swing its Greatclub when no weapon is named', () => {
+    const session = mill();
+    until(session, FIGHTER);
+    // Up to the Ogre, and then away from it, which is what provokes.
+    const closed = call(session, 'move', {
+      who: FIGHTER,
+      from_creature: OGRE,
+      feet: 10,
+      bearing: 90,
+      command_id: 'close-in',
+    });
+    expect(closed.outcome, 'into reach').toBe('ok');
+    const left = call(session, 'move', {
+      who: FIGHTER,
+      from_creature: OGRE,
+      feet: 15,
+      bearing: 0,
+      command_id: 'fall-back',
+    });
+    expect(left.outcome, 'out of reach, provoking').toBe('ok');
+    expect(session.state().pendingMove?.provoked.map((p) => p.reactor)).toEqual([OGRE]);
+
+    const swung = call(session, 'take_opportunity_attack', {
+      attacker: OGRE,
+      command_id: 'swing-back',
+    });
+    expect(swung.outcome).toBe('ok');
+    const labels = session
+      .log()
+      .flatMap((event) =>
+        event.type === 'roll-recorded' && event.attackRoll === true ? [event.label] : [],
+      );
+    // SRD Ogre prints a Greatclub, "13 (2d8 + 4)", and a Javelin, "11 (2d6 +
+    // 4)", which can be swung as well as thrown; the higher average wins.
+    expect(labels.at(-1)).toBe('Greatclub attack');
   });
 });

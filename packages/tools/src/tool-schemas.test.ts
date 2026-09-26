@@ -348,10 +348,17 @@ describe('toolSchemas', () => {
     // and target, which now say an item may reach further than five feet. Two
     // fields and two descriptions on tools both doors publish: 1,696 bytes on
     // each, and no tool added.
+    // Re-pinned for W8-T2: `take_opportunity_attack` gains `action` (a line
+    // the reactor's own stat block prints, which `OpportunityCommand` has
+    // carried since the owner's 2026-09-20 ruling and no tool declared),
+    // `weapon` accepts null for an Unarmed Strike asked for on purpose, and
+    // the description says what omitting both does — a monster's best printed
+    // melee attack, a character's Unarmed Strike. One tool both doors
+    // publish: 751 bytes on each, and no tool added.
     expect(toolSchemas(player())).toHaveLength(96);
     expect(toolSchemas(dm())).toHaveLength(123);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(157375);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(206069);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(158126);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(206820);
   });
 });
 
