@@ -166,8 +166,21 @@ export const MISSING_SHAPES = {
     'a die whose result an effect overrides or throws again. `docs/design/rolls-and-damage.md` has both halves for damage dice — "Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs`" — and for a D20 Test it had only `rerollTest`, which is a Reaction a feature takes. **The half that is retired is the pipeline reroll**: a `reroll-test-die` grant names a face, `sheetAsItStands` derives it onto the sheet every roller already asks for, and `rollD20Recorded` throws the counted die again and keeps the first throw on `roll-recorded.supersedes` — which reaches every ability check, saving throw, attack roll, Initiative and death save without a roll site having to know, and is SRD Luck whole. What is left under this name is a **spell effect** reaching either half: nothing a definition can write replaces a die or a result, so the reroll above is a feature’s sentence and only a feature’s.',
   'an-action-a-spell-compels-or-forbids':
     '**Gate G1 read this id as five mechanisms and it is a bundle no longer: four of the five have left it, two of them built by the batch that read them apart.** The action-rule vocabulary says four things now, and the catalogue writes all four: a slot or a named action **taken away** (`forbids`), one slot **narrowed** to a named few and failing closed (`permits-only`), a named action **paid for out of a cheaper slot** (`allows`), and — the member that creates rather than governs — an **extra action** handed to a turn (`grants`), once as a casting resolves or at the start of every turn the casting sees. SRD Expeditious Retreat’s "You take the Dash action" is the first of those and SRD Haste’s "it gains an additional action on each of its turns" the second, and both spells are executed. **Spending somebody else’s budget left on the owner’s ruling of 2026-09-22**: a spell may and a caller may not, `OutcomeRiders.spends` in packages/engine/src/spell-definitions.ts is the vocabulary that charges a slot and performs nothing, and SRD Dissonant Whispers is executed off it. The self-cure went to `a-self-cure-a-spell-forbids` and the rule coupling two slots to an id of its own, which has since been **built and retired**: `ActionRule`’s fifth member is `one-of`, the spenders ask the turn’s own budget whether a coupled slot has gone, and SRD Slow, the Dretch and the Copper Dragons all execute it; the sentences that need somebody to **play** the creature went to `a-creature-somebody-else-is-playing`; and the two mis-filings G1 found went to `an-action-the-engine-has-no-spender-for` before any of it. **Seven spells and two magic items are left under it, and they are four things.** A **lifetime** rather than a rule: SRD Befuddlement’s clause never ends at all, which an Instantaneous casting may not hang, and `RiderDuration` offers four named moments and a span in seconds with no member for a grant that simply does not end. The **attacks counted inside** one Attack action rather than the actions in a turn — SRD Slow’s "it can make only one attack if it takes the Attack action" — which is the spell-side face of the gap docs/archive/design/characters-and-equipment.md names from the feature side, "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it". A Reaction the spell **hands over** for an errand no spender is told apart by — SRD Wall of Stone’s "it can use its Reaction to move up to its Speed", SRD Power Word Heal’s standing up, and SRD Wind Walk’s Magic action "to begin reverting" — which is `allows` polarity over a name that is not one of the engine’s, and is the same want that sent Speak with Animals to the feature book. And two spells whose definitions execute nothing — SRD Confusion and SRD Tsunami, both tracked, both carrying an empty effect list because the sentence that blocks them is the economy whole — which is where the Mace of Terror and the Ring of Elemental Command sit too, each naming the id as a bare blocker for what a creature it has caught must then do with its turns. Narrowed rather than retired, which is `a-mode-on-the-save-a-spell-forces`’ precedent — and a reader should note the four are still four, so nobody should brief this id as a unit either.',
-  'an-action-the-engine-has-no-spender-for':
-    'an action the book prints that no command takes, so no rule could name it. `NAMED_ACTIONS` in packages/engine/src/combat.ts **names its own absences and the price of leaving one**: a member arrives with its spender, which is why the file says "`hide` was the member that arrived with its spender" and, of the four that stood beside it, "And the last five arrived the same way, in one commit with their five spenders." **It is a spell shape now and was a feature shape**, and the move is the vocabulary rule working rather than a re-filing: the last feature under it was SRD Fast Hands, which wanted a Utilize priced out of a Bonus Action and had nothing to be priced, and `takeUtilize` gave it one. What is left is a **spell** asking for an errand no spender is told apart by — SRD Gaseous Form’s forbidden talking, SRD Haste’s five narrowed actions, and the Reaction SRD Wall of Stone hands over "to move up to its Speed" — together with SRD Ready, which the book prints as an action and the list still leaves out because `takeReady` spends the Action without naming itself.',
+  // **`an-action-the-engine-has-no-spender-for` is gone, and not because it
+  // was built.** It described an action the book prints that no command
+  // takes, so no rule could name it — `NAMED_ACTIONS` in
+  // packages/engine/src/combat.ts still names its own absences and the price
+  // of leaving one. It was a feature shape and became a spell shape when SRD
+  // Fast Hands left it (`takeUtilize`); SRD Haste's five narrowed actions left
+  // by the same spender; the Reaction SRD Wall of Stone hands over is filed
+  // under `an-action-a-spell-compels-or-forbids`, whose description says so;
+  // and the last claimant, SRD Gaseous Form's "The target can't
+  // talk", left on the owner's ruling of 2026-09-26: talking is still no
+  // action anything spends, and the sentence it is printed in is handed over
+  // whole, flagged for the DM, beside the object clauses the engine enforces.
+  // Removed rather than kept, because a shape nothing is blocked on is one the
+  // guard deletes; a spell that needs it again mints it again with its
+  // claimant.
   // **`a-self-cure-a-spell-forbids` is built and gone.** It described a spell
   // that closes one way out of a condition and leaves the condition standing —
   // SRD Hideous Laughter's "it can’t end the Prone condition on itself" — and
@@ -593,11 +606,14 @@ export interface Adjudication {
    * Fiction the engine should never decide, or the shape that blocks it.
    *
    * The shape may belong to any of the three books — see {@link BlockerId}.
-   * Two executed spells need it and both are gate G1's re-filings: Gaseous
-   * Form's forbidden talking and Haste's five narrowed actions are blocked on
+   * Two executed spells needed it and both were gate G1's re-filings: Gaseous
+   * Form's forbidden talking and Haste's five narrowed actions were blocked on
    * `an-action-the-engine-has-no-spender-for`, which was a feature shape and
    * is a spell shape now — the last feature under it, SRD Fast Hands, left
-   * when `takeUtilize` gave the Utilize a spender to be priced against.
+   * when `takeUtilize` gave the Utilize a spender to be priced against. Both
+   * spells have left it since: Haste's narrowing was paid by the same
+   * spender, and Gaseous Form's talking was handed over on the owner's ruling
+   * of 2026-09-26.
    */
   readonly why: 'table' | BlockerId;
   readonly note: string;
@@ -938,17 +954,12 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD lets the caster keep the globe in hand to be thrown or slung later, or left to detonate on its own. A hand is a fact now and a casting may put a thing in one, but what sits there is an ordinary catalogue item with no state of its own \u2014 and this globe is a held *casting*, which detonates on a later action, may be thrown, and goes off by itself if it is not. Holding it is the half that is built; the rest of the sentence is not.',
     },
   ],
-  // One clause lighter: "The spell ends on the target if it drops to 0 Hit
-  // Points" is `target-drops-to-0`, read off a `damage-taken` that leaves the
-  // creature at 0, and the release is on that target rather than on the
-  // casting — which a level 4 slot is what makes visible.
-  'gaseous-form': [
-    {
-      clause: 'one of the four things the cloud cannot do is not forbidden',
-      why: 'an-action-the-engine-has-no-spender-for',
-      note: 'one of the four, and the other three are built: "Finally, the target can’t attack or cast spells" is one `forbids` rule naming the Attack action and the casting, and "manipulate objects" with the objects that "can’t be dropped, used, or otherwise interacted with" is `forbids.objects`, read by every command that puts a hand on a thing — a drop, an equip, an unequip, a purchase, a free interaction, a Utilize and the ground pile. What is left is "The target can’t talk", and talking is not an action anything spends. It cannot be handed over either: the SRD prints it inside the same sentence as the object clauses, and a handover is a verbatim sentence, so handing it over would ask the table to adjudicate three quarters of a rule the engine enforces.',
-    },
-  ],
+  // **Gaseous Form files nothing now.** Its last entry was "The target can't
+  // talk", filed against `an-action-the-engine-has-no-spender-for` on the
+  // reading that a sentence the engine three-quarters enforces could not go
+  // to the table. The owner overruled that on 2026-09-26: the sentence is the
+  // definition's `dmDecides`, whole and flagged for the DM, and the object
+  // clauses inside it are still `forbids.objects`.
   'glyph-of-warding': [
     {
       clause: 'Wisdom (Perception) check against your spell save DC to notice',

@@ -7300,11 +7300,13 @@ export const HASTE: SpellDefinition = {
  * clause are three `roll-mode` effects, because a mode is selected by roll
  * family and ability and there is one selector per ability.
  *
- * Everything else about being a cloud is not, and the notes say which gap each
- * clause waits on. The spell is therefore **partial** rather than tracked: the
- * misty-cloud half is the table's and the five numbers are the engine's, and
- * writing none of them because some of them are missing would be a Gaseous
- * Form that a Fireball hurt at full price.
+ * The rest of being a cloud was built after it — the Fly Speed and three of
+ * the four things the cloud cannot do — and the fourth, talking, is handed
+ * over whole with the sentence it is printed in (the owner, 2026-09-26). What
+ * the notes still carry is the misty-cloud fiction and the occupancy the
+ * engine owns outright; the numbers are the engine's, and writing none of them
+ * because some sentence was missing would have been a Gaseous Form that a
+ * Fireball hurt at full price.
  */
 export const GASEOUS_FORM: SpellDefinition = {
   id: 'gaseous-form',
@@ -7347,7 +7349,13 @@ export const GASEOUS_FORM: SpellDefinition = {
     // `castSpell`, because a casting comes out of three different slots and no
     // one of them names it — and handling is the fourth, read by every command
     // that puts a hand on a thing. Talking is the one the engine has no spender
-    // for and never will.
+    // for and never will, so the first sentence is **handed over** below, whole
+    // and flagged for the DM: the owner's ruling of 2026-09-26, over the
+    // reading that a sentence the engine three-quarters enforces could not go
+    // to the table. Its one rules consequence needs nothing more — a creature
+    // that cannot talk cannot supply a Verbal component, and this one cannot
+    // cast at all (`casting: true`), so no spell of its is left for the
+    // component to refuse.
     {
       kind: 'action-rule',
       rule: { kind: 'forbids', actions: ['attack'], casting: true, objects: true },
@@ -7365,10 +7373,15 @@ export const GASEOUS_FORM: SpellDefinition = {
   // level 4 puts two creatures in mist and one of them falling leaves the
   // other one a cloud.
   endsEarly: [{ on: 'target-drops-to-0', ends: 'target' }],
+  // The talking, in the book's words: the sentence goes over whole because a
+  // handover is a printed sentence verbatim, and the object clauses inside it
+  // are enforced by the `forbids` rule above whatever the table reads.
+  dmDecides: [
+    "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
+  ],
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
-    'one of the four things the cloud cannot do is not forbidden: "The target can’t talk". Three are taken away — the Attack action, the casting, and every hand a command puts on a thing, which is "manipulate objects" and the objects that "can’t be dropped, used, or otherwise interacted with" — and talking is not an action anything spends. It is not a handover either, because the SRD prints it inside the same sentence as the object clauses the engine now enforces, and handing that sentence over would ask the table to adjudicate three quarters of a rule',
   ],
 };
 

@@ -1671,17 +1671,13 @@ const CITED_SOURCES: readonly CitedSource[] = [
     label: 'packages/engine/src/content.ts',
     files: ['packages/engine/src/content.ts'],
   },
-  // The action economy, registered here as well as in the feature table: the
-  // shape a spell is blocked on when it wants an errand no spender is told
-  // apart by lives in `NAMED_ACTIONS`, and it became a spell shape when the
-  // last feature under it left. A description naming a file this table does
-  // not hold fails the *points at prose* guard rather than passing unchecked,
-  // which is how the absence was found.
-  {
-    name: 'combat.ts',
-    label: 'packages/engine/src/combat.ts',
-    files: ['packages/engine/src/combat.ts'],
-  },
+  // `packages/engine/src/combat.ts` stood here for one description: the shape
+  // a spell was blocked on when it wanted an errand no spender is told apart
+  // by, which lives in `NAMED_ACTIONS`. That shape left the vocabulary with
+  // its last claimant (SRD Gaseous Form's talking, handed over on the owner's
+  // ruling of 2026-09-26), so nothing in these maps quotes the file and the
+  // entry went with it — the feature table still registers it. Register it
+  // again with its next citation.
   {
     name: 'items.ts',
     label: 'packages/content/src/items.ts',
