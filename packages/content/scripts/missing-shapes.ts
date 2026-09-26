@@ -1070,11 +1070,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       why: 'table',
       note: 'SRD: "If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw." The teleport half is executed — `teleportTo` hands the save back and the spell’s own road rolls it before the creature arrives — and the markers fire on the save and the teleport. Interplanar travel is the other half, and there is one scene: a creature arriving from another plane has no position to arrive from, so nothing here could raise the save against it, and whether a Fiend steps in from the Abyss is the table’s.',
     },
-    {
-      clause: 'the duration increasing by 1 hour for each spell slot level above 3',
-      why: 'a-duration-the-slot-changes',
-      note: 'SRD, _Using a Higher-Level Spell Slot_: "The duration increases by 1 hour for each spell slot level above 3." A slot reaches damage dice, a target count and, for the one spell that prints it, a Concentration the slot drops; a duration that grows by the slot is the shape Major Image’s level-4 sentence is filed under, and this is a second writer of it — an hour a level rather than a casting that outlasts its Concentration.',
-    },
   ],
   'magic-jar': [
     {

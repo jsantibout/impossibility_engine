@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SRD_CONTENT } from '@ie/content';
+import { MAGIC_CIRCLE, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, isErr, type CharacterId, type Result } from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
@@ -7,6 +7,7 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
+import { durationSecondsAt } from './spell-definitions.js';
 import { remaining } from './resources.js';
 import { lift } from './commands/spell-effect-movement.js';
 import {
@@ -159,12 +160,23 @@ class Game {
   }
 
   /** The circle: declared, a minute on the clock, settled. */
-  draw(option: 'inward' | 'outward' = 'inward', types: readonly string[] = ['Fiend']): this {
+  draw(
+    option: 'inward' | 'outward' = 'inward',
+    types: readonly string[] = ['Fiend'],
+    slotLevel?: number,
+  ): this {
     const declared = unwrap(
       resolveSpell(
         this.state,
         CLERIC,
-        { spellId: 'magic-circle', targets: [], at: LANDMARKS['the altar'], types, option },
+        {
+          spellId: 'magic-circle',
+          targets: [],
+          at: LANDMARKS['the altar'],
+          types,
+          option,
+          ...(slotLevel === undefined ? {} : { slotLevel }),
+        },
         supply(this.state),
       ),
       'declare magic circle',
@@ -549,5 +561,41 @@ describe('SRD Magic Circle: a printed Teleport is a teleport too', () => {
         to: { from: { landmark: 'outside west' }, feet: 0 },
       }).ok,
     ).toBe(true);
+  });
+});
+
+/**
+ * SRD Magic Circle, _Using a Higher-Level Spell Slot_: "The duration increases
+ * by 1 hour for each spell slot level above 3."
+ *
+ * A table of seconds per band, which is what `durationAtSlot` is — six keys for
+ * the six slots above this level 3 spell, an hour apart. The mechanism was
+ * already there and the definition simply had not written the table, so this is
+ * a clause read off the book rather than a shape built for it.
+ */
+describe('SRD Magic Circle: an hour for each slot above the third', () => {
+  it('runs an hour at level 3 and three at level 5', () => {
+    expect(durationSecondsAt(MAGIC_CIRCLE, 3)).toBe(3600);
+    expect(durationSecondsAt(MAGIC_CIRCLE, 4)).toBe(7200);
+    expect(durationSecondsAt(MAGIC_CIRCLE, 5)).toBe(10800);
+    expect(durationSecondsAt(MAGIC_CIRCLE, 9)).toBe(25200);
+  });
+
+  /** And the deadline the casting hangs is the band's, not the printed hour. */
+  it('hangs a three-hour deadline on a circle drawn from a level 5 slot', () => {
+    const game = new Game();
+    game.push([
+      {
+        type: 'resource-pool-declared',
+        id: CLERIC,
+        pool: { key: 'spell-slot:5', label: 'level 5', max: 1, recovers: 'long-rest' },
+      },
+    ]);
+    game.draw('inward', ['Fiend'], 5);
+    const timer = Object.values(game.state.timers).find(
+      (effect) => effect.target.kind === 'casting' && effect.target.castingId === game.castingId,
+    );
+    // The minute of casting is already on the clock when the deadline is hung.
+    expect(timer?.deadline).toEqual({ kind: 'elapsed', at: 60 + 10800 });
   });
 });

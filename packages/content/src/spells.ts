@@ -14383,13 +14383,18 @@ export const MAGIC_CIRCLE: SpellDefinition = {
     },
   },
   durationSeconds: 3600,
+  // "_Using a Higher-Level Spell Slot._ The duration increases by 1 hour for
+  // each spell slot level above 3." An hour a level, written out as the six
+  // bands the six higher slots reach: the field is a table of whole durations
+  // rather than increments, because the SRD prints a different table for every
+  // spell that has one and no arithmetic produces them all.
+  durationAtSlot: { 4: 7200, 5: 10800, 6: 14400, 7: 18000, 8: 21600, 9: 25200 },
   dmDecides: [
     'Glowing runes appear wherever the Cylinder intersects with the floor or other surface.',
   ],
   unmodelled: [
     'possession is not a state the engine holds, so "can’t be possessed by … the creature" is the DM’s; the Charmed and Frightened halves of the sentence are refused',
     'interplanar travel is not modelled — there is one scene — so the save is raised for a teleport and for nothing else',
-    'the duration increasing by 1 hour for each spell slot level above 3 is not applied; a slot reaches damage dice, a target count and, for the few that print it, a duration this definition does not',
   ],
 };
 
