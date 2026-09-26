@@ -683,7 +683,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 108 | 276 | 224 | 52 |
+| 258 | 109 | 277 | 225 | 52 |
 
 | Records handing printed text to the DM |
 |---|
@@ -705,7 +705,7 @@ inventing a column that nothing checks.
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
 | Armor | 19 | 12 | 64 | 59 | 5 |
-| Potions | 24 | 11 | 14 | 9 | 5 |
+| Potions | 24 | 12 | 15 | 10 | 5 |
 | Rings | 22 | 7 | 7 | 5 | 2 |
 | Rods | 7 | 2 | 2 | 1 | 1 |
 | Scrolls | 1 | 0 | 0 | 0 | 0 |
@@ -772,6 +772,7 @@ how many of those still carry a clause the engine does not say.
 - **Periapt of Health** (Wondrous Items) — 1 recorded, complete
 - **Periapt of Proof against Poison** (Wondrous Items) — 1 recorded, 1 partial
 - **Plate Armor of Etherealness** (Armor) — 2 recorded, 2 partial
+- **Potion of Animal Friendship** (Potions) — 1 recorded, complete
 - **Potion of Climbing** (Potions) — 1 recorded, 1 partial
 - **Potion of Diminution** (Potions) — 1 recorded, 1 partial
 - **Potion of Flying** (Potions) — 1 recorded, 1 partial
@@ -850,7 +851,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 108 | 143 | 0 | 4 | 3 |
+| 258 | 109 | 143 | 0 | 4 | 2 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -904,8 +905,8 @@ the next tranche makes false.
 | `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
 | `a-reaction-an-item-grants` | 7 | 0 | 2 |
 | `a-speed-an-item-grants` | 7 | 0 | 2 |
+| `a-target-rule-the-format-cannot-state` | 4 | 1 | 1 |
 | `a-casting-an-item-stores-or-gives-back` | 3 | 0 | 2 |
-| `a-target-rule-the-format-cannot-state` | 2 | 1 | 1 |
 | `an-area-an-item-creates` | 17 | 0 | 1 |
 | `a-rider-on-a-later-weapon-attack` | 11 | 0 | 1 |
 | `senses-beyond-declared-sight` | 7 | 0 | 1 |
@@ -921,12 +922,12 @@ the next tranche makes false.
 | `a-reduction-an-effect-applies-to-damage` | 1 | 0 | 1 |
 | `a-save-an-item-forces` | 10 | 0 | 0 |
 | `a-condition-an-item-imposes` | 9 | 0 | 0 |
-| `a-range-an-item-names` | 8 | 0 | 0 |
 | `movement-modes` | 6 | 0 | 0 |
 | `a-bonus-narrowed-to-a-skill` | 4 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 4 | 0 | 0 |
 | `a-bonus-to-spell-attack-rolls` | 3 | 0 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 3 | 0 | 0 |
+| `a-range-an-item-names` | 3 | 0 | 0 |
 | `a-concentration-with-no-casting-behind-it` | 2 | 0 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 2 | 0 | 0 |
 | `a-damage-roll-an-item-makes` | 2 | 0 | 0 |

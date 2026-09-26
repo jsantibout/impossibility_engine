@@ -3259,3 +3259,15 @@ Appended 2026-09-26, wave seven on Opus:
   door 124 tools. Main re-ingested. **Reading taken:** a Sphere centred on its
   source does not catch the source. **Next for the app:** I-A12 v2, the
   planner ranking save lines first. Opus review, four defects, fixed.
+- **Treasure T-D1: three things the treasure tracks left.** `LastCharge`
+  gains `{ becomes: <item id>, onD20AtOrBelow }` (the destroy road, then the
+  new copy gained and, if the staff was held, equipped): the Staff of the
+  Woodlands becomes a Quarterstaff and the Staff of Power a +2 Quarterstaff —
+  **reading taken:** what the Staff of Power leaves asks no attunement, the
+  page's "loses all other properties" read to include it. A `casts` grant may
+  be `usedUp` (the copy is the price; a potion's Bonus Action to drink is
+  spent beside the casting's own time): the Potion of Animal Friendship,
+  through `cast_spell.item`. `a-range-an-item-names` re-read after
+  `confers.reach`: five entries re-pointed to their real blockers, three stay
+  (Necklace of Fireballs, the two talismans). Magic items transcribed
+  108 → 109, complete records 224 → 225. Opus review, five defects, fixed.
