@@ -29,26 +29,20 @@ homebrew.
   by a spell, joining a running fight, the clock, turn-anchored deadlines,
   repeat saves and delayed damage at the boundary, Short and Long Rests. A creature stands up for half its Speed unless a spell forbids it; the Bearded Devil's wound bleeds and closes on a minute, a Medicine check or a heal; forced movement stops at a barrier; a reversed Magic Circle binds the creature it holds. A
   fight **ends** when no hostile remains or they surrender.
-- **Monsters that fight from their own printed lines** — Multiattack as a
-  named sequence, an opportunity attack reaching for the best printed melee
-  attack, recharge and daily limits enforced, sunlight sensitivity, and the
-  Hydra's declared head count. **A printed saving throw is an effect list**: the DM's door rolls it and the
-  engine applies what the failure prints — damage, a condition, a grapple, a
-  push, a mode, a penalty, a worn-down object, a revealed fact — handing over
-  what it could not read; a legendary block's uses are a pool spent one per
+- **Monsters that fight from their own printed lines** — Multiattack as a named sequence, an opportunity attack with the best printed melee attack, recharge and daily limits, sunlight sensitivity, the Hydra's declared head count. **A printed saving throw is an effect list**: the DM's door rolls it and the engine applies what the failure prints — damage, a condition, a grapple, a push, a mode, a penalty, a worn-down object, a revealed fact — handing over the rest; a legendary block's uses are a pool spent one per
   turn boundary; a printed teleport is spent at its distance, a
   printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (put out by its own action), wear its armour down, or hand a graded failure to
   the printed-save reader; a save may spin a web; a Parry raises Armour Class in the hit window; a printed Reaction may spend another line; a cast line is spent at its heading's price; a creature carries its Challenge Rating, may take its block's printed form, and a Roper reels what it holds. A block's move executes: Deadly Leap and Trampling Charge with a save per space entered, the Leaps, the Dashes, Tree Stride, the Charges; dragging and crawling cost extra feet.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
-  masteries, and the defender answering first on both paths. A feature may
+  masteries, and the defender answering first. A feature may
   carry several grants, each gated on one option of its choice; a species may
   grant a spell; a feature may raise the hit point maximum; a reroll may be **elected**
   on the roll command — if it misses, fails, or shows a named face or lower (Heroic Inspiration). **The glossary's
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack carries Nick and Two-Weapon
-  Fighting, and the small named features, Savage Attacker to Primal Order, execute; a feature may ask two questions, grant a language, or know a quarry's defences through `look`; Eldritch Invocations executes whole, both Pacts included. **Wild Shape executes**: a Druid wears a learned Beast's stat block, keeps the SRD's retained half, and comes back by every ending the book names.
+  Fighting, and the small named features execute; a feature may ask two questions, grant a language, or know a quarry's defences through `look`; Eldritch Invocations executes whole, both Pacts included. **Wild Shape executes**: a Druid wears a learned Beast's stat block and comes back by every ending the book names.
 - **Casting and spells** — slots and Pact slots as pools, castings with identities, Concentration, ongoing spells, the effect and rider kinds, dice that behave as their spell says, printed sentences handed to the DM marked as theirs, and **passive defences** the attack path consults while the defender elects nothing. A casting may revive the dead, break an
   attunement, mask a type for magic alone, heat an object out of a hand, cap
   its own running copies, ward a fall, or lift a creature a save did not spare;
@@ -56,9 +50,7 @@ homebrew.
   save, make a creature subtract from its own damage rolls, or pick out D20
   Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its Concentration, a save may be nothing but its verdict or be cast on a hit and fought off by
   a neighbour's check, a spell's attack may leap to creatures the caster names,
-  a spell may print its own stat block, a casting may leave something behind
-  when it ends or be dismissed by its target, a slot may change what kind of ending a casting
-  has, a Speed may be replaced, and a repeat save may be raised by a blow; a casting may choose a branch per creature, suppress a held condition, move a body a size step, re-choose its branch, pin an Emanation in place, and erupt on a DM's decision. A summons may be **controlled** (Animate Dead's, a day's bond that lapses while the creature stays) or **commanded** for a Bonus Action; Find Steed's slam carries the paladin's numbers. Spike Growth cuts by the route, Gust of Wind charges by the step, a lifted creature climbs a stated surface, Warding Bond runs whole, Nondetection wards a school, Sending throws its die, and a repose's days stay spent; a tracked spell read to
+  a spell may print its own stat block, a casting may leave something behind or be dismissed by its target, a slot may change a casting's ending, a Speed may be replaced, and a blow may raise a repeat save; a casting may choose a branch per creature, suppress a held condition, move a body a size step, re-choose its branch, pin an Emanation in place, and erupt on a DM's decision. A summons may be **controlled** (Animate Dead's, a day's bond that lapses while the creature stays) or **commanded** for a Bonus Action; Find Steed's slam carries the paladin's numbers. Spike Growth cuts by the route, Gust of Wind charges by the step, a lifted creature climbs a stated surface, Warding Bond runs whole, Nondetection wards a school, Sending throws its die, and a repose's days stay spent. A casting's later action may be the target's, draw a fresh template, force a save, single out a mind, owe a payout at the caster's boundary, ride a familiar's touch, or walk a pack with its druid; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
@@ -67,19 +59,15 @@ homebrew.
   people, a purse. **An item nobody holds lies on the floor**
   with an instance id, and a creature can be too laden to lift it. **An object is declared into the scene and broken**: a door stated by
   material and size, swung at and destroyed, with a threshold. **Hands are a count**: a Two-Handed weapon and a shield refuse each other, and a conjured thing occupies one while its casting runs.
-- **Content** — `createContent` / `loadContent` validate a catalogue from
-  JSON text; homebrew uses the same door.
-- **Two doors above the engine** (`@ie/tools`) — the player's and, under
-  `dm/`, the DM's, partitioned by **authority**: a DM's door takes a decision
-  the rules leave open, and neither takes a die face.
+- **Content** — `createContent` / `loadContent` validate a catalogue from JSON; homebrew uses the same door.
+- **Two doors above the engine** (`@ie/tools`) — the player's and, under `dm/`, the DM's, partitioned by **authority**: a DM's door takes a decision the rules leave open; neither takes a die face.
 - **Measurement, as tests rather than claims** — `COVERAGE.md` and `LEDGER.md` are generated and go stale loudly; `reachability.test.ts` fails on a feature no door reaches; `level-five-session.test.ts` plays a party through a fight, rests and a level-up.
 
 ## What does not
 
 - **No orchestration, persistence or web app.** Nothing stores a log. The
   engine has no idea a language model exists.
-- **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed,
-  timed, effect left to the table. `LEDGER.md` names each and its shape.
+- **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed, timed, the effect the table's; `LEDGER.md` names each.
 - **No feature in a level 5 character's reach is `manual`**; the Champion's
   second Fighting Style at level 7 still is. Every pool buys something.
 - **A Druid's known forms are the ones it was made with**; no rest replaces one, and the block's senses are not carried.

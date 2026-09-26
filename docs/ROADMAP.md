@@ -2762,3 +2762,39 @@ Appended after wave seven's first spells track (2026-09-24):
   a directional patch; the altitude activation does not read the tally.
   Builder on Fable; the reviewer (Opus) had not returned at the handback —
   its verdict is applied on main.
+- **Activations, and what somebody else may do with a casting.**
+  `SpellActivation.by: 'target'` — the creature a casting is on takes its
+  later action (SRD Dragon's Breath), the template drawn afresh from the
+  actor's space through `areaCatch`, the numbers the caster's, the blow's
+  dealer the actor. `SpellActivation.redrawsArea: feet` — the casting's own
+  template drawn again at a point stated now, bounded from the point it keeps
+  (SRD Call Lightning's cloud is **above its caster**, which the first draft
+  had wrong); **the storm is the first stated fact about the world** —
+  `SpellDefinition.stormStated`, `cast_spell.inAStorm`, `DiceScaling.plusInAStorm`.
+  `save.onSuccess: 'end-casting'` (a save forced once whose success ends the
+  spell — Detect Thoughts), `SpellCheck.attemptBy: 'singled-out'` reading
+  `OngoingSpell.singledOut`, written by `spell-activated` (the event that had
+  changed no state until now); `fold/timers.ts` folds a check whose timer is
+  the casting's own. **Phantasmal Force is defined** on the coordinator's
+  ruling: the illusion is a place (a one-space template), the Cube a bound on
+  its look (`dmDecides`), `AreaTrigger.at: 'start-of-casters-turn'` with
+  `onlyTarget` the payout owed at the caster's boundary to the one mind it is
+  in. Find Familiar's delivered touch: `KeptSummons.delivers { within }`
+  pinned onto the bond, `CastSpellRequest.deliveredBy` moving only the square
+  the Touch and cover are measured from, the familiar's Reaction spent inside
+  the casting's batch. Conjure Animals: `SpellDefinition.areaMovesWithCaster`,
+  `MoveCommand.alsoMoves` (one command, because the book wrote one sentence
+  about both moves), `AreaSaveModeStanding` with `within` and `onlyCaster`;
+  `spell-origin-moved.carried` says how a point moved so the turn stamp is
+  written for a carry alone (the frozen logs fold unchanged);
+  `forgetCarriedTurns` beside `forgetSustainedTurns` at `combat-ended`.
+  **Not built, re-briefed into S21:** the spell glyph (the reviewer's route —
+  `OngoingSpell.stored`, run slotless through `castOrRelease` with the
+  triggerer substituted, never a pending casting a Counterspell could
+  answer), the familiar's borrowed senses (a third door on the kept bond), and
+  **where a phantasm may stand** — `chosenFromTheArea` requires the named
+  creature inside the template, so a phantasm beside its target is refused;
+  the coordinator rules the second road (an area *and* a named target, the
+  one exception to "never both", stated in the design note when built).
+  Two Fable reviews (eight defects, then five and one escalation, all
+  fixed on the branch).

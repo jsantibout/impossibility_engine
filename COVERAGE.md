@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 148 (43.7%) | 186 (54.9%) | 40 | 153 (45.1%) |
+| 339 | 144 (42.5%) | 191 (56.3%) | 40 | 158 (46.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -60,6 +60,7 @@ a plain statement of what the table decides.
 - **Blink** (level 3) — verified
 - **Blur** (level 2) — verified
 - **Burning Hands** (level 1) — verified
+- **Call Lightning** (level 3) — verified
 - **Calm Emotions** (level 2) — verified
 - **Chain Lightning** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Charm Monster** (level 4) — verified
@@ -72,6 +73,7 @@ a plain statement of what the table decides.
 - **Command** (level 1) — verified, partial — a clause the engine owns is still unbuilt
 - **Compulsion** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Cone of Cold** (level 5) — verified
+- **Conjure Animals** (level 3) — verified
 - **Conjure Fey** (level 6) — verified
 - **Conjure Woodland Beings** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Contagion** (level 5) — untested, partial — a clause the engine owns is still unbuilt
@@ -82,6 +84,7 @@ a plain statement of what the table decides.
 - **Darkness** (level 2) — verified
 - **Darkvision** (level 2) — verified
 - **Daylight** (level 3) — verified
+- **Detect Thoughts** (level 2) — verified
 - **Dimension Door** (level 4) — verified, partial — a clause the engine owns is still unbuilt
 - **Disintegrate** (level 6) — untested, partial — a clause the engine owns is still unbuilt
 - **Dispel Magic** (level 3) — verified
@@ -91,6 +94,7 @@ a plain statement of what the table decides.
 - **Dominate Beast** (level 4) — untested, partial — a clause the engine owns is still unbuilt
 - **Dominate Monster** (level 8) — untested, partial — a clause the engine owns is still unbuilt
 - **Dominate Person** (level 5) — untested, partial — a clause the engine owns is still unbuilt
+- **Dragon's Breath** (level 2) — verified
 - **Eldritch Blast** (cantrip) — verified
 - **Enhance Ability** (level 2) — verified
 - **Enlarge/Reduce** (level 2) — verified
@@ -163,6 +167,7 @@ a plain statement of what the table decides.
 - **Moonbeam** (level 2) — verified
 - **Nondetection** (level 3) — verified
 - **Pass without Trace** (level 2) — verified
+- **Phantasmal Force** (level 2) — verified
 - **Phantasmal Killer** (level 4) — untested, partial — a clause the engine owns is still unbuilt
 - **Phantom Steed** (level 3) — untested
 - **Plant Growth** (level 3) — verified, partial — a clause the engine owns is still unbuilt
@@ -254,14 +259,12 @@ every casting; only one of them is waiting for anything.
 - **Aura of Life** (level 4) — 3 noted
 - **Awaken** (level 5) — 4 noted
 - **Blade Barrier** (level 6) — 4 noted
-- **Call Lightning** (level 3) — 4 noted
 - **Clairvoyance** (level 3) — 0 noted, 1 read, 6 handed to the DM
 - **Clone** (level 8) — 3 noted
 - **Commune** (level 5) — 1 noted, 4 handed to the DM
 - **Commune with Nature** (level 5) — 1 noted, 7 handed to the DM
 - **Comprehend Languages** (level 1) — 0 noted, 1 read, 4 handed to the DM
 - **Confusion** (level 4) — 4 noted
-- **Conjure Animals** (level 3) — 4 noted
 - **Conjure Celestial** (level 7) — 5 noted
 - **Conjure Elemental** (level 5) — 4 noted
 - **Conjure Minor Elementals** (level 4) — 4 noted
@@ -279,12 +282,10 @@ every casting; only one of them is waiting for anything.
 - **Detect Evil and Good** (level 1) — 0 noted, 1 read, 3 handed to the DM
 - **Detect Magic** (level 1) — 0 noted, 1 read, 3 handed to the DM
 - **Detect Poison and Disease** (level 1) — 0 noted, 1 read, 3 handed to the DM
-- **Detect Thoughts** (level 2) — 4 noted
 - **Disguise Self** (level 1) — 0 noted, 6 handed to the DM
 - **Dispel Evil and Good** (level 5) — 4 noted
 - **Divination** (level 4) — 1 noted, 4 handed to the DM
 - **Divine Word** (level 7) — 4 noted
-- **Dragon's Breath** (level 2) — 3 noted
 - **Dream** (level 5) — 4 noted, 2 read, 5 handed to the DM
 - **Druidcraft** (cantrip) — 0 noted, 1 read, 8 handed to the DM
 - **Earthquake** (level 8) — 7 noted
@@ -431,7 +432,7 @@ of *Tracked* and is never added to it.
 
 | Shape | Blocks | Finishes (read) | Finishes (unread) | Executed | Tracked | of which unseen | Undefined |
 |---|---|---|---|---|---|---|---|
-| `a-casting-ended-by-a-trigger` | 10 | 1 | 0 | 0 | 7 | 0 | 3 |
+| `a-casting-ended-by-a-trigger` | 9 | 1 | 0 | 0 | 7 | 0 | 2 |
 | `a-random-outcome-that-is-not-a-d20` | 12 | 0 | 0 | 0 | 11 | 0 | 1 |
 | `a-choice-made-at-the-casting` | 10 | 0 | 0 | 2 | 8 | 2 | 0 |
 | `a-second-place-to-put-a-creature` | 10 | 0 | 0 | 2 | 7 | 0 | 1 |
@@ -442,27 +443,25 @@ of *Tracked* and is never added to it.
 | `an-effect-that-suppresses-other-magic` | 8 | 0 | 0 | 0 | 8 | 0 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 7 | 0 | 0 | 5 | 2 | 0 | 0 |
 | `a-creature-somebody-else-is-playing` | 6 | 0 | 0 | 5 | 1 | 0 | 0 |
-| `an-area-trigger-on-the-casters-turn` | 5 | 0 | 0 | 0 | 4 | 0 | 1 |
 | `difficult-terrain-an-area-creates` | 5 | 0 | 0 | 3 | 2 | 1 | 0 |
-| `a-fact-only-the-table-can-declare` | 4 | 0 | 0 | 2 | 2 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `a-repeat-save-that-does-something-on-a-failure` | 4 | 0 | 0 | 3 | 1 | 0 | 0 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `a-target-rule-the-format-cannot-state` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
-| `an-activation-taken-by-somebody-other-than-the-caster` | 4 | 0 | 0 | 2 | 2 | 0 | 0 |
-| `an-activation-that-forces-a-saving-throw` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
-| `an-activation-that-resolves-an-area` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
+| `an-area-trigger-on-the-casters-turn` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `an-outcome-that-reads-the-targets-hit-points` | 4 | 0 | 0 | 0 | 4 | 0 | 0 |
 | `damage-with-neither-an-attack-roll-nor-a-save` | 4 | 0 | 0 | 1 | 3 | 0 | 0 |
 | `a-barrier-that-blocks-passage` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-casting-dismissed-early` | 3 | 0 | 0 | 1 | 2 | 1 | 0 |
-| `a-check-another-creature-may-attempt` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
 | `a-creature-fact-an-effect-overrides` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `a-deadline-anchored-to-a-rest` | 3 | 0 | 0 | 0 | 2 | 0 | 1 |
+| `a-fact-only-the-table-can-declare` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `a-repeat-save-counted-to-a-tally` | 3 | 0 | 0 | 1 | 2 | 0 | 0 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| `an-activation-that-forces-a-saving-throw` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
 | `an-area-that-moves-by-itself` | 3 | 0 | 0 | 2 | 1 | 0 | 0 |
 | `healing-that-raises-the-dead` | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| `a-check-another-creature-may-attempt` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `a-condition-immunity-narrowed-to-its-source` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-dc-the-caster-does-not-set` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-duration-the-slot-changes` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
@@ -472,8 +471,8 @@ of *Tracked* and is never added to it.
 | `a-success-branch-that-does-something` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `a-world-fact-nothing-can-represent` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `an-ability-score-a-spell-changes` | 2 | 0 | 0 | 1 | 0 | 0 | 1 |
-| `an-area-moved-by-the-casters-own-movement` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
-| `an-area-trigger-measured-from-a-point` | 2 | 0 | 0 | 0 | 1 | 0 | 1 |
+| `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
+| `an-activation-that-resolves-an-area` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `movement-modes` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `senses-beyond-declared-sight` | 2 | 0 | 0 | 1 | 1 | 1 | 0 |
@@ -488,7 +487,9 @@ of *Tracked* and is never added to it.
 | `a-spell-that-answers-a-later-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `an-area-moved-by-the-casters-own-movement` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-area-that-filters-its-catch` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
+| `an-area-trigger-measured-from-a-point` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `an-effect-that-intercepts-dropping-to-0` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-exhaustion-level-a-spell-changes` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
@@ -1056,24 +1057,24 @@ never added.
 |---|---|---|---|---|---|
 | 1 | 32 | 32 | 211 | 62 | 149 |
 | 2 | 53 | 53 | 211 | 62 | 149 |
-| 3 | 91 | 91 | 345 | 84 | 258 |
-| 4 | 104 | 104 | 345 | 84 | 258 |
-| 5 | 120 | 120 | 481 | 115 | 363 |
-| 6 | 132 | 127 | 481 | 115 | 363 |
-| 7 | 144 | 133 | 562 | 158 | 401 |
-| 8 | 156 | 145 | 562 | 158 | 401 |
-| 9 | 165 | 149 | 668 | 228 | 435 |
-| 10 | 176 | 153 | 668 | 228 | 435 |
-| 11 | 183 | 155 | 727 | 264 | 456 |
-| 12 | 195 | 167 | 727 | 264 | 456 |
-| 13 | 200 | 168 | 784 | 310 | 467 |
-| 14 | 211 | 174 | 784 | 310 | 467 |
-| 15 | 218 | 177 | 821 | 331 | 482 |
-| 16 | 230 | 189 | 821 | 331 | 482 |
-| 17 | 235 | 189 | 859 | 366 | 483 |
-| 18 | 245 | 191 | 859 | 366 | 483 |
-| 19 | 257 | 203 | 859 | 366 | 483 |
-| 20 | 269 | 207 | 859 | 366 | 483 |
+| 3 | 91 | 91 | 345 | 79 | 266 |
+| 4 | 104 | 104 | 345 | 79 | 266 |
+| 5 | 120 | 120 | 481 | 108 | 373 |
+| 6 | 132 | 127 | 481 | 108 | 373 |
+| 7 | 144 | 133 | 562 | 151 | 411 |
+| 8 | 156 | 145 | 562 | 151 | 411 |
+| 9 | 165 | 149 | 668 | 220 | 446 |
+| 10 | 176 | 153 | 668 | 220 | 446 |
+| 11 | 183 | 155 | 727 | 256 | 467 |
+| 12 | 195 | 167 | 727 | 256 | 467 |
+| 13 | 200 | 168 | 784 | 302 | 478 |
+| 14 | 211 | 174 | 784 | 302 | 478 |
+| 15 | 218 | 177 | 821 | 323 | 493 |
+| 16 | 230 | 189 | 821 | 323 | 493 |
+| 17 | 235 | 189 | 859 | 358 | 494 |
+| 18 | 245 | 191 | 859 | 358 | 494 |
+| 19 | 257 | 203 | 859 | 358 | 494 |
+| 20 | 269 | 207 | 859 | 358 | 494 |
 
 The totals are every path added together, so a spell on two class lists is
 counted once for each path that can reach it — the row is the book at that
@@ -1134,11 +1135,11 @@ something other than its heading.
 
 | Path | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Bard (College of Lore) | 22/11/33 | 22/11/33 | 38/17/56 | 38/17/56 | 51/21/73 | 51/21/73 | 56/26/83 | 56/26/83 | 59/39/100 | 59/39/100 | 60/45/108 | 60/45/108 | 62/54/119 | 62/54/119 | 65/57/125 | 65/57/125 | 65/62/130 | 65/62/130 | 65/62/130 | 65/62/130 |
+| Bard (College of Lore) | 22/11/33 | 22/11/33 | 40/16/56 | 40/16/56 | 53/20/73 | 53/20/73 | 58/25/83 | 58/25/83 | 61/38/100 | 61/38/100 | 62/44/108 | 62/44/108 | 64/53/119 | 64/53/119 | 67/56/125 | 67/56/125 | 67/61/130 | 67/61/130 | 67/61/130 | 67/61/130 |
 | Cleric (Life Domain) | 16/6/22 | 16/6/22 | 31/8/39 | 31/8/39 | 44/14/58 | 44/14/58 | 45/22/67 | 45/22/67 | 49/31/80 | 49/31/80 | 52/39/91 | 52/39/91 | 53/46/99 | 53/46/99 | 54/50/104 | 54/50/104 | 54/55/109 | 54/55/109 | 54/55/109 | 54/55/109 |
-| Druid (Circle of the Land) | 20/9/29 | 20/9/29 | 38/12/50 | 38/12/50 | 46/17/63 | 46/17/63 | 53/28/81 | 53/28/81 | 57/39/96 | 57/39/96 | 61/45/106 | 61/45/106 | 62/50/112 | 62/50/112 | 65/55/120 | 65/55/120 | 65/59/124 | 65/59/124 | 65/59/124 | 65/59/124 |
+| Druid (Circle of the Land) | 20/9/29 | 20/9/29 | 38/12/50 | 38/12/50 | 48/15/63 | 48/15/63 | 55/26/81 | 55/26/81 | 59/37/96 | 59/37/96 | 63/43/106 | 63/43/106 | 64/48/112 | 64/48/112 | 67/53/120 | 67/53/120 | 67/57/124 | 67/57/124 | 67/57/124 | 67/57/124 |
 | Paladin (Oath of Devotion) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 19/5/24 | 19/5/24 | 19/5/24 | 19/5/24 | 24/6/30 | 24/6/30 | 24/6/30 | 24/6/30 | 25/9/34 | 25/9/34 | 25/9/34 | 25/9/34 | 25/13/38 | 25/13/38 | 25/13/38 | 25/13/38 |
-| Ranger (Hunter) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 21/7/28 | 21/7/28 | 21/7/28 | 21/7/28 | 29/11/40 | 29/11/40 | 29/11/40 | 29/11/40 | 32/13/45 | 32/13/45 | 32/13/45 | 32/13/45 | 32/16/48 | 32/16/48 | 32/16/48 | 32/16/48 |
-| Sorcerer (Draconic Sorcery) | 28/9/37 | 28/9/37 | 50/13/64 | 50/13/64 | 66/18/85 | 66/18/85 | 76/21/98 | 76/21/98 | 81/28/110 | 81/28/110 | 87/33/121 | 87/33/121 | 88/40/129 | 88/40/129 | 91/43/135 | 91/43/135 | 91/47/140 | 91/47/140 | 91/47/140 | 91/47/140 |
+| Ranger (Hunter) | 9/4/13 | 9/4/13 | 9/4/13 | 9/4/13 | 21/7/28 | 21/7/28 | 21/7/28 | 21/7/28 | 30/10/40 | 30/10/40 | 30/10/40 | 30/10/40 | 33/12/45 | 33/12/45 | 33/12/45 | 33/12/45 | 33/15/48 | 33/15/48 | 33/15/48 | 33/15/48 |
+| Sorcerer (Draconic Sorcery) | 28/9/37 | 28/9/37 | 53/11/64 | 53/11/64 | 69/16/85 | 69/16/85 | 79/19/98 | 79/19/98 | 84/26/110 | 84/26/110 | 90/31/121 | 90/31/121 | 91/38/129 | 91/38/129 | 94/41/135 | 94/41/135 | 94/45/140 | 94/45/140 | 94/45/140 | 94/45/140 |
 | Warlock (Fiend Patron) | 13/6/19 | 13/6/19 | 23/6/29 | 23/6/29 | 32/8/40 | 32/8/40 | 36/9/45 | 36/9/45 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 | 37/15/52 |
-| Wizard (Evoker) | 32/13/45 | 32/13/45 | 60/20/81 | 60/20/81 | 84/25/110 | 84/25/110 | 95/40/136 | 95/40/136 | 99/59/160 | 99/59/160 | 106/70/179 | 106/70/179 | 108/83/194 | 108/83/194 | 113/89/206 | 113/89/206 | 114/99/218 | 114/99/218 | 114/99/218 | 114/99/218 |
+| Wizard (Evoker) | 32/13/45 | 32/13/45 | 63/18/81 | 63/18/81 | 87/23/110 | 87/23/110 | 98/38/136 | 98/38/136 | 102/57/160 | 102/57/160 | 109/68/179 | 109/68/179 | 111/81/194 | 111/81/194 | 116/87/206 | 116/87/206 | 117/97/218 | 117/97/218 | 117/97/218 | 117/97/218 |

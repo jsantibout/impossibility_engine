@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 20 spells | 20 | 0 | 0 | 34 |
+| Spells in reach, not executed | 15 spells | 15 | 0 | 0 | 34 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -69,9 +69,9 @@ exactly the silently-missing entry this report’s header refuses.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-fact-only-the-table-can-declare` | 3 | 2 |
+| `a-fact-only-the-table-can-declare` | 2 | 2 |
 | `an-action-a-spell-compels-or-forbids` | 2 | 2 |
-| `a-check-another-creature-may-attempt` | 2 | 1 |
+| `a-check-another-creature-may-attempt` | 1 | 1 |
 | `a-choice-made-at-the-casting` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-duration-the-slot-changes` | 1 | 1 |
@@ -80,37 +80,27 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-target-rule-the-format-cannot-state` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
-| `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
-| `an-activation-that-resolves-an-area` | 2 | 0 |
-| `a-casting-ended-by-a-trigger` | 1 | 0 |
+| `senses-beyond-declared-sight` | 1 | 1 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 1 | 0 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 1 | 0 |
-| `an-activation-that-forces-a-saving-throw` | 1 | 0 |
-| `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
-| `an-area-trigger-measured-from-a-point` | 1 | 0 |
-| `an-area-trigger-on-the-casters-turn` | 1 | 0 |
-| `senses-beyond-declared-sight` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
 
-#### `a-fact-only-the-table-can-declare` — blocks 3, finishes 2
+#### `a-fact-only-the-table-can-declare` — blocks 2, finishes 2
 
 - **Hunter's Mark** (level 1) — executed-partial
 - **Sleep** (level 1) — executed-partial
-- **Call Lightning** (level 3) — tracked — also waits on 1
 
 #### `an-action-a-spell-compels-or-forbids` — blocks 2, finishes 2
 
 - **Haste** (level 3) — executed-partial
 - **Slow** (level 3) — executed-partial
 
-#### `a-check-another-creature-may-attempt` — blocks 2, finishes 1
+#### `a-check-another-creature-may-attempt` — blocks 1, finishes 1
 
-- **Detect Thoughts** (level 2) — tracked — also waits on 1
 - **Spike Growth** (level 2) — executed-partial
 
 #### `a-choice-made-at-the-casting` — blocks 1, finishes 1
@@ -145,19 +135,9 @@ sums to the population.
 
 - **Silence** (level 2) — executed-partial
 
-#### `an-activation-taken-by-somebody-other-than-the-caster` — blocks 2, finishes 0
+#### `senses-beyond-declared-sight` — blocks 1, finishes 1
 
-- **Find Familiar** (level 1) — executed-partial — also waits on 1
-- **Dragon's Breath** (level 2) — tracked — also waits on 1
-
-#### `an-activation-that-resolves-an-area` — blocks 2, finishes 0
-
-- **Dragon's Breath** (level 2) — tracked — also waits on 1
-- **Call Lightning** (level 3) — tracked — also waits on 1
-
-#### `a-casting-ended-by-a-trigger` — blocks 1, finishes 0
-
-- **Phantasmal Force** (level 2) — no-definition — also waits on 2
+- **Find Familiar** (level 1) — executed-partial
 
 #### `a-condition-benefit-an-effect-takes-away` — blocks 1, finishes 0
 
@@ -166,30 +146,6 @@ sums to the population.
 #### `a-spells-effects-applied-to-different-targets` — blocks 1, finishes 0
 
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
-
-#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 1, finishes 0
-
-- **Conjure Animals** (level 3) — tracked — also waits on 1
-
-#### `an-activation-that-forces-a-saving-throw` — blocks 1, finishes 0
-
-- **Detect Thoughts** (level 2) — tracked — also waits on 1
-
-#### `an-area-moved-by-the-casters-own-movement` — blocks 1, finishes 0
-
-- **Conjure Animals** (level 3) — tracked — also waits on 1
-
-#### `an-area-trigger-measured-from-a-point` — blocks 1, finishes 0
-
-- **Phantasmal Force** (level 2) — no-definition — also waits on 2
-
-#### `an-area-trigger-on-the-casters-turn` — blocks 1, finishes 0
-
-- **Phantasmal Force** (level 2) — no-definition — also waits on 2
-
-#### `senses-beyond-declared-sight` — blocks 1, finishes 0
-
-- **Find Familiar** (level 1) — executed-partial — also waits on 1
 
 #### Waiting on a definition — 0
 
