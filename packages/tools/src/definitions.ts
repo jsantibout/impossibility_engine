@@ -4874,14 +4874,43 @@ const TAKE_ACTION = tool({
   },
 });
 
+/**
+ * Take the swing a move offered — and say nothing, usually, about what with.
+ *
+ * Owner ruling, 2026-09-20: a monster's Opportunity Attack is its best printed
+ * melee attack. `reactionSwing` has answered that since, but only when nobody
+ * named a weapon — and this door used to name one on every call, turning an
+ * omitted `weapon` into `null`, which the engine reads (rightly) as somebody
+ * asking for an Unarmed Strike. So every monster provoked through a tool
+ * punched: a Goblin Warrior with a Scimitar in its hand hit for 0.
+ *
+ * **Three asks, and the door passes each through as it arrived.** Omitted is
+ * nobody having said, and the engine chooses; `null` is an Unarmed Strike
+ * asked for on purpose; a catalogue id or a printed `action` names the swing.
+ * Both named at once reaches `resolveAttack`, which refuses it in the one place
+ * that refusal lives.
+ */
 const TAKE_OPPORTUNITY_ATTACK = tool({
   name: 'take_opportunity_attack',
   description:
-    'Take the Opportunity Attack a creature’s move offered you. The mover is held where it was until every creature offered one has answered, and nothing else can happen until then.',
+    'Take the Opportunity Attack a creature’s move offered you. The mover is held where it was until every creature offered one has answered, and nothing else can happen until then. Name neither `weapon` nor `action` and the engine picks the swing: a creature whose stat block prints attacks of its own swings its best printed melee attack (the highest average damage that does not recharge and is not limited per day), and a character, whose sheet prints none, makes an Unarmed Strike. Name one to swing something else.',
   mutates: true,
   input: z.object({
     attacker: creatureId.describe('Creature taking the Reaction.'),
-    weapon: z.string().min(1).optional().describe('Catalogue id. Omit for an Unarmed Strike.'),
+    weapon: z
+      .string()
+      .min(1)
+      .nullish()
+      .describe(
+        'A weapon the creature carries, by catalogue id, or null for an Unarmed Strike on purpose. Omit it, and `action`, to let the engine choose.',
+      ),
+    action: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'An attack this creature’s own stat block prints, by its printed name — a Brown Bear’s "Claw" rather than the Bite the engine would choose. Use it instead of `weapon`, never beside it; a name the block does not print is refused.',
+      ),
   }),
   run: (context, args) =>
     settle(
@@ -4889,7 +4918,11 @@ const TAKE_OPPORTUNITY_ATTACK = tool({
       takeOpportunityAttack(
         context.campaign.state(),
         who(args.attacker),
-        { weapon: args.weapon ?? null, ...identity(context) },
+        {
+          ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
+          ...(args.action === undefined ? {} : { action: args.action }),
+          ...identity(context),
+        },
         context.campaign.supply(),
       ),
       (value) => value.events,

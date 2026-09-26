@@ -1044,12 +1044,16 @@ function run(
 
     case 'take_opportunity_attack': {
       const reactor = who(input, 'attacker');
+      const weapon = optStr(input, 'weapon');
       return settle(
         session,
         takeOpportunityAttack(
           state,
           reactor,
-          { weapon: optStr(input, 'weapon') ?? null, ...commandId(input) },
+          // Omitted is nobody having said, and the engine chooses — a
+          // monster's best printed melee line, by the owner's 2026-09-20
+          // ruling. Turning it into `null` asked for an Unarmed Strike instead.
+          { ...(weapon === undefined ? {} : { weapon }), ...commandId(input) },
           session.supply(),
         ),
         (v) => v.events,
@@ -1751,7 +1755,10 @@ const DEFINED: readonly ToolSpec[] = [
     parameters: schema(
       {
         attacker: field('string', 'Creature id taking the Reaction.'),
-        weapon: field('string', 'Catalogue id. Omit for an Unarmed Strike.'),
+        weapon: field(
+          'string',
+          'Catalogue id. Omit to let the engine choose: a monster swings its best printed melee attack, and a character makes an Unarmed Strike.',
+        ),
         command_id: COMMAND_ID,
       },
       ['attacker', 'command_id'],
