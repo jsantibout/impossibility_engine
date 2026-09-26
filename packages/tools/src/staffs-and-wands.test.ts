@@ -134,12 +134,15 @@ const druid = (name: string): Record<string, unknown> => ({
   classId: 'druid',
   level: 5,
   speciesId: 'human',
-  backgroundId: 'sage',
+  // Not the Sage: its Magic Initiate would give the druid a second
+  // spellcasting ability, and a staff "using your spell save DC" would ask
+  // which one.
+  backgroundId: 'criminal',
   abilities: {
     method: 'standard-array',
     assignment: { str: 10, dex: 13, con: 14, int: 8, wis: 15, cha: 12 },
   },
-  abilityIncreases: { wis: 2, con: 1 },
+  abilityIncreases: { con: 2, dex: 1 },
   classSkills: ['nature', 'survival'],
   languages: ['Elvish', 'Dwarvish'],
   alignment: 'Neutral Good',
@@ -167,15 +170,12 @@ const druid = (name: string): Record<string, unknown> => ({
     'druid:primal-order:cantrip': ['mending'],
   },
   feats: {
-    'sage:magic-initiate-wizard': {
-      featId: 'magic-initiate',
-      spellList: 'wizard',
-      spellcastingAbility: 'int',
-      cantrips: ['mage-hand', 'light'],
-      levelOneSpell: 'find-familiar',
+    'criminal:alert': { featId: 'alert' },
+    'human:versatile': { featId: 'savage-attacker' },
+    'druid:ability-score-improvement': {
+      featId: 'ability-score-improvement',
+      abilities: ['wis', 'wis'],
     },
-    'human:versatile': { featId: 'alert' },
-    'druid:ability-score-improvement': { featId: 'savage-attacker' },
   },
   dmGrants: { items: [], goldPieces: 0, magicItems: [], note: 'standard package only' },
 });
@@ -275,6 +275,19 @@ describe('a cleric heals from the Staff of Healing', () => {
     expect(castOf(out)?.route).toBe(`item:${STAFF}`);
     expect(castOf(out)?.level).toBe(3);
     expect(chargesLeft(t, STAFF)).toBe(before - 3);
+  });
+
+  it('at level 4 for 4, the ceiling the cell prints', () => {
+    const t = room('staff-of-healing-4', cleric('Mira'));
+    holding(t, STAFF);
+    const before = chargesLeft(t, STAFF);
+
+    const out = expectOk(
+      t.call('cast_spell', { caster: WHO, spellId: 'cure-wounds', targets: [WHO], item: STAFF, charges: 4 }),
+    );
+
+    expect(castOf(out)?.level).toBe(4);
+    expect(chargesLeft(t, STAFF)).toBe(before - 4);
   });
 
   it('and is refused a fifth — "maximum 4 for a level 4 spell" — before a charge goes', () => {

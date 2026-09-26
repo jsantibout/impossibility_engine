@@ -1927,12 +1927,15 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
 
   // ── staffs and wands through the wand door ───────────────────────────────
   //
-  // Every record below is a `casts` grant reached through `cast_spell.item`,
-  // and all but two print the last-charge d20. What kept them out was never a
-  // spell: each one's table was defined before the door onto it existed, and
-  // the d20 had no reader. Both are built now, so the book's staffs are its
-  // tables, one grant per row, and what a staff does *besides* cast is either
-  // a grant the engine reads or a note that says which clause it is.
+  // Every record below casts through `cast_spell.item`. For the wand and the
+  // staffs, what kept them out was never a spell: each table was defined
+  // before the door onto it existed, and the last-charge d20 — printed by all
+  // of them but the Staff of the Magi, whose d20 only pays out — had no
+  // reader. The rod, the ring and the cloak print no last charge at all; they
+  // were filed under what they do besides cast, and they come in partial with
+  // exactly that as their notes. So the book's staffs are its tables, one
+  // grant per row, and what an item does *besides* cast is either a grant the
+  // engine reads or a note that says which clause it is.
   //
   // **Held is `while-worn`**, exactly as the Staff of Fire writes it: "while
   // you hold this staff" is being in hand, and in hand is the equipped set.
