@@ -9640,12 +9640,13 @@ export const SLEEP: SpellDefinition = {
       kind: 'save',
       ability: 'wis',
       condition: 'incapacitated',
-      // "or that have Immunity to the Exhaustion condition automatically
-      // succeed on saves against this spell" — a defence the target already
-      // has, read off the creature. The die is still thrown and recorded and
-      // the total overridden, which is the automatic *failure*'s reading with
-      // the sign turned round.
-      autoSucceedIf: { immuneTo: 'exhaustion' },
+      // "Creatures that don't sleep, such as elves, or that have Immunity to
+      // the Exhaustion condition automatically succeed on saves against this
+      // spell" — one sentence, two facts about the target, either of which
+      // spares it, so both go in one clause. The die is still thrown and
+      // recorded and the total overridden, which is the automatic *failure*'s
+      // reading with the sign turned round.
+      autoSucceedIf: { immuneTo: 'exhaustion', doesNotSleep: true },
       repeats: {
         // "until the end of its next turn, at which point it must repeat the
         // save" — the sleeper's own turn, and the condition's lifetime is the
@@ -9671,9 +9672,6 @@ export const SLEEP: SpellDefinition = {
   endsEarly: [
     { on: 'target-takes-damage', ends: 'target' },
     { on: 'shaken-awake', ends: 'target' },
-  ],
-  unmodelled: [
-    '"Creatures that don’t sleep, such as elves" are not spared: the Immunity half of that sentence is executed — `autoSucceedIf` reads it off the target — and this half is not a fact the engine holds about anybody. The SRD prints it of no creature type, and the 2024 Elf states it as a species trait no `FeatureGrant` member carries, so whether a creature sleeps at all is the DM’s',
   ],
 };
 

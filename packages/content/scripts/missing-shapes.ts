@@ -1224,13 +1224,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // Pass without Trace is the other and carries no entry at all: what is left
   // of it prints no mechanic, so its `unmodelled` line names nothing for an
   // adjudication to be written about.
-  sleep: [
-    {
-      clause: 'such as elves',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "Creatures that don’t sleep, such as elves, or that have Immunity to the Exhaustion condition automatically succeed on saves against this spell." **The Immunity half is executed** — `save.autoSucceedIf` reads it off the target through `conditionImmunitiesOf`, and `checks.ts` carries the automatic success the automatic failure was the only half of. What is left is whether a creature sleeps at all, and it is a fact rather than a mechanism: the SRD prints it of no creature type, and the 2024 Elf states it as a species trait — Trance, which says a creature of that species neither needs sleep nor can be put to sleep by magic — that no `FeatureGrant` member carries.',
-    },
-  ],
   // **Two of Slow's four are gone and both were built.** The −2 on Dexterity
   // saving throws is a `bonus` rider carrying a `BonusNarrowing`, which is the
   // half of `a-bonus-narrowed-to-a-skill` the ongoing side had already grown —

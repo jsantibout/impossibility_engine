@@ -532,9 +532,13 @@ export const ELF: SpeciesDefinition = {
       name: 'Trance',
       level: 1,
       automation: 'engine',
-      note: 'The four hours are applied. SRD: "You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness." A Long Rest was eight hours for everybody in this engine, one constant with no per-creature answer; it is a fact of the sheet now, so an Elf who has rested four hours may end one and nobody else may. The sixteen-hour wait before another Long Rest is untouched, because the SRD does not shorten it. What is handed to the table is the other sentence: "You don’t need to sleep, and magic can’t put you to sleep" — nothing models sleep at all here, so there is no state for the immunity to protect and no rule that reads it afterwards.',
-      // SRD's four hours, in the seconds the clock counts.
-      grants: { kind: 'long-rest-length', seconds: 4 * 60 * 60 },
+      note: 'Both sentences are applied. SRD: "You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness." A Long Rest was eight hours for everybody in this engine, one constant with no per-creature answer; it is a fact of the sheet now, so an Elf who has rested four hours may end one and nobody else may. The sixteen-hour wait before another Long Rest is untouched, because the SRD does not shorten it. And "magic can’t put you to sleep" is the second grant: a fact of the sheet in the way a condition immunity is, read by SRD Sleep’s "Creatures that don’t sleep, such as elves … automatically succeed on saves against this spell", which is the one rule in the book that asks. Not needing sleep at all is the clause nothing reads: a rest is hours on the clock whoever takes it.',
+      grants: [
+        // SRD's four hours, in the seconds the clock counts.
+        { kind: 'long-rest-length', seconds: 4 * 60 * 60 },
+        // "magic can’t put you to sleep" — the fact SRD Sleep spares elves by.
+        { kind: 'does-not-sleep' },
+      ],
     },
   ],
 };

@@ -3300,6 +3300,27 @@ export type FeatureGrant =
    */
   | { readonly kind: 'long-rest-length'; readonly seconds: number }
   /**
+   * SRD Trance's other sentence: "You don't need to sleep, and **magic can't
+   * put you to sleep**."
+   *
+   * A fact about the creature, the way a condition immunity is, and the grant
+   * beside `long-rest-length` on the trait that prints both. It is compiled
+   * onto `CharacterSheet.doesNotSleep` and read by SRD Sleep's
+   * `save.autoSucceedIf`, which is the one rule in the book that asks the
+   * question.
+   *
+   * **A member of its own rather than a `standing` effect**, for
+   * `long-rest-length`'s reason: what it says is not conditional on anything, so
+   * there is no state for a derived grant to consult. **And not a
+   * `condition-immunity`**, which is the nearest-looking neighbour and a
+   * different sentence: sleep is not a condition — the Unconscious that Sleep's
+   * second failed save imposes is, and a creature immune to *that* would also
+   * shrug off a Hold Person's paralysis by the same grant.
+   *
+   * No payload, because the sentence has none.
+   */
+  | { readonly kind: 'does-not-sleep' }
+  /**
    * A Reaction the feature takes at one of the engine's named windows — see
    * `ReactionFeature` in `reactions.ts`.
    *

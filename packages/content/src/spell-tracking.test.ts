@@ -2278,6 +2278,13 @@ describe('every spell this batch added is cast for real', () => {
     // And the fourth, finished by the consent track: a `willing` list to
     // declare into.
     'resistance',
+    // And the last clause of this one was half a sentence: "Creatures that
+    // don't sleep, such as elves, **or** that have Immunity to the Exhaustion
+    // condition automatically succeed." The Immunity was read off the creature
+    // and the other fact was held about nobody; `does-not-sleep` is the grant
+    // Trance writes, and the two are asked in one clause because the book joins
+    // them with "or".
+    'sleep',
     // The fifth, and the shortest paragraph in the book to need three
     // mechanisms: `stabilise` for the four words that are the spell,
     // `TargetRule.mustBeDying` for the sentence that chooses whom, and

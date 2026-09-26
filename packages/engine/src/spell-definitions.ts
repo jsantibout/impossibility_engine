@@ -2540,6 +2540,26 @@ export type SpellEffect =
         | {
             /** SRD Sleep's "Immunity to the Exhaustion condition". */
             readonly immuneTo: ConditionName;
+            /**
+             * SRD Sleep: "Creatures that **don't sleep, such as elves**, or
+             * that have Immunity to the Exhaustion condition automatically
+             * succeed on saves against this spell."
+             *
+             * **The other half of the same printed sentence, so it sits inside
+             * the same member rather than beside it as a fourth.** The book
+             * joins the two facts with "or" — either spares the creature — and
+             * a union arm apiece would have made a definition choose which
+             * half of one sentence to write.
+             *
+             * It is a fact about the creature in exactly the way the Immunity
+             * is, and it reaches the sheet the way every other such fact does:
+             * a `does-not-sleep` {@link FeatureGrant} compiled onto
+             * `CharacterSheet.doesNotSleep`, which SRD Elf's Trance grants —
+             * "You don't need to sleep, and magic can't put you to sleep." A
+             * stat block that prints no such trait does not have it, and
+             * absent is every sheet ever written.
+             */
+            readonly doesNotSleep?: true;
           }
         | {
             /**

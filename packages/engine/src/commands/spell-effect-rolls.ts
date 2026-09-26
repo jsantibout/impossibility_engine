@@ -1454,9 +1454,19 @@ export function resolveSaveEffect(
             ? fought?.includes(target) === true
               ? `${name}: a creature you or your companions are fighting automatically succeeds on the save`
               : null
-            : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
-              ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
-              : null;
+            : // **Or that it does not sleep, which is the other half of the same
+              // printed sentence.** SRD Sleep: "Creatures that don't sleep,
+              // such as elves, **or** that have Immunity to the Exhaustion
+              // condition automatically succeed" — either fact spares the
+              // creature, so the two are asked in one clause and the first
+              // that answers names itself. Read off the sheet as it stands, so
+              // an item that ever granted it would reach the save by the door
+              // the Immunity above already uses.
+              effect.autoSucceedIf.doesNotSleep === true && sheet.doesNotSleep === true
+              ? `${name}: a creature that does not sleep automatically succeeds on the save`
+              : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
+                ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
+                : null;
     const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
       dc: saveDc,
       conditions: support.conditions,
