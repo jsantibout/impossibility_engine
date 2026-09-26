@@ -8547,11 +8547,22 @@ export const COMMAND: SpellDefinition = {
   options: {
     approach: {
       label: 'Approach',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          // "The target must succeed on a Wisdom saving throw or follow the
+          // command on its next turn." The die is the engine's and the
+          // following is the table's: what a failure buys here is a route
+          // nobody chose and a turn spent walking it, which is a creature being
+          // played rather than a spend being charged. So the verdict *is* the
+          // content — `verdictOnly`, the mark SRD Animal Messenger's errand
+          // uses — and the sentence below goes over with it.
+          verdictOnly: true,
+        },
+      ],
       handsOver: [
         'Approach. The target moves toward you by the shortest and most direct route, ending its turn if it moves within 5 feet of you.',
-      ],
-      unmodelled: [
-        'the Wisdom saving throw is not rolled for Approach: what a failure would buy is a route nobody chose and a whole turn spent walking it, which is a creature being played rather than a spend being charged — so the die goes to the table with the sentence',
       ],
     },
     drop: {
@@ -8573,11 +8584,14 @@ export const COMMAND: SpellDefinition = {
     },
     flee: {
       label: 'Flee',
+      effects: [
+        // The same die for the same reason as Approach's: a direction and a
+        // turn spent running in it are the table's, and the verdict is the
+        // whole of what the engine decides.
+        { kind: 'save', ability: 'wis', verdictOnly: true },
+      ],
       handsOver: [
         'Flee. The target spends its turn moving away from you by the fastest available means.',
-      ],
-      unmodelled: [
-        'the Wisdom saving throw is not rolled for Flee, for the reason Approach’s is not: the whole of what a failure buys is a direction and a turn spent running in it, which the engine adjudicates rather than performs',
       ],
     },
     grovel: {

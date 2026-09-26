@@ -2399,7 +2399,15 @@ describe('every spell this batch added is cast for real', () => {
       // sweep makes is that the casting tells the table what it was left
       // with, and it does; what it may not be is *silent*, which either list
       // answers and neither being there would fail.
-      const given = definition.dmDecides ?? [];
+      // **A branch's handover counts for the same reason the definition's
+      // does**, and Command is what notices: its Approach rolls a verdict-only
+      // save now and hands the walking over, so the branch owes no debt and is
+      // very far from silent. A sweep reading only the debts would have called
+      // that a spell saying nothing.
+      const given = [
+        ...(definition.dmDecides ?? []),
+        ...(branch === undefined ? [] : (definition.options![branch]!.handsOver ?? [])),
+      ];
       expect([...owed, ...given], spellId).not.toEqual([]);
       for (const gap of owed) {
         expect(out.unverified).toContain(`${definition.name}: ${gap}`);

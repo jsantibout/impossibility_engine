@@ -686,16 +686,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // entries already named before any of it was built.
   command: [
     {
-      clause: 'the Wisdom saving throw is not rolled for Approach',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'SRD: "The target moves toward you by the shortest and most direct route, ending its turn if it moves within 5 feet of you." The whole of what a failure buys is a route and a turn spent walking it, and a failure that imposes nothing is a die thrown for nothing — which the definition validator refuses rather than accepts. So this word has no effects at all, and the save goes to the table with the sentence.',
-    },
-    {
-      clause: 'the Wisdom saving throw is not rolled for Flee',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'SRD: "The target spends its turn moving away from you by the fastest available means." Approach’s reading with the direction reversed: a whole turn spent running is a creature being played, the engine adjudicates legality and walks nobody anywhere, and a save with nothing to gate is not rolled.',
-    },
-    {
       clause: 'the hands are emptied at the casting rather than on the target’s next turn',
       why: 'a-creature-somebody-else-is-playing',
       note: 'Two clauses of one sentence. SRD defers every word to the target’s next turn and a rider settles with the save that raised it, so the mace is on the floor a round before the book puts it there; and "and then ends its turn" is the rest of that same directed turn, which `OutcomeRiders.spends` cannot say — the one slot a spell may not spend is the movement, and a turn ended is the movement gone with the rest.',
