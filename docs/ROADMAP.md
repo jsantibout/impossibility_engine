@@ -39,7 +39,9 @@ Four criteria, all measured, all four required:
 3. **A level 5 party plays a session with zero handovers.** The session test
    (P0-T3) drives a four-character party through a CR-appropriate fight, a
    Short Rest, a Long Rest and a level-up, entirely through the two surfaces,
-   and counts what the engine handed to the DM. The count is zero.
+   and counts what the engine owed and did not execute. The count is zero.
+   *Owner, 2026-09-26:* an honest handover — a sentence the engine genuinely
+   cannot or should not take on — is listed apart, by name, and does not count.
 4. **Infinite Realms plays that session.** The same fight runs through the
    app with the model narrating what the log says, on a stored campaign that
    survives a reload (§7, milestone I-3).
@@ -2890,3 +2892,18 @@ Appended 2026-09-26, when the Fable budget ran out mid-wave:
   Multiattack's "replace one attack with a use of Life Drain" and the line
   itself. *Ruled the same day: an honest fiction handover (the Zombie that
   rises 24 hours later) does not count against "zero"* (§9).
+- **The stat-block handover mark, above, had its premise backwards.** The
+  copied "the engine does not apply that; a DM does" marks a residue the
+  engine owes, not a handover; all three of the session's items are debts,
+  the Life Drain line among them because `take_printed_action` accepts a line
+  whose save the engine reads. B13 gains a Part 4 (the session counts debts,
+  lists handovers apart under a field of their own — never `handedOver`, which
+  is the owed residue — and `take_printed_action` refuses a line with a read
+  save, sending the caller to `force_printed_save`).
+- **Protection from Evil and Good's printed road** was mis-anchored: a repeat
+  save a printed line raises is a `RepeatPendingSave` with a
+  `printed:<who>:<line>` source, and the forcer is found only from a casting
+  (`commands/turns.ts`, ~1914). The printed road also passes no conditions to
+  a stat block's save (Dwarven Resilience, Fey Ancestry, Brave never reach
+  one) and no causer to a stat block's condition (the protection's immunity
+  misses a Quasit's Scare). Briefed as W8-S24, after B10.
