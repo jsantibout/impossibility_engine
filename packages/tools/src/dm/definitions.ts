@@ -84,8 +84,8 @@
  * them. That is a claim a directory can carry and a boolean cannot.
  */
 
-import type { CharacterId, ConditionName } from '@ie/shared';
-import type { D20TestResult, Duration, ModeSource, TestResolution } from '@ie/engine';
+import { type CharacterId, type ConditionName, ok, type Result } from '@ie/shared';
+import type { D20TestResult, Duration, ModeSource, PrintedAim, TestResolution } from '@ie/engine';
 import {
   applyConditionTo,
   awardItems,
@@ -99,6 +99,8 @@ import {
   forcePrintedSave,
   liftConditionFrom,
   loseItems,
+  printedLineCatch,
+  printedSaveOf,
   resolveDamage,
   resolveFall,
   resolveTest,
@@ -130,8 +132,11 @@ import {
   type ToolDefinition,
   tool,
   TOOLS,
+  towardsOf,
   who,
 } from '../definitions.js';
+import { catchOf } from '../observe.js';
+import { fromErr, okOutcome } from '../outcome.js';
 import {
   abilitySchema,
   conditionDurationSchema,
@@ -1270,6 +1275,147 @@ const printedSaveOutcomes = (
   }));
 
 /**
+ * Where a printed line is aimed, said the way a DM speaks — I-E9.
+ *
+ * One schema object for both doors that take it, `printed_line_catch` and
+ * `force_printed_save`, so the aim a query answered is the aim the door
+ * rolls with. A Cone or a Line is pointed `towards…`; a Sphere is centred
+ * `at…`. The creature spellings also name the one creature a ruler reaches
+ * and the creature a leap lands on, which is what the query answers for.
+ * The engine takes points; a creature or a landmark is resolved into one here,
+ * by `towardsOf`, and an unplaced one is asked about rather than refused.
+ */
+const printedAimFields = {
+  towardsCreature: creatureId
+    .optional()
+    .describe('Point a Cone or a Line at this creature. On a line that reaches one creature, or a leap, the creature it is aimed at.'),
+  towardsLandmark: z.string().min(1).optional().describe('Point a Cone or a Line at this landmark.'),
+  towards: pointSchema.optional().describe('Point a Cone or a Line at this exact spot.'),
+  atCreature: creatureId
+    .optional()
+    .describe('Centre a Sphere on this creature’s space. On a line that reaches one creature, or a leap, the creature it is aimed at.'),
+  at: pointSchema.optional().describe('Centre a Sphere on this exact spot.'),
+};
+
+type PrintedAimArgs = { readonly [K in keyof typeof printedAimFields]?: z.infer<(typeof printedAimFields)[K]> };
+
+const AIM_KEYS = Object.keys(printedAimFields) as readonly (keyof typeof printedAimFields)[];
+
+/** At most one of the five: an aim is one direction or one point. */
+const oneAimAtMost = (value: PrintedAimArgs): boolean =>
+  AIM_KEYS.filter((key) => value[key] !== undefined).length <= 1;
+
+/** The aim the caller sent, echoed — what `send` hands back to be sent again. */
+const aimEcho = (args: PrintedAimArgs): Record<string, unknown> =>
+  Object.fromEntries(AIM_KEYS.filter((key) => args[key] !== undefined).map((key) => [key, args[key]]));
+
+/**
+ * The caller's aim in the engine's vocabulary: a point, and the creature it
+ * names where it names one. Undefined where no aim field was sent.
+ */
+function printedAimOf(context: ToolContext, args: PrintedAimArgs): Result<PrintedAim | undefined> {
+  const state = context.campaign.state();
+  if (!AIM_KEYS.some((key) => args[key] !== undefined)) return ok(undefined);
+  if (args.atCreature !== undefined || args.at !== undefined) {
+    const centre = towardsOf(state, {
+      ...(args.atCreature === undefined ? {} : { towardsCreature: args.atCreature }),
+      ...(args.at === undefined ? {} : { towards: args.at }),
+    });
+    if (!centre.ok) return centre;
+    return ok({
+      ...(centre.value === undefined ? {} : { at: centre.value }),
+      ...(args.atCreature === undefined ? {} : { creature: who(args.atCreature) }),
+    });
+  }
+  const pointed = towardsOf(state, args);
+  if (!pointed.ok) return pointed;
+  return ok({
+    ...(pointed.value === undefined ? {} : { towards: pointed.value }),
+    ...(args.towardsCreature === undefined ? {} : { creature: who(args.towardsCreature) }),
+  });
+}
+
+/**
+ * Who a printed line would catch, aimed so — I-E9, read-only.
+ *
+ * **The question a code-run monster asks before it spends a breath.** The
+ * owner ruled on 2026-09-26 that app code plays the monsters and uses a
+ * unique ability before a plain attack whenever it is legal — and code cannot
+ * choose who a Cone caught without doing geometry. So the engine lays the
+ * spells' own template where the caller aims it and says who stands in it,
+ * who it reached and why not, what must be established first, and what it
+ * caught on a fact nobody settled. `eligible_targets`' shape, over a stat
+ * block's line instead of a spell.
+ *
+ * **`send` is the call that rolls exactly `caught`**: `force_printed_save`
+ * with the aim echoed back, or `move_printed_line` with the landing for a
+ * leap. It is absent where the caller must still pick one of `caught` — a
+ * line that reaches one creature — and where nothing was caught.
+ *
+ * **The DM's, and no new power.** It changes nothing and throws nothing, it
+ * sits beside `force_printed_save` on the surface that already holds that
+ * door, and a model playing a character is handed neither.
+ */
+const PRINTED_LINE_CATCH = tool({
+  name: 'printed_line_catch',
+  description:
+    'Who a creature’s printed line would catch, aimed so — a breath weapon’s Cone, a Line, an Emanation, a Sphere, the creature’s own space, whom it holds, one creature within reach, or where a leap lands. Free, and changes nothing. Name the heading as the block prints it and, for a Cone or a Line, which way it points (`towardsCreature`, `towardsLandmark` or `towards`); for a Sphere, where it is centred (`atCreature` or `at`); for a line that reaches one creature or a leap, the creature (`towardsCreature` or `atCreature`) or nothing to see the whole shortlist. The engine lays the same templates spells use and answers with `caught`, a reason for everyone `excluded`, what to `establish` first, what it caught on a fact nobody settled, and `send` — the exact call that rolls for `caught`. Allies are caught as well as foes: sides play no part in a breath. `look` says which lines the engine measures, under `printed.actions[].catches`.',
+  mutates: false,
+  selfAnswers: ['route', 'position'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature’s line.'),
+    line: printedLineName,
+    ...printedAimFields,
+  }).refine(oneAimAtMost, { error: 'an aim is at most one of towardsCreature, towardsLandmark, towards, atCreature or at' }),
+  run: (context, args) => {
+    const state = context.campaign.state();
+    const aim = printedAimOf(context, args);
+    if (!aim.ok) return fromErr(aim, context.doorsFor);
+    const measured = printedLineCatch(state, who(args.who), args.line, aim.value);
+    if (!measured.ok) return fromErr(measured, context.doorsFor);
+    const sheet = state.creatures[who(args.who)]!.sheet;
+    const catches = catchOf(printedSaveOf(sheet, args.line) ?? undefined);
+    const { caught, excluded, needs, unverified, landing } = measured.value;
+    // One of `caught` is the caller's to pick where the line reaches one
+    // creature, so there is no single call to hand back.
+    const pickOne =
+      catches?.kind === 'within' ||
+      ((catches?.kind === 'own-space' || catches?.kind === 'held') && catches.count === 1);
+    const sendable = caught.length > 0 && needs.length === 0 && !pickOne;
+    const send =
+      !sendable
+        ? undefined
+        : landing !== undefined
+          ? {
+              tool: 'move_printed_line',
+              input: {
+                who: args.who,
+                line: args.line,
+                ...('creature' in landing.from ? { fromCreature: String(landing.from.creature) } : {}),
+                feet: landing.feet,
+              },
+            }
+          : { tool: 'force_printed_save', input: { who: args.who, line: args.line, ...aimEcho(args) } };
+    return okOutcome([], {
+      line: args.line,
+      catches,
+      caught,
+      excluded: excluded.map((one) => ({ target: one.target, reason: one.reason })),
+      establish: needs.map((request) => ({
+        kind: request.kind,
+        subject: request.subject,
+        need: request.need,
+        because: request.because,
+        satisfyWith: request.satisfyWith,
+        tools: context.doorsFor(request.kind),
+      })),
+      unverified,
+      ...(send === undefined ? {} : { send }),
+    });
+  },
+});
+
+/**
  * Force the saving throw a creature's stat block prints, at the DC and dice
  * the block prints.
  *
@@ -1319,13 +1465,13 @@ const printedSaveOutcomes = (
 const FORCE_PRINTED_SAVE = tool({
   name: 'force_printed_save',
   description:
-    'Have the engine roll the saving throw a creature’s stat block prints — a breath weapon, a Trample, a Mockery. Name the heading as the block prints it and say which creatures the line caught; the engine reads the ability, the DC, the dice and what a success buys off the block, throws one save per creature, halves or zeroes the damage the way the line says, applies each target’s own Resistance and Evasion, and spends whichever slot the heading names. You state no DC and no dice — only who it caught, because an area is measured from an origin and a facing nobody has declared; a line that reaches one creature at a distance ("one creature within 5 feet") is measured instead, and a creature out of reach, one the creature cannot see where the line needs sight, of a type the line does not reach, or one too many is refused before anything is spent. What the line files as the table’s — a compulsion, a corpse that rises later — comes back marked `[the DM decides]`. Only some printed lines can be rolled this way: `look` says which, under `printed.actions[].engineRollsTheSave`. For any other line, use `take_printed_action` or `take_printed_bonus_action`, which spend the slot and hand you the sentence unapplied; a line this door rolls is refused there, because its DC and dice are the engine’s.',
+    'Have the engine roll the saving throw a creature’s stat block prints — a breath weapon, a Trample, a Mockery. Name the heading as the block prints it and say who it caught in one of two ways, never both: give the aim — `towardsCreature`, `towardsLandmark` or `towards` for a Cone or a Line, `atCreature` or `at` for a Sphere — and the engine lays the template exactly as `printed_line_catch` does and rolls for whoever stands in it, refusing a target list beside it; or give `targets`, the head count, which the engine takes as stated where it measures nothing. An Emanation, "each creature in its space" and "each creature it holds" need neither where a scene is laid. The engine reads the ability, the DC, the dice and what a success buys off the block, throws one save per creature, halves or zeroes the damage the way the line says, applies each target’s own Resistance and Evasion, and spends whichever slot the heading names. You state no DC and no dice. A line that reaches one creature at a distance ("one creature within 5 feet") is measured against the targets you name, as is one that catches the creature’s own space or whom it holds: a creature out of reach or outside it, one the creature cannot see where the line needs sight, of a type or size the line does not reach, or one too many is refused before anything is spent. What the line files as the table’s — a compulsion, a corpse that rises later — comes back marked `[the DM decides]`. Only some printed lines can be rolled this way: `look` says which, under `printed.actions[].engineRollsTheSave`. For any other line, use `take_printed_action` or `take_printed_bonus_action`, which spend the slot and hand you the sentence unapplied; a line this door rolls is refused there, because its DC and dice are the engine’s.',
   mutates: true,
   // The head count is answered by re-sending *this* call with `targets`
   // filled in, so the door the refusal names is this tool. The surface-wide
   // answer for a `creature` request is `add_creature`, which is no help at
   // all to a caller being asked who the breath caught.
-  selfAnswers: ['creature'],
+  selfAnswers: ['creature', 'route'],
   input: z.strictObject({
     who: creatureId.describe('Which creature is forcing the line.'),
     line: printedLineName,
@@ -1334,8 +1480,9 @@ const FORCE_PRINTED_SAVE = tool({
       .min(1)
       .optional()
       .describe(
-        'The creatures the line caught, which is the one fact you supply. An area is measured from an origin and a facing the engine has not been told, so the head count is yours; every number that follows from it is the engine’s. Leave it out and you will be asked for it, with the line’s own targeting clause quoted back.',
+        'The head count: the creatures the line caught, as you state them. Leave it out and give the aim instead for a line the engine measures, or be asked for one or the other, with the line’s own targeting clause quoted back. Refused beside an aim.',
       ),
+    ...printedAimFields,
     willing: z
       .array(creatureId)
       .min(1)
@@ -1350,9 +1497,13 @@ const FORCE_PRINTED_SAVE = tool({
       .describe(
         'The worn or held object the line is aimed at, by its item id, where the line names one — SRD Rust Monster’s Antennae reaches "one nonmagical metal object—armor or a weapon—worn or carried by a creature", and a creature may be wearing mail and holding a sword. Which of them the antennae touch is yours to say; the penalty, the two ceilings and the breaking are the engine’s. Leave it out on such a line and you will be asked for it; an object the target is not wearing or holding is refused before anything is spent.',
       ),
-  }),
-  run: (context, args) =>
-    settle(
+  }).refine(oneAimAtMost, { error: 'an aim is at most one of towardsCreature, towardsLandmark, towards, atCreature or at' }),
+  run: (context, args) => {
+    // The aim resolved into the engine's points first — an unplaced creature
+    // is asked about here, before anything reaches the door.
+    const aim = printedAimOf(context, args);
+    if (!aim.ok) return fromErr(aim, context.doorsFor);
+    return settle(
       context,
       forcePrintedSave(
         context.campaign.state(),
@@ -1360,6 +1511,14 @@ const FORCE_PRINTED_SAVE = tool({
         {
           line: args.line,
           ...(args.targets === undefined ? {} : { targets: args.targets.map(who) }),
+          ...(aim.value === undefined
+            ? {}
+            : {
+                aim: {
+                  ...(aim.value.towards === undefined ? {} : { towards: aim.value.towards }),
+                  ...(aim.value.at === undefined ? {} : { at: aim.value.at }),
+                },
+              }),
           ...(args.willing === undefined ? {} : { willing: args.willing.map(who) }),
           ...(args.object === undefined ? {} : { object: args.object }),
           ...identity(context),
@@ -1379,7 +1538,8 @@ const FORCE_PRINTED_SAVE = tool({
         outcomes: printedSaveOutcomes(value.outcomes),
       }),
       (value) => value.unverified,
-    ),
+    );
+  },
 });
 
 /**
@@ -2290,6 +2450,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   DECLARE_OBJECT,
   END_CONDITION,
   FORCE_PRINTED_SAVE,
+  PRINTED_LINE_CATCH,
   IMPROVISED_DAMAGE,
   LOSE_ITEMS,
   MOVE_PRINTED_LINE,

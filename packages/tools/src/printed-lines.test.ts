@@ -31,6 +31,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
+import { asCharacterId } from '@ie/shared';
+import { fold, forcePrintedSave, type GameEvent, positionOf } from '@ie/engine';
+import { observe } from './observe.js';
 import {
   createCampaign,
   createDmSurface,
@@ -401,6 +404,46 @@ describe('what a code-run monster reads off look to rank its lines', () => {
     expect(catchOf('centaur-trooper', 'Trampling Charge')).toEqual({ kind: 'walk' });
     // The one CR ≤ 5 line whose clause the engine does not measure: "living".
     expect(catchOf('will-o-wisp', 'Consume Life')).toBeNull();
+  });
+
+  it('reads no catch off a sheet pinned before the parser read one, whose line takes only the head count', () => {
+    const COLD_BREATH = 'Cold Breath (Recharge 5–6)';
+    const t = pair('a-wolf-then-and-now', 'winter-wolf', 10);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'beast' }, { who: 'grish' }] }));
+    for (let guard = 0; guard < 4 && t.surface.observe().turnOf !== 'beast'; guard += 1) {
+      expectOk(t.call('end_turn', {}));
+    }
+    // The same log with the wolf's arrival as last season's parser wrote it:
+    // its sheet pinned the save with no `catches`, and the fold opens no book.
+    const log = t.campaign.log().map((event): GameEvent => {
+      if (event.type !== 'creature-added' || event.id !== 'beast') return event;
+      const old = JSON.parse(JSON.stringify(event)) as typeof event;
+      const sheet = old.sheet as unknown as { stated: { unreadActions: { save?: Record<string, unknown> }[] } };
+      for (const line of sheet.stated.unreadActions) delete line.save?.['catches'];
+      return old;
+    });
+    const state = fold(t.campaign.seed, log);
+    const later = t.campaign;
+
+    const breath = observe(state)
+      .creatures.find((one) => one.id === 'beast')!
+      .printed!.actions.find((one) => one.name === COLD_BREATH)!;
+    expect(breath.catches).toBeNull();
+    const grish = positionOf(state.scene!, asCharacterId('grish'))!;
+    const aimed = forcePrintedSave(
+      state,
+      asCharacterId('beast'),
+      { line: COLD_BREATH, aim: { towards: grish }, commandId: 'aimed' },
+      later.supply(),
+    );
+    expect(!aimed.ok && aimed.code).toBe('not_directional');
+    const counted = forcePrintedSave(
+      state,
+      asCharacterId('beast'),
+      { line: COLD_BREATH, targets: [asCharacterId('grish')], commandId: 'counted' },
+      later.supply(),
+    );
+    expect(counted.ok && counted.value.outcomes.map((one) => one.target)).toEqual(['grish']);
   });
 
   it("reports a Wraith's Speed in every mode, and what is left of each on its turn", () => {

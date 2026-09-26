@@ -694,7 +694,7 @@ function riderOf(attack: StatedAttack): Pick<ObservedPrintedAttack, 'riderApplie
  * Who a line catches, off the pinned save — see {@link ObservedCatch}. The
  * same fields `forcePrintedSave` and `takePrintedMove` read.
  */
-function catchOf(save: StatedAction['save']): ObservedCatch | null {
+export function catchOf(save: StatedAction['save']): ObservedCatch | null {
   if (save === undefined || save.trigger !== undefined) return null;
   const move = save.movesThen;
   if (move !== undefined) {

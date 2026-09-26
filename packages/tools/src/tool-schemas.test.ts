@@ -178,8 +178,9 @@ describe('toolSchemas', () => {
     // `escape_from_inside` and `pull_out_of_creature`; and one on each for
     // W7-S21, `borrow_senses` — SRD Find Familiar's Bonus Action, the third
     // door on the kept bond.
+    // And one more on the DM's alone for I-E9, `printed_line_catch`.
     expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(123);
+    expect(toolSchemas(dm())).toHaveLength(124);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -348,10 +349,15 @@ describe('toolSchemas', () => {
     // and target, which now say an item may reach further than five feet. Two
     // fields and two descriptions on tools both doors publish: 1,696 bytes on
     // each, and no tool added.
+    // Re-pinned for I-E9, the DM's door alone: `printed_line_catch` added (who
+    // a printed line would catch, aimed so — free and read-only), and
+    // `force_printed_save` gains the same five aim fields and a description
+    // saying a caller gives the aim or the head count, never both. 123 → 124
+    // tools; +3,928 bytes. The player's surface is unchanged.
     expect(toolSchemas(player())).toHaveLength(96);
-    expect(toolSchemas(dm())).toHaveLength(123);
+    expect(toolSchemas(dm())).toHaveLength(124);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(157375);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(206069);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(209997);
   });
 });
 
