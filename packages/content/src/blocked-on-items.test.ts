@@ -419,15 +419,18 @@ describe('the two shapes the re-derivation was sent to check', () => {
    * three residues its description now names — a rider welded to the same
    * save as the damage, an escape check or a span that is not seconds, or an
    * end cause that names whoever did the harm.
+   *
+   * The Mace of Disruption was the tenth and is transcribed now, partial: its
+   * die needed the target narrowing, and its Frightened "until the end of your
+   * next turn" is one of its `unmodelled` lines rather than a blocker.
    */
-  it('leaves the condition shape ten entries, each for a reason it still has', () => {
+  it('leaves the condition shape nine entries, each for a reason it still has', () => {
     expect(itemConsumersOf('a-condition-an-item-imposes').blocks).toEqual([
       'decanter-of-endless-water',
       'dragon-orb',
       'energy-bow',
       'horn-of-blasting',
       'iron-bands',
-      'mace-of-disruption',
       'robe-of-scintillating-colors',
       'rod-of-rulership',
       'rope-of-entanglement',

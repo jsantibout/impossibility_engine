@@ -4,7 +4,7 @@ import { ABILITIES, DAMAGE_TYPES, err, ok, SKILL_ABILITY, SKILLS, type Result } 
 // imports the engine. `srd-barrel.test.ts` is the guard.
 import { CREATURE_SIZES, MonsterSchema, type Monster } from '@ie/srd/schemas';
 import { CONFERRED_LEVEL, itemChargePool, type CatalogueItem } from './catalogue.js';
-import { MAX_ABILITY_SCORE } from './character.js';
+import { MAX_ABILITY_SCORE, MOVEMENT_MODES, type MovementMode } from './character.js';
 import {
   abilityGrantProblemsOf,
   abilitySpreadProblems,
@@ -353,14 +353,15 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
  * added to the union without this line changing fails there rather than
  * turning every item that uses it into a `bad_item_effect` nobody expected.
  *
- * `speed` is the exception and it is deliberate: `speedOf` gathers Speed from
- * the creature's own sheet alone, because it is the function `has-speed` asks
- * and reading an item's grants there would be a question asked of its own
- * answer. An item granting a Swim Speed is a real SRD item and a real gap;
- * refusing it by name is how the gap stays visible instead of becoming a
- * transcribed item whose benefit silently never applies.
+ * **`speed` is admitted, and it was the first exception.** `speedOf` gathered
+ * Speed from the creature's own sheet alone, because it is the function
+ * `has-speed` asks; it reads a worn item's grants beside the sheet's now,
+ * gathered by `itemStandingOf` rather than through `standingFor`, and the one
+ * pairing that would ask the question of its own answer — a `speed` grant on
+ * an item requiring `has-speed` — is refused by the item door
+ * (`item_speed_asks_for_speed`). SRD Ring of Swimming is the writer.
  *
- * **`attack-bonus` is the second exception, and for the opposite reason**:
+ * **`attack-bonus` is an exception, and for the opposite reason**:
  * `standingBonuses` does reach it from an item, and the narrowing it would
  * need is the one that branch has not got. An item's benefit is "made with
  * **this** magic weapon", which is `onlyWithItem` — `flat-bonus` carries the
@@ -378,9 +379,9 @@ export const READABLE_FEATURE_FIELDS: ReadonlySet<string> = new Set([
  * which is a narrowing sharper than any `onlyWithItem`. The day an **item**
  * prints such a sentence it will come through that door rather than this one.
  *
- * **`light` is the third, and on `speed`'s**: what reads it is `carriedLight`
- * inside `lightAt`, which gathers from the sheet alone. It cannot gather a
- * worn item's grants, because `lightAt` sits below `standing.ts` in the import
+ * **`light` is the other, on the reason `speed` used to have**: what reads it
+ * is `carriedLight` inside `lightAt`, which gathers from the sheet alone. It
+ * cannot gather a worn item's grants, because `lightAt` sits below `standing.ts` in the import
  * graph, and it must not, because `requirementsHold` calls `lightAt` and a
  * reader that went back through it would be asking a question of its own
  * answer. A magic lantern is a real gap and refusing it by name is how the gap
@@ -483,27 +484,31 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   // transcribed and ignored. No SRD item prints the sentence today; the list's
   // rule is what a reader reaches, not what the book happens to have written.
   'action-rule',
+  // A Speed, read by `speedOf` off a worn item's pinned grants beside the
+  // sheet's — see the note above. SRD Ring of Swimming, Cloak of the Manta
+  // Ray, Horseshoes of Speed and the climbing slippers print it.
+  'speed',
+  // A critical taken back, on the same test as everything above: the reader
+  // is `criticalsBecomeHitsOn`, which walks `standingFor`. SRD Adamantine
+  // Armor prints it.
+  'critical-hits-become-hits',
 ]);
 
 /**
  * Every kind of standing benefit there is, for the holders that are not items.
  *
- * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the three
+ * Derived rather than restated: it is {@link ITEM_EFFECT_KINDS} plus the two
  * members that list withholds, and `content.test.ts` holds that list equal to
  * the union in `standing.ts` in both directions — so this stays exactly the
- * union without anybody keeping it so. `speed` is withheld from an *item* for
- * the reason it belongs here: `speedOf` gathers Speed from the sheet alone,
- * and a feat's grant is compiled onto the sheet. `attack-bonus` is withheld
+ * union without anybody keeping it so. `attack-bonus` is withheld
  * for the narrowing an item's sentence would need and this one has not got,
  * and belongs here because a feat's is its holder's own and reaches every
  * swing the weapon clause admits, which is exactly what it says.
- * `light` is withheld for `speed`'s reason and belongs here for `speed`'s — a
- * feat's grants are compiled onto the sheet, which is the one place
- * `carriedLight` reads.
+ * `light` is withheld because `carriedLight` reads the sheet alone, and belongs
+ * here because a feat's grants are compiled onto the sheet.
  */
 export const STANDING_GRANT_KINDS: ReadonlySet<string> = new Set([
   ...ITEM_EFFECT_KINDS,
-  'speed',
   'attack-bonus',
   'light',
 ]);
@@ -881,6 +886,8 @@ function ownedStandingEffectProblems(
   if (effect.kind === 'speed') {
     found.push(...speedGrantProblems(effect as unknown as Record<string, unknown>, at));
   }
+  // The creature hit and the skill checked, judged here as at the item door.
+  found.push(...standingNarrowingProblems(effect as unknown as Record<string, unknown>, at));
   return found;
 }
 
@@ -1312,6 +1319,81 @@ export const BONUS_APPLIES: ReadonlySet<string> = new Set([
  * gain: an Armour Class and a saving throw are had rather than made.
  */
 const MADE_WITH_AN_ITEM: ReadonlySet<string> = new Set(['attack', 'damage']);
+
+/**
+ * Everything wrong with the two narrowings a standing bonus may carry about
+ * **the roll rather than the holder**: what the creature hit is, and which
+ * skill a check is made with.
+ *
+ * - `targetTypes`, on `attack-damage` and `flat-bonus` — SRD Dragon Slayer's
+ *   "if the target is a Dragon", SRD Mace of Smiting's "to attack a
+ *   Construct". A non-empty list from the book's fourteen, because a
+ *   mistyped "dragon" or a subtype tag like "Goblinoid" would validate and
+ *   then match nobody; and on a flat bonus only where the roll is aimed at
+ *   somebody, which an Armour Class, a save and a check are not.
+ * - `skill`, on `flat-bonus` — SRD Gloves of Thievery's "Dexterity (Sleight
+ *   of Hand) checks". One of the engine's skills, and only on a bonus to
+ *   ability checks alone, because no other roll is made with a skill.
+ *
+ * One function for every door a standing grant comes through — an item's and
+ * a feature's — because untyped input reaches both and a rule enforced at one
+ * of two doors is a rule with a hole in it.
+ */
+function standingNarrowingProblems(
+  effect: Record<string, unknown>,
+  at: string,
+): readonly { readonly code: string; readonly reason: string; readonly field: string }[] {
+  const found: { code: string; reason: string; field: string }[] = [];
+  const kind = effect['kind'];
+  if (kind !== 'flat-bonus' && kind !== 'attack-damage') return found;
+  const applies = Array.isArray(effect['applies']) ? (effect['applies'] as unknown[]) : [];
+
+  const types = effect['targetTypes'];
+  if (types !== undefined) {
+    if (!Array.isArray(types) || types.length === 0) {
+      found.push({
+        code: 'bad_target_types',
+        reason: 'what the target must be is a non-empty list of creature types; a bonus aimed at anything omits the field',
+        field: `${at}.targetTypes`,
+      });
+    } else {
+      types.forEach((type: unknown, index: number) => {
+        if (CREATURE_TYPES.includes(String(type))) return;
+        found.push({
+          code: 'bad_target_types',
+          reason: `"${String(type)}" is not one of the creature types the SRD prints: ${CREATURE_TYPES.join(', ')}`,
+          field: `${at}.targetTypes[${index}]`,
+        });
+      });
+    }
+    if (kind === 'flat-bonus' && applies.some((aimed) => !MADE_WITH_AN_ITEM.has(String(aimed)))) {
+      found.push({
+        code: 'target_narrowing_without_a_target',
+        reason: `only ${[...MADE_WITH_AN_ITEM].join(' and ')} rolls are aimed at a creature, so "against a Construct" could never hold for the rest`,
+        field: `${at}.targetTypes`,
+      });
+    }
+  }
+
+  const skill = effect['skill'];
+  if (kind === 'flat-bonus' && skill !== undefined) {
+    if (!(SKILLS as readonly unknown[]).includes(skill)) {
+      found.push({
+        code: 'bad_bonus_skill',
+        reason: `"${String(skill)}" is not a skill; a check is made with one of ${SKILLS.join(', ')}`,
+        field: `${at}.skill`,
+      });
+    }
+    if (applies.length !== 1 || applies[0] !== 'ability-check') {
+      found.push({
+        code: 'skill_narrowing_off_a_check',
+        reason: 'only an ability check is made with a skill, so a skill narrowing belongs on a bonus that applies to ability checks and nothing else',
+        field: `${at}.skill`,
+      });
+    }
+  }
+  return found;
+}
 
 /**
  * What an item's standing grant may require: every member of the union, held
@@ -4002,12 +4084,68 @@ function itemGrantProblems(
         say('bad_item_effect', 'a standing effect is an object naming its kind', on);
         return;
       }
-      if (effect.kind === 'speed') {
-        say('item_speed_grant', 'a Speed granted by an item is not read yet: `speedOf` gathers Speed from the sheet alone, because it is the function a `has-speed` requirement asks', on);
-        return;
-      }
       if (!ITEM_EFFECT_KINDS.has(effect.kind)) {
         say('bad_item_effect', `"${effect.kind}" is not a standing effect this engine grants`, on);
+        return;
+      }
+      // What the creature hit is, and which skill a check is made with: the
+      // two narrowings SRD Dragon Slayer and SRD Gloves of Thievery print, held
+      // at every door a standing grant comes through.
+      for (const problem of standingNarrowingProblems(effect as unknown as Record<string, unknown>, on)) {
+        say(problem.code, problem.reason, problem.field);
+      }
+      // **A Speed a worn item gives**, read by `speedOf` beside the sheet's.
+      // SRD Ring of Swimming's "a Swim Speed of 40 feet" is `at-least`, the
+      // floor SRD Fly's sentence is written with; the rest of the member is a
+      // feature's and is held to a feature's checker.
+      if (effect.kind === 'speed') {
+        const speed = effect as unknown as Record<string, unknown>;
+        if (speed['change'] === 'at-least') {
+          const mode = speed['mode'];
+          if (!MOVEMENT_MODES.includes(mode as MovementMode) || mode === 'walk') {
+            say(
+              'bad_speed_change',
+              '"a Swim Speed of 40 feet" names the mode it gives, one of the four that are not walking; a floor under the walking Speed is not a sentence the SRD prints',
+              `${on}.mode`,
+            );
+          }
+          if (!Number.isInteger(speed['feet']) || (speed['feet'] as number) <= 0) {
+            say(
+              'bad_speed_change',
+              'a Speed given in a mode is a distance, and a Speed of nothing gives nothing',
+              `${on}.feet`,
+            );
+          }
+          if (speed['hover'] !== undefined) {
+            say(
+              'bad_speed_change',
+              'hovering is read off a stat block or a casting’s own grant, and a worn item’s is neither',
+              `${on}.hover`,
+            );
+          }
+        } else {
+          for (const problem of speedGrantProblems(speed, on)) say(problem.code, problem.reason, problem.field);
+        }
+        // **The one pairing that asks the question of its own answer.**
+        // `has-speed` is answered by `speedOf`, and `speedOf` reads this grant
+        // and asks its requirements — so a Speed that holds only while its
+        // wearer has a Speed would recurse rather than hold.
+        if ((grant.requires ?? []).some((requirement) => requirement?.kind === 'has-speed')) {
+          say(
+            'item_speed_asks_for_speed',
+            'a Speed that holds only while its wearer has a Speed asks `speedOf` about its own answer; `has-speed` is refused on an item that grants one',
+            `${at}.requires`,
+          );
+        }
+        // And whose Speed it is: `speedOf` reads the holder's own grants, so an
+        // aura would move its wearer and nobody standing in it.
+        if (grant.reach === 'aura') {
+          say(
+            'item_speed_in_an_aura',
+            'a Speed is read off the creature holding the grant and reaches nobody else, so an aura giving one would move its wearer alone',
+            `${at}.reach`,
+          );
+        }
         return;
       }
       if (effect.kind === 'sense') {

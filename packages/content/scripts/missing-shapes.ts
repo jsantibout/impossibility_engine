@@ -4428,7 +4428,7 @@ export { DEFINED as DEFINED_SPELL_IDS };
  */
 export const ITEM_SHAPES = {
   'a-bonus-narrowed-to-a-skill':
-    '**A standing bonus that reaches one skill.** This id stood in the spell vocabulary while SRD Enthrall claimed it, and Enthrall is executed now: the *ongoing* side is whole — `BonusNarrowing` is the axis, the `buff` effect and the `bonus` rider in `spell-definitions.ts` carry it as `only`, an `ActiveBonus` carries an optional ability and skill beside its `BonusApplies` list, `bonusesFor` withholds a narrowed bonus from a roll that does not match, `checkBonuses` and `savingSupport` pass what the roll knows about itself, and `passivePerceptionOf` in packages/engine/src/standing.ts derives the passive score from the same stored bonus — which is what finished Guidance, Pass without Trace, Slow’s Dexterity saves and Enthrall’s −10. What is left is true of an item and false of a casting, which is the rule this vocabulary keeps: a **standing** grant has no such field. `standingBonuses` reads `StandingBonusApplies` and `standingCheckBonuses` is a sibling gatherer keyed by a feature’s own named skills, so a `flat-bonus` an item grants reaches `ability-check` as a whole family — Gloves of Thievery’s SRD line, "+5 bonus to Dexterity (Sleight of Hand) checks", would land on every Intelligence, Wisdom and Strength check the wearer ever makes — and `bard:jack-of-all-trades`, whose SRD narrowing is "a skill proficiency you **lack**" rather than a named skill, has nowhere to go either. The field is the same one the ongoing side grew; the reader that has not grown it is the standing one.',
+    '**A bonus narrower than the skill a check is made with**, and nothing wider. The skill itself is built on both sides: the *ongoing* side’s `BonusNarrowing` finished Guidance, Pass without Trace, Slow’s Dexterity saves and Enthrall’s −10, and the *standing* side’s `flat-bonus` carries a `skill` beside `applies` — packages/engine/src/content.ts refuses it anywhere but on a bonus to ability checks alone, "only an ability check is made with a skill" — which `checkBonuses` hands to `standingBonuses` with the skill the check is made with. That finished SRD Gloves of Thievery. What is left under this id is a check made **for** something: "to climb or swim", "that rely on sight", "made to perceive you". A check says which skill it is made with and not what it is made for, so writing the skill would reach every other use of it — a better item than the book prints.',
   'a-spell-an-item-casts-that-nothing-executes':
     'the item’s line says it casts a named spell and the catalogue has **no definition of that spell at all**. `checkContent` refuses the pairing in as many words — packages/engine/src/content.ts, "which this content has no executable definition of" — so an item that casts Scrying, Levitate or Gate cannot be written until the spell is, and the blocker is the spell’s own. It is the largest single blocker in the book’s magic items and it is not item work at all, which is the finding: a tranche aimed at wands buys nothing until the spells under them exist. **The word that decides an entry is *definition*, not *executable*, and this description said otherwise for a batch.** The predicate `checkContent` hands an item is `spells.some(s => s.id === id)` — packages/engine/src/content.ts, the call site of `itemGrantProblems` — and `castFromItem` reads `content.spell(id)`, so a **tracked** definition answers both. That is SRD’s own sentence about what a casting from an item is: "The spell uses its normal casting time, range, and duration, and the user of the item must concentrate if the spell requires Concentration", every word of which a tracked definition already carries. A Wand of Magic Detection and a Ring of Animal Influence came off this shape without a line of spell work, and `item-casts-a-tracked-spell.test.ts` drives both directions so the distinction cannot be lost again. What *should* name this shape is an entry whose spell nothing defines — and, for a **potion**, a spell whose definition resolves nothing, because a `confers` grant carries the definition’s `SpellEffect[]` and "an item that confers an empty list confers nothing". **Sixty definitions later, every entry here has been read against the catalogue again**, entry by entry and spell by spell rather than against this line: thirteen named the shape with every spell they print already defined and have been re-pointed or transcribed, which is why this is no longer the heaviest blocker in the book. The two the last reading wrote down as wrong are both settled — `chime-of-opening` is transcribed, because a use count that never comes back is `recovers: \'special\'` on a pool keyed to the copy; and `amulet-of-the-planes` is **unread**, because what gates its defined Plane Shift is "make a DC 15 Intelligence (Arcana) check" and a check gating a casting still has no id, which is a shape this vocabulary will not invent in a note.',
   'a-save-an-item-forces':
@@ -4451,7 +4451,7 @@ export const ITEM_SHAPES = {
   // through `useItem`. Its one claimant, SRD Boots of Speed, is blocked on
   // what the doubling is *hung on* rather than on the doubling itself.
   'a-speed-an-item-grants':
-    'a Speed a worn item gives its wearer. `ITEM_EFFECT_KINDS` omits `speed` on purpose and packages/engine/src/content.ts records the omission as a gap rather than as a decision — "An item granting a Swim Speed is a real SRD item and a real gap; refusing it by name is how the gap stays visible instead of becoming a transcribed item whose benefit silently never applies." Boots, gloves, rings, horseshoes and slippers all print one.',
+    'a Speed an item gives in some way **other than a worn grant**. The worn grant is built: `ITEM_EFFECT_KINDS` admits `speed`, `speedOf` reads a worn item’s pinned grants beside the sheet’s, and packages/engine/src/content.ts refuses only the pairing that would ask the question of its own answer — "a Speed that holds only while its wearer has a Speed asks `speedOf` about its own answer". The Ring of Swimming, the Cloak of the Manta Ray, the Horseshoes of Speed, the Slippers of Spider Climbing and the Gloves of Swimming and Climbing are transcribed on it. What still names this id is a Speed of another shape: a walking Speed stated as a floor under whatever the wearer already has, which `at-least` does not give in the walking mode; a Speed the item has of its own when it is ridden; and a Speed a use switches on for a while.',
   'a-reaction-an-item-grants':
     'a Reaction the item gives its holder. packages/engine/src/content.ts names the four grant kinds an item’s readers execute — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a `reaction` grant is not among them, so a glove that snatches a missile and a ring that turns a failed save into a success have nothing to hang on.',
   'a-benefit-an-item-switches-on-and-off':
@@ -4480,8 +4480,6 @@ export const ITEM_SHAPES = {
     'a standing benefit switched off by something that happens, and switched back on later. The nearest built mechanism ends a **casting**, and docs/archive/design/casting.md keeps that door narrow on purpose — "`releaseCasting`, the single door" — while an item’s benefit is derived on every read from what is worn and attuned, and nothing in that derivation can see that its wearer took damage two seconds ago.',
   'a-rider-on-the-face-the-die-showed':
     'an effect that fires because the d20 came up a particular number. packages/engine/src/spell-definitions.ts names the mechanism while refusing it for a spell — Chromatic Orb is "a chained attack on a dice-face trigger" — and every magic weapon in SRD that acts "when you roll a 20 on the d20 for the attack roll", and every staff destroyed on a 1, wants that same reader.',
-  'a-critical-hit-an-effect-downgrades':
-    'a Critical Hit turned back into an ordinary hit. docs/archive/PROGRESS.md records the only thing that moves a critical today — "The die face that scores a Critical Hit, off the sheet; the Champion" — which widens the range rather than narrowing it, and nothing anywhere takes a critical away once the die has shown the face.',
 } as const;
 
 /** The item vocabulary’s own ids. */
@@ -4653,7 +4651,6 @@ const isUnread = (entry: ItemEntry): entry is UnreadItemEntry => !Array.isArray(
  * claims and only the first is a brief.
  */
 export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
-  'adamantine-armor': ['a-critical-hit-an-effect-downgrades'],
   // Both keep the instance shape, and both are the shape's own example:
   // "Once it hits a target, the ammunition is no longer magical" is a fact
   // about one arrow that changes on an event, not a count anything spends.
@@ -4768,7 +4765,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // so the casting the cloak prints is writable and the per-dawn limit is a
   // pool of one. What is left is the Stealth Advantage and the Fly Speed.
   'cloak-of-the-bat': ['a-bonus-narrowed-to-a-skill', 'movement-modes'],
-  'cloak-of-the-manta-ray': ['a-speed-an-item-grants', 'movement-modes'],
   // Re-pointed. "DC 15 Constitution saving throw or take 2d10 Poison damage
   // and have the Poisoned condition for 1 minute" is a save the vocabulary
   // can write; what it hangs off is a hit with this weapon, and the coating
@@ -4919,18 +4915,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // Truesight is the whole of what keeps the gem out.
   'gem-of-seeing': ['senses-beyond-declared-sight'],
   'gloves-of-missile-snaring': ['a-reaction-an-item-grants'],
-  'gloves-of-swimming-and-climbing': [
-    'a-speed-an-item-grants',
-    'movement-modes',
-    'a-bonus-narrowed-to-a-skill',
-  ],
-  'gloves-of-thievery': [
-    {
-      clause: 'a +5 bonus to Dexterity (Sleight of Hand) checks',
-      why: 'a-bonus-narrowed-to-a-skill',
-      note: 'a `flat-bonus` reaches `ability-check` and that is the whole family, so this five would land on every Intelligence, Wisdom and Strength check the wearer ever makes. The narrowing to one skill is the field a casting’s stored bonus already carries — SRD Enthrall’s Perception penalty reads it — and a pair of gloves prints the same sentence the other way up, on a standing grant that has no such field.',
-    },
-  ],
   'handy-haversack': ['a-container-with-a-space-of-its-own'],
   'hat-of-disguise': ['a-casting-ended-by-a-trigger'],
   'hat-of-many-spells': [
@@ -4982,7 +4966,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'difficult-terrain-an-area-creates',
     'an-exhaustion-level-a-spell-changes',
   ],
-  'horseshoes-of-speed': ['a-speed-an-item-grants'],
   'immovable-rod': ['an-object-with-statistics-of-its-own', 'a-fact-only-the-table-can-declare'],
   'instant-fortress': ['an-object-with-statistics-of-its-own'],
   'ioun-stone': [
@@ -5012,22 +4995,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'lantern-of-revealing': [
     'senses-beyond-declared-sight',
     'a-benefit-an-item-switches-on-and-off',
-  ],
-  // Re-pointed off the charge shape: the blade's charge buys a **casting**
-  // — "you can expend 1 charge and cast _Wish_ from it" — which is the
-  // `casts` grant's own price, and 1d3 of them at the copy's birth is
-  // `usesRolled`. Wish is undefined and the reroll replaces a result.
-  'luck-blade': [
-    'a-roll-result-an-effect-replaces',
-    'a-spell-an-item-casts-that-nothing-executes',
-  ],
-  // All three kept, and the condition for the second residue: "the creature
-  // has the Frightened condition **until the end of your next turn**" is a
-  // span measured in turns, and a conferral's `durationSeconds` is seconds.
-  'mace-of-disruption': [
-    'a-rider-on-a-later-weapon-attack',
-    'a-save-an-item-forces',
-    'a-condition-an-item-imposes',
   ],
   // Re-derived, and two of its three went. A charge spent on a conferral is
   // built, and so is a save that imposes Frightened for a minute with a
@@ -5261,7 +5228,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   'ring-of-resistance': ['a-version-of-an-item-the-book-leaves-to-the-gm'],
   'ring-of-spell-storing': ['a-casting-an-item-stores-or-gives-back'],
   'ring-of-spell-turning': ['a-mode-on-the-save-a-spell-forces', 'a-reaction-an-item-grants'],
-  'ring-of-swimming': ['a-speed-an-item-grants', 'movement-modes'],
   // **The one entry the damage shape is still about**, and it keeps both:
   // "The ring produces a spectral ram's head and makes its attack roll with a
   // +7 bonus" is an attack an item rolls itself, and "for each charge you
@@ -5351,7 +5317,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-item-instance-with-a-state-of-its-own',
   ],
   'shield-of-missile-attraction': ['what-ends-attunement-besides-a-command'],
-  'slippers-of-spider-climbing': ['a-speed-an-item-grants', 'movement-modes'],
   // Both shapes stay, and both for the same word: the scroll "bears the words
   // of a single spell" and never says which, so *which spell this copy holds*
   // is a fact about the copy that no count can carry, and the entry is a
@@ -5361,7 +5326,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'an-item-instance-with-a-state-of-its-own',
   ],
-  'spellguard-shield': ['a-mode-on-the-save-a-spell-forces'],
   'sphere-of-annihilation': [
     'an-object-with-statistics-of-its-own',
     'damage-with-neither-an-attack-roll-nor-a-save',

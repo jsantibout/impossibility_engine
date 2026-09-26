@@ -137,6 +137,8 @@ import {
   type StrikeStyle,
   canSee,
   weaponRiderProficiency,
+  criticalsBecomeHitsOn,
+  unsettledTargetBonuses,
 } from '../standing.js';
 import { benefitsFrom } from '../conditions.js';
 import { resolveDuration, timeView, turnAnchored, type TurnAnchor } from '../time.js';
@@ -2639,11 +2641,15 @@ export function resolveAttack(
     // And SRD Archery: "attack rolls you make with **Ranged weapons**" — the
     // other narrowing, which asks what kind of thing is in hand rather than
     // which copy of it, so the record goes along with the id.
+    // And SRD Mace of Smiting: "when you use the weapon to attack a
+    // Construct" — a narrowing on the creature swung at, so the target goes
+    // along too, and a target nobody has typed is reported rather than guessed.
     const attackBonuses: readonly Bonus[] = [
       ...standingBonuses(state, id, 'attack', {
         withItem: command.weapon,
         weapon,
         ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+        target: command.target,
       }),
       // Bless is on the creature, not in the caller's head.
       ...bonusesFor(attacker.bonuses, 'attack'),
@@ -2652,6 +2658,7 @@ export function resolveAttack(
       ...heldWeaponPenalty(attacker, command.weapon, weapon?.name ?? command.weapon ?? ''),
       ...(command.attackBonuses ?? []),
     ];
+    unverified.push(...unsettledTargetBonuses(state, id, command.target, { withItem: command.weapon }));
 
     // — who can see whom ——————————————————————————————————————————————————
     //
@@ -2756,6 +2763,7 @@ export function resolveAttack(
       }
     }
 
+    const adamant = criticalsBecomeHitsOn(state, command.target);
     const swing: AttackOptions = {
       weapon,
       ...(stated === undefined ? {} : { statedAttack: stated }),
@@ -2772,6 +2780,9 @@ export function resolveAttack(
       // SRD Improved Critical, off the attacker's own sheet rather than the
       // caller's hand: a Champion's 19 is a critical whoever is narrating.
       ...(sheet.criticalOn === undefined ? {} : { criticalOn: sheet.criticalOn }),
+      // SRD Adamantine Armor, off the *target's* state: "any Critical Hit
+      // against you becomes a normal hit" — a stat block's swing included.
+      ...(adamant === null ? {} : { criticalBecomesHit: adamant }),
       ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
       ...(command.thrown === undefined ? {} : { thrown: command.thrown }),
       ...(command.finesseAbility === undefined ? {} : { finesseAbility: command.finesseAbility }),
@@ -3176,6 +3187,7 @@ export function resolveAttack(
             withItem: command.weapon,
             weapon,
             ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+            target: command.target,
           }),
           ...fromFeatures.bonuses,
           ...(command.damageBonuses ?? []),
@@ -3715,6 +3727,7 @@ export function resolveAttackDamage(
             withItem: pending.weapon,
             weapon,
             twoHanded: pending.twoHanded,
+            target: pending.target,
           }),
           ...fromFeatures.bonuses,
           ...(command.damageBonuses ?? []),

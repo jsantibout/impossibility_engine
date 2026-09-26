@@ -777,14 +777,16 @@ describe('what an item does not do is data, and quotes the page', () => {
   it('finishes the items whose extra die needed only the narrowing', () => {
     const complete = SRD_MAGIC_ITEMS.filter((item) => (item.unmodelled ?? []).length === 0);
     expect(complete.map((item) => item.id)).toContain('vicious-weapon');
+    // And the one whose die needed the *target* narrowing as well, which
+    // `targetTypes` is: "if the target is a Dragon" and nothing else owed.
+    expect(complete.map((item) => item.id)).toContain('dragon-slayer');
 
     // Still partial, and each note says which clause is still the table's.
     const stillOwed: Readonly<Record<string, string>> = {
       'sword-of-wounding': 'Constitution saving throw',
       'frost-brand': 'extinguish all nonmagical flames',
-      'dragon-slayer': 'if the target is a Dragon',
-      'giant-slayer': 'When you hit a Giant',
-      'holy-avenger': 'When you hit a Fiend or an Undead',
+      'giant-slayer': 'DC 15 Strength saving throw',
+      'holy-avenger': '17 or more levels in the Paladin class',
     };
     for (const [id, clause] of Object.entries(stillOwed)) {
       const item = SRD_MAGIC_ITEMS.find((one) => one.id === id);

@@ -167,10 +167,14 @@ describe('what a selector may not say', () => {
     }
   });
 
-  it('refuses it on rolls made against the holder, where the caster is somebody else', () => {
-    expect(problems({ roll: 'attack', relation: 'against-holder', onlySpellAttacks: true })).toContain(
-      'spell_attack_off_the_roller',
-    );
+  /**
+   * SRD Spellguard Shield: "spell attack rolls have Disadvantage against you".
+   * The fact is the roll's and the site states it whichever creature holds the
+   * grant, so the relation that used to be refused here is a sentence the book
+   * prints — `standing-readers.test.ts` drives it through the gatherer.
+   */
+  it('accepts it on rolls made against the holder, which is a shield’s sentence', () => {
+    expect(problems({ roll: 'attack', relation: 'against-holder', onlySpellAttacks: true })).toEqual([]);
   });
 
   it('refuses anything but true, which is how every gate here is written', () => {

@@ -1184,16 +1184,17 @@ describe('what an item may grant is derived from the union, not recalled', () =>
   });
 
   /**
-   * And every standing grant but the three deliberately withheld, which are
-   * two of one reason and one of another.
+   * And every standing grant but the two deliberately withheld, one for each
+   * of two reasons. (`speed` was a third, and is admitted: `speedOf` reads a
+   * worn item's grants now, and the item door refuses the one pairing that
+   * would recurse — see `item_speed_asks_for_speed`.)
    *
-   * **A reader that does not reach an item's grants.** `speedOf` gathers Speed
-   * from the sheet alone, because it is the function a `has-speed` requirement
-   * asks; `carriedLight` gathers a `light` grant from the sheet alone, because
-   * it sits inside `lightAt`, below `standing.ts` in the import graph and
-   * *called by* the requirement reader — so gathering an item's there would be
-   * a question asked of its own answer. Either grant on an item is refused by
-   * name rather than accepted and never read.
+   * **A reader that does not reach an item's grants.** `carriedLight` gathers
+   * a `light` grant from the sheet alone, because it sits inside `lightAt`,
+   * below `standing.ts` in the import graph and *called by* the requirement
+   * reader — so gathering an item's there would be a question asked of its own
+   * answer. The grant on an item is refused by name rather than accepted and
+   * never read.
    *
    * **A narrowing the item's own sentence would need.** An ability-sized
    * `attack-bonus` narrows by a kind of weapon and has no `onlyWithItem`, so an
@@ -1203,7 +1204,7 @@ describe('what an item may grant is derived from the union, not recalled', () =>
    * gone from the union altogether: the sentence it carried is keyed to one
    * object now, on `ImbuedWeapon`, where the narrowing is the object itself.
    */
-  const WITHHELD_FROM_AN_ITEM: readonly string[] = ['speed', 'attack-bonus', 'light'];
+  const WITHHELD_FROM_AN_ITEM: readonly string[] = ['attack-bonus', 'light'];
 
   it('carries every standing grant but the withheld, and invents none', () => {
     for (const kind of WITHHELD_FROM_AN_ITEM) expect(unionKinds('StandingGrant')).toContain(kind);
@@ -1275,14 +1276,21 @@ describe('the one door refuses what it cannot execute, with a path', () => {
         grants: [{ kind: 'pool', key: 'gloves:charges', recovers: 'dawn' }],
       }),
     ).toContain('item_pool_without_uses @ items[gloves-of-the-quiet-hand].grants[0].uses');
-    // A Speed from an item is read by nothing: `speedOf` gathers Speed off the
-    // sheet alone, because it is the function a `has-speed` requirement asks.
+    // A Speed from an item is read by `speedOf` now, so the one grant refused
+    // is the one that would ask it about its own answer.
     expect(
       codesOf({
         ...gloves,
-        grants: [{ kind: 'standing', reach: 'self', effects: [{ kind: 'speed', feet: 10 }] }],
+        grants: [
+          {
+            kind: 'standing',
+            reach: 'self',
+            effects: [{ kind: 'speed', feet: 10 }],
+            requires: [{ kind: 'has-speed' }],
+          },
+        ],
       }),
-    ).toContain('item_speed_grant @ items[gloves-of-the-quiet-hand].grants[0].effects[0]');
+    ).toContain('item_speed_asks_for_speed @ items[gloves-of-the-quiet-hand].grants[0].requires');
     // And a selector describing a roll nobody makes is caught by the same
     // predicate a spell's is.
     expect(

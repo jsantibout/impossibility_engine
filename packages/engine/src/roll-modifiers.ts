@@ -391,10 +391,11 @@ export interface RollSelector {
    * Advantage on every swing its holder made, which is a benefit misapplied
    * rather than one never applied.
    *
-   * Only on the `attack` family and only from the `roller`'s end, both refused
-   * by the validator: a saving throw is not made by a spell, and a rule about
-   * rolls *against* its holder is a rule about who is attacking them rather
-   * than about what they cast.
+   * Only on the `attack` family, refused elsewhere by the validator: a saving
+   * throw is not made by a spell. **From either end**, since SRD Spellguard
+   * Shield: "spell attack rolls have Disadvantage against you" is the same
+   * fact about the roll, held by the creature it is aimed at — the query is
+   * the roll's, filled at the spell attack site whoever holds the grant.
    *
    * The site that throws the die answers it — {@link RollQuery.spellAttack} —
    * for {@link RollSelector.againstMagic}'s reason: a roll nobody classified
@@ -1388,10 +1389,12 @@ export function rollSelectorProblems(
   }
 
   // SRD Innate Sorcery is a sentence about attack rolls its holder makes, and
-  // only an attack roll carries the fact it reads. The relation half is the
-  // reason a *spell* attack can be narrowed at all: the roller is the caster,
-  // so a rule about rolls against the holder is a rule about who is attacking
-  // them rather than about what they cast.
+  // only an attack roll carries the fact it reads. **Either end may say it**:
+  // on the roller it is Innate Sorcery's "the attack rolls of Sorcerer spells
+  // you cast", and on the holder of an `against-holder` selector it is SRD
+  // Spellguard Shield's "spell attack rolls have Disadvantage against you" —
+  // the fact is the roll's, and the spell attack site states it whichever
+  // creature holds the grant.
   if (selector.onlySpellAttacks !== undefined) {
     if (selector.onlySpellAttacks !== true) {
       found.push({
@@ -1403,13 +1406,6 @@ export function rollSelectorProblems(
       found.push({
         code: 'spell_attack_off_an_attack_roll',
         reason: `only an attack roll says whether a spell made it, so "the attack rolls of spells you cast" cannot pick out a ${selector.roll}`,
-      });
-    }
-    if (selector.relation !== 'roller') {
-      found.push({
-        code: 'spell_attack_off_the_roller',
-        reason:
-          'a spell attack is made **by** the creature the sentence is about, so this narrowing belongs on a "roller" selector; on "against-holder" it would describe whoever is attacking them',
       });
     }
   }
