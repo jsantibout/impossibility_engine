@@ -2105,6 +2105,30 @@ function checkModifierRider(
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
+  // SRD Calm Emotions' Immunity, reached from a settled save: the same list of
+  // glossary names the effect kind is held to, never empty, and the one flag
+  // the second sentence prints.
+  if (rider?.kind === 'immunity') {
+    if (!Array.isArray(rider.conditions) || rider.conditions.length === 0) {
+      found.push({
+        field: `${path}.conditions`,
+        code: 'immunity_to_nothing',
+        reason: 'an Immunity names the conditions it refuses, and this one names none',
+      });
+    } else {
+      rider.conditions.forEach((name, i) =>
+        checkCondition(String(name), `${path}.conditions[${i}]`, found),
+      );
+    }
+    if (rider.suppressesHeld !== undefined && rider.suppressesHeld !== true) {
+      found.push({
+        field: `${path}.suppressesHeld`,
+        code: 'malformed_field',
+        reason: 'a spell either silences the condition already held or does not; the only value is true',
+      });
+    }
+    return;
+  }
   if (rider?.kind === 'bonus') {
     checkBonusGrant(rider.bonus, rider.applies, path, found, rider.only);
     return;
@@ -2268,7 +2292,7 @@ function checkModifierRider(
   found.push({
     field: `${path}.kind`,
     code: 'unknown_modifier_rider',
-    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, hangs extra damage on the caster's later blows, grants a mode, changes a Speed, moves a size by a category, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
+    reason: `"${String((rider as { kind?: unknown } | undefined)?.kind)}" is not a grant a rider carries; a rider adds a bonus, takes an amount off the damage its target deals, hangs extra damage on the caster's later blows, grants a mode, changes a Speed, grants an Immunity, moves a size by a category, changes what a turn permits, changes what healing does, or denies a condition's benefit`,
   });
 }
 
@@ -4941,6 +4965,11 @@ function grantCarried(effect: SpellEffect): string | null {
           // fighter Large with nothing able to shrink them back.
           case 'size':
             return 'a size moved by a category';
+          // SRD Calm Emotions' "until the spell ends": the casting's own
+          // duration, and an Instantaneous one would make a creature immune
+          // for ever.
+          case 'immunity':
+            return 'an Immunity';
           case 'mode':
             // The third rider with an escape of its own, and it arrived with
             // SRD Vicious Mockery: a Disadvantage on "the next attack roll it
@@ -5044,6 +5073,8 @@ function grantOnASuccess(effect: SpellEffect): string | null {
           return 'extra damage on the caster’s later blows';
         case 'size':
           return 'a size moved by a category';
+        case 'immunity':
+          return 'an Immunity';
         case 'mode':
           if (rider.lasts === undefined) return 'a granted Advantage or Disadvantage';
           break;
@@ -6911,6 +6942,22 @@ function checkOptions(
   found: SpellDefinitionProblem[],
 ): void {
   const options = definition.options;
+  // SRD Calm Emotions' "(choose for each creature)": a flag about how the
+  // branches are chosen, meaningless without branches to choose between.
+  const perTarget = (definition as { readonly optionPerTarget?: unknown }).optionPerTarget;
+  if (perTarget !== undefined && perTarget !== true) {
+    found.push({
+      field: 'optionPerTarget',
+      code: 'malformed_field',
+      reason: 'a spell either chooses its branch for each creature or once; the only value is true',
+    });
+  } else if (perTarget === true && options === undefined) {
+    found.push({
+      field: 'optionPerTarget',
+      code: 'per_target_without_options',
+      reason: 'a branch chosen for each creature needs branches to choose between, and this spell prints none',
+    });
+  }
   if (options === undefined) return;
   if (
     !readsAsObject(
@@ -8309,6 +8356,7 @@ export const RIDER_KINDS: ReadonlySet<string> = new Set([
   'damage-penalty',
   'later-blow',
   'mode',
+  'immunity',
   'size',
   'speed-change',
   'action',

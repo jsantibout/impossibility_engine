@@ -206,6 +206,7 @@ export function upgradeOngoing(
     ...(casting.object === undefined ? {} : { object: casting.object }),
     ...(casting.choice === undefined ? {} : { choice: casting.choice }),
     ...(casting.option === undefined ? {} : { option: casting.option }),
+    ...(casting.optionByTarget === undefined ? {} : { optionByTarget: casting.optionByTarget }),
     ...(casting.negates === undefined ? {} : { negates: casting.negates }),
   };
 }

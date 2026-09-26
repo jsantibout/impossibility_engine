@@ -192,6 +192,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'blindness-deafness',
   'blur',
   'burning-hands',
+  // `calm-emotions.test.ts` (engine): one goblin chosen for the Immunity and
+  // one for indifference off one Sphere, the Frightened already on the first
+  // silenced and back when the Concentration is let go, the second's sentence
+  // handed over, a saved creature granted nothing, the map pinned on the
+  // record, and the six refusals a per-creature choice is held to.
+  'calm-emotions',
   'charm-monster',
   'charm-person',
   'chill-touch',

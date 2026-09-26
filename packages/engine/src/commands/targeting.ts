@@ -469,6 +469,17 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly option?: string;
   /**
+   * Which branch each creature runs, for a spell that chooses per creature.
+   *
+   * SRD Calm Emotions' "(choose for each creature)" — see
+   * `SpellDefinition.optionPerTarget`. Keyed by creature id, one branch name
+   * each, over exactly the creatures the casting catches: a caught creature
+   * left out is refused, and so is a name for one the area did not reach,
+   * because a silent default would be the engine choosing. Refused outright
+   * on a spell that chooses once, where {@link option} is the word.
+   */
+  readonly optionByTarget?: Readonly<Record<string, string>>;
+  /**
    * Which creatures the caster or their allies are fighting.
    *
    * SRD Charm Person: "One Humanoid you can see within range makes a Wisdom
@@ -1311,7 +1322,42 @@ export function declaredFacts(
   // and the engine makes neither — speaking Approach because it is printed
   // first would be the engine answering "Choose the command" for ever.
   const branches = definition.options;
-  if (branches === undefined) {
+  // **And whether the word is one or one per creature.** SRD Calm Emotions
+  // prints "(choose for each creature)", so its request carries a map and no
+  // word; every other spell with branches carries a word and no map. Which
+  // creatures the map must cover is checked where the targets are settled —
+  // `perTargetOptionProblem` — because an area's caught list does not exist
+  // yet here; what this door refuses is the wrong *shape* of answer, and a
+  // branch name the spell does not print.
+  if (definition.optionPerTarget !== true && request.optionByTarget !== undefined) {
+    return err(
+      'no_per_target_option_clause',
+      `${definition.name} chooses its branch once for the whole casting; a branch per creature is not a fact it asks for`,
+    );
+  }
+  if (branches !== undefined && definition.optionPerTarget === true) {
+    if (request.option !== undefined) {
+      return err(
+        'option_per_target',
+        `${definition.name} chooses for each creature, so one word for the whole casting is not how it is asked; name a branch per creature`,
+      );
+    }
+    if (request.optionByTarget === undefined) {
+      return err(
+        'option_by_target_required',
+        `${definition.name} prints ${Object.keys(branches).sort().map((key) => branches[key]!.label).join(', ')} and chooses for each creature; name which each caught creature gets`,
+      );
+    }
+    const names = Object.keys(branches).sort();
+    for (const [who, named] of Object.entries(request.optionByTarget)) {
+      if (!names.includes(named)) {
+        return err(
+          'unknown_option',
+          `${definition.name} prints ${names.join(', ')}, not ${named} (named for ${who})`,
+        );
+      }
+    }
+  } else if (branches === undefined) {
     if (request.option !== undefined) {
       return err(
         'no_option_clause',

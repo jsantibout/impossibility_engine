@@ -535,6 +535,13 @@ export interface OngoingSpell {
    */
   readonly option?: string;
   /**
+   * Which branch each creature ran, for a spell that chooses per creature —
+   * SRD Calm Emotions' "(choose for each creature)". Pinned for the reason
+   * {@link option} is, and beside it rather than in it: a word and a map are
+   * two shapes, and a record written before either folds unchanged.
+   */
+  readonly optionByTarget?: Readonly<Record<string, string>>;
+  /**
    * What {@link area} does to whoever is standing in it — **as cast**.
    *
    * Pinned beside the area it is measured over, for the reason the area and

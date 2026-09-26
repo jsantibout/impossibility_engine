@@ -121,8 +121,6 @@ export const MISSING_SHAPES = {
     'an area or a trigger that catches only named creature types. `designatesUnaffected` is the one filter an area has and it is explicit ids chosen once — `docs/design/space-and-areas.md`: "Designating creatures unaffected is a choice, and never allegiance ... it is **explicit**, because a cleric may spare an enemy and may decline to spare an ally." A predicate over a *type* is a different question, and IE-019 answered it for an outcome rather than for who is caught.',
   'a-condition-immunity-narrowed-to-its-source':
     'an Immunity to a condition that holds against **some** of its causes and not others. IE-042 built the unconditional grant — the seventh sourced family, folded into the one gatherer — and this is the sentence that grant will not carry: SRD Protection from Evil and Good protects against gaining the Charmed or Frightened conditions "from them", SRD Freedom of Movement says "spells and other magical effects can neither reduce the target’s Speed nor cause the target to have the Paralyzed or Restrained conditions", and Magic Circle and Hallow narrow theirs to a creature type chosen at the casting. `docs/design/characters-and-equipment.md` draws the identical line on the printed side — "A qualified defence is not an unconditional one." — and keeps such entries out of the automatic table, where `conditionApplicability` answers `needs-adjudication` rather than guessing. `conditionImmunitiesOf` answers yes or no about a *condition* and is told nothing whatever about what is trying to cause it, so there is no second argument for the qualification to arrive in. The honest residue of the shape IE-042 retired, and four spells claim it.',
-  'a-condition-a-spell-suppresses':
-    'a condition switched off while it stays on the creature, by a **spell**. The reading exists and only a feature can write it: `StandingGrant`’s `condition-immunity` member is SRD Aura of Courage, and `docs/design/characters-and-equipment.md` states the distinction this needs — "An immunity refuses the condition outright; a suppression lets it land and does nothing with it, and merging them would get both wrong." `suppressedConditions` and `effectiveConditions` derive the answer from a feature’s standing effects and from nothing else; no spell effect kind writes a `StandingEffect`, so SRD Calm Emotions’ "If the creature was already Charmed or Frightened, those conditions are suppressed for the duration" has the storage it needs and no way whatever to reach it. The second residue IE-042 left: the Immunity in the first half of that bullet is built, and the suppression in the second half is a different rule.',
   'an-outcome-that-reads-the-targets-hit-points':
     'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 0 / 4 | vitals". The vitals are there and no effect asks them a question.',
   'a-target-rule-the-format-cannot-state':
@@ -3216,26 +3214,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // Hallow is also where the lifted cap is spent: three of its entries answer
   // one sentence, because the Hallowed Ward is one sentence with three
   // different gaps in it and all three trip the same `condition` marker.
-  'calm-emotions': [
-    {
-      marker: 'saving-throw',
-      clause: 'choose for each creature',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'SRD: "must succeed on a Charisma saving throw or be affected by one of the following effects (choose for each creature)". A casting applies one effect list to every target it caught, so a spell picking a different one per creature has nowhere to record which — which is why the save is not raised at all: neither branch of it could be settled.',
-    },
-    {
-      marker: 'defence',
-      clause: 'Immunity to the Charmed and Frightened conditions',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'the effect itself is expressible — IE-042\'s `condition-immunity`, which Mind Blank writes unconditionally, and two names in one clause is the plural list the kind carries. What blocks it is the sentence above rather than anything about the Immunity: it is one of two outcomes chosen creature by creature, and the casting has nowhere to record which creature got which.',
-    },
-    {
-      marker: null,
-      clause: 'those conditions are suppressed for the duration',
-      why: 'a-condition-a-spell-suppresses',
-      note: 'the sole claimant of its shape and the reason this spell went unwritten: suppression hands the condition back when the spell ends, so it is not `end-condition`, and it is not the Immunity beside it either — that refuses a condition and this silences one that has already landed. The markers see nothing here because `\\bcondition\\b` does not match "conditions".',
-    },
-  ],
   hallow: [
     {
       marker: null,

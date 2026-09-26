@@ -237,10 +237,14 @@ describe('toolSchemas', () => {
     // (Magic Mouth's stated ending) and a new `end_spell_on_self` door on both
     // surfaces (Gaseous Form's target ending its own cloud at the price the
     // book charges) — one tool and 1,504 bytes on each.
+    // And again for the compulsions track: `cast_spell.optionByTarget`, the
+    // branch per creature SRD Calm Emotions' "(choose for each creature)"
+    // asks for — one field on a tool both doors publish, so both lengths move
+    // by the same 769 bytes and no tool count moves.
     expect(toolSchemas(player())).toHaveLength(86);
     expect(toolSchemas(dm())).toHaveLength(108);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(130140);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(165650);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(130909);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(166419);
   });
 });
 

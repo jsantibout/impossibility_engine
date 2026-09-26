@@ -7074,6 +7074,17 @@ export function suppressedConditions(
   for (const { effect } of standingFor(state, who)) {
     if (effect.grant.kind === 'condition-immunity') names.add(effect.grant.condition);
   }
+  // **And a casting's, where its sentence says so.** SRD Calm Emotions: "If
+  // the creature was already Charmed or Frightened, those conditions are
+  // suppressed for the duration." The same rule Aura of Courage's standing
+  // grant states, read from a second source — a sourced grant the casting
+  // hung and every ending takes away — so the condition is back the moment
+  // the spell ends. An Immunity that prints no such sentence suppresses
+  // nothing: Heroism's Frightened stays on a creature that already had it.
+  for (const granted of state.creatures[who]?.grantedConditionImmunities ?? []) {
+    if (granted.suppresses !== true) continue;
+    for (const condition of granted.conditions) names.add(condition);
+  }
   return [...names].sort();
 }
 

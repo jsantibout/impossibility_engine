@@ -479,9 +479,20 @@ const castAt = (
     // in key order, for the reason it answers the choice above with the first
     // printed value — the point here is that every definition casts rather
     // than which word this casting spoke.
+    // **Or one word per creature**, for the spell that prints "(choose for
+    // each creature)": the map covers exactly who the template catches, which
+    // at the caster's own square is the caster and the creature five feet
+    // away — the bystander stands two hundred feet off. First branch again.
     ...(definition.options === undefined
       ? {}
-      : { option: Object.keys(definition.options).sort()[0]! }),
+      : definition.optionPerTarget === true
+        ? {
+            optionByTarget: {
+              [CASTER]: Object.keys(definition.options).sort()[0]!,
+              [TARGET]: Object.keys(definition.options).sort()[0]!,
+            },
+          }
+        : { option: Object.keys(definition.options).sort()[0]! }),
     // The ninth, and the shape the eight before it take with one half missing:
     // a spell that gates on consent **asks** rather than refusing, and a spell
     // that prints neither consent clause is refused for being told who is

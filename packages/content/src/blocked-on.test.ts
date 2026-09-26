@@ -626,11 +626,11 @@ describe('the condition-immunity family is read sentence by sentence', () => {
    * tripping no marker. A defined spell is not in this population, however
    * partial its definition.
    */
+  // **Calm Emotions was the first entry here and is executed now**: the
+  // per-creature choice is `optionPerTarget` and the suppression is the
+  // `immunity` rider's `suppressesHeld`, so it keeps no tracked entry and
+  // the suppression shape — its sole claimant gone — is retired.
   const BACKFILLED: readonly (readonly [string, readonly ShapeId[]])[] = [
-    [
-      'calm-emotions',
-      ['a-condition-a-spell-suppresses', 'a-spells-effects-applied-to-different-targets'],
-    ],
     [
       'hallow',
       [
@@ -719,17 +719,16 @@ describe('the condition-immunity family is read sentence by sentence', () => {
         (effect) => effect.kind === 'condition-immunity',
       ),
     ).toHaveLength(1);
-    // Calm Emotions is the one spell the suppression residue blocks, and it
-    // **was undefined for that reason**: the tracked map anchored a clause to a
-    // sentence that trips a mechanical marker, and "those conditions are
-    // suppressed for the duration" trips none — so a tracked definition could
-    // not carry this reading, and writing one would have retired a shape that
-    // is still missing. `marker: null` is the entry form that ended that, so
-    // the spell is written, the reading is kept, and the shape is claimed by
-    // the one sentence it was always about.
-    expect(consumersOf('a-condition-a-spell-suppresses').undefined).toEqual([]);
-    expect(consumersOf('a-condition-a-spell-suppresses').tracked).toEqual(['calm-emotions']);
-    expect(consumersOf('a-condition-a-spell-suppresses').unseen).toEqual(['calm-emotions']);
+    // Calm Emotions was the one spell the suppression residue blocked, and the
+    // residue is paid: `GrantedConditionImmunity.suppresses` is the flag,
+    // `suppressedConditions` reads a casting's grant beside a feature's, and
+    // the shape — its sole claimant gone — is retired rather than kept for a
+    // sentence nothing is blocked on.
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-condition-a-spell-suppresses');
+    expect(TRACKED_ADJUDICATED['calm-emotions']).toBeUndefined();
+    expect(
+      (SRD_CONTENT.spell('calm-emotions')?.options?.['immunity']?.effects ?? []).length,
+    ).toBeGreaterThan(0);
   });
 
   /**
@@ -838,12 +837,9 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     expect(BLOCKED_ON['mind-blank']).toBeUndefined();
     expect(ADJUDICATED['mind-blank']?.map((entry) => entry.why)).toEqual(['table']);
 
-    for (const shape of [
-      'a-condition-immunity-narrowed-to-its-source',
-      'a-condition-a-spell-suppresses',
-    ] as const) {
-      expect(consumersOf(shape).unblocks, shape).toEqual([]);
-    }
+    // The suppression residue is retired now — see `covers every spell the two
+    // residues block` — so only the narrowing residue is asked.
+    expect(consumersOf('a-condition-immunity-narrowed-to-its-source').unblocks).toEqual([]);
   });
 
   /**
@@ -2880,20 +2876,18 @@ describe('a shape that gets built is content work, not a merge', () => {
   // when the spell ends, which is not a removal — and, once IE-042 built the
   // Immunity in the clause beside it, is not that either: an Immunity refuses a
   // condition and a suppression silences one that has already landed.
-  // The spell is tracked now, so the reading moved rather than went: both
-  // shapes are in `TRACKED_ADJUDICATED` against the sentences they were read
-  // from, and the suppression is the marker-less one — "conditions" is not
-  // "condition", so no guard could have demanded it.
+  // **Both readings are paid now.** The per-creature choice is
+  // `optionPerTarget`, the suppression is the `immunity` rider's
+  // `suppressesHeld` read by `suppressedConditions` beside a feature's, and
+  // the spell keeps no tracked entry — so the reading is the grant's own field
+  // rather than a map's, and neither a removal nor a bare Immunity.
   it('reads suppression as neither a removal nor the granted immunity', () => {
     expect(BLOCKED_ON['calm-emotions']).toBeUndefined();
-    expect(
-      [...new Set((TRACKED_ADJUDICATED['calm-emotions'] ?? []).map((entry) => entry.why))].sort(),
-    ).toEqual(['a-condition-a-spell-suppresses', 'a-spells-effects-applied-to-different-targets']);
-    expect(
-      (TRACKED_ADJUDICATED['calm-emotions'] ?? []).find(
-        (entry) => entry.why === 'a-condition-a-spell-suppresses',
-      )?.marker,
-    ).toBeNull();
+    expect(TRACKED_ADJUDICATED['calm-emotions']).toBeUndefined();
+    const branch = SRD_CONTENT.spell('calm-emotions')?.options?.['immunity']?.effects?.[0];
+    const rider = branch?.kind === 'save' ? branch.modifiers?.[0] : undefined;
+    expect(rider?.kind).toBe('immunity');
+    expect(rider?.kind === 'immunity' && rider.suppressesHeld).toBe(true);
   });
 
   /**

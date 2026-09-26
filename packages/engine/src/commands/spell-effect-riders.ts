@@ -448,6 +448,20 @@ export function applyRiders(
                 : { weaponOrUnarmedOnly: modifier.weaponOrUnarmedOnly }),
             },
           }
+      // SRD Calm Emotions' Immunity, and the silencing of a condition already
+      // held — the same grant `resolveConditionImmunityEffect` writes, reached
+      // from a settled save, with the one field the effect kind has no
+      // sentence for.
+      : modifier.kind === 'immunity'
+        ? {
+            type: 'condition-immunity-granted',
+            id: target,
+            immunity: {
+              source,
+              conditions: modifier.conditions,
+              ...(modifier.suppressesHeld === undefined ? {} : { suppresses: true as const }),
+            },
+          }
       // SRD Enlarge/Reduce's "increases by one category": the Mask's twin,
       // a step hung under the casting's source and read by `effectiveSizeOf`.
       : modifier.kind === 'size'

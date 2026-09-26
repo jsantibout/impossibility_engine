@@ -15182,14 +15182,20 @@ export const FLESH_TO_STONE: SpellDefinition = {
  * > suppressed for the duration. The creature becomes Indifferent about
  * > creatures of your choice that it's Hostile toward."
  *
- * One save and two alternative outcomes, and what blocks the spell is the word
- * **choose**: a casting applies one effect list to everybody it caught, so a
- * spell picking a different one per creature has nowhere to record which. The
- * Immunity beside it is expressible — Mind Blank writes exactly that effect —
- * and is not written here for that reason rather than for its own. The
- * suppression in the next sentence is a different rule again: an Immunity
- * refuses a condition, and a suppression lets one land, silences it, and hands
- * it back when the spell ends.
+ * One save and two alternative outcomes, chosen creature by creature — and
+ * both are built. **The word is per creature**: `optionPerTarget` says so,
+ * `CastSpellRequest.optionByTarget` names a branch for each Humanoid the
+ * Sphere caught, and each creature runs the common list and then its own. The
+ * save sits in each branch, for the rule `SpellDefinition.options` states: a
+ * save in the common list would be one roll no branch could read. **The first
+ * branch is an `immunity` rider with `suppressesHeld`**: the Immunity Mind
+ * Blank writes, reached from a settled save, and the second sentence — a
+ * Charmed or Frightened already on the creature goes quiet rather than being
+ * ended, and is there again when the spell ends — is `suppressedConditions`
+ * reading a casting's grant beside Aura of Courage's. **The second branch is
+ * the table's**: an attitude is a fact the engine does not hold, so the save
+ * is rolled for its verdict alone and the sentence goes out in the book's
+ * words.
  */
 export const CALM_EMOTIONS: SpellDefinition = {
   id: 'calm-emotions',
@@ -15199,16 +15205,50 @@ export const CALM_EMOTIONS: SpellDefinition = {
   castingTime: 'action',
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 0 },
+  // "Each Humanoid in a 20-foot-radius Sphere centered on a point you choose
+  // within range": the area names who it catches, and the type narrows it.
+  targets: { count: 0, mustBeType: 'Humanoid' },
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  // **Empty, and the save is in each branch.** One Charisma save per creature
+  // whichever branch it was given, and a save in the common list would be a
+  // roll whose outcome the branch could not read.
   effects: [],
+  // "(choose for each creature)": the word is per creature.
+  optionPerTarget: true,
+  options: {
+    immunity: {
+      label: 'Immunity to the Charmed and Frightened conditions',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'cha',
+          modifiers: [
+            // "The creature has Immunity to the Charmed and Frightened
+            // conditions until the spell ends. If the creature was already
+            // Charmed or Frightened, those conditions are suppressed for the
+            // duration."
+            { kind: 'immunity', conditions: ['charmed', 'frightened'], suppressesHeld: true },
+          ],
+        },
+      ],
+    },
+    indifference: {
+      label: 'Indifferent about creatures of your choice',
+      effects: [
+        // "or be affected by one of the following effects": the save is the
+        // spell's, and what a failure buys here is an attitude the engine
+        // holds no fact for — so the die is rolled for its verdict and the
+        // sentence goes to the table.
+        { kind: 'save', ability: 'cha', verdictOnly: true },
+      ],
+      handsOver: [
+        "The creature becomes Indifferent about creatures of your choice that it's Hostile toward.",
+        'This indifference ends if the target takes damage or witnesses its allies taking damage.',
+        "When the spell ends, the creature's attitude returns to normal.",
+      ],
+    },
+  },
   durationSeconds: 60,
-  unmodelled: [
-    'the Charisma saving throw is not raised, because what a failure buys cannot be written down: "be affected by one of the following effects (choose for each creature)" is two different outcomes out of one casting, chosen creature by creature, and a casting applies one list to everybody it caught',
-    'so the Immunity to the Charmed and Frightened conditions is not granted — the effect exists and Mind Blank writes it, and what stops it here is the choice in the sentence above rather than anything about the Immunity',
-    'and a condition the target already has is not silenced: suppression lets a condition land, switches it off and gives it back when the spell ends, which the engine derives from a feature’s standing effects and no spell effect can write',
-    'the Indifferent attitude is the DM’s outright — an attitude toward somebody is not a fact the engine holds, so nothing becomes Indifferent, the indifference does not end when the target takes damage or watches an ally take damage, and nothing returns to normal when the minute is up',
-    'the 20-foot-radius Sphere is the DM’s to draw and who stands in it is theirs to say; what the engine holds is the slot, the Action, the Concentration and the minute',
-  ],
 };
 
 /**

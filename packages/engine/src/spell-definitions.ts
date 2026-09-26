@@ -1044,6 +1044,36 @@ export type ModifierRider =
       readonly counterpart?: CounterpartRole;
     }
   /**
+   * An Immunity the same roll grants, and — where the sentence says so — the
+   * silencing of a condition the creature already has.
+   *
+   * SRD Calm Emotions: "The creature has Immunity to the Charmed and
+   * Frightened conditions until the spell ends. If the creature was already
+   * Charmed or Frightened, those conditions are suppressed for the duration."
+   * One Charisma save gates it, so it is a rider like the rest; the
+   * `condition-immunity` effect it grants is the one SRD Mind Blank and SRD
+   * Heroism write with nothing rolled.
+   *
+   * **`suppressesHeld` is the second sentence and is opt-in**, because the
+   * book prints it once: an Immunity refuses a condition that has not landed,
+   * and this says the one that already has goes quiet rather than being ended
+   * — `suppressedConditions` reads the grant exactly as it reads SRD Aura of
+   * Courage's standing one, and the condition is there again the moment the
+   * casting ends, with nobody having to remember to put it back. Heroism's
+   * Immunity prints no such sentence and leaves it off.
+   *
+   * It is `immunity` and not `condition-immunity`, because a rider kind may
+   * never be an effect kind — `checkShape`'s denylist, and the reason `buff`'s
+   * rider is `bonus`. It carries no `lasts`, for `bonus`'s reason.
+   */
+  | {
+      readonly kind: 'immunity';
+      /** The conditions the sentence names, never empty. */
+      readonly conditions: readonly ConditionName[];
+      /** SRD Calm Emotions' "those conditions are suppressed for the duration". */
+      readonly suppressesHeld?: true;
+    }
+  /**
    * A size the same roll moves by a category.
    *
    * SRD Enlarge/Reduce: "The target's size increases by one category — from
@@ -4964,6 +4994,26 @@ export interface SpellDefinition {
    * with no choice in it, written the long way round.
    */
   readonly options?: Readonly<Record<string, SpellOption>>;
+  /**
+   * The branch is chosen **for each creature** rather than once for the
+   * casting.
+   *
+   * SRD Calm Emotions: "must succeed on a Charisma saving throw or be affected
+   * by one of the following effects (**choose for each creature**)". Every
+   * other spell that prints branches chooses once — Command speaks one word,
+   * Enlarge/Reduce does one half — so `CastSpellRequest.option` is a word and
+   * `optionEffects` runs one list for everybody. This says the word is per
+   * creature: the request carries `optionByTarget`, one name per creature the
+   * casting catches, refused where a caught creature is unnamed or a named
+   * creature is uncaught, and each creature runs the common list and then its
+   * own branch. Presupposes {@link options}, and refused without it.
+   *
+   * **A declaration cannot carry it.** A held casting pins one word; a map
+   * keyed by creatures the area has not yet caught is a fact the settlement
+   * would have to ask again, so a casting of this shape is resolved in one
+   * breath or refused — the limit `options` already keeps for a readied one.
+   */
+  readonly optionPerTarget?: true;
   /**
    * How the individual dice of this spell's damage behave — see
    * {@link DieRule}.

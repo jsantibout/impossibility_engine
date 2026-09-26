@@ -85,11 +85,10 @@ const LANDED: readonly (readonly [string, ShapeId, string])[] = [
  * with it in hand.
  */
 const SINCE: readonly (readonly [string, ShapeId, string])[] = [
-  [
-    'calm-emotions',
-    'a-condition-a-spell-suppresses',
-    'those conditions are suppressed for the duration',
-  ],
+  // **Calm Emotions stood first here and has been paid**: the suppression is
+  // the `immunity` rider's `suppressesHeld`, read by `suppressedConditions`
+  // beside Aura of Courage's, and `a-condition-a-spell-suppresses` retired with
+  // its sole claimant — the exit this list is derived to be able to show.
   [
     'hallow',
     'a-cap-on-how-many-castings-run-at-once',
@@ -172,7 +171,10 @@ describe('a blocker no mechanical marker can see survives the spell being writte
         // item vocabulary. A spell shape nothing is blocked on is one the
         // guard deletes, so there is no longer a shape here to retire.
         'a-cap-on-how-many-castings-run-at-once',
-        'a-condition-a-spell-suppresses',
+        // **`a-condition-a-spell-suppresses` came off this list by being
+        // built**, the same exit Spare the Dying's range took: Calm Emotions
+        // was its only claimant, `suppressesHeld` is the field, and a shape
+        // nothing is blocked on is one the guard deletes.
         // **`a-range-that-scales-with-caster-level` came off this list by being
         // built**, which is the third way an entry leaves and the only one
         // that is a payment rather than a reshuffle: Spare the Dying was its
@@ -469,10 +471,9 @@ describe('the report tells a reading from a marker', () => {
     report.split('\n').find((line) => line.startsWith(`- **${name}** (`)) ?? '';
 
   it.each([
-    // Enthrall stood first on this list and is executed now: an executed spell
-    // keeps no tracked bullet to mark.
+    // Enthrall and Calm Emotions stood on this list and are executed now: an
+    // executed spell keeps no tracked bullet to mark.
     ['Flesh to Stone'],
-    ['Calm Emotions'],
     ['Hallow'],
   ])('marks %s’s bullet with the readings a marker could not demand', (name) => {
     expect(lineFor(name)).toMatch(/^- \*\*.+\*\* \(.+\) — \d+ noted, \d+ read$/);

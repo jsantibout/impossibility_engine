@@ -2361,6 +2361,17 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the branches a spell prints this casting runs, for the spells that print several and leave the pick to the caster — Command’s "Choose the command from these options: Approach, Drop, Flee, Grovel, Halt", Thaumaturgy’s six wonders, Enlarge/Reduce’s two halves. Named by the branch’s own key: `halt`, `booming-voice`, `enlarge`. Leaving it out for one of those is refused and comes back listing them; naming one for a spell that prints no branches is refused too. Not the same field as `choice`, which names a value substituted into the effects a spell already has.',
       ),
+    optionByTarget: z
+      .array(
+        z.strictObject({
+          target: creatureId,
+          option: z.string().min(1).describe('The branch this creature gets, by its key.'),
+        }),
+      )
+      .optional()
+      .describe(
+        'Which branch each creature runs, for the one spell that prints "(choose for each creature)" — Calm Emotions’ Immunity or indifference, chosen goblin by goblin. One entry per creature the casting catches: a caught creature left out is refused, and so is a creature the area did not reach. Refused on any spell that chooses once, where `option` is the word. Cannot be held: a declaration cannot record a choice for creatures it has not caught yet.',
+      ),
     fought: z
       .array(creatureId)
       .optional()
@@ -2499,6 +2510,16 @@ const CAST_SPELL = tool({
       ...(args.damageType === undefined ? {} : { damageType: args.damageType }),
       ...(args.choice === undefined ? {} : { choice: args.choice }),
       ...(args.option === undefined ? {} : { option: args.option }),
+      // A list of pairs on the wire and a map in the engine, for the reason
+      // `saveModes` is: a schema keyed by creature id could not say what a
+      // key is.
+      ...(args.optionByTarget === undefined
+        ? {}
+        : {
+            optionByTarget: Object.fromEntries(
+              args.optionByTarget.map((one) => [who(one.target), one.option]),
+            ),
+          }),
       // **An empty `fought` is an answer and is never elided.** "We are
       // fighting none of them" is a fact the caster stated; absence is a
       // caller who has not read the spell, and the engine tells the two

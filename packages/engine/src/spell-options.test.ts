@@ -317,10 +317,17 @@ describe('Enlarge/Reduce keeps the half its caster chose', () => {
     expect(record?.option).toBe('enlarge');
   });
 
-  it('reports the branch’s own filed clauses by name', () => {
-    const out = unwrap(cast('reduce'), 'reduce') as { readonly unverified: readonly string[] };
-    expect(out.unverified.join('\n')).toContain('1d4 less damage');
-    expect(out.unverified.join('\n')).not.toContain('an extra 1d4 damage');
+  /**
+   * Both halves of Enlarge/Reduce are executed now and file nothing, so the
+   * branch whose sentences are reported is Command's: Approach hands its route
+   * to the table and Flee's is not spoken.
+   */
+  it('reports the branch’s own sentences by name', () => {
+    const out = unwrap(speak(ARMED, { option: 'approach' }), 'approach') as {
+      readonly unverified: readonly string[];
+    };
+    expect(out.unverified.join('\n')).toContain('shortest and most direct route');
+    expect(out.unverified.join('\n')).not.toContain('fastest available means');
   });
 });
 
