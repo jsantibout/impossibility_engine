@@ -147,7 +147,7 @@ function touched(state: GameState, object: string, seed: string) {
 function failed(state: GameState, object: string) {
   for (const seed of SEEDS) {
     const world = touched(state, object, seed);
-    if (!world.out.outcomes[0]!.save.success) return world;
+    if (!world.out.outcomes[0]!.save!.success) return world;
   }
   throw new Error('no seed failed the save');
 }
@@ -259,7 +259,7 @@ describe('what the door asks and refuses', () => {
   it('touches nothing on a made save', () => {
     for (const seed of SEEDS) {
       const { out, state } = touched(inTheMine(), 'longsword', seed);
-      if (!out.outcomes[0]!.save.success) continue;
+      if (!out.outcomes[0]!.save!.success) continue;
       expect(penaltyOn(state, 'longsword')).toBeUndefined();
       expect(out.outcomes[0]!.object).toBeUndefined();
       expect(out.events.some((e) => e.type === 'weapon-penalised')).toBe(false);

@@ -105,6 +105,7 @@ import {
   rollImprovisedDamage,
   settleTest,
   takeInfluence,
+  takeLegendaryAction,
   takeSearch,
   takePrintedForm,
   takePrintedPull,
@@ -1208,22 +1209,31 @@ const TAKE_PRINTED_BONUS_ACTION = tool({
 const printedSaveOutcomes = (
   outcomes: readonly {
     readonly target: CharacterId;
-    readonly save: D20TestResult;
+    readonly save: D20TestResult | null;
+    readonly autoFailed?: true;
     readonly damage: number;
     readonly concentration: unknown;
     readonly conditions?: readonly string[];
     readonly immuneTo?: readonly string[];
     readonly pushedFeet?: number;
     readonly object?: { readonly item: string; readonly penalty: number; readonly destroyed: boolean };
+    readonly revealed?: { readonly alignment?: string | null; readonly toTheTable: readonly string[] };
   }[],
 ): readonly Readonly<Record<string, unknown>>[] =>
   outcomes.map((one) => ({
     target: String(one.target),
-    natural: one.save.natural,
-    total: one.save.total,
-    success: one.save.success,
-    dc: one.save.dc,
-    mode: one.save.mode,
+    // No die where the book threw none — SRD Sprite's Heart Sight fails a
+    // Fiend automatically — and `autoFailed` says so rather than a number
+    // standing where a roll was not made.
+    ...(one.save === null
+      ? { natural: null, total: null, success: false, dc: null, mode: null, autoFailed: true }
+      : {
+          natural: one.save.natural,
+          total: one.save.total,
+          success: one.save.success,
+          dc: one.save.dc,
+          mode: one.save.mode,
+        }),
     damage: one.damage,
     concentration: one.concentration,
     // What the line's clauses did besides the damage — a condition, a push —
@@ -1236,6 +1246,9 @@ const printedSaveOutcomes = (
     // Antennae — with the copy's whole penalty, so a caller narrates "the
     // mail is at −3" rather than "another point".
     ...(one.object === undefined ? {} : { object: one.object }),
+    // And what the line revealed — SRD Sprite's Heart Sight — with the facts
+    // the engine could not hold named as the table's.
+    ...(one.revealed === undefined ? {} : { revealed: one.revealed }),
   }));
 
 /**
@@ -1921,9 +1934,74 @@ const PULL_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Take one of the legendary actions a creature's stat block prints.
+ *
+ * SRD *Monsters*: "Immediately after another creature's turn, the unicorn can
+ * expend a use to take one of the following actions. The unicorn regains all
+ * expended uses at the start of each of its turns." The pool is the block's,
+ * declared at `add_creature` and refilled at the holder's own turn; the
+ * moment is the boundary just after another creature's turn ended, which the
+ * engine reads as a turn begun with nothing spent on it.
+ *
+ * **Here and not on the model's surface, for the reason every printed-line
+ * door is.** The engine performs the line — the Horn's swing through the
+ * attack command, the Shield's dice and bonus — and what the call takes is a
+ * decision the rules leave open: *which* creature the unicorn charges, or
+ * covers, out of the room. A model choosing whom its own monster strikes at a
+ * moment nobody else can act in is writing the encounter, which is
+ * `declare_heads`' objection one door along.
+ *
+ * **It states no number and takes none.** The uses, the dice, the bonus and
+ * the reach are all the block's; the move a Charging Horn prints is the
+ * table's and is handed back, made with `move_creature`.
+ */
+const TAKE_LEGENDARY_ACTION = tool({
+  name: 'take_legendary_action',
+  description:
+    'Spend one of a creature’s legendary action uses, immediately after another creature’s turn has ended and before the next creature acts. Name the heading as the block prints it and, for an attack line, whom it strikes; for a shield line, whom it covers (the creature itself where you leave it out). The engine spends the use, refuses a fourth in a round and a shield already used this round, throws the block’s own dice and swings the block’s own attack, and gives every use back at the start of the creature’s turn. The move a Charging Horn prints is yours, with `move_creature`.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is spending the use.'),
+    line: printedLineName,
+    target: creatureId
+      .optional()
+      .describe(
+        'Whom the line is aimed at: the creature a Charging Horn strikes, or the one a Shimmering Shield covers. Leave it out on a shield to cover the creature itself; leave it out on an attack and you will be asked.',
+      ),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeLegendaryAction(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.target === undefined ? {} : { target: who(args.target) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        who: args.who,
+        line: args.line,
+        usesLeft: value.usesLeft,
+        ...(value.attack?.attack == null
+          ? {}
+          : { attack: { hit: value.attack.attack.hit, total: value.attack.attack.total } }),
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   CAST_PRINTED_LINE,
+  TAKE_LEGENDARY_ACTION,
   AWARD_COIN,
   AWARD_ITEMS,
   DECLARE_DAMAGE_TYPE,

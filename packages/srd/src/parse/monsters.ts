@@ -24,6 +24,7 @@ import {
   type MonsterMultiattackEntry,
   type MonsterRecharge,
   type MonsterRollAddend,
+  type MonsterLegendaryLine,
   type MonsterSave,
   type MonsterSpell,
   type MonsterSpellcasting,
@@ -2521,6 +2522,80 @@ function spendableSave(save: MonsterSave | null, spendable: boolean): MonsterSav
   return save.trigger !== undefined || spendable ? save : null;
 }
 
+/**
+ * SRD's "_Legendary Action Uses: 3._" at the head of the Legendary Actions
+ * section, or null where the section prints none.
+ *
+ * The line is italic prose rather than a heading, so {@link parseFeatures}
+ * walks past it; this reads the one number out of it. "3 (4 in Lair)" gives
+ * the first, for the reason `perDay` drops the lair number: the engine has no
+ * lair.
+ */
+const LEGENDARY_USES = /^_Legendary Action Uses: (\d+)/;
+function parseLegendaryUses(lines: readonly string[]): number | null {
+  for (const line of lines) {
+    const match = LEGENDARY_USES.exec(line.trim());
+    if (match !== null) return Number(match[1]);
+  }
+  return null;
+}
+
+/**
+ * SRD Unicorn's Charging Horn: "The unicorn moves up to half its Speed without
+ * provoking Opportunity Attacks, and it makes one Radiant Horn attack."
+ *
+ * The attack must be a name the block prints under Actions, so the sentence is
+ * bound the way a Multiattack's entries are and a name nothing prints stays
+ * prose.
+ */
+const LEGENDARY_CHARGE =
+  /^The [a-z' -]+ moves up to half its Speed without provoking Opportunity Attacks, and it makes one (.+?) attack\.$/;
+
+/**
+ * SRD Unicorn's Shimmering Shield: "The unicorn targets itself or one creature
+ * it can see within 60 feet of itself. The target gains 10 (3d6) Temporary Hit
+ * Points, and its AC increases by 2 until the end of the unicorn's next turn.
+ * The unicorn can't take this action again until the start of its next turn."
+ *
+ * The line breaks the book prints (`<br>`, `&emsp;`) are flattened first, as
+ * `parsePrintedSave` flattens them.
+ */
+const LEGENDARY_SHIELD =
+  /^The [a-z' -]+ targets itself or one creature it can see within (\d+) feet of itself\. The target gains (\d+) \((\d+)d(\d+)(?:\s*\+\s*(\d+))?\) Temporary Hit Points, and its AC increases by (\d+) until the end of the [a-z' -]+'s next turn\.( The [a-z' -]+ can't take this action again until the start of its next turn\.)?$/;
+
+/**
+ * What a legendary action line does, or null where the sentence is one this
+ * does not know — see `MonsterLegendaryLineSchema`.
+ */
+function parseLegendaryLine(text: string, printedAttacks: readonly string[]): MonsterLegendaryLine | null {
+  const flat = text
+    .replace(/\s*<br>\s*/g, ' ')
+    .replace(/&emsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const charge = LEGENDARY_CHARGE.exec(flat);
+  if (charge !== null) {
+    const attack = charge[1]!;
+    if (!printedAttacks.includes(attack)) return null;
+    return { kind: 'attack', attack, movesHalfSpeed: true };
+  }
+  const shield = LEGENDARY_SHIELD.exec(flat);
+  if (shield !== null) {
+    return {
+      kind: 'shield',
+      rangeFeet: Number(shield[1]),
+      temporaryHitPoints: {
+        dice: `${shield[3]}d${shield[4]}`,
+        flat: shield[5] === undefined ? 0 : Number(shield[5]),
+        average: Number(shield[2]),
+      },
+      armorClass: Number(shield[6]),
+      ...(shield[7] === undefined ? {} : { oncePerRound: true as const }),
+    };
+  }
+  return null;
+}
+
 function parseFeatures(
   lines: readonly string[],
   printedAttacks: readonly string[] = [],
@@ -2530,6 +2605,11 @@ function parseFeatures(
    * and Bonus Actions. See {@link spendableSave}, which is what reads it.
    */
   spendable = false,
+  /**
+   * Whether this is the Legendary Actions heading, which is the one place a
+   * legendary line's sentence is read — see {@link parseLegendaryLine}.
+   */
+  legendary = false,
 ): Feature[] {
   const features: Feature[] = [];
   let current: { name: string; text: string[] } | null = null;
@@ -2597,6 +2677,11 @@ function parseFeatures(
       // another line of this same block.
       const addsToAc = parseAcAddendLine(text);
       const usesLine = parseReactionUseLine(text);
+      // **The second detector the heading is part of**, for the same reason
+      // as the Multiattack: what a legendary line does is the legendary
+      // economy's, and the same sentence under another heading is a different
+      // price.
+      const legendaryLine = legendary ? parseLegendaryLine(text, printedAttacks) : null;
       features.push({
         name: current.name,
         text,
@@ -2604,6 +2689,7 @@ function parseFeatures(
         ...(trait === null ? {} : { trait }),
         ...(save === null ? {} : { save }),
         ...(multiattack === null ? {} : { multiattack }),
+        ...(legendaryLine === null ? {} : { legendary: legendaryLine }),
         ...(recharge === null ? {} : { recharge }),
         ...(perDay === null ? {} : { perDay }),
         ...(spellcasting === null ? {} : { spellcasting }),
@@ -2876,7 +2962,16 @@ function parseEntry(
     actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions, true),
     bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions, true),
     reactions: parseFeatures(sections.reactions, printedAttacks, printedBonusActions),
-    legendaryActions: parseFeatures(sections.legendaryActions, printedAttacks, printedBonusActions),
+    legendaryActions: parseFeatures(
+      sections.legendaryActions,
+      printedAttacks,
+      printedBonusActions,
+      false,
+      true,
+    ),
+    ...(parseLegendaryUses(sections.legendaryActions) === null
+      ? {}
+      : { legendaryActionUses: parseLegendaryUses(sections.legendaryActions)! }),
   };
 
   const validated = MonsterSchema.safeParse(monster);

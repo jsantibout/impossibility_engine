@@ -64,7 +64,6 @@ import {
 import { GLOSSARY_RULES, type GlossaryRule } from './glossary-rules.js';
 import {
   EXECUTED_SPELL_IDS,
-  LEGENDARY_ECONOMY,
   MONSTER_LINE_SHAPES,
   PARTIAL_SPELLS,
   RIDER_HANDOVER_SHAPE,
@@ -577,25 +576,12 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     }
     shapes.push({ shape, lines, blocks: blocks.size, examples });
   }
-  // The legendary economy belongs to the block rather than to a line, so it
-  // is counted as one shape over every legendary action a CR ≤ 5 block prints.
-  const legendary = low.filter((monster) => monster.legendaryActions.length > 0);
-  shapes.push({
-    shape: LEGENDARY_ECONOMY,
-    lines: legendary.reduce((sum, monster) => sum + monster.legendaryActions.length, 0),
-    blocks: legendary.length,
-    examples: legendary
-      .slice(0, 6)
-      .map((monster) => `${monster.name} (CR ${monster.cr}) / ${monster.legendaryActions[0]!.name}`),
-  });
+  // **The legendary economy's row is gone**: `takeLegendaryAction` spends a
+  // use out of the pool the block prints, so the economy is no longer a debt
+  // the block owes, and a legendary line is counted by the line predicates
+  // exactly as any other line is — read, executed, or in the residue below.
   shapes.sort((a, b) => b.lines - a.lines || b.blocks - a.blocks || a.shape.localeCompare(b.shape));
 
-  // **The legendary economy is not one of these**, and excluding its lines
-  // here would take them off the ledger entirely. `LEGENDARY_ECONOMY` is a
-  // debt the *block* owes — an action economy nothing spends — and what a
-  // legendary line then *does* is a second debt that no line predicate
-  // reaches. A Unicorn's Shimmering Shield is both, so it is counted in both,
-  // exactly as a line that forces a save and recharges is.
   const named = (line: StatBlockLine): boolean =>
     MONSTER_LINE_SHAPES.some(([shape, matches]) => accountsFor(shape, matches, line));
 
@@ -1055,11 +1041,6 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
     'predicate reaches them and why classifying them is a reading of English',
     'rather than a derivation — the roadmap keeps that reading in prose, and the',
     'ledger keeps the list.',
-    '',
-    'A legendary action is in both this list and the economy row above, because',
-    'they are two debts: that nothing spends a legendary action, and that',
-    'nothing applies what the line says. Leaving it out of one would take half',
-    'of it off the ledger.',
     '',
   );
   for (const one of monsters.residue) {

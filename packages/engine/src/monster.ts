@@ -21,6 +21,7 @@ import type {
   MonsterSave,
   MonsterTrait,
 } from '@ie/srd';
+import type { StatedLegendaryAction } from './character.js';
 // The two readers of the branch shape, from the subpath that is schemas and no
 // data: a value imported from the barrel loads the whole parsed SRD into every
 // process that imports the engine, which `srd-barrel.test.ts` is the guard for.
@@ -132,6 +133,8 @@ export interface AdaptedMonster {
   readonly creatureType: string;
   /** The parenthesised tag — `Goblinoid`. Narrative; no rule reads it yet. */
   readonly subtype: string | null;
+  /** "Lawful Evil" — what the block prints beside the type; SRD Heart Sight reads it. */
+  readonly alignment: string;
   readonly size: CreatureSize;
   readonly speed: Monster['speed'];
   /** The stat block's Initiative modifier, for rolling or for a passive score. */
@@ -900,6 +903,10 @@ export function rechargeOfLine(sheet: CharacterSheet, line: string): MonsterRech
   if (attack !== undefined) return attack.recharge ?? null;
   const bonus = sheet.stated?.bonusActions?.find((one) => one.name.toLowerCase() === wanted);
   if (bonus !== undefined) return bonus.recharge ?? null;
+  // And a legendary line, whose recharge is the sentence's own rather than a
+  // heading's — SRD Unicorn's Shimmering Shield.
+  const legendary = sheet.stated?.legendaryActions?.find((one) => one.name.toLowerCase() === wanted);
+  if (legendary !== undefined) return legendary.recharge ?? null;
   return statedActionOf(sheet, line)?.recharge ?? null;
 }
 
@@ -962,7 +969,52 @@ export const describeRecharge = (recharge: MonsterRecharge): string =>
     ? `a ${RECHARGE_DIE} at the start of its turn brings it back on a ${recharge.low}${
         recharge.low === 6 ? '' : `–6`
       }, and so does finishing a Short or Long Rest`
-    : 'finishing a Short or Long Rest brings it back';
+    : recharge.kind === 'turn'
+      ? 'the start of its next turn brings it back'
+      : 'finishing a Short or Long Rest brings it back';
+
+/**
+ * The pool a block's legendary action uses come out of.
+ *
+ * SRD *Monsters*: "Legendary Action Uses: 3 … regains all expended uses at the
+ * start of each of its turns." One key for every legendary block, because a
+ * creature holds one such pool: the block prints one number, and
+ * `settleStartOfTurnLegendary` refills it whole at the holder's own turn.
+ */
+export const LEGENDARY_POOL = 'legendary-actions';
+
+/** One legendary line by its heading, off the sheet the block was pinned to. */
+export function legendaryLineOf(sheet: CharacterSheet, name: string): StatedLegendaryAction | null {
+  const wanted = name.trim().toLowerCase();
+  return sheet.stated?.legendaryActions?.find((line) => line.name.toLowerCase() === wanted) ?? null;
+}
+
+/**
+ * The legendary actions the block prints that the parser read, compiled for
+ * `takeLegendaryAction`.
+ *
+ * **The recharge is set here and not read off a heading**, because the book
+ * prints it in the sentence: SRD Unicorn's Shimmering Shield ends "The
+ * unicorn can't take this action again until the start of its next turn", and
+ * the parser reads that as `oncePerRound`. The economy the line is spent from
+ * is the block's pool, declared beside it in `adaptMonster`.
+ */
+function printedLegendaryActions(monster: Monster): readonly StatedLegendaryAction[] {
+  return monster.legendaryActions.flatMap((line) =>
+    line.legendary === undefined
+      ? []
+      : [
+          {
+            name: line.name,
+            text: line.text,
+            legendary: line.legendary,
+            ...(line.legendary.kind === 'shield' && line.legendary.oncePerRound === true
+              ? { recharge: { kind: 'turn' as const } }
+              : {}),
+          },
+        ],
+  );
+}
 
 /**
  * The same, in words, for the refusal a per-day limit raises.
@@ -2175,6 +2227,23 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
         : { ...declared, granted: [...declared.granted, ...castLines.granted] };
   const { reactions, pools: reactionPools } = printedReactions(monster);
   const attacks = printedAttacks(monster);
+  // **The legendary economy**, where the block prints one: the lines the
+  // parser read, and the pool their uses come out of — sized off the block's
+  // own number and recovering on nothing a rest or a dawn names, because the
+  // book gives it back at the start of the holder's turn and
+  // `settleStartOfTurnLegendary` is what does.
+  const legendaryActions = printedLegendaryActions(monster);
+  const legendaryPools: readonly PoolDeclaration[] =
+    monster.legendaryActionUses === undefined
+      ? []
+      : [
+          {
+            key: LEGENDARY_POOL,
+            label: 'Legendary Action Uses',
+            max: monster.legendaryActionUses,
+            recovers: 'special',
+          },
+        ];
   const traits = printedTraits(monster);
   const traitSaves = printedTraitSaves(monster);
   const multiattack = printedMultiattack(monster, attacks);
@@ -2285,6 +2354,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // read, so a creature that does nothing the engine can roll carries no
     // field saying so — the reading every optional field on the sheet takes.
     ...(attacks.length === 0 ? {} : { attacks }),
+    ...(legendaryActions.length === 0 ? {} : { legendaryActions }),
     ...(traits.length === 0 ? {} : { traits }),
     ...(traitSaves.length === 0 ? {} : { traitSaves }),
     ...(bonusActions.length === 0 ? {} : { bonusActions }),
@@ -2347,6 +2417,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     defenses,
     creatureType: monster.type,
     subtype: monster.subtype,
+    alignment: monster.alignment,
     size: monster.size,
     speed: monster.speed,
     initiativeModifier: monster.initiative,
@@ -2355,7 +2426,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     spellcasting,
     // Both kinds of per-day use in one list, sorted by key so two readers of
     // one block agree about the order and a log compares byte for byte.
-    pools: [...spellPools, ...reactionPools].sort((a, b) =>
+    pools: [...spellPools, ...reactionPools, ...legendaryPools].sort((a, b) =>
       a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
     ),
     // And the cast lines the adapter refused whole, for the reason it refused

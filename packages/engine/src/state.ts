@@ -433,6 +433,13 @@ export interface CreatureState {
    */
   readonly creatureType: string | null;
   /**
+   * What the stat block prints beside the type — "Lawful Evil" — or null for
+   * a creature whose block printed none and for every character, whose
+   * alignment is a creation choice on {@link character} instead. Read by one
+   * line: SRD Sprite's Heart Sight.
+   */
+  readonly alignment: string | null;
+  /**
    * The damage type this creature's stat block declined to print, once the
    * table has ruled on it.
    *

@@ -80,6 +80,9 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             spellcasting: noSpellcasting(),
             creatureType: event.creatureType ?? null,
             // Nobody has said, which is what every log written before this
+            // field existed says — so both frozen fixtures fold unchanged.
+            alignment: event.alignment ?? null,
+            // Nobody has said, which is what every log written before this
             // field existed says — so both frozen fixtures fold unchanged, and
             // the one line in the book that wants it asks rather than guesses.
             declaredDamageType: null,

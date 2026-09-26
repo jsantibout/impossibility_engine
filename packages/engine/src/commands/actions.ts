@@ -32,6 +32,7 @@ import {
   ACTION_TITLES,
   allowedActions,
   allowsPrice,
+  currentCombatant,
   dash,
   isStatablePrice,
   disengage,
@@ -43,6 +44,7 @@ import {
   type ActionSlot,
   type GrantedActionRule,
   type NamedAction,
+  type TurnBudget,
 } from '../combat.js';
 import { type Bonus, type ModeSource } from '../bonuses.js';
 import { type StatedAction, type StatedBonusAction } from '../character.js';
@@ -91,6 +93,8 @@ import {
   affectedByPrintedLine,
   describePerDay,
   describeRecharge,
+  LEGENDARY_POOL,
+  legendaryLineOf,
   perDayTallyKey,
   printedLineSource,
   printedSaveOf,
@@ -106,6 +110,9 @@ import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js
 import { creatureOf, unknownCreature } from './command.js';
 import { routeLabel } from './item-casting.js';
 import { applyConditionTo, schedule } from './conditions.js';
+import { type AttackResolution, resolveAttack } from './attacks.js';
+import { grantTemporaryHpTo } from './creatures.js';
+import { rollRecorded } from '../rolls.js';
 import { caughtIn, hazardSource } from '../hazards.js';
 import { featureTimer } from './features.js';
 import { mayAct } from './holds.js';
@@ -1275,6 +1282,306 @@ export function forcePrintedSave(
           ),
           ...unsettled,
         ],
+        duplicate: false,
+      });
+    },
+  );
+}
+
+/** Which legendary action the caller is taking, and at whom. */
+export interface LegendaryActionCommand extends CommandIdentity {
+  /** The heading the block prints the legendary action under. */
+  readonly line: string;
+  /**
+   * Who the line is aimed at: the creature a Charging Horn strikes, or the
+   * creature a Shimmering Shield covers. Absent on a shield, the holder covers
+   * itself — "targets itself or one creature" — and absent on an attack the
+   * caller is asked, because a swing at nobody is not a swing.
+   */
+  readonly target?: CharacterId;
+}
+
+export interface LegendaryActionOutcome {
+  readonly events: readonly GameEvent[];
+  /** How many uses are left after this one, out of the block's own number. */
+  readonly usesLeft: number;
+  /** The swing, where the line made one — null for a line that did not. */
+  readonly attack: AttackResolution | null;
+  /** What the engine could not settle: the move a Charging Horn hands the table. */
+  readonly unverified: readonly string[];
+  readonly duplicate: boolean;
+}
+
+/**
+ * Whether a turn has begun and **nothing on it has been spent yet**, which is
+ * the engine's reading of "immediately after another creature's turn".
+ *
+ * A turn boundary is not a moment the state holds: `turn-advanced` folds to
+ * the next creature's fresh budget, and "immediately after" is the stretch
+ * before that creature does anything with it. So the moment is read off the
+ * budget the way the fold hands one out — every slot still there, no foot
+ * moved, no feature used — and it closes the instant any of them is spent.
+ * The Reaction is deliberately not in the list: one may have been spent on
+ * somebody else's turn, and that is not this creature acting on its own.
+ */
+const turnUntouched = (budget: TurnBudget): boolean =>
+  budget.action &&
+  budget.bonusAction &&
+  budget.movementSpent === 0 &&
+  budget.movementSegments.length === 0 &&
+  budget.movementGained === 0 &&
+  budget.grantedAttacks === null &&
+  budget.attacksRemaining === null &&
+  budget.spellSlotSpentOnTurn === null &&
+  budget.freeInteraction &&
+  !budget.disengaged &&
+  Object.keys(budget.featureUsedOnTurn).length === 0;
+
+/**
+ * Take one of the legendary actions a creature's stat block prints.
+ *
+ * SRD *Monsters*: "_Legendary Action Uses: 3. Immediately after another
+ * creature's turn, the unicorn can expend a use to take one of the following
+ * actions. The unicorn regains all expended uses at the start of each of its
+ * turns._"
+ *
+ * **The economy is a pool and a moment.** The pool is the block's, declared
+ * when the creature arrived and refilled whole by `settleStartOfTurnLegendary`
+ * at the holder's own turn; the moment is the boundary just after another
+ * creature's turn ended, which the engine reads as a turn that has begun with
+ * nothing spent on it ({@link turnUntouched}). On the holder's own turn, or
+ * once the beginning creature has acted, the moment is closed — and before
+ * anybody has taken a turn there has been no turn to come after.
+ *
+ * **What the two lines do is the engine's, and the move is the table's.**
+ * SRD Unicorn's Charging Horn "moves up to half its Speed without provoking
+ * Opportunity Attacks, and it makes one Radiant Horn attack": the swing goes
+ * through `resolveAttack` as the block's own printed attack, free of the
+ * Attack action exactly as an Opportunity Attack is, and the move is handed
+ * over — feet a line hands over belong to a turn budget, and this is not the
+ * holder's turn. Shimmering Shield's Temporary Hit Points are the block's
+ * dice, granted with the owner's default lifetime (until spent or a Long
+ * Rest, no span stated); its +2 is a bonus on a `grants` timer to the end of
+ * the holder's next turn; and "can't take this action again until the start
+ * of its next turn" is the `turn` recharge, expended here and given back by
+ * the boundary.
+ *
+ * **Refused before anything is spent**, on every command's rule: the moment,
+ * the line, the uses and the recharge are all checked ahead of the spend.
+ */
+export function takeLegendaryAction(
+  state: GameState,
+  id: CharacterId,
+  command: LegendaryActionCommand,
+  supply: Supply,
+): Result<LegendaryActionOutcome> {
+  return once(
+    state,
+    `legendary-action:${id}`,
+    command,
+    () => ({ events: [], usesLeft: 0, attack: null, unverified: [], duplicate: true }),
+    (stamp) => {
+      const owedHere = mayAct(state, id);
+      if (owedHere !== null) return owedHere;
+
+      const creature = creatureOf(state, id);
+      if (creature === null) return unknownCreature(id, 'has no record here yet; add it first');
+      if (creature.vitals.dead) return err('dead', `${id} is dead and takes no legendary action`);
+
+      const line = legendaryLineOf(creature.sheet, command.line);
+      if (line === null) {
+        return err(
+          'no_such_line',
+          `no legendary action called ${command.line} is printed on ${id}'s block, or its sentence is one the engine could not read`,
+        );
+      }
+
+      const combat = state.combat;
+      if (combat === null) {
+        return err('not_in_combat', 'a legendary action is taken immediately after another creature\'s turn, and no fight is running');
+      }
+      const current = currentCombatant(combat);
+      if (current.id === id) {
+        return err(
+          'legendary_moment_closed',
+          `it is ${id}'s own turn; a legendary action is taken immediately after another creature's turn`,
+        );
+      }
+      const budget = combat.budgets[current.id];
+      if (combat.turnsTaken === 0 || budget === undefined || !turnUntouched(budget)) {
+        return err(
+          'legendary_moment_closed',
+          combat.turnsTaken === 0
+            ? `no creature has finished a turn yet, so there is no turn for ${id} to act immediately after`
+            : `${current.id} has already acted on this turn, so the moment immediately after the last turn ended has passed`,
+        );
+      }
+
+      const left = remaining(creature.resources, LEGENDARY_POOL);
+      if (left <= 0) {
+        return err(
+          'no_legendary_uses',
+          `${id} has spent every legendary action use this round; they come back at the start of its next turn`,
+        );
+      }
+      if (creature.expendedLines.includes(line.name)) {
+        const recharge = line.recharge ?? null;
+        return err(
+          'line_expended',
+          `${id} has used ${line.name} and not got it back${recharge === null ? '' : `: ${describeRecharge(recharge)}`}`,
+        );
+      }
+
+      const printed = line.legendary;
+      const target = command.target ?? (printed.kind === 'shield' ? id : undefined);
+      if (target === undefined) {
+        return needsContext(
+          'undeclared_targets',
+          `${line.name} makes an attack, and nobody has said at whom`,
+          [
+            {
+              kind: 'creature',
+              subject: id,
+              need: `the creature ${line.name} is aimed at`,
+              because: `${line.name} reads "${line.text}", and a swing at nobody is not a swing`,
+              satisfyWith: 'takeLegendaryAction again with its target filled in',
+            },
+          ],
+        );
+      }
+      if (state.creatures[target] === undefined) return unknownCreature(target);
+
+      const events: GameEvent[] = [
+        // The stamp rides here, because this is the one event the command
+        // always emits whichever line was taken.
+        {
+          type: 'resource-spent',
+          id,
+          key: LEGENDARY_POOL,
+          amount: 1,
+          ...(stamp === null ? {} : { command: stamp }),
+        },
+        ...(line.recharge === undefined
+          ? []
+          : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
+      ];
+      const unverified: string[] = [];
+      let current2 = events.reduce(applyEvent, state);
+      let attack: AttackResolution | null = null;
+      // The inner commands' ids, derived from this one's so a retry of the
+      // whole is a retry of each part — `releaseReady`'s split.
+      const inner = (suffix: string): { commandId?: string } =>
+        stamp === null ? {} : { commandId: `${stamp.id}:${suffix}` };
+
+      if (printed.kind === 'attack') {
+        // The move is the table's: feet a line hands over belong to a turn
+        // budget, and this is not the holder's turn. Said out loud rather than
+        // silently skipped, and the move command is where a DM makes it.
+        if (printed.movesHalfSpeed === true) {
+          unverified.push(
+            `${line.name} lets ${id} move up to half its Speed without provoking Opportunity Attacks before the attack — the move is the table's, made with the move command; nothing here moved anybody`,
+          );
+        }
+        // The block's own attack, through the ordinary command so every
+        // derivation it makes applies here too — and free of the Attack
+        // action, because the use above is what this costs.
+        const swung = resolveAttack(
+          current2,
+          id,
+          {
+            target,
+            weapon: null,
+            action: printed.attack,
+            free: true,
+            ...inner('swing'),
+          },
+          supply,
+        );
+        if (!swung.ok) return swung;
+        events.push(...swung.value.events);
+        unverified.push(...swung.value.unverified);
+        current2 = swung.value.events.reduce(applyEvent, current2);
+        attack = swung.value;
+      } else {
+        // "one creature it can see within 60 feet of itself": the reach and
+        // the sight, each reported where the engine cannot answer it, refused
+        // where it can and the answer is no.
+        if (target !== id) {
+          const scene = state.scene;
+          const apart = scene === null ? null : distanceBetween(scene, id, target);
+          if (apart !== null && apart.ok && apart.value > printed.rangeFeet) {
+            return err(
+              'out_of_range',
+              `${line.name} reaches a creature within ${printed.rangeFeet} feet, and ${target} is ${apart.value} feet away`,
+            );
+          }
+          if (apart === null || !apart.ok) {
+            unverified.push(
+              `${line.name} reaches a creature within ${printed.rangeFeet} feet, and the engine could not measure to ${target} — the reach is the table's`,
+            );
+          }
+          if (canSee(state, id, target) === null) {
+            unverified.push(
+              `${line.name} reaches a creature ${id} can see, and nobody has said whether it can see ${target} — declareSightBetween settles it`,
+            );
+          }
+        }
+        // The block's dice, thrown here and pinned as an amount: SRD "gains
+        // 10 (3d6) Temporary Hit Points".
+        const issuedBefore = supply.issuer.count;
+        const rolled = rollRecorded(supply.issuer, supply.rng, printed.temporaryHitPoints.dice);
+        if (!rolled.ok) return rolled;
+        const amount = rolled.value.total + printed.temporaryHitPoints.flat;
+        events.push({
+          type: 'roll-recorded',
+          who: id,
+          label: `${line.name} (${printed.temporaryHitPoints.dice})`,
+          natural: rolled.value.total,
+          total: amount,
+          contributions: [],
+          outcome: `${amount} Temporary Hit Points`,
+        });
+        // The owner's ruling of 2026-09-18: no stated lifetime, so the points
+        // last until spent or a Long Rest, which is what the plain grant does.
+        const granted = grantTemporaryHpTo(current2, target, amount, inner('temp-hp'));
+        if (!granted.ok) return granted;
+        events.push(...granted.value);
+        current2 = granted.value.reduce(applyEvent, current2);
+        // "its AC increases by 2 until the end of the unicorn's next turn": a
+        // flat bonus on the target under a grants timer anchored on the
+        // holder's turn, released by the same deadline every other grant is.
+        const source = `${printedLineSource(id, line.name)}:${supply.issuer.count}`;
+        const timer = schedule(
+          current2,
+          { kind: 'grants', on: target, source },
+          { kind: 'end-of-next-turn', of: id },
+        );
+        if (!timer.ok) return timer;
+        events.push(
+          {
+            type: 'bonus-applied',
+            id: target,
+            bonus: {
+              source,
+              bonus: { source: line.name, flat: printed.armorClass },
+              applies: ['ac'],
+              direction: 'add',
+            },
+          },
+          timer.value,
+          {
+            type: 'rolls-issued',
+            count: supply.issuer.count - issuedBefore,
+            rng: supply.rng.snapshot(),
+          },
+        );
+      }
+
+      return ok({
+        events,
+        usesLeft: left - 1,
+        attack,
+        unverified,
         duplicate: false,
       });
     },

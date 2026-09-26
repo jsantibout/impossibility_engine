@@ -1215,6 +1215,8 @@ export interface StatBlockLine {
   readonly addsToAc?: unknown;
   /** The printed line a Reaction's whole response performs, by its heading. */
   readonly usesLine?: string | undefined;
+  /** What a legendary action line does — SRD Unicorn's Charging Horn and Shimmering Shield. */
+  readonly legendary?: unknown;
 }
 
 /** Every line of every section of one block, which is what the shapes count over. */
@@ -1246,7 +1248,8 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.pulls !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
-  line.usesLine !== undefined;
+  line.usesLine !== undefined ||
+  line.legendary !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -1678,6 +1681,10 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // **A line that casts is spent** — `castPrintedLine` hands one of its spells
   // to the casting pipeline at the heading's price.
   line.casts !== undefined ||
+  // **A legendary line is spent** — `takeLegendaryAction` spends a use out of
+  // the block's pool at the moment the book names and performs the line: the
+  // Horn's swing through the attack command, the Shield's points and bonus.
+  line.legendary !== undefined ||
   // **The addend, narrowed the way the adapter narrows it.** `test-rolled` is
   // the instant a check or a save has landed and an attack roll is not one of
   // them, so `triggeringTests` in `monster.ts` compiles nothing for a trigger
@@ -1768,11 +1775,17 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
    * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | `a-second-place-to-put-a-creature`: a creature inside another one, which is a position the lattice has no word for |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
-   * | Sprite's Heart Sight | a reveal: what one creature comes to **know** about another. The knowledge vocabulary exists for Hunter's Lore; an emotion and an alignment are not among the facts it holds |
    *
-   * **Two rows left this table on one night**, and are written down rather
+   * The table is pinned to the catalogue by {@link UNREAD_SAVE_SEAMS}, so a
+   * row that has been built comes out in the same commit.
+   *
+   * **Three rows left this table on one night**, and are written down rather
    * than deleted because a row that leaves a report is a claim somebody may
-   * want to check. The Gold Dragon Wyrmling's Weakening Breath is read whole:
+   * want to check. The Sprite's Heart Sight is read: a `reveals` clause whose
+   * alignment the engine holds — pinned on the creature from the block or the
+   * character's choices — and whose emotions are named as the table's, with
+   * the types that fail automatically read off the targeting clause and no die
+   * thrown for them. The Gold Dragon Wyrmling's Weakening Breath is read whole:
    * the reader grew the two arms the row said it lacked — a mode over the
    * `d20-test` family narrowed by an ability, and a penalty on the target's
    * own damage rolls — and a third lifetime for them, the repeat save the
@@ -1783,6 +1796,7 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    * sentence is the spells side's and is still handed over.
    */
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
+  // The rows above are held to the catalogue by {@link UNREAD_SAVE_SEAMS}.
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
   [REACTION_USE_SHAPE, hasHandedOverResponse],
   [RIDER_SHAPE, hasUnappliedRider],
@@ -1870,12 +1884,44 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
     'a second **plane**, which the scene has no address for. The Nightmare\'s Ethereal Stride and the Phase Spider\'s Ethereal Jaunt are the same sentence, and the Dryad\'s Tree Stride is its cousin with a tree in place of a plane. Filed together under `a-second-place-to-put-a-creature` because what they need is one thing: somewhere a creature can be that is not a space on this map.',
   'sea-hag/Illusory Appearance':
     'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
-  'unicorn/Shimmering Shield':
-    'the legendary economy, which is its own row on both reports and belongs to the *block* rather than to any line. The Charging Horn beside it is the same debt.',
 };
 
-/** The economy a legendary block owes, which is the block's rather than a line's. */
-export const LEGENDARY_ECONOMY = 'A legendary action’s own economy';
+/**
+ * The CR ≤ 5 lines that force a save and that the reader got nothing out of,
+ * each with the one seam it waits on.
+ *
+ * {@link LINE_RESIDUE_SEAMS}' twin for the saves, and pinned the same way by
+ * `coverage.test.ts`: every key names a line some CR ≤ 5 block really prints
+ * with `Saving Throw:_` in it, and every one of them is really still unread —
+ * so a line somebody builds fails the guard and the entry comes out in the
+ * same commit. Written down because a line with no note beside it looks like
+ * a line nobody read, and because the table in the docblock above was prose
+ * and rotted twice on one night.
+ *
+ * **None of these is one field.** Each was checked against the code before it
+ * was filed here: a move through other creatures' spaces is a position the
+ * lattice has no word for, a creature inside another is the same, and a
+ * compulsion is a creature somebody else is playing — the seam the doctrine
+ * puts at the table.
+ */
+export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
+  'bulette/Deadly Leap':
+    'a move **through** other creatures\' spaces with a save per creature entered, and a movement spent before the save — "The bulette spends 5 feet of movement to jump to a space within 15 feet that contains one or more Large or smaller creatures." The lattice holds one occupant per space, so the space entered is a position nothing can be put in; the same seam Amorphous, Compression and Ooze Cube wait on.',
+  'centaur-trooper/Trampling Charge (Recharge 5–6)':
+    'the same move through Medium or smaller creatures\' spaces, with a save for each whose space was entered — "can move through the spaces of Medium or smaller creatures. Each creature whose space the centaur enters…". The movement half is the world\'s, and a save read without it would be a Trample a creature forces standing still.',
+  'gelatinous-cube/Engulf':
+    '`a-second-place-to-put-a-creature`: a creature inside another one, with its own escape, its own damage at the swallower\'s boundary and a way out when the cube dies. The Shambling Mound\'s Engulf, the Giant Frog\'s Swallow and the Giant Toad\'s are the same want.',
+  'shambling-mound/Engulf':
+    'the same second place — a creature inside the mound, Blinded and Restrained there, damaged at the mound\'s turn boundary and free when the mound dies. One seam for the four lines that print it.',
+  'ghost/Possession (Recharge 6)':
+    '`a-creature-somebody-else-is-playing`: "the ghost disappears, and the target is possessed by the ghost" — a body one creature drives and another owns, which the doctrine puts at the table rather than in a record the engine would have to invent a driver for.',
+  'harpy/Luring Song':
+    'a compulsion: "the target has the Charmed condition until the song ends … it must move on its turn toward the harpy by the most direct route". Which way a creature walks is a decision the engine takes as an input, and a rule that made it for a player is the same seam as Possession.',
+};
+
+/** Whether this line prints the save template and the reader got nothing out of it. */
+export const isUnreadSave = (line: StatBlockLine): boolean =>
+  line.attack === undefined && line.save === undefined && /Saving Throw:_/.test(line.text);
 
 export function auditBestiary(): BestiaryCoverage {
   const parsed = JSON.parse(
@@ -1918,13 +1964,12 @@ export function auditBestiary(): BestiaryCoverage {
     return { shape, blocks, lines };
   });
 
-  // The legendary economy is a property of the block rather than of any one
-  // line, so it is counted as the block it belongs to.
-  shapes.push({
-    shape: LEGENDARY_ECONOMY,
-    blocks: SRD_CONTENT.monsters.filter((monster) => monster.legendaryActions.length > 0).length,
-    lines: SRD_CONTENT.monsters.reduce((sum, monster) => sum + monster.legendaryActions.length, 0),
-  });
+  // **The legendary economy's row is gone**, and this is where it was. It
+  // counted every legendary block as owing an action economy nothing spent;
+  // `takeLegendaryAction` spends one now — a pool of uses regained at the
+  // start of the holder's turn, spent immediately after another creature's
+  // turn — so what a legendary *line* still owes is the line's own, and the
+  // line predicates above count it exactly as they count any other line.
   shapes.sort((a, b) => b.blocks - a.blocks || a.shape.localeCompare(b.shape));
 
   let defences = 0;

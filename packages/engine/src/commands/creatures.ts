@@ -152,6 +152,10 @@ export function addCreature(
             maxHp: adapted.vitals.hpMax,
             diesAtZero: adapted.vitals.diesAtZero,
             creatureType: adapted.creatureType,
+            // And the alignment beside it, for the one line that reads one:
+            // SRD Sprite's Heart Sight. Pinned rather than looked up, so the
+            // fold opens no catalogue when the sprite looks.
+            alignment: adapted.alignment,
             defenses: byDamageType,
             // Pinned so that placing this creature is not a second reading of
             // a fact the book already answered, and so that nobody above the

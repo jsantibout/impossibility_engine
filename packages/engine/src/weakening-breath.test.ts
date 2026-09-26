@@ -149,7 +149,7 @@ function breathed(seed: string, targets: readonly CharacterId[] = [BREN]) {
 function failed() {
   for (const seed of SEEDS) {
     const world = breathed(seed);
-    if (!world.out.outcomes[0]!.save.success) return { seed, ...world };
+    if (!world.out.outcomes[0]!.save!.success) return { seed, ...world };
   }
   throw new Error('no seed failed the save');
 }
@@ -312,7 +312,7 @@ describe('a fighter who makes the save', () => {
   it('holds nothing of the line', () => {
     for (const seed of SEEDS) {
       const { out, state } = breathed(seed);
-      if (!out.outcomes[0]!.save.success) continue;
+      if (!out.outcomes[0]!.save!.success) continue;
       expect(state.creatures[BREN]!.rollModifiers).toEqual([]);
       expect(state.creatures[BREN]!.damagePenalties).toEqual([]);
       expect(grantTimersOn(state, BREN)).toEqual([]);

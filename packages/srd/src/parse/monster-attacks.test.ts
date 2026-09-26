@@ -1215,7 +1215,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Antennae, whose prelude names an object worn or carried and whose
       // failure wears it down — the pudding's sentence on a save, with the
       // weapon half beside it. The Mending sentence is carried.
-      actions: { printed: 811, read: 768 },
+      // And one more with a failure that is **knowledge**: the Sprite's Heart
+      // Sight, whose failure reveals the target's alignment and emotions and
+      // whose targeting clause names the types that fail it without a die.
+      actions: { printed: 811, read: 769 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

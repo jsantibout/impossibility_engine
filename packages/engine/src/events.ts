@@ -261,6 +261,14 @@ export type GameEvent =
       readonly diesAtZero?: boolean;
       /** Humanoid, Fey, Dragon. Absent means nobody has said. */
       readonly creatureType?: string;
+      /**
+       * "Neutral Good", "Lawful Evil" — the block's own words, pinned for the
+       * one line that reads it: SRD Sprite's Heart Sight reveals "the
+       * target's emotions and alignment". Absent means nobody has said, which
+       * is what every log written before this field existed says — so both
+       * frozen fixtures fold unchanged. A character's is on its record.
+       */
+      readonly alignment?: string;
       /** What this creature resists, is immune to, or is vulnerable to. */
       readonly defenses?: Readonly<Record<string, DamageDefenses>>;
       /**

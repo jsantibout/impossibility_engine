@@ -29,7 +29,6 @@ import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import type { ClassDefinition } from '@ie/engine';
 import {
-  LEGENDARY_ECONOMY,
   MONSTER_LINE_SHAPES,
   auditPlayableLevels,
   isExecutedLine,
@@ -332,17 +331,22 @@ describe('the ledger measures the three populations of the roadmap', () => {
   });
 
   /**
-   * And the legendary lines are in both, because they are two debts: that
-   * nothing spends a legendary action, and that nothing applies what the
-   * line says. Pinned by name so an exclusion has to come here and argue.
+   * The legendary economy's row is gone, because `takeLegendaryAction` spends
+   * one: the pool the block prints, regained at the start of the holder's
+   * turn. What a legendary line still owes is the line's own, and it is
+   * counted as any other line is — the two CR ≤ 5 lines are read and
+   * executed, so none sits in the residue.
    */
-  it('keeps a legendary line in the residue as well as in the economy row', () => {
-    const legendary = ledger.monsters.shapes.find((one) => one.shape === LEGENDARY_ECONOMY);
-    expect(legendary?.lines).toBeGreaterThan(0);
-    const inResidue = ledger.monsters.residue.filter(
-      (one) => one.section === 'legendary action',
-    );
-    expect(inResidue.length).toBe(legendary?.lines);
+  it('has no legendary economy row, and no legendary line in the residue', () => {
+    expect(ledger.monsters.shapes.some((one) => /legendary/i.test(one.shape))).toBe(false);
+    expect(ledger.monsters.residue.filter((one) => one.section === 'legendary action')).toEqual([]);
+    for (const monster of SRD_CONTENT.monsters) {
+      if (monster.cr > 5) continue;
+      for (const line of monster.legendaryActions) {
+        expect(isReadLine(line), `${monster.name}/${line.name}`).toBe(true);
+        expect(isExecutedLine(line), `${monster.name}/${line.name}`).toBe(true);
+      }
+    }
   });
 });
 

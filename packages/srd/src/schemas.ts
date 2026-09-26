@@ -178,6 +178,16 @@ export type MonsterDamage = z.infer<typeof MonsterDamageSchema>;
 export const MonsterRechargeSchema = z.union([
   z.object({ kind: z.literal('die'), low: z.number().int().min(1).max(6) }),
   z.object({ kind: z.literal('rest') }),
+  /**
+   * SRD Unicorn's Shimmering Shield: "The unicorn can't take this action again
+   * until the start of its next turn."
+   *
+   * The third kind, and the only one the book prints in a sentence rather
+   * than in a heading: the line comes back at the start of the holder's turn
+   * with no die thrown. Not read off a name — the adapter sets it where a
+   * legendary line prints the sentence.
+   */
+  z.object({ kind: z.literal('turn') }),
 ]);
 export type MonsterRecharge = z.infer<typeof MonsterRechargeSchema>;
 
@@ -672,6 +682,23 @@ const PRINTED_SAVE_CLAUSES = [
     /** SRD's "a −1 penalty", as a positive number of points eaten. */
     points: z.number().int().min(1),
   }),
+  /**
+   * SRD Sprite's Heart Sight: "_Failure:_ The sprite knows the target's
+   * emotions and alignment."
+   *
+   * **A failure that is knowledge.** Nothing lands on the target; what changes
+   * is what the creature that forced the save *knows*, which the engine holds
+   * only where it can derive the fact — an alignment is pinned on the creature
+   * from the block or the character's choices — and hands to the table where
+   * it cannot: an emotion is fiction. The executor reports both, each under
+   * its own name, so a caller narrates what was learned rather than that
+   * something was.
+   */
+  z.object({
+    kind: z.literal('reveals'),
+    /** What the sentence names, in the order it prints them. */
+    facts: z.array(z.enum(['alignment', 'emotions'])).min(1),
+  }),
   z.object({
     kind: z.literal('speed-decrease'),
     feet: z.number().int().min(5),
@@ -1121,6 +1148,17 @@ export const MonsterSaveSchema = z.object({
    * line asks for it and refuses one the target is not wearing or holding.
    */
   targetsObject: z.literal(true).optional(),
+  /**
+   * SRD Sprite's Heart Sight: "(Celestials, Fiends, and Undead automatically
+   * fail the save)".
+   *
+   * The creature **types** for which no die is thrown: a target of one of
+   * them takes the failure outright, and its outcome carries no save because
+   * the book rolled none. The book's own capitalised words, singular, which is
+   * the vocabulary `creature-type-declared` writes — the same reason
+   * {@link onlyIfTargetType} is spelled that way.
+   */
+  autoFailTypes: z.array(z.string().min(1)).min(1).optional(),
   /**
    * What a failure costs in damage, where the line prints damage at all. The
    * same four fields a printed attack's damage has. Absent on a line whose
@@ -2430,6 +2468,49 @@ export const MONSTER_TRAIT_KINDS: readonly string[] = MonsterTraitMechanicSchema
 );
 
 /**
+ * What a **legendary action** line does, where the parser knows it.
+ *
+ * SRD Unicorn, the one legendary block at CR ≤ 5, prints two: Charging Horn —
+ * "moves up to half its Speed without provoking Opportunity Attacks, and it
+ * makes one Radiant Horn attack" — and Shimmering Shield — "targets itself or
+ * one creature it can see within 60 feet of itself. The target gains 10 (3d6)
+ * Temporary Hit Points, and its AC increases by 2 until the end of the
+ * unicorn's next turn. The unicorn can't take this action again until the
+ * start of its next turn."
+ *
+ * **Read only under the Legendary Actions heading**, for `Multiattack`'s
+ * reason: three legendary actions elsewhere in the book write "makes one
+ * Tentacle attack" about the legendary economy, and a reader that took the
+ * sentence off any heading would hand a block a swing the book printed under a
+ * different price.
+ */
+export const MonsterLegendaryLineSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('attack'),
+    /** The printed attack the line makes — one the block prints under Actions. */
+    attack: z.string().min(1),
+    /** "moves up to half its Speed without provoking Opportunity Attacks" — the table's move. */
+    movesHalfSpeed: z.literal(true).optional(),
+  }),
+  z.object({
+    kind: z.literal('shield'),
+    /** "one creature it can see within 60 feet of itself". */
+    rangeFeet: z.number().int().min(5),
+    /** "gains 10 (3d6) Temporary Hit Points". */
+    temporaryHitPoints: z.object({
+      dice: z.string().regex(/^\d+d\d+$/),
+      flat: z.number().int(),
+      average: z.number().int().min(1),
+    }),
+    /** "its AC increases by 2 until the end of the unicorn's next turn". */
+    armorClass: z.number().int().min(1),
+    /** "can't take this action again until the start of its next turn". */
+    oncePerRound: z.literal(true).optional(),
+  }),
+]);
+export type MonsterLegendaryLine = z.infer<typeof MonsterLegendaryLineSchema>;
+
+/**
  * A named trait, action, bonus action, reaction, or legendary action.
  *
  * The name and the book's sentence are the whole of what this was, and they
@@ -2505,6 +2586,12 @@ export const FeatureSchema = z.object({
   save: MonsterSaveSchema.optional(),
   /** The sequence this line's sentence states, where it states one. */
   multiattack: MonsterMultiattackSchema.optional(),
+  /**
+   * What this legendary action does, where the parser knows the sentence —
+   * see {@link MonsterLegendaryLineSchema}. Present only on a line printed
+   * under Legendary Actions.
+   */
+  legendary: MonsterLegendaryLineSchema.optional(),
   /**
    * The spells this line declares, where its sentence is the Spellcasting
    * template — see {@link MonsterSpellcastingSchema}.
@@ -2657,6 +2744,14 @@ export const MonsterSchema = z.object({
   bonusActions: z.array(FeatureSchema),
   reactions: z.array(FeatureSchema),
   legendaryActions: z.array(FeatureSchema),
+  /**
+   * SRD's "_Legendary Action Uses: 3._" — how many uses the block regains at
+   * the start of each of its turns. Absent where the block prints no legendary
+   * actions, which is every block a homebrew author wrote before the field
+   * existed. The lair number ("3 (4 in Lair)") is not carried, for the reason
+   * `perDay` gives: the engine has no lair.
+   */
+  legendaryActionUses: z.number().int().min(1).optional(),
 });
 export type Monster = z.infer<typeof MonsterSchema>;
 

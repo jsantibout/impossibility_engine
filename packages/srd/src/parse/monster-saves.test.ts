@@ -122,6 +122,34 @@ describe('a failure hung on the target’s own rolls', () => {
   });
 });
 
+describe('a save whose failure is knowledge', () => {
+  /**
+   * SRD Sprite's Heart Sight: nothing lands on the target; what changes is
+   * what the sprite knows. The types that fail automatically are read off the
+   * parenthesis on the targeting clause, singular, in the vocabulary a
+   * creature's type is printed in.
+   */
+  it('reads Heart Sight: the two facts, and the types that fail without a die', () => {
+    expect(lineOf('sprite', 'Heart Sight').save).toEqual({
+      ability: 'cha',
+      dc: 10,
+      targets:
+        'one creature within 5 feet the sprite can see (Celestials, Fiends, and Undead automatically fail the save)',
+      autoFailTypes: ['Celestial', 'Fiend', 'Undead'],
+      onSuccess: 'none',
+      onFailure: [{ kind: 'reveals', facts: ['emotions', 'alignment'] }],
+    });
+  });
+
+  it('refuses the same fact named twice', () => {
+    expect(
+      parseSaveLine(
+        "_Charisma Saving Throw:_ DC 10, one creature. _Failure:_ The sprite knows the target's alignment and alignment.",
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('a save aimed at an object somebody is wearing or holding', () => {
   /**
    * SRD Rust Monster's Antennae: the prelude names the object, the failure

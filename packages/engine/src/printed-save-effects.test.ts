@@ -214,10 +214,10 @@ describe('a condition a failure imposes', () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('lion', 'Roar', seed);
       const [one] = out.outcomes;
-      seen.push({ success: one!.save.success });
+      seen.push({ success: one!.save!.success });
       expect(one!.damage).toBe(0);
       expect(out.events.some((e) => e.type === 'damage-dice-recorded')).toBe(false);
-      if (one!.save.success) {
+      if (one!.save!.success) {
         expect(has(state, BREN, 'frightened')).toBe(false);
         expect(one!.conditions ?? []).toEqual([]);
       } else {
@@ -236,8 +236,8 @@ describe('a condition a failure imposes', () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('gibbering-mouther', 'Blinding Spittle (Recharge 5–6)', seed);
       const [one] = out.outcomes;
-      seen.push({ success: one!.save.success });
-      if (one!.save.success) {
+      seen.push({ success: one!.save!.success });
+      if (one!.save!.success) {
         // No `_Success:_` clause: a success buys nothing, and nothing was rolled.
         expect(one!.damage).toBe(0);
         expect(has(state, BREN, 'blinded')).toBe(false);
@@ -253,7 +253,7 @@ describe('a condition a failure imposes', () => {
   it('anchors "until the end of its next turn" on the target', () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('dretch', 'Fetid Cloud (1/Day)', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(has(state, BREN, 'poisoned')).toBe(true);
       expect(timersOn(state, BREN)[0]?.deadline).toMatchObject({ kind: 'turn-end', of: BREN });
       // The sentence the reader used to carry — "While Poisoned, the creature
@@ -272,7 +272,7 @@ describe('a grapple, a push, a Speed cut and a lowered maximum', () => {
   it("lands the Bugbear Stalker's Quick Grapple as a grapple the target can escape at the printed DC", () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('bugbear-stalker', 'Quick Grapple', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(out.events.some((e) => e.type === 'bonus-action-spent')).toBe(true);
       expect(has(state, BREN, 'grappled')).toBe(true);
       const [timer] = timersOn(state, BREN);
@@ -291,10 +291,10 @@ describe('a grapple, a push, a Speed cut and a lowered maximum', () => {
     for (const seed of SEEDS) {
       const { before, out, state } = forced('air-elemental', 'Whirlwind (Recharge 4–6)', seed);
       const [one] = out.outcomes;
-      seen.push({ success: one!.save.success });
+      seen.push({ success: one!.save!.success });
       const was = unwrap(distanceBetween(before.scene!, FOE, BREN));
       const now = unwrap(distanceBetween(state.scene!, FOE, BREN));
-      if (one!.save.success) {
+      if (one!.save!.success) {
         // "Half damage only": halved, and nothing else — no push, no Prone
         // from the line (a Bren the damage dropped is Prone by being
         // Unconscious, which is the vitals' sentence and not this one's).
@@ -315,7 +315,7 @@ describe('a grapple, a push, a Speed cut and a lowered maximum', () => {
   it("cuts the target's Speed by ten feet until the end of the Steam Mephit's next turn", () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('steam-mephit', 'Steam Breath (Recharge 6)', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(speedOf(state, BREN)).toBe(20);
       const grant = Object.values(state.timers).find(
         (t) => t.target.kind === 'grants' && t.target.on === BREN,
@@ -332,7 +332,7 @@ describe('a grapple, a push, a Speed cut and a lowered maximum', () => {
     for (const seed of SEEDS) {
       const { before, out, state } = forced('wight', 'Life Drain', seed);
       const [one] = out.outcomes;
-      if (one!.save.success) continue;
+      if (one!.save!.success) continue;
       expect(one!.damage).toBeGreaterThan(0);
       expect(state.creatures[BREN]!.vitals.hpMax).toBe(before.creatures[BREN]!.vitals.hpMax - one!.damage);
       expect(out.unverified.some((line) => line.includes('rises 24 hours later'))).toBe(true);
@@ -346,7 +346,7 @@ describe('a grapple, a push, a Speed cut and a lowered maximum', () => {
     for (const seed of SEEDS) {
       const { before, out, state } = forced('succubus', 'Draining Kiss', seed);
       const [one] = out.outcomes;
-      seen.push({ success: one!.save.success });
+      seen.push({ success: one!.save!.success });
       // Half damage on a success, whole on a failure; the coda applies to both.
       expect(one!.damage).toBeGreaterThan(0);
       expect(state.creatures[BREN]!.vitals.hpMax).toBe(before.creatures[BREN]!.vitals.hpMax - one!.damage);
@@ -359,7 +359,7 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
   it("files the Doppelganger's Frightened with a repeat save at the end of the target's turns, for a minute", () => {
     for (const seed of SEEDS) {
       const { before, out, state } = forced('doppelganger', 'Unsettling Visage (Recharge 6)', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(has(state, BREN, 'frightened')).toBe(true);
       const [timer] = timersOn(state, BREN);
       expect(timer?.repeatSave).toMatchObject({
@@ -381,11 +381,11 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
     for (const seed of SEEDS) {
       const { out, state } = forced('gladiator', 'Shield Bash', seed, [BREN, OGRE], [{ id: OGRE, monster: 'ogre' }]);
       const [onBren, onOgre] = out.outcomes;
-      if (!onBren!.save.success) {
+      if (!onBren!.save!.success) {
         expect(has(state, BREN, 'prone')).toBe(true);
         floored = true;
       }
-      if (!onOgre!.save.success) {
+      if (!onOgre!.save!.success) {
         expect(has(state, OGRE, 'prone')).toBe(false);
         expect(onOgre!.damage).toBeGreaterThan(0);
         expect(out.unverified.some((line) => line.includes('ogre is large'))).toBe(true);
@@ -399,7 +399,7 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
     for (const seed of SEEDS) {
       const { out, state } = forced('dretch', 'Fetid Cloud (1/Day)', seed, [ZOMBIE], [{ id: ZOMBIE, monster: 'zombie' }]);
       const [one] = out.outcomes;
-      if (one!.save.success) continue;
+      if (one!.save!.success) continue;
       expect(has(state, ZOMBIE, 'poisoned')).toBe(false);
       expect(one!.immuneTo).toEqual(['poisoned']);
       return;
@@ -423,7 +423,7 @@ describe('a condition the line says another one carries', () => {
   it("leaves the Chuul's target Poisoned and Paralyzed, and a cure for the Poisoned lifts both", () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('chuul', 'Paralyzing Tentacles', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(has(state, BREN, 'poisoned')).toBe(true);
       // "While Poisoned, the target has the Paralyzed condition": one
       // lifetime, so the Paralyzed is filed as implied by the Poisoned.
@@ -445,7 +445,7 @@ describe('a condition the line says another one carries', () => {
   it("leaves the Couatl's target Grappled and Restrained, and the escape lifts both", () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('couatl', 'Constrict', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(has(state, BREN, 'grappled')).toBe(true);
       expect(has(state, BREN, 'restrained')).toBe(true);
       // Through the door every grapple is escaped through, at the block's DC.
@@ -471,7 +471,7 @@ describe('a condition the line says another one carries', () => {
   it("reads the Lamia's curse as the two conditions it carries, for the hour", () => {
     for (const seed of SEEDS) {
       const { before, out, state } = forced('lamia', 'Corrupting Touch', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(out.outcomes[0]!.conditions).toEqual(['charmed', 'poisoned']);
       expect(has(state, BREN, 'charmed')).toBe(true);
       expect(has(state, BREN, 'poisoned')).toBe(true);
@@ -507,8 +507,8 @@ describe('a mode a condition this line imposed carries', () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('swarm-of-ravens', 'Cacophony (Recharge 6)', seed);
       const [one] = out.outcomes;
-      seen.push({ success: one!.save.success });
-      if (one!.save.success) {
+      seen.push({ success: one!.save!.success });
+      if (one!.save!.success) {
         expect(has(state, BREN, 'deafened')).toBe(false);
         expect(state.creatures[BREN]!.rollModifiers).toEqual([]);
         continue;
@@ -576,7 +576,7 @@ describe('a mode a condition this line imposed carries', () => {
         [{ id: CUBE, monster: 'gelatinous-cube' }],
       );
       const [one] = out.outcomes;
-      if (one!.save.success) continue;
+      if (one!.save!.success) continue;
       expect(one!.immuneTo).toEqual(['deafened']);
       // A grant sourced to an instance that was never created would be a
       // Disadvantage nothing could ever lift, so it is not written — and the
@@ -635,11 +635,11 @@ describe('a rule a failure puts on the target’s turn', () => {
       for (const seed of SEEDS) {
         const { out, state } = forced('dretch', CLOUD, seed);
         const [one] = out.outcomes;
-        seen.push({ success: one!.save.success });
+        seen.push({ success: one!.save!.success });
         // The sentence used to come back in `unverified` at every use. It is
         // applied now, so nothing about the coupling is handed over.
         expect(out.unverified.some((line) => line.includes('either an action'))).toBe(false);
-        if (one!.save.success) expect(rulesOn(state, BREN)).toEqual([]);
+        if (one!.save!.success) expect(rulesOn(state, BREN)).toEqual([]);
       }
       bothBranches(seen);
     });
@@ -705,7 +705,7 @@ describe('a rule a failure puts on the target’s turn', () => {
         const { out, state } = forced('dretch', CLOUD, seed, [ZOMBIE], [
           { id: ZOMBIE, monster: 'zombie' },
         ]);
-        if (out.outcomes[0]!.save.success) continue;
+        if (out.outcomes[0]!.save!.success) continue;
         expect(out.outcomes[0]!.immuneTo).toEqual(['poisoned']);
         // A grant sourced to an instance nobody created would be a coupling
         // nothing could ever lift, so it is not written — and the caller is
@@ -722,7 +722,7 @@ describe('a rule a failure puts on the target’s turn', () => {
     const breathed = () => {
       for (const seed of SEEDS) {
         const one = forced('copper-dragon-wyrmling', 'Slowing Breath', seed);
-        if (!one.out.outcomes[0]!.save.success) return one;
+        if (!one.out.outcomes[0]!.save!.success) return one;
       }
       throw new Error('no seed failed the save');
     };
@@ -731,12 +731,12 @@ describe('a rule a failure puts on the target’s turn', () => {
       const seen: { success: boolean }[] = [];
       for (const seed of SEEDS) {
         const { out, state } = forced('copper-dragon-wyrmling', 'Slowing Breath', seed);
-        seen.push({ success: out.outcomes[0]!.save.success });
+        seen.push({ success: out.outcomes[0]!.save!.success });
         // The area is the table's; every sentence of the failure is read.
         expect(out.unverified).toEqual([
           `Slowing Breath reads "each creature in a 15-foot Cone" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
         ]);
-        if (out.outcomes[0]!.save.success) {
+        if (out.outcomes[0]!.save!.success) {
           expect(speedOf(state, BREN)).toBe(30);
           expect(rulesOn(state, BREN)).toEqual([]);
           continue;
@@ -823,7 +823,7 @@ describe('a failure that kills', () => {
   it("kills the Will-o'-Wisp's target outright and heals the wisp by the dice it rolled", () => {
     for (const seed of SEEDS) {
       const { before, out, state } = overTheDying(seed, 0);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       // Death rather than damage: the target does not drop to 0, it dies, and
       // the outcome says so rather than leaving a caller to read a nought.
       expect(out.outcomes[0]!.damage).toBe(0);
@@ -857,7 +857,7 @@ describe('a failure that kills', () => {
   it('kills nobody above the ceiling the line prints, and says so', () => {
     for (const seed of SEEDS) {
       const { before, out, state } = overTheDying(seed, 3);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       // The save was thrown and failed, and the line still reached nobody it
       // could kill: a DC 10 Constitution save does not kill a creature with
       // hit points left, however the die fell.
@@ -884,7 +884,7 @@ describe('a failure that kills', () => {
     for (const seed of SEEDS) {
       const { before, out, state } = overTheDying(seed, 0, GRISH);
       expect(before.creatures[GRISH]!.vitals.dead).toBe(true);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(out.outcomes[0]!.died).toBeUndefined();
       expect(out.events.some((e) => e.type === 'creature-died')).toBe(false);
       expect(out.events.some((e) => e.type === 'healed')).toBe(false);
@@ -907,7 +907,7 @@ describe('a failure the line grades', () => {
     let freed = false;
     for (const seed of SEEDS) {
       const { out, state } = forced('gorgon', 'Petrifying Breath (Recharge 5–6)', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(has(state, BREN, 'restrained')).toBe(true);
       expect(has(state, BREN, 'petrified')).toBe(false);
       // The repeat the first rung scheduled, and what its failure leaves.
@@ -973,7 +973,7 @@ describe('a deepening with a lifetime of its own', () => {
   const caught = (monster: string, line: string): { state: GameState; unverified: readonly string[] } => {
     for (const seed of SEEDS) {
       const { out, state } = forced(monster, line, seed);
-      if (!out.outcomes[0]!.save.success) return { state, unverified: out.unverified };
+      if (!out.outcomes[0]!.save!.success) return { state, unverified: out.unverified };
     }
     throw new Error(`no seed failed ${monster}'s ${line}`);
   };
@@ -1115,11 +1115,11 @@ describe('a failure graded by how far the save missed', () => {
         { id: GRISH, monster: 'goblin-warrior' },
       ]);
       const [one] = out.outcomes;
-      if (one!.save.success) continue;
+      if (one!.save!.success) continue;
       expect(has(state, GRISH, 'poisoned')).toBe(true);
       // The margin is the engine's own: it rolled the save and the block
       // printed the DC, so nothing is asked of a caller.
-      if (12 - one!.save.total >= 5) {
+      if (12 - one!.save!.total >= 5) {
         expect(has(state, GRISH, 'unconscious')).toBe(true);
         const held = state.creatures[GRISH]!.conditions.instances;
         const poison = held.find((instance) => instance.condition === 'poisoned')!;
@@ -1135,7 +1135,7 @@ describe('a failure graded by how far the save missed', () => {
       // the early endings the book prints are the engine's now.
       expect(out.unverified.some((line) => line.includes('which ends early if'))).toBe(false);
       expect(out.unverified).toHaveLength(1);
-      if (12 - one!.save.total >= 5) {
+      if (12 - one!.save!.total >= 5) {
         expect(wakeableOn(state, GRISH)).toHaveLength(1);
         // The goblin is fifteen feet from the pseudodragon, so the shake is
         // written as the fact the fold reads rather than spent from here —
@@ -1167,7 +1167,7 @@ describe("a success that buys a day's grace from the line itself", () => {
   const madeIt = (monster: string, line: string, want: boolean): string => {
     for (const seed of SEEDS) {
       const { out } = forced(monster, line, seed);
-      if (out.outcomes[0]!.save.success === want) return seed;
+      if (out.outcomes[0]!.save!.success === want) return seed;
     }
     throw new Error(`no seed ${want ? 'made' : 'missed'} the save`);
   };
@@ -1175,7 +1175,7 @@ describe("a success that buys a day's grace from the line itself", () => {
   it('grants it on a success, hangs a day on it, and skips the next glare', () => {
     const seed = madeIt('ghost', 'Horrific Visage', true);
     const { out, state } = forced('ghost', 'Horrific Visage', seed);
-    expect(out.outcomes[0]!.save.success).toBe(true);
+    expect(out.outcomes[0]!.save!.success).toBe(true);
     expect(has(state, BREN, 'frightened')).toBe(false);
 
     const [held] = state.creatures[BREN]!.lineImmunities;
@@ -1264,7 +1264,7 @@ describe('a hold that owes a payout at its holder boundary', () => {
   it('grapples, restrains, and pays 2d8 at the start of each of the elemental turns', () => {
     for (const seed of SEEDS) {
       const { out, state } = forced('water-elemental', 'Whelm (Recharge 4–6)', seed);
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       expect(has(state, BREN, 'grappled')).toBe(true);
       // "Until the grapple ends, the target has the Restrained condition":
       // carried by the hold, so the escape lifts both.
@@ -1383,7 +1383,7 @@ describe('a bite that feeds', () => {
       const fangs = hurt.creatures[FOE]!.vitals.hp;
 
       const out = unwrap(bite(hurt, [BREN], seed), 'the bite');
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       const bitten = after(hurt, out.events);
 
       // The **Necrotic** component alone, out of a blow that was Piercing

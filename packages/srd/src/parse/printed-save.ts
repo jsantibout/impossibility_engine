@@ -847,6 +847,25 @@ const TARGET_HIT_POINTS = /\bthat has (\d+) Hit Points?\b(?! or more)/;
 const NOT_ALREADY_AFFECTED = /\bthat isn't currently affected by this [a-z][a-z -]*\b/;
 
 /**
+ * SRD Sprite's Heart Sight: "(Celestials, Fiends, and Undead automatically
+ * fail the save)".
+ *
+ * A parenthesis on the targeting clause naming the creature types for which no
+ * die is thrown. The list is the book's plural nouns; `typesOf` below keys them
+ * singular, because a creature's type is printed singular on its block.
+ */
+const AUTO_FAIL_TYPES = /\(((?:[A-Z][a-z]+, )*[A-Z][a-z]+,? and [A-Z][a-z]+) automatically fail the save\)/;
+
+/**
+ * SRD Sprite's Heart Sight: "The sprite knows the target's emotions and
+ * alignment."
+ *
+ * A failure that is knowledge rather than an effect on the target. The two
+ * facts are the sentence's own and are read in the order it prints them.
+ */
+const KNOWS = /^The [a-z' -]+ knows the target's (emotions|alignment)(?: and (emotions|alignment))?$/;
+
+/**
  * SRD Sea Hag: "If the target has 20 Hit Points or fewer, it drops to 0 Hit
  * Points." SRD Incubus prints the same opening over an Unconscious.
  *
@@ -1464,6 +1483,18 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
       rule: { kind: 'one-of', slots: ['action', 'bonus-action'] },
     });
     return coupled[1] === undefined ? true : readClause(coupled[1], into, where);
+  }
+
+  // SRD Sprite's Heart Sight: a failure that is knowledge.
+  const knows = KNOWS.exec(words);
+  if (knows !== null) {
+    const facts = [knows[1]!, knows[2]].filter(
+      (fact): fact is 'emotions' | 'alignment' => fact !== undefined,
+    );
+    // The same word twice is a sentence nobody printed.
+    if (new Set(facts).size !== facts.length) return false;
+    into.effects.push({ kind: 'reveals', facts });
+    return true;
   }
 
   // SRD Rust Monster's Antennae: the penalty, and the sentence after it that
@@ -2230,6 +2261,21 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   // forced on rather than about what the failure does. A word in the list this
   // reader does not know leaves the whole restriction unread and the clause
   // verbatim in `targets`, where it already was.
+  // **And the third**: SRD Sprite's "(Celestials, Fiends, and Undead
+  // automatically fail the save)" — the types for which no die is thrown. A
+  // word in the list that is not a capitalised type leaves the whole
+  // parenthesis unread and in `targets`, where it already was.
+  const failing = AUTO_FAIL_TYPES.exec(head.targets);
+  const autoFail =
+    failing === null
+      ? null
+      : typesOf(
+          failing[1]!
+            .split(/,? and |, /)
+            .map((word) => word.trim().replace(/s$/, ''))
+            .join(' or '),
+        );
+
   const restriction = TARGET_CONDITIONS.exec(head.targets);
   const restrictedTo: ConditionEffect['condition'][] = [];
   if (restriction !== null) {
@@ -2251,6 +2297,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(aura === null || aura.types.length === 0 ? {} : { onlyIfTargetType: [...aura.types] }),
     ...(NOT_ALREADY_AFFECTED.test(head.targets) ? { onlyIfNotAffected: true as const } : {}),
     ...(prelude.kind === 'names-an-object' ? { targetsObject: true as const } : {}),
+    ...(autoFail === null ? {} : { autoFailTypes: [...autoFail] }),
     ...(read.damage === null ? {} : { damage: read.damage }),
     ...(read.plus === null ? {} : { plus: read.plus }),
     onSuccess,

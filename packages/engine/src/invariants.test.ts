@@ -140,6 +140,7 @@ import {
   takeReady,
   forcePrintedSave,
   castPrintedLine,
+  takeLegendaryAction,
   takePrintedForm,
   takePrintedPull,
   takePrintedTeleport,
@@ -491,6 +492,42 @@ const SAVING_LINE = {
     onSuccess: 'half' as const,
   },
 } as const;
+
+/**
+ * An invented legendary line with the book's Shimmering Shield shape read off
+ * it, and the pool its use comes out of.
+ *
+ * Invented here for the reason the lines above are. The world is `SETUP` with
+ * one turn taken: A acted first, the boundary passed to B, and B has spent
+ * nothing — which is the moment "immediately after another creature's turn"
+ * the command reads.
+ */
+const SHIELD_LINE = {
+  name: 'A Legendary Shield',
+  text: 'The creature shields itself or a friend.',
+  legendary: {
+    kind: 'shield' as const,
+    rangeFeet: 60,
+    temporaryHitPoints: { dice: '3d6', flat: 0, average: 10 },
+    armorClass: 2,
+    oncePerRound: true as const,
+  },
+  recharge: { kind: 'turn' as const },
+} as const;
+
+const LEGENDARY: readonly GameEvent[] = [
+  ...SETUP.map((event) =>
+    event.type === 'creature-added' && event.id === A
+      ? { ...event, sheet: sheet({ stated: { legendaryActions: [SHIELD_LINE] } }) }
+      : event,
+  ),
+  {
+    type: 'resource-pool-declared',
+    id: A,
+    pool: { key: 'legendary-actions', label: 'Legendary Action Uses', max: 3, recovers: 'special' },
+  },
+  { type: 'turn-advanced' },
+];
 
 /** The same world again, with that line under Actions. */
 const FORCED: readonly GameEvent[] = SETUP.map((event) =>
@@ -2138,6 +2175,17 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => takePrintedPull(s, A, { line: PULLING_LINE.name, commandId }),
   },
   /**
+   * The legendary door, on the moment just after B's turn began with nothing
+   * spent. A retry that was not guarded would spend a second use and shield
+   * twice under one id.
+   */
+  {
+    name: 'takeLegendaryAction',
+    log: LEGENDARY,
+    run: (s, commandId) =>
+      takeLegendaryAction(s, A, { line: SHIELD_LINE.name, commandId }, supply()),
+  },
+  /**
    * And the sixth, which is the most expensive retry of them: a second
    * run under one id would be a second casting with a second id, a second
    * Concentration and a second day's use gone.
@@ -3618,6 +3666,13 @@ const owing = greased;
 
 const SPENDERS: readonly Spender[] = [
   { name: 'takeDash', run: (s) => takeDash(s, B, {}) },
+  // The debt is checked before the moment, the line or the pool, so a
+  // legendary use asked for by a creature owing a save is refused for the
+  // debt whatever its block prints.
+  {
+    name: 'takeLegendaryAction',
+    run: (s) => takeLegendaryAction(s, B, { line: SHIELD_LINE.name }, supply()),
+  },
   { name: 'takeDisengage', run: (s) => takeDisengage(s, B, {}) },
   { name: 'takeDodge', run: (s) => takeDodge(s, B, {}) },
   // The debt is checked before the target is looked at, so a shake aimed at a

@@ -81,6 +81,23 @@ export interface PrintedClausesLanded {
   readonly died: boolean;
   /** The object the line wore down, where it wore one — SRD Rust Monster's Antennae. */
   readonly object: WornDownObject | null;
+  /** What the line revealed about the target, where it revealed anything — SRD Sprite's Heart Sight. */
+  readonly revealed: RevealedFacts | null;
+}
+
+/**
+ * What one creature came to **know** about another off a printed save.
+ *
+ * SRD Sprite's Heart Sight: "knows the target's emotions and alignment". The
+ * engine holds one of the two — the alignment the block or the character's
+ * choices pinned — and names the other as the table's rather than pretending
+ * to hold it.
+ */
+export interface RevealedFacts {
+  /** The alignment on the creature, or null where nobody has said one. */
+  readonly alignment?: string | null;
+  /** The facts the sentence names that only the table can answer — an emotion. */
+  readonly toTheTable: readonly string[];
 }
 
 /**
@@ -406,6 +423,7 @@ export function applyPrintedClauses(
   const immuneTo: ConditionName[] = [];
   let pushedFeet: number | null = null;
   let object: WornDownObject | null = null;
+  let revealed: RevealedFacts | null = null;
   const died: CharacterId[] = [];
   const lineSource = printedLineSource(source, line);
   /**
@@ -1013,6 +1031,34 @@ export function applyPrintedClauses(
         break;
       }
 
+      case 'reveals': {
+        // SRD Sprite's Heart Sight: "The sprite knows the target's emotions
+        // and alignment." Nothing lands on the target and nothing is written:
+        // what changes is what the caller now knows, which is the reading
+        // `knownDefencesOf` takes of SRD Hunter's Lore. The alignment is the
+        // one fact the engine holds — pinned off the block, or a creation
+        // choice on the record — and an emotion is fiction, named as the
+        // table's rather than invented.
+        const victim = current.creatures[target];
+        const alignment = victim?.alignment ?? victim?.character?.choices.alignment ?? null;
+        const toTheTable = clause.facts.filter((fact) => fact !== 'alignment');
+        revealed = {
+          ...(clause.facts.includes('alignment') ? { alignment } : {}),
+          toTheTable,
+        };
+        if (clause.facts.includes('alignment') && alignment === null) {
+          unverified.push(
+            `${line} reveals ${target}'s alignment, and nobody has said what it is`,
+          );
+        }
+        for (const fact of toTheTable) {
+          unverified.push(
+            `${line} reveals ${target}'s ${fact} to ${source}, and what those are is the table's`,
+          );
+        }
+        break;
+      }
+
       case 'line-immunity': {
         // SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
         // Visage for 24 hours." An immunity to **one printed line** and not to
@@ -1051,13 +1097,33 @@ export function applyPrintedClauses(
     }
   }
 
-  return ok({ events, unverified, conditions, immuneTo, pushedFeet, died: died.length > 0, object });
+  return ok({
+    events,
+    unverified,
+    conditions,
+    immuneTo,
+    pushedFeet,
+    died: died.length > 0,
+    object,
+    revealed,
+  });
 }
 
 /** What the line did to one creature standing in it. */
 export interface PrintedSaveOnACreature {
   readonly target: CharacterId;
-  readonly save: D20TestResult;
+  /**
+   * The save, or **null where the book threw no die**.
+   *
+   * SRD Sprite's Heart Sight: "(Celestials, Fiends, and Undead automatically
+   * fail the save)". A creature of one of those types takes the failure
+   * outright, and an outcome carrying a fabricated roll would be a number the
+   * engine produced for a die nobody rolled — so it carries none, and
+   * {@link autoFailed} says why.
+   */
+  readonly save: D20TestResult | null;
+  /** Whether the failure was automatic, by the target's type — see {@link save}. */
+  readonly autoFailed?: true;
   /** What landed, after the target's own Resistance and the rest. */
   readonly damage: number;
   readonly concentration: ConcentrationConsequence;
@@ -1077,6 +1143,8 @@ export interface PrintedSaveOnACreature {
   readonly died?: true;
   /** The object the line wore down or broke — SRD Rust Monster's Antennae. */
   readonly object?: WornDownObject;
+  /** What the line revealed about the target — SRD Sprite's Heart Sight. */
+  readonly revealed?: RevealedFacts;
 }
 
 /** One creature's whole answer to a printed line: the events, the outcome, the debts. */
@@ -1128,27 +1196,49 @@ export function forcePrintedSaveOn(
   const unverified: string[] = [];
   const ability = printed.ability;
 
-  const support = savingSupport(current, target, victim, ability, {});
-  // The sheet as it stands, so an item that sets the ability this save is made
-  // with reaches the save rather than stopping at the page — the reading a
-  // spell's save already takes.
-  const sheet = sheetAsItStands(current, target) ?? victim.sheet;
-  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, ability, {
-    dc: printed.dc,
-    conditions: support.conditions,
-    modes: support.modes,
-    bonuses: support.bonuses,
-  });
-  if (!save.ok) return save;
+  // **No die at all, where the book throws none.** SRD Sprite's Heart Sight:
+  // "(Celestials, Fiends, and Undead automatically fail the save)". The type
+  // is the engine's own record, so the answer is derived rather than asked;
+  // a creature nobody has typed is rolled for, and the caller is told.
+  const autoFails =
+    printed.autoFailTypes !== undefined &&
+    victim.creatureType !== null &&
+    printed.autoFailTypes.includes(victim.creatureType);
+  if (printed.autoFailTypes !== undefined && victim.creatureType === null) {
+    unverified.push(
+      `${line} is failed automatically by ${printed.autoFailTypes.join(', ')}, and nobody has said what ${target} is — the save was rolled, and declareCreatureType settles it`,
+    );
+  }
 
-  events.push(
-    recordD20Test(
-      target,
-      `${ABILITY_NAMES[ability]} save vs ${line}`,
-      save.value,
-      save.value.success ? 'resisted' : 'affected',
-    ),
-  );
+  let save: D20TestResult | null = null;
+  if (autoFails) {
+    unverified.push(
+      `${target} is ${victim.creatureType} and fails ${line} automatically — no die was thrown`,
+    );
+  } else {
+    const support = savingSupport(current, target, victim, ability, {});
+    // The sheet as it stands, so an item that sets the ability this save is
+    // made with reaches the save rather than stopping at the page — the
+    // reading a spell's save already takes.
+    const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+    const rolled = rollSavingThrow(supply.issuer, supply.rng, sheet, ability, {
+      dc: printed.dc,
+      conditions: support.conditions,
+      modes: support.modes,
+      bonuses: support.bonuses,
+    });
+    if (!rolled.ok) return rolled;
+    save = rolled.value;
+    events.push(
+      recordD20Test(
+        target,
+        `${ABILITY_NAMES[ability]} save vs ${line}`,
+        save,
+        save.success ? 'resisted' : 'affected',
+      ),
+    );
+  }
+  const success = save?.success ?? false;
 
   // SRD Evasion, read off the creature standing in it and off the *line's* own
   // sentence: it triggers on an effect that offers half on a made Dexterity
@@ -1162,7 +1252,8 @@ export function forcePrintedSaveOn(
   // deeper list is chosen here and nothing is asked of a caller. It *replaces*
   // the failure's list rather than adding to it, which is what the reader
   // wrote: a rung is the whole failure said again with one more thing in it.
-  const missedBy = printed.dc - save.value.total;
+  // An automatic failure has no margin, and takes the plain failure.
+  const missedBy = save === null ? 0 : printed.dc - save.total;
   const failure =
     printed.onFailureBy !== undefined && missedBy >= printed.onFailureBy.by
       ? printed.onFailureBy.effects
@@ -1180,7 +1271,7 @@ export function forcePrintedSaveOn(
     // Horrific Visage for 24 hours." It goes through the same executor the
     // failure's clauses do and in the same list, because it is the same kind of
     // thing — a clause about one creature.
-    ...(save.value.success ? (printed.onSuccessEffects ?? []) : failure),
+    ...(success ? (printed.onSuccessEffects ?? []) : failure),
     ...(printed.either ?? []),
   ]);
 
@@ -1193,7 +1284,7 @@ export function forcePrintedSaveOn(
   // so the clause below is unchanged.
   const damage = taken.damage ?? printed.damage;
   const plus = taken.damage === null ? printed.plus : (taken.plus ?? undefined);
-  if (damage !== undefined && !(save.value.success && (printed.onSuccess === 'none' || evading))) {
+  if (damage !== undefined && !(success && (printed.onSuccess === 'none' || evading))) {
     const rolled = rollSpellDice(supply, source.sheet, line, damage.type, damage.dice ?? undefined);
     if (!rolled.ok) return rolled;
     // The addend the book prints inside the parenthesis — "16 (2d10 + 5)" —
@@ -1211,7 +1302,7 @@ export function forcePrintedSaveOn(
     // on a failed save" — half of what the line deals, and therefore *before*
     // the target's own Resistance, which then halves again. With Evasion it is
     // the failure that is halved; the success took nothing above.
-    const halve = evading ? !save.value.success : save.value.success;
+    const halve = evading ? !success : success;
     const components = halve
       ? parts.map((component) => ({ ...component, total: Math.floor(component.total / 2) }))
       : parts;
@@ -1257,7 +1348,8 @@ export function forcePrintedSaveOn(
     unverified,
     outcome: {
       target,
-      save: save.value,
+      save,
+      ...(autoFails ? { autoFailed: true as const } : {}),
       damage: dealt.total,
       concentration,
       ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
@@ -1265,6 +1357,7 @@ export function forcePrintedSaveOn(
       ...(landed.value.pushedFeet === null ? {} : { pushedFeet: landed.value.pushedFeet }),
       ...(landed.value.died ? { died: true as const } : {}),
       ...(landed.value.object === null ? {} : { object: landed.value.object }),
+      ...(landed.value.revealed === null ? {} : { revealed: landed.value.revealed }),
     },
   });
 }
