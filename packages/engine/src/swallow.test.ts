@@ -194,7 +194,7 @@ describe('a Giant Frog’s Swallow', () => {
     expect(record?.kind).toBe('inside');
     expect(record?.host).toBe(FROG);
     expect(record?.returns).toEqual({ within: 5, near: FROG, prone: true });
-    expect(record?.damage).toMatchObject({ dice: '2d4', damageType: 'Acid', disgorges: true });
+    expect(record?.damage).toMatchObject({ dice: '2d4', damageType: 'acid', disgorges: true });
     expect(positionOf(state.scene!, ROSIE)).toBeNull();
   });
 

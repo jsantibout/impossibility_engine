@@ -3534,6 +3534,28 @@ export type SpellEffect =
    * spell prints: how far, and whether the space has to be one the caster can
    * see.
    */
+  | {
+      readonly kind: 'teleport';
+      /**
+/**
+       * How far, in feet, measured from where the creature is standing now.
+       *
+       * Misty Step's "up to 30 feet"; Dimension Door's printed Range of 500,
+       * which is the distance the teleport covers rather than a reach to a
+       * target — the spell is on its caster, so `range` checking the target
+       * would measure a creature against itself and answer nothing.
+       */
+      readonly feet: number;
+      /**
+       * SRD Misty Step's "an unoccupied space **you can see**".
+       *
+       * Absent is Dimension Door, which prints the opposite in as many words:
+       * the destination "can be a place you can see, one you can visualize, or
+       * one you can describe by stating distance and direction". A clause a
+       * spell does not print is not one the engine may apply.
+       */
+      readonly requiresSight?: true;
+    }
   /**
    * The target leaves the scene for a named kind of nowhere, and comes back to
    * a space checked against the rule written here.
@@ -3602,27 +3624,6 @@ export type SpellEffect =
         /** The moment of the target's turn the boundary performs the return at. */
         readonly at?: TurnMoment;
       };
-    }
-  | {
-      readonly kind: 'teleport';
-      /**
-       * How far, in feet, measured from where the creature is standing now.
-       *
-       * Misty Step's "up to 30 feet"; Dimension Door's printed Range of 500,
-       * which is the distance the teleport covers rather than a reach to a
-       * target — the spell is on its caster, so `range` checking the target
-       * would measure a creature against itself and answer nothing.
-       */
-      readonly feet: number;
-      /**
-       * SRD Misty Step's "an unoccupied space **you can see**".
-       *
-       * Absent is Dimension Door, which prints the opposite in as many words:
-       * the destination "can be a place you can see, one you can visualize, or
-       * one you can describe by stating distance and direction". A clause a
-       * spell does not print is not one the engine may apply.
-       */
-      readonly requiresSight?: true;
     }
   /**
    * A creature the casting puts into the world, out of the bestiary.

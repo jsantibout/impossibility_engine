@@ -253,7 +253,7 @@ describe('a line that swallows', () => {
     expect(parseSwallowLine(FROG)).toEqual({
       maxSize: 'small',
       conditions: ['blinded', 'restrained'],
-      damage: { dice: '2d4', type: 'Acid', of: 'next', disgorges: true },
+      damage: { dice: '2d4', type: 'acid', of: 'next', disgorges: true },
       handedOver: ["While swallowing the target, the frog can't use Bite"],
     });
   });
@@ -262,7 +262,7 @@ describe('a line that swallows', () => {
     expect(parseSwallowLine(TOAD)).toEqual({
       maxSize: 'medium',
       conditions: ['blinded', 'restrained'],
-      damage: { dice: '3d6', type: 'Acid', of: 'each', disgorges: false },
+      damage: { dice: '3d6', type: 'acid', of: 'each', disgorges: false },
       handedOver: ["it can't use Bite while it has a swallowed target"],
     });
   });

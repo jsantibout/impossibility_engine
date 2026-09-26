@@ -943,13 +943,23 @@ export function takePrintedSwallow(
         .sort()
         .filter((who) => grapplesOn(state, who).some((grapple) => grapple.grappler === id));
       const target = command.target;
-      // Bare, as `undeclared_targets` is on a casting: whom a swallower picks
-      // out of the creatures it holds is a choice with no declaration behind
-      // it, and the answer is this same command with the target named.
+      // Asked for rather than refused, as `undeclared_targets` is on a printed
+      // save: whom a swallower picks out of the creatures it holds is a choice
+      // with no declaration behind it, and the answer is this same command
+      // with the target named.
       if (target === undefined) {
         return needsContext(
           'undeclared_swallow_target',
           `${found.line.name} swallows a target ${id} is grappling, and nobody has said which${held.length === 0 ? '; it is grappling nobody' : ` of ${held.join(', ')}`}`,
+          [
+            {
+              kind: 'creature',
+              subject: id,
+              need: `the creature ${id} swallows, out of the ones it is grappling`,
+              because: `${found.line.name} swallows one target the creature is grappling, and the book offers the choice to whoever runs it`,
+              satisfyWith: 'takePrintedSwallow again with its target filled in',
+            },
+          ],
         );
       }
       if (!held.includes(target)) {

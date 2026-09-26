@@ -330,7 +330,30 @@ describe('the way back', () => {
     const wet = unwrap(resolveTurn(state, supply(state)), 'the turn ends');
     const after = fold('s', [...log, ...wet.events]);
     expect(after.creatures[GOBLIN]!.vitals.hp).toBeLessThan(100);
-    expect(wet.events.some((event) => event.type === 'damage-taken' && event.id === GOBLIN)).toBe(true);
+    const blow = wet.events.find(
+      (event): event is Extract<GameEvent, { type: 'damage-taken' }> =>
+        event.type === 'damage-taken' && event.id === GOBLIN,
+    );
+    expect(blow).toBeDefined();
+
+    // **And the stay's damage goes through the same funnel a Fire Bolt does**:
+    // a goblin Resistant to acid takes half. The same seed, so the dice are
+    // the same; the amount is not.
+    const resistant: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'damage-defense-granted',
+        id: GOBLIN,
+        defense: { source: 'a hide of scales', damageTypes: ['acid'], defense: 'resistant' },
+      },
+    ];
+    const armoured = fold('s', resistant);
+    const softened = unwrap(resolveTurn(armoured, supply(armoured)), 'the turn ends, resisted');
+    const halved = softened.events.find(
+      (event): event is Extract<GameEvent, { type: 'damage-taken' }> =>
+        event.type === 'damage-taken' && event.id === GOBLIN,
+    );
+    expect(halved?.amount).toBe(Math.floor(blow!.amount / 2));
   });
 
   it('is a debt the turn refuses to advance past when the casting that sent it has ended', () => {

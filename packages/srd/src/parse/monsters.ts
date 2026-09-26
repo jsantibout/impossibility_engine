@@ -1839,7 +1839,9 @@ export function parseSwallowLine(text: string): MonsterSwallow | null {
   if (next !== null) {
     const checked = MonsterSwallowSchema.safeParse({
       ...shared,
-      damage: { dice: next[3]!, type: next[4]!, of: 'next', disgorges: true },
+      // Lower-cased into the engine's own damage vocabulary, as every damage
+      // word the parser reads is — a capital here would miss a Resistance.
+      damage: { dice: next[3]!, type: next[4]!.toLowerCase(), of: 'next', disgorges: true },
       handedOver: [next[1]!],
     });
     return checked.success ? checked.data : null;
@@ -1848,7 +1850,7 @@ export function parseSwallowLine(text: string): MonsterSwallow | null {
   if (each !== null) {
     const checked = MonsterSwallowSchema.safeParse({
       ...shared,
-      damage: { dice: each[1]!, type: each[2]!, of: 'each', disgorges: false },
+      damage: { dice: each[1]!, type: each[2]!.toLowerCase(), of: 'each', disgorges: false },
       handedOver: [each[4]!],
     });
     return checked.success ? checked.data : null;

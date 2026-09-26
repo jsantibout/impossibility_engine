@@ -587,7 +587,6 @@ const PULLING: readonly GameEvent[] = SETUP.map((event) =>
     : event,
 );
 
-
 /**
  * The same invented line with the book's cast template read off it.
  *
@@ -2237,11 +2236,6 @@ const GUARDED: readonly Guarded[] = [
     run: (s, commandId) => takePrintedPull(s, A, { line: PULLING_LINE.name, commandId }),
   },
   /**
-   * The second place. A retry that was not guarded would stand B in the scene
-   * twice — the second time refused by the fold as a return from nowhere —
-   * and the two doors on a kept summons would spend a second Action.
-   */
-  /**
    * The two roads a stat block prints into the second place. A retry that was
    * not guarded would spend a second Action; on the swallow it would also be
    * refused by the fold as a creature leaving the scene twice.
@@ -2256,6 +2250,11 @@ const GUARDED: readonly Guarded[] = [
     log: STEPPING,
     run: (s, commandId) => takePrintedPlaneShift(s, A, { line: STEPPING_LINE.name, commandId }),
   },
+  /**
+   * The second place's way back and the two doors on a kept summons. A retry
+   * that was not guarded would stand B in the scene twice — the second time
+   * refused by the fold as a return from nowhere — or spend a second Action.
+   */
   {
     name: 'returnFromElsewhere',
     log: AWAY,
