@@ -112,6 +112,7 @@ import {
   optionEffects,
   laysTerrain,
   type SpellOption,
+  areaStandsApart,
   singlesOutAtTheCast,
   statedChoice,
   statedDamageType,
@@ -1167,6 +1168,26 @@ export function castOrRelease(
       );
       if (!resolved.ok) return resolved;
       targets = resolved.value;
+      // **A place its target need not stand in** — SRD Phantasmal Force's
+      // phantasm set down beside the goblin. The template is placed and the
+      // name is judged as any named target is: range, sight, count and consent
+      // against the caster, through the one function that judges them. See
+      // `SpellArea.standsApart`. (W7-S21)
+      if (areaStandsApart(definition.area)) {
+        const named = namedTargets(
+          state,
+          casterId,
+          definition,
+          request,
+          castLevel,
+          reach,
+          needs,
+          origin,
+          numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+        );
+        if (!named.ok) return named;
+        targets = named.value;
+      }
       // **Five clauses want the point, not one.** An area trigger reads it at
       // every later boundary, every patch the area lays is laid at it — ground
       // made expensive, light shed, fog filled — and a standing clause is

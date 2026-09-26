@@ -7029,6 +7029,45 @@ export function checkSpellDefinition(
     }
   }
 
+  // SRD Phantasmal Force's phantasm set down beside its target: `standsApart`,
+  // the one exception to "an area or a target list, never both", and legal
+  // only where the area is a place perceived by the one creature the casting
+  // singles out — `chosenFromTheArea` names it and `areaTrigger.onlyTarget`
+  // narrows every later catch to it. Without both, a named creature the
+  // template never has to hold beside an area that catches whoever stands in
+  // it is two spells wearing one id. (W7-S21)
+  if (
+    definition.area !== undefined &&
+    definition.area !== null &&
+    typeof definition.area === 'object' &&
+    (definition.area as { readonly standsApart?: unknown }).standsApart !== undefined
+  ) {
+    const standsApart = (definition.area as { readonly standsApart?: unknown }).standsApart;
+    if (standsApart !== true) {
+      found.push({
+        field: 'area.standsApart',
+        code: 'malformed_field',
+        reason: 'a named target stands in the area or the area stands apart from it; the only value is true',
+      });
+    } else if (definition.area.kind !== 'sphere') {
+      found.push({
+        field: 'area.standsApart',
+        code: 'stands_apart_without_place',
+        reason: 'a place is one space and one space is a Sphere of radius 0; no other template stands apart from its target',
+      });
+    } else if (
+      definition.targets.chosenFromTheArea !== true ||
+      definition.areaTrigger?.onlyTarget !== true
+    ) {
+      found.push({
+        field: 'area.standsApart',
+        code: 'stands_apart_without_only_target',
+        reason:
+          'a template its named target need not stand in is legal only where the casting names that one creature (`chosenFromTheArea`) and every later catch reaches it alone (`areaTrigger.onlyTarget`)',
+      });
+    }
+  }
+
   if (definition.areaLight !== undefined) {
     if (definition.area === undefined) {
       found.push({

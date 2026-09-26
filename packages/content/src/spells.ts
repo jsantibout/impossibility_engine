@@ -2027,16 +2027,18 @@ export const PHANTASMAL_FORCE: SpellDefinition = {
   concentration: true,
   // "a creature you can see within range"
   range: { kind: 'ranged', feet: 60 },
-  // "a creature you can see within range", read through the place the phantasm
-  // takes: the caster puts the illusion in a space within range and names the one
-  // creature standing there whose mind it is in — SRD's "each creature of your
-  // choice in the area" narrowed to one, which is the only way a spell may both
-  // take a place and name a creature.
+  // "a creature you can see within range": the one creature whose mind the
+  // illusion is in, judged as any named target is — range and sight from the
+  // caster — and nothing to do with where the phantasm is put.
   targets: { count: 1, chosenFromTheArea: true },
   requiresSight: true,
-  // The space the phantasm stands in. The book never places it and never makes
-  // its Cube catch anybody; what reaches a creature is the five feet below.
-  area: { kind: 'sphere', radius: 0, origin: 'point' },
+  // The space the phantasm stands in, which the caster chooses within range.
+  // The book never makes its Cube catch anybody; what reaches the target is
+  // the five feet below, and the target need not stand in the phantasm's space
+  // — a wolf set down beside the goblin is the ordinary use and the book's own
+  // bridge, which is what `standsApart` says (the coordinator's ruling of
+  // 2026-09-26: the one exception to "an area or a target list, never both").
+  area: { kind: 'sphere', radius: 0, origin: 'point', standsApart: true },
   effects: [
     {
       kind: 'save',
@@ -2074,9 +2076,6 @@ export const PHANTASMAL_FORCE: SpellDefinition = {
     'For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.',
     'An affected target can even take damage from the illusion if the phantasm represents a dangerous creature or hazard.',
     'The target perceives the damage as a type appropriate to the illusion.',
-  ],
-  unmodelled: [
-    'where the phantasm stands is not the caster’s to choose: the engine puts it in the space of the creature whose mind it is in, because a casting fills a place or names a creature and never both, so a wolf conjured beside its target rather than on it is a casting this engine refuses — which of two answers is right is a ruling nobody has taken',
   ],
 };
 

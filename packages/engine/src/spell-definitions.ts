@@ -4587,7 +4587,37 @@ export interface PrintedSummonSpeed {
  * the spell's range like any other target.
  */
 export type SpellArea =
-  | { readonly kind: 'sphere'; readonly radius: number; readonly origin: 'point' }
+  | {
+      readonly kind: 'sphere';
+      readonly radius: number;
+      readonly origin: 'point';
+      /**
+       * The named target need not stand in the template — SRD Phantasmal
+       * Force's phantasm, "perceivable only to the target", set down **beside**
+       * the creature whose mind it is in.
+       *
+       * **The one exception to "an area *or* a target list, never both"**, and
+       * the coordinator's ruling of 2026-09-26 says where it stops: a
+       * definition may both keep a point and name a creature when its area is
+       * a *place* perceived by that creature alone. The template is where the
+       * phantasm is and the target is who it is for, so `chosenFromTheArea`
+       * still names the one creature and `areaTargets` no longer holds that
+       * name to the template's catch; the name goes through `namedTargets`
+       * instead, exactly as a spell with no area would — range, sight, count
+       * and consent all checked against the caster — and the template is
+       * placed and range-checked as any area is. What reaches the creature
+       * later is the trigger's own `within`, measured from the point, narrowed
+       * to the pinned `singledOut` by `onlyTarget`.
+       *
+       * Refused without `chosenFromTheArea` and `areaTrigger.onlyTarget`
+       * (`stands_apart_without_only_target`): an area that catches whoever
+       * stands in it and a named target it never has to hold is two spells.
+       * On the Sphere alone, because a place is one space and one space is a
+       * Sphere of radius 0. Pinned with the area on the record. Absent is
+       * every other area in the book. (W7-S21)
+       */
+      readonly standsApart?: true;
+    }
   | {
       readonly kind: 'cylinder';
       readonly radius: number;
@@ -7543,6 +7573,19 @@ export function singlesOutAtTheCast(definition: SpellDefinition): boolean {
   const reads =
     definition.check?.attemptBy === 'singled-out' || definition.areaTrigger?.onlyTarget === true;
   return reads && definition.targets.count === 1;
+}
+
+/**
+ * Whether this area is a place its named target need not stand in — see the
+ * `standsApart` field on the Sphere member of {@link SpellArea}.
+ *
+ * One reader for the four askers — `areaTargets`, `namedTargets`,
+ * `eligibleTargets` and the casting's own dispatch — so the exception is one
+ * question with one answer, and a field on one member of a union is read
+ * without a cast at every site. (W7-S21)
+ */
+export function areaStandsApart(area: SpellArea | undefined): boolean {
+  return area !== undefined && area.kind === 'sphere' && area.standsApart === true;
 }
 
 /**
