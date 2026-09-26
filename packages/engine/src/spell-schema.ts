@@ -7838,6 +7838,57 @@ function checkOptions(
       ),
     );
 
+    /*
+     * SRD Plant Growth's "Action (Overgrowth) or 8 hours (Enrichment)", held to
+     * the rules the definition's own casting time is held to, and one more.
+     *
+     * The vocabulary and the seconds are the same three refusals one level up —
+     * `long` is a bucket rather than a span, and the engine will not invent the
+     * moment it defers a casting to. The extra rule is about the Ritual arm:
+     * `castingOf` builds a Ritual's span from `definition.castingSeconds` and
+     * nothing else, because the ten minutes are added to *the spell's* time, so a
+     * branch time on a Ritual would be silently ignored by the one route that
+     * matters most to it.
+     */
+    if (branch.castingTime !== undefined) {
+      if (!CASTING_TIMES.has(branch.castingTime)) {
+        found.push({
+          field: `options.${key}.castingTime`,
+          code: 'unknown_casting_time',
+          reason: `"${String(branch.castingTime)}" is not a casting time the engine has`,
+        });
+      } else if (branch.castingTime === 'long') {
+        const seconds = branch.castingSeconds;
+        if (
+          typeof seconds !== 'number' ||
+          !Number.isInteger(seconds) ||
+          seconds < LONG_CASTING_SECONDS
+        ) {
+          found.push({
+            field: `options.${key}.castingSeconds`,
+            code: 'bad_casting_seconds',
+            reason:
+              'a branch whose casting time is "1 minute or more" says how many seconds, at least 60; the engine defers the casting to that moment and will not invent one',
+          });
+        }
+      }
+      if (definition.ritual === true) {
+        found.push({
+          field: `options.${key}.castingTime`,
+          code: 'branch_time_on_a_ritual',
+          reason:
+            'a Ritual adds ten minutes to the spell’s own casting time, which a branch’s would not be read as; a spell whose branches are cast over different spans has no Ritual version the engine can price',
+        });
+      }
+    } else if (branch.castingSeconds !== undefined) {
+      found.push({
+        field: `options.${key}.castingSeconds`,
+        code: 'casting_seconds_without_long',
+        reason:
+          'a span of seconds belongs to a casting time this branch does not state; write the branch’s `castingTime` beside it, or leave both off and take the definition’s',
+      });
+    }
+
     if (
       effects.length === 0 &&
       handsOver.length === 0 &&

@@ -439,10 +439,10 @@ describe('SRD Sleep: "each creature of your choice in a 5-foot-radius Sphere"', 
 
   it('no longer says the filter or the shake is unbuilt', () => {
     const gaps = SRD_CONTENT.spell('sleep')?.unmodelled ?? [];
-    // One line left: the automatic successes creatures that do not sleep get.
-    expect(gaps).toHaveLength(1);
-    expect(gaps.some((gap) => gap.includes('of your choice'))).toBe(false);
-    expect(gaps.some((gap) => gap.includes('shake'))).toBe(false);
+    // Nothing left at all: the last line was the automatic success creatures
+    // that do not sleep get, and `does-not-sleep` is the grant the Elf's Trance
+    // writes for `autoSucceedIf` to read.
+    expect(gaps).toEqual([]);
   });
 });
 

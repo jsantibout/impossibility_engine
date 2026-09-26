@@ -12,6 +12,7 @@ import { dropsAnObject, statesWillingFact } from '@ie/engine';
 import { optionEffects, statesFoughtFact, type SpellDefinition } from '@ie/engine';
 import { dmDecisionsIn } from '@ie/engine';
 import { riderDurations, type RiderDuration } from '@ie/engine';
+import { castingTimeOf } from '@ie/engine';
 import {
   advanceTime,
   DIRECTIONAL_AREAS,
@@ -489,14 +490,31 @@ const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = logFor
  * against the printed casting time, so the clock is moved by the number the
  * book prints rather than by one this fixture chose.
  */
-const driven = (spellId: string, log: readonly GameEvent[] = logFor(spellId)) => {
+/**
+ * How long a casting made by this fixture takes, which is **the branch's** where
+ * the branches do not share a time.
+ *
+ * SRD Plant Growth: "Casting Time: Action (Overgrowth) or 8 hours (Enrichment)."
+ * The fixture speaks the first branch alphabetically, so for that spell the
+ * casting is a rite of eight hours out of a definition whose own printed time is
+ * an Action. `castingTimeOf` is the engine's own reader of the pair.
+ */
+const timingOf = (spellId: string) => {
   const definition = SRD_CONTENT.spell(spellId)!;
+  return castingTimeOf(
+    definition,
+    definition.options === undefined ? undefined : Object.keys(definition.options).sort()[0]!,
+  );
+};
+
+const driven = (spellId: string, log: readonly GameEvent[] = logFor(spellId)) => {
+  const timing = timingOf(spellId);
   const first = resolved(spellId, {}, log);
-  if (definition.castingTime !== 'long') return first;
+  if (timing.castingTime !== 'long') return first;
 
   const open = fold('seed', [...log, ...first.events]);
   const castingId = pendingCastingsOf(open)[0]!.castingId;
-  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const tick = unwrap(advanceTime(open, timing.castingSeconds!, 'the rite'), `tick ${spellId}`);
   const ticked = [...log, ...first.events, ...tick];
   const settled = unwrap(
     resolveDeclaredCast(fold('seed', ticked), castingId, supply()),
@@ -522,7 +540,7 @@ describe('a tracked spell is cast, not refused', () => {
    * stopped declaring would make the sweep above pass for the wrong reason.
    */
   it('declares the casting for every tracked spell that takes a minute or more', () => {
-    const long = TRACKED.filter((spellId) => SRD_CONTENT.spell(spellId)?.castingTime === 'long');
+    const long = TRACKED.filter((spellId) => timingOf(spellId).castingTime === 'long');
     expect(long.length).toBeGreaterThan(0);
     for (const spellId of long) {
       const declaration = resolved(spellId);
@@ -2131,7 +2149,7 @@ describe('every spell this batch added is cast for real', () => {
     ];
     const out = resolved(spellId, {}, inCombat);
     const budget = fold('seed', [...inCombat, ...out.events]).combat?.budgets.wizard;
-    if (SRD_CONTENT.spell(spellId)!.castingTime === 'bonus-action') {
+    if (timingOf(spellId).castingTime === 'bonus-action') {
       expect(budget?.bonusAction, spellId).toBe(false);
       expect(budget?.action, spellId).toBe(true);
     } else {

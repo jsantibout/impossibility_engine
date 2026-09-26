@@ -1137,13 +1137,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // no about it and `summonedBy` — the link `strandedSummons` already reads —
   // is what says which casting a bleeding steed belongs to. Everything else
   // this spell prints is the table's.
-  'plant-growth': [
-    {
-      clause: 'the Enrichment branch is not castable at all',
-      why: 'a-choice-made-at-the-casting',
-      note: 'SRD prints one spell with two effects and lets the **casting time** choose between them, Action for the Overgrowth and eight hours for the Enrichment — "This spell channels vitality into plants. The casting time you use determines whether the spell has the Overgrowth or the Enrichment effect below." That is the second arm of this shape exactly as its description states it — a choice of which effects run rather than which value one of them carries, which is Enlarge/Reduce’s two halves and Glyph of Warding’s two glyphs — with the extra turn of the screw that the two branches do not even share a casting time, and a definition carries one. The Overgrowth is what is written, and its four feet per foot are charged.',
-    },
-  ],
   'prayer-of-healing': [
     {
       clause: 'remain within range for the spell',

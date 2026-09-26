@@ -5030,6 +5030,33 @@ export interface SpellOption {
    */
   readonly areaTerrain?: AreaTerrain;
   /**
+   * How long **this branch** takes to cast, where the book prints a different
+   * time for each.
+   *
+   * SRD Plant Growth: "**Casting Time:** Action (Overgrowth) or 8 hours
+   * (Enrichment)", and "The casting time you use determines whether the spell
+   * has the Overgrowth or the Enrichment effect below."
+   *
+   * **The one field on a branch that is read before the branch is.** Every other
+   * field here resolves at the end of the casting; this one decides what the
+   * casting *is* — whether an action is spent now or a rite is declared and
+   * settled when the clock arrives — so `castingOf` reads it beside the route's
+   * stated time and the definition's own. Absent is the definition's, which is
+   * every branch written before the field.
+   *
+   * The layering is route, then branch, then definition: a stat block heading
+   * that prices a use ("cast it as a Magic action") overrides whatever the spell
+   * prints, branch or no branch, because that clause is about the *use* rather
+   * than about the spell.
+   *
+   * {@link castingSeconds} travels with it and is required by a `long` time, for
+   * the reason `SpellDefinition.castingSeconds` is: `long` is a bucket rather
+   * than a span, and the engine will not invent the moment it defers to.
+   */
+  readonly castingTime?: CastingTime;
+  /** The span a `long` {@link castingTime} on this branch takes — Plant Growth's eight hours. */
+  readonly castingSeconds?: number;
+  /**
    * Printed text this branch hands to whoever is running the table — see
    * {@link SpellDefinition.dmDecides}, which is the same field one level up
    * and travels the same way.
@@ -7370,6 +7397,32 @@ export interface TriggeredEffects {
  * terrain reaches all three the day it is written. Null for the book's spells
  * that leave the ground alone, which is nearly all of them.
  */
+/**
+ * How long a casting of this spell takes, for the branch spoken.
+ *
+ * **The one reader of the printed time**, so `castingOf` — which layers a route's
+ * stated price on top of it — and every sweep that drives the catalogue agree
+ * about what a word costs. SRD Plant Growth is the spell that needs it:
+ * "**Casting Time:** Action (Overgrowth) or 8 hours (Enrichment)", so a caller
+ * who says "enrichment" is declaring a rite and one who says "overgrowth" is
+ * spending an action, out of one definition.
+ *
+ * The seconds travel with the time and are never mixed: a branch that states a
+ * time states its own span, so an eight-hour branch cannot inherit an absent one
+ * and an Action branch cannot inherit the definition's hour.
+ */
+export function castingTimeOf(
+  definition: SpellDefinition,
+  option?: string,
+): { readonly castingTime: CastingTime; readonly castingSeconds?: number } {
+  const branch = option === undefined ? undefined : definition.options?.[option];
+  const printed = branch?.castingTime === undefined ? definition : branch;
+  return {
+    castingTime: printed.castingTime!,
+    ...(printed.castingSeconds === undefined ? {} : { castingSeconds: printed.castingSeconds }),
+  };
+}
+
 export function areaTerrainOf(
   definition: SpellDefinition,
   option: string | undefined,

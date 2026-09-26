@@ -12007,14 +12007,37 @@ export const PLANT_GROWTH: SpellDefinition = {
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 100, origin: 'point' },
-  // "must spend 4 feet of movement for every 1 foot it moves" — the rate the
-  // book prints for itself, which is why the field is a number and not a
-  // flag. **Instantaneous**, so the casting leaves no record and the patch
-  // names none: the plants are thick now and SRD gives them no ending.
-  areaTerrain: { costPerFoot: 4 },
   effects: [],
+  // "The casting time you use determines whether the spell has the Overgrowth
+  // or the Enrichment effect below." The branch is spoken as any other is, and
+  // it carries the casting time with it: an Action for the thick ground, eight
+  // hours for the year of doubled harvests.
+  options: {
+    overgrowth: {
+      label: 'Overgrowth',
+      castingTime: 'action',
+      // "must spend 4 feet of movement for every 1 foot it moves" — the rate the
+      // book prints for itself, which is why the field is a number and not a
+      // flag. **Instantaneous**, so the casting leaves no record and the patch
+      // names none: the plants are thick now and SRD gives them no ending.
+      areaTerrain: { costPerFoot: 4 },
+    },
+    enrichment: {
+      label: 'Enrichment',
+      // "**Casting Time:** Action (Overgrowth) or **8 hours** (Enrichment)."
+      castingTime: 'long',
+      castingSeconds: 8 * 60 * 60,
+      // A year of better harvests over half a mile, and no rule reads any of
+      // it: the engine holds no crops, no acreage and no calendar of what a
+      // field has already had cast on it.
+      handsOver: [
+        'All plants in a half-mile radius centered on a point within range become enriched for 365 days.',
+        'The plants yield twice the normal amount of food when harvested.',
+        'They can benefit from only one Plant Growth per year.',
+      ],
+    },
+  },
   unmodelled: [
-    'the Enrichment branch is not castable at all: it takes eight hours where the Overgrowth takes an Action, and a definition carries one casting time — the year of doubled harvests was never arithmetic anyway',
     'the areas the caster excludes from the Sphere are the DM’s, and so is every word about what the plants look like',
   ],
 };
