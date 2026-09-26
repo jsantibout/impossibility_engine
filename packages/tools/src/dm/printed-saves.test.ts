@@ -49,7 +49,12 @@ function table(seed = 'the-breath-lands') {
 const COLD_BREATH = 'Cold Breath (Recharge 5–6)';
 
 /** Three creatures in a room, which is the least a Cone can catch two of. */
-function fight(seed?: string, monsterId = 'winter-wolf') {
+/**
+ * `closeIn` stands the two goblins five feet from the monster and beside each
+ * other — for a line that reaches one creature within 5 feet, which the door
+ * measures since W7-B13.
+ */
+function fight(seed?: string, monsterId = 'winter-wolf', closeIn = false) {
   const t = table(seed);
   expectOk(t.call('add_creature', { id: 'fang', monsterId }));
   expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
@@ -60,8 +65,17 @@ function fight(seed?: string, monsterId = 'winter-wolf') {
   expectOk(t.call('set_scene', { width: 60, depth: 40, height: 20 }));
   expectOk(t.call('add_landmark', { name: 'the drift', at: { x: 10, y: 10 } }));
   expectOk(t.call('place_creature', { who: 'fang', fromLandmark: 'the drift', feet: 0 }));
-  expectOk(t.call('place_creature', { who: 'grish', fromCreature: 'fang', feet: 10, bearing: 0 }));
-  expectOk(t.call('place_creature', { who: 'snik', fromCreature: 'fang', feet: 10, bearing: 20 }));
+  expectOk(
+    t.call('place_creature', { who: 'grish', fromCreature: 'fang', feet: closeIn ? 5 : 10, bearing: 0 }),
+  );
+  expectOk(
+    t.call(
+      'place_creature',
+      closeIn
+        ? { who: 'snik', fromCreature: 'grish', feet: 5, bearing: 90 }
+        : { who: 'snik', fromCreature: 'fang', feet: 10, bearing: 20 },
+    ),
+  );
   expectOk(
     t.call('roll_initiative', {
       combatants: [{ who: 'fang' }, { who: 'grish' }, { who: 'snik' }],
@@ -250,21 +264,21 @@ describe('the door that rolls a printed line’s saving throw', () => {
   });
 
   it('refuses a line whose sentence it could not structure, naming the other door', () => {
-    // SRD Harpy's Luring Song: a save whose failure is a compulsion — "it must
-    // move on its turn toward the harpy by the most direct route" — which the
-    // doctrine puts at the table, so the line stays prose and this door refuses
-    // it whole — a save the engine rolls and then does nothing with is a die
-    // thrown for no reason. (The Gelatinous Cube's Engulf, which used to stand
-    // here, is read now — W7-B10 — and refused for a different reason below,
-    // as the Bulette's Deadly Leap was before it; the Gold Dragon Wyrmling's
+    // SRD Chain Devil's Conjure Infernal Chain: a save the reader cannot
+    // start on, so the line stays prose and this door refuses it whole — a
+    // save the engine rolls and then does nothing with is a die thrown for no
+    // reason. (SRD Harpy's Luring Song stood here until W7-B13 read its Charm
+    // and filed its walk for the table; the Gelatinous Cube's Engulf before
+    // it is read now — W7-B10 — and refused for a different reason below, as
+    // the Bulette's Deadly Leap was before it; the Gold Dragon Wyrmling's
     // Weakening Breath before that is read too, as the Brass Dragon Wyrmling's
     // Sleep Breath was before that.)
-    const t = fight('luring', 'harpy');
+    const t = fight('chained', 'chain-devil');
     turnOf(t, 'fang');
 
     const out = t.call('force_printed_save', {
       who: 'fang',
-      line: 'Luring Song',
+      line: 'Conjure Infernal Chain',
       targets: ['grish'],
     });
     expect(out.status).toBe('refused');
@@ -364,7 +378,7 @@ describe('the door that rolls a printed line’s saving throw', () => {
    */
   it('lets a neighbour spend an Action shaking the sleeper, on either surface', () => {
     for (const seed of ['sting-a', 'sting-b', 'sting-c', 'sting-d', 'sting-e', 'sting-f']) {
-      const t = fight(seed, 'pseudodragon');
+      const t = fight(seed, 'pseudodragon', true);
       turnOf(t, 'fang');
       const out = expectOk(
         t.call('force_printed_save', { who: 'fang', line: 'Sting', targets: ['grish'] }),

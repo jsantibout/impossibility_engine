@@ -215,6 +215,8 @@ describe('a line whose sentence is the save template', () => {
       ability: 'wis',
       dc: 12,
       targets: 'one creature the satyr can see within 90 feet',
+      // The ruler the clause names, read so the door can measure it — W7-B13.
+      reach: { feet: 90, count: 1, seen: true },
       damage: { dice: '1d6', flat: 2, type: 'psychic', average: 5 },
       onSuccess: 'none',
     });
@@ -236,6 +238,7 @@ describe('the clauses a failure prints besides the damage', () => {
       ability: 'wis',
       dc: 11,
       targets: 'one creature within 15 feet',
+      reach: { feet: 15, count: 1 },
       onSuccess: 'none',
       onFailure: [
         {
@@ -282,8 +285,13 @@ describe('the clauses a failure prints besides the damage', () => {
       onFailure: [
         { kind: 'speed-decrease', feet: 10, lasts: { kind: 'turn', moment: 'end', of: 'source' } },
       ],
-      handedOver: [
-        "_Failure or Success:_ Being underwater doesn't grant Resistance to this Fire damage.",
+      // Filed rather than owed — W7-B13: the engine holds no water, so the
+      // exception guards a Resistance it never grants.
+      forTheTable: [
+        {
+          kind: 'water-nothing-holds',
+          sentence: "Being underwater doesn't grant Resistance to this Fire damage.",
+        },
       ],
     });
   });
@@ -333,13 +341,15 @@ describe('the clauses a failure prints besides the damage', () => {
   });
 
   it('reads a Hit Point maximum lowered by the damage, on a failure and on either outcome', () => {
-    // SRD Wight's Life Drain, with the zombie paragraph carried.
+    // SRD Wight's Life Drain, with the zombie paragraph filed for the table
+    // rather than carried as owed — W7-B13.
     const drain = lineOf('wight', 'Life Drain').save;
     expect(drain).toMatchObject({
       damage: { dice: '1d8', flat: 2, type: 'necrotic', average: 6 },
       onFailure: [{ kind: 'hit-point-maximum-decrease', by: 'damage-taken' }],
     });
-    expect(drain?.handedOver?.[0]).toMatch(/^A Humanoid slain by this attack rises 24 hours later/);
+    expect(drain?.handedOver).toBeUndefined();
+    expect(drain?.forTheTable?.[0]?.sentence).toMatch(/^A Humanoid slain by this attack rises 24 hours later/);
     // SRD Succubus's Draining Kiss: "_Failure or Success:_ The target's Hit
     // Point maximum decreases by an amount equal to the damage taken."
     expect(lineOf('succubus', 'Draining Kiss').save).toEqual({
@@ -361,6 +371,7 @@ describe('the clauses a failure prints besides the damage', () => {
       ability: 'wis',
       dc: 11,
       targets: 'one creature the mummy can see within 60 feet',
+      reach: { feet: 60, count: 1, seen: true },
       onSuccess: 'none',
       onSuccessEffects: [{ kind: 'line-immunity', line: 'Dreadful Glare', seconds: 86400 }],
       onFailure: [
@@ -571,6 +582,7 @@ describe('the clauses a failure prints besides the damage', () => {
       ability: 'wis',
       dc: 13,
       targets: 'one creature the lamia can see within 5 feet',
+      reach: { feet: 5, count: 1, seen: true },
       damage: { dice: '3d8', flat: 0, type: 'psychic', average: 13 },
       onSuccess: 'none',
       onFailure: [
@@ -645,11 +657,12 @@ describe('a save a moment forces', () => {
     });
     expect(save?.ability).toBe('wis');
     expect(save?.dc).toBe(10);
-    // The d8 table is the table's, and is handed back whole at the moment the
-    // save fails rather than keeping the moment from ever arriving.
-    expect(save?.onFailure).toBeUndefined();
-    expect(save?.handedOver?.[0]).toContain('rolls 1d8');
-    expect(save?.handedOver?.join(' ')).toContain('random direction');
+    // The d8 is the engine's and the rows are the table's — W7-B13: the die is
+    // thrown at the failure and the row it indexes is filed for the table,
+    // rather than the whole table being carried as owed.
+    expect(save?.onFailure).toEqual([{ kind: 'rolls-a-table', dice: '1d8' }]);
+    expect(save?.handedOver).toBeUndefined();
+    expect(save?.forTheTable?.map((row) => row.sentence).join(' ')).toContain('random direction');
   });
 
   it('reads an aura narrowed to creature types and to what the target can see', () => {
@@ -751,8 +764,9 @@ describe('a failure the line grades', () => {
   it('carries the prose a line prints between its targets and its first rung', () => {
     // SRD Basilisk prints the Gorgon's sentence with one more of its own:
     // "If the basilisk sees its reflection in the Cone, the basilisk must
-    // make this save." Nothing here makes a creature save against itself, so
-    // the sentence is handed over and the line still owes it.
+    // make this save." Nothing here holds a reflection, so the sentence is
+    // filed for the table — a DM who declares the mirror names the basilisk
+    // among the targets — rather than carried as owed. (W7-B13)
     const gaze = lineOf('basilisk', 'Petrifying Gaze').save;
     expect(gaze?.dc).toBe(12);
     expect(gaze?.onFailure).toEqual([
@@ -762,8 +776,12 @@ describe('a failure the line grades', () => {
         repeats: { at: 'end', of: 'target', onFailure: { condition: 'petrified' } },
       },
     ]);
-    expect(gaze?.handedOver).toEqual([
-      'If the basilisk sees its reflection in the Cone, the basilisk must make this save.',
+    expect(gaze?.handedOver).toBeUndefined();
+    expect(gaze?.forTheTable).toEqual([
+      {
+        kind: 'a-reflection-nothing-holds',
+        sentence: 'If the basilisk sees its reflection in the Cone, the basilisk must make this save.',
+      },
     ]);
   });
 
@@ -881,6 +899,7 @@ describe('a failure the line grades', () => {
       ability: 'con',
       dc: 12,
       targets: 'one creature the pseudodragon can see within 5 feet',
+      reach: { feet: 5, count: 1, seen: true },
       damage: { dice: '2d4', flat: 0, type: 'poison', average: 5 },
       onSuccess: 'none',
       onFailure: [poisoned],
@@ -934,6 +953,7 @@ describe('a failure that branches on the target’s Hit Points', () => {
       ability: 'wis',
       dc: 15,
       targets: 'one creature the incubus can see within 60 feet',
+      reach: { feet: 60, count: 1, seen: true },
       onSuccess: 'none',
       onFailure: [
         {
@@ -1139,6 +1159,7 @@ describe('a failure that changes what a turn may hold', () => {
         ability: 'dex',
         dc,
         targets: 'one creature the dragon can see within 120 feet',
+        reach: { feet: 120, count: 1, seen: true },
         damage: { dice, flat: 0, type: 'fire', average },
         onSuccess: 'none',
         onFailure: [
@@ -1154,10 +1175,23 @@ describe('a failure that changes what a turn may hold', () => {
 
 describe('the lines the reader does not reach', () => {
   it('refuses a clause it cannot start on, rather than rolling a save for nothing', () => {
-    // SRD Ghost's Possession. SRD Sea Hag's Death Glare used to stand here,
-    // and so did SRD Copper Dragon Wyrmling's Slowing Breath; both are read
-    // now, one describe block up apiece.
-    expect(lineOf('ghost', 'Possession').save).toBeUndefined();
+    // SRD Ghost's Possession used to stand here, and SRD Sea Hag's Death Glare
+    // and SRD Copper Dragon Wyrmling's Slowing Breath before it; all three are
+    // read now. A failure whose first sentence nothing reads, and whose success
+    // buys nothing either, is still a die thrown for nobody.
+    expect(
+      parseSaveLine(
+        '_Wisdom Saving Throw:_ DC 12, one creature within 30 feet. _Failure:_ The target hums a tune of its choosing.',
+      ),
+    ).toBeNull();
+    // **And a failure that only files needs a success that buys something** —
+    // W7-B13: the Possession with its day's grace struck out is a throw that
+    // decides only what the table is told.
+    expect(
+      parseSaveLine(
+        '_Charisma Saving Throw:_ DC 13, one Humanoid the ghost can see within 5 feet. _Failure:_ The target is possessed by the ghost; the ghost disappears. _Success:_ Nothing happens.',
+      ),
+    ).toBeNull();
   });
 
   /**
@@ -1336,14 +1370,14 @@ describe('the corpus, so a format change is a failing test rather than a smaller
         expect(save.damage.type).toMatch(/^[a-z]+$/);
         continue;
       }
-      // **The one line whose failure the engine spends nothing of**, and it is
-      // read because nothing else could ever reach it: SRD Gibbering Mouther's
-      // d8 table is forced by a moment, so refusing it would mean the moment
-      // never arrives rather than a DM adjudicating it off the page. The save
-      // is rolled where the book says and the table is handed over.
+      // **The one line whose failure the engine spends nothing of** — SRD
+      // Ghost's Possession, W7-B13 — is read because its success buys a day's
+      // grace the engine keeps, and its failure is the possession filed for
+      // the table. (SRD Gibbering Mouther's d8 stood here before; the die is
+      // the engine's now and the rows are filed.)
       if (save.onFailure === undefined) {
-        expect(save.trigger, line.name).toBeDefined();
-        expect(save.handedOver?.length ?? 0, line.name).toBeGreaterThan(0);
+        expect(save.onSuccessEffects?.length ?? 0, line.name).toBeGreaterThan(0);
+        expect(save.forTheTable?.length ?? 0, line.name).toBeGreaterThan(0);
         continue;
       }
       expect(save.onFailure.length, line.name).toBeGreaterThan(0);

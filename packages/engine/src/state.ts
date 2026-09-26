@@ -83,6 +83,23 @@ import {
 import type { GameEvent } from './events.js';
 
 /**
+ * One curse a printed line laid — see {@link CreatureState.curses}. W7-B13.
+ *
+ * {@link GrantedLineImmunity}'s three fields, because it names the same
+ * thing: one creature's one heading. `source` is `printedLineSource(by,
+ * line)`, which is also the source the day's grace a made save buys is filed
+ * under — so a curse and the immunity to it are two answers about one line.
+ */
+export interface PrintedCurse {
+  /** `printedLineSource(by, line)` — `printed:werewolf:Bite (Wolf or Hybrid Form Only)`. */
+  readonly source: string;
+  /** Whose line it was: the creature the table will read the curse against. */
+  readonly by: CharacterId;
+  /** The printed heading, so a table reads it as a sentence. */
+  readonly line: string;
+}
+
+/**
  * Points taken off one ability score by one use of one effect.
  *
  * SRD Shadow's Draining Swipe. Sourced per use, so a second swipe lowers the
@@ -1075,6 +1092,24 @@ export interface CreatureState {
    * existed.
    */
   readonly lineImmunities: readonly GrantedLineImmunity[];
+  /**
+   * The curses a printed line has laid on this creature — W7-B13.
+   *
+   * SRD Werewolf's Bite: "_Failure:_ The target is cursed. If the cursed target
+   * drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM's
+   * control and has 10 Hit Points." The second sentence is a player's
+   * character handed to the DM, which the owner ruled the table's and which
+   * goes out under the handover mark when the save fails; this is the first
+   * sentence, which is a fact — **who is cursed, and by whose line** — kept so
+   * the table can read it when the moment the second sentence names arrives,
+   * and so `look` can show it until then.
+   *
+   * **Nothing in the engine reads it to act**, which is the point: the drop to
+   * 0 is the table's. And nothing ends it, because the book prints no ending;
+   * the spell that would lift a curse is the spells side's to write. One entry
+   * per source, and a second bite from the same line leaves one.
+   */
+  readonly curses: readonly PrintedCurse[];
   /**
    * A creature type one running effect has put over this creature's own.
    *

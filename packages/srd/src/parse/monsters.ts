@@ -47,6 +47,8 @@ import {
   type MonsterTrait,
   type ParseOutput,
   type ParseProblem,
+  type PrintedHandover,
+  type PrintedHandoverKind,
 } from '../schemas.js';
 import { ABILITY_OVERRIDES } from './overrides.js';
 import { parsePrintedSave, parseRiderSave, readPullOut } from './printed-save.js';
@@ -375,6 +377,11 @@ export function parseAttackLine(text: string): MonsterAttack | null {
 
   const qualified = qualification?.trim() ?? '';
 
+  // **What the rider says that is the table's for good, lifted off its end** —
+  // W7-B13. See {@link fileRiderTail}; what is left is what the swing's own
+  // reader reads or owes.
+  const { rider: owed, forTheTable } = fileRiderTail(rest);
+
   // **The save template, where the rider is one.** SRD Cockatrice and SRD
   // Homunculus print the book's own saving-throw template inside a hit, and
   // what it says is two effect lists against one DC — a shape the printed-save
@@ -382,7 +389,7 @@ export function parseAttackLine(text: string): MonsterAttack | null {
   // cannot hold at all. So it is lifted out here, once, and the sentences it
   // consumed leave `rider`: a clause read twice by two readers is two answers
   // to one sentence.
-  const riderSave = rest === '' ? null : parseRiderSave(rest);
+  const riderSave = owed === '' ? null : parseRiderSave(owed);
 
   const attack = {
     kind,
@@ -392,8 +399,9 @@ export function parseAttackLine(text: string): MonsterAttack | null {
     range,
     damage,
     qualification: qualified === '' ? null : qualified,
-    rider: rest === '' || riderSave !== null ? null : rest,
+    rider: owed === '' || riderSave !== null ? null : owed,
     ...(riderSave === null ? {} : { riderSave }),
+    ...(forTheTable.length === 0 ? {} : { forTheTable }),
   };
 
   // Validated here rather than trusted: this is the one place in the parser
@@ -401,6 +409,53 @@ export function parseAttackLine(text: string): MonsterAttack | null {
   // own schema must leave the line as prose rather than reach the catalogue.
   const checked = MonsterAttackSchema.safeParse(attack);
   return checked.success ? checked.data : null;
+}
+
+/**
+ * The rider sentences filed as the table's for good — W7-B13.
+ *
+ * Each is the book's sentence anchored end to end and each is **the last
+ * thing the rider says**, which is where the book prints all three: the spear
+ * that comes back after the throw, the Shadow that rises hours later, the body
+ * the mouther absorbs. Until W7-B13 they rode in `rider`, where the swing's
+ * reader carried them as residue and the ledger counted them as owed; nothing
+ * reads any of them afterwards, so they are filed under the reason each is and
+ * the rest of the rider is read or owed exactly as before.
+ */
+const RIDER_FILINGS: readonly (readonly [RegExp, PrintedHandoverKind])[] = [
+  [
+    /^_Hit or Miss:_ The [a-z' -]+ magically returns to the [a-z' -]+['’]s hand immediately after a ranged attack\.$/,
+    'a-weapon-that-returns-to-the-hand',
+  ],
+  [
+    /^If a Humanoid is slain by this attack, a \*\*[A-Z][a-z]+\*\* rises from the corpse \d+d\d+ hours later\.$/,
+    'a-corpse-that-rises-later',
+  ],
+  [
+    /^Its body is then absorbed into the [a-z' -]+, leaving only equipment behind\.$/,
+    'a-body-absorbed',
+  ],
+];
+
+/**
+ * Lift the filed sentences off the end of a rider, in printed order, and hand
+ * back what is left — character for character, because `rider` is verbatim.
+ */
+function fileRiderTail(rest: string): {
+  readonly rider: string;
+  readonly forTheTable: readonly PrintedHandover[];
+} {
+  let rider = rest.trimEnd();
+  const filed: PrintedHandover[] = [];
+  for (;;) {
+    const sentences = rider.split(/(?<=\.)\s+/);
+    const last = sentences.at(-1)?.trim() ?? '';
+    const hit = RIDER_FILINGS.find(([pattern]) => pattern.test(last));
+    if (last === '' || hit === undefined) break;
+    filed.unshift({ kind: hit[1], sentence: last });
+    rider = rider.slice(0, rider.length - last.length).trimEnd();
+  }
+  return { rider, forTheTable: filed };
 }
 
 /**
@@ -1016,6 +1071,31 @@ const SWARM_TRAIT = new RegExp(
 );
 
 /**
+ * SRD Flesh Golem's Berserk — W7-B13: "Whenever the golem starts its turn
+ * Bloodied, roll 1d6. On a 6, the golem goes berserk. On each of its turns
+ * while berserk, the golem attacks the nearest creature it can see. … Once the
+ * golem goes berserk, it remains so until it is destroyed or it is no longer
+ * Bloodied." and a second paragraph about the creator's Persuasion check.
+ *
+ * **The die is the engine's; the berserk golem is the table's.** A d6 thrown
+ * at a turn boundary, gated on a fact the engine holds — Bloodied — is a throw
+ * like a recharge's. What a berserk golem then does is a creature played by a
+ * rule, and the owner ruled a compulsion the table's: the golem's target, its
+ * lapse into attacking an object, and the creator's calming — a check anybody
+ * may ask for through the door that rolls one, whose consequence is the
+ * compulsion's ending. Both paragraphs are captured whole, and the noun is
+ * back-referenced so they are about one creature.
+ */
+const BERSERK_TRAIT = new RegExp(
+  `^Whenever the ([a-z][a-z' -]*) starts its turn Bloodied, roll (\\d+d\\d+)\\. ` +
+    `On a (\\d+), the \\1 goes berserk\\. ` +
+    `(On each of its turns while berserk, the \\1 [^]*? it is no longer Bloodied\\.)` +
+    // SRD Clay Golem prints the trait without its creator; SRD Flesh Golem
+    // prints the second paragraph, and both are filed whole.
+    `(?: (The \\1['’]s creator, [^]*? resumes rolling for the [A-Z][a-z]+ trait again if it is still Bloodied\\.))?$`,
+);
+
+/**
  * SRD Blurred Form: "Attack rolls against the mephit are made with
  * Disadvantage unless the mephit has the Incapacitated condition."
  *
@@ -1622,15 +1702,47 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   }
 
   // SRD Swarm, on the seven swarms: three sentences under one heading, of
-  // which the engine holds the last. The other two go back on the trait's own
-  // `handedOver` rather than taking the heading down with them — see
+  // which the engine holds the last. The other two are **filed** as the two
+  // world-family handovers `HANDOVER_TRAIT_KINDS` already argues — a creature's
+  // own space is not a place anything can be put, and nothing in the scene has
+  // a width — rather than carried in `handedOver`, which is the owed residue
+  // and kept the whole row of swarms on the ledger. W7-B13; see
   // {@link SWARM_TRAIT}.
   const swarm = SWARM_TRAIT.exec(text);
   if (swarm !== null) {
     return {
       kind: 'regains-no-hit-points',
-      handedOver: [`${swarm[1]!}.`, `${swarm[2]!}.`],
+      forTheTable: [
+        { kind: 'enters-a-creature-space-and-a-one-inch-gap', sentence: `${swarm[1]!}.` },
+        { kind: 'moves-through-a-one-inch-gap', sentence: `${swarm[2]!}.` },
+      ],
     };
+  }
+
+  // SRD Flesh Golem's Berserk — W7-B13; see {@link BERSERK_TRAIT}. The die and
+  // the Bloodied gate are the engine's; the two paragraphs after "goes
+  // berserk" are filed under the face that brings them.
+  const berserk = BERSERK_TRAIT.exec(oneLine(text));
+  if (berserk !== null) {
+    const [count, sides] = berserk[2]!.split('d').map(Number) as [number, number];
+    const on = Number(berserk[3]);
+    // One die, and a face it can show: a sum would weight the face, and a face
+    // past the die is a sentence that never arrives.
+    if (count === 1 && on >= 1 && on <= sides) {
+      const faces = { from: on, to: sides };
+      return {
+        kind: 'rolls-to-go-berserk',
+        dice: berserk[2]!,
+        on,
+        whileBloodied: true,
+        forTheTable: [
+          { kind: 'a-compulsion-the-table-plays', faces, sentence: berserk[4]! },
+          ...(berserk[5] === undefined
+            ? []
+            : [{ kind: 'a-compulsion-the-table-plays' as const, faces, sentence: berserk[5] }]),
+        ],
+      };
+    }
   }
 
   // SRD Night Hag's Soul Bag: an object the block arrives holding — see
@@ -2026,6 +2138,32 @@ export function parseCastLine(text: string): MonsterCastLine | null {
   // its own: a shape that does not satisfy its schema leaves the line prose.
   const checked = MonsterCastLineSchema.safeParse(line);
   return checked.success ? checked.data : null;
+}
+
+/**
+ * SRD Rust Monster's Destroy Metal — W7-B13: "The rust monster touches a
+ * nonmagical metal object within 5 feet of itself that isn't being worn or
+ * carried. The touch destroys a 1-foot Cube of the object."
+ *
+ * **A whole line that is the table's.** A declared object holds a substance, a
+ * size and Hit Points, and a cubic foot of a door is a shape none of them has;
+ * what is missing from the room afterwards is narration nothing reads. So both
+ * sentences are filed, and the door that spends the line spends the Action and
+ * reports them under the handover mark rather than as a sentence it owes.
+ */
+const DESTROYS_A_CUBE = new RegExp(
+  `^(The ${SUBJECT} touches a nonmagical metal object within \\d+ feet of itself that isn['’]t being worn or carried\\.) ` +
+    `(The touch destroys a 1-foot Cube of the object\\.)$`,
+);
+
+/** The whole line filed as the table's, or null for every other line. */
+export function parseFiledLine(text: string): readonly PrintedHandover[] | null {
+  const matched = DESTROYS_A_CUBE.exec(oneLine(text));
+  if (matched === null) return null;
+  return [
+    { kind: 'a-cube-of-an-object-destroyed', sentence: matched[1]! },
+    { kind: 'a-cube-of-an-object-destroyed', sentence: matched[2]! },
+  ];
 }
 
 /**
@@ -3326,6 +3464,10 @@ function parseFeatures(
       // economy's answer, which `printed-line-expended` and `line_expended`
       // already give correctly for every line in the book.
       const casts = parseCastLine(text);
+      // And a whole line that is the table's for good — W7-B13. Read off the
+      // sentence on every section like the rest, and filed rather than left
+      // prose, because prose is what the ledger counts as owed.
+      const forTheTable = parseFiledLine(text);
       const teleports = parseTeleportLine(text);
       // The book's fifth opening — a line that puts its creature into a form —
       // read off the sentence for the reason the four above are, and the
@@ -3377,6 +3519,7 @@ function parseFeatures(
         ...(perDay === null ? {} : { perDay }),
         ...(spellcasting === null ? {} : { spellcasting }),
         ...(casts === null ? {} : { casts }),
+        ...(forTheTable === null ? {} : { forTheTable: [...forTheTable] }),
         ...(teleports === null ? {} : { teleports }),
         ...(forms === null ? {} : { forms }),
         ...(onlyInForms === null ? {} : { onlyInForms: [...onlyInForms] }),

@@ -1273,7 +1273,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And one more with the Gelatinous Cube's Ooze Cube — W7-B10: the room a
       // creature has inside itself and the neighbour's pull, read the day the
       // save reader learned an engulf.
-      traits: { printed: 337, read: 279 },
+      // And two more with Berserk — W7-B13, the Flesh Golem's and the Clay
+      // Golem's: the d6 a Bloodied turn's start throws, and the berserk golem
+      // filed for the table.
+      traits: { printed: 337, read: 281 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read
@@ -1334,7 +1337,11 @@ describe('what a stat block’s sections print, and what is read', () => {
       // that pulls its target into the mound's space, capped at one).
       // And two more with the Roper — W7-B10: a Tentacle whose hit deals no
       // damage and grapples, and the Multiattack that uses Reel in the middle.
-      actions: { printed: 811, read: 774 },
+      // And two more with the compulsions — W7-B13: the Ghost's Possession,
+      // whose failure is the possession filed for the table and whose success
+      // buys a day's grace, and the Harpy's Luring Song, whose Charm and repeat
+      // are read and whose walk is filed.
+      actions: { printed: 811, read: 776 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those

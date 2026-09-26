@@ -124,6 +124,8 @@ import type {
   MonsterPrintedMove,
   MonsterSave,
   PrintedAuraCondition,
+  PrintedHandover,
+  PrintedHandoverKind,
   PrintedPullOut,
   PrintedSaveClause,
   PrintedSaveEffect,
@@ -489,7 +491,7 @@ const UNTIL_GRAPPLE_ENDS = new RegExp(
  * applied.
  */
 const WHILE_CONDITION =
-  /^While ([A-Z][a-z]+), (?:the target|the creature|it) (?:also )?has the ([A-Z][a-z]+) condition(?:, (.+))?$/;
+  /^While ([A-Z][a-z]+), (?:the target|the creature|it) (?:also )?has the ([A-Z][a-z]+) condition(?:, (.+)| and (.+))?$/;
 /**
  * SRD Swarm of Ravens: "While Deafened, the target also has Disadvantage on
  * ability checks and attack rolls."
@@ -919,6 +921,160 @@ function objectDefencesOf(
  */
 const IMMUNE_TO_THIS_LINE =
   /^The target is immune to this [a-z' -]+'s (.+) (for \d+ (?:hour|minute)s?)$/;
+
+// — what this reader files as the table's — W7-B13 ——————————————————————————
+
+/**
+ * **Whole sentences filed as the table's, with the reason each is.**
+ *
+ * The other answer a sentence the grammar cannot read may get. Until W7-B13
+ * every such sentence went into `handedOver`, which is the **residue** — owed,
+ * reported at the moment of use and counted by the ledger as a debt — and so a
+ * zombie rising a day later was on the same list as a Restrained nothing lifts.
+ * These are the sentences that are not owed and never will be: fiction no rule
+ * reads afterwards, and the compulsions the owner ruled the table's
+ * (2026-09-24). Each pattern is the book's sentence anchored end to end, so a
+ * sentence that says one word more is not filed and stays owed.
+ *
+ * The reason per kind is argued once, beside the ledger, in
+ * `HANDOVER_LINE_KINDS`; what is here is only which sentence is which.
+ */
+const FILED_SENTENCES: readonly (readonly [RegExp, PrintedHandoverKind])[] = [
+  // SRD Wight's Life Drain: a stat block made from a corpse a day after the
+  // fight, and the number of them the wight may keep.
+  [
+    new RegExp(
+      `^A Humanoid slain by this attack rises \\d+ hours later as a \\*\\*[A-Z][a-z]+\\*\\* under the [a-z' -]+${APOSTROPHE}s control, unless the Humanoid is restored to life or its body is destroyed\\.$`,
+    ),
+    'a-corpse-that-rises-later',
+  ],
+  [
+    /^The [a-z' -]+ can have no more than [a-z]+ zombies under its control at a time\.$/,
+    'a-corpse-that-rises-later',
+  ],
+  // SRD Harpy's Luring Song: which way the charmed creature walks.
+  [
+    /^If the target is more than \d+ feet from the [a-z' -]+, the target moves on its turn toward the [a-z' -]+ by the most direct route, trying to get within \d+ feet of the [a-z' -]+\.$/,
+    'a-compulsion-the-table-plays',
+  ],
+  // SRD Steam Mephit's Steam Breath: what being underwater would have done.
+  [
+    new RegExp(`^Being underwater doesn${APOSTROPHE}t grant Resistance to this [A-Z][a-z]+ damage\\.$`),
+    'water-nothing-holds',
+  ],
+  // SRD Basilisk's Petrifying Gaze: a mirror in the Cone.
+  [
+    /^If the [a-z' -]+ sees its reflection in the Cone, the [a-z' -]+ must make this save\.$/,
+    'a-reflection-nothing-holds',
+  ],
+];
+
+/** The reason a whole sentence is filed under, or null where it is not one of them. */
+function filedAs(sentence: string): PrintedHandoverKind | null {
+  const whole = sentence.trim().endsWith('.') ? sentence.trim() : `${sentence.trim()}.`;
+  for (const [pattern, kind] of FILED_SENTENCES) if (pattern.test(whole)) return kind;
+  return null;
+}
+
+/**
+ * SRD Werewolf's Bite, and the four other lycanthropes word for word: "The
+ * target is cursed. If the cursed target drops to 0 Hit Points, it instead
+ * becomes a **Werewolf** under the GM's control and has 10 Hit Points."
+ *
+ * **Two sentences that are one rule, read together or not at all** — the
+ * reading {@link readCurse} takes of the Lamia's. The first is a fact the
+ * engine keeps on the target (`curse`); the second is a player's character
+ * handed to the DM, which is the owner's compulsion ruling, and it is filed.
+ * A bare curse with nothing after it would be a mark nothing reads; a
+ * drop-to-0 with no curse before it names nobody.
+ */
+const BARE_CURSE = /^[Tt]he target is cursed$/;
+const CURSED_BECOMES = new RegExp(
+  `^If the cursed target drops to 0 Hit Points, it instead becomes a \\*\\*[A-Z][a-z]+\\*\\* under the GM${APOSTROPHE}s control and has \\d+ Hit Points\\.?$`,
+);
+
+/**
+ * SRD Harpy's Luring Song: "The target has the Charmed condition **until the
+ * song ends** and repeats the save at the end of each of its turns."
+ *
+ * The condition and its repeat are the engine's; the song's end is the
+ * harpy's Concentration on something that is not a casting, which only a
+ * casting may hold here — so the span is carried as owed, with the condition
+ * it is about, and the Charm lasts until a repeat lifts it.
+ */
+const CHARMED_UNTIL_THE_SONG_ENDS =
+  /^The target has the ([A-Z][a-z]+) condition (until the song ends) and repeats the save at the end of each of its turns$/;
+
+/**
+ * SRD Harpy's Luring Song: "It doesn't avoid Opportunity Attacks; however,
+ * before moving into damaging terrain (such as lava or a pit) and whenever it
+ * takes damage from a source other than the harpy, the target repeats the
+ * save."
+ *
+ * One sentence, two answers. The first clause is about the walk the table is
+ * playing, and is filed with it. The rest is two repeats a moment raises —
+ * a move into lava, a blow from anybody but the harpy — which the engine could
+ * roll the day a repeat's damage trigger could be narrowed by its source, so it
+ * is carried as owed.
+ */
+const DOES_NOT_AVOID = new RegExp(
+  `^It doesn${APOSTROPHE}t avoid Opportunity Attacks; however, (.+)$`,
+);
+
+/**
+ * SRD Ghost's Possession: "_Failure:_ The target is possessed by the ghost; …"
+ *
+ * **A failure that is the whole compulsion.** Every sentence after it — who
+ * drives the body, what the ghost can be targeted by, whose Speed it uses, how
+ * long it lasts — is the possession, and the owner ruled a creature somebody
+ * else is playing the table's. What is **not** filed is the day's grace the
+ * ending buys: a later Possession would read it, and the moment it starts is
+ * one only the table sees, so it is a debt the engine names rather than fiction
+ * it may file.
+ */
+const POSSESSED = /^The target is possessed by the [a-z' -]+; /;
+const IMMUNE_AFTERWARDS = new RegExp(
+  `immune to this [a-z' -]+${APOSTROPHE}s .+ for \\d+ (?:hour|minute)s?\\.$`,
+);
+
+/**
+ * SRD Gibbering Mouther's Gibbering: "_Failure:_ The target rolls 1d8 to
+ * determine what it does during the current turn: **1–4.** The target does
+ * nothing. **5–6.** … **7–8.** …"
+ *
+ * **The die is the engine's and every row is the table's.** Read only where
+ * the rows cover every face of the die, contiguously from one: a face with no
+ * row would be a throw that decides nothing.
+ */
+const ROLLS_ON_A_TABLE =
+  /^The target rolls (\d+)d(\d+) to determine what it does during the current turn: (.+)$/;
+const TABLE_ROW = /\*\*(\d+)(?:[–-](\d+))?\.\*\*\s*(.+?)(?=\s*\*\*\d|$)/g;
+
+/**
+ * SRD Harpy's Luring Song, before its template: "The harpy sings a magical
+ * melody, which lasts until the harpy's Concentration ends on it."
+ *
+ * **Carried as owed, not refused**: the song is Concentration on something
+ * that is not a casting — SRD Will-o'-Wisp's Vanish is the same seam — and the
+ * save beneath it is one the engine can roll. So the line is read and the
+ * sentence goes back to the table at the moment of use, where the Concentration
+ * the engine cannot hold is said out loud.
+ */
+const SINGS_UNTIL_CONCENTRATION = new RegExp(
+  `^The [a-z' -]+ sings a magical melody, which lasts until the [a-z' -]+${APOSTROPHE}s Concentration ends on it\\.$`,
+);
+
+/**
+ * "one creature within 5 feet", "one Humanoid the ghost can see within 5 feet"
+ * — a ruler between two creatures somebody has named, and how many. W7-B13.
+ */
+const ONE_WITHIN = /^one (creature|[A-Z][a-z]+)( the [a-z' -]+ can see)? within (\d+) feet$/;
+
+/**
+ * "each **Humanoid and Giant** in a 300-foot Emanation" — the types an area a
+ * creature spends narrows itself to. W7-B13, for SRD Harpy's Luring Song.
+ */
+const EACH_OF_TYPES = /^each ([A-Z][a-z]+(?: and [A-Z][a-z]+)*) in an? /;
 /**
  * SRD Vampire Spawn's Bite: "one creature within 5 feet **that is willing or
  * that has the Grappled, Incapacitated, or Restrained condition**."
@@ -1462,6 +1618,17 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
             : alsoImplies(last, name),
     );
     if (!amended) return false;
+    // **A second thing the target does while so, after "and"** — W7-B13. SRD
+    // Harpy's Luring Song: "While Charmed, the target has the Incapacitated
+    // condition **and ignores the Luring Song of other harpies**." The
+    // Incapacitated is the implied condition the engine hangs; the rest is a
+    // rule about *another* creature's line that nothing here reads, so it is
+    // carried with the host and subject it hangs on — the reading the
+    // relative clause below takes.
+    if (whileSo[4] !== undefined) {
+      into.carried.push(`While ${whileSo[1]}, the target ${whileSo[4]}.`);
+      return true;
+    }
     if (woken || struck) return true;
     // **Carried with the noun it is about.** The book's words are "which ends
     // early if…", and which condition that "which" names is the whole of the
@@ -1724,6 +1891,18 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
     return false;
   }
 
+  // Before `HAS_CONDITION`, whose `until …` would take "until the song ends"
+  // for a span it cannot measure and refuse the sentence — W7-B13. The
+  // condition and its repeat are read; the span is carried with its noun.
+  const lured = CHARMED_UNTIL_THE_SONG_ENDS.exec(words);
+  if (lured !== null) {
+    const name = CONDITIONS[lured[1]!];
+    if (name === undefined) return false;
+    into.effects.push({ kind: 'condition', condition: name, repeats: { at: 'end', of: 'target' } });
+    into.carried.push(`The ${lured[1]} condition, ${lured[2]}.`);
+    return true;
+  }
+
   const condition = HAS_CONDITION.exec(words);
   if (condition !== null) {
     const name = CONDITIONS[condition[1]!];
@@ -1865,7 +2044,14 @@ function readClause(clause: string, into: Scratch, where: Reading): boolean {
   if (immune !== null) {
     const span = spanOf(immune[2]!);
     if (span === null || span.kind !== 'seconds') return false;
-    into.effects.push({ kind: 'line-immunity', line: immune[1]!, seconds: span.seconds });
+    // **"this werewolf's curse"** — W7-B13. The noun is not a heading but the
+    // thing this line's own failure lays, so the immunity is to this line and
+    // `parsePrintedSave` admits it only where the failure lays a curse.
+    into.effects.push(
+      immune[1] === 'curse'
+        ? { kind: 'curse-immunity', seconds: span.seconds }
+        : { kind: 'line-immunity', line: immune[1]!, seconds: span.seconds },
+    );
     return true;
   }
 
@@ -1949,6 +2135,11 @@ interface ReadSection {
   readonly plus: MonsterDamage | null;
   readonly effects: readonly PrintedSaveEffect[];
   readonly handedOver: readonly string[];
+  /**
+   * The sentences filed as the table's — see {@link FILED_SENTENCES}. Without
+   * `on`: which moment a section speaks for is `parsePrintedSave`'s to say.
+   */
+  readonly filed: readonly PrintedHandover[];
   /** Whether anything at all was read: a section that read nothing is one the engine cannot spend. */
   readonly readSomething: boolean;
 }
@@ -2142,6 +2333,7 @@ function readSection(
   const graded = options.graded ?? false;
   const effects: PrintedSaveEffect[] = [...(options.seed ?? [])];
   const handedOver: string[] = [];
+  const filed: PrintedHandover[] = [];
   let damage: MonsterDamage | null = null;
   let plus: MonsterDamage | null = null;
   let readSomething = false;
@@ -2156,6 +2348,40 @@ function readSection(
   for (let index = 0; index < sentences.length; index += 1) {
     const sentence = sentences[index]!;
     let rest = sentence.replace(/\.$/, '');
+
+    // **A sentence that is the table's for good, filed rather than owed** —
+    // W7-B13. Before every reader, because none of them reads one: each is the
+    // book's own sentence anchored end to end, and a sentence one word longer
+    // falls through to the readers below and, failing them, to the residue.
+    const kind = filedAs(sentence);
+    if (kind !== null) {
+      filed.push({ kind, sentence: sentence.endsWith('.') ? sentence : `${sentence}.` });
+      continue;
+    }
+
+    // SRD Harpy's walk and its two repeats, which are one sentence and two
+    // answers — see {@link DOES_NOT_AVOID}.
+    const walking = DOES_NOT_AVOID.exec(rest);
+    if (walking !== null) {
+      filed.push({
+        kind: 'a-compulsion-the-table-plays',
+        sentence: `${sentence.slice(0, sentence.indexOf(';'))}.`,
+      });
+      handedOver.push(`${walking[1]!}.`);
+      continue;
+    }
+
+    // SRD Werewolf's curse and what it does at 0 Hit Points, one rule over two
+    // sentences — see {@link BARE_CURSE}.
+    const becomes = sentences[index + 1];
+    if (BARE_CURSE.test(rest) && becomes !== undefined && CURSED_BECOMES.test(becomes)) {
+      effects.push({ kind: 'curse' });
+      filed.push({ kind: 'a-compulsion-the-table-plays', sentence: becomes });
+      readSomething = true;
+      index += 1;
+      continue;
+    }
+
     if (index === 0) {
       const hit = DAMAGE.exec(rest);
       if (hit !== null) {
@@ -2212,7 +2438,63 @@ function readSection(
     }
   }
 
-  return { damage, plus, effects, handedOver, readSomething };
+  return { damage, plus, effects, handedOver, filed, readSomething };
+}
+
+/**
+ * A failure that is **the whole compulsion** — see {@link POSSESSED} — or null
+ * where the section is not one.
+ *
+ * Every sentence is filed, and the one about the day's grace the ending buys is
+ * carried as owed. Nothing is read: the section spends nothing the engine could
+ * apply, which `parsePrintedSave` admits only where the success buys something,
+ * so the die is never thrown for nothing.
+ */
+function readPossession(
+  text: string,
+): { readonly filed: readonly PrintedHandover[]; readonly carried: readonly string[] } | null {
+  const sentences = text
+    .split(/(?<=\.)\s+(?=[A-Z])/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence !== '');
+  if (sentences.length === 0 || !POSSESSED.test(sentences[0]!)) return null;
+  const filed: PrintedHandover[] = [];
+  const carried: string[] = [];
+  for (const sentence of sentences) {
+    if (IMMUNE_AFTERWARDS.test(sentence)) carried.push(sentence);
+    else filed.push({ kind: 'a-compulsion-the-table-plays', sentence });
+  }
+  return { filed, carried };
+}
+
+/**
+ * A failure that throws a die and hands the table the row it indexes — see
+ * {@link ROLLS_ON_A_TABLE} — or null where the rows do not cover the die.
+ */
+function readTable(
+  text: string,
+): { readonly effect: PrintedSaveEffect; readonly filed: readonly PrintedHandover[] } | null {
+  const opening = ROLLS_ON_A_TABLE.exec(text.trim());
+  if (opening === null) return null;
+  const count = Number(opening[1]);
+  const sides = Number(opening[2]);
+  // One die, which is the only table the book prints; a sum of dice would
+  // weight its rows, and a row keyed by a total is a shape nobody wrote.
+  if (count !== 1) return null;
+  const filed: PrintedHandover[] = [];
+  let next = 1;
+  TABLE_ROW.lastIndex = 0;
+  for (let row = TABLE_ROW.exec(opening[3]!); row !== null; row = TABLE_ROW.exec(opening[3]!)) {
+    const from = Number(row[1]);
+    const to = row[2] === undefined ? from : Number(row[2]);
+    const sentence = row[3]!.trim();
+    if (from !== next || to < from || !sentence.endsWith('.')) return null;
+    filed.push({ kind: 'a-compulsion-the-table-plays', faces: { from, to }, sentence });
+    next = to + 1;
+  }
+  // Every face answered, and none past the die.
+  if (next !== sides + 1) return null;
+  return { effect: { kind: 'rolls-a-table', dice: `1d${sides}` }, filed };
 }
 
 /** Which of the book's headings a section was printed under. */
@@ -2270,7 +2552,13 @@ type Prelude =
    * {@link JUMPS_TO} and {@link MOVES_THROUGH}. `targets` is the centaur's,
    * whose template prints none of its own.
    */
-  | { readonly kind: 'moves-then'; readonly move: MonsterPrintedMove; readonly targets?: string };
+  | { readonly kind: 'moves-then'; readonly move: MonsterPrintedMove; readonly targets?: string }
+  /**
+   * SRD Harpy's song, which lasts as long as a Concentration nothing here can
+   * hold — see {@link SINGS_UNTIL_CONCENTRATION}. Carried as owed at the moment
+   * of use rather than refusing the save beneath it. (W7-B13)
+   */
+  | { readonly kind: 'carried'; readonly sentence: string };
 
 /**
  * SRD Bulette's Deadly Leap: "The bulette spends 5 feet of movement to jump to
@@ -2318,6 +2606,7 @@ function readPrelude(before: string): Prelude | null {
   if (EXPLODES_ON_DEATH.test(text)) return { kind: 'dies' };
   if (BABBLES_WHILE_NOT_INCAPACITATED.test(text)) return { kind: 'babbling' };
   if (TARGETS_AN_OBJECT.test(text)) return { kind: 'names-an-object' };
+  if (SINGS_UNTIL_CONCENTRATION.test(text)) return { kind: 'carried', sentence: text };
   const jump = JUMPS_TO.exec(text);
   if (jump !== null) {
     return {
@@ -2602,7 +2891,32 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   const graded =
     failure.kind === 'first-failure' ||
     sections.some((section) => section.kind === 'second-failure');
-  const read = readSection(failure.text, { graded });
+  // **Two failures read whole in shapes of their own** — W7-B13. A die the
+  // engine throws and a table of rows it hands over (SRD Gibbering Mouther),
+  // and a failure that is the whole of a compulsion (SRD Ghost's Possession).
+  // Each is tried before the sentence reader, which would carry both as owed.
+  const table = graded ? null : readTable(failure.text);
+  const possession = graded || table !== null ? null : readPossession(failure.text);
+  const read: ReadSection =
+    table !== null
+      ? {
+          damage: null,
+          plus: null,
+          effects: [table.effect],
+          handedOver: [],
+          filed: table.filed,
+          readSomething: true,
+        }
+      : possession !== null
+        ? {
+            damage: null,
+            plus: null,
+            effects: [],
+            handedOver: possession.carried,
+            filed: possession.filed,
+            readSomething: false,
+          }
+        : readSection(failure.text, { graded });
 
   // **The targeting clause, from the template or from the prelude, and from
   // nowhere else.** SRD Centaur Trooper's template prints none and its
@@ -2650,9 +2964,33 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   // never arrives at all". SRD Gibbering Mouther's d8 table is the one line
   // this admits: the save is rolled at the moment the book says it is, and the
   // table it cannot hold is handed over at the instant the save fails.
-  if (!read.readSomething && trigger === null) return null;
+  //
+  // **And a failure that files a compulsion** — W7-B13, SRD Ghost's
+  // Possession — is kept on the same terms from the other side: the failure is
+  // reported to the table rather than applied, so the die decides something
+  // only where the success buys something the engine keeps. That is checked
+  // below, once the success has been read.
+  if (!read.readSomething && trigger === null && read.filed.length === 0) return null;
 
-  const handedOver = [...head.carried, ...read.handedOver];
+  // The sentences the head carried are filed where they are the table's for
+  // good — SRD Basilisk's mirror — and owed otherwise. The prelude's is owed.
+  const headFiled: PrintedHandover[] = [];
+  const headOwed: string[] = [];
+  for (const sentence of head.carried) {
+    const kind = filedAs(sentence);
+    if (kind === null) headOwed.push(sentence);
+    else headFiled.push({ kind, sentence });
+  }
+  const forTheTable: PrintedHandover[] = [
+    ...headFiled,
+    ...read.filed.map((one) => ({ ...one, on: 'failure' as const })),
+  ];
+
+  const handedOver = [
+    ...(prelude.kind === 'carried' ? [prelude.sentence] : []),
+    ...headOwed,
+    ...read.handedOver,
+  ];
   const either: PrintedSaveEffect[] = [];
   let onSuccessEffects: readonly PrintedSaveEffect[] = [];
   let onSuccess: 'half' | 'none' = 'none';
@@ -2686,6 +3024,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
           bought.effects.length > 0
         ) {
           onSuccessEffects = bought.effects;
+          forTheTable.push(...bought.filed.map((one) => ({ ...one, on: 'success' as const })));
           if (halfThen !== null) onSuccess = 'half';
         } else handedOver.push(`_Success:_ ${section.text}`);
       }
@@ -2696,6 +3035,9 @@ export function parsePrintedSave(text: string): MonsterSave | null {
       else {
         either.push(...more.effects);
         handedOver.push(...more.handedOver.map((sentence) => `_Failure or Success:_ ${sentence}`));
+        // Whichever way the save went, which is the moment of use: filed
+        // without an `on`, like the head's. SRD Steam Mephit's water.
+        forTheTable.push(...more.filed);
       }
     } else if (section.kind === 'second-failure') {
       const deepened = deepenBy(section.text, onFailure);
@@ -2727,6 +3069,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
         : readSection(section.text, { seed: read.effects });
       if (!deeper.readSomething || deeper.damage !== null) return null;
       onFailureBy = { by: section.margin, effects: deeper.effects };
+      forTheTable.push(...deeper.filed.map((one) => ({ ...one, on: 'failure' as const })));
       // Under its own heading, as the `_Failure or Success:_` branch does:
       // "which ends early if…" reaching a table with no antecedent names
       // neither the condition it is about nor the rung it was printed under.
@@ -2741,6 +3084,41 @@ export function parsePrintedSave(text: string): MonsterSave | null {
   // A first rung with no second is a graded failure half-read: the condition
   // would repeat its save and a failure would leave it exactly where it was.
   if (graded && onFailure === read.effects) return null;
+
+  // **A failure that only files, kept only where the success buys something**
+  // — the other half of the rule above the success was read for. SRD Ghost's
+  // Possession: a failure hands the body to the table and a success buys a
+  // day's grace the engine keeps, so the throw decides something. A line whose
+  // failure only files and whose success buys nothing is a die the engine
+  // would throw for nobody, and stays prose.
+  if (!read.readSomething && trigger === null && onSuccessEffects.length === 0) return null;
+
+  // **A day's grace from a curse is grace from this line's curse**, and a
+  // success that promised one on a line whose failure lays none would be an
+  // immunity to nothing — refused rather than granted. (W7-B13)
+  const laysACurse = onFailure.some((effect) => effect.kind === 'curse');
+  if (onSuccessEffects.some((effect) => effect.kind === 'curse-immunity') && !laysACurse) {
+    return null;
+  }
+
+  // **Who the line reaches, where the clause is one creature at a distance**,
+  // and the types it narrows itself to — W7-B13. "one creature within 5 feet",
+  // "one Humanoid the ghost can see within 5 feet", "each Humanoid and Giant in
+  // a 300-foot Emanation". An aura's types were already read off its own
+  // clause; these are the same fact on a line a creature spends.
+  const one = ONE_WITHIN.exec(head.targets);
+  const reach =
+    one === null
+      ? null
+      : { feet: Number(one[3]), count: 1, ...(one[2] === undefined ? {} : { seen: true as const }) };
+  const each = one === null ? EACH_OF_TYPES.exec(head.targets) : null;
+  const spentTypes: readonly string[] =
+    one !== null && one[1] !== 'creature'
+      ? [one[1]!]
+      : each !== null
+        ? each[1]!.split(' and ')
+        : [];
+  const types = aura === null ? spentTypes : aura.types;
 
   // **A clause that kills is gated or it is not read.** The ceiling is the
   // targeting clause's — "one living creature … that has 0 Hit Points" — and
@@ -2822,7 +3200,8 @@ export function parsePrintedSave(text: string): MonsterSave | null {
       : { dc: Number(opening[3]) }),
     targets: head.targets,
     ...(trigger === null ? {} : { trigger }),
-    ...(aura === null || aura.types.length === 0 ? {} : { onlyIfTargetType: [...aura.types] }),
+    ...(types.length === 0 ? {} : { onlyIfTargetType: [...types] }),
+    ...(reach === null ? {} : { reach }),
     ...(NOT_ALREADY_AFFECTED.test(head.targets) ? { onlyIfNotAffected: true as const } : {}),
     ...(prelude.kind === 'names-an-object' ? { targetsObject: true as const } : {}),
     // The move the line makes first — W7-B9. Carried whole so the door that
@@ -2845,6 +3224,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(onFailureBy === null ? {} : { onFailureBy: { by: onFailureBy.by, effects: [...onFailureBy.effects] } }),
     ...(gatedEither.length === 0 ? {} : { either: [...gatedEither] }),
     ...(handedOver.length === 0 ? {} : { handedOver }),
+    ...(forTheTable.length === 0 ? {} : { forTheTable }),
   };
 }
 
@@ -2862,7 +3242,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
  * hit.
  */
 const RIDER_SAVE = new RegExp(
-  `^(?:If the target is (a creature)(?: and doesn${APOSTROPHE}t already have an infernal wound)?, it` +
+  `^(?:If the target is (a creature|an? [A-Z][a-z]+)(?: and doesn${APOSTROPHE}t already have an infernal wound)?, it` +
     '|[Aa]nd the target) is subjected to the following effect\\. ' +
     '_([A-Za-z]+) Saving Throw:_ DC (\\d+)\\. (_(?:First )?Failure:_ .*)$',
 );
@@ -2905,6 +3285,13 @@ export function parseRiderSave(rider: string): MonsterSave | null {
     const wounds = (save.onFailure ?? []).some((effect) => effect.kind === 'wound');
     if (!wounds) return null;
   }
+  // **A gate that names a creature type** — W7-B13. SRD Werewolf's Bite: "If
+  // the target is **a Humanoid**, it is subjected to the following effect." The
+  // type is the engine's to check, where it knows it, and a gate read away
+  // would curse a wolf; so it is kept as the one field that says who a line
+  // may be forced on by type, beside the wound's gate above.
+  const typed = /^an? ([A-Z][a-z]+)$/.exec(who);
+  if (save !== null && typed !== null) return { ...save, onlyIfTargetType: [typed[1]!] };
   return save;
 }
 

@@ -62,6 +62,8 @@ import {
   rechargeOfLine,
 } from '../monster.js';
 import { rollRecorded } from '../rolls.js';
+import { filedFor, reportFiled } from './filed-handovers.js';
+import { settleStartOfTurnTraitDice } from './turn-start-dice.js';
 import { needsCasterSheet, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
   type AreaMoment,
@@ -1740,6 +1742,10 @@ function settlePrintedSave(
         (sentence) =>
           `${debt.line}: "${sentence}" — the engine applied the rest of the line; this sentence is the table's`,
       ),
+      // And what the line files for the table at the moment it was forced,
+      // under the handover mark rather than owed — W7-B13. No SRD aura files
+      // one today; a line that did is reported here, where its moment is.
+      ...reportFiled(`${debt.by}'s ${debt.line}`, filedFor(printed.forTheTable, 'use')),
     ],
     // A failure the book threw no die for reports no roll: the list is of saves
     // rolled, and the outcome's own `autoFailed` says what happened instead.
@@ -2353,6 +2359,15 @@ export function resolveTurn(
     if (!recharged.ok) return recharged;
     advanced.push(...recharged.value);
     after = recharged.value.reduce(applyEvent, after);
+
+    // SRD Flesh Golem's Berserk: "Whenever the golem starts its turn Bloodied,
+    // roll 1d6." Beside the recharge, because it is the same kind of throw at
+    // the same moment; what the face brings is filed for the table. (W7-B13)
+    const thrown = settleStartOfTurnTraitDice(after, supply, beginning);
+    if (!thrown.ok) return thrown;
+    advanced.push(...thrown.value.events);
+    unverified.push(...thrown.value.unverified);
+    after = thrown.value.events.reduce(applyEvent, after);
 
     // SRD Haste: "it gains an additional action on each of its turns." The
     // third thing this half of the boundary hands the creature whose turn is

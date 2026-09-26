@@ -834,6 +834,11 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   'movement-granted',
   'obscurement-declared',
   'passive-defense-granted',
+  // A printed line's curse on a creature — W7-B13, SRD Werewolf's Bite.
+  // Neither log was written when a creature could carry one, and both fixtures
+  // fold to exactly the states they always folded to with `curses` empty on
+  // every creature. `compulsions-handed-over.test.ts` drives it end to end.
+  'printed-curse-laid',
   // A line a stat block prints a recharge on, spent and got back. Neither log
   // was written when the notation reached the engine at all — it was a field
   // on a parsed attack that nothing rolled a die for — and both fixtures fold

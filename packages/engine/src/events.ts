@@ -96,6 +96,7 @@ import {
 // module without an import that ESLint reads as unused and `tsc` does not.
 import type {
   AbilityLowering,
+  PrintedCurse,
   Attachment,
   CommandStamp,
   GrantedFallWard,
@@ -815,6 +816,23 @@ export type GameEvent =
       readonly type: 'printed-line-immunity-granted';
       readonly id: CharacterId;
       readonly immunity: GrantedLineImmunity;
+    }
+
+  /**
+   * A printed line's curse landed on a creature — W7-B13.
+   *
+   * SRD Werewolf's Bite: "_Failure:_ The target is cursed." A fact and not a
+   * grant: nothing the engine runs reads it, and no deadline ends it, because
+   * what the curse *does* — the drop to 0 that turns a character into a
+   * werewolf under the GM's control — is the table's and is handed over when
+   * the save fails. See `CreatureState.curses`.
+   *
+   * **The whole record is on the event**, so the fold opens nothing.
+   */
+  | {
+      readonly type: 'printed-curse-laid';
+      readonly id: CharacterId;
+      readonly curse: PrintedCurse;
     }
 
   /**

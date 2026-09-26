@@ -73,6 +73,7 @@ import {
 } from '../monster.js';
 import { wrongFormFor } from '../forms.js';
 import { forcePrintedSaveOn, withDeclaredDamage } from './printed-save-clauses.js';
+import { filedFor, reportFiled } from './filed-handovers.js';
 import type { HazardName } from '../hazards.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { type CommandIdentity, once } from '../idempotency.js';
@@ -820,10 +821,16 @@ function printedRiderOnASwing(
    */
   takingTheHold = false,
 ): PrintedRiderOnASwing {
-  if (printed?.rider == null) return NO_PRINTED_RIDER;
+  // **What the line files for the table, reported under the handover mark** —
+  // W7-B13. SRD Salamander's spear that comes back, SRD Shadow's Shadow that
+  // rises, SRD Gibbering Mouther's body absorbed: lifted off the rider at
+  // ingest, so a line whose whole rider was one of them reaches here with no
+  // rider at all and still says it.
+  const filed = reportFiled(`${attacker}'s ${printed?.name ?? 'attack'}`, filedFor(printed?.forTheTable, 'use'));
+  if (printed?.rider == null) return filed.length === 0 ? NO_PRINTED_RIDER : { option: null, unverified: filed };
 
   const read = readPrintedRiders(printed.rider);
-  const unverified: string[] = [];
+  const unverified: string[] = [...filed];
 
   // The clause the swing has reported since the bestiary landed, **per residue
   // rather than per line**. A printed rider silently dropped is a creature

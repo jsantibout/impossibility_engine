@@ -974,6 +974,9 @@ describe('the reader claims only the sentences it can execute', () => {
     // its sentence catches only a flammable object, and is still the table's.
     // And one more with the Roper's Tentacle — W7-B10 — whose whole hit is an
     // ungated grapple, read now that a hit with no damage is an attack.
-    expect(read).toBe(77);
+    // And one more with the Merfolk Skirmisher's Ocean Spear — W7-B13 — whose
+    // returning spear is filed off the rider at ingest, leaving the Speed cut
+    // as one sentence this reader has always held.
+    expect(read).toBe(78);
   });
 });

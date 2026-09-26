@@ -299,6 +299,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'obscurement-declared',
   'opportunity-answered',
   'passive-defense-granted',
+  'printed-curse-laid',
   'printed-line-expended',
   'printed-line-immunity-granted',
   'printed-line-recharged',

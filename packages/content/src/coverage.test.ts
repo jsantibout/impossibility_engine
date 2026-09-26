@@ -580,6 +580,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // forms a heading gates its line to — "Bite (Wolf or Hybrid Form Only)"
       // — read off the **name** like `recharge` and `perDay` beside it, and
       // changing what "read" counts for exactly as little.
+      // And a whole line filed as the table's — W7-B13, SRD Rust Monster's
+      // Destroy Metal: read out of the sentence and found to be fiction, so it
+      // is read and it is finished. See `HANDOVER_LINE_KINDS`.
+      'forTheTable',
       'forms',
       'jumps',
       // What a legendary action does — SRD Unicorn's Charging Horn and

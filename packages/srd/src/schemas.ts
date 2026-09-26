@@ -383,6 +383,74 @@ export type MonsterMultiattack = z.infer<typeof MonsterMultiattackSchema>;
  * nobody printed.
  */
 /**
+ * What a **filed** stat-block handover is: the reason a sentence is the
+ * table's for good, as opposed to a sentence the engine still owes.
+ *
+ * The line this field exists to draw — W7-B13. `handedOver` on a save, on a
+ * hit's rider and on a trait is the **residue**: sentences the reader did not
+ * read, reported at the moment of use and counted by the ledger as owed. A
+ * compulsion the owner ruled the table's (2026-09-24: "a compulsion is legality
+ * the table adjudicates, so it is a handover") or a piece of fiction no rule
+ * reads afterwards is not owed and never will be, and filing it beside the
+ * residue made the two indistinguishable — so the ledger counted fiction as
+ * debt and the session counted every line as one.
+ *
+ * **A closed list, because the reason is the claim.** Each member is argued
+ * once, in `HANDOVER_LINE_KINDS` beside the ledger (the `HANDOVER_TRAIT_KINDS`
+ * pattern), and a sentence may be filed only under a reason somebody wrote down.
+ * The last two members *are* two of `HANDOVER_TRAIT_KINDS`' world family, reused
+ * where a heading's reader files the same fact about the lattice.
+ *
+ * - `a-compulsion-the-table-plays` — a creature somebody else is playing: a
+ *   body possessed, a walk toward a song, a d8's row, a golem gone berserk, a
+ *   lycanthrope's victim become one.
+ * - `a-reflection-nothing-holds` — a basilisk seeing itself in a mirror.
+ * - `water-nothing-holds` — what being underwater does, where nothing is.
+ * - `a-weapon-that-returns-to-the-hand` — a printed attack is not an item that
+ *   leaves the hand.
+ * - `a-corpse-that-rises-later` — a stat block made from a corpse hours after
+ *   the fight.
+ * - `a-body-absorbed` — what a corpse looks like afterwards.
+ * - `a-cube-of-an-object-destroyed` — a cubic foot of a thing the scene holds no
+ *   shape of.
+ */
+export const PrintedHandoverKindSchema = z.enum([
+  'a-compulsion-the-table-plays',
+  'a-reflection-nothing-holds',
+  'water-nothing-holds',
+  'a-weapon-that-returns-to-the-hand',
+  'a-corpse-that-rises-later',
+  'a-body-absorbed',
+  'a-cube-of-an-object-destroyed',
+  'enters-a-creature-space-and-a-one-inch-gap',
+  'moves-through-a-one-inch-gap',
+]);
+export type PrintedHandoverKind = z.infer<typeof PrintedHandoverKindSchema>;
+
+/**
+ * One sentence of a stat block filed as the table's, with its reason.
+ *
+ * **The book's own words**, whole and with the full stop, because the door that
+ * reaches it quotes it under the engine's `DM_DECIDES` mark and a table reads
+ * it out. **`on` says when**: absent is the moment of use — once, whoever the
+ * line caught; `failure` and `success` are one target's save. **`faces` says
+ * which throw**: a row of a table a die indexes into — SRD Gibbering Mouther's
+ * d8 — or the face a trait's die must show for the sentence to arrive — SRD
+ * Flesh Golem's 6. The engine throws the die; what the face means is the
+ * table's.
+ */
+export const PrintedHandoverSchema = z.object({
+  kind: PrintedHandoverKindSchema,
+  sentence: z.string().min(1),
+  on: z.enum(['failure', 'success']).optional(),
+  faces: z.object({ from: z.number().int().min(1), to: z.number().int().min(1) }).optional(),
+});
+export type PrintedHandover = z.infer<typeof PrintedHandoverSchema>;
+
+/** The field every half of the sheet files its handovers in — see {@link PrintedHandoverSchema}. */
+export const ForTheTableSchema = z.array(PrintedHandoverSchema).min(1);
+
+/**
  * How long a clause a printed save imposes lasts.
  *
  * Two spellings and the corpus prints both: a turn anchor — "until the start of
@@ -1199,6 +1267,48 @@ const PRINTED_SAVE_CLAUSES = [
     /** "If there is no unoccupied space, the target fails the save instead." */
     otherwiseFails: z.literal(true).optional(),
   }),
+  /**
+   * SRD Gibbering Mouther's Gibbering: "_Failure:_ The target rolls 1d8 to
+   * determine what it does during the current turn: **1–4.** … **5–6.** …
+   * **7–8.** …" — W7-B13.
+   *
+   * **The die is the engine's and the rows are the table's.** A die the table
+   * throws for itself is a number a caller produced; this one is thrown by the
+   * engine, recorded, and the face is reported beside the row it indexes —
+   * which is the save's `forTheTable` entry whose `faces` hold it. What "does
+   * nothing" means for a creature somebody is playing is a compulsion, and the
+   * owner ruled those the table's.
+   */
+  z.object({
+    kind: z.literal('rolls-a-table'),
+    /** The notation the sentence prints — "1d8". */
+    dice: z.string().regex(/^\d+d\d+$/),
+  }),
+  /**
+   * SRD Werewolf's Bite: "_Failure:_ The target is cursed." — W7-B13, and the
+   * four other lycanthropes print it word for word.
+   *
+   * **A fact the engine holds, not a rule it runs.** What the curse does — "If
+   * the cursed target drops to 0 Hit Points, it instead becomes a Werewolf
+   * under the GM's control" — is a player's character handed to the DM, which
+   * is filed for the table; that the target *is* cursed, and by whom, is the
+   * record the table reads it against when the moment comes.
+   */
+  z.object({ kind: z.literal('curse') }),
+  /**
+   * SRD Werewolf's Bite: "_Success:_ The target is immune to this werewolf's
+   * curse for 24 hours." — W7-B13.
+   *
+   * {@link PrintedSaveClause} `line-immunity`'s sentence with the curse where
+   * the heading was: the immunity is to **this creature's** curse, which is the
+   * curse this line lays — so it is hung on the line's own source, and the
+   * reader admits it only on a save whose failure lays one.
+   */
+  z.object({
+    kind: z.literal('curse-immunity'),
+    /** SRD's "for 24 hours", in seconds. */
+    seconds: z.number().int().min(1),
+  }),
 ] as const;
 
 /**
@@ -1562,6 +1672,26 @@ export const MonsterSaveSchema = z.object({
    */
   movesThen: MonsterPrintedMoveSchema.optional(),
   /**
+   * How far the line reaches and how many it catches, where the targeting
+   * clause is one creature at a distance — W7-B13, and Part 4 of it.
+   *
+   * SRD Wight's Life Drain: "one creature within 5 feet". SRD Ghost's
+   * Possession: "one Humanoid the ghost **can see** within 5 feet". A ruler
+   * between two creatures somebody has already named, which the engine holds
+   * where the scene places both — so the door measures it and refuses a
+   * creature out of reach before anything is spent, where an area's origin and
+   * facing are still the table's. The sight is flagged rather than measured:
+   * whether one creature sees another is a question the engine answers
+   * three-valued, and the door says so where nobody has.
+   */
+  reach: z
+    .object({
+      feet: z.number().int().min(5),
+      count: z.number().int().min(1),
+      seen: z.literal(true).optional(),
+    })
+    .optional(),
+  /**
    * The sentences the reader carried and did not read, verbatim.
    *
    * Handed to the table at the moment of use and reported by the ledger as a
@@ -1569,6 +1699,13 @@ export const MonsterSaveSchema = z.object({
    * part, and says so, rather than silently in full.
    */
   handedOver: z.array(z.string().min(1)).optional(),
+  /**
+   * The sentences **filed** as the table's for good — see
+   * {@link PrintedHandoverSchema}. Apart from {@link handedOver}, which is owed:
+   * the door that reaches one reports it under the engine's handover mark, and
+   * the ledger counts it in its handed-over column rather than as a debt.
+   */
+  forTheTable: ForTheTableSchema.optional(),
 }).refine((save) => save.dc >= 1 || save.dcFromSummoner !== undefined, {
   message: 'a printed DC is at least 1 unless the line says it is the summoner’s',
   path: ['dc'],
@@ -1658,6 +1795,18 @@ export const MonsterAttackSchema = z.object({
    * the book prints none such.
    */
   riderSave: MonsterSaveSchema.optional(),
+  /**
+   * The rider's sentences **filed** as the table's — W7-B13; see
+   * {@link PrintedHandoverSchema}.
+   *
+   * SRD Salamander's "_Hit or Miss:_ The spear magically returns to the
+   * salamander's hand", SRD Shadow's Shadow that "rises from the corpse 1d4
+   * hours later", SRD Gibbering Mouther's body "absorbed into the mouther".
+   * Lifted out of {@link rider} at ingest for {@link riderSave}'s reason: what
+   * is left in `rider` is what the swing's reader reads or owes, and a sentence
+   * that is fiction must not sit among the ones that are owed.
+   */
+  forTheTable: ForTheTableSchema.optional(),
 });
 export type MonsterAttack = z.infer<typeof MonsterAttackSchema>;
 
@@ -3068,6 +3217,30 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     /**
+     * SRD Flesh Golem's Berserk: "Whenever the golem starts its turn Bloodied,
+     * roll 1d6. On a 6, the golem goes berserk." — W7-B13.
+     *
+     * **The die is the engine's**, thrown at the boundary the book names and
+     * recorded; everything the sentence says a berserk golem then does is a
+     * creature played by a rule, which the owner ruled the table's — so it is
+     * filed on the trait's `forTheTable` under the face that brings it, and
+     * the door reports it beside the throw.
+     *
+     * **Thrown at every such start**, which is the book's own word —
+     * "whenever". Whether the golem is already berserk, or was calmed by its
+     * creator since, is the table's to know; the throw is the engine's either
+     * way, and the table reads the face against what it knows.
+     */
+    kind: z.literal('rolls-to-go-berserk'),
+    /** The notation — SRD's "roll 1d6". */
+    dice: z.string().regex(/^\d+d\d+$/),
+    /** The face at or above which the sentence arrives — SRD's "On a 6". */
+    on: z.number().int().min(1),
+    /** SRD's "starts its turn Bloodied": no die is thrown on a turn it does not. */
+    whileBloodied: z.literal(true),
+  }),
+  z.object({
+    /**
      * SRD Abduct, on both bugbears: "The bugbear needn't spend extra movement
      * to move a creature it is grappling."
      *
@@ -3147,6 +3320,13 @@ export const monsterTraitSchema = MonsterTraitMechanicSchema.and(
      * `readPrintedRiders`' own rule for a clause it splits, applied here.
      */
     handedOver: z.array(z.string().min(1)).min(1).optional(),
+    /**
+     * The clauses under this heading **filed** as the table's — W7-B13; see
+     * {@link PrintedHandoverSchema}. SRD Swarm's two space clauses, under the
+     * world-family kinds `HANDOVER_TRAIT_KINDS` already argues; SRD Flesh
+     * Golem's berserk behaviour, under the face of the die that brings it.
+     */
+    forTheTable: ForTheTableSchema.optional(),
   }),
 );
 export type MonsterTrait = z.infer<typeof monsterTraitSchema>;
@@ -3320,6 +3500,19 @@ export const featureSchema = z.object({
    * is what the use costs, which is why it is not carried here.
    */
   casts: MonsterCastLineSchema.optional(),
+  /**
+   * The whole line, **filed** as the table's — W7-B13; see
+   * {@link PrintedHandoverSchema}.
+   *
+   * SRD Rust Monster's Destroy Metal: "The rust monster touches a nonmagical
+   * metal object within 5 feet of itself that isn't being worn or carried. The
+   * touch destroys a 1-foot Cube of the object." A cubic foot of a door is a
+   * shape no record in the scene has, and nothing reads what is missing from
+   * the room afterwards. The line is still a use — the door that spends it
+   * spends the Action — and what it does is reported under the handover mark
+   * rather than as a sentence the engine owes.
+   */
+  forTheTable: ForTheTableSchema.optional(),
   /** Where this line teleports its creature — see {@link MonsterTeleportSchema}. */
   teleports: MonsterTeleportSchema.optional(),
   /**

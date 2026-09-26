@@ -441,7 +441,7 @@ describe('an aura that asks at the start of a turn', () => {
     ]);
   });
 
-  it('rolls the Gibbering’s save and hands its d8 table back', () => {
+  it('rolls the Gibbering’s save, and on a failure its d8 and the row the face lands on', () => {
     const table = aRoomWith('gibbering-mouther', { combat: true });
     const brensTurn = advanceQuietly(table, 'the mouther finishes');
     expect(owed(brensTurn)).toEqual([
@@ -450,11 +450,13 @@ describe('an aura that asks at the start of a turn', () => {
 
     const rolled = unwrap(resolvePendingSaves(brensTurn, supply('s1')), 'the babbling');
     expect(rolled.saves).toHaveLength(1);
-    // The engine applied nothing of the failure, because the failure is a d8
-    // table nobody could structure — and it says so, at the moment the save
-    // was rolled rather than never.
-    expect(rolled.unverified.join(' ')).toContain('rolls 1d8');
-    expect(rolled.unverified.join(' ')).toContain("this sentence is the table's");
+    // **The d8 is the engine's now and the row is the table's** — W7-B13. On
+    // a failure the die is thrown and recorded, and the row it indexes goes
+    // out under the handover mark; on a success nothing is thrown. Either way
+    // nothing of the table is carried as owed any more.
+    const d8 = rolled.events.some((e) => e.type === 'roll-recorded' && e.label.includes('(1d8)'));
+    expect(d8).toBe(rolled.saves[0]!.success === false);
+    expect(rolled.unverified.join(' ')).not.toContain("this sentence is the table's");
   });
 
   /**

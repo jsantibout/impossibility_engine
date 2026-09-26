@@ -74,7 +74,12 @@ type GrantFamily = Exclude<
   {
     [K in keyof CreatureState]-?: CreatureState[K] extends readonly SourcedGrant[] ? K : never;
   }[keyof CreatureState],
-  'initiativeBonuses'
+  // **And `curses`**, for the same reason — W7-B13. A printed line's curse
+  // carries its line's source, so it matches the shape; it is not a grant.
+  // Nothing ends it — the book prints no ending — and the one thing that
+  // shares its source is the day's grace a made save buys against the same
+  // line, whose `grants` deadline must not take a curse away with it.
+  'initiativeBonuses' | 'curses'
 >;
 
 /** What a creature is carrying, by family. */

@@ -1417,6 +1417,12 @@ export interface StatBlockLine {
   readonly responsePerformed?: boolean;
   /** What a legendary action line does — SRD Unicorn's Charging Horn and Shimmering Shield. */
   readonly legendary?: unknown;
+  /**
+   * The whole line filed as the table's — W7-B13, SRD Rust Monster's Destroy
+   * Metal. Read (the parser matched the sentence) and finished (every sentence
+   * is fiction nothing reads); see {@link HANDOVER_LINE_KINDS}.
+   */
+  readonly forTheTable?: unknown;
 }
 
 /**
@@ -1479,7 +1485,11 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
-  line.legendary !== undefined;
+  line.legendary !== undefined ||
+  // And a whole line the parser matched and filed as the table's — W7-B13.
+  // Read, because the sentence was recognised; finished, because what it
+  // recognised is fiction. `hasFiledHandover` is what the ledger counts it by.
+  line.forTheTable !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -1538,9 +1548,6 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | Lines | The one seam each waits on |
  * |---|---|
  * | Death Dog's Bite, Mummy's Rotting Fist, Otyugh's Bite, Incubus's Restless Touch | a clock that runs for days. Three mechanisms under one sentence each: a Hit Point maximum that does **not** come back at a Long Rest (a mark that withholds `hit-point-maximum-restored`), a deadline that re-arms every 24 hours, and a rest whose benefit is denied to the creature that finished it. `a-clock-that-runs-for-days` |
- * | Shadow's Draining Swipe | **the drain and the death are executed** — `ability-score-lowered` is the record the sheet's scores are derived through, either rest gives it back, and a score at 0 is a `creature-died`. What is left is "If a Humanoid is slain by this attack, a Shadow rises from the corpse 1d4 hours later": a stat block created from a corpse hours after the fight, which the doctrine puts at the table |
- * | Werebear, Wereboar, Wererat, Weretiger, Werewolf | `a-creature-somebody-else-is-playing`. "If the cursed target drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM's control" is one stat block swapped for another *and* a player's character handed to the DM, and the second half is the one nothing here can do |
- * | Salamander's Flame Spear | fiction. "The spear magically returns to the salamander's hand" — nothing tracks where a thrown weapon went, and nothing would read the answer |
  * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
  * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
  * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
@@ -1551,12 +1558,32 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * to the end as well but for one clause each, "is suffocating", which is a
  * handover kind and keeps both on the row; the Roper's Tentacle joined it the
  * same day, read for the first time and carrying its regrowth.
+ *
+ * **Nine lines left this table in W7-B13**, each for the reason its row gave:
+ * the Shadow's rising Shadow, the Salamander's and the Merfolk Skirmisher's
+ * returning spear and the Gibbering Mouther's absorbed body are fiction and
+ * are filed off the rider at ingest (`HANDOVER_LINE_KINDS`), and the five
+ * lycanthropes' curse is read as the rider save it is — a Constitution save
+ * for a Humanoid, the curse on the record, a day's grace on a success — with
+ * the transformation filed as the compulsion the owner ruled the table's.
  */
 export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
 export const hasHandedOverRider = (line: StatBlockLine): boolean => {
-  const rider =
-    line.attack === undefined ? null : (line.attack as { rider: string | null }).rider;
-  return rider !== null && readPrintedRiders(rider).handedOver.length > 0;
+  const attack = line.attack as
+    | { readonly rider: string | null; readonly riderSave?: { readonly handedOver?: readonly string[] } }
+    | undefined;
+  const rider = attack === undefined ? null : attack.rider;
+  // **And the residue of a save printed inside the hit** — W7-B13. A rider
+  // whose sentences are the book's save template is lifted into `riderSave`
+  // at ingest and read by the save reader, whose residue is `handedOver`
+  // there; a line carrying one was on no row at all, because this asked only
+  // of the rider string. No SRD rider save carries one today — the five
+  // lycanthrope curses file theirs — so this moves no number; it closes the
+  // door a homebrew line would have walked through.
+  return (
+    (rider !== null && readPrintedRiders(rider).handedOver.length > 0) ||
+    (attack?.riderSave?.handedOver?.length ?? 0) > 0
+  );
 };
 
 /**
@@ -1648,6 +1675,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'magic-resistance',
   'penalised-after-taking-a-damage-type',
   'regains-no-hit-points',
+  // SRD Flesh Golem's Berserk, whose reader is the turn boundary:
+  // `settleStartOfTurnTraitDice` throws the d6 at a Bloodied start and reports
+  // the face beside the sentences the trait files for the table. (W7-B13)
+  'rolls-to-go-berserk',
   'sheds-light',
   'speed-cut-after-taking-a-damage-type',
   'takes-a-named-action-as-a-bonus-action',
@@ -1709,12 +1740,19 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
- * | Berserk ×2 | a creature somebody else is playing: a d6 at the start of a turn and a compulsion that picks the golem's target for it. `a-creature-somebody-else-is-playing` |
  * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
  * | Succubus Form, Incubus Form, Troll Spawn | one stat block replaced by another, at a Long Rest or on a 24-hour timer. `assumeStatBlock` is the mechanism and Wild Shape is its one caller; what is missing is the door a *creature's own printed line* comes through, and the Troll Limb's d12 besides |
  * | Spider Climb (the Swarm's) | a **gate** on a kind that already has a reader: "If the swarm has a Climb Speed, the swarm can climb…". `climbs-without-a-check` is spent by `climbCheck`, so this is a field on that kind rather than a third answer — and a gate read away would be a rule nobody printed |
  * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
+ * | Giant Boar's Bloodied Fury | a **narrowing** on a kind that already has a reader: "Advantage on **melee** attack rolls while it is Bloodied". `advantage-while-bloodied` is spent by `adaptMonster` over every attack roll, so this is a field on that kind — melee only — rather than a third answer, the reading the Swarm's Spider Climb gets |
+ * | Fire Elemental's Fire Aura | the aura the Azer and the Salamander print, with one more sentence: "Creatures and flammable objects in the Emanation start burning." The creature half is the glossary's Burning, which the engine holds; the flammable **object** is the Barbed Devil's Hurl Flame's seam — a declared object has nothing on it that takes light |
+ * | Otherworldly Steed's Life Bond | a trigger on the **rider's** healing that nothing raises: "When you regain Hit Points from a level 1+ spell, the steed regains the same number of Hit Points if you're within 5 feet of it." A heal landing is a moment the engine has; a watcher on another creature's heal is not. See `missing-shapes.ts`, where the steed's spell names this line |
+ *
+ * **Berserk ×2 left this table in W7-B13**: the d6 at a Bloodied start is thrown
+ * by the turn boundary (`rolls-to-go-berserk`), and what a berserk golem does —
+ * and whether its creator calmed it — is the compulsion the owner ruled the
+ * table's, filed on the trait under the face that brings it.
  *
  * **Abduct ×2 left this table in W7-B9**, and is written down rather than
  * deleted because a row that leaves is a claim somebody may want to check: the
@@ -1818,6 +1856,95 @@ export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
     'SRD Stake to the Heart, on the vampire, which is the other rule under that heading: the vampire "has the Paralyzed condition until the weapon is removed" rather than being destroyed. The condition is one the engine applies and the trigger is the same absent heart, so the sentence tells a DM which condition to state and the engine takes it through the door it already has.',
 };
 
+/**
+ * **The reasons a stat-block sentence may be filed as the table's** — W7-B13.
+ *
+ * `HANDOVER_TRAIT_KINDS` on the other halves of the sheet, and the same test:
+ * "a table fact that a rule then reads is a debt; a table fact nothing reads
+ * afterwards is a handover" (`docs/design/content.md`). A reader that files a
+ * sentence in `forTheTable` — on a save, a hit, a trait or a whole line —
+ * files it under one of these, and the ledger counts a line whose every
+ * sentence is spent or filed as finished rather than owed. The residue beside
+ * it, `handedOver`, is the other answer and stays a debt.
+ *
+ * **The owner's two rulings are the ground this stands on.** A compulsion is
+ * legality the table adjudicates, so it is a handover (2026-09-24); and an
+ * honest fiction handover does not count against ship criterion 3, provided it
+ * is genuinely something the engine cannot or should not take on (2026-09-26).
+ * Each reason below says which of the two it is and why the engine cannot or
+ * should not take it on; a sentence that needs a mechanism the engine lacks is
+ * not filed here, whatever it sounds like — suffocation, the harpy's other
+ * songs and the ghost's day's grace after a possession all stay owed.
+ *
+ * **Pinned in both directions** by `stat-block-handovers.test.ts`: every kind
+ * the schema admits has a reason here or in `HANDOVER_TRAIT_KINDS`, every
+ * reason here is a kind the schema admits, and none is named in
+ * `packages/engine/src` — a filed kind with a reader would be a mislabelled
+ * debt, the inverted pin `HANDOVER_TRAIT_KINDS` already keeps.
+ */
+export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
+  'a-compulsion-the-table-plays':
+    'The owner ruled on 2026-09-24 that a compulsion is legality the table adjudicates, so it is a handover. Each sentence under this kind makes a creature act by a rule rather than by its player: SRD Ghost\'s Possession (who drives the body, what the ghost may be targeted by while inside it, whose Speed it uses, how long it lasts), SRD Harpy\'s Luring Song (which way the charmed creature walks, and that it walks into Opportunity Attacks), the row SRD Gibbering Mouther\'s d8 lands on, what SRD Flesh Golem attacks once berserk and whether its creator has calmed it, and what a lycanthrope\'s victim becomes at 0 Hit Points — a player\'s character handed to the DM, which is the doctrine\'s own line. The numbers around each — the save, the recharge, the die, the day\'s grace, the curse on the record — are the engine\'s and are executed; only the creature being played is filed.',
+  'a-reflection-nothing-holds':
+    'SRD Basilisk and SRD Medusa: "If the basilisk sees its reflection in the Cone, the basilisk must make this save." The scene holds no mirror and nothing that reflects, and the line already takes its head count from the table — so a DM who declares the mirror names the basilisk among the targets of the door that rolls the gaze, and nothing afterwards reads that it was a reflection.',
+  'water-nothing-holds':
+    'SRD Steam Mephit and SRD Dragon Turtle: "Being underwater doesn\'t grant Resistance to this Fire damage." The engine holds no water and grants nobody Resistance for standing in it, so the exception guards a rule that is never applied; the damage is rolled and dealt whole either way, which is what the sentence asks.',
+  'a-weapon-that-returns-to-the-hand':
+    'SRD Salamander, SRD Merfolk Skirmisher and SRD Ice Devil: "The spear magically returns to the salamander\'s hand immediately after a ranged attack." A printed attack is not an inventory item that leaves the hand — the line is swung at its printed numbers whether it was thrown last turn or not — so where the spear went is narration and nothing reads the answer.',
+  'a-corpse-that-rises-later':
+    'SRD Wight ("rises 24 hours later as a Zombie under the wight\'s control"; "no more than twelve zombies") and SRD Shadow ("a Shadow rises from the corpse 1d4 hours later"). A stat block made from a corpse hours after the fight, under the control of a creature the table is playing, which the doctrine puts at the table; the cap counts creatures nothing here raised. The death that precedes it is the engine\'s and is executed.',
+  'a-body-absorbed':
+    'SRD Gibbering Mouther\'s Bite: "Its body is then absorbed into the mouther, leaving only equipment behind." The death is executed; what the corpse looks like afterwards is narration, in the family of SRD Cone of Cold\'s frozen statue. A revival that needs the body is the table\'s to refuse, as it is for every body destroyed off the page — the engine keeps no body apart from the creature\'s record.',
+  'a-cube-of-an-object-destroyed':
+    'SRD Rust Monster\'s Destroy Metal: "touches a nonmagical metal object within 5 feet of itself that isn\'t being worn or carried. The touch destroys a 1-foot Cube of the object." A declared object has a substance, a size and Hit Points and no shape, so a cubic foot of a door is nothing a record holds, and what is missing from the room afterwards is narration nothing reads. The line is still spent — the Action goes — and its two sentences go out under the handover mark.',
+};
+
+/**
+ * **The filed sentences a mechanical marker fires on, and the argument each
+ * is still the table's** — W7-B13.
+ *
+ * The rule `dm-handover.test.ts` holds a spell's handover to, pointed at a
+ * stat block's: a filed sentence may trip none of `MECHANICAL_MARKERS` unless
+ * an entry here argues it. Keyed by a phrase of the sentence, so the argument
+ * lives beside the words it is about and a reader can re-run it; the test
+ * asserts both that every marked sentence is argued and that every argument is
+ * used, so this is a reading and not a licence.
+ */
+export const ARGUED_FILINGS: Readonly<Record<string, string>> = {
+  'The target is possessed by the':
+    'The Incapacitated condition the sentence names lasts exactly as long as the possession, and the possession ends when the ghost leaves or the body drops — the table\'s moment. Applied here it would be a condition nothing lifts.',
+  "uses the possessed target's Speed":
+    'The Speed and the three ability modifiers are the ghost\'s statistics while it drives a body it has no record in; nothing in the engine is moving or rolling for a ghost that has disappeared into somebody else.',
+  'The possession lasts until the body drops to 0 Hit Points':
+    'The ending of the possession, which is the compulsion\'s own lifetime. The Hit Points are the body\'s and the engine keeps them; what their reaching 0 ends is the table\'s.',
+  'If the cursed target drops to 0 Hit Points':
+    'A player\'s character handed to the DM as a stat block the DM is playing — the doctrine\'s line. The 10 Hit Points are the new creature\'s, which the table brings in; the curse this reads is on the record, kept by the engine.',
+  "doesn't grant Resistance to this":
+    'A Resistance the engine never grants — it holds no water — so the exception has nothing to except, and the damage is dealt whole, which is what it asks.',
+  'rises from the corpse 1d4 hours later':
+    'The hours are narration: nothing in the engine waits for them, and the creature that rises is one the table brings in.',
+  'DC 15 Charisma (Persuasion) check':
+    'The check is one anybody may ask for through the door that rolls a check at a stated DC; what a success buys is the berserk golem calmed, which is the compulsion\'s own ending.',
+};
+
+/** Every sentence a line files as the table's, on whichever half of the sheet it is filed. */
+export const filedHandoversOf = (
+  line: StatBlockLine,
+): readonly { readonly kind: string; readonly sentence: string }[] => {
+  type Filed = { readonly forTheTable?: readonly { readonly kind: string; readonly sentence: string }[] };
+  const attack = line.attack as (Filed & { readonly riderSave?: Filed }) | undefined;
+  return [
+    ...((line as Filed).forTheTable ?? []),
+    ...((line.save as Filed | undefined)?.forTheTable ?? []),
+    ...(attack?.forTheTable ?? []),
+    ...(attack?.riderSave?.forTheTable ?? []),
+    ...((line.trait as Filed | undefined)?.forTheTable ?? []),
+  ];
+};
+
+/** Whether a line files anything as the table's. */
+export const hasFiledHandover = (line: StatBlockLine): boolean => filedHandoversOf(line).length > 0;
+
 /** Whether this line's trait is one the engine reads and hands over. */
 export const isHandoverTrait = (line: StatBlockLine): boolean =>
   line.trait !== undefined &&
@@ -1858,13 +1985,22 @@ export const UNEXECUTED_TRAIT_SHAPE = 'A trait shape nothing spends';
  * `addCreature` hands the residue to the table the moment the block arrives,
  * and the heading is **read** and still **unpaid**.
  *
- * SRD Swarm is the sentence that made the field necessary and is the whole of
- * this row today: "can occupy another creature's space", "can move through any
- * opening large enough for a Tiny rat" and "can't regain Hit Points or gain
- * Temporary Hit Points" are one heading, of which the engine holds the last.
- * Counted apart from {@link UNEXECUTED_TRAIT_SHAPE} for that row's own reason —
- * learning to recognise two thirds of a heading must never be able to retire a
- * debt on its own.
+ * SRD Swarm is the sentence that made the field necessary: "can occupy another
+ * creature's space", "can move through any opening large enough for a Tiny
+ * rat" and "can't regain Hit Points or gain Temporary Hit Points" are one
+ * heading, of which the engine holds the last. Counted apart from
+ * {@link UNEXECUTED_TRAIT_SHAPE} for that row's own reason — learning to
+ * recognise two thirds of a heading must never be able to retire a debt on its
+ * own.
+ *
+ * **And the Swarm is what left this row, in W7-B13, by the door this docblock
+ * named**: its two space clauses are filed on the trait as the two world-family
+ * handovers `HANDOVER_TRAIT_KINDS` already argues — a creature's own space is
+ * not a place anything can be put, and nothing in the scene has a width — so
+ * they are no longer residue. Filing is not recognising: the reason each is
+ * fiction was written down per kind before the clauses were moved. SRD Night
+ * Hag's Soul Bag, whose two sentences about souls and seven days are still the
+ * residue, is what is left.
  */
 export const TRAIT_HANDOVER_SHAPE = 'A trait whose heading says more than the engine spends';
 export const hasHandedOverTrait = (line: StatBlockLine): boolean =>
@@ -1884,11 +2020,19 @@ export const RIDER_SHAPE = 'An effect a hit buys';
  * `parsePrintedSave` reads a failure's regular clauses and carries the rest of
  * the line verbatim in `handedOver`; `forcePrintedSave` applies what was read
  * and hands the rest to the table at the moment of use. The line is *read*,
- * so `isReadLine` says so — and it is not *paid*, because a Wight's zombie or
- * a Couatl's Restrained is still a sentence nothing executes. Counted apart
- * from the unread saves for the reason the unapplied riders are counted apart
- * from the unread attacks: learning to recognise a sentence can never retire
- * a debt on its own.
+ * so `isReadLine` says so — and it is not *paid*, because a Couatl's
+ * Restrained or a Water Elemental's suffocation is still a sentence nothing
+ * executes. Counted apart from the unread saves for the reason the unapplied
+ * riders are counted apart from the unread attacks: learning to recognise a
+ * sentence can never retire a debt on its own.
+ *
+ * **Only `handedOver` is asked**, and that is the line W7-B13 drew. A sentence
+ * the reader *filed* — `forTheTable`, a compulsion or a piece of fiction under
+ * a reason `HANDOVER_LINE_KINDS` argues — is not residue and leaves the row: the
+ * Wight's zombie, the Basilisk's mirror, the Steam Mephit's water and the
+ * Gibbering Mouther's d8 rows all did. Filing is not recognising: a sentence
+ * goes into `forTheTable` only by a pattern anchored end to end under a kind
+ * somebody argued, and a sentence that needs a mechanism stays here.
  */
 export const SAVE_HANDOVER_SHAPE = 'A save whose line says more than the engine spends';
 export const hasHandedOverSave = (line: StatBlockLine): boolean =>
@@ -2083,10 +2227,15 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    *
    * | Lines | The kind, and the seam |
    * |---|---|
-   * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
+   * | Otherworldly Steed's Fell Glare | a span anchored on a third creature's turn — see {@link UNREAD_SAVE_SEAMS} |
    *
    * The table is pinned to the catalogue by {@link UNREAD_SAVE_SEAMS}, so a
    * row that has been built comes out in the same commit.
+   *
+   * **The Ghost's Possession and the Harpy's Luring Song left this table in
+   * W7-B13**: the owner ruled a compulsion the table's, so each save is read
+   * and what it makes a creature do is filed for the table, and what each
+   * still owes is on {@link SAVE_HANDOVER_SHAPE}.
    *
    * **The Gelatinous Cube's Engulf and the Shambling Mound's Engulf left this
    * table in W7-B10**: the save reader grew the arm the row said they waited
@@ -2191,11 +2340,18 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   'succubus/Charm':
-    'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states.',
+    'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states. The reader half is one clause; the other half is the casting pipeline taking a level from a route rather than from a slot — the level a casting is paid at is decided in `spell-resolution.ts`, which a stat block\'s own track does not hold (W7-B13 stopped here and said so).',
   'wraith/Create Specter':
     'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
   'sea-hag/Illusory Appearance':
-    'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
+    'a cast line with a **printed duration**. "The hag casts _Disguise Self_, using Constitution as the spellcasting ability (spell save DC 13). The spell\'s duration is 24 hours." Disguise Self is handed over whole already and its Investigation check is the engine\'s, so the line would be spent the day a printed route may state the duration it casts at — the hour the spell prints would end the check\'s deadline twenty-three hours early. The succubus\'s Charm waits on the same hunk, a route stating its level; both are in the casting pipeline rather than the cast line\'s reader.',
+  // Two of the Otherworldly Steed's Bonus Actions — W7-B13. The steed is
+  // transcribed from Find Steed's own entry, and `missing-shapes.ts` names all
+  // four of its unread lines; these are the two the ledger's residue lists.
+  'otherworldly-steed/Fey Step (Fey Only; Recharges after a Long Rest)':
+    'a teleport **with a passenger**. "The steed teleports, along with its rider, to an unoccupied space of your choice up to 60 feet away from itself." `teleportTo` moves one creature, and nothing here is ridden: there is no mount, no rider and no relation that would carry a second creature along — the seam `confers-a-resistance-to-a-rider` names as the reason that sentence is fiction, which is a mechanic here because the rider really moves. The heading\'s "(Fey Only)" is read by no heading reader either.',
+  'otherworldly-steed/Healing Touch (Celestial Only; Recharges after a Long Rest)':
+    'a heal whose dice read the **casting that raised the creature**. "One creature within 5 feet of the steed regains a number of Hit Points equal to 2d8 plus the spell\'s level." `healCreature` is the door and the reach is `reachedBy`; what is missing is a printed line that is not a save or an attack carrying a `flatFromSlotLevel` mark the way the steed\'s Otherworldly Slam does, and a heading reader for "(Celestial Only)".',
 };
 
 /**
@@ -2219,11 +2375,17 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
 export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
   'otherworldly-steed/Fell Glare (Fiend Only; Recharges after a Long Rest)':
     'a span anchored on a **third** creature\'s turn — "The target has the Frightened condition until the end of **your** next turn", the summoner\'s, where `PrintedSpan` names the target\'s turn or the source\'s and no other. The DC is read ("DC equals your spell save DC" is `dcFromSummoner`, resolved from the casting that raised the steed); the span is what keeps the line prose, and the heading\'s type gate and its rest recharge wait on the same reading.',
-  'ghost/Possession (Recharge 6)':
-    '`a-creature-somebody-else-is-playing`: "the ghost disappears, and the target is possessed by the ghost" — a body one creature drives and another owns, which the doctrine puts at the table rather than in a record the engine would have to invent a driver for.',
-  'harpy/Luring Song':
-    'a compulsion: "the target has the Charmed condition until the song ends … it must move on its turn toward the harpy by the most direct route". Which way a creature walks is a decision the engine takes as an input, and a rule that made it for a player is the same seam as Possession.',
 };
+// **The Ghost's Possession and the Harpy's Luring Song left this map in
+// W7-B13**, written down rather than deleted because a row that leaves is a
+// claim somebody may want to check. The owner ruled a compulsion the table's
+// (2026-09-24), so each save is read — the Charisma save and its day's grace,
+// the Charm with its repeat and the Incapacitated it carries — and what the
+// compulsion makes the creature do is filed for the table under
+// `a-compulsion-the-table-plays`. Each still carries a residue it owes, and
+// sits on `SAVE_HANDOVER_SHAPE` for it: the day's grace a possession's ending
+// buys, and the song's Concentration, the other harpies' songs and the two
+// repeats a blow or lava raise.
 
 /** Whether this line prints the save template and the reader got nothing out of it. */
 export const isUnreadSave = (line: StatBlockLine): boolean =>

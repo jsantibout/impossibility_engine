@@ -158,6 +158,8 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             creatureTypeMasks: [],
             sizeOverrides: [],
             lineImmunities: [],
+            // Nobody arrives cursed — W7-B13; see `CreatureState.curses`.
+            curses: [],
             payouts: [],
             attachments: [],
             // Nothing is on fire. Empty is what every log written before the
