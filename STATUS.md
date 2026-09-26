@@ -28,17 +28,18 @@ homebrew.
   Sight beats that. A spell can push or lift a creature; a fall has a landing (1d6 per ten
   feet to 20d6, and Prone); going up needs a way up.
 - **Combat and time** — Initiative and Alert's swap, the action budget, an
-  extra action a running effect grants each turn, a slot of somebody else's
-  turn spent by a spell, joining a running fight, the clock, turn-anchored
-  deadlines, repeat saves and delayed damage at the boundary, Short and Long
-  Rests. A fight **ends** when no hostile remains or they surrender.
+  extra action a running effect grants, a slot of somebody else's turn spent
+  by a spell, joining a running fight, the clock, turn-anchored deadlines,
+  repeat saves and delayed damage at the boundary, Short and Long Rests. A
+  fight **ends** when no hostile remains or they surrender.
 - **Monsters that fight from their own printed lines** — Multiattack as a
   named sequence, an opportunity attack reaching for the best printed melee
   attack, recharge and daily limits enforced, sunlight sensitivity, and the
-  Hydra's declared head count. **A printed saving throw is an effect
-  list**: the DM's door rolls it, the engine applies the failure's damage,
-  condition, grapple, push, Speed cut or lowered maximum, and hands over each
-  sentence it could not read; a printed teleport is spent at its distance, a
+  Hydra's declared head count. **A printed saving throw is an effect list**: the DM's door rolls it and the
+  engine applies what the failure prints — damage, a condition, a grapple, a
+  push, a mode, a penalty, a worn-down object, a revealed fact — handing over
+  what it could not read; a legendary block's uses are a pool spent one per
+  turn boundary; a printed teleport is spent at its distance, a
   printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (a hazard beside its conditions, put
   out by its own action), wear its armour down, or hand a graded failure to
   the printed-save reader; a save may spin the web that holds its target; a Parry raises Armour Class in the hit window, a printed Reaction may spend
@@ -85,23 +86,21 @@ homebrew.
 - **Characters** — twelve SRD classes with their subclass, nine species,
   backgrounds, feats, multiclassing, creation and advancement.
 - **Items and objects** — grants live while worn or wielded, attunement,
-  charges, a copy told apart from its twin, an item that moves between people,
-  a purse in the DM's denomination. **An item nobody holds lies on the floor**
-  with an instance id, and a creature can be too laden to lift it. **An object
-  is declared into the scene and broken**: a door stated by material and size,
-  swung at and destroyed through the paths a creature already takes, with a
-  damage threshold that turns a superficial blow aside. **Hands are a count**, so a Two-Handed weapon and a shield refuse each
+  charges, a copy told apart from its twin, an item that moves between
+  people, a purse. **An item nobody holds lies on the floor**
+  with an instance id, and a creature can be too laden to lift it. **An object is declared into the scene and broken**: a door stated by
+  material and size, swung at and destroyed, with a damage threshold. **Hands are a count**, so a Two-Handed weapon and a shield refuse each
   other, and a conjured thing occupies one and carries a record of its own
   while its casting or activation runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from
-  JSON text; homebrew goes through the same door the SRD does.
+  JSON text; homebrew uses the same door.
 - **Two doors above the engine** (`@ie/tools`) — the player's and, under
   `dm/`, the DM's, partitioned by **authority**: a DM's door takes a decision
   the rules leave open, and neither takes a die face.
 - **Measurement, as tests rather than claims** — `COVERAGE.md` and
   `LEDGER.md` are generated and go stale loudly; `reachability.test.ts` fails
-  on an engine feature no door reaches; `level-five-session.test.ts` plays a
-  party through a fight, two rests and a level-up.
+  on an engine feature no door reaches; `level-five-session.test.ts` plays a party through a fight, rests and a
+  level-up.
 
 ## What does not
 

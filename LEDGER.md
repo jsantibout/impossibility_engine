@@ -46,7 +46,7 @@ for exactly this reason.
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
-| CR ≤ 5 stat-block items handed over or unapplied | 80 items | on 73 of 244 blocks | 0 | 171 blocks already clean | 0 |
+| CR ≤ 5 stat-block items handed over or unapplied | 74 items | on 71 of 244 blocks | 0 | 173 blocks already clean | 0 |
 
 ## 1. Spells in reach the engine does not resolve
 
@@ -432,9 +432,9 @@ so none of them waits on reach: every one is in it.
 
 ## 5. CR ≤ 5 stat-block lines handed over or unapplied
 
-244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 674 and hands over 64. Reading is not spending: a further 13 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 80 items over 244 blocks — 171 of which already carry none of them.
+244 of the 332 carried stat blocks are CR ≤ 5. They print 738 lines, of which the parser reads 679 and hands over 59. Reading is not spending: a further 12 of the read attack lines carry a printed rider nothing applies, and 3 read trait lines state a mechanic no engine reader asks for. So the population is 74 items over 244 blocks — 173 of which already carry none of them.
 
-**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 80 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
+**A third answer, counted apart from both:** 77 of the read trait lines are sentences the engine reads and **hands to the table**, and will never execute — the breathing traits, the telepathies, the other planes, the substances this world holds none of, and the GM's own choices: sentences that say what a creature is and name nothing any rule consults. What is **not** among them is the other half of the residue below, where a sentence states a mechanic the engine has no seam for — an Amorphous squeezing through an inch, a Web Walker ignoring a web — because calling one of those fiction would retire a debt by renaming it. They are neither spent nor waiting, so they are not among the 74 above and do not keep a block off the clean list. `HANDOVER_TRAIT_KINDS` holds the reason per kind, and `coverage.test.ts` pins that none of them has a reader after all.
 
 **A block is the unit that matters and a line is the unit that is counted.**
 A block with four unapplied lines is one fight that does not run, not four,
@@ -444,14 +444,13 @@ overlap: one sentence can force a save and recharge.
 | Shape | Lines | Blocks | Three example blocks |
 |---|---|---|---|
 | A hit whose line says more than the engine applies | 23 | 23 | Animated Rug of Smothering (CR 2) / Smother; Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive |
-| An effect a hit buys | 13 | 13 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Death Dog (CR 1) / Bite |
-| A save a line forces | 9 | 9 | Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Gelatinous Cube (CR 2) / Engulf |
+| An effect a hit buys | 12 | 12 | Barbed Devil (CR 5) / Hurl Flame; Bearded Devil (CR 3) / Infernal Glaive; Death Dog (CR 1) / Bite |
 | A use the block limits per day | 9 | 8 | Darkmantle (CR 0.5) / Darkness Aura (1/Day); Gnoll Warrior (CR 0.5) / Rampage (1/Day); Night Hag (CR 5) / Nightmare Haunting (1/Day; Requires Soul Bag) |
 | A trait whose heading says more than the engine spends | 7 | 7 | Swarm of Crawling Claws (CR 3) / Swarm; Swarm of Bats (CR 0.25) / Swarm; Swarm of Insects (CR 0.5) / Swarm |
-| A save whose line says more than the engine spends | 5 | 5 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Gibbering Mouther (CR 2) / Gibbering; Steam Mephit (CR 0.25) / Steam Breath (Recharge 6) |
+| A save a line forces | 6 | 6 | Bulette (CR 5) / Deadly Leap; Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Gelatinous Cube (CR 2) / Engulf |
+| A save whose line says more than the engine spends | 6 | 6 | Basilisk (CR 3) / Petrifying Gaze (Recharge 4–6); Gibbering Mouther (CR 2) / Gibbering; Steam Mephit (CR 0.25) / Steam Breath (Recharge 6) |
 | A trait shape nothing spends | 3 | 3 | Black Pudding (CR 4) / Split; Goblin Boss (CR 1) / Redirect Attack; Ochre Jelly (CR 2) / Split |
 | A recharge | 2 | 2 | Centaur Trooper (CR 2) / Trampling Charge (Recharge 5–6); Ghost (CR 4) / Possession (Recharge 6) |
-| A legendary action’s own economy | 2 | 1 | Unicorn (CR 5) / Charging Horn |
 | A Reaction whose printed response is handed over | 1 | 1 | Rust Monster (CR 0.5) / Reflexive Antennae |
 | How many attacks the Attack action holds | 1 | 1 | Roper (CR 5) / Multiattack |
 | A creature that casts | 0 | 0 | — |
@@ -462,18 +461,13 @@ line, carried onto the sheet, asked at the turn boundary and spent by
 `takeStatedAction`; what is unapplied on such a line is what it *does*.
 A brief quoting those rows should say so.
 
-### Handed-over lines matching no enumerated shape — 45
+### Handed-over lines matching no enumerated shape — 43
 
 A debt nobody has given an id to is still a debt, so these are named here
 rather than dropped. They carry no parsed structure at all, which is why no
 predicate reaches them and why classifying them is a reading of English
 rather than a derivation — the roadmap keeps that reading in prose, and the
 ledger keeps the list.
-
-A legendary action is in both this list and the economy row above, because
-they are two debts: that nothing spends a legendary action, and that
-nothing applies what the line says. Leaving it out of one would take half
-of it off the ledger.
 
 - Black Pudding (CR 4) [trait] Corrosive Form
 - Bugbear Stalker (CR 3) [trait] Abduct
@@ -513,8 +507,6 @@ of it off the ledger.
 - Troll (CR 5) [trait] Regeneration
 - Troll Limb (CR 0.5) [trait] Regeneration
 - Troll Limb (CR 0.5) [trait] Troll Spawn
-- Unicorn (CR 5) [legendary action] Charging Horn
-- Unicorn (CR 5) [legendary action] Shimmering Shield
 - Vampire Spawn (CR 5) [trait] Sunlight
 - Weretiger (CR 4) [bonus action] Prowl (Tiger or Hybrid Form Only)
 - Will-o'-Wisp (CR 2) [bonus action] Vanish
