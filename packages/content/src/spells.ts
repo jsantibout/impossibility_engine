@@ -4497,10 +4497,16 @@ export const KNOCK: SpellDefinition = {
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
   effects: [],
-  unmodelled: [
-    'the spell opens an object, and objects are not modelled: which lock, whether it had several, and whether it was barred are the DM’s',
-    'suppressing an Arcane Lock for 10 minutes is the DM’s — that casting is tracked rather than executed, so nothing reads it',
-    'the loud knock audible 300 feet away is the DM’s',
+  // **Handed over whole.** Every sentence is about an object — a lock, a bar,
+  // an Arcane Lock the engine has no lock for — and no object has a state here
+  // to be opened. Read to the end: nothing in it reaches a creature.
+  dmDecides: [
+    'Choose an object that you can see within range.',
+    'The object can be a door, a box, a chest, a set of manacles, a padlock, or another object that contains a mundane or magical means that prevents access.',
+    'A target that is held shut by a mundane lock or that is stuck or barred becomes unlocked, unstuck, or unbarred.',
+    'If the object has multiple locks, only one of them is unlocked.',
+    'If the target is held shut by _Arcane Lock_, that spell is suppressed for 10 minutes, during which time the target can be opened and closed.',
+    'When you cast the spell, a loud knock, audible up to 300 feet away, emanates from the target.',
   ],
 };
 
@@ -4690,8 +4696,17 @@ export const NONDETECTION: SpellDefinition = {
   targets: { count: 1, self: true, willing: true },
   effects: [],
   durationSeconds: 28_800,
+  // **Tracked, not handed over, and the reason is a correction.** This note
+  // used to say the refusal had no reachable case because every Divination
+  // spell the engine defines is cast at Self or at no creature. That was
+  // wrong: SRD Mind Spike and SRD Hunter's Mark are Divinations aimed at one
+  // creature, both executed and both inside level-5 reach, so a Nondetection
+  // on a quarry is a casting a table reaches. What is missing is the state a
+  // creature holds that refuses a school of casting, and its reader at the one
+  // seam a casting checks its targets — `an-effect-that-suppresses-other-magic`
+  // from the target's side, which `missing-shapes.ts` files.
   unmodelled: [
-    'being hidden from Divination spells excludes nothing the engine can be asked about: every Divination spell it defines is cast at Self or at no creature, so the rule has no reachable case',
+    'the refusal is not applied: "The target can’t be targeted by any Divination spell" would stop a Mind Spike or a Hunter’s Mark aimed at the target, and no state on a creature refuses a casting by its school',
     'scrying sensors are not modelled, and a place or an object as the target is not a creature in state',
   ],
 };
@@ -7539,16 +7554,30 @@ export const TINY_HUT: SpellDefinition = {
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 0 },
+  // "A 10-foot Emanation springs into existence around you and remains
+  // stationary for the duration." The caster is inside their own dome — "if
+  // you leave the Emanation" — so the origin is included, and the Emanation
+  // stays where it rose rather than following the caster out of it.
+  area: { kind: 'emanation', distance: 10, origin: 'self', includesOrigin: true, stays: true },
   effects: [],
+  areaStanding: [
+    // "Creatures and objects within the Emanation when you cast the spell can
+    // move through it freely. All other creatures and objects are barred from
+    // passing through it."
+    { kind: 'bars-passage', to: 'all', crossing: 'either', except: 'inside-at-the-cast' },
+    // "Spells of level 3 or lower can't be cast through it, and the effects of
+    // such spells can't extend into it."
+    { kind: 'wards-magic', maxLevel: 3 },
+  ],
   durationSeconds: 28_800,
-  // "The spell ends early if ... you cast it again."
+  // "The spell ends early if you leave the Emanation or if you cast it again."
+  endsEarly: [{ on: 'caster-leaves-the-area', ends: 'casting' }],
   replacesPriorCasting: true,
-  unmodelled: [
-    'the dome is not in the scene: "All other creatures and objects are barred from passing through it" is a barrier that blocks passage, and movement consults no walls — which is the boundary that keeps this a rules engine rather than a map editor',
-    'the spell failing at the casting "if the Emanation isn’t big enough to fully encapsulate all creatures in its area" is the DM’s, because there is no Emanation for anybody to be inside of',
-    'the ward against magic is not applied: "Spells of level 3 or lower can’t be cast through it, and the effects of such spells can’t extend into it" is an area that refuses other magic, and no state says a casting is being refused',
-    'the other half of the ending — "The spell ends early if you leave the Emanation" — is not applied: a casting ends by its deadline, its Concentration, a dispel, a recast or one of five transcribed causes, and leaving an area is not among them',
-    'the weather, the light the caster commands inside, the opacity and the colour are all the DM’s',
+  dmDecides: [
+    "The spell fails when you cast it if the Emanation isn't big enough to fully encapsulate all creatures in its area.",
+    'The atmosphere inside the Emanation is comfortable and dry, regardless of the weather outside.',
+    'Until the spell ends, you can command the interior to have Dim Light or Darkness (no action required).',
+    "The Emanation is opaque from the outside and of any color you choose, but it's transparent from the inside.",
   ],
 };
 
@@ -11798,9 +11827,19 @@ export const WIND_WALL: SpellDefinition = {
       onSuccess: 'half',
     },
   ],
+  areaStanding: [
+    // "Small or smaller flying creatures or objects can't pass through the
+    // wall." A step into one of the wall's spaces, made with a Fly Speed.
+    { kind: 'bars-passage', to: { sizeAtMost: 'small', flying: true }, crossing: 'in' },
+    // "Arrows, bolts, and other ordinary projectiles launched at targets
+    // behind the wall are deflected upward and miss automatically."
+    { kind: 'deflects-projectiles' },
+    // "Creatures in gaseous form can't pass through it."
+    { kind: 'bars-passage', to: 'gaseous', crossing: 'in' },
+  ],
   durationSeconds: 60,
   unmodelled: [
-    'nothing is stopped by it: a Small or smaller flying creature and a creature in gaseous form cross it as if it were open floor, and an ordinary projectile launched at a target behind it still resolves its attack roll rather than being deflected upward to miss automatically — a barrier that refuses a crossing is the geometry’s other half, and this wall is a template rather than an obstacle',
+    'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — a stat block’s printed line does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
     'fog, smoke and gases kept at bay, and loose lightweight material flying upward, are the DM’s',
   ],
 };
@@ -13971,16 +14010,62 @@ export const MAGIC_CIRCLE: SpellDefinition = {
   castingTime: 'long',
   castingSeconds: 60,
   concentration: false,
+  // "centered on a point on the ground that you can see within range"
   range: { kind: 'ranged', feet: 10 },
   targets: { count: 0 },
+  // "a 10-foot-radius, 20-foot-tall Cylinder of magical energy"
+  area: { kind: 'cylinder', radius: 10, height: 20, origin: 'point' },
   effects: [],
+  // "Choose one or more of the following types of creatures: Celestials,
+  // Elementals, Fey, Fiends, or Undead." Stated at the casting and filled into
+  // every clause below that says so.
+  typesStated: { options: ['Celestial', 'Elemental', 'Fey', 'Fiend', 'Undead'] },
+  // "Each time you cast this spell, you can cause its magic to operate in the
+  // reverse direction, preventing a creature of the specified type from
+  // leaving the Cylinder and protecting targets outside it." Two directions,
+  // the same three sentences turned round, so each is a branch's.
+  options: {
+    inward: {
+      label: 'Inward',
+      areaStanding: [
+        // "The creature can't willingly enter the Cylinder by nonmagical
+        // means. If the creature tries to use teleportation or interplanar
+        // travel to do so, it must first succeed on a Charisma saving throw."
+        { kind: 'bars-passage', to: { types: 'stated' }, crossing: 'in', saveToCross: 'cha' },
+        // "The creature has Disadvantage on attack rolls against targets
+        // within the Cylinder."
+        { kind: 'attack-mode', mode: 'disadvantage', attackerType: 'stated' },
+        // "Targets within the Cylinder can't be possessed by or gain the
+        // Charmed or Frightened condition from the creature."
+        {
+          kind: 'condition-immunity',
+          conditions: ['charmed', 'frightened'],
+          fromTypes: 'stated',
+        },
+      ],
+    },
+    outward: {
+      label: 'Reverse',
+      areaStanding: [
+        { kind: 'bars-passage', to: { types: 'stated' }, crossing: 'out', saveToCross: 'cha' },
+        { kind: 'attack-mode', mode: 'disadvantage', attackerType: 'stated', outside: true },
+        {
+          kind: 'condition-immunity',
+          conditions: ['charmed', 'frightened'],
+          fromTypes: 'stated',
+          outside: true,
+        },
+      ],
+    },
+  },
   durationSeconds: 3600,
+  dmDecides: [
+    'Glowing runes appear wherever the Cylinder intersects with the floor or other surface.',
+  ],
   unmodelled: [
-    'the Cylinder is not in the world, and neither is the type it is drawn against: which of Celestial, Elemental, Fey, Fiend and Undead the circle holds is chosen when the spell is cast, and an area catches whoever is in it',
-    'so the creature of that type cannot be stopped at the boundary: a barrier that refuses passage is a rule about movement, and the ruler measures distance and knows nothing standing in the way',
-    'the Charisma save it must make to teleport across is therefore never raised',
-    'the Disadvantage on its attack rolls against whoever is inside is not granted: a selector reaches a roll by family, ability and skill, and never by the attacker’s creature type',
-    'and the targets inside are not made immune to being Charmed or Frightened **by that creature** — a condition immunity is refused to everybody or to nobody, and never narrowed to one source',
+    'possession is not a state the engine holds, so "can’t be possessed by … the creature" is the DM’s; the Charmed and Frightened halves of the sentence are refused',
+    'interplanar travel is not modelled — there is one scene — so the save is raised for a teleport and for nothing else',
+    'the duration increasing by 1 hour for each spell slot level above 3 is not applied; a slot reaches damage dice, a target count and, for the few that print it, a duration this definition does not',
   ],
 };
 

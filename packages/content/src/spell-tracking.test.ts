@@ -332,6 +332,11 @@ const cast = (
       ...(definition.options === undefined
         ? {}
         : { option: Object.keys(definition.options).sort()[0]! }),
+    // And the creature types a spell prints "choose one or more" of, stated
+    // as the first one printed — the branch's reading, for a list.
+    ...(definition.typesStated === undefined
+      ? {}
+      : { types: [definition.typesStated.options[0]!] }),
       // And the same for a printed list of damage types, which is the other
       // fact a casting is refused for leaving unstated — `damage_type_required`
       // rather than `choice_required`, and the same reading: what this file
@@ -353,7 +358,20 @@ const cast = (
             // to have it moved — `area_starts_at_caster` — which the sibling
             // builder above has always known and this one learned the day a
             // tracked spell grew a carried Emanation.
-            ...(definition.area.origin === 'point' ? { at: AREA_AT } : {}),
+            //
+            // **And the point is held to the spell's own Range.** `AREA_AT`
+            // is fifty feet from the door, which every Range this table
+            // printed reached until SRD Magic Circle's ten feet joined it; a
+            // spell that cannot reach that far puts its area on the caster's
+            // own space, as the sibling builder above always has.
+            ...(definition.area.origin === 'point'
+              ? {
+                  at:
+                    definition.range.kind === 'ranged' && definition.range.feet < 50
+                      ? { x: 50, y: 50, z: 0 }
+                      : AREA_AT,
+                }
+              : {}),
             ...(DIRECTIONAL_AREAS.has(definition.area.kind) ? { towards: AREA_TOWARDS } : {}),
             // **And a wall needs its path**, which is the third fact an area
             // can demand and the only one that is a shape rather than a point:
@@ -812,6 +830,12 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     // the word Attunement. No marker knows those words either.
     'prestidigitation',
     'remove-curse',
+    // And the seventh kind: SRD Tiny Hut's paragraph is a dome — creatures
+    // barred from passing through it, spells of a level that cannot be cast
+    // through it, a caster who leaves it — and the marker list knows none of
+    // those words. The barrier, the ward and the ending are executed all the
+    // same, off the Emanation the record pins where it rose.
+    'tiny-hut',
   ];
 
   it('finds every clean paragraph outside the executed bucket', () => {
@@ -1832,6 +1856,14 @@ describe('every spell this batch added is cast for real', () => {
     // first: its own Sphere, centred on the space the shard reached, its own
     // effect list, and one level deep. Nothing of the spell is left.
     'ice-knife',
+    // **Magic Circle leaves on four shapes at once**: a barrier the movement
+    // command refuses a chosen type at, with the Charisma save the book prints
+    // rolled on a teleport in; Disadvantage on that type's attacks against
+    // whoever stands inside, off the target's place; an Immunity to Charmed and
+    // Frightened narrowed to that type; and the reverse as a second branch. The
+    // types are stated at the casting and pinned into every clause. Possession
+    // and interplanar travel are the table's, so it is executed-partial.
+    'magic-circle',
     'magic-jar',
     'mirror-image',
     // **The two the area-standing track wrote, and they left together.** SRD
@@ -1931,10 +1963,10 @@ describe('every spell this batch added is cast for real', () => {
     // judged at the cast against the fifty feet, the continuity, the single
     // ground and the Range to the space it rises from. The Strength save and
     // the 4d8 are the most ordinary shape there is, once there is somewhere to
-    // resolve them. What the spell still owes is the **barrier** — an arrow
-    // deflected upward, a Small flier turned back — so it leaves the tracked
-    // bucket as executed-partial rather than clean, and
-    // `a-barrier-that-blocks-passage` keeps it.
+    // resolve them. The **barrier** is built now — the record pins the path,
+    // so the wall can be asked about again: an arrow is deflected with the die
+    // on the record, a Small flier and a creature in gaseous form are turned
+    // back. Objects are not in the scene, so it stays executed-partial.
     'wind-wall',
     // The last of the tracked spells to be blocked on a *publication* rather
     // than on a mechanic. The Charisma save was always ordinary and both

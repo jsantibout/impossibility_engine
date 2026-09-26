@@ -240,10 +240,15 @@ describe('toolSchemas', () => {
     // And again for the webs-and-wounds track: `extinguish_fire` on both
     // surfaces — a creature's own action against its own fire, no number in
     // it — one tool and 596 bytes on each.
+    // And again for the barriers-and-wards track: `cast_spell.types`, the
+    // creature types a casting states where a spell prints "choose one or
+    // more" — SRD Magic Circle's — is one field on one tool published on both
+    // doors, so both surfaces grew by the same 488 characters and neither
+    // gained a tool.
     expect(toolSchemas(player())).toHaveLength(87);
     expect(toolSchemas(dm())).toHaveLength(109);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(130736);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(166246);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(131224);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(166734);
   });
 });
 

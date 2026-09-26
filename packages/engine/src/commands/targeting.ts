@@ -45,7 +45,7 @@ import {
 import { fallWindowOpen } from '../reactions.js';
 import { typeMagicSees } from '../creature-type.js';
 import { effectiveSizeOf } from '../size.js';
-import { canSee, canSeePoint } from '../standing.js';
+import { canSee, canSeePoint, wardBetween } from '../standing.js';
 import { type SlotKind } from '../resources.js';
 import {
   aimedRollsIn,
@@ -454,6 +454,19 @@ export interface CastSpellRequest extends CommandIdentity {
    * `damageType`, `fought` and `teleportTo` all take.
    */
   readonly choice?: string;
+  /**
+   * The creature types the caster chose, where the spell prints a choice of
+   * one or more.
+   *
+   * SRD Magic Circle: "Choose one or more of the following types of creatures:
+   * Celestials, Elementals, Fey, Fiends, or Undead." A list where {@link
+   * choice} is one value, and the same discipline: required by a spell that
+   * prints the clause (`types_required`), refused on one that does not
+   * (`no_types_clause`), refused off the printed list (`type_not_offered`),
+   * and never defaulted. Substituted into every clause of the area that says
+   * `'stated'` and pinned on the record — see `SpellDefinition.typesStated`.
+   */
+  readonly types?: readonly string[];
   /**
    * Which of the branches this spell prints the casting runs.
    *
@@ -931,6 +944,15 @@ export interface AreaSource {
   readonly mustSeeTheOrigin?: true;
   /** SRD Sleep's "each creature of your choice" — see {@link TargetRule.chosenFromTheArea}. */
   readonly chosenFromTheArea?: true;
+  /**
+   * The level this casting is made at, for the one filter that reads it.
+   *
+   * SRD Tiny Hut: "the effects of such spells can't extend into it" — *such*
+   * being "spells of level 3 or lower", which is the casting's level and not
+   * the spell's. Set by `resolveSpell`, which knows the slot; absent for a
+   * feature's pool use and a shortlist, which ask about no casting.
+   */
+  readonly castLevel?: number;
 }
 
 /** A definition's own answers to {@link AreaSource}, in one place. */
@@ -1384,6 +1406,40 @@ export function declaredFacts(
       'unknown_choice',
       `${definition.name} prints ${choice!.options.join(', ')}, not ${answered}`,
     );
+  }
+
+  // — the creature types the casting states, where the spell prints several —
+  //
+  // SRD Magic Circle: "Choose one or more of the following types of creatures".
+  // The list is the spell's, the answer is the caster's, and the engine makes
+  // neither — the discipline the single choice above follows, over a list.
+  const printedTypes = definition.typesStated;
+  if (printedTypes === undefined) {
+    if (request.types !== undefined) {
+      return err(
+        'no_types_clause',
+        `${definition.name} offers the caster no choice of creature types; which they are is not a fact it asks for`,
+      );
+    }
+  } else if (request.types === undefined || request.types.length === 0) {
+    return err(
+      'types_required',
+      `${definition.name} prints ${printedTypes.options.join(', ')} and the engine will not choose among them; name one or more`,
+    );
+  } else {
+    const off = request.types.filter((type) => !printedTypes.options.includes(type));
+    if (off.length > 0) {
+      return err(
+        'type_not_offered',
+        `${definition.name} prints ${printedTypes.options.join(', ')}, not ${off.join(', ')}`,
+      );
+    }
+    if (new Set(request.types).size !== request.types.length) {
+      return err(
+        'duplicate_designation',
+        `${definition.name} may not name the same creature type twice`,
+      );
+    }
   }
 
   // SRD Transmuted Spell prints its own list — "Acid, Cold, Fire, Lightning,
@@ -2026,6 +2082,17 @@ export function areaCatch(
     // which is the documented approximation the whole cover model makes.
     if (state.scene !== null && coverBetween(state.scene, casterId, who) === 'total') {
       return out(who, `${who} is behind Total Cover`);
+    }
+    // SRD Tiny Hut: "the effects of such spells can't extend into it." A ward
+    // standing between the caster and a creature the geometry caught takes the
+    // creature out of the catch, the way `chosen` and Total Cover do — asked of
+    // the casting's level, so a Cone of Cold at level 5 reaches in and a
+    // Fireball at level 3 does not. See `wardBetween`.
+    if (source.castLevel !== undefined) {
+      const ward = wardBetween(state, casterId, who, source.castLevel);
+      if (ward !== null) {
+        return out(who, `${who} is on the other side of ${ward}, and ${source.name} cannot extend into it`);
+      }
     }
     return true;
   });

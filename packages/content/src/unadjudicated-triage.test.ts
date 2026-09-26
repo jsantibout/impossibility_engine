@@ -79,14 +79,12 @@ import {
  */
 const FILED: Readonly<Record<string, readonly string[]>> = {
   'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
-  knock: ['an-effect-that-suppresses-other-magic'],
+  // Knock waits on nothing now: its one entry records the reading that its
+  // Arcane Lock clause could never be reached — the lock is on a door and a
+  // door is not in state — and the four printed sentences are handed over.
+  knock: [],
   nondetection: ['an-effect-that-suppresses-other-magic'],
   'speak-with-plants': ['difficult-terrain-an-area-creates'],
-  'tiny-hut': [
-    'a-barrier-that-blocks-passage',
-    'a-casting-ended-by-a-trigger',
-    'an-effect-that-suppresses-other-magic',
-  ],
 };
 
 /**
@@ -227,6 +225,11 @@ const EXECUTES: readonly string[] = [
   // every read, which is both shapes this pass filed it against.
   'pass-without-trace',
   'prestidigitation',
+  // And the one the barriers-and-wards track finished: the dome is a barrier
+  // the movement command refuses, a ward a casting is refused across, and a
+  // casting its caster's step out ends — all three of the shapes this pass
+  // filed it against, paid.
+  'tiny-hut',
   // And the one that came here through {@link NEEDS_A_DECISION} rather than
   // straight off {@link FILED}: the decision was the shape of the record, the
   // shape was then built, and the Attunement a Remove Curse breaks is the

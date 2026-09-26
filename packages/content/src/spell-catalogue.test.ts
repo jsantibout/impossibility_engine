@@ -482,6 +482,13 @@ const castAt = (
     ...(definition.options === undefined
       ? {}
       : { option: Object.keys(definition.options).sort()[0]! }),
+    // And the creature types a spell prints "choose one or more" of — SRD
+    // Magic Circle's — stated as the first one printed, for the reason the
+    // branch above is the first: the sweep casts, and a casting that names
+    // none is refused.
+    ...(definition.typesStated === undefined
+      ? {}
+      : { types: [definition.typesStated.options[0]!] }),
     // The ninth, and the shape the eight before it take with one half missing:
     // a spell that gates on consent **asks** rather than refusing, and a spell
     // that prints neither consent clause is refused for being told who is

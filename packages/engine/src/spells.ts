@@ -552,6 +552,40 @@ export interface OngoingSpell {
    */
   readonly areaStanding?: readonly AreaStanding[];
   /**
+   * The creatures inside {@link area} at the moment it rose, sorted.
+   *
+   * SRD Tiny Hut: "Creatures and objects within the Emanation **when you cast
+   * the spell** can move through it freely. All other creatures and objects are
+   * barred from passing through it." A fact about one moment, which is why it
+   * is written down: the barrier is derived on every read, and who was inside
+   * at the cast is the one thing about it no later read of the scene can
+   * answer. Pinned only where a clause names it (`except:
+   * 'inside-at-the-cast'`), and absent for every other casting.
+   */
+  readonly insideAtTheCast?: readonly string[];
+  /**
+   * The spaces a wall runs through, as the caster drew them — the one template
+   * that is a decision rather than a printed dimension.
+   *
+   * SRD Wind Wall: "You can shape the wall in any way you choose so long as it
+   * makes one continuous path along the ground." Until this the record kept
+   * only the point the wall rose from, and `areaShapeOf` answered null for a
+   * wall because nothing could reconstruct it — so no clause could hang on
+   * one. The path pinned here is what lets the wall's own barrier and
+   * deflection be asked about after the cast. Absent for every other shape.
+   */
+  readonly path?: readonly Point[];
+  /**
+   * The creature types the caster stated, where the spell prints a choice of
+   * several — SRD Magic Circle's "Choose one or more of the following types".
+   *
+   * Recorded so a log reader can see what the circle was drawn against; the
+   * clauses in {@link areaStanding} already carry the substituted list, and
+   * every reader of them reads that. Absent for every spell that prints no
+   * such clause.
+   */
+  readonly types?: readonly string[];
+  /**
    * The creatures this casting's area **reaches**, where the spell lets its
    * caster choose them.
    *
@@ -713,7 +747,7 @@ export function creaturesStandingInCastingArea(
   const origin = originOfCastingArea(record.area, record);
   if (origin === null) return null;
 
-  const shape = areaShapeOf(record.area, record.towards, record.anchoring ?? 'space');
+  const shape = areaShapeOf(record.area, record.towards, record.anchoring ?? 'space', record.path);
   if (shape === null) return null;
 
   // SRD Pass without Trace radiates an aura its caster is standing in, which
@@ -766,8 +800,35 @@ export function originOfArea(
   at: Point | undefined,
   anchoring: PointAnchoring,
 ): AreaOrigin | null {
-  if (area.origin === 'self') return { creature: caster };
+  // SRD Tiny Hut: "A 10-foot Emanation springs into existence around you and
+  // **remains stationary** for the duration." An Emanation that stays is
+  // measured from the point its caster stood on at the cast — pinned as the
+  // record's `origin` — and not from wherever the caster has since walked to.
+  // See `SpellArea`'s `stays`.
+  if (area.origin === 'self' && !(area.kind === 'emanation' && area.stays === true)) {
+    return { creature: caster };
+  }
   return at === undefined ? null : areaPointAt(at, anchoring);
+}
+
+/**
+ * Where a running casting's area lies, as the geometry vocabulary a region is
+ * written in — {@link regionOfArea} asked of a record.
+ *
+ * The one place the barrier, the ward and the deflection readers in
+ * `standing.ts` get their shape from, so a wall's path and a stationary
+ * Emanation's point are read off the record in one way.
+ */
+export function regionOfCastingArea(record: OngoingSpell): TerrainRegion | null {
+  if (record.area === undefined) return null;
+  return regionOfArea(
+    record.area,
+    record.caster as CharacterId,
+    record.origin,
+    record.towards,
+    record.anchoring ?? 'space',
+    record.path,
+  );
 }
 
 /**
@@ -787,10 +848,12 @@ export function regionOfArea(
   at: Point | undefined,
   towards: Point | undefined,
   anchoring: PointAnchoring,
+  /** The spaces a wall runs through, for the one shape that is drawn. */
+  path?: readonly Point[],
 ): TerrainRegion | null {
   const origin = originOfArea(area, caster, at, anchoring);
   if (origin === null) return null;
-  const shape = areaShapeOf(area, towards, anchoring);
+  const shape = areaShapeOf(area, towards, anchoring, path);
   return shape === null ? null : { origin, shape };
 }
 
@@ -805,6 +868,8 @@ function areaShapeOf(
   area: SpellArea,
   towards: Point | undefined,
   anchoring: PointAnchoring,
+  /** The spaces a wall runs through, where the record pinned them. */
+  path?: readonly Point[],
 ): AreaShape | null {
   // The direction is read under the casting's own anchoring, the same one its
   // origin was written with, so the axis between them stays in one frame.
@@ -824,16 +889,17 @@ function areaShapeOf(
       return aim === null
         ? null
         : { kind: 'line', length: area.length, width: area.width, towards: aim };
-    // **A wall cannot be reconstructed, and says so.** Every other template
-    // here is a printed dimension and, for three of them, a direction the
-    // record stored; a wall is a path the caster drew space by space, and the
-    // record keeps only the point it rose from. So a later question about a
-    // wall has no shape to ask of, which is the honest answer rather than a
-    // straight line between the endpoints — and `checkSpellDefinition` refuses
-    // every clause that would ask one, so nothing reaches this on a validated
-    // definition. SRD Wind Wall asks once, when the wall appears.
+    // **A wall is reconstructed from the path the record pinned, and from
+    // nothing else.** Every other template here is a printed dimension and,
+    // for three of them, a direction the record stored; a wall is a path the
+    // caster drew space by space, so `OngoingSpell.path` is where it is kept
+    // and a record without one — a casting made before the field existed —
+    // answers null rather than a straight line between the endpoints. SRD
+    // Wind Wall's barrier and deflection are what ask.
     case 'wall':
-      return null;
+      return path === undefined || path.length === 0
+        ? null
+        : { kind: 'wall', path, height: area.height };
   }
 }
 

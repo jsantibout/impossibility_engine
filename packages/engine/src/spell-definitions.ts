@@ -3818,6 +3818,19 @@ export type SpellArea =
        * definition written before this field says.
        */
       readonly includesOrigin?: true;
+      /**
+       * SRD Tiny Hut: "A 10-foot Emanation springs into existence around you
+       * and **remains stationary** for the duration."
+       *
+       * An Emanation is measured from a creature and moves with them — SRD
+       * Spirit Guardians follows the cleric — and this is the one Emanation in
+       * the book that does not. The casting pins the caster's space at the
+       * cast as the record's `origin`, and `originOfArea` measures from that
+       * point ever after, so the dome stays where it rose when the wizard
+       * steps out of it — which is exactly the step that ends the spell.
+       * Absent is the glossary's reading and every other Emanation.
+       */
+      readonly stays?: true;
     }
   /**
    * SRD Wind Wall: "You can make the wall up to 50 feet long, 15 feet high,
@@ -4469,6 +4482,21 @@ export interface SpellOption {
    */
   readonly effects?: readonly SpellEffect[];
   /**
+   * What the area does to whoever stands in it **when this branch is the one
+   * cast** — see {@link SpellDefinition.areaStanding}, which is the same field
+   * one level up.
+   *
+   * SRD Magic Circle: "Each time you cast this spell, you can cause its magic
+   * to operate in the reverse direction, preventing a creature of the
+   * specified type from leaving the Cylinder and protecting targets outside
+   * it." The two directions are two lists of the same three clauses turned
+   * round, so each is a branch's and the common list holds nothing. Pinned on
+   * the record beside the common list's clauses by `areaStandingFor`, which is
+   * the one reader — an activation and a boundary read the record and never
+   * ask which branch was spoken.
+   */
+  readonly areaStanding?: readonly AreaStanding[];
+  /**
    * Printed text this branch hands to whoever is running the table — see
    * {@link SpellDefinition.dmDecides}, which is the same field one level up
    * and travels the same way.
@@ -4834,6 +4862,27 @@ export interface SpellDefinition {
    * sentence that says where to look.
    */
   readonly choiceStated?: StatedChoice;
+  /**
+   * A choice of **one or more** creature types the caster states at the
+   * casting.
+   *
+   * > SRD Magic Circle: "Choose one or more of the following types of
+   * > creatures: Celestials, Elementals, Fey, Fiends, or Undead."
+   *
+   * Beside {@link choiceStated} rather than a widening of it, because that one
+   * takes one value and substitutes it into one field of one effect, and this
+   * takes a list and substitutes it into every clause of the area that says
+   * `'stated'` — the barrier's `to`, the attack mode's `attackerType`, the
+   * Immunity's `fromTypes`. One field widened to carry both would have made
+   * every reader of the single value ask whether it held a list.
+   *
+   * **The casting names them, the engine names none.** `CastSpellRequest.types`
+   * is the stated fact: required where the spell prints the clause
+   * (`types_required`), refused where it prints none (`no_types_clause`),
+   * refused off the list (`type_not_offered`), and never defaulted. Pinned onto
+   * the record substituted, so the fold reads a list and never the word.
+   */
+  readonly typesStated?: { readonly options: readonly string[] };
   /**
    * The branches this spell prints, of which a casting runs exactly one.
    *
@@ -5453,6 +5502,20 @@ export type CastingEndCause =
    * `unverified` line to write one on.
    */
   | 'caster-or-ally-damages-target'
+  /**
+   * SRD Tiny Hut: "The spell ends early **if you leave the Emanation** or if
+   * you cast it again."
+   *
+   * The one cause in the list that is about the **caster** and about a place:
+   * read off `creature-moved` — a walk or a teleport, which write the same
+   * event — for the casting's own caster, and fired when the space they now
+   * stand in is outside the area the casting pinned. Derived in the fold off
+   * the record's own geometry, so a dome that stays where it rose ends when
+   * its wizard steps out and not when a guest does. `ends: 'casting'` is the
+   * only scope that means anything for it: the caster holds nothing of the
+   * casting for `target` to release.
+   */
+  | 'caster-leaves-the-area'
   /**
    * SRD Hypnotic Pattern: "The spell ends for an affected creature if it takes
    * any damage."
@@ -6640,6 +6703,46 @@ export function optionEffects(
 ): readonly SpellEffect[] {
   if (definition.options === undefined || option === undefined) return definition.effects;
   return [...definition.effects, ...(definition.options[option]?.effects ?? [])];
+}
+
+/**
+ * The clauses this casting's area pins, with the stated types filled in.
+ *
+ * {@link optionEffects}' sibling for {@link SpellDefinition.areaStanding}: the
+ * common list and then the branch's, exactly as the effects are read — and
+ * then every `'stated'` in them replaced by the list the caster gave, so the
+ * record the fold reads carries creature types and never the word. Identity
+ * for every spell that prints no branches and states no types, which is all
+ * but one. Undefined where the result would be an empty list, so a record
+ * written before the field folds to the same bytes.
+ *
+ * `types` absent with a clause still saying `'stated'` is a definition
+ * `checkSpellDefinition` refuses and `declaredFacts` never lets through; the
+ * readers treat the word as naming nobody in any case.
+ */
+export function areaStandingFor(
+  definition: SpellDefinition,
+  option: string | undefined,
+  types: readonly string[] | undefined,
+): readonly AreaStanding[] | undefined {
+  const branch = option === undefined ? undefined : definition.options?.[option]?.areaStanding;
+  const clauses = [...(definition.areaStanding ?? []), ...(branch ?? [])];
+  if (clauses.length === 0) return undefined;
+  if (types === undefined) return clauses;
+  return clauses.map((clause) => {
+    switch (clause.kind) {
+      case 'bars-passage':
+        return typeof clause.to === 'object' && 'types' in clause.to && clause.to.types === 'stated'
+          ? { ...clause, to: { types } }
+          : clause;
+      case 'attack-mode':
+        return clause.attackerType === 'stated' ? { ...clause, attackerType: types } : clause;
+      case 'condition-immunity':
+        return clause.fromTypes === 'stated' ? { ...clause, fromTypes: types } : clause;
+      default:
+        return clause;
+    }
+  });
 }
 
 export function teleportOf(

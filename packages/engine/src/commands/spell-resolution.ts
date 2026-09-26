@@ -71,6 +71,7 @@ import {
   creaturesInArea,
   distanceBetween,
   positionOf,
+  snapToSpace,
   type Placement,
   type Point,
   type PointAnchoring,
@@ -104,6 +105,7 @@ import {
   statedFormOf,
   isCreatureType,
   swingReachIn,
+  areaStandingFor,
   type SequencedBurst,
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute } from '../spellcasting.js';
@@ -111,6 +113,8 @@ import {
   castingSource,
   type CastingNumbers,
   type CastingTime,
+  creaturesStandingInCastingArea,
+  type OngoingSpell,
   regionOfArea,
   type StatedChoicePin,
 } from '../spells.js';
@@ -124,6 +128,7 @@ import {
   type CastingDamageFeature,
   sheetAsItStands,
   ritualsFromBookOn,
+  wardBetween,
 } from '../standing.js';
 import {
   answeredCasting,
@@ -509,6 +514,7 @@ export function resolveDeclaredCast(
               ...(pending.area?.anchoring === undefined
                 ? {}
                 : { anchoring: pending.area.anchoring }),
+              ...(pending.area?.path === undefined ? {} : { path: pending.area.path }),
               // The pair, built here for the reason the atomic path builds it:
               // a record is read again on a turn boundary and may not ask the
               // book how to apply an answer it already holds.
@@ -1046,13 +1052,17 @@ export function castOrRelease(
       readonly at: Point;
       readonly towards?: Point;
       readonly anchoring?: PointAnchoring;
+      readonly path?: readonly Point[];
     } | null = null;
 
     if (definition.area !== undefined) {
       const resolved = areaTargets(
         state,
         casterId,
-        areaSourceOf(definition),
+        // The casting's level rides with the source for the one filter that
+        // reads it: SRD Tiny Hut's "the effects of such spells can't extend
+        // into it", *such* being a level and not a spell.
+        { ...areaSourceOf(definition), castLevel },
         definition.area,
         request,
         reach,
@@ -1070,16 +1080,40 @@ export function castOrRelease(
       // and not the first, SRD Darkness prints the third, and SRD Silence
       // prints only the fifth, so a condition naming only the trigger would
       // leave all three with nowhere to be.
+      //
+      // **Three places the point comes from.** A point-origin area's is the
+      // request's. A wall's is the first space of the path the caster drew —
+      // `placeWall` holds a stated `at` to it — and the path itself is pinned
+      // beside it, because it is the one thing about a template that cannot
+      // be reconstructed from the book and a point. And an Emanation that
+      // **stays** — SRD Tiny Hut's "remains stationary" — pins the space its
+      // caster stood on, which is the point it is measured from once the
+      // caster has walked off.
+      const isWall = definition.area.kind === 'wall';
+      const stays = definition.area.kind === 'emanation' && definition.area.stays === true;
+      const pinnedAt: Point | undefined =
+        request.at ??
+        (isWall
+          ? request.path?.[0]
+          : stays && state.scene !== null
+            ? (positionOf(state.scene, casterId) ?? undefined)
+            : undefined);
       if (
         (definition.areaTrigger !== undefined ||
           definition.areaStanding !== undefined ||
+          Object.values(definition.options ?? {}).some(
+            (branch) => branch.areaStanding !== undefined,
+          ) ||
           definition.areaTerrain !== undefined ||
           definition.areaLight !== undefined ||
           definition.areaObscurement !== undefined) &&
-        request.at !== undefined
+        pinnedAt !== undefined
       ) {
         area = {
-          at: request.at,
+          at: pinnedAt,
+          ...(isWall && request.path !== undefined
+            ? { path: request.path.map(snapToSpace) }
+            : {}),
           ...(request.towards === undefined ? {} : { towards: request.towards }),
           // `space` *is* the absence, so a casting that names it explicitly
           // serialises exactly as one that says nothing. Two records that mean
@@ -1112,6 +1146,32 @@ export function castOrRelease(
       );
       if (!named.ok) return named;
       targets = named.value;
+    }
+
+    // — the ward a casting would cross ——————————————————————————————————————
+    //
+    // SRD Tiny Hut: "Spells of level 3 or lower can't be cast through it."
+    // Asked of every named target and of the point the casting is aimed at,
+    // once the targets are settled and before anything is spent — `silenced`'s
+    // discipline, met on the other side of the dome. The level is the
+    // casting's, so an upcast passes where the printed level would not. See
+    // `wardBetween`, and `areaCatch` for the half about an area's reach.
+    {
+      const aimedPoint = request.at ?? request.towards;
+      const ends: (CharacterId | Point)[] = [
+        ...targets.filter((who) => who !== casterId),
+        ...(aimedPoint === undefined ? [] : [aimedPoint]),
+      ];
+      for (const end of ends) {
+        const ward = wardBetween(state, casterId, end, castLevel);
+        if (ward !== null) {
+          const where = typeof end === 'string' ? end : `(${end.x}, ${end.y}, ${end.z})`;
+          return err(
+            'warded',
+            `${definition.name} at level ${castLevel} cannot be cast through ${ward}; ${casterId} and ${where} are on opposite sides of it`,
+          );
+        }
+      }
     }
 
     // — the creatures an option spared ————————————————————————————————————
@@ -1998,6 +2058,8 @@ function resolveOnTargets(
       readonly at: Point;
       readonly towards?: Point;
       readonly anchoring?: PointAnchoring;
+      /** The spaces a wall runs through — see `OngoingSpell.path`. */
+      readonly path?: readonly Point[];
     } | null;
     /** The identity the wrapper established, stamped on the casting's event. */
     readonly stamp: CommandStamp | null;
@@ -2131,6 +2193,9 @@ function resolveOnTargets(
         : { towards: carriedAim }
       : { towards: area.towards }),
     ...(area?.anchoring === undefined ? {} : { anchoring: area.anchoring }),
+    // The spaces a wall runs through, the one template that is drawn — see
+    // `OngoingSpell.path`.
+    ...(area?.path === undefined ? {} : { path: area.path }),
     // The facts the caster stated at the casting, kept because every later
     // sentence of the spell reads them and none can be recovered from
     // anything else. **A carried area records no position**: `caster` and the
@@ -3207,9 +3272,11 @@ export function resolveEffects(
   // actually caught. See `OngoingSpell` for why each field is there.
   const becomes = context.becomesOngoing;
   if (becomes !== undefined) {
-    events.push({
-      type: 'spell-ongoing',
-      casting: {
+    // What the area does to whoever stands in it, **as cast**: the common
+    // clauses and the branch's, with the stated types filled in — see
+    // `areaStandingFor`. The fold reads a list of types and never the word.
+    const pinnedStanding = areaStandingFor(definition, becomes.option, becomes.types);
+    const casting: OngoingSpell = {
         version: ONGOING_RECORD_VERSION,
         castingId,
         caster: casterId,
@@ -3223,7 +3290,9 @@ export function resolveEffects(
         // rewrite what a historical replay raised.
         ...(definition.area === undefined ? {} : { area: definition.area }),
         ...(definition.areaTrigger === undefined ? {} : { areaTrigger: definition.areaTrigger }),
-        ...(definition.areaStanding === undefined ? {} : { areaStanding: definition.areaStanding }),
+        ...(pinnedStanding === undefined ? {} : { areaStanding: pinnedStanding }),
+        ...(becomes.types === undefined ? {} : { types: becomes.types }),
+        ...(becomes.path === undefined ? {} : { path: becomes.path }),
         // And what ends it early, pinned by the same rule for the same
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
@@ -3289,8 +3358,8 @@ export function resolveEffects(
           ? {}
           : { endsAfterTrigger: becomes.endsAfterTrigger }),
         ...(becomes.dismissibleBy === undefined ? {} : { dismissibleBy: becomes.dismissibleBy }),
-      },
-    });
+    };
+    events.push({ type: 'spell-ongoing', casting: withInsideAtTheCast(state, casting) });
   }
 
   // **After the record because the fold insists**, which is the one ordering
@@ -3804,6 +3873,10 @@ interface OngoingRecordPlan {
   readonly endsAfterTrigger?: true;
   /** Who else may end it — see `OngoingSpell.dismissibleBy`. */
   readonly dismissibleBy?: 'target';
+  /** The creature types the caster stated, where the spell prints several — see `OngoingSpell.types`. */
+  readonly types?: readonly string[];
+  /** The spaces a wall runs through, for the one template that is drawn — see `OngoingSpell.path`. */
+  readonly path?: readonly Point[];
 }
 
 /**
@@ -3839,6 +3912,7 @@ function statedFacts(
     readonly damageType?: string;
     readonly unaffected?: readonly CharacterId[];
     readonly chosen?: readonly CharacterId[];
+    readonly types?: readonly string[];
   },
   /**
    * Whose casting this is, for the one fact that names them without being
@@ -3860,11 +3934,16 @@ function statedFacts(
   readonly damageType?: string;
   readonly unaffected?: readonly CharacterId[];
   readonly chosen?: readonly CharacterId[];
+  readonly types?: readonly string[];
 } {
   return {
     ...(stated.unaffected === undefined || stated.unaffected.length === 0
       ? {}
       : { unaffected: [...stated.unaffected].sort() }),
+    // The creature types the caster stated — SRD Magic Circle's "one or more"
+    // — carried as given: `declaredFacts` has already refused a duplicate and
+    // a name off the printed list, and the order is the caster's own.
+    ...(stated.types === undefined || stated.types.length === 0 ? {} : { types: stated.types }),
     // The designation's mirror, normalised beside it and through the same
     // idempotence: the caster is already on an already-normalised list, and a
     // set is what puts them there, so a settlement may run this over a pending
@@ -3894,6 +3973,28 @@ function handoversPinned(
 ): readonly string[] {
   const branch = option === undefined ? undefined : definition.options?.[option];
   return [...(definition.dmDecides ?? []), ...(branch?.handsOver ?? [])];
+}
+
+/**
+ * The record with the creatures inside its area at the cast pinned, where a
+ * clause asks for them.
+ *
+ * SRD Tiny Hut: "Creatures and objects within the Emanation **when you cast
+ * the spell** can move through it freely." A fact about one moment, read off
+ * the record's own geometry through the reader every standing clause uses, and
+ * written down because no later read of the scene can recover it. Sorted, so
+ * two folds of one log write one list. Absent for every casting whose clauses
+ * do not name it — which is what keeps every other record byte-identical.
+ */
+function withInsideAtTheCast(state: GameState, casting: OngoingSpell): OngoingSpell {
+  const wants =
+    casting.areaStanding?.some(
+      (clause) => clause.kind === 'bars-passage' && clause.except === 'inside-at-the-cast',
+    ) === true;
+  if (!wants || state.scene === null) return casting;
+  const inside = creaturesStandingInCastingArea(state.scene, casting);
+  if (inside === null) return casting;
+  return { ...casting, insideAtTheCast: [...inside].sort() };
 }
 
 /**

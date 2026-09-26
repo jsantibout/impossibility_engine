@@ -300,6 +300,9 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'inflict-wounds',
   'insect-plague',
   'invisibility',
+  // `spell-tracking.test.ts`: cast, spent, and the four printed sentences —
+  // every one about an object — handed to the table whole.
+  'knock',
   'lesser-restoration',
   // `movement-rider.test.ts` (engine): the Constitution save, twenty feet of
   // air for a creature that fails it, the hold recorded under the casting's
@@ -313,6 +316,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'lightning-bolt',
   'longstrider',
   'mage-armor',
+  // `magic-circle.test.ts`: the stated types refused three ways and pinned
+  // into the clauses, a Fiend barred a step in, its Misty Step saving on
+  // Charisma and held back on a failure, Disadvantage on its shot at the cleric
+  // inside and none on a Humanoid's, its Frightened refused, and the reverse
+  // holding a Fiend inside.
+  'magic-circle',
   'magic-jar',
   // `auto-damage.test.ts`: three darts round the list, five out of a level 3
   // slot, the caster's own uneven split, a Sanctuary ward turning them away
@@ -484,6 +493,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // is a mode with no creature to land on.
   'thaumaturgy',
   'thunderwave',
+  // `tiny-hut.test.ts`: the dome pinned where it rose with who was inside, a
+  // goblin barred a step in and a Fire Bolt at the wizard, a Fireball out
+  // refused at level 3 and a Cone of Cold passed at level 5, a Fireball from
+  // outside catching nobody inside, the fighter walking out and back, and the
+  // wizard's step out ending the casting.
+  'tiny-hut',
   // Driven end to end by `cantrip-with-the-swing.test.ts` (engine): the cantrip
   // named on the attack command, the Action spent as the casting's and no
   // Attack action taken, `spell-cast` ahead of the roll, both rolls made with
@@ -496,6 +511,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'vitriolic-sphere',
   'web',
   'wind-walk',
+  // `barriers.test.ts` and `wall-template.test.ts`: the path pinned on the
+  // record, a goblin's arrow deflected with the die on the record and a Fire
+  // Bolt left to its roll, a Small flier barred the crossing and a Medium one
+  // through, and a creature in gaseous form turned back.
+  'wind-wall',
 ];
 
 export interface SpellCoverage {
@@ -594,7 +614,10 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.conjures !== undefined ||
   definition.maxRunning !== undefined ||
   Object.values(definition.options ?? {}).some(
-    (branch) => (branch.effects ?? []).length > 0,
+    // A branch's own standing clauses count for the reason the common list's
+    // do: SRD Magic Circle's two directions are two lists of clauses the
+    // Cylinder imposes, and nothing else the spell does.
+    (branch) => (branch.effects ?? []).length > 0 || (branch.areaStanding ?? []).length > 0,
   );
 
 /** Every definition the engine resolves something of, by id. */

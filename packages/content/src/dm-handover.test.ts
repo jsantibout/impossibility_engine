@@ -297,11 +297,13 @@ const bodyFor = (definition: (typeof SPELL_DEFINITIONS)[number]): CharacterId =>
  * that each of these is *cast* rather than refused, and a table of ids would
  * have to be extended by hand on the day a definition's target rule moved.
  *
- * Four facts and no more, because no definition in this population prints a
- * stated choice or a printed branch: whether it aims at anybody, which body it
- * aims at — {@link bodyFor}, since a target rule here names a type and a size
- * — whether it asks about consent, and, since SRD Silence joined the
- * population, where a volume the caster places goes.
+ * Six facts and no more: whether it aims at anybody, which body it aims at —
+ * {@link bodyFor}, since a target rule here names a type and a size — whether
+ * it asks about consent, where a volume the caster places goes (since SRD
+ * Silence joined the population), and — since SRD Magic Circle joined it — the
+ * first branch a spell prints and the first creature type it offers, because a
+ * casting states both or is refused. No definition here prints a single stated
+ * choice.
  */
 const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
   const targets =
@@ -314,8 +316,13 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
               ? CORPSE
               : bodyFor(definition),
         ];
+  const branches = Object.keys(definition.options ?? {});
   return {
     targets,
+    ...(branches.length === 0 ? {} : { option: branches[0]! }),
+    ...(definition.typesStated === undefined
+      ? {}
+      : { types: [definition.typesStated.options[0]!] }),
     // **An area the caster puts somewhere needs the point.** A `self` origin
     // is the caster's own space and refuses to be moved, so only a
     // point-origin volume is placed — five feet from the shrine, which is
@@ -421,10 +428,21 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'gentle-repose',
       'identify',
       'illusory-script',
+      // **Knock, read to the end.** Every one of its sentences is about an
+      // object — a lock, a bar, a chest, an Arcane Lock on a door — and no
+      // object has a state here to be opened; its one filed debt recorded in
+      // its own words that the casting it would suppress could never be
+      // named. Handed over whole, and the tracked map keeps the reading.
+      'knock',
       'legend-lore',
       'locate-animals-or-plants',
       'locate-object',
       'mage-hand',
+      // **The third executed spell here.** SRD Magic Circle's mechanical
+      // sentences are executed — a barrier, a save on a teleport, an attack
+      // mode and an Immunity, all off the Cylinder — and the one handed over
+      // is the runes on the floor, which is a fact about the room.
+      'magic-circle',
       'magic-mouth',
       'major-image',
       'meld-into-stone',
@@ -446,6 +464,11 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'silent-image',
       'speak-with-animals',
       'speak-with-dead',
+      // **The fourth.** SRD Tiny Hut's barrier, ward and ending are executed;
+      // what goes to the table is the dome's weather, its light, its colour
+      // and its opacity, and the failure at the casting if it is not big
+      // enough — facts about a room and about creatures nobody has placed.
+      'tiny-hut',
       'tongues',
       'water-breathing',
       'water-walk',

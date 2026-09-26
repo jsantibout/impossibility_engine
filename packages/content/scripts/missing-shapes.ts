@@ -1107,6 +1107,23 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "You touch one Large or smaller object that isn\'t being worn or carried by someone else." The light is executed — a `light` effect carried by the creature the casting names as the bearer, bright to 20 feet and dim to 40, moving with them and gone with the hour — and the object is the table’s: which thing was touched, whether somebody else is carrying it, and whether it was set down, in which case the DM lights the point with `declare_light`. "Covering the object with something opaque blocks the light" is a fact about an object too.',
     },
   ],
+  'magic-circle': [
+    {
+      clause: 'possession is not a state the engine holds',
+      why: 'table',
+      note: 'SRD: "Targets within the Cylinder can’t be possessed by or gain the Charmed or Frightened condition from the creature." The two conditions are executed — an Immunity narrowed to the chosen types, read off the Cylinder — and the marker fires on their names. Possession is the third thing in the sentence and the one the engine has no state for: no condition, no grant and no event says a creature is possessed, so whether a Fiend possesses somebody standing in the circle is a fact only the table holds, and always will be.',
+    },
+    {
+      clause: 'interplanar travel is not modelled',
+      why: 'table',
+      note: 'SRD: "If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw." The teleport half is executed — `teleportTo` hands the save back and the spell’s own road rolls it before the creature arrives — and the markers fire on the save and the teleport. Interplanar travel is the other half, and there is one scene: a creature arriving from another plane has no position to arrive from, so nothing here could raise the save against it, and whether a Fiend steps in from the Abyss is the table’s.',
+    },
+    {
+      clause: 'the duration increasing by 1 hour for each spell slot level above 3',
+      why: 'a-duration-the-slot-changes',
+      note: 'SRD, _Using a Higher-Level Spell Slot_: "The duration increases by 1 hour for each spell slot level above 3." A slot reaches damage dice, a target count and, for the one spell that prints it, a Concentration the slot drops; a duration that grows by the slot is the shape Major Image’s level-4 sentence is filed under, and this is a second writer of it — an hour a level rather than a casting that outlasts its Concentration.',
+    },
+  ],
   'magic-jar': [
     {
       clause: 'Charisma save to possess a Humanoid',
@@ -1362,13 +1379,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the minute of reverting',
       why: 'an-activation-taken-by-somebody-other-than-the-caster',
       note: 'SRD: "Reverting takes 1 minute, during which the target has the Stunned condition." The Magic action that begins it is taken by the target rather than by the caster, so the minute of Stunned hangs off an activation belonging to somebody the casting reached rather than to whoever cast it.',
-    },
-  ],
-  'wind-wall': [
-    {
-      clause: 'deflected upward',
-      why: 'a-barrier-that-blocks-passage',
-      note: 'the geometry is built and the obstacle is not: the wall is a template the casting resolves over, and stopping a Small flying creature, an arrow or a creature in gaseous form is the half `docs/design/space-and-areas.md` keeps out — a shape that refuses a crossing is where a rules engine becomes a VTT.',
     },
   ],
   'zone-of-truth': [
@@ -2791,32 +2801,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the check is against a glyph whose whole configuration — explosive rune or spell glyph, trigger, damage type, stored spell — is chosen when it is inscribed, so there is nothing inscribed for anybody to notice.',
     },
   ],
-  'magic-circle': [
-    {
-      marker: 'teleport',
-      clause: 'If the creature tries to use teleportation or interplanar travel',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'the ward stops a teleport arriving rather than performing one, which is how this clause was re-filed when the teleportation shape was retired: an area that refuses a casting resolved somewhere else has no state to sit in.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'it must first succeed on a Charisma saving throw',
-      why: 'a-barrier-that-blocks-passage',
-      note: 'the save exists only to answer the attempt to cross, so it is raised by the boundary rather than by the casting, and there is no boundary.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'Disadvantage on attack rolls against targets within the Cylinder',
-      why: 'a-filter-on-the-attackers-creature-type',
-      note: 'the penalty falls on one creature type attacking whoever is inside, and a selector reaches a roll by family, ability and skill — the roll-and-damage note names this spell in the table of what the vocabulary does not reach.',
-    },
-    {
-      marker: 'condition',
-      clause: 'be possessed by or gain the Charmed or Frightened condition from the creature',
-      why: 'a-condition-immunity-narrowed-to-its-source',
-      note: 'the immunity holds against that one creature and against nobody else, and a condition immunity is refused to everybody or to nobody rather than narrowed to who is trying to apply it.',
-    },
-  ],
   confusion: [
     {
       marker: 'saving-throw',
@@ -3474,8 +3458,8 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
     {
       marker: null,
       clause: 'that spell is suppressed for 10 minutes',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing`. **Two things are missing and they are not the same thing.** The first is this shape: the state a suppressed casting sits in, a spell that does not function while its time goes on running, which is the half `spell-ended` did not build. The second is that nothing can name this particular casting anyway — Arcane Lock’s own definition records it for Dispel Magic, which ends an ongoing spell on a target where this casting is on a door. The debt is the first; the second is why building it would still leave a lock nobody can reach.',
+      why: 'table',
+      note: 'read to the end, and handed over whole rather than filed as a debt. This clause was filed under `an-effect-that-suppresses-other-magic`, and the entry itself recorded why building that state would still leave the sentence unreachable: Arcane Lock is cast on a door, a door is not in state, and nothing could name the casting Knock would suppress. Every other sentence of the spell — the lock, the bar, the chest, the knock heard 300 feet off — is about an object the engine holds no state for. So the casting is made, the slot spent, and the four printed sentences go to the table in the book’s words.',
     },
   ],
   'speak-with-plants': [
@@ -3484,26 +3468,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'turn Difficult Terrain caused by plant growth',
       why: 'difficult-terrain-an-area-creates',
       note: 'the clause after it — turning ordinary ground into Difficult Terrain — is writable now, and this one is the direction that is not: **removing** it. Nothing in the lattice subtracts, because `terrainAt` takes the dearest rate lying over a space and a patch cancelling its neighbours is the one thing a rate cannot say.'
-    },
-  ],
-  'tiny-hut': [
-    {
-      marker: null,
-      clause: 'All other creatures and objects are barred from passing through it',
-      why: 'a-barrier-that-blocks-passage',
-      note: 'the dome stops a creature crossing it, and movement consults no walls — which `docs/design/space-and-areas.md` keeps out on purpose, because ray-casting a barrier is where a rules engine becomes a VTT. The template that describes the Emanation is a different thing from a surface that refuses a mover.',
-    },
-    {
-      marker: null,
-      clause: "Spells of level 3 or lower can't be cast through it",
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'an area that refuses another casting rather than ending one. `spell-ended` built the ending half and this is the half it did not: no state says a casting is being refused, and a level cap read off the dome has nowhere to be checked.',
-    },
-    {
-      marker: null,
-      clause: 'The spell ends early if you leave the Emanation',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'this spell is the shape’s own example of leaving an area, named in its description. The other half of the same sentence — casting it again — is `replacesPriorCasting` and is applied; what has no cause the log holds is the caster stepping out of their own dome.',
     },
   ],
   'animate-dead': [

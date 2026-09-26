@@ -700,10 +700,12 @@ describe('the condition-immunity family is read sentence by sentence', () => {
     // clause into `TRACKED_ADJUDICATED`, where it says the same thing about the
     // same sentence — and Protection from Evil and Good keeps two of its three
     // readings there, the third being the Immunity narrowed by the word "them".
+    // Magic Circle's reading has been paid too: the Immunity narrowed to the
+    // chosen types is an area clause now, read off the Cylinder rather than
+    // hung on a creature, so the circle holds no reading against this shape.
     expect(consumersOf('a-condition-immunity-narrowed-to-its-source').tracked).toEqual([
       'freedom-of-movement',
       'hallow',
-      'magic-circle',
     ]);
     // **And Protection from Evil and Good's third reading has been paid.** The
     // Immunity narrowed by the word "them" is a `fromTypes` on the grant now
@@ -756,18 +758,12 @@ describe('the condition-immunity family is read sentence by sentence', () => {
       )?.why,
     ).toBe('an-effect-that-suppresses-other-magic');
     expect(BLOCKED_ON['freedom-of-movement']).toBeUndefined();
-    // Magic Circle's was the second, and it is **kept** rather than lost now
-    // that the spell is defined: the type the circle is drawn against is
-    // chosen at the casting, and the definition says so on every casting.
-    // There is no tracked entry for it because the sentence the reading was
-    // anchored to trips no mechanical marker — which is the same reason Calm
-    // Emotions is still undefined, met from the other side.
+    // Magic Circle's was the second, and it is **stated** now rather than
+    // noted: the type the circle is drawn against is chosen at the casting,
+    // and `typesStated` is the field the caster answers — one or more of the
+    // five the book prints — substituted into the clauses the record pins.
     expect(BLOCKED_ON['magic-circle']).toBeUndefined();
-    expect(
-      (SRD_CONTENT.spell('magic-circle')?.unmodelled ?? []).filter((note) =>
-        note.includes('is chosen when the spell is cast'),
-      ),
-    ).toHaveLength(1);
+    expect(SRD_CONTENT.spell('magic-circle')?.typesStated?.options).toHaveLength(5);
     // Wind Walk's was the third, and that one *does* trip a marker, so it moved
     // into the tracked map against the very sentence it was read from — **and
     // has since moved again**, into the executed map, because the spell stopped
@@ -2609,10 +2605,13 @@ describe('a consumer count is a query', () => {
     // leader lost a consumer without anything being built for it, and
     // `a-casting-ended-by-a-trigger` drew level: a ranking is a measurement of
     // the populations rather than a statement about what is hard.
-    expect(leaders).toEqual([
-      'a-casting-ended-by-a-trigger',
-      'a-random-outcome-that-is-not-a-d20',
-    ]);
+    //
+    // **And the tie broke the other way.** Tiny Hut's "ends early if you
+    // leave the Emanation" is executed — `caster-leaves-the-area`, derived
+    // off `creature-moved` — so `a-casting-ended-by-a-trigger` lost a
+    // consumer to a shape that was built for it, and the coin flip leads
+    // alone.
+    expect(leaders).toEqual(['a-random-outcome-that-is-not-a-d20']);
     expect(Object.keys(SPLIT_BUNDLES)).toContain('an-action-a-spell-compels-or-forbids');
     // And the split is visible from here rather than only in the record: the
     // bundle stands below the leader, and the largest piece to come out of it
@@ -2642,9 +2641,15 @@ describe('a consumer count is a query', () => {
       // effects run — and Command and Thaumaturgy left the undefined and
       // tracked maps through it, which took the shape out of this band rather
       // than moving it down inside one.
+      //
+      // And `a-casting-ended-by-a-trigger` dropped **into** this band from the
+      // leading tie when Tiny Hut's caster-leaves ending was built, while
+      // `an-effect-that-suppresses-other-magic` fell out of it: Tiny Hut's
+      // ward and Magic Circle's teleport save were both executed, and Knock's
+      // filed claim was read to the end and handed over.
+      'a-casting-ended-by-a-trigger',
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',
-      'an-effect-that-suppresses-other-magic',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -2937,13 +2942,12 @@ describe('a shape that gets built is content work, not a merge', () => {
     expect(TRACKED_ADJUDICATED['hallow']?.map((entry) => entry.why)).toContain(
       'an-effect-that-suppresses-other-magic',
     );
-    // Magic Circle is tracked now and its half of the re-filing made the same
-    // move Forbiddance's did: the ward against arriving is anchored to the
-    // very sentence it was read from, in the tracked map.
+    // Magic Circle left the tracked map altogether: the ward against arriving
+    // is a barrier clause with the Charisma save the book prints, rolled on a
+    // teleport in, so the sentence it was anchored to is executed rather than
+    // filed.
     expect(BLOCKED_ON['magic-circle']).toBeUndefined();
-    expect(TRACKED_ADJUDICATED['magic-circle']?.map((entry) => entry.why)).toContain(
-      'an-effect-that-suppresses-other-magic',
-    );
+    expect(TRACKED_ADJUDICATED['magic-circle']).toBeUndefined();
     expect(BLOCKED_ON['forbiddance']).toBeUndefined();
     expect(TRACKED_ADJUDICATED['forbiddance']?.map((entry) => entry.why)).toContain(
       'an-effect-that-suppresses-other-magic',

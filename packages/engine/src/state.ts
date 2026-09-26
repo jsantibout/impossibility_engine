@@ -1504,6 +1504,8 @@ export interface PendingCasting {
      * folds to exactly the state it always did.
      */
     readonly anchoring?: PointAnchoring;
+    /** The spaces a wall runs through, for the one template the caster draws. */
+    readonly path?: readonly Point[];
   };
   /**
    * The damage type the caster stated, where the spell prints a choice.
@@ -1534,6 +1536,14 @@ export interface PendingCasting {
    * declaration written before this folds to exactly the state it always did.
    */
   readonly choice?: string;
+  /**
+   * The creature types the caster chose, where the spell prints a choice of
+   * one or more — SRD Magic Circle's "Choose one or more of the following
+   * types". Beside {@link choice} and for its reason: a circle declared against
+   * Fiends must not settle against Undead, and a settlement takes no fresh
+   * request to ask again. Absent for every spell that prints no such clause.
+   */
+  readonly types?: readonly string[];
   /**
    * Which of the spell's printed branches this casting runs.
    *

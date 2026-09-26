@@ -2311,7 +2311,7 @@ export function declareObscuringPatch(
  * spell; a patch of ground has no creator standing on it, and Arcane Hand's
  * "its space counts as Difficult Terrain" wants the origin space included.
  */
-function spaceInRegion(
+export function spaceInRegion(
   state: PositionState,
   region: TerrainRegion,
   space: Point,
@@ -2333,6 +2333,174 @@ function spaceInRegion(
     region.shape,
     box,
   );
+}
+
+/**
+ * Whether this creature, standing at `at`, would be in the region.
+ *
+ * {@link spaceInRegion} asked of the mover's whole volume rather than of one
+ * cube — the box `occupantsAt` tests a destination as — so a Large creature
+ * with one corner in a dome is in it, which is the ordinary reading
+ * `creaturesInArea` takes of a creature that is already standing there. The
+ * barrier read in `commands/movement.ts` asks this of each space a step
+ * enters, and `teleportTo` of the space a creature arrives in.
+ */
+export function moverInRegionAt(
+  state: PositionState,
+  region: TerrainRegion,
+  who: CharacterId,
+  at: Point,
+): boolean {
+  const frame = areaFrame(state, region.origin);
+  if (!frame.ok) return false;
+
+  const space = snapPoint(at);
+  const width = footprintOf(state.sizes[who] ?? 'medium');
+  const box: Box = {
+    min: space,
+    max: {
+      x: space.x + width,
+      y: space.y + width,
+      z: space.z + Math.max(CUBE, snap(heightOf(state, who))),
+    },
+  };
+  const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
+  return boxInShape(
+    frame.value.world,
+    frame.value.anchor,
+    frame.value.originBox,
+    towards,
+    region.shape,
+    box,
+  );
+}
+
+/**
+ * Whether **every** shortest way from here to there enters the region.
+ *
+ * {@link mustCrossSomebody}'s walk with a barrier where the occupants were,
+ * and the same reading of the answer: `true` means no route this mover could
+ * state keeps clear of the region, so a move between two spaces outside a dome
+ * that could only have gone through it is refused rather than asked about —
+ * there is no route a caller could supply that would make it legal. `false`
+ * is a real route the mover could have walked around the edge.
+ *
+ * Both endpoints are the caller's to have checked already: a move that begins
+ * or ends inside is a crossing on its own evidence, and this is the question
+ * for the one that does neither.
+ */
+export function mustEnterRegion(
+  state: PositionState,
+  who: CharacterId,
+  from: Point,
+  to: Point,
+  region: TerrainRegion,
+): boolean {
+  const start = snapPoint(from);
+  const end = snapPoint(to);
+  const reach = distanceBetweenPoints(start, end);
+  if (reach === 0) return false;
+
+  const key = (p: Point): string => `${p.x},${p.y},${p.z}`;
+  const onSomeRoute = (p: Point): boolean =>
+    distanceBetweenPoints(start, p) + distanceBetweenPoints(p, end) === reach;
+  const clear = new Map<string, boolean>();
+  const free = (p: Point): boolean => {
+    const at = key(p);
+    const known = clear.get(at);
+    if (known !== undefined) return known;
+    const answer = within(state.extent, p) && !moverInRegionAt(state, region, who, p);
+    clear.set(at, answer);
+    return answer;
+  };
+
+  const seen = new Set<string>([key(start)]);
+  let frontier: Point[] = [start];
+  while (frontier.length > 0) {
+    const next: Point[] = [];
+    for (const at of frontier) {
+      for (let dx = -CUBE; dx <= CUBE; dx += CUBE) {
+        for (let dy = -CUBE; dy <= CUBE; dy += CUBE) {
+          for (let dz = -CUBE; dz <= CUBE; dz += CUBE) {
+            if (dx === 0 && dy === 0 && dz === 0) continue;
+            const step = { x: at.x + dx, y: at.y + dy, z: at.z + dz };
+            if (seen.has(key(step))) continue;
+            if (!onSomeRoute(step)) continue;
+            if (!free(step)) continue;
+            if (step.x === end.x && step.y === end.y && step.z === end.z) return false;
+            seen.add(key(step));
+            next.push(step);
+          }
+        }
+      }
+    }
+    frontier = next;
+  }
+  return true;
+}
+
+/**
+ * Whether the straight line between two world points passes through the region.
+ *
+ * SRD Wind Wall: "projectiles launched at targets **behind the wall**." The
+ * line from the attacker's space to the target's, sampled a foot at a time
+ * between its two ends, against the shape — exact for a wall, which is a list
+ * of spaces, and the same centre-of-cube reading the directional templates
+ * take for everything else. The endpoints themselves are left out: a creature
+ * standing in the wall is not behind it.
+ *
+ * **A segment test and not a ray-cast.** Cover and sight stay declared; this
+ * answers one question about one casting's own area, which is the line
+ * `docs/design/space-and-areas.md` draws between a rules engine and a map.
+ */
+export function segmentCrossesRegion(
+  state: PositionState,
+  region: TerrainRegion,
+  from: Point,
+  to: Point,
+): boolean {
+  const frame = areaFrame(state, region.origin);
+  if (!frame.ok) return false;
+  const towards = 'towards' in region.shape ? worldPointOf(region.shape.towards) : null;
+  const shape = region.shape;
+
+  const inShape = (p: Point): boolean => {
+    if (shape.kind === 'wall') {
+      return shape.path.some(
+        (space) =>
+          p.x >= space.x &&
+          p.x < space.x + CUBE &&
+          p.y >= space.y &&
+          p.y < space.y + CUBE &&
+          p.z >= space.z &&
+          p.z < space.z + shape.height,
+      );
+    }
+    if (shape.kind === 'sphere' || shape.kind === 'emanation' || shape.kind === 'cylinder') {
+      return boxInShape(
+        frame.value.world,
+        frame.value.anchor,
+        frame.value.originBox,
+        towards,
+        shape,
+        { min: p, max: p },
+      );
+    }
+    return towards !== null && inDirectional(frame.value.world, towards, shape, p);
+  };
+
+  const length = magnitude(subtract(to, from));
+  const steps = Math.max(1, Math.ceil(length));
+  for (let i = 1; i < steps; i += 1) {
+    const t = i / steps;
+    const p = {
+      x: from.x + (to.x - from.x) * t,
+      y: from.y + (to.y - from.y) * t,
+      z: from.z + (to.z - from.z) * t,
+    };
+    if (inShape(p)) return true;
+  }
+  return false;
 }
 
 /** What a foot of one space costs, and which patches made it cost that. */
