@@ -40,10 +40,7 @@ homebrew.
   what it could not read; a legendary block's uses are a pool spent one per
   turn boundary; a printed teleport is spent at its distance, a
   printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (put out by its own action), wear its armour down, or hand a graded failure to
-  the printed-save reader; a save may spin the web that holds its target; a Parry raises Armour Class in the hit window, a printed Reaction may spend
-  another printed line, a cast line is spent at its heading's price, a creature carries its
-  Challenge Rating and may take the form its block prints, and a Roper reels
-  what it holds.
+  the printed-save reader; a save may spin a web; a Parry raises Armour Class in the hit window; a printed Reaction may spend another line; a cast line is spent at its heading's price; a creature carries its Challenge Rating, may take its block's printed form, and a Roper reels what it holds. A block's move executes: Deadly Leap and Trampling Charge with a save per space entered, the Leaps, Bubble Dash, Prowl, Tree Stride between declared trees, the Charges; dragging a grappled creature and crawling cost extra feet.
 - **Features that do something** — an action rule a feature holds, a use that
   hangs something a later roll spends, a pool use that buys room in the turn
   budget, the Unarmed Strike's three options, fighting styles, weapon
@@ -53,10 +50,7 @@ homebrew.
   on the roll command — if it misses, fails, or shows a named face or lower (Heroic Inspiration). **The glossary's
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack carries Nick and Two-Weapon
-  Fighting, and the small named features, Savage Attacker to Primal Order, execute; a feature may ask two questions, grant a language, or know a
-  marked quarry's defences through `look`. Eldritch Invocations executes
-  whole, both Pacts included: a feature may conjure the weapon it imbues and
-  widen the forms a summons offers. **Wild Shape executes**: a Druid wears a learned Beast's stat block, keeps the SRD's retained half, and comes back by every ending the book names.
+  Fighting, and the small named features, Savage Attacker to Primal Order, execute; a feature may ask two questions, grant a language, or know a quarry's defences through `look`; Eldritch Invocations executes whole, both Pacts included. **Wild Shape executes**: a Druid wears a learned Beast's stat block, keeps the SRD's retained half, and comes back by every ending the book names.
 - **Casting and spells** — slots and Pact slots as pools, castings with
   identities, Concentration, ongoing spells, the effect and rider kinds, dice
   that behave the way their spell says, printed sentences handed to the DM
@@ -78,9 +72,7 @@ homebrew.
   charges, a copy told apart from its twin, an item that moves between
   people, a purse. **An item nobody holds lies on the floor**
   with an instance id, and a creature can be too laden to lift it. **An object is declared into the scene and broken**: a door stated by
-  material and size, swung at and destroyed, with a damage threshold. **Hands are a count**, so a Two-Handed weapon and a shield refuse each
-  other, and a conjured thing occupies one and carries a record of its own
-  while its casting or activation runs.
+  material and size, swung at and destroyed, with a threshold. **Hands are a count**: a Two-Handed weapon and a shield refuse each other, and a conjured thing occupies one while its casting runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from
   JSON text; homebrew uses the same door.
 - **Two doors above the engine** (`@ie/tools`) — the player's and, under
@@ -109,8 +101,8 @@ homebrew.
 - No ammunition spent. **An object cannot make an ability check**, and may be put in the turn order.
 - A conferral refuses by name what it cannot do: attack bonuses, set ability scores, curses, item Speed.
 - **Two corpus migrations are owed**: a weapon mastery is a ceiling, not a
-  quota; a size nobody chooses defaults rather than refusing.
-- Homebrew may add beside printed content, never override an id.
+  quota; an unchosen size defaults rather than refusing.
+- Homebrew adds beside printed content, never overriding an id.
 
 ## Rulings that stand
 

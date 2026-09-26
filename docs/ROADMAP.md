@@ -2703,3 +2703,28 @@ Appended after wave seven's first spells track (2026-09-24):
   last level-5 claimants; `a-target-rule-the-format-cannot-state` keeps
   Thaumaturgy. Builder on Fable, two reviews on Opus. Main need not
   re-ingest.
+- **The moves a line makes.** Fourteen CR ≤ 5 lines execute: the
+  printed-save reader's fourth prelude `movesThen` (`jump-to` for Deadly Leap,
+  `move-through` for Trampling Charge — the centaur's template prints no
+  targeting clause, so `OPENING`'s targets are optional and the prelude
+  supplies them), the DM's `move_printed_line` in a new `commands/printed-move.ts`
+  (the route or destination stated, occupancy relaxed by the printed size,
+  the save rolled once per distinct creature entered, `creature-moved.intoOccupied`
+  so the log does not call a leap a shove); `parseJumpLine` → a
+  `jump-allowance-granted` under a turn-anchored deadline; `parseDashLine` →
+  `movement-granted` at the printed fraction of the named Speed, spent by
+  `move.using_line`, provoking nothing where the line says so (a Charge
+  provokes as walking does, its bearing handed over); Prowl's Hide priced from
+  the Bonus Action; `parseTreeStrideLine` → `teleport_printed_line.viaFrom/viaTo`
+  between two declared Large objects; `jumps-by-dexterity`; and **SRD
+  Grappled's drag** — one extra foot per foot unless the held creature is Tiny
+  or two sizes smaller, waived by `drags-for-free` (Abduct) — plus **SRD
+  Crawling** for a Prone mover, as the coordinator asked. **Two readings for
+  the owner:** (1) the engine carries nobody — a grappler's move leaves the
+  held creature where it stood and `lapsedGrapples` ends the hold, so today the
+  drag is paid for a creature that was not dragged; the carry is briefed into
+  B10. (2) `wayOf` reads the surcharge as a multiplier, so a foot of Difficult
+  Terrain crawled or climbed unaided costs four; the additive reading of "1
+  extra foot (2 extra feet in Difficult Terrain)" gives three. The engine's
+  established reading stands until the owner rules. Builder on Fable, reviewer
+  on Opus. Main re-ingested.

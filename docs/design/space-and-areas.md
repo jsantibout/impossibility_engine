@@ -122,6 +122,18 @@ SRD's other half is the one ending in this engine that undoes a position:
 nowhere, exactly as a deadline arriving and a broken Concentration are. It is
 not a fall: nothing is declared, nothing is rolled and nobody lands Prone.
 
+**A move a stat block prints** is read into one of four records — `movesThen`
+on a printed save (a leap onto or a charge through other creatures' spaces,
+the save rolled once per creature entered), `jumps` (an allowance a Bonus
+Action hangs until the turn ends), `dashes` (a granted move at a fraction of a
+named Speed, provoking nothing where the line says so, spent by
+`move.using_line`) and `treeStride` (a teleport between two declared Large
+objects). **Two surcharges the glossary prints ride `wayOf`:** dragging a
+grappled creature costs one extra foot per foot unless it is Tiny or two sizes
+smaller (a trait may waive it), and a Prone creature crawls at the climb's
+multiplier. The engine does not yet carry the held creature along; that is
+the holds track's.
+
 ## Combat
 
 Initiative order, the action budget (action, bonus action, reaction,

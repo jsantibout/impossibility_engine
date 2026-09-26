@@ -254,6 +254,12 @@ keeps a block whose save carries a sentence on its books
 (`SAVE_HANDOVER_SHAPE`), because reading a sentence never retires the debt of
 executing it.
 
+**A line that moves first.** A printed save may open with a move — the
+bulette's leap, the centaur's charge — which `parsePrintedSave` reads as a
+`movesThen` prelude and `takePrintedMove` performs before rolling the save
+for each creature whose space was entered; `forcePrintedSave` refuses such a
+line (`line_moves_first`) so the two doors cannot disagree about who rolled.
+
 ## Magic items
 
 Decided before any of them was built, and counted rather than guessed: every

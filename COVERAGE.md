@@ -934,7 +934,7 @@ stopped having to be handed:
 
 | Parsed | Carried | Attacking | Defence entries | of which qualified | of which unread | Printed lines | of which read |
 |---|---|---|---|---|---|---|---|
-| 330 | 332 | 329 | 723 | 2 | 3 | 1335 | 1088 |
+| 330 | 332 | 329 | 723 | 2 | 3 | 1335 | 1105 |
 
 **A stat block used to arrive as a body rather than as an actor.**
 `adaptMonster` has always carried across everything the block states as a
@@ -993,9 +993,9 @@ fact the book wrote for a person.
 
 | Line | Printed | Read |
 |---|---|---|
-| Traits | 338 | 242 |
-| Actions | 813 | 786 |
-| Bonus actions | 78 | 45 |
+| Traits | 338 | 245 |
+| Actions | 813 | 788 |
+| Bonus actions | 78 | 57 |
 | Reactions | 24 | 13 |
 | Legendary actions | 82 | 2 |
 
