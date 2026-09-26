@@ -2301,6 +2301,27 @@ export function checkActionRule(
       );
       return;
     }
+    /*
+     * SRD Haste's parenthesis — "the Attack (one attack only)" — held to the
+     * same arithmetic the rule above it is, and to one more thing: a cap on the
+     * attacks inside an action a narrowing has already withheld is a sentence
+     * nothing could ever read.
+     */
+    if (rule.attacksCap !== undefined) {
+      if (
+        typeof rule.attacksCap !== 'number' ||
+        !Number.isInteger(rule.attacksCap) ||
+        rule.attacksCap < 1
+      ) {
+        bad(
+          `an Attack action holds a whole number of attacks, at least one, not ${String(rule.attacksCap)}; an extra action that buys no attack at all simply does not name the Attack action`,
+        );
+      } else if (Array.isArray(rule.only) && !rule.only.includes('attack')) {
+        bad(
+          'this extra action may not be spent on the Attack action at all, so a cap on the attacks inside one would be read by nothing; name `attack` in the list, or drop the cap',
+        );
+      }
+    }
     if (rule.only === undefined) return;
     if (!Array.isArray(rule.only)) {
       bad('the actions a granted action may be spent on are a list');
@@ -2324,8 +2345,30 @@ export function checkActionRule(
     return;
   }
 
+  /*
+   * SRD Slow's "it can make only one attack if it takes the Attack action",
+   * held to the two things a cap can be wrong about.
+   *
+   * A whole number of at least one, because a cap of nothing is an Attack
+   * action that holds no attack — which is `forbids` naming the action, in
+   * fewer words and through the reader that refuses the spend rather than
+   * emptying the quiver.
+   */
+  if (rule.kind === 'caps-attacks') {
+    if (
+      typeof rule.attacks !== 'number' ||
+      !Number.isInteger(rule.attacks) ||
+      rule.attacks < 1
+    ) {
+      bad(
+        `an Attack action holds a whole number of attacks, at least one, not ${String(rule.attacks)}; a cap of none is the Attack action forbidden`,
+      );
+    }
+    return;
+  }
+
   bad(
-    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, grants, or couples one of several slots`,
+    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, grants, couples one of several slots, or caps the attacks inside an Attack action`,
   );
 }
 

@@ -961,13 +961,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // `NAMED_ACTIONS` holds Utilize and `takeUtilize` is a spender that names
   // itself as one. The note that said otherwise was written before that
   // spender existed.
-  haste: [
-    {
-      clause: '(one attack only)',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." The list is written; the parenthesis is not, and it is the sentence SRD Slow prints from the other end about the attacks inside one Attack action. What both want is a **count** of those, and the economy counts one Attack action and not the swings in it.',
-    },
-  ],
   'heat-metal': [
     {
       clause: 'an object nobody is wearing or wielding',
@@ -1219,11 +1212,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // the `grants` timer the casting's own source already keys, so "ending the
   // spell on itself" reaches the goblin that made its save and nobody else.
   slow: [
-    {
-      clause: 'it can make only one attack if it takes the Attack action',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the second half of the same sentence, and a different absence: the economy counts one Attack action and not the attacks inside it, which `docs/design/characters-and-equipment.md` states from the feature side — "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
-    },
   ],
   'spider-climb': [
     {

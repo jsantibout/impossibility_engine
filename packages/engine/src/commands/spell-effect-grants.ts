@@ -405,6 +405,7 @@ export function resolveActionRuleEffect(
     const theirTurn = combat !== null && combat.order[combat.turnIndex]?.id === target;
     if (theirTurn) {
       const only = effect.rule.only;
+      const attacksCap = effect.rule.attacksCap;
       events.push({
         type: 'turn-budget-granted',
         id: target,
@@ -412,7 +413,14 @@ export function resolveActionRuleEffect(
         // refusal a narrowed extra prints has to name what bought it, and
         // `combat.ts` can reach no catalogue.
         source: name,
-        action: only === undefined ? {} : { only },
+        action: {
+          ...(only === undefined ? {} : { only }),
+          // And the parenthesis, where a once-only grant prints one. No SRD
+          // spell of this shape does — Expeditious Retreat hands over a Dash —
+          // but the field travels with the action either way, because a mint
+          // that dropped it would be the one place the cap silently did nothing.
+          ...(attacksCap === undefined ? {} : { attacksCap }),
+        },
       });
       current = events.slice(-1).reduce(applyEvent, current);
     }

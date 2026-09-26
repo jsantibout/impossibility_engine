@@ -315,7 +315,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // `haste-and-slow.test.ts`: the doubled Speed against SRD Slow's halving in
   // the order `combineSpeed` fixes, and the lethargy the ending lays — laid by
   // a Concentration let go and by the minute running out, and lifted at the end
-  // of the target's next turn and not before.
+  // of the target's next turn and not before. `haste-slow-attacks.test.ts`: the
+  // parenthesis, on the action the spell hands over rather than on the creature
+  // — a hasted Fighter swings twice on their own Attack action and once on
+  // Haste's — and SRD Slow's cap on every Attack action beside it.
   'haste',
   'healing-word',
   // `heat-metal.test.ts`: the breastplate's wearer burned, a failed save

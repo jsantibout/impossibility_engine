@@ -2588,12 +2588,16 @@ export const SLOW: SpellDefinition = {
         // both" — the two slots coupled, so whichever goes first closes the
         // other for that turn. A fourth grant off the same saving throw.
         { kind: 'action', rule: { kind: 'one-of', slots: ['action', 'bonus-action'] } },
+        // "and it can make **only one attack** if it takes the Attack action" —
+        // a cap on what the action holds rather than on whether it may be
+        // spent, so it stands on the creature and reaches every Attack action
+        // it takes, its own and any a Haste or an Action Surge buys.
+        { kind: 'action', rule: { kind: 'caps-attacks', attacks: 1 } },
       ],
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    '"it can make only one attack if it takes the Attack action" is not applied: the economy counts one Attack action and not the attacks inside it',
     'the 25 percent chance a Somatic spell fails is not rolled: it is a percentage no effect asks for, deciding whether another casting happens at all',
   ],
 };
@@ -7152,6 +7156,10 @@ export const HASTE: SpellDefinition = {
         kind: 'grants',
         at: 'each-turn',
         only: ['attack', 'dash', 'disengage', 'hide', 'utilize'],
+        // "the Attack (**one attack only**)" — the parenthesis, on the action it
+        // narrows rather than on the creature: a hasted Fighter with Extra
+        // Attack swings twice on their own Attack action and once on this one.
+        attacksCap: 1,
       },
     },
   ],
@@ -7162,9 +7170,6 @@ export const HASTE: SpellDefinition = {
   // arrives, under the spell's bare name so the release that lays it does not
   // lift it in the same breath.
   onEnd: [{ conditions: ['incapacitated'], speed: 'zero', lasts: 'end-of-next-turn' }],
-  unmodelled: [
-    '"(one attack only)" is not enforced: the parenthesis counts the attacks inside one Attack action, and the economy counts one Attack action and not the swings in it',
-  ],
 };
 
 /**

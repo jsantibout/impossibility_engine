@@ -871,6 +871,10 @@ export function settleStartOfTurnGrants(
     action: {
       ...(action.except === undefined ? {} : { except: action.except }),
       ...(action.only === undefined ? {} : { only: action.only }),
+      // SRD Haste's parenthesis, travelling with the action it narrows: the
+      // budget is written by a combat event and nothing else, so a cap that
+      // stopped here would be a sentence the spender could not read.
+      ...(action.attacksCap === undefined ? {} : { attacksCap: action.attacksCap }),
     },
   }));
 }
