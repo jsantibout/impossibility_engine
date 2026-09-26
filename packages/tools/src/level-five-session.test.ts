@@ -18,16 +18,29 @@
  *
  * **The three counts this file delivers**, printed at the end of the run:
  *
- * 1. every `unverified` clause the session produced, by the tool that produced
- *    it;
- * 2. every line of those that is a *handover* — the engine saying the question
- *    is the table's rather than that it owes an answer. Two marks, because the
- *    engine writes two: {@link DM_DECIDES} on a casting, and the sentence a
- *    stat block's lines end with, which has no exported constant and is the
- *    one string this file copies;
+ * 1. every **debt** the session met — every `unverified` line that does not
+ *    carry the engine's handover mark, by the tool that produced it. This is
+ *    the count criterion 3 is about;
+ * 2. every **handover** — a line carrying {@link DM_DECIDES}, the engine
+ *    saying the question is the table's for good — listed by name and not
+ *    counted: the owner ruled on 2026-09-26 that an honest handover does not
+ *    count against criterion 3. The mark is written only from a *filed* field
+ *    (a spell's `dmDecides`, a branch's `handsOver`, a granted route's
+ *    `handOver`, a stat block's `forTheTable`), and this file checks every
+ *    handover it meets against those fields, so a debt cannot pass by being
+ *    called fiction;
  * 3. every `manual` feature the party held and could not use, with the
  *    catalogue's own reason, and beside it every engine pool the party held
  *    that reaches no door at all.
+ *
+ * **Everything unmarked is a debt, whatever its wording** — W7-B13 Part 4.
+ * There used to be a second mark this file copied out of the engine: the
+ * sentence a stat block's lines ended with, "the engine does not apply that; a
+ * DM does". That sentence reports a **residue** — what the reader did not read
+ * and the ledger counts as owed — so counting it as a handover had the census
+ * backwards. It is gone from here; the default is the channel's own name, what
+ * the engine did not verify, which is the direction that cannot be gamed by
+ * leaving a mark off.
  *
  * **What this file imports from the engine, and why it is not a reach-around.**
  * `fight.test.ts` imports no engine at all and says so; this one imports two
@@ -44,8 +57,6 @@
  * finding and is in the digest.
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
 import { DM_DECIDES, dmDecisionsIn, type FeatureDefinition } from '@ie/engine';
@@ -331,8 +342,19 @@ interface Table {
  * A seed is the right thing to re-choose here and a script is not: the script
  * is what the session *does*, and the seed is only which way the dice fell
  * while it did it.
+ *
+ * **Re-chosen again for W7-B13 Part 4**, from `-13` to `-194`, and for the
+ * same kind of reason: the Wight's Life Drain went through the door that rolls
+ * it rather than the one that hands it over, so the engine throws a
+ * Constitution save and the damage where it threw nothing, and the stream
+ * moves from round 2 on. On `-13` the fight no longer reached Turn Undead,
+ * which one assertion below is about. `-194` is the first seed from `-13` up
+ * that plays a run with every moment this file asserts — Turn Undead taken,
+ * the Life Drain rolled and failed (so its filed zombie reaches the handover
+ * list), one call the session could not complete — and no debt at all.
+ * Nothing about the script changed and nothing it asserts was weakened.
  */
-const SESSION_SEED = 'a-level-five-session-13';
+const SESSION_SEED = 'a-level-five-session-194';
 
 /**
  * One campaign, two surfaces over it, and a transcript of every call.
@@ -385,47 +407,12 @@ const seen = (t: Table, id: string) => t.look().creatures.find((one) => one.id =
 interface Clause {
   readonly tool: string;
   readonly line: string;
-  readonly kind: 'handover-spell' | 'handover-block' | 'unmodelled';
+  /**
+   * `handover` where the line carries the engine's mark, `debt` otherwise —
+   * and nothing in between, because a wording is not a mark. See the header.
+   */
+  readonly kind: 'handover' | 'debt';
 }
-
-/**
- * The **second** mark a handover carries, and the reason it is a literal here.
- *
- * A spell's handover goes out under {@link DM_DECIDES}, which the engine
- * exports and `dmDecisionsIn` reads back. A stat block's does not: the five
- * sites that write one — a printed Actions line, a printed Bonus Actions line,
- * a Multiattack's spare sentence, and an attack rider's two, one per sentence
- * the reader got nothing out of and one per deadline it cannot file — each end
- * with this clause and there is no constant for it. So the count either copies
- * the sentence or misses every handover a monster makes — which in this
- * session is all three of them — and copying it with the reason written down
- * is the honest of the two. Exporting it beside `DM_DECIDES` is a one-line
- * engine change this track does not own.
- */
-const BLOCK_HANDOVER = 'the engine does not apply that; a DM does';
-
-/**
- * The two engine files the sentence is written in, and how often, so the copy
- * is pinned.
- *
- * A copied literal is the one unguarded input to count 2: reword the sentence
- * in `attacks.ts` and "handed over to the DM" falls to zero with nothing
- * failing, which is exactly the silence the header invokes `DM_DECIDES` to
- * avoid. So the copy is held to the original the way `doors.test.ts` and
- * `boundary.test.ts` hold theirs — by reading the source — and the day the
- * wording moves, this file says so rather than the count saying nothing.
- */
-const WRITES_THE_HANDOVER: readonly (readonly [string, number])[] = [
-  // A printed Actions line and a printed Bonus Actions line.
-  ['../../engine/src/commands/actions.ts', 2],
-  // A Multiattack's spare sentence, and two of an attack's rider: the clauses
-  // of a printed line the reader got nothing out of, and a clause it read and
-  // could not file because the deadline it names has no turn to end at. The
-  // rider used to be one site because the reader was one shape or nothing;
-  // `readPrintedRiders` reads a line clause by clause, so the residue is per
-  // sentence and the span refusal is its own sentence.
-  ['../../engine/src/commands/attacks.ts', 3],
-];
 
 const clausesIn = (sent: readonly Sent[]): readonly Clause[] =>
   sent.flatMap(({ tool, outcome }) =>
@@ -433,13 +420,66 @@ const clausesIn = (sent: readonly Sent[]): readonly Clause[] =>
       ? outcome.unverified.map((line) => ({
           tool,
           line,
-          kind: line.includes(DM_DECIDES)
-            ? ('handover-spell' as const)
-            : line.includes(BLOCK_HANDOVER)
-              ? ('handover-block' as const)
-              : ('unmodelled' as const),
+          kind: line.includes(DM_DECIDES) ? ('handover' as const) : ('debt' as const),
         }))
       : [],
+  );
+
+/**
+ * **Every sentence the catalogue files as the table's**, wherever it files it.
+ *
+ * The four fields the engine writes the mark from: a spell's `dmDecides`, a
+ * branch's `handsOver`, a granted route's `handOver` (a stat block's
+ * Spellcasting line carries one per spell), and a stat block's `forTheTable`
+ * on a save, a hit, a trait or a whole line. Collected by walking the
+ * catalogue for those keys rather than by naming where each lives, so a field
+ * moved inside a record is still found — and a key not on this list is not a
+ * source, which is the point.
+ */
+const FILED_SOURCES: ReadonlySet<string> = (() => {
+  const found = new Set<string>();
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const one of value) walk(one);
+      return;
+    }
+    if (value === null || typeof value !== 'object') return;
+    for (const [key, inner] of Object.entries(value)) {
+      if ((key === 'dmDecides' || key === 'handsOver') && Array.isArray(inner)) {
+        for (const sentence of inner) if (typeof sentence === 'string') found.add(sentence);
+      } else if (key === 'handOver' && typeof inner === 'string') {
+        found.add(inner);
+      } else if (key === 'forTheTable' && Array.isArray(inner)) {
+        for (const one of inner as readonly { readonly sentence?: unknown }[]) {
+          if (typeof one.sentence === 'string') found.add(one.sentence);
+        }
+      }
+      walk(inner);
+    }
+  };
+  walk([
+    SRD_CONTENT.spells,
+    SRD_CONTENT.classes,
+    SRD_CONTENT.subclasses,
+    SRD_CONTENT.species,
+    SRD_CONTENT.backgrounds,
+    SRD_CONTENT.feats,
+    SRD_CONTENT.items,
+    SRD_CONTENT.monsters,
+  ]);
+  return found;
+})();
+
+/**
+ * The handovers whose words no filed field holds — a mark somebody forged.
+ *
+ * Empty on an honest transcript. A line carrying the mark over words that are
+ * in no `dmDecides`, `handsOver`, `handOver` or `forTheTable` is a debt passing
+ * as fiction, and this is what names it.
+ */
+const forgedIn = (clauses: readonly Clause[]): readonly Clause[] =>
+  clauses.filter(
+    (one) => one.kind === 'handover' && !FILED_SOURCES.has(dmDecisionsIn([one.line])[0] ?? ''),
   );
 
 /** Every feature the catalogue grants one of the party, by source. */
@@ -901,8 +941,13 @@ function kessaTurn(t: Table, round: number): void {
  * A monster's turn: its own printed lines, elected by name.
  *
  * `attack.action` takes the heading the block prints, never a line the caller
- * wrote, and round 2 reaches for the Actions section through the DM's door —
- * which is where a line the engine applies no part of belongs.
+ * wrote, and round 2 reaches for the Actions section through the DM's door.
+ * **Which door is the line's own** — W7-B13 Part 4: a line whose saving throw
+ * the engine reads goes to `force_printed_save` against the foe, so the
+ * engine rolls the save, the damage and whatever the failure costs; only a
+ * line the engine reads nothing beneath goes to `take_printed_action`, which
+ * refuses the other kind anyway. `look` says which, under
+ * `engineRollsTheSave`.
  */
 function hostileTurn(t: Table, who: string, round: number): void {
   // Who a monster swings at is the table's, and this table picks the target
@@ -919,7 +964,10 @@ function hostileTurn(t: Table, who: string, round: number): void {
   const block = seen(t, who)?.printed;
   const lines = block?.actions.filter((one) => !one.expended) ?? [];
   if (lines.length > 0 && t.memo[`line:${who}`] === undefined && round > 1) {
-    const took = t.dmCall('take_printed_action', { who, line: lines[0]!.name });
+    const line = lines[0]!;
+    const took = line.engineRollsTheSave
+      ? t.dmCall('force_printed_save', { who, line: line.name, targets: [foe] })
+      : t.dmCall('take_printed_action', { who, line: line.name });
     if (took.status === 'ok') {
       t.memo[`line:${who}`] = lines[0]!.name;
       settleDebts(t);
@@ -1314,7 +1362,8 @@ const isEngineCorrect = (one: Sent): boolean => {
 function report(t: Table): string {
   const shut = poolsWithNoDoor(t);
   const clauses = clausesIn(t.sent);
-  const handovers = clauses.filter((one) => one.kind !== 'unmodelled');
+  const debts = clauses.filter((one) => one.kind === 'debt');
+  const handovers = clauses.filter((one) => one.kind === 'handover');
   const manual = manualHoldings();
 
   const lines: string[] = [];
@@ -1327,14 +1376,16 @@ function report(t: Table): string {
   lines.push(`outcomes: ${[...statuses].map(([k, n]) => `${k}=${n}`).join(' ')}`);
 
   lines.push('');
-  lines.push(`1. unverified clauses: ${clauses.length}`);
-  for (const one of clauses) lines.push(`   [${one.kind}] ${one.tool}: ${one.line}`);
+  lines.push(`1. debts — criterion 3 counts these: ${debts.length}`);
+  for (const one of debts) lines.push(`   ${one.tool}: ${one.line}`);
 
   lines.push('');
-  lines.push(`2. handed over to the DM: ${handovers.length}`);
+  lines.push(`2. handed over, not counted: ${handovers.length}`);
   for (const one of handovers) {
-    const printed = dmDecisionsIn([one.line]);
-    lines.push(`   ${one.tool}: ${printed[0] ?? one.line}`);
+    // The name before the mark — whose line or which spell — and the book's
+    // own words after it.
+    const name = one.line.slice(0, one.line.indexOf(DM_DECIDES)).replace(/:\s*$/, '');
+    lines.push(`   ${one.tool}: ${name} — ${dmDecisionsIn([one.line])[0] ?? one.line}`);
   }
 
   lines.push('');
@@ -1518,24 +1569,80 @@ describe('a level 5 party plays a session', () => {
   });
 
   /**
-   * The copy is still the original — see {@link WRITES_THE_HANDOVER}.
+   * **The mark cannot be forged** — W7-B13 Part 4.
    *
-   * Not a count and not an assertion about the session: an assertion about
-   * the one string this file typed out instead of importing.
+   * Every handover the session met quotes words a filed field holds: a spell's
+   * `dmDecides`, a branch's `handsOver`, a granted route's `handOver`, or a
+   * stat block's `forTheTable`. Asserted of the live transcript, and driven
+   * the other way with a stub, because a guard that only ever says yes is not
+   * one: a line carrying the mark over words nobody filed is caught.
    */
-  it('reads the same handover mark the engine writes', () => {
-    // Counted, not merely found. Reword one of the four sites and the clauses
-    // it writes leave count 2 without anything failing — and a `toContain`
-    // over a file that still holds the other one would not notice. How many
-    // clauses that is depends on the encounter, which is the point: the guard
-    // holds the mark rather than the number.
-    for (const [where, sites] of WRITES_THE_HANDOVER) {
-      const text = readFileSync(fileURLToPath(new URL(where, import.meta.url)), 'utf8');
-      expect(text.split(BLOCK_HANDOVER)).toHaveLength(sites + 1);
+  it('hands over only words a filed field holds, and catches a mark that holds none', () => {
+    const t = playTheSession();
+    const clauses = clausesIn(t.sent);
+    expect(forgedIn(clauses)).toEqual([]);
+
+    const stub: Sent = {
+      door: 'dm',
+      tool: 'take_printed_action',
+      input: {},
+      outcome: {
+        status: 'ok',
+        events: [],
+        resolution: {},
+        unverified: [`somebody's line: ${DM_DECIDES} A sentence nobody ever filed.`],
+      } as unknown as ToolOutcome,
+    };
+    const forged = forgedIn(clausesIn([stub]));
+    expect(forged.map((one) => one.line)).toEqual([
+      `somebody's line: ${DM_DECIDES} A sentence nobody ever filed.`,
+    ]);
+    // And an unmarked line is a debt whatever it says, including the words
+    // the census used to take for a handover.
+    const residue: Sent = {
+      ...stub,
+      outcome: {
+        status: 'ok',
+        events: [],
+        resolution: {},
+        unverified: ['a block prints "x" — the engine does not apply that; a DM does'],
+      } as unknown as ToolOutcome,
+    };
+    expect(clausesIn([residue]).map((one) => one.kind)).toEqual(['debt']);
+  });
+
+  /**
+   * **The Wight's Life Drain is the engine's** — W7-B13 Part 4. It goes
+   * through the door that rolls it: a Constitution save at the printed DC, and
+   * on a failure the damage and the lowered maximum, with the zombie it
+   * promises filed for the table. Asserted off the transcript where the
+   * session's dice took the Wight there, and of the door either way.
+   */
+  it('rolls the Wight’s Life Drain through the door that rolls it', () => {
+    const t = playTheSession();
+    const drained = t.sent.filter(
+      (one) =>
+        one.tool === 'force_printed_save' &&
+        (one.input as { line?: string }).line === 'Life Drain' &&
+        one.outcome.status === 'ok',
+    );
+    expect(drained.length).toBeGreaterThan(0);
+    for (const one of drained) {
+      if (one.outcome.status !== 'ok') continue;
+      const save = one.outcome.events.find(
+        (event) => event.type === 'roll-recorded' && event.label === 'Constitution save vs Life Drain',
+      );
+      expect(save).toBeDefined();
     }
-    // And the other mark is imported rather than copied, so it needs no guard
-    // — this only says the two are different marks and neither is the other.
-    expect(DM_DECIDES).not.toContain(BLOCK_HANDOVER);
+    // And the hand-over door refuses it rather than hand its numbers over.
+    expect(
+      t.sent.some(
+        (one) =>
+          one.tool === 'take_printed_action' &&
+          (one.input as { line?: string }).line === 'Life Drain' &&
+          one.outcome.status === 'ok',
+      ),
+    ).toBe(false);
   });
 
   it('replays byte-identically from the same seed', () => {

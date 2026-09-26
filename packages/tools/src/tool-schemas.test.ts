@@ -324,10 +324,18 @@ describe('toolSchemas', () => {
     // `move.carrying` on both (SRD Grappled's "drag or carry you", whom and
     // to which space beside the grappler); and `target` on the DM's
     // `pull_printed_line` for the Ettercap's one webbed creature.
+    // Re-pinned for the honesty pass — W7-B13: no schema grew and no tool was
+    // added; six DM descriptions were reworded because what they promised
+    // stopped being true. `take_printed_action` no longer hands over a line
+    // whose save the engine reads (it refuses `line_has_its_own_door`), so it
+    // and `take_printed_bonus_action` say so, the four printed-line doors that
+    // pointed at them as "the other door for this line" stop doing so, and
+    // `force_printed_save` says it measures a one-creature reach and marks
+    // what a line files for the table. The DM's door alone; +978 bytes.
     expect(toolSchemas(player())).toHaveLength(95);
     expect(toolSchemas(dm())).toHaveLength(122);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(152545);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(199694);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(200672);
   });
 });
 

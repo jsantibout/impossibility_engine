@@ -131,6 +131,23 @@ describe('a printed Action line, taken through the door', () => {
     expect(t.campaign.log()).toHaveLength(before);
   });
 
+  /**
+   * SRD Wight's Life Drain, which is the line the level 5 session used to hand
+   * over whole — the save, the DC, the damage and the lowered maximum — and
+   * SRD Seahorse's Bubble Dash, which this door applies itself and still takes.
+   */
+  it('refuses the Life Drain, and still takes a Bubble Dash', () => {
+    const wight = fight('the-wight', 'wight');
+    turnOf(wight, 'fang');
+    const drained = wight.call('take_printed_action', { who: 'fang', line: 'Life Drain' });
+    expect(drained.status).toBe('refused');
+    if (drained.status === 'refused') expect(drained.code).toBe('line_has_its_own_door');
+
+    const seahorse = fight('the-seahorse', 'seahorse');
+    turnOf(seahorse, 'fang');
+    expectOk(seahorse.call('take_printed_action', { who: 'fang', line: 'Bubble Dash' }));
+  });
+
   it('finds the line however the caller cased it, and records the printed spelling', () => {
     const t = fight('casing');
     turnOf(t, 'fang');

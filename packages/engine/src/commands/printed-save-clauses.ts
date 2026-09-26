@@ -1553,8 +1553,12 @@ export function applyPrintedClauses(
             outcome: rows.length === 0 ? 'no row' : `row ${rows[0]!.faces!.from}–${rows[0]!.faces!.to}`,
           },
         ]);
+        // The field named at the call, which is what `dm-handover.test.ts` pins.
         unverified.push(
-          ...reportFiled(`${source}'s ${line} on ${target}: the ${clause.dice} showed ${face}`, rows),
+          ...reportFiled(
+            `${source}'s ${line} on ${target}: the ${clause.dice} showed ${face}`,
+            filedFor(save.forTheTable, 'failure', face),
+          ),
         );
         // The reader admits a table only where its rows cover every face, so
         // this is a line reaching the executor some other way — said, never
