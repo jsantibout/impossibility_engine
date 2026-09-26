@@ -2642,9 +2642,10 @@ export interface PrintedPullOutcome {
  *
  * **The fifth door on one printed line**, and it refuses `line_pulls_nothing`
  * for a line whose sentence says something else. The Ettercap prints the same
- * heading over a different hold — "Restrained by its Web Strand" — and the
- * parser reads nothing out of it, so it lands on that refusal rather than
- * dragging somebody by a web the engine has no record of.
+ * heading over a different hold — "Restrained by its Web Strand" — and since
+ * W7-B10 that is the `restrained-by-object` kind: one creature, within the
+ * printed reach, held by an object this creature raised, the caller naming
+ * which where several are.
  *
  * **Every creature, in roster order, and nothing is rolled.** The book says
  * "each creature", so there is no choice for a caller to make and none is
@@ -2734,7 +2735,7 @@ export function takePrintedPull(
       // creature spun — the object's id names its spinner — and within the
       // printed reach. One, and the caller says which where several qualify.
       let webbed: CharacterId | null = null;
-      if (printed.of === 'web') {
+      if (printed.of === 'restrained-by-object') {
         const scene = sceneFor(state, id, `${id} to reel from`);
         if (!scene.ok) return scene;
         const held = (Object.keys(state.creatures) as CharacterId[])

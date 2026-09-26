@@ -1915,7 +1915,7 @@ export type MonsterForms = z.infer<typeof MonsterFormsSchema>;
  * **`of` is a field rather than an assumption**, because the book prints the
  * same heading over a different hold: the Ettercap's Reel pulls a creature
  * "Restrained by its Web Strand", which is a condition held by an object the
- * engine has no record of. A shape that read only the distance would have
+ * ettercap's own line raised. A shape that read only the distance would have
  * turned that web into a grapple.
  */
 export const MonsterPullSchema = z
@@ -1924,17 +1924,19 @@ export const MonsterPullSchema = z
     feet: z.number().int().min(5),
     /**
      * What the line pulls: every creature it grapples, or — W7-B10 — one
-     * creature a **web** of its own holds. SRD Ettercap's Reel: "one creature
-     * within 30 feet of itself that is Restrained by its Web Strand".
+     * creature held Restrained by an **object** it raised itself (SRD
+     * Ettercap's Reel: "one creature within 30 feet of itself that is
+     * Restrained by its Web Strand"). Named for the hold rather than for the
+     * web, because what the engine reads is `held-by:<object>`.
      */
-    of: z.enum(['grappled', 'web']),
+    of: z.enum(['grappled', 'restrained-by-object']),
     /** "within 30 feet of itself" — how far the web-held creature may be. */
     within: z.number().int().min(5).optional(),
     /** The heading of the line whose object holds the creature — SRD's "Web Strand". */
     heldBy: z.string().min(1).optional(),
   })
   .refine(
-    (pull) => (pull.of === 'web') === (pull.within !== undefined && pull.heldBy !== undefined),
+    (pull) => (pull.of === 'restrained-by-object') === (pull.within !== undefined && pull.heldBy !== undefined),
     'a pull by a web names the reach and the line that spun it, and a pull by a grapple names neither',
   );
 export type MonsterPull = z.infer<typeof MonsterPullSchema>;

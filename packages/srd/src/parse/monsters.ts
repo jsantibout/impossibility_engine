@@ -2091,7 +2091,7 @@ export function parsePullLine(text: string): MonsterPull | null {
   if (webbed === null) return null;
   const checked = MonsterPullSchema.safeParse({
     feet: Number(webbed[3]!),
-    of: 'web',
+    of: 'restrained-by-object',
     within: Number(webbed[1]!),
     heldBy: webbed[2]!,
   });

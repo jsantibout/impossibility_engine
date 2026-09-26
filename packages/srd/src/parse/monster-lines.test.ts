@@ -628,7 +628,7 @@ describe('a line that pulls what it is holding', () => {
   it('reads the ettercap’s, whose hold is a web its own line spun — W7-B10', () => {
     expect(lineOf('ettercap', 'Reel').pulls).toEqual({
       feet: 25,
-      of: 'web',
+      of: 'restrained-by-object',
       within: 30,
       heldBy: 'Web Strand',
     });
@@ -650,7 +650,7 @@ describe('a line that pulls what it is holding', () => {
     const printed = bestiary.flatMap((block) =>
       [...block.actions, ...block.bonusActions].filter((line) => line.pulls !== undefined),
     );
-    expect(printed.map((line) => line.pulls!.of).sort()).toEqual(['grappled', 'web']);
+    expect(printed.map((line) => line.pulls!.of).sort()).toEqual(['grappled', 'restrained-by-object']);
   });
 });
 

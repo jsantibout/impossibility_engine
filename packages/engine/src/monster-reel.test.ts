@@ -13,7 +13,7 @@ import {
   takePrintedPull,
 } from './commands.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { adaptMonster, statedActionOf } from './monster.js';
+import { adaptMonster, statedActionOf, statedBonusActionOf } from './monster.js';
 import { distanceBetween } from './positioning.js';
 
 /**
@@ -25,10 +25,11 @@ import { distanceBetween } from './positioning.js';
  * SRD Merrow's rider already goes through — so what the door adds is the
  * price and the sentence's own "each".
  *
- * The Ettercap prints the same heading over a different hold, and these tests
- * pin that too: "Restrained by its Web Strand" is a condition an object the
- * engine has no record of is holding, so the line stays prose and the door
- * refuses it rather than dragging somebody by a web.
+ * The Ettercap prints the same heading over a different hold — "Restrained by
+ * its Web Strand", a condition an object the ettercap raised is holding — and
+ * since W7-B10 that is a pull of its own kind rather than a grapple; its road
+ * is `ettercap-reel.test.ts`, and these tests pin only that the two kinds are
+ * told apart.
  */
 
 const id = (s: string) => asCharacterId(s);
@@ -116,13 +117,17 @@ describe('the adapter carries the pull the block prints', () => {
   });
 
   /**
-   * And the Ettercap's line under the same heading carries none, because its
-   * hold is a web: `a-condition-an-object-holds` is the seam, and reading the
-   * sentence as a grapple would have been a rule nobody printed.
+   * And the Ettercap's line under the same heading — a Bonus Action there —
+   * carries a pull of the other kind: its hold is a web, and reading the
+   * sentence as a grapple would have been a rule nobody printed. (W7-B10)
    */
-  it('carries none for the ettercap, whose hold is a web', () => {
+  it('carries the web-keyed kind for the ettercap, whose hold is a web', () => {
     const ettercap = adaptMonster(SRD_CONTENT.monsterById('ettercap')!, id('ettercap'));
-    expect(statedActionOf(ettercap.sheet, 'Reel')?.pulls).toBeUndefined();
+    expect(statedActionOf(ettercap.sheet, 'Reel')).toBeNull();
+    expect(statedBonusActionOf(ettercap.sheet, 'Reel')?.pulls).toMatchObject({
+      of: 'restrained-by-object',
+      heldBy: 'Web Strand',
+    });
   });
 });
 
@@ -180,9 +185,10 @@ describe('the roper reels', () => {
   });
 
   it('refuses a line whose sentence states no pull', () => {
+    // The roper's Multiattack was the line this used to try; it is read as a
+    // sequence since W7-B10 and is no longer a stated action at all.
     const table = inTheCavern();
-    const refused = takePrintedPull(table.state, ROPER, { line: 'Multiattack' });
-    expect(isErr(refused) && refused.code).toBe('line_pulls_nothing');
+    expect(isErr(takePrintedPull(table.state, ROPER, { line: 'Multiattack' }))).toBe(true);
 
     const ettercap = id('ettercap');
     table.did('an ettercap arrives', (s) => addCreature(s, SRD_CONTENT, ettercap, 'ettercap'));
@@ -190,7 +196,10 @@ describe('the roper reels', () => {
       placeCreatureInScene(s, ettercap, { from: { creature: ROPER }, feet: 20, bearing: 180 }),
     );
     table.do('its side', (s) => declareCreatureSide(s, ettercap, 'wild'));
-    const web = takePrintedPull(table.state, ettercap, { line: 'Reel' });
-    expect(isErr(web) && web.code).toBe('line_pulls_nothing');
+    const strand = SRD_CONTENT.monsterById('ettercap')!.actions.find((line) =>
+      line.name.startsWith('Web Strand'),
+    )!.name;
+    const refused = takePrintedPull(table.state, ettercap, { line: strand });
+    expect(isErr(refused) && refused.code).toBe('line_pulls_nothing');
   });
 });

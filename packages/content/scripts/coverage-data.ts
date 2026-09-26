@@ -2171,8 +2171,8 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * Succubus's Charm is a **cast** line at a fixed level rather than a save.
  *
  * **The Ettercap's Reel and the Roper's Tentacle left this table in W7-B10**:
- * a printed pull may say which hold it reads (`MonsterPull.of: 'web'`, the
- * creature a web this creature spun is holding), and a hit whose chain deals
+ * a printed pull may say which hold it reads (`MonsterPull.of:
+ * 'restrained-by-object'`, the creature a web this creature spun is holding), and a hit whose chain deals
  * no damage is read where its rider imposes a condition — the tentacle the
  * hold is made with is an object the hit raises, filed with the grapple so
  * destroying it frees the creature.

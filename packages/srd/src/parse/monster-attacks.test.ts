@@ -186,15 +186,16 @@ describe('parseTraitShape', () => {
 
   it('is null for a trait whose sentence nothing reads', () => {
     // A trait with a mechanic somebody has matched is `monster-traits.test.ts`'s
-    // subject; this is the other half. The Night Hag's Soul Bag is one of the
-    // many the reader still says nothing about — an object with an Armour
-    // Class that gates an action — and it stays prose because it states a
-    // mechanic rather than a fact about the world. The Giant Spider's Web
+    // subject; this is the other half. The Troll Limb's Troll Spawn is one of
+    // the many the reader still says nothing about — a limb that may become a
+    // whole troll on a die a day later — and it stays prose because it states
+    // a mechanic rather than a fact about the world. The Giant Spider's Web
     // Walker used to stand here and is now read and handed over; the
     // Gelatinous Cube's Ooze Cube stood here after it and is read since
-    // W7-B10 (`holds-creatures-inside`). See `HANDOVER_TRAIT_KINDS` for why
-    // the read-and-handed-over differ from the read.
-    expect(parseTraitShape(trait('night-hag', 'Soul Bag').text)).toBeNull();
+    // W7-B10 (`holds-creatures-inside`), and the Night Hag's Soul Bag since
+    // W7-B11. See `HANDOVER_TRAIT_KINDS` for why the read-and-handed-over
+    // differ from the read.
+    expect(parseTraitShape(trait('troll-limb', 'Troll Spawn').text)).toBeNull();
   });
 });
 
