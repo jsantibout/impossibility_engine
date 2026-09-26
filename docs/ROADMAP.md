@@ -3075,3 +3075,29 @@ Appended 2026-09-26, wave seven on Opus:
   T-C1's. **Left:** Scrying's sensor note calls itself fiction from
   `unmodelled`; Frost Brand's note calls a debt the DM's; the potions' gear
   lines move now both tracks are in. Two Opus reviews, the second a PASS.
+- **The honesty pass, and the session counts debts** (W7-B13). Honest
+  handovers get a field of their own, `forTheTable` (`{kind, sentence, on?,
+  faces?}` on saves, attacks and traits, every kind argued in
+  `HANDOVER_LINE_KINDS`), never `handedOver`, which stays the owed residue.
+  Compulsions filed (Possession, Luring Song, the lycanthrope curse's "becomes
+  a Werewolf"); Gibbering throws its d8 and reports the row; Berserk throws its
+  d6 at a Bloodied turn start (`turn-start-dice.ts`, `trait_die_owed`); the
+  lycanthrope bites lay a `printed-curse-laid` into `CreatureState.curses`; the
+  fiction filed (a reflection, water, a returning weapon, a corpse that rises
+  later, a body absorbed, the swarms' space clauses). **Part 4:** a hand-over
+  door refuses a line with its own door (`line_has_its_own_door`); "one
+  creature within N feet" is read into `reach` and refused before anything is
+  spent; the session's census counts a line carrying the DM mark as a handover
+  and everything else as a debt, with a forging guard. Bestiary 45 → 36 lines,
+  212 clean blocks. The session (seed re-chosen for the fight's shape, -21):
+  **2 debts** (SRD Web's two `unmodelled` lines) and 4 handovers. Main
+  re-ingested. **Found:** the ledger and the session disagree about Web —
+  `ADJUDICATED` files its flammability `'table'` while it sits in
+  `unmodelled`, and a census of spells level 0–3 found 59 `unmodelled`
+  clauses on 48 executed spells with no adjudication at all, so "spells in
+  reach, not executed" undercounts → W8-S26. **Left:** Charm and Illusory
+  Appearance need a cast level stated on a printed route (`paidLevel` in
+  `spell-resolution.ts`); the Harpy song's Concentration (no line-held
+  Concentration); Berserk's die at a fight's first turn (`scene.ts`); a
+  Spellcasting route's level override carries the handover mark. Two Opus
+  reviews, six defects, fixed.
