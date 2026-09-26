@@ -1299,7 +1299,7 @@ export type ModifierRider =
        * Speed in. `checkSpeedChange` refuses the member at the door too, for
        * untyped input.
        */
-      readonly change: Exclude<SpeedChange, 'match-walk' | 'only'>;
+      readonly change: Exclude<SpeedChange, 'match-walk' | 'only' | 'at-least'>;
       /** Signed feet, required by `add` and refused by the other two. */
       readonly feet?: number;
       /**

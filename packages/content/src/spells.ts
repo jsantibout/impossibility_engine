@@ -3726,11 +3726,14 @@ export const FLY: SpellDefinition = {
   // use the spell has, and without `self` the engine refused it outright.
   targets: { count: 1, extraPerSlotLevelAbove: 1, self: true, willing: true },
   // The whole of the printed benefit, in one grant: the mode, the number of
-  // feet, and the hovering the same sentence hands over. The ten minutes are
-  // the casting's own deadline, so the grant needs no `lasts` — it ends
-  // through the door `releaseCasting` already opens, and the Concentration is
-  // the other way it ends.
-  effects: [{ kind: 'speed', change: 'add', feet: 60, mode: 'fly', hover: true }],
+  // feet, and the hovering the same sentence hands over. "Gains a Fly Speed of
+  // 60 feet" states a Speed rather than changing one, so it is `at-least`: a
+  // creature that already flies at 60 or better flies at that, and one in
+  // Winged Boots flies at 60 rather than at 90. The ten minutes are the
+  // casting's own deadline, so the grant needs no `lasts` — it ends through
+  // the door `releaseCasting` already opens, and the Concentration is the
+  // other way it ends.
+  effects: [{ kind: 'speed', change: 'at-least', feet: 60, mode: 'fly', hover: true }],
   durationSeconds: 600,
   unmodelled: [
     'the fall when the spell ends on a creature still aloft is the DM’s',

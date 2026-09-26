@@ -153,6 +153,7 @@ const SPEED_CHANGES: ReadonlySet<string> = new Set<SpeedChange>([
   'halve',
   'zero',
   'match-walk',
+  'at-least',
 ]);
 /** The three things {@link PayoutKind} hands over, as data, for untyped input. */
 const PAYOUT_KINDS: ReadonlySet<string> = new Set<PayoutKind>([
@@ -1336,18 +1337,31 @@ function checkSpeedChange(
     found.push({
       field: `${path}.change`,
       code: 'bad_speed_change',
-      reason: `"${String(change)}" is not something an effect does to a Speed; the SRD adds feet to one, doubles one, halves one, sets one to 0, or gives one in a mode equal to the walking Speed`,
+      reason: `"${String(change)}" is not something an effect does to a Speed; the SRD adds feet to one, doubles one, halves one, sets one to 0, gives one in a mode equal to the walking Speed, or gives one of so many feet in a mode`,
     });
     return;
   }
 
   checkSpeedMode(value, change, path, found, carries);
 
-  // **The two operations that carry feet**, and the second carries them for a
-  // different sentence: `add` is signed and changes what is there, while
+  // **The three operations that carry feet**, and the last two carry them for
+  // a different sentence: `add` is signed and changes what is there, while
   // `only` states the whole of what is left — SRD Gaseous Form's "a Fly Speed
-  // of 10 feet" — so it is a distance rather than a difference and zero is not
-  // one.
+  // of 10 feet" — and `at-least` states one Speed beside the others — SRD
+  // Fly's "a Fly Speed of 60 feet" — so each is a distance rather than a
+  // difference and zero is not one.
+  if (change === 'at-least') {
+    if (!Number.isInteger(feet) || (feet as number) <= 0) {
+      found.push({
+        field: `${path}.feet`,
+        code: 'bad_speed_change',
+        reason:
+          'a Speed given in a mode is a distance rather than a difference; the SRD prints "a Fly Speed of 60 feet", and a Speed of nothing gives nothing',
+      });
+    }
+    return;
+  }
+
   if (change === 'only') {
     if (!Number.isInteger(feet) || (feet as number) <= 0) {
       found.push({
@@ -1415,7 +1429,7 @@ function checkSpeedMode(
         reason: `only the standalone \`speed\` effect names a mode; a rider and an area both say "its Speed" and nothing reads a ${field} here`,
       });
     }
-    if (change === 'match-walk' || change === 'only') {
+    if (change === 'match-walk' || change === 'only' || change === 'at-least') {
       found.push({
         field: `${path}.change`,
         code: 'bad_speed_change',
@@ -1432,7 +1446,8 @@ function checkSpeedMode(
   // a narrowing no reader performs.
   // `only` gives a Speed too — it gives the *whole* of one — so a mode is not
   // merely legal on it but required, which the clause below says.
-  const gives = change === 'add' || change === 'match-walk' || change === 'only';
+  const gives =
+    change === 'add' || change === 'match-walk' || change === 'only' || change === 'at-least';
   if (mode !== undefined && change === 'double') {
     // **The one member that neither gives a Speed nor takes one away**, so it
     // is refused a mode in its own words: SRD Haste says "the target's Speed
@@ -1465,6 +1480,18 @@ function checkSpeedMode(
       code: 'bad_speed_change',
       reason:
         '"a Climb Speed equal to its Speed" names the mode it gives; matching the walking Speed to itself changes nothing',
+    });
+  }
+
+  // **And a Speed of so many feet names its mode**, for the same reason: SRD
+  // Fly prints "a Fly Speed", and a floor under the walking Speed is a
+  // sentence the book writes as "increases by" when it means one at all.
+  if (change === 'at-least' && (mode === undefined || mode === 'walk')) {
+    found.push({
+      field: `${path}.mode`,
+      code: 'bad_speed_change',
+      reason:
+        '"a Fly Speed of 60 feet" names the mode it gives; a floor under the walking Speed is not a sentence the SRD prints',
     });
   }
 

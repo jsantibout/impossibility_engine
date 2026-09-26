@@ -2578,7 +2578,9 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * which `useItem` spends only from a wearer who has attuned. What the
        * charge buys is SRD Fly's own grant at half the feet and without the
        * hovering the spell prints — "a Fly Speed of 30 feet" and nothing
-       * after it — for the boots' hour.
+       * after it — for the boots' hour. A Speed stated rather than changed,
+       * so `at-least`: under SRD Fly as well, the wearer flies at the
+       * spell's 60 and not at 90.
        *
        * The hour is the conferral's and is not tied to the boots staying on,
        * because the book does not tie it: "while wearing the boots" governs
@@ -2592,7 +2594,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
           action: 'action',
           charges: 1,
           durationSeconds: 3600,
-          effects: [{ kind: 'speed', change: 'add', feet: 30, mode: 'fly' }],
+          effects: [{ kind: 'speed', change: 'at-least', feet: 30, mode: 'fly' }],
         },
       ],
       unmodelled: [
