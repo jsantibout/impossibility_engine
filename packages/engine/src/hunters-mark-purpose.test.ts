@@ -161,7 +161,7 @@ describe('SRD Hunter’s Mark: a check made to find the quarry', () => {
     const marked = mark(SETUP, QUARRY);
     const dropped = [
       ...marked,
-      ...unwrap(endConcentration(fold('seed', marked), RANGER, 'let go'), 'end'),
+      ...unwrap(endConcentration(fold('seed', marked), RANGER, 'voluntary'), 'end'),
     ];
     expect(check(dropped, 'perception', QUARRY)).toBe('normal');
   });

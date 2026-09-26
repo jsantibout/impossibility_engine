@@ -11,8 +11,10 @@
  * `forbids.casting` is, and every command that puts a hand on a thing reads it
  * through `refuseObjectHandling` and refuses `cannot_manipulate_objects`.
  *
- * Talking is the one the engine has no spender for and never will; the
- * definition hands that sentence to the table.
+ * Talking is the one the engine has no spender for and never will. It stays a
+ * debt rather than becoming a handover, because a handover is a verbatim printed
+ * sentence and the SRD prints talking inside the same sentence as the object
+ * clauses the engine now enforces.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -83,7 +85,7 @@ const SETUP: readonly GameEvent[] = [
     { type: 'items-gained', id: who, items: [{ id: 'dagger', quantity: 1 }], source: 'the kit' },
     { type: 'items-gained', id: who, items: [{ id: 'mace', quantity: 1 }], source: 'the kit' },
     { type: 'item-equipped', id: who, item: 'dagger', armor: null },
-    { type: 'coins-changed', id: who, amount: 10000, reason: 'the purse' },
+    { type: 'coins-changed', id: who, copper: 10000, source: 'the purse' },
   ]),
   { type: 'scene-set', extent: { width: 300, depth: 300, height: 40 } },
   { type: 'landmark-added', name: 'the vault', at: { x: 100, y: 100, z: 0 } },
