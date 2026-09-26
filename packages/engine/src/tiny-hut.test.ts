@@ -446,4 +446,24 @@ describe('SRD Tiny Hut: a held creature dragged at the dome', () => {
     expect(game.state.scene?.positions[GOBLIN]).toEqual(LANDMARKS['just outside']);
     expect(back.unverified.some((line) => line.includes(`${GOBLIN} is not carried`))).toBe(true);
   });
+
+  /**
+   * And a creature clinging to the mover — SRD Darkmantle's "it moves with
+   * the target" — is carried unasked, and stopped at the dome the same way.
+   */
+  it('leaves a clinging goblin outside when the fighter walks back in', () => {
+    const game = new Game().raiseTheHut().moved(FIGHTER, 'just outside');
+    game.push([
+      {
+        type: 'creature-attached',
+        id: GOBLIN,
+        attachment: { to: FIGHTER, name: 'Crush', whileAttached: { movesWithTarget: true } },
+      },
+    ]);
+    const back = unwrap(game.move(FIGHTER, 'beside the hearth'), 'the fighter walks back in');
+    game.push(back.events);
+    expect(game.state.scene?.positions[FIGHTER]).toEqual(LANDMARKS['beside the hearth']);
+    expect(game.state.scene?.positions[GOBLIN]).toEqual(LANDMARKS['the road']);
+    expect(back.unverified.some((line) => line.includes(`${GOBLIN} is not carried`))).toBe(true);
+  });
 });

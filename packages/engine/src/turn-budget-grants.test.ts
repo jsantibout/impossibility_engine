@@ -369,6 +369,32 @@ describe('an extra action a feature buys', () => {
       grantTurnBudget(flurried, MONK, { attacks: { remaining: 1, unarmedOnly: true } }).ok,
     ).toBe(true);
   });
+
+  /**
+   * And a set narrowed to one printed line at one creature — W7-B10, SRD
+   * Allosaurus's "one Bite attack against it" — disagrees with a set that is
+   * not, either way round: added to a wide set it would narrow the lot, and a
+   * wide set added to it would widen the one Bite to any swing. Two narrowed
+   * the same way stack.
+   */
+  it('refuses a narrowed set beside a wide one, either way round, and stacks two alike', () => {
+    const combat = fold('seed', table(MONK, monk(5))).combat!;
+    const bite = { remaining: 1, unarmedOnly: false, line: 'Bite', against: GOBLIN } as const;
+    const wide = unwrap(
+      grantTurnBudget(combat, MONK, { attacks: { remaining: 1, unarmedOnly: false } }),
+      'a wide set',
+    );
+    expect(refusal(grantTurnBudget(wide, MONK, { attacks: bite }))).toBe('attacks_outstanding');
+    const narrowed = unwrap(grantTurnBudget(combat, MONK, { attacks: bite }), 'the bite');
+    expect(
+      refusal(grantTurnBudget(narrowed, MONK, { attacks: { remaining: 1, unarmedOnly: false } })),
+    ).toBe('attacks_outstanding');
+    expect(
+      refusal(grantTurnBudget(narrowed, MONK, { attacks: { ...bite, against: FIGHTER } })),
+    ).toBe('attacks_outstanding');
+    const twice = unwrap(grantTurnBudget(narrowed, MONK, { attacks: bite }), 'a second bite');
+    expect(twice.budgets[MONK]?.grantedAttacks).toMatchObject({ remaining: 2, line: 'Bite', against: GOBLIN });
+  });
 });
 
 describe('the attacks a feature buys outside the Attack action', () => {
