@@ -1639,6 +1639,18 @@ describe('a level 5 party plays a session', () => {
       );
       expect(save).toBeDefined();
     }
+    // **And on this seed it fails, so the forging guard reads a stat block's
+    // filed sentence live** — the zombie the Wight's line files for the table,
+    // under the mark, quoted from `forTheTable`. Without this the guard's live
+    // half could go on passing with no stat-block handover in the transcript
+    // at all, the day the stream moved again.
+    const zombie = clausesIn(drained).filter(
+      (one) =>
+        one.kind === 'handover' &&
+        (dmDecisionsIn([one.line])[0] ?? '').startsWith('A Humanoid slain by this attack rises'),
+    );
+    expect(zombie.length).toBeGreaterThan(0);
+    expect(forgedIn(zombie)).toEqual([]);
     // And the hand-over door refuses it rather than hand its numbers over.
     expect(
       t.sent.some(
