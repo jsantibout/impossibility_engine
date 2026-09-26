@@ -253,6 +253,7 @@ import {
   useRecovery,
   useSelfHeal,
   wakeCreature,
+  wasCommandApplied,
 } from '@ie/engine';
 import { z } from 'zod';
 import type { Campaign } from './campaign.js';
@@ -2221,6 +2222,18 @@ const DECLARE_FALLING = tool({
  * The joining branch steps a *working* state with the engine's own reducer
  * and appends nothing until every command has succeeded, so a refusal
  * half-way leaves the log untouched and the dice undiscarded.
+ *
+ * **Which door is read off the command id first, and off the world only for a
+ * call the log has never seen.** A retry looks at the world its first run
+ * made: the call that began the fight comes back to find one running, and a
+ * join comes back to find the fight it joined perhaps over. Routed by
+ * `state.combat` alone, the first took the joining door under an id nobody had
+ * used, threw fresh dice and was refused `duplicate_combatant`; the second
+ * would have begun a new fight. So an id already applied goes back through the
+ * door it went through, where that command's own `once` answers it as a
+ * duplicate — the engine's fingerprint, not a check written here, so a
+ * recycled id sent with different combatants is still refused
+ * `command_id_reused` rather than swallowed.
  */
 const ROLL_INITIATIVE = tool({
   name: 'roll_initiative',
@@ -2252,20 +2265,23 @@ const ROLL_INITIATIVE = tool({
       };
     });
 
-    if (state.combat === null) {
+    const beginning = identity(context);
+    const rolling = identity(context, 'roll');
+    const beganBefore = wasCommandApplied(state, beginning.commandId);
+    const joinedBefore = wasCommandApplied(state, rolling.commandId);
+    const duplicate = beganBefore || joinedBefore;
+    const begins = beganBefore || (!joinedBefore && state.combat === null);
+    const combatants = entrants.map((e) => e.id);
+
+    if (begins) {
       return settleEvents(
         context,
-        rollInitiativeAndBeginCombat(state, entrants, context.campaign.supply(), identity(context)),
-        { began: true, combatants: entrants.map((e) => e.id) },
+        rollInitiativeAndBeginCombat(state, entrants, context.campaign.supply(), beginning),
+        { began: true, combatants, duplicate },
       );
     }
 
-    const rolled = recordInitiativeRolls(
-      state,
-      entrants,
-      context.campaign.supply(),
-      identity(context, 'roll'),
-    );
+    const rolled = recordInitiativeRolls(state, entrants, context.campaign.supply(), rolling);
     if (!rolled.ok) return fromErr(rolled, context.doorsFor);
 
     const written: GameEvent[] = [...rolled.value];
@@ -2290,7 +2306,7 @@ const ROLL_INITIATIVE = tool({
     }
 
     context.campaign.append(written);
-    return okOutcome(written, { began: false, combatants: entrants.map((e) => e.id) });
+    return okOutcome(written, { began: false, combatants, duplicate });
   },
 });
 
