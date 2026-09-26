@@ -35,6 +35,7 @@
     "ITEM_INSTANCE_PREFIX",
     "itemInstanceFor",
     "itemInstanceNumber",
+    "PrintedCurse",
     "AbilityLowering",
     "EquippedItem",
     "AttunedItem",

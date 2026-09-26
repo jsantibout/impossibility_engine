@@ -332,10 +332,19 @@ describe('toolSchemas', () => {
     // stored spell's own `slotKind`) on both doors, and `trigger_glyph.by` —
     // who set it off — on the DM's; part 3: `borrow_senses` (SRD Find
     // Familiar's Bonus Action, the third door on the kept bond) on both.
+    // And for the honesty pass — W7-B13: no schema grew and no tool was
+    // added; six DM descriptions were reworded because what they promised
+    // stopped being true. `take_printed_action` no longer hands over a line
+    // whose save the engine reads (it refuses `line_has_its_own_door`), so it
+    // and `take_printed_bonus_action` say so, the four printed-line doors that
+    // pointed at them as "the other door for this line" stop doing so, and
+    // `force_printed_save` says it measures a one-creature reach (and the sight
+    // the line needs) and marks what a line files for the table. The DM's door
+    // alone; +943 bytes.
     expect(toolSchemas(player())).toHaveLength(96);
     expect(toolSchemas(dm())).toHaveLength(123);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(155679);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(203430);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(204373);
   });
 });
 

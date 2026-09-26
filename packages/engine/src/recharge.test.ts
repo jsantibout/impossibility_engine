@@ -13,6 +13,7 @@ import {
   beginCombat,
   declareCreatureSide,
   endCombat,
+  forcePrintedSave,
   placeCreatureInScene,
   resolveAttack,
   resolveTurn,
@@ -193,6 +194,33 @@ const taking = (table: Table, who: CharacterId, line: string, commandId?: string
   });
 
 /** Round the order back to the monster, which is where its next turn begins. */
+/**
+ * **Use a printed line through the door that takes it** — W7-B13.
+ *
+ * A line whose saving throw the engine reads is taken by the door that rolls
+ * it, and the door that hands a sentence over refuses it
+ * (`line_has_its_own_door`); a line nothing was read beneath is still taken by
+ * the hand-over door. The recharge is the same ledger either way, which is what
+ * this file is about — so the use goes through whichever door owns the line,
+ * aimed at Bren where it forces a save, off a generator of its own so the
+ * recharge dice below are the ones each test names.
+ */
+const usePrinted = (
+  state: GameState,
+  who: CharacterId,
+  line: string,
+): Result<{ readonly events: readonly GameEvent[] }> => {
+  const sheet = state.creatures[who]!.sheet;
+  const bonus = sheet.stated?.bonusActions?.some((one) => one.name === line) === true;
+  const printed = [...(sheet.stated?.unreadActions ?? []), ...(sheet.stated?.bonusActions ?? [])].find(
+    (one) => one.name === line,
+  );
+  if (printed?.save !== undefined) {
+    return forcePrintedSave(state, who, { line, targets: [BREN] }, supply('the use'));
+  }
+  return bonus ? takeStatedBonusAction(state, who, { line }) : takeStatedAction(state, who, { line });
+};
+
 const roundTrip = (table: Table, seed: string): GameState => {
   table.did('the monster finishes', (s) => resolveTurn(s, supply(seed)));
   table.did('Bren finishes', (s) => resolveTurn(s, supply(seed)));
@@ -347,7 +375,7 @@ describe('a line the block prints a recharge on', () => {
 describe('the printed threshold', () => {
   const returnsAfter = (monster: string, who: CharacterId, line: string): boolean => {
     const table = inTheWoods(monster, who);
-    table.did('the line is used', (s) => takeStatedBonusAction(s, who, { line }));
+    table.did('the line is used', (s) => usePrinted(s, who, line));
     expect(expendedOn(table.state, who)).toEqual([line]);
     roundTrip(table, ROLLS_FIVE);
     return expendedOn(table.state, who).length === 0;
@@ -400,7 +428,7 @@ describe('a rest', () => {
     kind: 'short' | 'long',
   ): Table => {
     const table = inTheWoods(monster, who);
-    table.did('the line is used', (s) => takeStatedBonusAction(s, who, { line }));
+    table.did('the line is used', (s) => usePrinted(s, who, line));
     expect(expendedOn(table.state, who)).toEqual([line]);
     table.do('the fight ends', (s) => endCombat(s, { kind: 'surrender', side: 'party' }));
     table.do('the rest begins', (s) => beginRest(s, who, kind));
@@ -665,7 +693,7 @@ describe('a recharge printed on an Actions line', () => {
 
   it('is expended by the use, and the log says so', () => {
     const table = inTheWoods('winter-wolf', WINTER);
-    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    table.did('the wolf breathes', (s) => usePrinted(s, WINTER, COLD_BREATH));
 
     expect(expendedOn(table.state, WINTER)).toEqual([COLD_BREATH]);
     const spent = ofType(table, 'printed-line-expended');
@@ -680,10 +708,10 @@ describe('a recharge printed on an Actions line', () => {
    */
   it('is refused a second time in the same fight', () => {
     const table = inTheWoods('winter-wolf', WINTER);
-    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    table.did('the wolf breathes', (s) => usePrinted(s, WINTER, COLD_BREATH));
     roundTrip(table, ROLLS_THREE);
 
-    const again = takeStatedAction(table.state, WINTER, { line: COLD_BREATH });
+    const again = usePrinted(table.state, WINTER, COLD_BREATH);
     expect(isErr(again) ? again.code : 'ok').toBe('line_expended');
     expect(isErr(again) ? again.reason : '').toContain(COLD_BREATH);
     expect(isErr(again) ? again.reason : '').toContain('5');
@@ -695,7 +723,7 @@ describe('a recharge printed on an Actions line', () => {
   /** The payoff: the die the engine already throws now reaches this line. */
   it('comes back on a turn-start roll that made it', () => {
     const table = inTheWoods('winter-wolf', WINTER);
-    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    table.did('the wolf breathes', (s) => usePrinted(s, WINTER, COLD_BREATH));
     roundTrip(table, ROLLS_FIVE);
 
     expect(expendedOn(table.state, WINTER)).toEqual([]);
@@ -703,20 +731,22 @@ describe('a recharge printed on an Actions line', () => {
     expect(back).toHaveLength(1);
     expect(back[0]?.type === 'printed-line-recharged' ? back[0].line : null).toBe(COLD_BREATH);
 
-    // The engine threw it, and the log holds what fell.
+    // The engine threw it, and the log holds what fell. (The breath's own
+    // save is in the log too, since W7-B13 sends the breath through the door
+    // that rolls it; the recharge die is the one labelled as one.)
     const rolled = ofType(table, 'roll-recorded').filter(
-      (event) => event.type === 'roll-recorded' && event.label.includes(COLD_BREATH),
+      (event) => event.type === 'roll-recorded' && event.label.includes(`${COLD_BREATH} recharge`),
     );
     expect(rolled).toHaveLength(1);
     expect(rolled[0]?.type === 'roll-recorded' ? rolled[0].natural : 0).toBe(5);
 
     // And it is usable again, which is the whole point of the die.
-    expect(isErr(takeStatedAction(table.state, WINTER, { line: COLD_BREATH }))).toBe(false);
+    expect(isErr(usePrinted(table.state, WINTER, COLD_BREATH))).toBe(false);
   });
 
   it('stays expended on a roll that did not make it', () => {
     const table = inTheWoods('winter-wolf', WINTER);
-    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    table.did('the wolf breathes', (s) => usePrinted(s, WINTER, COLD_BREATH));
     roundTrip(table, ROLLS_THREE);
 
     expect(expendedOn(table.state, WINTER)).toEqual([COLD_BREATH]);
@@ -726,10 +756,12 @@ describe('a recharge printed on an Actions line', () => {
   /** SRD: "which also recharges when the monster finishes a Short or Long Rest." */
   it('comes back on a Short Rest', () => {
     const table = inTheWoods('winter-wolf', WINTER);
-    table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+    table.did('the wolf breathes', (s) => usePrinted(s, WINTER, COLD_BREATH));
     expect(expendedOn(table.state, WINTER)).toEqual([COLD_BREATH]);
 
-    table.do('the fight ends', (s) => endCombat(s, { kind: 'surrender', side: 'party' }));
+    // The wolf's side yields: since W7-B13 the breath is rolled and may have
+    // dropped Bren, and a side with nobody standing on it cannot surrender.
+    table.do('the fight ends', (s) => endCombat(s, { kind: 'surrender', side: 'wild' }));
     table.do('the rest begins', (s) => beginRest(s, WINTER, 'short'));
     table.do('time passes', (s) => advanceTime(s, 3600, 'the rest'));
     table.did('the rest ends', (s) => endRest(s, WINTER));
@@ -750,7 +782,7 @@ describe('a recharge printed on an Actions line', () => {
   it('replays byte-identically from its seed', () => {
     const run = () => {
       const table = inTheWoods('winter-wolf', WINTER);
-      table.did('the wolf breathes', (s) => takeStatedAction(s, WINTER, { line: COLD_BREATH }));
+      table.did('the wolf breathes', (s) => usePrinted(s, WINTER, COLD_BREATH));
       roundTrip(table, ROLLS_THREE);
       roundTrip(table, ROLLS_FIVE);
       return JSON.stringify(table.events);

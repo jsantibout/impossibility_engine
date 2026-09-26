@@ -146,7 +146,15 @@ const after = (state: GameState, events: readonly GameEvent[]): GameState =>
  */
 function inTheWoods(
   monster: string,
-  extra: readonly { readonly id: CharacterId; readonly monster: string }[] = [],
+  extra: readonly {
+    readonly id: CharacterId;
+    readonly monster: string;
+    /**
+     * Stand five feet from the foe rather than behind Bren — for a line that
+     * reaches one creature within 5 feet, which the door measures now. (W7-B13)
+     */
+    readonly nearFoe?: true;
+  }[] = [],
 ): { readonly state: GameState; readonly log: readonly GameEvent[] } {
   const log: GameEvent[] = [];
   let state = fold('woods', []);
@@ -167,7 +175,13 @@ function inTheWoods(
   step(placeCreatureInScene(state, FOE, { from: { creature: BREN }, feet: 5, bearing: 90 }), 'place foe');
   extra.forEach((one, index) => {
     step(
-      placeCreatureInScene(state, one.id, { from: { creature: BREN }, feet: 10 + index * 5, bearing: 270 }),
+      placeCreatureInScene(
+        state,
+        one.id,
+        one.nearFoe === true
+          ? { from: { creature: FOE }, feet: 5, bearing: 0 }
+          : { from: { creature: BREN }, feet: 10 + index * 5, bearing: 270 },
+      ),
       `place ${one.id}`,
     );
   });
@@ -187,7 +201,7 @@ function inTheWoods(
 const SEEDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'];
 
 /** The line forced under one seed: the outcome and the world after it. */
-function forced(monster: string, line: string, seed: string, targets: readonly CharacterId[] = [BREN], extra?: readonly { id: CharacterId; monster: string }[]) {
+function forced(monster: string, line: string, seed: string, targets: readonly CharacterId[] = [BREN], extra?: readonly { id: CharacterId; monster: string; nearFoe?: true }[]) {
   const table = inTheWoods(monster, extra);
   const out = unwrap(
     forcePrintedSave(table.state, FOE, { line, targets, commandId: `use-${seed}` }, supply(seed)),
@@ -407,15 +421,19 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
     throw new Error('no seed failed the save');
   });
 
-  it("buys a day's grace from the Mummy's glare on a success, and carries nothing but the Cone", () => {
+  it("buys a day's grace from the Mummy's glare on a success, and hands over only the sight", () => {
     const { out } = forced('mummy', 'Dreadful Glare', 'a');
     // The one sentence the corpus prints under `_Success:_` that is not "Half
-    // damage" is executed now rather than handed over; the targeting clause
-    // still is, because who the line caught is the table's answer.
+    // damage" is executed now rather than handed over.
     expect(
       out.unverified.some((line) => line.includes("immune to this mummy's Dreadful Glare")),
     ).toBe(false);
-    expect(out.unverified.some((line) => line.includes('one creature the mummy can see within 60 feet'))).toBe(true);
+    // **And the targeting clause is measured, not handed over** — W7-B13: "one
+    // creature the mummy can see within 60 feet" is a ruler between two
+    // creatures the scene places, so there is no area to say the engine did
+    // not measure. What is still said is the sight, which nobody declared.
+    expect(out.unverified.some((line) => line.includes('measured no area'))).toBe(false);
+    expect(out.unverified.some((line) => line.includes('nobody has said whether it can see'))).toBe(true);
   });
 });
 
@@ -1112,7 +1130,7 @@ describe('a failure graded by how far the save missed', () => {
     // which is a fixture that proves one branch and asserts the other by luck.
     for (const seed of SEEDS) {
       const { out, state } = forced('pseudodragon', 'Sting', seed, [GRISH], [
-        { id: GRISH, monster: 'goblin-warrior' },
+        { id: GRISH, monster: 'goblin-warrior', nearFoe: true },
       ]);
       const [one] = out.outcomes;
       if (one!.save!.success) continue;

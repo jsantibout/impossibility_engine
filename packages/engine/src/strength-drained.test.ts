@@ -161,13 +161,21 @@ const lowered = (events: readonly GameEvent[]) =>
 const strengthOf = (state: GameState): number => sheetAsItStands(state, NYX)!.abilities.str;
 
 describe('the rider as the swing reads it', () => {
-  it('reads the drain and the death it carries, and hands the rising Shadow back', () => {
+  it('reads the drain and the death it carries, and files the rising Shadow for the table', () => {
     const block = SRD_CONTENT.monsters.find((m) => m.id === 'shadow')!;
     const swipe = block.actions.find((one) => one.name === SWIPE)!;
     const read = readPrintedRiders(swipe.attack!.rider!);
     expect(read.riders).toEqual([{ kind: 'ability-score-decrease', ability: 'str', dice: '1d4' }]);
-    expect(read.handedOver).toEqual([
-      'If a Humanoid is slain by this attack, a **Shadow** rises from the corpse 1d4 hours later.',
+    // **Nothing owed** — W7-B13. The Shadow that rises hours later is a stat
+    // block made from a corpse after the fight, which nothing reads; it is
+    // filed off the rider at ingest and goes out under the handover mark at
+    // the hit, rather than riding in the rider as a sentence the swing owes.
+    expect(read.handedOver).toEqual([]);
+    expect(swipe.attack!.forTheTable).toEqual([
+      {
+        kind: 'a-corpse-that-rises-later',
+        sentence: 'If a Humanoid is slain by this attack, a **Shadow** rises from the corpse 1d4 hours later.',
+      },
     ]);
   });
 });

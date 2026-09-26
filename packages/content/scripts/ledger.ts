@@ -77,6 +77,8 @@ import {
   hasHandedOverSave,
   hasUnappliedRider,
   hasUnexecutedTrait,
+  filedHandoversOf,
+  hasFiledHandover,
   isHandoverTrait,
   isReadLine,
   spellsInReach,
@@ -201,6 +203,24 @@ export interface LedgerMonsters {
   readonly shapes: readonly LedgerMonsterShape[];
   /** Handed-over lines matching no enumerated shape. */
   readonly residue: readonly LedgerResidueLine[];
+  /**
+   * Lines read to the end and **filed** for the table — W7-B13.
+   *
+   * A line every sentence of which the engine spends or files under a reason
+   * `HANDOVER_LINE_KINDS` argues: a compulsion the owner ruled the table's, or
+   * fiction nothing reads afterwards. Finished business, so **not** among
+   * {@link items} and not keeping a block off the clean list — and listed by
+   * name, with the kinds it files, for the reason the spells' handed-over
+   * column lists its spells: an entry silently missing from a ledger looks
+   * exactly like an entry nobody read. A line that files a sentence and still
+   * carries a residue is not here: it is a debt, and the rows above count it.
+   */
+  readonly filed: readonly LedgerFiledLine[];
+}
+
+/** One line read to the end and filed for the table, with the reasons it files under. */
+export interface LedgerFiledLine extends LedgerResidueLine {
+  readonly kinds: readonly string[];
 }
 
 export interface Ledger {
@@ -596,6 +616,18 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
   }
   residue.sort((a, b) => a.monster.localeCompare(b.monster) || a.line.localeCompare(b.line));
 
+  // **Read to the end and filed for the table** — W7-B13: paid, and filing
+  // something. See `LedgerMonsters.filed`.
+  const filed: LedgerFiledLine[] = [];
+  for (const monster of low) {
+    for (const [section, line] of sectionsOf(monster)) {
+      if (unpaid(line) || !hasFiledHandover(line)) continue;
+      const kinds = [...new Set(filedHandoversOf(line).map((one) => one.kind))].sort();
+      filed.push({ monster: monster.name, cr: monster.cr, section, line: line.name, kinds });
+    }
+  }
+  filed.sort((a, b) => a.monster.localeCompare(b.monster) || a.line.localeCompare(b.line));
+
   const handedOver = printed - read;
   return {
     blocks: low.length,
@@ -610,6 +642,7 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     unfinished: low.length - clean,
     shapes,
     residue,
+    filed,
   };
 };
 
@@ -1046,6 +1079,24 @@ export function renderLedger(ledger: Ledger = auditLedger()): string {
   );
   for (const one of monsters.residue) {
     lines.push(`- ${one.monster} (CR ${one.cr}) [${one.section}] ${one.line}`);
+  }
+
+  lines.push(
+    '',
+    `### Read to the end, filed for the table — ${monsters.filed.length}`,
+    '',
+    'Every sentence of each of these lines is either spent by the engine or',
+    '**filed** as the table’s under a reason `HANDOVER_LINE_KINDS` argues: a',
+    'compulsion the owner ruled the table’s (2026-09-24), or fiction no rule',
+    'reads afterwards. They are finished business, so they are not among the',
+    `${monsters.items} items above and keep no block off the clean list; they are`,
+    'listed because a count with no list behind it is the silently-missing entry',
+    'this report refuses. A line that files a sentence and still owes another is',
+    'not here — it is a debt, and the rows above count it.',
+    '',
+  );
+  for (const one of monsters.filed) {
+    lines.push(`- ${one.monster} (CR ${one.cr}) [${one.section}] ${one.line} — ${one.kinds.join(', ')}`);
   }
 
   return `${lines.join('\n')}\n`;

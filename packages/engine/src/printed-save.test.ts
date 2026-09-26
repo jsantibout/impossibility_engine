@@ -227,15 +227,15 @@ describe('the block carries the save onto the sheet', () => {
   });
 
   it('leaves a line whose sentence is not the template without one', () => {
-    // SRD Harpy's Luring Song *does* force a save, and says four more things
-    // about it — a Concentration, a repeat, a movement, a 24-hour immunity.
-    // It is under Actions, it reached `unreadActions`, and it carries none of
-    // this: a line asserted on the block that prints no unread Action at all
-    // would pass however wide the reader became.
-    const harpy = adaptMonster(statBlock('harpy'), id('harpy'));
-    const song = statedActionOf(harpy.sheet, 'Luring Song');
-    expect(song?.text).toContain('Saving Throw:_');
-    expect(song?.save).toBeUndefined();
+    // SRD Chain Devil's Conjure Infernal Chain *does* force a save, and says
+    // more about it than the reader holds. It is under Actions, it reached
+    // `unreadActions`, and it carries none of it: a line asserted on the block
+    // that prints no unread Action at all would pass however wide the reader
+    // became. (SRD Harpy's Luring Song stood here until W7-B13 read its save.)
+    const devil = adaptMonster(statBlock('chain-devil'), id('devil'));
+    const chain = statedActionOf(devil.sheet, 'Conjure Infernal Chain');
+    expect(chain?.text).toContain('Saving Throw:_');
+    expect(chain?.save).toBeUndefined();
 
     // And SRD Wolf, which forces no save at all, reaches the sheet with no
     // unread Actions to carry one on.
@@ -496,20 +496,22 @@ describe('what the door refuses, and what it asks for', () => {
   });
 
   it('refuses a line whose sentence states no save it could read', () => {
-    const harpy = id('harpy');
-    const table = inTheWoods('harpy', harpy);
-    const line = statedActionOf(table.state.creatures[harpy]!.sheet, 'Luring Song');
+    // SRD Chain Devil's Conjure Infernal Chain; the Harpy's Luring Song stood
+    // here until W7-B13 read its save.
+    const devil = id('devil');
+    const table = inTheWoods('chain-devil', devil);
+    const line = statedActionOf(table.state.creatures[devil]!.sheet, 'Conjure Infernal Chain');
     expect(line?.save).toBeUndefined();
 
     const refused = forcePrintedSave(
       table.state,
-      harpy,
-      { line: 'Luring Song', targets: [BREN] },
-      supply('song'),
+      devil,
+      { line: 'Conjure Infernal Chain', targets: [BREN] },
+      supply('chain'),
     );
     expect(isErr(refused) && refused.code).toBe('line_states_no_save');
     // The other door still takes it, which is what the refusal points at.
-    expect(isErr(takeStatedAction(table.state, harpy, { line: 'Luring Song' }))).toBe(false);
+    expect(isErr(takeStatedAction(table.state, devil, { line: 'Conjure Infernal Chain' }))).toBe(false);
   });
 
   it('refuses a heading the block does not print under Actions', () => {

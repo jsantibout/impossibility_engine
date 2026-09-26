@@ -47,15 +47,23 @@ function table(seed = 'the-cold-breath') {
 
 /**
  * SRD Winter Wolf's second Actions line, as the book prints it — en dash and
- * all. Read off the block rather than typed, because the whole claim is that
- * the name a caller sends is the name the block prints.
+ * all. **Not this door's since W7-B13**: the engine reads its saving throw, so
+ * the door that hands a sentence over sends it to the door that rolls it.
  */
 const COLD_BREATH = 'Cold Breath (Recharge 5–6)';
 
+/**
+ * SRD Giant Ape's Boulder Toss, which is what this door is for: a line nothing
+ * was read beneath — "The ape hurls a boulder at a point it can see" is a
+ * prelude the save reader does not place — printed on a recharge. The name a
+ * caller sends is the name the block prints, en dash and all.
+ */
+const BOULDER_TOSS = 'Boulder Toss (Recharge 6)';
+
 /** Two monsters in a fight, which is the least a printed line can be spent in. */
-function fight(seed?: string) {
+function fight(seed?: string, monsterId = 'giant-ape') {
   const t = table(seed);
-  expectOk(t.call('add_creature', { id: 'fang', monsterId: 'winter-wolf' }));
+  expectOk(t.call('add_creature', { id: 'fang', monsterId }));
   expectOk(t.call('add_creature', { id: 'grish', monsterId: 'goblin-warrior' }));
   expectOk(t.call('declare_side', { who: 'fang', side: 'wolves' }));
   expectOk(t.call('declare_side', { who: 'grish', side: 'goblins' }));
@@ -81,42 +89,77 @@ describe('a printed Action line, taken through the door', () => {
     const t = fight();
     turnOf(t, 'fang');
 
-    const out = expectOk(t.call('take_printed_action', { who: 'fang', line: COLD_BREATH }));
+    const out = expectOk(t.call('take_printed_action', { who: 'fang', line: BOULDER_TOSS }));
 
     // The log says what was taken, under the name the block prints.
     const taken = out.events.filter((event) => event.type === 'stated-action-taken');
     expect(taken).toHaveLength(1);
-    expect((taken[0] as { line: string }).line).toBe(COLD_BREATH);
+    expect((taken[0] as { line: string }).line).toBe(BOULDER_TOSS);
     expect(out.events.some((event) => event.type === 'action-spent')).toBe(true);
     expect(t.campaign.log().some((event) => event.type === 'stated-action-taken')).toBe(true);
 
     // And the resolution says whose line it was, without claiming it happened.
-    expect(out.resolution['line']).toBe(COLD_BREATH);
+    expect(out.resolution['line']).toBe(BOULDER_TOSS);
     expect(out.resolution['who']).toBe('fang');
 
     // The whole of what the line *does* comes back unapplied. A DM reading
     // this is reading the block; a caller told only "the Action is gone" would
-    // believe the wolf had breathed on somebody.
+    // believe the ape had thrown at somebody.
     expect(out.unverified).toHaveLength(1);
-    expect(out.unverified[0]).toContain('Cold Breath');
-    expect(out.unverified[0]).toContain('15-foot Cone');
+    expect(out.unverified[0]).toContain('Boulder Toss');
+    expect(out.unverified[0]).toContain('5-foot-radius Sphere');
 
     // Nothing was rolled. The save the line prints is the DM's to call for.
     expect(out.events.some((event) => event.type === 'rolls-issued')).toBe(false);
+  });
+
+  /**
+   * **A line whose save the engine reads is not this door's** — W7-B13. The
+   * wolf's breath carries a DC and dice the engine rolls, and a door that
+   * handed it over would be putting those numbers in the caller's hand; it is
+   * refused before anything is spent and pointed at the door that rolls it.
+   */
+  it('refuses a line whose save the engine reads, naming the door that rolls it', () => {
+    const t = fight('the-wolf', 'winter-wolf');
+    turnOf(t, 'fang');
+    const before = t.campaign.log().length;
+    const out = t.call('take_printed_action', { who: 'fang', line: COLD_BREATH });
+    expect(out.status).toBe('refused');
+    if (out.status !== 'refused') return;
+    expect(out.code).toBe('line_has_its_own_door');
+    expect(out.reason).toContain('forcePrintedSave');
+    expect(t.campaign.log()).toHaveLength(before);
+  });
+
+  /**
+   * SRD Wight's Life Drain, which is the line the level 5 session used to hand
+   * over whole — the save, the DC, the damage and the lowered maximum — and
+   * SRD Seahorse's Bubble Dash, which this door applies itself and still takes.
+   */
+  it('refuses the Life Drain, and still takes a Bubble Dash', () => {
+    const wight = fight('the-wight', 'wight');
+    turnOf(wight, 'fang');
+    const drained = wight.call('take_printed_action', { who: 'fang', line: 'Life Drain' });
+    expect(drained.status).toBe('refused');
+    if (drained.status === 'refused') expect(drained.code).toBe('line_has_its_own_door');
+
+    const seahorse = fight('the-seahorse', 'seahorse');
+    turnOf(seahorse, 'fang');
+    expectOk(seahorse.call('take_printed_action', { who: 'fang', line: 'Bubble Dash' }));
   });
 
   it('finds the line however the caller cased it, and records the printed spelling', () => {
     const t = fight('casing');
     turnOf(t, 'fang');
     const out = expectOk(
-      t.call('take_printed_action', { who: 'fang', line: COLD_BREATH.toLowerCase() }),
+      t.call('take_printed_action', { who: 'fang', line: BOULDER_TOSS.toLowerCase() }),
     );
     expect((out.events.find((e) => e.type === 'stated-action-taken') as { line: string }).line).toBe(
-      COLD_BREATH,
+      BOULDER_TOSS,
     );
     // And the answer says what the log says rather than echoing the call, so a
     // caller is never told two spellings of one heading.
-    expect(out.resolution['line']).toBe(COLD_BREATH);
+    expect(out.resolution['line']).toBe(BOULDER_TOSS);
     // The recharge the block prints is reported off the creature's own ledger —
     // the one the engine's `line_expended` refusal reads.
     expect(out.resolution['expended']).toBe(true);
@@ -127,21 +170,21 @@ describe('a line the block prints a recharge on', () => {
   it('is expended by taking it, and refused the second time with nothing more spent', () => {
     const t = fight('expended');
     turnOf(t, 'fang');
-    expectOk(t.call('take_printed_action', { who: 'fang', line: COLD_BREATH }));
+    expectOk(t.call('take_printed_action', { who: 'fang', line: BOULDER_TOSS }));
 
     const spentOnce = t.campaign.log().filter((event) => event.type === 'action-spent').length;
     const before = t.campaign.log().length;
     // The use is written down as expended beside the Action it cost.
     expect(t.campaign.log().some((event) => event.type === 'printed-line-expended')).toBe(true);
 
-    const again = t.call('take_printed_action', { who: 'fang', line: COLD_BREATH });
+    const again = t.call('take_printed_action', { who: 'fang', line: BOULDER_TOSS });
     expect(again.status).toBe('refused');
     if (again.status !== 'refused') return;
     // `line_expended` rather than the economy's refusal, which is the engine
     // checking the ledger *before* it charges for anything — a refusal after
     // the Action is gone is a refusal with a footprint.
     expect(again.code).toBe('line_expended');
-    expect(again.reason).toContain('Cold Breath');
+    expect(again.reason).toContain('Boulder Toss');
 
     // And nothing was spent for it: no second `action-spent`, no new event.
     expect(t.campaign.log().filter((event) => event.type === 'action-spent').length).toBe(spentOnce);
@@ -151,21 +194,21 @@ describe('a line the block prints a recharge on', () => {
 
 describe('a retry says what the first call said', () => {
   it('answers a re-sent recharge line with the printed name and the recharge still spent', () => {
-    const t = fight('resend-the-breath');
+    const t = fight('resend-the-toss');
     turnOf(t, 'fang');
 
     // The heading in the caller's own casing, so an echo and a read of the log
     // cannot answer alike — this is the call that tells them apart.
-    const input = { who: 'fang', line: COLD_BREATH.toUpperCase() };
+    const input = { who: 'fang', line: BOULDER_TOSS.toUpperCase() };
     const first = expectOk(
-      t.surface.call({ tool: 'take_printed_action', input, commandId: 'toolu_breath' }),
+      t.surface.call({ tool: 'take_printed_action', input, commandId: 'toolu_toss' }),
     );
-    expect(first.resolution['line']).toBe(COLD_BREATH);
+    expect(first.resolution['line']).toBe(BOULDER_TOSS);
     expect(first.resolution['expended']).toBe(true);
 
     const before = t.campaign.log().length;
     const again = expectOk(
-      t.surface.call({ tool: 'take_printed_action', input, commandId: 'toolu_breath' }),
+      t.surface.call({ tool: 'take_printed_action', input, commandId: 'toolu_toss' }),
     );
 
     // Nothing happened twice — and the answer is still the first one's, rather
@@ -173,7 +216,7 @@ describe('a retry says what the first call said', () => {
     expect(again.resolution['duplicate']).toBe(true);
     expect(again.events).toHaveLength(0);
     expect(t.campaign.log()).toHaveLength(before);
-    expect(again.resolution['line']).toBe(COLD_BREATH);
+    expect(again.resolution['line']).toBe(BOULDER_TOSS);
     expect(again.resolution['expended']).toBe(true);
   });
 });

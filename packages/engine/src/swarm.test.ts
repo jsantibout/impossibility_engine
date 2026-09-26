@@ -95,23 +95,30 @@ describe('a swarm regains nothing', () => {
   });
 
   /**
-   * **The two the engine did not read, said out loud at the moment the block
-   * arrives.** A trait is not spent, so there is no later moment to report a
-   * residue at — which is the one thing that makes this different from the
-   * residue a hit's rider reports on the hit.
+   * **The two the engine does not read are filed, and go silent at arrival** —
+   * W7-B13. They were the trait's residue and were said out loud here as owed;
+   * they are the two world-family handovers `HANDOVER_TRAIT_KINDS` argues — a
+   * creature's own space is not a place anything can be put, and nothing in
+   * the scene has a width — so they are filed under those kinds on the trait,
+   * and an arrival says of them what it says of every other handover kind:
+   * nothing.
    */
-  it('reports the two space clauses handed over, in the book’s own words', () => {
+  it('files the two space clauses under their kinds, and says nothing of them at arrival', () => {
     const arrival = unwrap(
       addCreature(fold(SEED, []), SRD_CONTENT, SWARM, 'swarm-of-rats'),
       'the rats arrive',
     );
-    expect(arrival.unverified).toEqual([
-      `${SWARM}: Swarm reads "The swarm can occupy another creature's space and vice versa." — the engine does not apply that; a DM does`,
-      `${SWARM}: Swarm reads "the swarm can move through any opening large enough for a Tiny rat." — the engine does not apply that; a DM does`,
+    expect(arrival.unverified).toEqual([]);
+    const trait = SRD_CONTENT.monsters
+      .find((block) => block.id === 'swarm-of-rats')!
+      .traits.find((one) => one.name === 'Swarm')!.trait!;
+    expect(trait.forTheTable?.map((one) => one.kind)).toEqual([
+      'enters-a-creature-space-and-a-one-inch-gap',
+      'moves-through-a-one-inch-gap',
     ]);
   });
 
-  it('says it of all seven swarms and of nothing else', () => {
+  it('files them on all seven swarms and on nothing else', () => {
     const swarms = SRD_CONTENT.monsters.filter((block) =>
       block.traits.some((trait) => trait.trait?.kind === 'regains-no-hit-points'),
     );
@@ -121,7 +128,10 @@ describe('a swarm regains nothing', () => {
         addCreature(fold(SEED, []), SRD_CONTENT, SWARM, block.id),
         `${block.id} arrives`,
       );
-      expect(arrival.unverified.filter((line) => line.includes('Swarm reads'))).toHaveLength(2);
+      expect(arrival.unverified.filter((line) => line.includes('Swarm reads'))).toHaveLength(0);
+      const trait = block.traits.find((one) => one.trait?.kind === 'regains-no-hit-points')!.trait!;
+      expect(trait.forTheTable, block.id).toHaveLength(2);
+      expect(trait.handedOver, block.id).toBeUndefined();
     }
   });
 });

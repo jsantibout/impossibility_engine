@@ -1477,6 +1477,22 @@ describe('an Actions line the parser read nothing out of', () => {
    * book's recharge and the book's en dash.
    */
   const COLD_BREATH = statBlock('winter-wolf').actions[1]!.name;
+  /**
+   * **The Giant Ape's Boulder Toss, which is what the door is for now** —
+   * W7-B13. The Winter Wolf's breath stood here, and its save is one the
+   * parser reads: the door that hands a sentence over sends such a line to
+   * the door that rolls it (`line_has_its_own_door`), so the line this door
+   * takes has to be one nothing was read beneath. The ape's toss is prose —
+   * "hurls a boulder at a point it can see" is a prelude the save reader does
+   * not place — and prints a recharge, which is the other thing these tests
+   * are about.
+   */
+  const APE = id('ape');
+  const BOULDER_TOSS = statBlock('giant-ape').actions.find((one) =>
+    one.name.startsWith('Boulder Toss'),
+  )!.name;
+  /** The ape is Huge, so it stands a little further from Bren than a wolf would. */
+  const apeInTheWoods = (): Table => inTheWoods('giant-ape', APE, 15);
 
   const taking = (table: Table, who: CharacterId, line: string, commandId?: string) =>
     takeStatedAction(table.state, who, {
@@ -1510,18 +1526,32 @@ describe('an Actions line the parser read nothing out of', () => {
   });
 
   it('spends the creature’s Action and records which line it was', () => {
-    const table = inTheWoods('winter-wolf', WINTER);
-    table.did('the wolf breathes', (s) =>
-      takeStatedAction(s, WINTER, { line: COLD_BREATH, commandId: 'breath' }),
+    const table = apeInTheWoods();
+    table.did('the ape throws', (s) =>
+      takeStatedAction(s, APE, { line: BOULDER_TOSS, commandId: 'toss' }),
     );
 
     const state = table.state;
-    expect(state.combat?.budgets[WINTER]?.action).toBe(false);
+    expect(state.combat?.budgets[APE]?.action).toBe(false);
 
     // And the log says which line, by the name the block prints it under.
     const taken = table.events.filter((e) => e.type === 'stated-action-taken');
     expect(taken).toHaveLength(1);
-    expect(taken[0]?.type === 'stated-action-taken' ? taken[0].line : null).toBe(COLD_BREATH);
+    expect(taken[0]?.type === 'stated-action-taken' ? taken[0].line : null).toBe(BOULDER_TOSS);
+  });
+
+  /**
+   * **And a line whose save the engine reads is not this door's** — W7-B13.
+   * The Winter Wolf's breath carries a DC and dice the engine rolls, and
+   * handing it over would put those numbers in the table's hand; it is sent to
+   * the door that rolls it, with nothing spent.
+   */
+  it('sends a line whose save the engine reads to the door that rolls it', () => {
+    const table = inTheWoods('winter-wolf', WINTER);
+    const refused = taking(table, WINTER, COLD_BREATH, 'breath');
+    expect(isErr(refused) ? refused.code : 'ok').toBe('line_has_its_own_door');
+    expect(table.state.combat?.budgets[WINTER]?.action).toBe(true);
+    expect(table.state.creatures[WINTER]?.expendedLines).toEqual([]);
   });
 
   /**
@@ -1531,9 +1561,11 @@ describe('an Actions line the parser read nothing out of', () => {
    * been told the creature did something it did not.
    */
   it('reports the sentence verbatim, because the engine applies none of it', () => {
-    const table = inTheWoods('winter-wolf', WINTER);
-    const out = unwrap(taking(table, WINTER, COLD_BREATH, 'breath'), 'the breath');
-    expect(out.unverified.join(' ')).toContain(statBlock('winter-wolf').actions[1]!.text);
+    const table = apeInTheWoods();
+    const out = unwrap(taking(table, APE, BOULDER_TOSS, 'toss'), 'the toss');
+    expect(out.unverified.join(' ')).toContain(
+      statBlock('giant-ape').actions.find((one) => one.name === BOULDER_TOSS)!.text,
+    );
 
     // No save was rolled, nothing was placed, nobody was hurt: the Action
     // going and the line being written down are the whole of it.
@@ -1553,18 +1585,19 @@ describe('an Actions line the parser read nothing out of', () => {
    * not tell the two apart would pass while the economy did nothing.
    */
   it('refuses a second line in the same turn', () => {
-    const HARPY = id('harpy');
-    const table = inTheWoods('harpy', HARPY);
-    const line = statBlock('harpy').actions.find(
-      (one) => one.attack === undefined && one.multiattack === undefined,
-    )!.name;
-    table.did('the harpy sings', (s) => takeStatedAction(s, HARPY, { line, commandId: 'one' }));
-    const again = taking(table, HARPY, line, 'two');
+    // The Rust Monster's Destroy Metal — the Harpy's Luring Song stood here
+    // until W7-B13 read its save, and Destroy Metal is a line nothing is read
+    // beneath.
+    const RUST = id('rust');
+    const table = inTheWoods('rust-monster', RUST);
+    const line = 'Destroy Metal';
+    table.did('the rust monster touches', (s) => takeStatedAction(s, RUST, { line, commandId: 'one' }));
+    const again = taking(table, RUST, line, 'two');
     expect(isErr(again) ? again.code : 'ok').toBe('no_action');
 
     // And the line is where it was: a block that prints no notation has
     // nothing to expend, so only the turn stops it.
-    expect(table.state.creatures[HARPY]?.expendedLines).toEqual([]);
+    expect(table.state.creatures[RUST]?.expendedLines).toEqual([]);
   });
 
   /**
@@ -1605,11 +1638,11 @@ describe('an Actions line the parser read nothing out of', () => {
 
   /** A retry is not a second Action. */
   it('counts a repeated command id once', () => {
-    const table = inTheWoods('winter-wolf', WINTER);
-    table.did('the wolf breathes', (s) =>
-      takeStatedAction(s, WINTER, { line: COLD_BREATH, commandId: 'breath' }),
+    const table = apeInTheWoods();
+    table.did('the ape throws', (s) =>
+      takeStatedAction(s, APE, { line: BOULDER_TOSS, commandId: 'toss' }),
     );
-    const retry = unwrap(taking(table, WINTER, COLD_BREATH, 'breath'), 'the retry');
+    const retry = unwrap(taking(table, APE, BOULDER_TOSS, 'toss'), 'the retry');
     expect(retry.events).toEqual([]);
     expect(retry.duplicate).toBe(true);
     expect(table.events.filter((e) => e.type === 'stated-action-taken')).toHaveLength(1);

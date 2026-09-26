@@ -65,6 +65,8 @@ import type { Duration } from '../time.js';
 import type { RepeatSave } from '../timers.js';
 import { conditionInstanceId, hasCondition } from '../conditions.js';
 import { rollSavingThrow, type D20TestResult } from '../checks.js';
+import { rollRecorded } from '../rolls.js';
+import { filedFor, reportFiled } from './filed-handovers.js';
 import { insideRoomOf, isWoundSource, printedLineSource, woundSource } from '../monster.js';
 import { sendingEvents } from './elsewhere.js';
 import { grapplesOn } from './unarmed.js';
@@ -174,6 +176,16 @@ const PRINTED_ROLL: Readonly<
 };
 
 /** How a condition reads in a sentence handed to a table: the book's own word. */
+/**
+ * Where a day's grace from a line's **curse** is filed: beneath the line's own
+ * source, the way a wound's arrangements are — W7-B13. Apart from the line's
+ * own source because the grace is from the curse and not from the line: the
+ * attack path refuses a swing at a creature holding a grace named for the
+ * swinging heading, and a werewolf may go on biting somebody its curse has
+ * given up on.
+ */
+const curseGraceSource = (lineSource: string): string => `${lineSource}:curse`;
+
 const conditionTitle = (condition: string): string =>
   condition.charAt(0).toUpperCase() + condition.slice(1);
 
@@ -1516,6 +1528,95 @@ export function applyPrintedClauses(
         ]);
         break;
       }
+
+      case 'rolls-a-table': {
+        // SRD Gibbering Mouther's Gibbering: "_Failure:_ The target rolls 1d8
+        // to determine what it does during the current turn" — W7-B13. **The
+        // die is the engine's**: thrown here, out of the generator every other
+        // die in this save came out of, and recorded, so the face is in the
+        // log and not in anybody's hand. **The row is the table's**: what
+        // "does nothing" means for a creature somebody is playing is the
+        // owner's compulsion ruling, so the row the face indexes goes out
+        // under the handover mark with the face beside it.
+        const rolled = rollRecorded(supply.issuer, supply.rng, clause.dice);
+        if (!rolled.ok) return rolled;
+        const face = rolled.value.total;
+        const rows = filedFor(save.forTheTable, 'failure', face);
+        land([
+          {
+            type: 'roll-recorded',
+            who: target,
+            label: `${line} (${clause.dice})`,
+            natural: face,
+            total: face,
+            contributions: [],
+            outcome: rows.length === 0 ? 'no row' : `row ${rows[0]!.faces!.from}–${rows[0]!.faces!.to}`,
+          },
+        ]);
+        // The field named at the call, which is what `dm-handover.test.ts` pins.
+        unverified.push(
+          ...reportFiled(
+            `${source}'s ${line} on ${target}: the ${clause.dice} showed ${face}`,
+            filedFor(save.forTheTable, 'failure', face),
+          ),
+        );
+        // The reader admits a table only where its rows cover every face, so
+        // this is a line reaching the executor some other way — said, never
+        // guessed at.
+        if (rows.length === 0) {
+          unverified.push(
+            `${line}'s ${clause.dice} showed ${face}, and the line prints no row for that face — what ${target} does is the table's`,
+          );
+        }
+        break;
+      }
+
+      case 'curse': {
+        // SRD Werewolf's Bite: "_Failure:_ The target is cursed." — W7-B13. A
+        // fact on the record, sourced to the line, and nothing the engine runs
+        // reads it: what the curse does at 0 Hit Points is filed for the table
+        // and reported beside this failure by `forcePrintedSaveOn`.
+        land([
+          { type: 'printed-curse-laid', id: target, curse: { source: lineSource, by: source, line } },
+        ]);
+        break;
+      }
+
+      case 'curse-immunity': {
+        // SRD Werewolf's Bite: "_Success:_ The target is immune to this
+        // werewolf's curse for 24 hours." — W7-B13. The curse is the one this
+        // line lays, so the day's grace is `line-immunity`'s record with the
+        // curse in place of the heading — **and only the curse**: the
+        // werewolf may go on biting, and the attack path refuses a swing at a
+        // creature immune to the swinging line by its heading. So the grace is
+        // filed beneath the line's source (`…:curse`) under a name that is not
+        // the heading, and `forcePrintedSaveOn` is what reads it. A line whose
+        // failure lays no curse is one the reader refuses; one reaching here
+        // some other way is reported rather than granted an immunity to
+        // nothing.
+        if (!(save.onFailure ?? []).some((effect) => effect.kind === 'curse')) {
+          unverified.push(
+            `${line} says the target becomes immune to its curse, and the line lays none — nothing was granted`,
+          );
+          break;
+        }
+        const graceFrom = curseGraceSource(lineSource);
+        const timer = schedule(
+          current,
+          { kind: 'grants', on: target, source: graceFrom },
+          { kind: 'seconds', seconds: clause.seconds },
+        );
+        if (!timer.ok) return timer;
+        land([
+          {
+            type: 'printed-line-immunity-granted',
+            id: target,
+            immunity: { source: graceFrom, by: source, line: `${line}'s curse` },
+          },
+          timer.value,
+        ]);
+        break;
+      }
     }
   }
 
@@ -1640,6 +1741,53 @@ export function forcePrintedSaveOn(
   const events: GameEvent[] = [];
   const unverified: string[] = [];
   const ability = printed.ability;
+
+  // **A creature with a day's grace from this very line is not asked** —
+  // W7-B13. SRD Werewolf: "_Success:_ The target is immune to this werewolf's
+  // curse for 24 hours." The door that spends a line already passes an immune
+  // target by, and the fold raises no aura against one; the road a *hit*
+  // takes to its rider's save had no such gather, so a second bite would have
+  // asked again. Here, before the roll, for every road at once — the line's
+  // own grace, or the grace from its curse.
+  const shielded = printedLineSource(by, line);
+  if (
+    victim.lineImmunities.some(
+      (held) => held.source === shielded || held.source === curseGraceSource(shielded),
+    )
+  ) {
+    return ok({
+      events: [],
+      outcome: { target, save: null, damage: 0, concentration: { kind: 'none' } },
+      unverified: [
+        `${target} is immune to ${by}'s ${line} for the rest of the day and was not asked to save`,
+      ],
+    });
+  }
+
+  // **And a creature the line does not reach by type** — W7-B13. SRD
+  // Werewolf's Bite: "If the target is **a Humanoid**, it is subjected to the
+  // following effect." Where the engine knows the type and it is not one of
+  // them, no die is thrown and the table is told; where nobody has said, the
+  // save is rolled and the table is told that too — the reading an aura's
+  // type gate already takes. An aura's own gate is the fold's, which raised no
+  // debt against the wrong type, so this reads only a line nobody's moment
+  // forced.
+  if (printed.onlyIfTargetType !== undefined && printed.trigger === undefined) {
+    const type = victim.creatureType;
+    const reached = printed.onlyIfTargetType.join(' or ');
+    if (type !== null && !printed.onlyIfTargetType.includes(type)) {
+      return ok({
+        events: [],
+        outcome: { target, save: null, damage: 0, concentration: { kind: 'none' } },
+        unverified: [`${target} is ${type}, and ${line} reaches only ${reached} — nothing was rolled`],
+      });
+    }
+    if (type === null) {
+      unverified.push(
+        `${line} reaches only ${reached}, and nobody has said what ${target} is — the save was rolled anyway, and declareCreatureType settles it`,
+      );
+    }
+  }
 
   // **No die at all, where the book throws none.** SRD Sprite's Heart Sight:
   // "(Celestials, Fiends, and Undead automatically fail the save)". The type
@@ -1806,6 +1954,20 @@ export function forcePrintedSaveOn(
   if (!landed.ok) return landed;
   events.push(...landed.value.events);
   unverified.push(...landed.value.unverified);
+
+  // **What the line files for the table on this creature's failure or
+  // success** — W7-B13. SRD Ghost's possession, SRD Harpy's walk, SRD
+  // Werewolf's victim become one, SRD Wight's zombie: each a sentence
+  // somebody read and found the table's for good, reported under the handover
+  // mark and apart from anything owed. Here, beside the clauses, so every road
+  // a printed save is rolled through — a use, a moment, a hit, a Reaction —
+  // reports them the same way.
+  unverified.push(
+    ...reportFiled(
+      `${by}'s ${line} on ${target}`,
+      filedFor(printed.forTheTable, success ? 'success' : 'failure'),
+    ),
+  );
 
   return ok({
     events,

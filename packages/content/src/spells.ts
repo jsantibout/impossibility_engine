@@ -5175,8 +5175,14 @@ export const SPIRIT_GUARDIANS: SpellDefinition = {
   // filtered once, where the area is read, so it reaches this sentence and the
   // saving throw below alike.
   areaStanding: [{ kind: 'speed', change: 'halve' }],
-  unmodelled: [
-    'whether the spirits look angelic, fey or fiendish, which the SRD makes the caster’s choice and is narration',
+  // **What the spirits look like is the table's, and nothing afterwards reads
+  // it** — W7-B13 Part 4. Handed over in the book's own words rather than
+  // filed in `unmodelled`, which is a debt somebody would one day pay: the
+  // damage type the same alignment decides is `damageTypeStated` above and is
+  // the engine's; the look is narration and always will be.
+  dmDecides: [
+    'If you are good or neutral, their spectral form appears angelic or fey (your choice).',
+    'If you are evil, they appear fiendish.',
   ],
 };
 

@@ -254,12 +254,17 @@ describe('the dog blinks', () => {
     expect(isErr(refused) && refused.code).toBe('line_states_no_teleport');
   });
 
-  it('is the second door on one line: the first still hands the sentence over', () => {
+  /**
+   * **The only door on the line, now** — W7-B13. The hand-over door used to
+   * take a teleport too and hand its sentence over; a line whose structure the
+   * engine reads is sent to the door that executes it instead, before anything
+   * is spent, so a caller cannot move a dog by hand the engine would have
+   * moved.
+   */
+  it('is the one door on the line: the hand-over door sends it here', () => {
     const table = inTheClearing();
-    const handed = unwrap(
-      takeStatedBonusAction(table.state, DOG, { line: BLINK }),
-      'the hand-over',
-    );
-    expect(handed.unverified[0]).toContain('the engine does not apply that; a DM does');
+    const refused = takeStatedBonusAction(table.state, DOG, { line: BLINK });
+    expect(isErr(refused) && refused.code).toBe('line_has_its_own_door');
+    expect(isErr(refused) && refused.reason).toContain('takePrintedTeleport');
   });
 });

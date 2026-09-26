@@ -769,7 +769,9 @@ describe('the sentences that describe a world the lattice does not hold', () => 
     ['troll-limb', 'Troll Spawn'],
     ['succubus', 'Incubus Form'],
     ['incubus', 'Succubus Form'],
-    ['flesh-golem', 'Berserk'],
+    // **The Flesh Golem's Berserk left this list in W7-B13**: the d6 at a
+    // Bloodied turn's start is thrown by the boundary, and what a berserk golem
+    // does is a compulsion the owner ruled the table's, filed on the trait.
     // The bugbears' Abduct left this list in W7-B9: the drag surcharge it
     // waives is charged now, and `drags-for-free` is the exemption.
     ['swarm-of-insects', 'Spider Climb'],
@@ -899,13 +901,22 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
    * holds a door for. Before the trait could carry a residue the reader's
    * only choices were to claim all three or to refuse the heading whole.
    */
-  it('reads the swarm’s healing sentence and hands back its two space clauses', () => {
+  it('reads the swarm’s healing sentence and files its two space clauses', () => {
+    // **Filed, and no longer carried as owed** — W7-B13. The two clauses are
+    // the world family `HANDOVER_TRAIT_KINDS` already argues, so they go out
+    // under those two kinds rather than in the residue.
     const swarm = traitOf('swarm-of-rats', 'Swarm');
     expect(swarm).toEqual({
       kind: 'regains-no-hit-points',
-      handedOver: [
-        "The swarm can occupy another creature's space and vice versa.",
-        'the swarm can move through any opening large enough for a Tiny rat.',
+      forTheTable: [
+        {
+          kind: 'enters-a-creature-space-and-a-one-inch-gap',
+          sentence: "The swarm can occupy another creature's space and vice versa.",
+        },
+        {
+          kind: 'moves-through-a-one-inch-gap',
+          sentence: 'the swarm can move through any opening large enough for a Tiny rat.',
+        },
       ],
     });
 
@@ -923,10 +934,9 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
       'swarm-of-venomous-snakes',
     ]);
     for (const block of swarms) {
-      expect(
-        block.traits.find((trait) => trait.trait?.kind === 'regains-no-hit-points')!.trait!
-          .handedOver,
-      ).toHaveLength(2);
+      const trait = block.traits.find((one) => one.trait?.kind === 'regains-no-hit-points')!.trait!;
+      expect(trait.forTheTable).toHaveLength(2);
+      expect(trait.handedOver).toBeUndefined();
     }
   });
 
@@ -939,9 +949,15 @@ describe('the reader is a list of matched sentences and not an interpreter', () 
       ),
     ).toEqual({
       kind: 'regains-no-hit-points',
-      handedOver: [
-        "The swarm can occupy another creature's space and vice versa.",
-        'the swarm can move through any opening large enough for a Tiny rat.',
+      forTheTable: [
+        {
+          kind: 'enters-a-creature-space-and-a-one-inch-gap',
+          sentence: "The swarm can occupy another creature's space and vice versa.",
+        },
+        {
+          kind: 'moves-through-a-one-inch-gap',
+          sentence: 'the swarm can move through any opening large enough for a Tiny rat.',
+        },
       ],
     });
     // The healing half alone is not the heading, and neither is the heading

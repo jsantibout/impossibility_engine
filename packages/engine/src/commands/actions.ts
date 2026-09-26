@@ -124,7 +124,8 @@ import { endOfCurrentTurn, startOfNextTurn } from '../time.js';
 import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import type { MonsterTreeStride } from '@ie/srd';
 import { castSpell, chooseRoute, type Supply, nextCastingId } from './casting.js';
-import { creatureOf, sceneFor, unknownCreature } from './command.js';
+import { creatureOf, reachedBy, sceneFor, unknownCreature } from './command.js';
+import { filedFor, reportFiled } from './filed-handovers.js';
 import { routeLabel } from './item-casting.js';
 import { applyConditionTo, schedule } from './conditions.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
@@ -667,6 +668,54 @@ function unenforcedRequirementOf(line: {
 }
 
 /**
+ * **The door a read line is taken through, where it has one of its own** —
+ * W7-B13, the coordinator's answer to Part 4's question: yes.
+ *
+ * `takeStatedAction` and `takeStatedBonusAction` hand a line's sentence to the
+ * table whole, and that is honest only for a line with nothing the engine
+ * could read beneath it. A line whose saving throw the parser read carries a
+ * DC and dice the engine rolls — SRD Wight's Life Drain: "6 (1d8 + 2) Necrotic
+ * damage, and the target's Hit Point maximum decreases" — and handing that
+ * over puts a number in the table's hand that the engine owns (rule 1). So the
+ * hand-over doors send such a line to the door that executes it, before
+ * anything is spent, and so for every read shape a door exists for.
+ *
+ * **Null for every shape the hand-over door itself applies** — a jump bought,
+ * a move granted, a light switched — and for a line that casts but that the
+ * adapter compiled no route for: `castPrintedLine` would refuse that one too,
+ * and a line both doors refused would be a line nobody could take. A save a
+ * *moment* forces is not the caller's to spend through either door, so it is
+ * not sent anywhere from here.
+ */
+function ownDoorOf(
+  creature: { readonly spellcasting: { readonly granted: readonly { readonly throughLine?: string }[] } },
+  line: StatedAction | StatedBonusAction,
+): string | null {
+  const save = line.save;
+  if (save !== undefined && save.trigger === undefined) {
+    return save.movesThen === undefined
+      ? 'the door that rolls a printed save (forcePrintedSave)'
+      : 'the door that moves the creature and rolls the save it owes (takePrintedMove)';
+  }
+  if (
+    line.casts !== undefined &&
+    creature.spellcasting.granted.some((grant) => grant.throughLine === line.name)
+  ) {
+    return 'the door that casts a printed line (castPrintedLine)';
+  }
+  if (line.teleports !== undefined || line.treeStride !== undefined) {
+    return 'the door that teleports a printed line (takePrintedTeleport)';
+  }
+  if (line.forms !== undefined) return 'the door that takes a printed form (takePrintedForm)';
+  if (line.pulls !== undefined) return 'the door that makes a printed pull (takePrintedPull)';
+  if (line.swallows !== undefined) return 'the door that swallows (takePrintedSwallow)';
+  if (line.shiftsPlane !== undefined) {
+    return 'the door that steps onto another plane (takePrintedPlaneShift)';
+  }
+  return null;
+}
+
+/**
  * Why this creature may not take the line its heading put a condition on, or
  * null.
  *
@@ -797,6 +846,16 @@ export function takeStatedBonusAction(
         return err(
           'no_such_line',
           `no Bonus Action called ${command.line} is printed on this creature's stat block`,
+        );
+      }
+
+      // **A line the engine reads is taken through the door that executes it**
+      // — W7-B13; see {@link ownDoorOf}. Before anything is spent.
+      const door = ownDoorOf(creature, line);
+      if (door !== null) {
+        return err(
+          'line_has_its_own_door',
+          `${line.name} has structure the engine reads beneath it, so it is taken with ${door} rather than handed over`,
         );
       }
 
@@ -1012,6 +1071,18 @@ export function takeStatedAction(
         return err(
           'no_such_line',
           `no line called ${command.line} is printed under this creature's Actions with nothing the engine could read beneath it; a heading the parser did read, and a heading printed under another section, are each taken by the command that owns them`,
+        );
+      }
+
+      // **And a line whose sentence the engine reads is not one of those** —
+      // W7-B13. The refusal above says this door holds only a line "with
+      // nothing the engine could read beneath it", and a save the parser read
+      // is something it could: see {@link ownDoorOf}. Before anything is spent.
+      const door = ownDoorOf(creature, line);
+      if (door !== null) {
+        return err(
+          'line_has_its_own_door',
+          `${line.name} has structure the engine reads beneath it, so it is taken with ${door} rather than handed over`,
         );
       }
 
@@ -1355,6 +1426,53 @@ export function forcePrintedSave(
         if (state.creatures[target] === undefined) return unknownCreature(target);
       }
 
+      // **How many, how far, and of what kind** — W7-B13. SRD Wight's Life
+      // Drain reaches "one creature within 5 feet", SRD Ghost's Possession
+      // "one Humanoid the ghost can see within 5 feet", SRD Harpy's Luring
+      // Song "each Humanoid and Giant" in its Emanation. Each is a fact about
+      // creatures somebody has already named, which the engine holds — a
+      // count, a ruler between two placed creatures, a type — so a call that
+      // breaks one is refused here, before anything is spent. An area's origin
+      // and facing stay the table's.
+      const reach = printed.reach;
+      if (reach !== undefined && targets.length > reach.count) {
+        return err(
+          'too_many_targets',
+          `${line.name} reaches "${printed.targets}", and ${targets.length} creatures were named`,
+        );
+      }
+      if (reach !== undefined) {
+        for (const target of targets) {
+          const beyond = reachedBy(state, id, target, line.name, reach.feet);
+          if (beyond !== null) return beyond;
+          // "one creature **the ghost can see**": refused where the engine's
+          // answer is no — a Blinded ghost, a sight line declared shut — which
+          // is the casting door's reading; reported below where nobody has
+          // said, because unknown is not no.
+          if (reach.seen === true && canSee(state, id, target) === false) {
+            return err(
+              'cannot_see_target',
+              `${line.name} reaches a creature ${id} can see, and ${id} cannot see ${target}`,
+            );
+          }
+        }
+      }
+      const types = printed.onlyIfTargetType;
+      if (types !== undefined) {
+        const wrong = targets.filter((target) => {
+          const type = state.creatures[target]!.creatureType;
+          return type !== null && !types.includes(type);
+        });
+        if (wrong.length > 0) {
+          return err(
+            'target_not_eligible',
+            `${line.name} reaches only ${types.join(' or ')}, and ${wrong
+              .map((target) => `${target} is ${state.creatures[target]!.creatureType}`)
+              .join(', ')}`,
+          );
+        }
+      }
+
       // **Who the line may be forced on at all**, where the targeting clause
       // says — SRD Vampire Spawn's Bite: "one creature within 5 feet that is
       // willing or that has the Grappled, Incapacitated, or Restrained
@@ -1611,7 +1729,30 @@ export function forcePrintedSave(
         // the whole sentence used to come back in. The caller named who was
         // caught; nothing here checked that answer against a map.
         unverified: [
-          `${line.name} reads "${printed.targets}" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
+          // **Only where the engine measured nothing** — W7-B13. A line that
+          // reaches one creature at a distance was measured above, against a
+          // scene that places both, and a note saying it was not would be a
+          // debt the ruler had already paid. An area, or a reach with no scene
+          // to measure it in, is still the table's and is still said.
+          ...(reach !== undefined && state.scene !== null
+            ? []
+            : [
+                `${line.name} reads "${printed.targets}" — the engine rolled the save for the creatures named and measured no area; who stands in it is the table's`,
+              ]),
+          // "one creature **the ghost can see**": the sight is a question the
+          // engine answers three ways, and the one it cannot is said.
+          ...(reach?.seen === true
+            ? caught
+                .filter((target) => canSee(state, id, target) === null)
+                .map(
+                  (target) =>
+                    `${line.name} reaches a creature ${id} can see, and nobody has said whether it can see ${target} — declareSightBetween settles it`,
+                )
+            : []),
+          // What the line files for the table at the moment of use — W7-B13:
+          // SRD Basilisk's mirror, SRD Steam Mephit's water. Under the
+          // handover mark, once, whoever the line caught.
+          ...reportFiled(`${id}'s ${line.name}`, filedFor(printed.forTheTable, 'use')),
           // A creature the line could not reach at all, named rather than
           // silently dropped: the honesty an immune target already gets.
           ...immuneToTheLine.map(

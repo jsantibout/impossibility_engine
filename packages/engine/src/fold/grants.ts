@@ -56,6 +56,7 @@ export const GRANTS_EVENTS = [
   'creature-type-masked',
   'size-overridden',
   'printed-line-immunity-granted',
+  'printed-curse-laid',
   'turn-payout-granted',
   'creature-attached',
   'creature-detached',
@@ -447,6 +448,17 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.immunity,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { lineImmunities }, creature);
+    }
+
+    case 'printed-curse-laid': {
+      const creature = creatureOf(state, event, event.id);
+      // **The source alone is the identity**, as for the day's grace above it:
+      // a second bite from the same line curses nobody twice. W7-B13.
+      const curses = [
+        ...creature.curses.filter((held) => held.source !== event.curse.source),
+        event.curse,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { curses }, creature);
     }
 
     case 'turn-payout-granted': {

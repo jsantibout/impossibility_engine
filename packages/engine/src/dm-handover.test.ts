@@ -789,3 +789,94 @@ describe('the two atomic paths that did not keep their handover', () => {
     });
   });
 });
+
+/**
+ * **Who writes the handover mark, pinned by file** — W7-B13 Part 4.
+ *
+ * `DM_DECIDES` is spelled in one file and written through `handedOver`, and
+ * that is what lets a reader of `unverified` tell a handover from a debt by the
+ * mark alone. The mark is only as honest as its writers: a site that wrote it
+ * over a sentence nobody filed would be a debt passing as fiction, and nothing
+ * downstream could tell. So every writer is named here with the field it reads
+ * — a spell's `dmDecides`, a branch's `handsOver`, a granted route's
+ * `handOver`, and a stat block's `forTheTable` — and a new writer fails this
+ * until somebody adds it, with its field.
+ *
+ * Two layers, because a stat block's handovers go through one helper:
+ * `reportFiled` in `commands/filed-handovers.ts` is the one place a stat
+ * block's sentence meets `handedOver`, and every door that reaches a filed
+ * sentence calls it — so the helper's own callers are pinned too, each one
+ * required to hand it a `forTheTable` list.
+ */
+describe('the mark is written only from a filed field', () => {
+  const root = fileURLToPath(new URL('.', import.meta.url));
+  const sources = readdirSync(root, { recursive: true, encoding: 'utf8' })
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+    .map((name) => ({
+      file: name.replaceAll('\\', '/'),
+      text: readFileSync(join(root, name), 'utf8'),
+    }));
+
+  /** Each call of `name`, with the statement text that follows it. */
+  const callsOf = (text: string, name: string): readonly string[] => {
+    const found: string[] = [];
+    const pattern = new RegExp(`\\b${name}\\(`, 'g');
+    for (let hit = pattern.exec(text); hit !== null; hit = pattern.exec(text)) {
+      const rest = text.slice(hit.index, hit.index + 240);
+      const end = rest.indexOf(';');
+      found.push(end === -1 ? rest : rest.slice(0, end));
+    }
+    return found;
+  };
+
+  it('is written by the engine helper in exactly these files, this many times each', () => {
+    const importsTheHelper = (text: string): boolean =>
+      /import \{[^}]*\bhandedOver\b[^}]*\} from '\.\.?\/spell-definitions\.js'/.test(text);
+    const writers = Object.fromEntries(
+      sources
+        .filter((one) => importsTheHelper(one.text))
+        .map((one) => [one.file, callsOf(one.text, 'handedOver').length]),
+    );
+    expect(writers).toEqual({
+      // A spell's `dmDecides`, a branch's `handsOver`, a granted route's
+      // `handOver` — the three a casting reports.
+      'commands/spell-resolution.ts': 3,
+      // An activated spell's branch `handsOver`.
+      'commands/activation.ts': 1,
+      // A chance spell's `dmDecides`, withheld from what a torn fan reports.
+      'commands/spell-effect-chance.ts': 1,
+      // A stat block's `forTheTable`, through `reportFiled` and nowhere else.
+      'commands/filed-handovers.ts': 1,
+    });
+  });
+
+  it('reaches a stat block’s sentence only through the helper, and only from `forTheTable`', () => {
+    const callers = Object.fromEntries(
+      sources
+        .filter((one) => one.file !== 'commands/filed-handovers.ts')
+        .map((one) => [one.file, callsOf(one.text, 'reportFiled')] as const)
+        .filter(([, calls]) => calls.length > 0)
+        .map(([file, calls]) => [file, calls.length]),
+    );
+    expect(callers).toEqual({
+      // `forcePrintedSave`'s moment of use — a save's `forTheTable`.
+      'commands/actions.ts': 1,
+      // `forcePrintedSaveOn`'s failure and success, and the row a d8 lands on.
+      'commands/printed-save-clauses.ts': 2,
+      // `settlePrintedSave`'s moment of use.
+      'commands/turns.ts': 1,
+      // A hit's `forTheTable`, off the printed attack.
+      'commands/attacks.ts': 1,
+      // A trait's `forTheTable`, under the face of the die the boundary threw.
+      'commands/turn-start-dice.ts': 1,
+    });
+    // Every one of them hands the helper a `forTheTable` list: the filed field
+    // is the only thing the mark may be written from.
+    for (const one of sources) {
+      if (one.file === 'commands/filed-handovers.ts') continue;
+      for (const call of callsOf(one.text, 'reportFiled')) {
+        expect(call, one.file).toContain('.forTheTable');
+      }
+    }
+  });
+});

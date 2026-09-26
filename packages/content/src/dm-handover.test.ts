@@ -563,6 +563,13 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // SRD Speak with Plants' conversation, beside the two directions of
       // ground it executes.
       'speak-with-plants',
+      // **An executed spell's look** — W7-B13 Part 4. SRD Spirit Guardians'
+      // saves, damage, Emanation and halved Speed are executed, and the
+      // damage type the caster's alignment decides is stated at the casting;
+      // what the spirits look like — angelic, fey or fiendish — is narration
+      // nothing reads, and was filed as a debt in `unmodelled` until the
+      // session census counted it as one.
+      'spirit-guardians',
       'tiny-hut',
       'tongues',
       'water-breathing',

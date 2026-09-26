@@ -1123,3 +1123,378 @@ describe('a save whose failure puts the target inside', () => {
     ]);
   });
 });
+
+/**
+ * **The honesty pass** — W7-B13.
+ *
+ * CR ≤ 5 lines the ledger could not tell from debts, because the parser either
+ * refused them whole or carried their sentences in the residue (`handedOver`)
+ * the ledger counts as owed. Two kinds among them: the **compulsions**, which
+ * the owner ruled on 2026-09-24 are legality the table adjudicates and so
+ * handovers; and **fiction** no rule reads afterwards. Both are filed in
+ * `forTheTable` — a field apart from the residue, carrying the kind the ledger
+ * counts in its handed-over column — and never in `handedOver`, which on all
+ * three halves of the sheet is the owed residue.
+ *
+ * What these assert is the reading: what is read, what is filed and under
+ * which kind, and what stays the residue it honestly is.
+ */
+describe('the honesty pass: compulsions and fiction filed apart from the residue — W7-B13', () => {
+  const compulsion = 'a-compulsion-the-table-plays' as const;
+
+  it("reads the ghost's Possession: the save and the day's grace are the engine's, the body is the table's", () => {
+    const save = lineOf('ghost', 'Possession (Recharge 6)').save;
+    expect(save).toMatchObject({
+      ability: 'cha',
+      dc: 13,
+      targets: 'one Humanoid the ghost can see within 5 feet',
+      // "one Humanoid … within 5 feet": the reach and the type are facts the
+      // engine measures; the sight is flagged so the door can say it is not.
+      reach: { feet: 5, count: 1, seen: true },
+      onlyIfTargetType: ['Humanoid'],
+      onSuccess: 'none',
+      onSuccessEffects: [{ kind: 'line-immunity', line: 'Possession', seconds: 86400 }],
+    });
+    // The failure spends nothing the engine could apply: the whole of it is the
+    // possession, filed as the compulsion it is and reported on a failure.
+    expect(save?.onFailure).toBeUndefined();
+    expect(save?.forTheTable).toEqual([
+      {
+        kind: compulsion,
+        on: 'failure',
+        sentence:
+          'The target is possessed by the ghost; the ghost disappears, and the target has the Incapacitated condition and loses control of its body.',
+      },
+      {
+        kind: compulsion,
+        on: 'failure',
+        sentence: 'The ghost now controls the body, but the target retains awareness.',
+      },
+      {
+        kind: compulsion,
+        on: 'failure',
+        sentence:
+          "The ghost can't be targeted by any attack, spell, or other effect, except ones that specifically target Undead.",
+      },
+      {
+        kind: compulsion,
+        on: 'failure',
+        sentence:
+          "The ghost's game statistics are the same, except it uses the possessed target's Speed, as well as the target's Strength, Dexterity, and Constitution modifiers.",
+      },
+      {
+        kind: compulsion,
+        on: 'failure',
+        sentence:
+          'The possession lasts until the body drops to 0 Hit Points or the ghost leaves as a Bonus Action.',
+      },
+    ]);
+    // **The ending's immunity stays owed.** A later Possession would read it,
+    // and the moment it starts is one only the table sees — so it is a debt the
+    // engine names rather than fiction it may file.
+    expect(save?.handedOver).toEqual([
+      "When the possession ends, the ghost appears in an unoccupied space within 5 feet of the target, and the target is immune to this ghost's Possession for 24 hours.",
+    ]);
+  });
+
+  it("reads the harpy's Luring Song: the Charm and its repeat are the engine's, the walk is the table's", () => {
+    const save = lineOf('harpy', 'Luring Song').save;
+    expect(save).toMatchObject({
+      ability: 'wis',
+      dc: 11,
+      targets:
+        'each Humanoid and Giant in a 300-foot Emanation originating from the harpy when the song starts',
+      onlyIfTargetType: ['Humanoid', 'Giant'],
+      onSuccess: 'none',
+      onSuccessEffects: [{ kind: 'line-immunity', line: 'Luring Song', seconds: 86400 }],
+      onFailure: [
+        {
+          kind: 'condition',
+          condition: 'charmed',
+          repeats: { at: 'end', of: 'target' },
+          implies: ['incapacitated'],
+        },
+      ],
+    });
+    expect(save?.forTheTable).toEqual([
+      {
+        kind: compulsion,
+        on: 'failure',
+        sentence:
+          'If the target is more than 5 feet from the harpy, the target moves on its turn toward the harpy by the most direct route, trying to get within 5 feet of the harpy.',
+      },
+      { kind: compulsion, on: 'failure', sentence: "It doesn't avoid Opportunity Attacks." },
+    ]);
+    // What stays owed: the song's Concentration (which only a casting may hold
+    // here), the other harpies' songs, and the two repeats a move into lava and
+    // a blow from somebody else raise.
+    expect(save?.handedOver).toEqual([
+      "The harpy sings a magical melody, which lasts until the harpy's Concentration ends on it.",
+      'The Charmed condition, until the song ends.',
+      'While Charmed, the target ignores the Luring Song of other harpies.',
+      'before moving into damaging terrain (such as lava or a pit) and whenever it takes damage from a source other than the harpy, the target repeats the save.',
+    ]);
+  });
+
+  it("reads the mouther's Gibbering: the d8 is the engine's, and the table's rows are filed with their faces", () => {
+    const save = lineOf('gibbering-mouther', 'Gibbering').save;
+    expect(save?.onFailure).toEqual([{ kind: 'rolls-a-table', dice: '1d8' }]);
+    expect(save?.forTheTable).toEqual([
+      {
+        kind: compulsion,
+        on: 'failure',
+        faces: { from: 1, to: 4 },
+        sentence: 'The target does nothing.',
+      },
+      {
+        kind: compulsion,
+        on: 'failure',
+        faces: { from: 5, to: 6 },
+        sentence:
+          'The target takes no action or Bonus Action and uses all its movement to move in a random direction.',
+      },
+      {
+        kind: compulsion,
+        on: 'failure',
+        faces: { from: 7, to: 8 },
+        sentence:
+          "The target makes a melee attack against a randomly determined creature within its reach or does nothing if it can't make such an attack.",
+      },
+    ]);
+    expect(save?.handedOver).toBeUndefined();
+  });
+
+  it("reads the flesh golem's Berserk: the d6 at a Bloodied turn's start, and every sentence after it filed", () => {
+    expect(lineOf('flesh-golem', 'Berserk').trait).toEqual({
+      kind: 'rolls-to-go-berserk',
+      dice: '1d6',
+      on: 6,
+      whileBloodied: true,
+      forTheTable: [
+        {
+          kind: compulsion,
+          faces: { from: 6, to: 6 },
+          sentence:
+            'On each of its turns while berserk, the golem attacks the nearest creature it can see. If no creature is near enough to move to and attack, the golem attacks an object. Once the golem goes berserk, it remains so until it is destroyed or it is no longer Bloodied.',
+        },
+        {
+          kind: compulsion,
+          faces: { from: 6, to: 6 },
+          sentence:
+            "The golem's creator, if within 60 feet of the berserk golem, can try to calm it by taking an action to make a DC 15 Charisma (Persuasion) check; the golem must be able to hear its creator. If this check succeeds, the golem ceases being berserk until the start of its next turn, at which point it resumes rolling for the Berserk trait again if it is still Bloodied.",
+        },
+      ],
+    });
+  });
+
+  it("reads the clay golem's Berserk too, which prints no creator to calm it", () => {
+    const trait = lineOf('clay-golem', 'Berserk').trait as {
+      readonly kind: string;
+      readonly forTheTable?: readonly { readonly sentence: string }[];
+    };
+    expect(trait.kind).toBe('rolls-to-go-berserk');
+    expect(trait.forTheTable?.map((one) => one.sentence)).toEqual([
+      'On each of its turns while berserk, the golem attacks the nearest creature it can see. If no creature is near enough to move to and attack, the golem attacks an object. Once the golem goes berserk, it continues to be berserk until it is destroyed or it is no longer Bloodied.',
+    ]);
+  });
+
+  it.each([
+    ['werebear', 'Bite (Bear or Hybrid Form Only)', 14, 'Werebear'],
+    ['wereboar', 'Gore (Boar or Hybrid Form Only)', 12, 'Wereboar'],
+    ['wererat', 'Bite (Rat or Hybrid Form Only)', 11, 'Wererat'],
+    ['weretiger', 'Bite (Tiger or Hybrid Form Only)', 13, 'Weretiger'],
+    ['werewolf', 'Bite (Wolf or Hybrid Form Only)', 12, 'Werewolf'],
+  ] as const)(
+    "reads the %s's curse: a save a Humanoid makes, a curse on the record, a day's grace",
+    (id, heading, dc, block) => {
+      const attack = lineOf(id, heading).attack;
+      // The rider is the book's own save template, so it is lifted out of the
+      // rider entirely — nothing is left for the swing to hand over.
+      expect(attack?.rider).toBeNull();
+      expect(attack?.riderSave).toEqual({
+        ability: 'con',
+        dc,
+        targets: 'a Humanoid',
+        onlyIfTargetType: ['Humanoid'],
+        onSuccess: 'none',
+        onSuccessEffects: [{ kind: 'curse-immunity', seconds: 86400 }],
+        onFailure: [{ kind: 'curse' }],
+        forTheTable: [
+          {
+            kind: compulsion,
+            on: 'failure',
+            sentence: `If the cursed target drops to 0 Hit Points, it instead becomes a **${block}** under the GM's control and has 10 Hit Points.`,
+          },
+        ],
+      });
+    },
+  );
+
+  it("files the basilisk's reflection and the mephit's water, and leaves both saves otherwise as they were", () => {
+    const gaze = lineOf('basilisk', 'Petrifying Gaze (Recharge 4–6)').save;
+    expect(gaze?.handedOver).toBeUndefined();
+    expect(gaze?.onFailure).toHaveLength(1);
+    expect(gaze?.forTheTable).toEqual([
+      {
+        kind: 'a-reflection-nothing-holds',
+        sentence: 'If the basilisk sees its reflection in the Cone, the basilisk must make this save.',
+      },
+    ]);
+    const steam = lineOf('steam-mephit', 'Steam Breath (Recharge 6)').save;
+    expect(steam?.handedOver).toBeUndefined();
+    expect(steam?.onFailure).toHaveLength(1);
+    expect(steam?.forTheTable).toEqual([
+      {
+        kind: 'water-nothing-holds',
+        sentence: "Being underwater doesn't grant Resistance to this Fire damage.",
+      },
+    ]);
+  });
+
+  it("files the wight's zombie and its cap of twelve, and reads the reach Life Drain names", () => {
+    const save = lineOf('wight', 'Life Drain').save;
+    expect(save?.handedOver).toBeUndefined();
+    expect(save?.reach).toEqual({ feet: 5, count: 1 });
+    expect(save?.onFailure).toEqual([{ kind: 'hit-point-maximum-decrease', by: 'damage-taken' }]);
+    expect(save?.forTheTable).toEqual([
+      {
+        kind: 'a-corpse-that-rises-later',
+        on: 'failure',
+        sentence:
+          "A Humanoid slain by this attack rises 24 hours later as a **Zombie** under the wight's control, unless the Humanoid is restored to life or its body is destroyed.",
+      },
+      {
+        kind: 'a-corpse-that-rises-later',
+        on: 'failure',
+        sentence: 'The wight can have no more than twelve zombies under its control at a time.',
+      },
+    ]);
+  });
+
+  it('files a returning spear, a Shadow that rises and a body absorbed off the rider, and leaves the rest to be read', () => {
+    const salamander = lineOf('salamander', 'Flame Spear').attack;
+    expect(salamander?.rider).toBeNull();
+    expect(salamander?.forTheTable).toEqual([
+      {
+        kind: 'a-weapon-that-returns-to-the-hand',
+        sentence:
+          "_Hit or Miss:_ The spear magically returns to the salamander's hand immediately after a ranged attack.",
+      },
+    ]);
+    const merfolk = lineOf('merfolk-skirmisher', 'Ocean Spear').attack;
+    expect(merfolk?.rider).toBe(
+      'If the target is a creature, its Speed decreases by 10 feet until the end of its next turn.',
+    );
+    expect(merfolk?.forTheTable).toEqual([
+      {
+        kind: 'a-weapon-that-returns-to-the-hand',
+        sentence:
+          "_Hit or Miss:_ The spear magically returns to the merfolk's hand immediately after a ranged attack.",
+      },
+    ]);
+    const shadow = lineOf('shadow', 'Draining Swipe').attack;
+    expect(shadow?.rider).toBe(
+      "and the target's Strength score decreases by 1d4. The target dies if this reduces that score to 0.",
+    );
+    expect(shadow?.forTheTable).toEqual([
+      {
+        kind: 'a-corpse-that-rises-later',
+        sentence: 'If a Humanoid is slain by this attack, a **Shadow** rises from the corpse 1d4 hours later.',
+      },
+    ]);
+    const mouther = lineOf('gibbering-mouther', 'Bite').attack;
+    expect(mouther?.rider).toBe(
+      'If the target is a Medium or smaller creature, it has the Prone condition. The target dies if it is reduced to 0 Hit Points by this attack.',
+    );
+    expect(mouther?.forTheTable).toEqual([
+      {
+        kind: 'a-body-absorbed',
+        sentence: 'Its body is then absorbed into the mouther, leaving only equipment behind.',
+      },
+    ]);
+  });
+
+  it("files the swarms' two space clauses as the world-family kinds, and keeps the healing sentence the engine spends", () => {
+    const swarms = [
+      'swarm-of-crawling-claws',
+      'swarm-of-bats',
+      'swarm-of-insects',
+      'swarm-of-piranhas',
+      'swarm-of-rats',
+      'swarm-of-ravens',
+      'swarm-of-venomous-snakes',
+    ];
+    for (const id of swarms) {
+      const trait = lineOf(id, 'Swarm').trait as {
+        readonly kind: string;
+        readonly handedOver?: unknown;
+        readonly forTheTable?: unknown;
+      };
+      expect(trait.kind, id).toBe('regains-no-hit-points');
+      expect(trait.handedOver, id).toBeUndefined();
+      expect(trait.forTheTable, id).toEqual([
+        {
+          kind: 'enters-a-creature-space-and-a-one-inch-gap',
+          sentence: "The swarm can occupy another creature's space and vice versa.",
+        },
+        {
+          kind: 'moves-through-a-one-inch-gap',
+          sentence: expect.stringMatching(
+            /^the swarm can move through any opening large enough for a Tiny [a-z]+\.$/,
+          ),
+        },
+      ]);
+    }
+  });
+
+  /**
+   * **Not filed, and that is the reading** — W7-B13, after review. The cube the
+   * touch destroys is fiction, but the touch is legality — a reach, a thing
+   * that is nonmagical metal, a thing nobody is wearing — and a line filed
+   * whole would pass that as fiction too. It stays prose and owed, with its
+   * seam in `LINE_RESIDUE_SEAMS`.
+   */
+  it("leaves the rust monster's Destroy Metal prose, because its touch is legality", () => {
+    const line = lineOf('rust-monster', 'Destroy Metal') as Record<string, unknown>;
+    expect(Object.keys(line).sort()).toEqual(['name', 'text']);
+  });
+
+  it('files only the book’s own words, and never a sentence it also carries as owed', () => {
+    let filed = 0;
+    for (const block of bestiary) {
+      for (const line of [
+        ...block.traits,
+        ...block.actions,
+        ...block.bonusActions,
+        ...block.reactions,
+      ]) {
+        const trait = line.trait as
+          | { readonly handedOver?: readonly string[]; readonly forTheTable?: readonly { readonly sentence: string }[] }
+          | undefined;
+        const residue = [
+          ...(line.save?.handedOver ?? []),
+          ...(line.attack?.riderSave?.handedOver ?? []),
+          ...(trait?.handedOver ?? []),
+        ];
+        const sentences = [
+          ...(line.save?.forTheTable ?? []),
+          ...(line.attack?.forTheTable ?? []),
+          ...(line.attack?.riderSave?.forTheTable ?? []),
+          ...(trait?.forTheTable ?? []),
+        ].map((one) => one.sentence);
+        const flat = line.text
+          .replace(/\s*<br>\s*/g, ' ')
+          .replace(/&emsp;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .toLowerCase();
+        for (const sentence of sentences) {
+          filed += 1;
+          // Every filed sentence is the book's own words, and none is also owed.
+          expect(flat, `${block.id}/${line.name}`).toContain(sentence.replace(/\.$/, '').toLowerCase());
+          expect(residue, `${block.id}/${line.name}`).not.toContain(sentence);
+        }
+      }
+    }
+    expect(filed).toBeGreaterThan(0);
+  });
+});

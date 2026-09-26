@@ -302,17 +302,33 @@ describe('a Priest spends Divine Aid', () => {
    * `takeStatedAction` reads, so two doors on one heading cannot disagree
    * about what is left of it.
    */
-  it('refuses once the day’s three uses are gone, whichever door spent them', () => {
+  /**
+   * **One door, and one ledger.** The hand-over door used to spend this line
+   * too and share the day's count; since W7-B13 a line the engine casts is
+   * sent to the door that casts it, before anything is spent — so the three
+   * uses are three castings, and the hand-over door refuses rather than
+   * spending a fourth.
+   */
+  it('refuses once the day’s three uses are gone, and the hand-over door sends it here', () => {
     const table = inTheChapel(PRIEST, 'priest');
     let state = table.state;
+    const handed = takeStatedBonusAction(state, PRIEST, { line: DIVINE_AID });
+    expect(isErr(handed) && handed.code).toBe('line_has_its_own_door');
     for (let use = 0; use < 3; use += 1) {
       state = table.add(
         unwrap(
-          takeStatedBonusAction(state, PRIEST, {
-            line: DIVINE_AID,
-            commandId: `hand-over-${use}`,
-          }),
-          'the hand-over door',
+          castPrintedLine(
+            state,
+            PRIEST,
+            {
+              line: DIVINE_AID,
+              spell: 'bless',
+              casting: { targets: [ALLY] },
+              commandId: `cast-${use}`,
+            },
+            supply(),
+          ),
+          'the casting door',
         ).events,
       );
       state = table.did('the priest’s turn ends', (s) =>

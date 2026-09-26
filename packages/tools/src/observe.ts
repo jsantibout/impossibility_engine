@@ -304,6 +304,16 @@ export interface ObservedCreature {
   readonly light: { readonly level: string; readonly magical: boolean } | null;
   readonly creatureType: string | null;
   readonly conditions: readonly string[];
+  /**
+   * The printed curses this creature carries, by whose line laid each — W7-B13.
+   *
+   * SRD Werewolf's Bite: "The target is cursed. If the cursed target drops to
+   * 0 Hit Points, it instead becomes a **Werewolf** under the GM's control."
+   * The engine keeps the first sentence and hands the second to the table when
+   * the save fails; this is where a table reads the first back when the moment
+   * the second names arrives. Empty for nearly everybody.
+   */
+  readonly cursedBy: readonly { readonly by: string; readonly line: string }[];
   readonly carrying: readonly string[];
   /** What this creature's stat block prints, or null where it states none. */
   readonly printed: ObservedBlock | null;
@@ -709,6 +719,7 @@ export function observe(state: GameState): Observation {
       light: litSpace(state, c.id),
       creatureType: c.creatureType ?? null,
       conditions: c.conditions.conditions,
+      cursedBy: c.curses.map((curse) => ({ by: curse.by, line: curse.line })),
       carrying: carrying(state, c.id).map((line) => line.id),
       printed: printedBlock(c.sheet, c.expendedLines),
       concentratingOn: c.concentration?.spell ?? null,
