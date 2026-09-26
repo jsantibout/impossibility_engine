@@ -367,6 +367,23 @@ describe('a retried roll_initiative is the same call, not a second one', () => {
     expect(t.surface.observe().initiativeOrder).toEqual(order);
   });
 
+  it('refuses the id that began the fight when it is sent with different combatants', () => {
+    const t = table();
+    openTheRoom(t);
+    expectOk(t.call('roll_initiative', { combatants: [{ who: 'kessa' }, { who: 'vex' }] }));
+    const before = untouched(t);
+
+    // The same id, other work: a recycled id, which is refused, not swallowed.
+    const recycled = t.surface.call({
+      tool: 'roll_initiative',
+      input: { combatants: [{ who: 'kessa' }] },
+      commandId: 'toolu_11',
+    });
+    expect(recycled.status).toBe('refused');
+    if (recycled.status === 'refused') expect(recycled.code).toBe('command_id_reused');
+    expect(untouched(t)).toEqual(before);
+  });
+
   it('still lets a later call join the fight after that retry', () => {
     const t = table();
     openTheRoom(t);
