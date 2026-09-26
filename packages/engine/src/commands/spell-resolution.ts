@@ -2852,7 +2852,7 @@ function resolveOnTargets(
   // casting its own first run created — the same trap the trigger guard and
   // the pending-casting guard both sprang before it, and the third instance
   // of the rule that a retry must never look at the world it made.
-  events.push(...replacedCastings(state, casterId, definition));
+  events.push(...replacedCastings(state, casterId, definition, targets));
   events.push(...cast.value);
 
   // **What the spell puts in its caster's hand**, after the casting itself so
@@ -3500,6 +3500,9 @@ export function resolveEffects(
         // reason: a sentence corrected in the catalogue next month must not
         // reach a casting made today.
         ...(definition.endsEarly === undefined ? {} : { endsEarly: definition.endsEarly }),
+        // And the damage its caster shares with its target — SRD Warding Bond
+        // — pinned so the damage funnel reads the record and no book. (W7-S19)
+        ...(definition.sharesDamage === undefined ? {} : { sharesDamage: definition.sharesDamage }),
         // And what it leaves behind when it ends, pinned by the same rule and
         // for a sharper version of the same reason: `releaseCasting` performs
         // this inside the fold, which opens no catalogue at all.

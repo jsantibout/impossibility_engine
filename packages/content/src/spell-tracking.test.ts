@@ -2044,6 +2044,14 @@ describe('every spell this batch added is cast for real', () => {
     // `summon-drops-to-0` on the casting's record. The sixty feet and the
     // caster's Bonus Action are said in its notes rather than modelled.
     'unseen-servant',
+    // **Warding Bond leaves on a distance two creatures are apart.** The +1 to
+    // AC and saves and the Resistance to all damage were always ordinary
+    // grants; what they had nowhere to say was "while the target is within 60
+    // feet of you" — a `within-feet-of` requirement the grants carry and the
+    // readers ask at every read. The shared damage is dealt where every blow
+    // settles, the caster falling and the pair drifting apart are causes on
+    // the record, and a recast on either end is the recast rule read wider.
+    'warding-bond',
     'wind-walk',
     // **Wind Wall leaves on the seventh template**, and it is the only one in
     // the book the caster draws: a path of 5-foot spaces along the ground,
@@ -2336,7 +2344,12 @@ describe('every spell this batch added is cast for real', () => {
    * thin scene rather than a debt of the spell. So the claim made here is the
    * precise one: nothing under the definition's own mark.
    */
-  const FINISHED_BUT_THE_SCENE_IS_THIN: readonly string[] = ['ice-knife'];
+  //
+  // **Warding Bond owes the table nothing either**, and nothing about the scene
+  // is thin for it: the three grants, the shared damage and the three endings
+  // are all the engine's, so the definition carries neither a debt nor a
+  // handover, and the casting reports nothing under the spell's own mark.
+  const FINISHED_BUT_THE_SCENE_IS_THIN: readonly string[] = ['ice-knife', 'warding-bond'];
 
   it.each(FINISHED_BUT_THE_SCENE_IS_THIN.map((s) => [s] as const))(
     'leaves the table no debt of %s, whatever the scene cannot say',

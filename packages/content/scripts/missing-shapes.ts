@@ -273,8 +273,6 @@ export const MISSING_SHAPES = {
     '**Built, for the one spell that printed it.** `docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." The derivation has its third branch now: `SpellCheck.byAnotherWithinReach` is the clause, `EffectCheck` pins it, and `availableChecks` / `resolveEffectCheck` admit a creature within five feet of the condition’s holder, measured off the map. SRD Ensnaring Strike — "The target or a creature within reach of it can take an action to make a Strength (Athletics) check" — is executed off it, with `onSuccess: end-casting` beside it because that sentence ends the spell. What is left under this name is the *other* attempter the note imagined: shaking a sleeper awake is `shaken-awake`, an ending a creature performs rather than a check it rolls, and no SRD spell offers a check to somebody who is neither the holder nor within reach.',
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
-  'a-distance-a-creature-travels-inside-an-area':
-    '`docs/design/space-and-areas.md`, on what a persistent area cannot see: "**The path.** Movement records where a move started and where it ended and nothing in between", and `docs/design/casting.md`: "Distance travelled inside an area, which no move records | Spike Growth". Inferring the crossing from a straight line would be the engine inventing a route nobody took.',
   'light-and-obscurement-the-scene-holds':
     '**built as P3-S, and this is what is left of it.** The description before this one said light and obscurement were facts nothing in state held — "no square is lit or unlit, and so Darkvision has never had the rule it is a rule about and no casting can shed, quench or obscure anything" — and `docs/design/light-and-sight.md` is the design the owner ruled on, all five decisions, on 2026-09-21. Every one of them is executed: light and obscurement are records of patches on the lattice beside `terrain`, each carrying a region and the `source` casting that lapses it; `lightAt` takes the strongest of the ambient and the patches with the book’s own exception, that nonmagical light does not lift magical darkness; `obscurementAt` takes the greater of what was declared and what the level implies; the sight question gained one step between the declaration and the sense, where Blindsight and Truesight defeat anything, Darkvision turns nonmagical darkness into dim and Devil’s Sight defeats the magical kind; sunlight is Bright Light with a flag, which a `StandingRequirement` reads; and an undeclared scene is undeclared rather than bright. Darkness, Daylight, Fog Cloud and Web’s obscurement half are written on it, and Hide no longer needs the table to state a fog it can see. **And a sixth thing left by the same build**: a glow hung off a settled outcome rather than off a casting, which is SRD Faerie Fire’s "objects and **affected** creatures shed Dim Light in a 10-foot radius" — `OutcomeRiders.light`, landed through the same `lightShedOn` the effect kind takes, so that spell has left this id. **What is left is not about light at all: it is the object.** SRD Light, Continual Flame and Dancing Lights shed from *a thing* — a touched object, four floating motes — and Darkness and Daylight each print an alternative form originating from one, with a bowl that can be put over it; the note’s own vocabulary is "a point, or carried by a creature", because the engine holds no objects for a patch to hang on and inventing a position for one would be the table’s job done badly. The second residue is the **trigger**: the mutual dispel runs "on pinning a patch", so a spell that puts darkness out without laying any light of its own — Sunburst’s flash — can reach `lightDispelledBy` by no route. Beyond the spells the same note listed what waited on a stat block rather than on this shape, and **that half is built**: the parser types the sunlight sentences, the five unconditional Illuminations and Shadow Stealth, and `adaptMonster` compiles Sunlight Sensitivity and Sunlight Weakness onto the sheet as the standing effects the `in-sunlight` requirement gates — so a kobold read out of the catalogue by id has its Disadvantage, and Daylight is sunlight (the owner, 2026-09-22, on the book’s own word against the 2014 errata). Three residues are left and each is a rule rather than a sentence. **The shed light has nowhere to go**: a patch is declared and never derived, so the five Illuminations and the magmin’s gated sixth are read and spent by nobody, and lighting a creature’s own space from its sheet is a derivation `lightAt` does not make. **Shadow Stealth is an economy**: the Hide is built and the Bonus Action that buys it in Dim Light or Darkness needs a light-gated grant no `StandingRequirement` states. And **the vampires burn**: their Sunlight prints Sunlight Sensitivity behind "takes 20 Radiant damage if it starts its turn in sunlight", which is damage dealt at a turn boundary, so the line is refused whole rather than read down to the half that fits.',
   'a-world-fact-nothing-can-represent':
@@ -952,13 +950,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." A check somebody makes when they search is the table’s to call for — `ability_check` rolls it against the DC the sheet derives — and the casting offers nothing of its own, because nothing in the engine says a creature is looking.',
     },
   ],
-  'gust-of-wind': [
-    {
-      clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'a doubled cost is Difficult Terrain by another name and an area may write one — what this sentence adds is **which way the creature is walking**. A patch is a property of the square: it charges whoever crosses it, and no field on it can say "only while moving closer to you", which is a fact about the mover. That is the directional arm of this shape and `areaTerrain` does not reach it.',
-    },
-  ],
   harm: [
     {
       clause: 'Hit Point maximum reduction',
@@ -1057,13 +1048,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // is that word, `save.unlessWilling` is the clause that reads it, and the
   // table declares consent by naming it — which is the shape working as
   // described rather than a shape being removed.
-  levitate: [
-    {
-      clause: 'what the levitating creature may do with its own Speed',
-      why: 'movement-modes',
-      note: 'SRD: "The target can move only by pushing or pulling against a fixed object or surface within reach" — "which allows it to move as if it were climbing". The climbing is the shape: the engine distinguishes no Climb Speed and charges no surcharge for one, so there is nothing to narrow a levitating creature’s movement **to**. What the lift itself opened is the other side of the same absence — `checkRise` refuses a creature ending a move higher than it began and asks nothing of one already off the ground, so a creature the spell is holding may walk sideways through the air on its ordinary Speed and descend for free. **And the clause that used to sit beside this one has joined it.** "You can change the target’s altitude by up to 20 feet in either direction on your turn" was filed under an activation shape and half of it is built: `change-altitude` is the Magic action, refused past the cap, past the Range and on a creature the casting is not holding. What is left is the sentence that follows it — "If you are the target, you can move up or down as part of your move" — which is the *creature’s own* movement and needs the feet it has already risen this turn counted against the twenty. A `GrantedLift` records whose magic is holding the creature and nothing else, so widening `checkRise` for that holder would allow a rise nobody could cap. One missing distinction, now with three sentences waiting on it rather than two.',
-    },
-  ],
   light: [
     {
       clause: 'the spell targets an object, and objects are not modelled',
@@ -1279,14 +1263,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'spike-growth': [
     {
-      clause: 'the spikes deal nothing',
-      why: 'a-distance-a-creature-travels-inside-an-area',
-      note: 'SRD: "it takes 2d4 Piercing damage for every 5 feet it travels". The dice are multiplied by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which of those feet were where — so there is no number for the dice to be multiplied by. The sentence before it is executed now: the ground is Difficult Terrain, laid as a patch the casting keeps.',
-    },
-    {
       clause: 'the Wisdom (Perception or Survival) check that spots the hazard is not offered',
       why: 'a-check-another-creature-may-attempt',
-      note: 'the check belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on — an effect on a creature is that creature’s, a casting with no victim is anybody’s, and this is neither.',
+      note: 'the dice are executed now — "2d4 Piercing damage for every 5 feet it travels" is owed for every space of a stated route inside the Sphere, and a move that could have crossed it is asked for its route — and the check is the clause left. A `SpellCheck` on the casting would be anybody’s to attempt (`mayAttempt`’s casting-with-no-victim rule), which is this sentence; what it cannot say is "**Perception or Survival**": `SpellCheck.skill` names one skill and `EffectCheckCommand` states none, so the attempter’s choice of skill has no field to be said in. The table calls it as a Search action with either skill against the casting’s DC, and "any creature that can’t see the area when the spell is cast" is the table’s to know.',
     },
   ],
   sunbeam: [
@@ -1884,32 +1863,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'Your game statistics are replaced by the stat block of the chosen form',
       why: 'a-creature-fact-an-effect-overrides',
       note: 'the sentence that says so outright, with the long list of what survives it. A sheet is a fact the engine holds authoritatively and reads for every roll it makes, and nothing writes over one for a duration.',
-    },
-  ],
-  'warding-bond': [
-    {
-      marker: 'armor-class',
-      clause: 'a +1 bonus to AC',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'the bonus is ordinary and the fence around it is not: it holds only "While the target is within 60 feet of you", which is a distance between two creatures that changes on every move and that nothing re-reads a grant against.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'bonus to AC and saving throws',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'the same grant reaching the other family of rolls, inside the same sixty feet — one sentence, three benefits, and one absence underneath all of them.',
-    },
-    {
-      marker: 'defence',
-      clause: 'it has Resistance to all damage',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'Resistance to every damage type is a defence `defensesOf` applies readily; what it cannot do is hold it only while the two creatures are close enough, and drop it the moment either of them walks away.',
-    },
-    {
-      marker: 'hit-points',
-      clause: 'The spell ends if you drop to 0 Hit Points',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'dropping to 0 Hit Points is one of the causes that shape names as still missing, and the clause beside it — the two creatures drifting more than sixty feet apart — is another of them in the same sentence.',
     },
   ],
   'guardian-of-faith': [

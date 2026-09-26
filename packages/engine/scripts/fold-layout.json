@@ -130,6 +130,7 @@
     "endingFactsOf",
     "subjectOf",
     "casterOutsideArea",
+    "separatedBeyond",
     "Ending",
     "nextEnding",
     "endingKey",

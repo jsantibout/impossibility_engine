@@ -2498,7 +2498,14 @@ describe('a consumer count is a query', () => {
     // can hover" is one `SpeedChange` now — `only`, which replaces every
     // other Speed rather than adding a mode beside them — so the shape has
     // one fewer executed claimant and still spans two populations.
-    expect(modes.executed).toEqual(['levitate', 'wind-walk']);
+    //
+    // **And Levitate has left it the same way.** "Move as if it were
+    // climbing" is `MoveCommand.mode: 'climb'` along a surface the move
+    // states, and the self-lifted caster's "up or down as part of your move"
+    // is counted against the twenty the hold pins — so the lifted creature's
+    // own Speed is a rule the move command reads, and the shape has one
+    // executed claimant left.
+    expect(modes.executed).toEqual(['wind-walk']);
     // **Fly and Spider Climb left the shape rather than moving column**,
     // which is what building a writer looks like from here: the two are
     // executed definitions now, and neither has a clause this shape still

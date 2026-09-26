@@ -46,6 +46,7 @@ import {
   type PendingCasting,
 } from '../events.js';
 import {
+  apartFrom,
   lightDispelledBy,
   type Placement,
   type Point,
@@ -53,6 +54,7 @@ import {
   type TerrainRegion,
   ORDINARY_GROUND,
 } from '../positioning.js';
+import { applyDamage } from '../attack.js';
 import { damageWindowOpen, fallingNow } from '../reactions.js';
 import { remaining, slotKeyOf, type SlotKind } from '../resources.js';
 import { type RollIssuer } from '../rolls.js';
@@ -60,6 +62,8 @@ import { type Content } from '../content.js';
 import { areaTerrainOf, type ReactionTrigger, type SpellDefinition } from '../spell-definitions.js';
 import { type CastingRoute, routesFor, type SpellcastingState } from '../spellcasting.js';
 import {
+  castingIdOf,
+  castingNumber,
   castingSource,
   type CastingNumbers,
   type CastingTime,
@@ -70,7 +74,7 @@ import {
   type SlotlessReason,
   validateSpellName,
 } from '../spells.js';
-import { actionRulesOn, armorClassOf, sheetAsItStands, silencedBy } from '../standing.js';
+import { actionRulesOn, armorClassOf, defensesOf, sheetAsItStands, silencedBy } from '../standing.js';
 import { applyDamageToVitals, concentrationSaveDc, damagePastThreshold } from '../vitals.js';
 import { undeadFortitudeSave } from '../monster.js';
 // The Hide action's source string, read-only, so that `hidingEndedBy` below
@@ -2261,6 +2265,17 @@ export function resolveDamage(
     events.push(...damage.value);
     const after = events.reduce(applyEvent, state);
 
+    // — damage a bond shares (W7-S19) ——————————————————————————————————————
+    //
+    // SRD Warding Bond: "each time it takes damage, you take the same amount
+    // of damage." Asked here because this is the funnel every road to a blow
+    // arrives at — a spell's, a held weapon blow's, a DM's adjudicated amount
+    // — and asked of the world the blow has already landed in, so what is
+    // shared is what was taken. The caster's own blow is dealt below by this
+    // same function and never rebounds; see {@link bondSharedDamage}.
+    const shared = bondSharedDamage(after, id, damageTakenIn(events, command.amount), command, supply);
+    if (!shared.ok) return shared;
+
     /**
      * **What the blow bought whoever was watching, paid at the funnel.**
      *
@@ -2296,10 +2311,10 @@ export function resolveDamage(
       const lost = held !== null && (after.creatures[id]?.concentration ?? null) === null;
       const spoils = paid();
       return ok({
-        events: [...events, ...spoils.events],
+        events: [...events, ...spoils.events, ...shared.value.events],
         concentration: lost ? { kind: 'already-lost', castingId: held.castingId } : { kind: 'none' },
         duplicate: false,
-        unverified: [...unverified, ...spoils.unverified],
+        unverified: [...unverified, ...spoils.unverified, ...shared.value.unverified],
       });
     }
 
@@ -2352,12 +2367,115 @@ export function resolveDamage(
 
     const spoils = paid();
     return ok({
-      events: [...events, ...spoils.events],
+      events: [...events, ...spoils.events, ...shared.value.events],
       concentration: { kind: 'resolved', check, save: save.value, maintained },
       duplicate: false,
-      unverified: [...unverified, ...spoils.unverified],
+      unverified: [...unverified, ...spoils.unverified, ...shared.value.unverified],
     });
   });
+}
+
+/**
+ * SRD Warding Bond: "Also, **each time it takes damage, you take the same
+ * amount of damage**."
+ *
+ * The one sentence in the book where a blow on one creature is a blow on
+ * another, answered at the funnel every blow settles through — the same
+ * `resolveDamage`, called again for the caster — so the Concentration save,
+ * SRD Undead Fortitude and the drop to 0 all read the shared blow as they read
+ * any other, and `caster-drops-to-0` ends the bond off the very event this
+ * writes. Four decisions, each the sentence's:
+ *
+ * - **the amount is what the target took**, read off its `damage-taken`,
+ *   after its Resistance and its threshold — "the same amount of damage";
+ * - **of the same type, through the caster's own defences**: a blow of one
+ *   stated type is run through `applyDamage` against the caster's defences
+ *   before it is dealt, so a fire-resistant cleric halves the four again. A
+ *   blow with no stated type (a DM's amount) or of several types has no
+ *   per-type split to defend against, so the whole amount is dealt and the
+ *   gap is said in `unverified`;
+ * - **within the sentence's own fence** — `sharesDamage.withinFeet`, "while
+ *   the target is within 60 feet of you" — measured at the blow, and withheld
+ *   where nobody can measure it;
+ * - **never back, and never along a chain**: the caster's own damage is
+ *   nobody's, which `record.caster !== victim` says, and a blow whose source is
+ *   itself a bond's share is not shared again, so two clerics bonded to each
+ *   other do not pass one blow back and forth for ever.
+ *
+ * The dealer stays the blow's own (`by`): the goblin whose torch burned the
+ * fighter is the one whose damage the cleric took, which is what a Hellish
+ * Rebuke or a "you or your allies damage it" ending reads. The source is the
+ * casting's, so the log says why a cleric standing nowhere near the fire was
+ * burned. (W7-S19)
+ */
+function bondSharedDamage(
+  state: GameState,
+  victim: CharacterId,
+  taken: number,
+  command: DamageCommand,
+  supply: Supply,
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+  const nothing = { events: [], unverified: [] } as const;
+  if (taken <= 0) return ok(nothing);
+  // Never along a chain: a blow that is already a bond's share stops here.
+  const from = command.source === undefined ? null : castingIdOf(command.source);
+  if (from !== null && state.ongoing[from]?.sharesDamage !== undefined) return ok(nothing);
+
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  let current = state;
+  for (const castingId of Object.keys(current.ongoing).sort(
+    (a, b) => castingNumber(a) - castingNumber(b),
+  )) {
+    const record = current.ongoing[castingId];
+    if (record?.sharesDamage === undefined) continue;
+    if (record.caster === victim || !isOn(current, record, victim)) continue;
+    const caster = record.caster as CharacterId;
+    if (current.creatures[caster] === undefined) continue;
+
+    const within = record.sharesDamage.withinFeet;
+    if (within !== undefined) {
+      const apart = apartFrom(current, victim, caster);
+      if (apart === null) {
+        unverified.push(
+          `${record.spell}: ${caster} shares the damage ${victim} takes while the two are within ${within} feet, and nobody has placed one of them, so the ${taken} was not shared`,
+        );
+        continue;
+      }
+      if (apart > within) continue;
+    }
+
+    const source = castingSource(record.spell, castingId);
+    const type = command.types?.length === 1 ? command.types[0]! : null;
+    let amount = taken;
+    if (type !== null) {
+      amount = applyDamage(
+        [{ source, type, roll: null, flat: taken, total: taken }],
+        defensesOf(current, caster),
+      ).total;
+    } else {
+      unverified.push(
+        `${record.spell}: ${caster} takes the ${taken} damage ${victim} took, and the blow ${command.types === undefined ? 'has no stated type' : 'is of several types'}, so ${caster}'s own defences could not be read against it`,
+      );
+    }
+
+    const dealt = resolveDamage(
+      current,
+      caster,
+      {
+        amount,
+        source,
+        ...(command.types === undefined ? {} : { types: command.types }),
+        ...(command.by === undefined ? {} : { by: command.by }),
+      },
+      supply,
+    );
+    if (!dealt.ok) return dealt;
+    events.push(...dealt.value.events);
+    unverified.push(...dealt.value.unverified);
+    current = dealt.value.events.reduce(applyEvent, current);
+  }
+  return ok({ events, unverified });
 }
 
 /**

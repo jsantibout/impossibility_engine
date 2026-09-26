@@ -13,7 +13,7 @@ import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { PassiveDefense } from './passive-defenses.js';
-import type { AreaStanding, SpeedChange } from './standing.js';
+import type { AreaStanding, SpeedChange, StandingRequirement } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
 import type {
@@ -2023,6 +2023,17 @@ export type SpellEffect =
        * sentence, which is most of them.
        */
       readonly only?: BonusNarrowing;
+      /**
+       * SRD Warding Bond: "**While the target is within 60 feet of you**, it
+       * gains a +1 bonus to AC and saving throws."
+       *
+       * What must hold for the bonus to apply, pinned onto the grant and asked
+       * at every read — see `StandingRequirement.within-feet-of`, the one
+       * member a spell's grant may carry. Only on a bonus reaching AC or saves,
+       * because those are the readers that ask it; the validator refuses the
+       * field anywhere a roll would take the bonus whole. (W7-S19)
+       */
+      readonly requires?: readonly StandingRequirement[];
     }
   /**
    * Advantage or Disadvantage on a kind of roll, for as long as the spell runs.
@@ -3131,6 +3142,13 @@ export type SpellEffect =
        */
       readonly damageTypes: readonly string[];
       readonly defense: DefenseKind;
+      /**
+       * SRD Warding Bond: "While the target is within 60 feet of you … it has
+       * Resistance to all damage." What must hold for the defence to apply,
+       * pinned onto the grant and asked by `defensesOf` at every read — see
+       * `StandingRequirement.within-feet-of`. (W7-S19)
+       */
+      readonly requires?: readonly StandingRequirement[];
     }
   /**
    * Condition Immunities the spell hands its target.
@@ -6020,6 +6038,34 @@ export interface SpellDefinition {
    */
   readonly maxRunning?: number;
   /**
+   * SRD Warding Bond: "It also ends if the spell is cast again on **either of
+   * the connected creatures**."
+   *
+   * {@link replacesPriorCasting} widened from *the same caster casting the
+   * same spell* to *the same spell cast again touching either end of a running
+   * one*: a new casting whose caster or target is the caster or a target of a
+   * running casting of this spell ends that casting, whoever made it. Only
+   * beside `replacesPriorCasting`, because it is that rule's population read
+   * wider and not a rule of its own; `replacedCastings` is the one reader.
+   * (W7-S19)
+   */
+  readonly replacesPriorCastingOn?: 'either';
+  /**
+   * SRD Warding Bond: "Also, each time it takes damage, you take the same
+   * amount of damage."
+   *
+   * Damage the caster takes because a creature the casting is on did: the
+   * amount the target actually took, of the type it took, through the caster's
+   * own defences, dealt where every blow settles (`resolveDamage`) as a second
+   * `damage-taken` with the casting as source — and never the other way round,
+   * nor along a chain of bonds. `withinFeet` is the sentence's own fence,
+   * "while the target is within 60 feet of you", read at the blow. Pinned onto
+   * the ongoing record, so the funnel opens no book; only on a spell with a
+   * target and a duration, because a casting on nobody has nobody's damage to
+   * share. (W7-S19)
+   */
+  readonly sharesDamage?: { readonly with: 'caster'; readonly withinFeet?: number };
+  /**
    * What stops this casting before its time is up.
    *
    * A casting has always ended four ways — its deadline, a broken
@@ -6223,7 +6269,33 @@ export type CastingEndCause =
    * the same shape everything else in it is: a fact the log already holds,
    * naming one creature.
    */
-  | 'shaken-awake';
+  | 'shaken-awake'
+  /**
+   * SRD Warding Bond: "The spell ends **if you drop to 0 Hit Points**."
+   *
+   * `target-drops-to-0` read of the **caster**: a `damage-taken` that leaves
+   * the casting's own caster at 0, found through `record.caster` rather than
+   * through `isOn`, because the caster holds nothing of a bond laid on
+   * somebody else. The same residue as its sibling — the total and not the
+   * transition — and `ends: 'casting'` is the only scope that means anything
+   * for it. (W7-S19)
+   */
+  | 'caster-drops-to-0'
+  /**
+   * SRD Warding Bond: "or if you and the target become separated by more than
+   * 60 feet." SRD Unseen Servant: "If you command the servant to perform a
+   * task that would move it more than 60 feet away from you, the spell ends."
+   *
+   * The one cause in the list that carries a number — `CastingEndTrigger.feet`
+   * — and the second about a place: read off `creature-moved`, a walk or a
+   * teleport, for the casting's caster, a creature the casting is on, or a
+   * creature it is sustaining, and fired when the caster and one of the
+   * others stand further apart than the feet. A pair nobody can measure — one
+   * of them unplaced, or away in another place — has not been separated,
+   * which is the withholding direction. `ends: 'casting'` only: the caster
+   * holds nothing to release. (W7-S19)
+   */
+  | 'separated-beyond';
 
 /**
  * One printed sentence: what happens, and what it ends.
@@ -6252,6 +6324,13 @@ export interface CastingEndTrigger {
    * validator says so instead.
    */
   readonly ends: 'casting' | 'target';
+  /**
+   * The distance a `separated-beyond` trigger fires past — SRD Warding Bond's
+   * and Unseen Servant's sixty feet. Required on that cause and refused on
+   * every other, because it is the one sentence in the list that prints a
+   * number. (W7-S19)
+   */
+  readonly feet?: number;
 }
 
 /**

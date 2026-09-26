@@ -10115,9 +10115,11 @@ export const SPIKE_GROWTH: SpellDefinition = {
  * Every benefit the spell grants is one the engine applies on its own — a
  * bonus to Armour Class, a bonus to saves, Resistance to all damage — and
  * every one of them is fenced by **"while the target is within 60 feet of
- * you"**. A distance between two creatures changes on every move and nothing
- * re-reads a grant when it does, which is the same absence that makes the
- * spell's own ending unwritable.
+ * you"**: a `within-feet-of` requirement the three grants carry and the
+ * readers ask at every read. The shared damage is dealt where every blow
+ * settles, as a second blow on the caster with this casting as its source; the
+ * two endings are causes on the casting's record, and the recast on either
+ * connected creature is `replacesPriorCasting` read over both ends.
  */
 export const WARDING_BOND: SpellDefinition = {
   id: 'warding-bond',
@@ -10130,13 +10132,53 @@ export const WARDING_BOND: SpellDefinition = {
   // "another creature", so not the caster: the whole spell is a bond between
   // two of them.
   targets: { count: 1, willing: true },
-  effects: [],
-  durationSeconds: 3600,
-  unmodelled: [
-    'none of the three benefits is granted: the +1 to AC, the +1 to saving throws and the Resistance to all damage are each ordinary, and all three hold only "While the target is within 60 feet of you" — a standing effect derived from where two creatures are standing, which nothing re-reads when either of them moves',
-    'the shared damage is not dealt: "each time it takes damage, you take the same amount of damage" is a consequence of somebody else’s damage landing, and no effect answers one',
-    'the two endings are not written: dropping to 0 Hit Points and drifting more than 60 feet apart are causes no `CastingEndTrigger` expresses, and neither is the recast on either of the connected creatures',
+  effects: [
+    // "it gains a +1 bonus to AC and saving throws" — one grant reaching both
+    // families, fenced by the sixty feet.
+    {
+      kind: 'buff',
+      bonus: { source: 'Warding Bond', flat: 1 },
+      applies: ['ac', 'save'],
+      direction: 'add',
+      requires: [{ kind: 'within-feet-of', creature: 'caster', feet: 60 }],
+    },
+    // "and it has Resistance to all damage" — every type the glossary prints,
+    // under the same fence.
+    {
+      kind: 'damage-defense',
+      damageTypes: [
+        'acid',
+        'bludgeoning',
+        'cold',
+        'fire',
+        'force',
+        'lightning',
+        'necrotic',
+        'piercing',
+        'poison',
+        'psychic',
+        'radiant',
+        'slashing',
+        'thunder',
+      ],
+      defense: 'resistant',
+      requires: [{ kind: 'within-feet-of', creature: 'caster', feet: 60 }],
+    },
   ],
+  // "Also, each time it takes damage, you take the same amount of damage" —
+  // inside the paragraph the sixty feet fence, so the sharing holds within them.
+  sharesDamage: { with: 'caster', withinFeet: 60 },
+  durationSeconds: 3600,
+  // "The spell ends if you drop to 0 Hit Points or if you and the target
+  // become separated by more than 60 feet."
+  endsEarly: [
+    { on: 'caster-drops-to-0', ends: 'casting' },
+    { on: 'separated-beyond', feet: 60, ends: 'casting' },
+  ],
+  // "It also ends if the spell is cast again on either of the connected
+  // creatures."
+  replacesPriorCasting: true,
+  replacesPriorCastingOn: 'either',
 };
 
 /**

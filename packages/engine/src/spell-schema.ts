@@ -4136,6 +4136,7 @@ function checkEffect(
 
     case 'buff':
       checkBonusGrant(effect.bonus, effect.applies, path, found, effect.only);
+      checkGrantRequirements(effect.requires, `${path}.requires`, found, effect.applies);
       return;
 
     case 'roll-mode':
@@ -4537,6 +4538,7 @@ function checkEffect(
           reason: `"${String(effect.defense)}" is not Resistance, Immunity or Vulnerability`,
         });
       }
+      checkGrantRequirements(effect.requires, `${path}.requires`, found);
       return;
     }
 
@@ -5258,6 +5260,9 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   'summon-drops-to-0',
   'shaken-awake',
   'caster-leaves-the-area',
+  // SRD Warding Bond's two, and Unseen Servant's sixty feet. (W7-S19)
+  'caster-drops-to-0',
+  'separated-beyond',
 ]);
 
 /** What a trigger may end: the casting, or the casting on one creature. */
@@ -5279,6 +5284,10 @@ const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set([
   // them and a place, and `ends: 'target'` would find nothing to release.
   'caster-leaves-the-area',
   'summon-drops-to-0',
+  // And nothing of their own Warding Bond: both are about the caster, and a
+  // separation is about the pair. (W7-S19)
+  'caster-drops-to-0',
+  'separated-beyond',
 ]);
 
 /**
@@ -5450,7 +5459,161 @@ function checkEndsEarly(
         reason: `"${on}" names a creature the casting is not on, so releasing the casting on it would lift nothing and leave the spell running; this sentence ends the casting`,
       });
     }
+
+    // SRD Warding Bond's "separated by more than 60 feet" is the one cause
+    // that prints a number, and the number is the sentence: a distance ending
+    // with none could never fire, and any other cause carrying one would be a
+    // field nothing reads. (W7-S19)
+    const { feet } = trigger as { feet?: unknown };
+    if (on === 'separated-beyond') {
+      if (!Number.isInteger(feet) || (feet as number) <= 0) {
+        found.push({
+          field: `${path}.feet`,
+          code: 'bad_end_trigger_feet',
+          reason: `a casting ended by separation names the feet it ends past, a positive whole number; got ${String(feet)}`,
+        });
+      }
+    } else if (feet !== undefined) {
+      found.push({
+        field: `${path}.feet`,
+        code: 'bad_end_trigger_feet',
+        reason: `"${String(on)}" prints no distance; only a separation carries feet`,
+      });
+    }
   });
+}
+
+/**
+ * SRD Warding Bond: "It also ends if the spell is cast again on either of the
+ * connected creatures." A widening of `replacesPriorCasting` and not a rule of
+ * its own, so it needs the rule it widens — see
+ * `SpellDefinition.replacesPriorCastingOn`. (W7-S19)
+ */
+function checkRecastOnEither(definition: SpellDefinition, found: SpellDefinitionProblem[]): void {
+  const on = (definition as { replacesPriorCastingOn?: unknown }).replacesPriorCastingOn;
+  if (on === undefined) return;
+  if (on !== 'either') {
+    found.push({
+      field: 'replacesPriorCastingOn',
+      code: 'malformed_field',
+      reason: `a recast ends a running casting touching either connected creature or it does not; the only value is 'either', not ${String(on)}`,
+    });
+  }
+  if (definition.replacesPriorCasting !== true) {
+    found.push({
+      field: 'replacesPriorCastingOn',
+      code: 'recast_on_either_without_recast',
+      reason:
+        '"cast again on either of the connected creatures" widens the recast rule, so it needs `replacesPriorCasting` to widen',
+    });
+  }
+}
+
+/**
+ * SRD Warding Bond: "each time it takes damage, you take the same amount of
+ * damage." Shared from a creature the casting is on to its caster, so the
+ * casting has to be on somebody and has to be running when the blow lands —
+ * see `SpellDefinition.sharesDamage`. (W7-S19)
+ */
+function checkSharesDamage(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const shares = (definition as { sharesDamage?: unknown }).sharesDamage;
+  if (shares === undefined) return;
+  if (
+    !readsAsObject(
+      shares,
+      'sharesDamage',
+      'damage a casting shares is an object naming whom it is shared with',
+      found,
+    )
+  ) {
+    return;
+  }
+  const { with: recipient, withinFeet } = shares as { with?: unknown; withinFeet?: unknown };
+  if (recipient !== 'caster') {
+    found.push({
+      field: 'sharesDamage.with',
+      code: 'malformed_field',
+      reason: `the book shares a target's damage with its caster and nobody else; the only value is 'caster', not ${String(recipient)}`,
+    });
+  }
+  if (withinFeet !== undefined && (!Number.isInteger(withinFeet) || (withinFeet as number) <= 0)) {
+    found.push({
+      field: 'sharesDamage.withinFeet',
+      code: 'malformed_field',
+      reason: `a distance the sharing holds within is a positive whole number of feet; got ${String(withinFeet)}`,
+    });
+  }
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (definition.targets.count === 0 || !persists) {
+    found.push({
+      field: 'sharesDamage',
+      code: 'shared_damage_with_nobody',
+      reason:
+        'damage is shared from a creature the casting is on while the casting runs; a spell with no target or no duration has nobody’s damage to share',
+    });
+  }
+}
+
+/**
+ * The one requirement a **spell's** grant may carry, and the two families it
+ * may carry it on — see `StandingRequirement.within-feet-of`.
+ *
+ * A requirement is only a rule where a reader asks it: `armorClassOf`,
+ * `savingSupport` and `defensesOf` do, and an attack roll or an ability check
+ * would take the bonus whole. So a fenced bonus reaching either of those is
+ * refused rather than granted whole under a field that says otherwise. (W7-S19)
+ */
+function checkGrantRequirements(
+  requires: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+  applies?: readonly BonusApplies[],
+): void {
+  if (requires === undefined) return;
+  if (!readsAsList(requires, path, 'what must hold for a grant to apply is a list', found)) return;
+  if (requires.length === 0) {
+    found.push({
+      field: path,
+      code: 'bad_grant_requirement',
+      reason: 'a grant with nothing required of it omits the field rather than writing an empty list',
+    });
+  }
+  requires.forEach((requirement, i) => {
+    const at = `${path}[${i}]`;
+    const { kind, creature, feet } = (requirement ?? {}) as {
+      kind?: unknown;
+      creature?: unknown;
+      feet?: unknown;
+    };
+    if (kind !== 'within-feet-of' || creature !== 'caster') {
+      found.push({
+        field: at,
+        code: 'bad_grant_requirement',
+        reason:
+          'a spell’s grant may be fenced by one thing, the distance to its caster (`within-feet-of` the `caster`); every other requirement is a feature’s and reads a fact a casting does not hold',
+      });
+      return;
+    }
+    if (!Number.isInteger(feet) || (feet as number) <= 0) {
+      found.push({
+        field: `${at}.feet`,
+        code: 'bad_grant_requirement',
+        reason: `a distance is a positive whole number of feet; got ${String(feet)}`,
+      });
+    }
+  });
+  if (applies !== undefined && applies.some((family) => family !== 'ac' && family !== 'save')) {
+    found.push({
+      field: path,
+      code: 'unreadable_grant_requirement',
+      reason:
+        'a fenced bonus is read by the Armour Class and the saving throw, and by nothing else; an attack roll or an ability check would take the bonus whole under a field that says otherwise',
+    });
+  }
 }
 
 /**
@@ -7368,6 +7531,8 @@ export function checkSpellDefinition(
 
   checkEndsEarly(definition, lasts, found);
   checkOnEnd(definition, lasts, found);
+  checkRecastOnEither(definition, found);
+  checkSharesDamage(definition, lasts, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //

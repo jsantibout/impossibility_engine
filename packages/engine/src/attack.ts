@@ -12,6 +12,8 @@ import type { Content } from './content.js';
 // Type-only, and deliberately: `events.ts` reads this module's damage types
 // the same way, so a value edge in either direction would be a real cycle.
 import type { CreatureState } from './events.js';
+// Type-only for the same reason: `standing.ts` reads this module's defences.
+import type { StandingRequirement } from './standing.js';
 import { modifierFor, proficiencyBonus, type CharacterSheet } from './character.js';
 import { characterRollModes, combineRollModes, resolveStatedD20, type StatedD20 } from './checks.js';
 import {
@@ -1486,6 +1488,14 @@ export interface GrantedDefense {
   /** Lower-cased, so it keys the same table `applyDamage` sums into. */
   readonly damageTypes: readonly string[];
   readonly defense: DefenseKind;
+  /**
+   * What must hold for the defence to apply — SRD Warding Bond's Resistance
+   * "while the target is within 60 feet of you". Pinned from the effect and
+   * asked by `defensesOf` at every read, as a feature's standing grant is.
+   * Absent is unconditional, which is every defence written before the field
+   * existed. (W7-S19)
+   */
+  readonly requires?: readonly StandingRequirement[];
 }
 
 /**

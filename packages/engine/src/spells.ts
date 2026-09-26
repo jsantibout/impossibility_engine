@@ -312,6 +312,14 @@ export interface OngoingSpell {
    */
   readonly endsEarly?: readonly CastingEndTrigger[];
   /**
+   * SRD Warding Bond's "each time it takes damage, you take the same amount of
+   * damage" — see `SpellDefinition.sharesDamage`, which this pins verbatim so
+   * the damage funnel reads the log's own answer rather than this year's book.
+   * Absent for every casting written before the field and for every spell that
+   * prints no such sentence. (W7-S19)
+   */
+  readonly sharesDamage?: { readonly with: 'caster'; readonly withinFeet?: number };
+  /**
    * What this casting leaves on its targets the moment it ends — SRD Haste's
    * lethargy. See `SpellDefinition.onEnd`, where the rule is argued.
    *
