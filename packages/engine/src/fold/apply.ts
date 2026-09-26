@@ -57,7 +57,7 @@ import { applyOngoing, isOngoingEvent } from './ongoing.js';
 import { applyTimers, isTimersEvent } from './timers.js';
 import { applyCombat, isCombatEvent } from './combat.js';
 import { applyElsewhere, freeTheSwallowedOfTheDead, isElsewhereEvent } from './elsewhere.js';
-import { applyScene, isSceneEvent } from './scene.js';
+import { applyScene, isSceneEvent, layBodiesWhereWalkersFell } from './scene.js';
 import { applyFeatures, isFeaturesEvent, resized } from './features.js';
 import { overriddenSizeOf, printedSizeOf, printsASize } from '../size.js';
 import { applyHolds, isHoldsEvent } from './holds.js';
@@ -322,6 +322,14 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       // whose lifetime was a **living host** — SRD Swallow's "if the frog
       // dies, the swallowed target is no longer Restrained" — and what it
       // needs to have seen first is the death the event left behind.
+      // **One creature along again**: what a death moves here is a body. A
+      // player character's corpse kept its record when it rose (the owner,
+      // 2026-09-26), and when the creature walking about in it falls on the
+      // map, the body lies where it fell — see `layBodiesWhereWalkersFell`.
+      // Against the world before the event, because the fact is the falling
+      // edge and not the corpse.
+      layBodiesWhereWalkersFell(
+      state,
       freeTheSwallowedOfTheDead(
       dropOrphanedAreaEffects(
         dropStrandedDamage(
@@ -390,6 +398,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
             ),
           ),
         ),
+      ),
       ),
       ),
       ),

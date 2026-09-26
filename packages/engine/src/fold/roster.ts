@@ -16,7 +16,7 @@ import { resourceState } from '../resources.js';
 import { noSpellcasting } from '../spellcasting.js';
 import { vitals } from '../vitals.js';
 import type { GameEvent } from '../events.js';
-import type { GameState, SummonBond } from '../state.js';
+import { walkerOf, type GameState, type SummonBond } from '../state.js';
 import {
   CorruptLogError,
   creatureOf,
@@ -110,6 +110,10 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
             // what every log written before summoning existed says, so both
             // frozen fixtures fold unchanged.
             summonedBy: null,
+            // Raised out of no body until a `creature-summoned` names one,
+            // which no log written before a corpse kept its record does — so
+            // both frozen fixtures fold unchanged.
+            raisedFrom: null,
             // Nothing made it, which is what every log written before a
             // feature could make a thing says — so both frozen fixtures fold
             // unchanged and neither was regenerated.
@@ -234,7 +238,27 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
           `${event.id} is already ${describeBond(creature.summonedBy)}; it cannot also be ${describeBond(bond)}`,
         );
       }
-      return withCreature(next, event.id, { summonedBy: bond }, creature);
+      // **The body it was raised out of**, where that body kept its record.
+      // A body the game does not hold, or one a living creature already walks
+      // about in, is not a body this creature could have risen from: the
+      // command raises only a corpse it can see and refuses `body_walks`, so
+      // either in the log means it was bypassed.
+      const body = event.raisedFrom;
+      if (body !== undefined) {
+        if (state.creatures[body] === undefined) {
+          throw new CorruptLogError(event, `${event.id} is raised from ${body}, which is not in the game`);
+        }
+        const walker = walkerOf(state, body);
+        if (walker !== null && walker !== event.id) {
+          throw new CorruptLogError(event, `${walker} already walks in ${body}; ${event.id} cannot be raised from it too`);
+        }
+      }
+      return withCreature(
+        next,
+        event.id,
+        { summonedBy: bond, ...(body === undefined ? {} : { raisedFrom: body }) },
+        creature,
+      );
     }
 
     case 'summons-control-renewed': {

@@ -16,6 +16,7 @@ import {
   declareObscuringPatch,
   declareSight,
   dismount,
+  footprintOf,
   mount,
   moveCreature,
   placeCreature,
@@ -262,4 +263,61 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
   }
 
   return unhandledEvent(event);
+}
+
+/**
+ * The body lies where its walker fell.
+ *
+ * A player character's corpse keeps its record when SRD Animate Dead raises it
+ * (the owner, 2026-09-26), and the book says nothing about the body when the
+ * Zombie is destroyed; the ruling reads the silence: the Zombie *was* the
+ * body, so when it goes from alive to dead on the map, the body takes its
+ * point and the dead walker leaves the scene. The walker's record stays, dead,
+ * as every destroyed monster's does — "the book leaves it lying".
+ *
+ * **Derived, on the falling edge**, comparing the world before the event with
+ * the world after it — the reading `stampDeaths` makes, one creature along:
+ * nobody decides that a fallen Zombie is a body again. A walker already dead
+ * and placed again later is left where the table put it. A walker that was
+ * taken out of the game, or was not on the map, leaves the body unplaced for
+ * the table to place; a body the table has already put somewhere stays there.
+ *
+ * **The space is the walker's**, so no rule about sharing a space can be met:
+ * the walker's footprint leaves and the body fills exactly it — at its own
+ * size where that is the same footprint (a Small body out of a Medium
+ * Zombie), and at the walker's where it is not, so the cubes never grow. Not
+ * an entry into anything: a creature arriving in the scene has no outside to
+ * have come from (`raiseAreaEntries`).
+ */
+export function layBodiesWhereWalkersFell(before: GameState, after: GameState): GameState {
+  let current = after;
+  for (const key of Object.keys(after.creatures).sort()) {
+    const walker = after.creatures[key];
+    const body = walker?.raisedFrom ?? null;
+    if (walker === undefined || body === null || !walker.vitals.dead) continue;
+    if (before.creatures[key]?.vitals.dead !== false) continue;
+    const scene = current.scene;
+    const point = scene?.positions[key];
+    if (scene == null || point === undefined) continue;
+    const lifted = removeCreature(scene, key as CharacterId);
+    if (!lifted.ok) continue;
+    const corpse = current.creatures[body];
+    const room = lifted.value;
+    if (corpse === undefined || room.positions[body] !== undefined || room.away[body] !== undefined) {
+      current = { ...current, scene: room };
+      continue;
+    }
+    const filled = scene.sizes[key] ?? 'medium';
+    const size =
+      corpse.size !== null && footprintOf(corpse.size) === footprintOf(filled) ? corpse.size : filled;
+    current = {
+      ...current,
+      scene: {
+        ...room,
+        positions: { ...room.positions, [body]: point },
+        sizes: { ...room.sizes, [body]: size },
+      },
+    };
+  }
+  return current;
 }

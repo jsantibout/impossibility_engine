@@ -364,6 +364,14 @@ export interface Summons {
    */
   readonly controlled?: ControlledBond;
   /**
+   * The body it rises out of, where that body keeps its record — SRD Animate
+   * Dead's Zombie from a player character's corpse (the owner, 2026-09-26).
+   * An id the raising already knows, pinned onto the `creature-summoned` the
+   * bond writes; see `CreatureState.raisedFrom`. A creature bound to nothing
+   * writes no such event, so naming a body for one is the caller's error.
+   */
+  readonly raisedFrom?: CharacterId;
+  /**
    * Which side it is on, when it is not the summoner's.
    *
    * Defaults to the summoner's own, because that is what a summons is. It is
@@ -514,7 +522,10 @@ export function summonCreature(
   summons: Summons,
   command: CommandIdentity = {},
 ): Result<AddCreatureOutcome> {
-  const { id, monsterId, by, castingId, kept, controlled, block, ...stated } = summons;
+  const { id, monsterId, by, castingId, kept, controlled, block, raisedFrom, ...stated } = summons;
+  if (raisedFrom !== undefined && castingId === undefined && kept === undefined && controlled === undefined) {
+    throw new Error(`${id} names the body ${raisedFrom} it rises from and no bond to write it on`);
+  }
 
   // **Everything the caller stated, whole.** A retry that moved the placement
   // or changed the Initiative total is a *different* command, and
@@ -538,6 +549,7 @@ export function summonCreature(
       ...(castingId === undefined ? {} : { castingId }),
       ...(kept === undefined ? {} : { kept }),
       ...(controlled === undefined ? {} : { controlled }),
+      ...(raisedFrom === undefined ? {} : { raisedFrom }),
     },
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
@@ -618,17 +630,19 @@ export function summonCreature(
         events.push({ type: 'creature-side-declared', id, side });
       }
 
+      // The body it rose out of rides whichever bond is written.
+      const body = raisedFrom === undefined ? {} : { raisedFrom };
       if (castingId !== undefined) {
-        events.push({ type: 'creature-summoned', id, by, castingId });
+        events.push({ type: 'creature-summoned', id, by, castingId, ...body });
       } else if (kept !== undefined) {
         // Bound at the arrival, because the terms it is kept on need no
         // record to exist first — which is the whole difference from a
         // casting's bond, written after the record by `resolveEffects`.
-        events.push({ type: 'creature-summoned', id, by, kept });
+        events.push({ type: 'creature-summoned', id, by, kept, ...body });
       } else if (controlled !== undefined) {
         // Bound at the arrival for the kept bond's reason: a control is a
         // clock reading and a summoner, and needs no record either.
-        events.push({ type: 'creature-summoned', id, by, controlled });
+        events.push({ type: 'creature-summoned', id, by, controlled, ...body });
       }
 
       // SRD Find Familiar: "A familiar can't attack, but it can take other
@@ -1255,52 +1269,7 @@ export function removeCreatureEverywhere(
       return unknownCreature(id);
     }
 
-    // Anything this creature was holding up has to be settled first, or the
-    // fight cannot continue without them.
-    const events: GameEvent[] = [...settleHoldsInvolving(state, id)];
-
-    // A caster leaving takes their ongoing spell with them, and the log should
-    // say so rather than leaving the reader to infer it from the disappearance.
-    //
-    // **Read off the world the settlement above leaves, not the one before
-    // it.** `settleHoldsInvolving` interrupts a casting the caster had
-    // declared, and a casting of a minute or more is *concentrated on* — so
-    // the interruption has already taken that Concentration, and a
-    // `concentration-ended` naming it would be an event the fold refuses. Two
-    // events about one fact, written against two different worlds, is a batch
-    // built against a snapshot; this is the same reading `resolveDamage`
-    // already takes when it asks what the damage left behind.
-    const creature = creatureOf(events.reduce(applyEvent, state), id);
-    if (creature?.concentration != null) {
-      events.push({
-        type: 'concentration-ended',
-        id,
-        castingId: creature.concentration.castingId,
-        reason: 'removed',
-      });
-    }
-
-    // Order matters: leave the map and the initiative order before leaving the
-    // cast, so each of those events still finds the creature it refers to.
-    if (state.scene?.positions[id] !== undefined) {
-      events.push({ type: 'creature-unplaced', id });
-    }
-    // A combat of one cannot lose its last combatant, so the fight ends instead.
-    //
-    // **And this one stays unstamped and pins no `ending`**, which is what the
-    // field being optional is for. A fight closing because the order ran out
-    // is not any of the three endings a table elects — nobody was defeated,
-    // nobody yielded and nobody ran, the last body was simply carried off —
-    // and `endCombat` in `commands/scene.ts` is the door for the ones that
-    // are. The stamp rides on `creature-removed` below, the one event this
-    // command always emits.
-    if (state.combat?.order.some((c) => c.id === id) === true) {
-      events.push(
-        state.combat.order.length === 1
-          ? { type: 'combat-ended' }
-          : { type: 'combatant-removed', id },
-      );
-    }
+    const events: GameEvent[] = [...settleDeparture(state, id)];
 
     // The one event this command always emits, whatever the creature was in the
     // middle of, so the stamp rides here rather than on a hold it happened to
@@ -1308,6 +1277,68 @@ export function removeCreatureEverywhere(
     events.push({ type: 'creature-removed', id, ...(stamp === null ? {} : { command: stamp }) });
     return ok(events);
   });
+}
+
+/**
+ * Everything a creature leaving the scene and the fight settles, short of
+ * leaving the game.
+ *
+ * {@link removeCreatureEverywhere}'s batch without its last event, factored
+ * out for the one caller that needs the settlement and keeps the creature: SRD
+ * Animate Dead on a player character's corpse, whose record stays under its id
+ * (the owner, 2026-09-26) while a Zombie stands where it lay. Unstamped: the
+ * stamp is the caller's, and rides whatever event the caller always emits.
+ * The creature must be in the game; asking for one that is not is the
+ * caller's error.
+ */
+export function settleDeparture(state: GameState, id: CharacterId): GameEvent[] {
+  // Anything this creature was holding up has to be settled first, or the
+  // fight cannot continue without them.
+  const events: GameEvent[] = [...settleHoldsInvolving(state, id)];
+
+  // A caster leaving takes their ongoing spell with them, and the log should
+  // say so rather than leaving the reader to infer it from the disappearance.
+  //
+  // **Read off the world the settlement above leaves, not the one before
+  // it.** `settleHoldsInvolving` interrupts a casting the caster had
+  // declared, and a casting of a minute or more is *concentrated on* — so
+  // the interruption has already taken that Concentration, and a
+  // `concentration-ended` naming it would be an event the fold refuses. Two
+  // events about one fact, written against two different worlds, is a batch
+  // built against a snapshot; this is the same reading `resolveDamage`
+  // already takes when it asks what the damage left behind.
+  const creature = creatureOf(events.reduce(applyEvent, state), id);
+  if (creature?.concentration != null) {
+    events.push({
+      type: 'concentration-ended',
+      id,
+      castingId: creature.concentration.castingId,
+      reason: 'removed',
+    });
+  }
+
+  // Order matters: leave the map and the initiative order before leaving the
+  // cast, so each of those events still finds the creature it refers to.
+  if (state.scene?.positions[id] !== undefined) {
+    events.push({ type: 'creature-unplaced', id });
+  }
+  // A combat of one cannot lose its last combatant, so the fight ends instead.
+  //
+  // **And this one stays unstamped and pins no `ending`**, which is what the
+  // field being optional is for. A fight closing because the order ran out
+  // is not any of the three endings a table elects — nobody was defeated,
+  // nobody yielded and nobody ran, the last body was simply carried off —
+  // and `endCombat` in `commands/scene.ts` is the door for the ones that
+  // are. The stamp rides on `creature-removed` in
+  // {@link removeCreatureEverywhere}, the one event that command always emits.
+  if (state.combat?.order.some((c) => c.id === id) === true) {
+    events.push(
+      state.combat.order.length === 1
+        ? { type: 'combat-ended' }
+        : { type: 'combatant-removed', id },
+    );
+  }
+  return events;
 }
 
 /**

@@ -4593,9 +4593,14 @@ export const GENTLE_REPOSE: SpellDefinition = {
   effects: [{ kind: 'preserves' }],
   durationSeconds: 864_000,
   // **Two sentences handed over and one that is executed**, which was P3-S6's
-  // reading of this spell and is now its whole content. Decay and becoming
-  // Undead are the DM's, and so is a heap of remains that is not a creature
-  // the engine holds. The third sentence was the debt this definition named:
+  // reading of this spell and is now its whole content. Decay is the DM's, and
+  // so is a heap of remains that is not a creature the engine holds. "Can't
+  // become Undead" is **read** now: a raising refuses a body a running
+  // `preserves` casting keeps (`cannot_become_undead`, SRD Animate Dead's
+  // pre-flight and its resolver). The sentence still goes over whole, for its
+  // decay half — a handover is the book's sentence verbatim, and the owner's
+  // ruling of 2026-09-26 on Gaseous Form hands over a sentence the engine
+  // partly enforces. The third sentence was the debt this definition named:
   // `revive.within` is subtraction over `Vitals.diedAt`, so a rule the engine
   // runs really does read the time limit this spell extends — and now the
   // `preserves` mark takes the repose's own running span back out of it.
@@ -12209,8 +12214,18 @@ export const SILENCE: SpellDefinition = {
  * **A `raise`, and the third kind of bond.** The corpses are the targets —
  * dead, Humanoid, Small or Medium, which is the one target rule in the book
  * that takes two sizes — and the bones are points the caster states
- * (`bonesAt`), one Skeleton each; a corpse's key leaves the roster and a
- * Zombie arrives in its space. What each creature is bound by is
+ * (`bonesAt`), one Skeleton each; a Zombie arrives in a corpse's space. What
+ * becomes of the corpse is the owner's ruling of 2026-09-26: **a player
+ * character's body keeps its record** — class, level, choices, sheet, pools,
+ * gear and `diedAt` stay under its id, dead and off the map, so the character
+ * can come back — and any other corpse's key leaves the roster as it always
+ * has. While the Zombie stands the body is not a corpse: Revivify, Gentle
+ * Repose and a second Animate Dead are refused `body_walks`. When the Zombie
+ * falls on the map the body lies where it fell, and Raise Dead's "dead no
+ * longer than 10 days" runs from the character's own death, which is the
+ * `diedAt` the body never lost — the reading for a character who was dead all
+ * along. A body a running Gentle Repose keeps "can't become Undead" and is
+ * refused `cannot_become_undead`. What each creature is bound by is
  * `SummonBond.controlled`: a summoner and a clock reading a day on, and when
  * the clock passes the *control* ends and the creature stays — a kept bond
  * would have taken a Zombie at 0 Hit Points away, and the book leaves it

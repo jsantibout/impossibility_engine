@@ -469,6 +469,30 @@ export const heldByObject = (source: string): CharacterId | null => {
 };
 
 /**
+ * The living creature walking about in this body, or null where none is.
+ *
+ * SRD Animate Dead: "The target becomes an Undead creature". A player
+ * character's corpse keeps its record when it rises (the owner, 2026-09-26),
+ * and while the Zombie stands the body is not a corpse anybody may raise, lay
+ * to rest or bring back: `body_walks`. **Derived rather than recorded**, so
+ * nothing has to happen when the walker dies, leaves the game or outlives its
+ * summoner's control — the answer moves with the world. A dead walker is not
+ * one: it has fallen, and the body lies where it fell.
+ *
+ * A sorted scan, so two walkers — which the fold refuses — would still give
+ * one answer. Here rather than beside the commands for `attachSource`'s
+ * reason: the fold reads it too, and nothing under `fold/` may reach a
+ * command. See {@link CreatureState.raisedFrom}.
+ */
+export function walkerOf(state: GameState, body: CharacterId): CharacterId | null {
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[key];
+    if (creature?.raisedFrom === body && !creature.vitals.dead) return creature.id;
+  }
+  return null;
+}
+
+/**
  * What the engine calls an object a **stat block arrived holding**.
  *
  * SRD Night Hag, Soul Bag: "The hag has a soul bag." Every other thing in a game
@@ -680,6 +704,17 @@ export interface CreatureState {
    * declared, because a summoned creature can turn.
    */
   readonly summonedBy: SummonBond | null;
+  /**
+   * The body this creature was raised out of, or null for everything else.
+   *
+   * SRD Animate Dead's Zombie, raised from a player character's corpse that
+   * keeps its record (the owner, 2026-09-26). **On the creature rather than on
+   * {@link summonedBy}**, because the bond goes to null when the day's control
+   * lapses and the Zombie walks on in the same body. Read by {@link walkerOf},
+   * and by the fold on the moment the walker falls, which lays the body where
+   * it fell. Written from `creature-summoned.raisedFrom`; null at arrival.
+   */
+  readonly raisedFrom: CharacterId | null;
   /**
    * What a feature made this thing to do, or null for everything that is not
    * such a thing — which is every creature in the book but one trait's.
