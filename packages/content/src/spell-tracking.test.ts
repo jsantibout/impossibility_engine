@@ -1937,6 +1937,13 @@ describe('every spell this batch added is cast for real', () => {
     // Nothing is granted and nothing outlives the swing, which is why this is
     // the one entry here that the casting sweeps below cannot drive.
     'true-strike',
+    // **Unseen Servant leaves on a stat block printed in a sentence.** The
+    // `summon` effect takes the block `inline` — AC 10, 1 Hit Point, Strength
+    // 2, Medium, Invisible, no attack — and adapts it through the road a
+    // bestiary block takes; "If it drops to 0 Hit Points, the spell ends" is
+    // `summon-drops-to-0` on the casting's record. The sixty feet and the
+    // caster's Bonus Action are said in its notes rather than modelled.
+    'unseen-servant',
     'wind-walk',
     // **Wind Wall leaves on the seventh template**, and it is the only one in
     // the book the caster draws: a path of 5-foot spaces along the ground,

@@ -3757,7 +3757,22 @@ function checkEffect(
      * catalogue check lives in `checkContent`, where both halves are present.
      */
     case 'summon': {
-      checkSummonedForm(effect.monster, `${path}.monster`, found);
+      // A summons names its block one way or the other: by its id in content
+      // (or the printed forms), or printed inline in the spell's own sentence.
+      // Both is two answers to one question; neither is a creature nobody
+      // described.
+      if (effect.monster !== undefined && effect.inline !== undefined) {
+        found.push({
+          field: `${path}.inline`,
+          code: 'two_stat_blocks',
+          reason:
+            'a summons raises one stat block, named in content or printed inline in the spell; this names both',
+        });
+      } else if (effect.inline !== undefined) {
+        checkInlineStatBlock(effect.inline, `${path}.inline`, found);
+      } else {
+        checkSummonedForm(effect.monster, `${path}.monster`, found);
+      }
       if (
         effect.creatureType !== undefined &&
         !CREATURE_TYPES.includes(effect.creatureType as string)
@@ -4576,6 +4591,7 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   'target-takes-damage',
   'target-drops-to-0',
   'summon-takes-damage',
+  'summon-drops-to-0',
   'shaken-awake',
 ]);
 
@@ -4592,7 +4608,10 @@ const END_TRIGGER_SCOPES: ReadonlySet<string> = new Set(['casting', 'target']);
  * rather than tested by hand so that the next cause of this shape joins it in
  * one place.
  */
-const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set(['summon-takes-damage']);
+const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set([
+  'summon-takes-damage',
+  'summon-drops-to-0',
+]);
 
 /**
  * What a casting leaves behind when it ends, and the four ways it can be a
@@ -7651,6 +7670,85 @@ function checkSummonTargets(
  * `SummonedForm`. The list and the clause are checked for shape; whether the
  * world holds a block is the world's question, asked at the cast.
  */
+/**
+ * The three numbers and the few facts a spell may print inside itself — see
+ * `InlineStatBlock`. Every number is checked as untyped input, because a
+ * homebrew definition arrives as JSON, and the absences the type documents
+ * are accepted as absences.
+ */
+function checkInlineStatBlock(block: unknown, path: string, found: SpellDefinitionProblem[]): void {
+  if (
+    !readsAsObject(
+      block,
+      path,
+      'a stat block printed in a spell is an object naming the creature, its Armour Class, its Hit Points, its abilities and its size',
+      found,
+    )
+  ) {
+    return;
+  }
+  const inline = block as {
+    readonly name?: unknown;
+    readonly armorClass?: unknown;
+    readonly hitPoints?: unknown;
+    readonly abilities?: unknown;
+    readonly size?: unknown;
+    readonly type?: unknown;
+    readonly walkingSpeed?: unknown;
+    readonly conditions?: unknown;
+  };
+  const bad = (field: string, reason: string): void => {
+    found.push({ field: `${path}.${field}`, code: 'bad_inline_block', reason });
+  };
+  if (typeof inline.name !== 'string' || inline.name.trim().length === 0) {
+    bad('name', 'a creature the spell prints has a name the log can call it by');
+  }
+  if (!Number.isInteger(inline.armorClass) || (inline.armorClass as number) < 1) {
+    bad('armorClass', `an Armour Class is a whole number of at least 1, not ${String(inline.armorClass)}`);
+  }
+  if (!Number.isInteger(inline.hitPoints) || (inline.hitPoints as number) < 1) {
+    bad('hitPoints', `a Hit Point total is a whole number of at least 1, not ${String(inline.hitPoints)}`);
+  }
+  if (typeof inline.abilities !== 'object' || inline.abilities === null) {
+    bad('abilities', 'the abilities the sentence prints are an object of scores; an empty one prints none');
+  } else {
+    for (const [ability, score] of Object.entries(inline.abilities)) {
+      if (!ABILITY_NAMES_SET.has(ability as Ability)) {
+        bad(`abilities.${ability}`, `"${ability}" is not an ability`);
+      } else if (!Number.isInteger(score) || (score as number) < 1 || (score as number) > 30) {
+        bad(`abilities.${ability}`, `an ability score is a whole number from 1 to 30, not ${String(score)}`);
+      }
+    }
+  }
+  if (!(CREATURE_SIZES as readonly unknown[]).includes(inline.size)) {
+    bad('size', `"${String(inline.size)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`);
+  }
+  if (inline.type !== undefined && !CREATURE_TYPES.includes(inline.type as string)) {
+    found.push({
+      field: `${path}.type`,
+      code: 'unknown_creature_type',
+      reason: `"${String(inline.type)}" is not one of the SRD's fourteen creature types`,
+    });
+  }
+  const walks = inline.walkingSpeed;
+  if (walks !== undefined && (!Number.isInteger(walks) || (walks as number) < 0 || (walks as number) % 5 !== 0)) {
+    bad('walkingSpeed', `a Speed is a whole number of 5-foot spaces, not ${String(walks)}`);
+  }
+  if (inline.conditions !== undefined) {
+    if (readsAsList(inline.conditions, `${path}.conditions`, 'the conditions the sentence gives the creature are a list', found)) {
+      (inline.conditions as readonly unknown[]).forEach((name, i) => {
+        if (typeof name !== 'string' || !CONDITION_NAMES.has(name)) {
+          found.push({
+            field: `${path}.conditions[${i}]`,
+            code: 'unknown_condition',
+            reason: `"${String(name)}" is not a condition the rules glossary names`,
+          });
+        }
+      });
+    }
+  }
+}
+
 function checkSummonedForm(monster: unknown, path: string, found: SpellDefinitionProblem[]): void {
   if (typeof monster === 'string') {
     if (monster.trim().length === 0) {

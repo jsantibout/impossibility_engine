@@ -1230,7 +1230,12 @@ describe('reading four families found blockers the bare lists had missed', () =>
    * filed under would have been a tidier list saying something false.
    */
   const SPENT: readonly (readonly [string, 'tracked' | 'unmodelled', ShapeId | string])[] = [
-    ['unseen-servant', 'tracked', 'a-casting-ended-by-a-trigger'],
+    // Unseen Servant's row was spent twice over: tracked on
+    // `a-casting-ended-by-a-trigger` when it was written, and then **built** —
+    // the fall of the creature a casting sustains is `summon-drops-to-0` now,
+    // so the reading survives as a member of the vocabulary rather than as an
+    // adjudication, and what is left in its notes is the sixty feet.
+    ['unseen-servant', 'unmodelled', 'more than 60 feet from the caster'],
     ['irresistible-dance', 'tracked', 'a-repeat-save-raised-by-a-trigger'],
     ['wall-of-ice', 'tracked', 'a-stat-block-created-mid-fight'],
     ['wall-of-stone', 'tracked', 'a-stat-block-created-mid-fight'],
@@ -2419,9 +2424,11 @@ describe('a consumer count is a query', () => {
     }
     expect(statBlock.undefined).toEqual([]);
     expect(statBlock.executed).toContain('find-steed');
-    // Unseen Servant was the fourth and is tracked too, which is the third
-    // population claiming the shape rather than the shape losing a consumer.
-    expect(statBlock.tracked).toContain('unseen-servant');
+    // Unseen Servant was the fourth, tracked on this shape until its block
+    // was printed inline on the summons; it is executed now and claims the
+    // shape from nowhere.
+    expect(statBlock.tracked).not.toContain('unseen-servant');
+    expect(SRD_CONTENT.spell('unseen-servant')?.effects.map((e) => e.kind)).toEqual(['summon']);
     // Guardian of Faith and Faithful Hound are the pair that proves the row was
     // read rather than copied: both are invulnerable spectral things, and only
     // one of the two is a creature — neither, as it turns out.
@@ -2642,8 +2649,11 @@ describe('a consumer count is a query', () => {
       // effects run — and Command and Thaumaturgy left the undefined and
       // tracked maps through it, which took the shape out of this band rather
       // than moving it down inside one.
+      // `a-stat-block-created-mid-fight` stood here too until Unseen Servant
+      // was written on the inline block: the shape lost its tracked claim
+      // and fell out of this band — the stat-block shape now names its
+      // remaining consumers from the executed map alone.
       'a-second-place-to-put-a-creature',
-      'a-stat-block-created-mid-fight',
       'an-effect-that-suppresses-other-magic',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell

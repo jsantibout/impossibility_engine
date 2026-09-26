@@ -103,7 +103,7 @@ type EndingFact =
     }
   /** The creature a casting is sustaining, found through `summonedBy`. */
   | {
-      readonly cause: 'summon-takes-damage';
+      readonly cause: 'summon-takes-damage' | 'summon-drops-to-0';
       readonly summon: CharacterId;
     }
   /**
@@ -175,8 +175,15 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
               // rather than on a fall, and the honest name for that is a
               // residue and not a rule. A maximum lowered onto 0 is no blow
               // at all and reaches this nowhere.
+              // And the same drop read of the creature a casting is
+              // *sustaining* — SRD Unseen Servant's "If it drops to 0 Hit
+              // Points, the spell ends" — which `subjectOf` finds through
+              // `summonedBy` as it finds the steed's blow.
               ...(state.creatures[event.id]?.vitals.hp === 0
-                ? [{ cause: 'target-drops-to-0', to: event.id } as const]
+                ? [
+                    { cause: 'target-drops-to-0', to: event.id } as const,
+                    { cause: 'summon-drops-to-0', summon: event.id } as const,
+                  ]
                 : []),
             ]
           : []),
@@ -229,6 +236,7 @@ function subjectOf(
 ): CharacterId | null {
   switch (fact.cause) {
     case 'summon-takes-damage':
+    case 'summon-drops-to-0':
       return state.creatures[fact.summon]?.summonedBy?.castingId === record.castingId
         ? fact.summon
         : null;

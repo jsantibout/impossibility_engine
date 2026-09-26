@@ -22,10 +22,17 @@
  * `summonCreature` enforces for a DM doing it by hand.
  */
 
-import { asCharacterId, ok, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
+import type { Monster } from '@ie/srd';
 import { applyEvent, type GameState } from '../events.js';
-import type { PrintedSummonSpeeds, SummonedNumber } from '../spell-definitions.js';
+import type {
+  InlineStatBlock,
+  PrintedSummonSpeeds,
+  SummonedNumber,
+} from '../spell-definitions.js';
 import type { PrintedSpeedMode } from '../monster.js';
+import { castingSource } from '../spells.js';
+import { applyConditionTo } from './conditions.js';
 import { removeCreatureEverywhere, summonCreature } from './creatures.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
 
@@ -92,7 +99,16 @@ export function resolveSummonEffect(
 ): Result<GameState> {
   const { name, events, outcomes, unverified, casterId } = ctx;
   const { definition, castingId } = ctx.casting();
-  const monsterId = typeof effect.monster === 'string' ? effect.monster : ctx.form;
+  // A block the spell prints inside itself is keyed by the spell, under a
+  // prefix no bestiary id wears — SRD Unseen Servant's servant is
+  // `cast:N:inline:unseen-servant`, and a bestiary entry called that could not
+  // be confused with it.
+  const monsterId =
+    effect.inline !== undefined
+      ? `inline:${definition.id}`
+      : typeof effect.monster === 'string'
+        ? effect.monster
+        : ctx.form;
   if (monsterId === undefined) {
     // Programmer error rather than a refusal: the pre-flight refuses a stated
     // form that is missing before anything is spent, so a run without one is a
@@ -148,6 +164,14 @@ export function resolveSummonEffect(
         }),
     ...(speeds === undefined ? {} : { speeds }),
     ...(effect.cannotAttack === true ? { forbidsAttacks: { label: definition.name } } : {}),
+    ...(effect.inline === undefined
+      ? {}
+      : {
+          block: {
+            monster: inlineBlock(effect.inline, monsterId),
+            ...(effect.inline.type === undefined ? { untyped: true as const } : {}),
+          },
+        }),
     // The count, the tiebreak and the seat, all the caster's own.
     ...(sharing === undefined
       ? {}
@@ -157,12 +181,89 @@ export function resolveSummonEffect(
 
   events.push(...arrived.value.events);
   unverified.push(...arrived.value.unverified.map((gap) => `${name}: ${gap}`));
+  current = arrived.value.events.reduce(applyEvent, current);
+
+  // **The conditions the sentence gives the creature itself** — SRD Unseen
+  // Servant's "an Invisible … force". Sourced to the casting, so that what
+  // ends the casting ends them, and applied after the arrival because a
+  // condition needs a creature to stand on. A block content holds prints none
+  // here: its conditions, if any, are the bestiary's own business.
+  for (const condition of effect.inline?.conditions ?? []) {
+    const applied = applyConditionTo(
+      current,
+      id,
+      condition,
+      castingSource(definition.name, castingId),
+    );
+    if (!applied.ok) return applied;
+    events.push(...applied.value);
+    current = applied.value.reduce(applyEvent, current);
+  }
+
   // A creature a casting holds is bound after the record — see
   // `resolveEffects`. A kept one was bound at the arrival, on the terms it is
   // kept on, and waits for no record.
   if (effect.kept === undefined) ctx.summoned.push(id);
   outcomes.push({ target: casterId, affected: true });
-  return ok(arrived.value.events.reduce(applyEvent, current));
+  return ok(current);
+}
+
+/**
+ * The stat block a spell's sentence amounts to, in the shape the adapter reads.
+ *
+ * Every field the sentence does not print is the absence `InlineStatBlock`
+ * documents: an unprinted ability is 10, an unprinted Speed is 0, no skills,
+ * no defences, no senses, no lines, a rating of 0 — and a type the arrival
+ * pins as none (`Summons.block.untyped`), with a placeholder here only because
+ * the adapter's input requires the field. Nothing here is a number the engine
+ * invented: the modifier and the save beside each score are the glossary's own
+ * arithmetic, and the Hit Point formula is the flat total the sentence prints.
+ */
+function inlineBlock(inline: InlineStatBlock, id: string): Monster {
+  const score = (ability: Ability): number => inline.abilities[ability] ?? 10;
+  const block = (ability: Ability) => {
+    const modifier = Math.floor((score(ability) - 10) / 2);
+    return { score: score(ability), modifier, save: modifier };
+  };
+  return {
+    id,
+    name: inline.name,
+    size: inline.size,
+    alternateSizes: [],
+    type: inline.type ?? 'Construct',
+    subtype: null,
+    swarmMemberSize: null,
+    alignment: 'Unaligned',
+    ac: inline.armorClass,
+    initiative: block('dex').modifier,
+    hp: { average: inline.hitPoints, formula: null },
+    speed: { walk: inline.walkingSpeed ?? 0, burrow: null, climb: null, fly: null, swim: null, hover: false },
+    abilities: {
+      str: block('str'),
+      dex: block('dex'),
+      con: block('con'),
+      int: block('int'),
+      wis: block('wis'),
+      cha: block('cha'),
+    },
+    skills: {},
+    vulnerabilities: [],
+    resistances: [],
+    immunities: [],
+    gear: [],
+    senses: [],
+    passivePerception: 10 + block('wis').modifier,
+    languages: [],
+    cr: 0,
+    crLabel: '0',
+    xp: 0,
+    proficiencyBonus: 2,
+    traits: [],
+    actions: [],
+    bonusActions: [],
+    reactions: [],
+    legendaryActions: [],
+  };
 }
 
 /** The creatures this caster keeps from this spell, sorted so the departure order is fixed. */

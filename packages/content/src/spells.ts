@@ -11335,9 +11335,30 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
  * > It has AC 10, 1 Hit Point, and a Strength of 2, and it can't attack. If it
  * > drops to 0 Hit Points, the spell ends."
  *
- * A stat block in one sentence — an Armour Class, a Hit Point total and an
- * ability score — for a thing no casting can put in the scene. What the engine
- * owes it is the Ritual, the hour and the slot.
+ * > "Once on each of your turns as a Bonus Action, you can mentally command
+ * > the servant to move up to 15 feet and interact with an object. … If you
+ * > command the servant to perform a task that would move it more than 60
+ * > feet away from you, the spell ends."
+ *
+ * **A stat block in one sentence, and the sentence is the block.** The owner's
+ * ruling files a spell-internal block in the bestiary, and this is the one the
+ * bestiary could not take without inventing an ability table, a Speed and a
+ * type the book never printed — so the `summon` effect carries it `inline`,
+ * exactly as printed, and the resolver adapts it through the same road a
+ * bestiary block takes. The servant is a creature: AC 10 to hit, 1 Hit Point to
+ * lose, a Strength of 2 to save with, Medium on the map, Invisible from the
+ * condition vocabulary under the casting's own source, forbidden the Attack
+ * action by the same rule Find Familiar's familiar is, held by the casting for
+ * its hour and taken away when the hour ends. "If it drops to 0 Hit Points, the
+ * spell ends" is `summon-drops-to-0`, the fifth cause a casting's own record
+ * can end on — read of the creature the casting is sustaining, the way Phantom
+ * Steed's blow is.
+ *
+ * **What is moved is the servant, and the DM moves it.** The Bonus Action
+ * command is the DM's move command on the servant plus an object interaction
+ * the table narrates; what the engine does not yet do is charge the caster's
+ * Bonus Action for it or end the spell at sixty feet, both of which are said
+ * below rather than assumed.
  */
 export const UNSEEN_SERVANT: SpellDefinition = {
   id: 'unseen-servant',
@@ -11348,13 +11369,34 @@ export const UNSEEN_SERVANT: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 0 },
-  effects: [],
+  // The spell is on its caster and what it makes is a second creature, which
+  // is the shape every summons takes: the printed Range is the reach the
+  // servant springs into rather than a reach to a target.
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'summon',
+      // "an Invisible, mindless, shapeless, Medium force … It has AC 10, 1
+      // Hit Point, and a Strength of 2, and it can't attack." Every field the
+      // sentence does not print is left unprinted — see `InlineStatBlock`.
+      inline: {
+        name: 'Unseen Servant',
+        armorClass: 10,
+        hitPoints: 1,
+        abilities: { str: 2 },
+        size: 'medium',
+        conditions: ['invisible'],
+      },
+      cannotAttack: true,
+    },
+  ],
   durationSeconds: 3600,
+  // "If it drops to 0 Hit Points, the spell ends" — the whole casting, which is
+  // what then takes the fallen servant away.
+  endsEarly: [{ on: 'summon-drops-to-0', ends: 'casting' }],
   unmodelled: [
-    'no servant appears: "AC 10, 1 Hit Point, and a Strength of 2" is a stat block printed inside a spell, and nothing a casting does adds a creature to the scene — so the unoccupied space it springs into is the DM’s too',
-    'and the two endings that hang off it are not watched: the spell ending when the servant drops to 0 Hit Points, and ending when a command would take it more than 60 feet from the caster',
-    'the Bonus Action that moves it 15 feet and has it handle an object is not offered; the economy is built and the thing being moved is not',
+    'the spell does not end when a command would take the servant more than 60 feet from the caster: that is a distance the engine can measure after the servant’s move and does not yet read at the move command, which another track owns',
+    'the Bonus Action the command costs its caster is not spent: the servant is moved by the DM’s move command on the servant itself, and the caster’s own economy is not charged for issuing the order',
     'what the servant fetches, cleans, mends, folds, lights, serves or pours is the DM’s and always will be',
   ],
 };

@@ -3716,8 +3716,17 @@ export type SpellEffect =
       /**
        * Which stat block — by its id in content, as `addCreature` takes one,
        * or chosen at the casting out of a printed set. See {@link SummonedForm}.
+       *
+       * Optional since {@link inline}: a summons names a block one way or the
+       * other, and `checkSpellDefinition` refuses both and neither.
        */
-      readonly monster: SummonedForm;
+      readonly monster?: SummonedForm;
+      /**
+       * A stat block the spell prints **inside itself**, in a sentence rather
+       * than in a chapter — see {@link InlineStatBlock}. SRD Unseen Servant is
+       * the one spell in the book that does.
+       */
+      readonly inline?: InlineStatBlock;
       /**
        * The creature type the summons arrives with, where the spell prints
        * one over the block's own.
@@ -3828,6 +3837,48 @@ export type SummonedForm =
        */
       readonly orAny?: { readonly type: string; readonly cr: number };
     };
+
+/**
+ * A stat block the spell prints in a sentence, for a creature that is in
+ * neither chapter of the book.
+ *
+ * SRD Unseen Servant: "an Invisible, mindless, shapeless, Medium force … It
+ * has AC 10, 1 Hit Point, and a Strength of 2, and it can't attack." The
+ * owner's ruling of 2026-09-21 files a spell-internal block as a catalogue
+ * entry, and the two the book prints as *blocks* — Find Steed's, Phantom
+ * Steed's — are in the bestiary. This is the third case and the ruling's
+ * limit: three numbers in one sentence, with no ability table, no Speed, no
+ * senses and no type, which a bestiary entry could not transcribe without
+ * inventing the rest. So the definition prints exactly what the book prints
+ * and the resolver adapts it through the same road a block takes, so the
+ * servant is a creature to every rule that asks — an Armour Class to hit, a
+ * Hit Point to lose, a Strength to save with.
+ *
+ * **What is absent is absent.** An ability the sentence does not print is 10
+ * (the modifier a rule reads is then 0, which is what a "mindless" force
+ * ought to add to an Intelligence save); a Speed the sentence does not print
+ * is 0 — the servant moves when commanded, through the DM's move command, and
+ * the spell prints the allowance in the command rather than on the creature;
+ * a creature type the sentence does not print is **none**, pinned as the
+ * absence it is rather than as a guess, so a type-gated spell asks rather
+ * than assumes. `conditions` are the ones the sentence gives the creature
+ * itself — Unseen Servant's "Invisible" — applied at the arrival under the
+ * casting's own source, so what ends the casting ends them.
+ */
+export interface InlineStatBlock {
+  readonly name: string;
+  readonly armorClass: number;
+  readonly hitPoints: number;
+  /** The scores the sentence prints; an ability it does not print is 10. */
+  readonly abilities: Partial<Record<Ability, number>>;
+  readonly size: CreatureSize;
+  /** The creature type, where the sentence prints one. Absent is no type. */
+  readonly type?: string;
+  /** A walking Speed, where the sentence prints one. Absent is 0. */
+  readonly walkingSpeed?: number;
+  /** Conditions the sentence gives the creature itself, for as long as it stands. */
+  readonly conditions?: readonly ConditionName[];
+}
 
 /**
  * A creature the caster keeps: bound to its summoner rather than to a casting.
@@ -5617,6 +5668,18 @@ export type CastingEndCause =
    */
   | 'summon-takes-damage'
   /**
+   * SRD Unseen Servant: "If it drops to 0 Hit Points, the spell ends."
+   *
+   * The creature the casting is sustaining, read the way `target-drops-to-0`
+   * reads its target — the **drop**, not the damage — and found the way
+   * `summon-takes-damage` finds its steed, through `summonedBy`. Its own member
+   * because the two sentences differ on a servant with more than one Hit
+   * Point: a Phantom Steed's spell ends on any blow, and a servant's only when
+   * it falls. The same residue as `target-drops-to-0`: the total and not the
+   * transition, so a creature already at 0 taking another blow pulls it too.
+   */
+  | 'summon-drops-to-0'
+  /**
    * SRD Sleep: "The spell ends on a target if it takes damage or **someone
    * within 5 feet of it takes an action to shake it out of the spell's
    * effect**." SRD Hypnotic Pattern writes the same clause as "if someone else
@@ -5863,7 +5926,9 @@ export function statedFormOf(
   definition: SpellDefinition,
 ): Exclude<SummonedForm, string> | null {
   for (const effect of definition.effects) {
-    if (effect.kind === 'summon' && typeof effect.monster !== 'string') return effect.monster;
+    if (effect.kind === 'summon' && effect.monster !== undefined && typeof effect.monster !== 'string') {
+      return effect.monster;
+    }
   }
   return null;
 }

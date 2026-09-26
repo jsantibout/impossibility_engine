@@ -231,6 +231,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'divine-smite',
   'eldritch-blast',
   'enhance-ability',
+  // `ensnaring-strike.test.ts` (engine): a Ranger's held hit settled with the
+  // strike, the goblin's Strength save and the Restrained under the casting,
+  // the Ogre's Advantage read off its size, the resisted ending, the d6 at the
+  // goblin's turn start at two slot levels, and the fighter beside it tearing
+  // it free on an Athletics success that ends the spell.
+  'ensnaring-strike',
   // `filtered-catch.test.ts`: the 20-foot square, the caster left standing in
   // their own plants, the Strength save, the Athletics escape freeing one
   // creature and not the rest, the Concentration ending releasing everybody,
@@ -491,6 +497,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // not at 4, the type choice landing in place of the weapon's own, and
   // nothing granted or left standing afterwards.
   'true-strike',
+  // `unseen-servant.test.ts` (engine): the servant adapted from the sentence
+  // the spell prints — AC 10, 1 Hit Point, Strength 2, Medium, Invisible under
+  // the casting, forbidden the Attack action, held for the hour — and the
+  // spell ending when a dagger drops it to 0, with the departure then owed.
+  'unseen-servant',
   'vampiric-touch',
   'vicious-mockery',
   'vitriolic-sphere',

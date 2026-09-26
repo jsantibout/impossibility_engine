@@ -134,7 +134,7 @@ export const MISSING_SHAPES = {
   'an-ability-score-a-spell-changes':
     'a score an effect **moves**, in any of the five ways the book moves one. `docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." One of the five is built: an item may now *set* a score — an **absolute** held while it is worn, derived on every read by `abilityScoresOf` — and the three entries that printed only that sentence are transcribed. Four have no writer. A score an effect **lowers**. A **bounded delta with a lifetime**, which SRD prints on six Ioun Stones: "Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head" is `ability-score-increase`’s arithmetic on a standing grant’s lifetime, and the member that holds the arithmetic is answered at creation while the one that holds the lifetime writes absolutes — the Belt of Dwarvenkind prints it too, and the Hammer of Thunderbolts adds 4 to whatever score a belt or a pair of gauntlets already bestowed. A set with a **deadline** rather than a garment, which a conferral would carry and `CONFERRED_EFFECT_KINDS` does not admit. And a **permanent** raise: the manuals’ and the tomes’ +2 after forty-eight hours of study, which outlives every rest and is a folded number rather than a derived one.',
   'a-stat-block-created-mid-fight':
-    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, or leaves the form to the caster out of a printed list (SRD Find Familiar’s eleven, or any Beast of Challenge Rating 0), pins every number the block prints into `creature-added`, works out the numbers a spell prints over its own block (SRD Find Steed’s "AC 10 + 1 per spell level", its Fly Speed gated on a level 4 slot, the creature type the caster states), reads the caster’s Initiative count where the spell shares it and seats the creature immediately after them, and binds the creature either to the casting **after** the ongoing record or — where the spell prints "disappears if it drops to 0 Hit Points" — to its summoner, as a creature the caster *keeps*, replaced by a second casting. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is two things and neither is the creation: **a stat block that is in neither chapter** — Unseen Servant’s servant, which the book prints nowhere as a block — and **a line the block prints with the summoner’s numbers**, SRD Find Steed’s Otherworldly Slam ("Bonus equals your spell attack modifier", "1d8 plus the spell’s level") and its three Bonus Actions ("DC equals your spell save DC"), which no stat block field can name and which the transcribed block therefore omits.',
+    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, or leaves the form to the caster out of a printed list (SRD Find Familiar’s eleven, or any Beast of Challenge Rating 0), pins every number the block prints into `creature-added`, works out the numbers a spell prints over its own block (SRD Find Steed’s "AC 10 + 1 per spell level", its Fly Speed gated on a level 4 slot, the creature type the caster states), reads the caster’s Initiative count where the spell shares it and seats the creature immediately after them, and binds the creature either to the casting **after** the ongoing record or — where the spell prints "disappears if it drops to 0 Hit Points" — to its summoner, as a creature the caster *keeps*, replaced by a second casting. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is one thing and it is not the creation. **A stat block that is in neither chapter is built**: `InlineStatBlock` on the `summon` effect carries the three numbers SRD Unseen Servant prints in a sentence, and the resolver adapts them through the road a bestiary block takes, so the servant is a creature and its fall ends the casting (`summon-drops-to-0`). What remains is **a line the block prints with the summoner’s numbers**, SRD Find Steed’s Otherworldly Slam ("Bonus equals your spell attack modifier", "1d8 plus the spell’s level") and its three Bonus Actions ("DC equals your spell save DC"), which no stat block field can name and which the transcribed block therefore omits.',
   'movement-modes':
     'the Fly, Climb and Swim Speeds the engine does not distinguish, and the per-foot costs that ride with them. `docs/design/spell-definitions.md` refuses the vocabulary by name: "**Movement modes are refused outright.** Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it", and Roving’s own note says the same of its Climb and Swim Speeds. What is left of `speed-and-movement-modes` once IE-033 built the modifier half.',
   // **`a-speed-an-effect-multiplies` was here and has moved to the item
@@ -1307,6 +1307,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The mode itself is ordinary — a `RollModifier` naming a Charisma ability check narrowed to the Intimidation skill, which is the pair `RollSelector` already carries. What it has nowhere to land is a creature: Thaumaturgy prints Range 30 feet and `targets: { count: 0 }`, because the wonder happens within range rather than on somebody, so the per-target loop runs no times at all. The target rule that would hand the mode its creature is "the caster and nobody else", and `TargetRule` cannot state it — `notTheCaster` is the only sentence of that family it has, and it is the other one. Writing `{ count: 1, self: true }` instead would let a caster boom an ally’s voice, which is a rule the book does not grant.',
     },
   ],
+  'unseen-servant': [
+    {
+      clause: 'more than 60 feet from the caster',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'a distance two creatures drift apart, which that shape’s own description names for Faithful Hound, Warding Bond and Antilife Shell: the servant is a creature on the map and the sixty feet are measurable after its move, but the move command reads no casting’s ending and another track owns it, so the spell runs on past the distance the book ends it at.',
+    },
+    {
+      clause: 'the Bonus Action the command costs its caster is not spent',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'the servant moves when the DM moves it and does what the table says it does, and the caster’s own Bonus Action — the price the book puts on issuing the order — is a charge on one creature’s economy for deciding what another does, which no spender is told apart by.',
+    },
+  ],
   web: [
     {
       clause: 'flammable',
@@ -2095,20 +2107,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // mode narrowed by the attacker's creature type, and a condition Immunity
   // narrowed by the type of whatever is causing the condition — so the spell
   // is executed-partial and what is left of it is filed in `ADJUDICATED`.
-  'unseen-servant': [
-    {
-      marker: 'armor-class',
-      clause: 'It has AC 10, 1 Hit Point, and a Strength of 2',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'an Armour Class, a Hit Point total and an ability score — a stat block in one sentence, and the inability to attack that closes it is that same stat block printing no attack rather than a rider on the action economy.',
-    },
-    {
-      marker: 'hit-points',
-      clause: 'If it drops to 0 Hit Points, the spell ends',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'dropping to 0 Hit Points is named in that shape’s own description as a cause with no member, and here it ends the casting rather than merely removing the creature — which is what the two summons that print the same sentence do not say.',
-    },
-  ],
   'alter-self': [
     {
       marker: 'dice',

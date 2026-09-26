@@ -21,8 +21,10 @@
 
 import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { hasCondition } from '../conditions.js';
+import type { Monster } from '@ie/srd';
 import type { Content } from '../content.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import type { CommandStamp } from '../state.js';
 import type { KeptBond } from '../state.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { addCombatant } from '../combat.js';
@@ -139,10 +141,36 @@ export function addCreature(
         return err('unknown_monster', `${monsterId} is not a stat block this world holds`);
       }
 
-      const adapted = adaptMonster(monster, id);
-      const { byDamageType, conditionImmunities, qualified } = adapted.defenses;
+      return ok(arrivalOf(id, monster, stamp, false));
+    },
+  );
+}
 
-      return ok({
+/**
+ * The arrival a stat block makes, with every number the adapter read pinned.
+ *
+ * The body {@link addCreature} has always had, in a function of its own so
+ * that a block a *spell* prints inside itself (SRD Unseen Servant, through
+ * `Summons.block`) takes the identical road: the same adapter, the same
+ * pinned sheet, the same withheld caveats. Not exported — the door a caller
+ * walks a whole stat block through is the one `addCreature` refuses to be,
+ * and a summons reaches here only with a block its definition printed.
+ *
+ * `untyped` is the one thing a printed sentence can leave out that a bestiary
+ * entry cannot: SRD Unseen Servant gives its force no creature type, and the
+ * absence is pinned as an absence rather than as a placeholder a type-gated
+ * spell would then believe.
+ */
+function arrivalOf(
+  id: CharacterId,
+  monster: Monster,
+  stamp: CommandStamp | null,
+  untyped: boolean,
+): AddCreatureOutcome {
+  const adapted = adaptMonster(monster, id);
+  const { byDamageType, conditionImmunities, qualified } = adapted.defenses;
+
+  return {
         events: [
           {
             type: 'creature-added',
@@ -151,7 +179,7 @@ export function addCreature(
             sheet: adapted.sheet,
             maxHp: adapted.vitals.hpMax,
             diesAtZero: adapted.vitals.diesAtZero,
-            creatureType: adapted.creatureType,
+            ...(untyped ? {} : { creatureType: adapted.creatureType }),
             defenses: byDamageType,
             // Pinned so that placing this creature is not a second reading of
             // a fact the book already answered, and so that nobody above the
@@ -186,7 +214,7 @@ export function addCreature(
             id,
             pool,
           })),
-        ],
+        ] satisfies GameEvent[],
         // **Withheld and reported, never applied.** "Charmed (except from its
         // vampire master)" as a flat immunity makes the vampire unable to
         // charm the one creature the entry exists to let it charm, which is
@@ -221,9 +249,7 @@ export function addCreature(
           ),
         ],
         duplicate: false,
-      });
-    },
-  );
+  };
 }
 
 /**
@@ -238,8 +264,24 @@ export function addCreature(
 export interface Summons {
   /** What to call the new creature. */
   readonly id: CharacterId;
-  /** Which stat block, by its id in content — exactly as {@link addCreature} takes one. */
+  /**
+   * Which stat block, by its id in content — exactly as {@link addCreature}
+   * takes one. With {@link block}, the key the arrival is filed under rather
+   * than an id content holds.
+   */
   readonly monsterId: string;
+  /**
+   * A stat block the **spell** printed, in place of one content holds.
+   *
+   * SRD Unseen Servant prints "AC 10, 1 Hit Point, and a Strength of 2" in a
+   * sentence, and the resolver builds the block from the definition's
+   * `inline` — so what arrives here is content's, read by a command, and not a
+   * value a caller produced: no door above the engine can put one here, for
+   * the reason `addCreature` takes an id. `untyped` says the sentence printed
+   * no creature type and the arrival pins none. Left out of the command's
+   * fingerprint, which the key carries for it.
+   */
+  readonly block?: { readonly monster: Monster; readonly untyped?: true };
   /** The summoner. */
   readonly by: CharacterId;
   /**
@@ -394,7 +436,7 @@ export function summonCreature(
   summons: Summons,
   command: CommandIdentity = {},
 ): Result<AddCreatureOutcome> {
-  const { id, monsterId, by, castingId, kept } = summons;
+  const { id, monsterId, by, castingId, kept, block, ...stated } = summons;
 
   // **Everything the caller stated, whole.** A retry that moved the placement
   // or changed the Initiative total is a *different* command, and
@@ -406,7 +448,10 @@ export function summonCreature(
   return once(
     state,
     `summon-creature:${id}`,
-    { ...command, ...summons },
+    // The block is left out and the key stands for it: a printed block is
+    // kilobytes of JSON in a fingerprint kept for as long as the game lasts,
+    // which is the reason `addCreature` takes an id.
+    { ...command, ...stated, id, monsterId, by, ...(castingId === undefined ? {} : { castingId }), ...(kept === undefined ? {} : { kept }) },
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
       const summoner = creatureOf(state, by);
@@ -444,7 +489,15 @@ export function summonCreature(
       // uncomputed. Unstamped on purpose: a summons is **one** command, and
       // the arrival minting an identity of its own would put two entries in
       // `appliedCommands` for one thing that happened.
-      const arrival = addCreature(state, content, id, monsterId);
+      // A block the spell printed takes the same road without opening the
+      // catalogue: there is no entry to look up, and the roster check is the
+      // one thing `addCreature` would have done first.
+      const arrival =
+        block === undefined
+          ? addCreature(state, content, id, monsterId)
+          : creatureOf(state, id) !== null
+            ? err('already_present', `${id} is already in this game`)
+            : ok(arrivalOf(id, block.monster, null, block.untyped === true));
       if (!arrival.ok) return arrival;
 
       // The one event this command always emits, so the stamp rides it rather

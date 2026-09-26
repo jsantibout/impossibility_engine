@@ -399,8 +399,14 @@ describe('the schema knows the three causes and still refuses what it cannot see
     endsEarly,
   }) as never;
 
-  it('accepts each of the three', () => {
-    for (const on of ['target-takes-damage', 'target-drops-to-0', 'summon-takes-damage']) {
+  it('accepts each of the four', () => {
+    for (const on of [
+      'target-takes-damage',
+      'target-drops-to-0',
+      'summon-takes-damage',
+      // SRD Unseen Servant's "If it drops to 0 Hit Points, the spell ends".
+      'summon-drops-to-0',
+    ]) {
       expect(checkSpellDefinition(lasting([{ on, ends: 'casting' }]))).toEqual([]);
     }
   });
