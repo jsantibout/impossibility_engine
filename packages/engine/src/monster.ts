@@ -2543,11 +2543,12 @@ function printedSucceedInsteadReaction(
  * twenty-four lines under that heading: one adds to a D20 Test (the Sphinx of
  * Wonder), seven add to an **Armour Class** against the attack that triggered
  * them (Parry), and one answers a hit by using another line of its own block
- * (Reflexive Antennae). Of the rest, three are sentences the parser reads as
- * *kinds* and nothing spends — the two Splits and the Goblin Boss's Redirect
- * Attack — and the others are each a different sentence, from an octopus's ink
- * to the Stone Giant's deflection. Those stay prose and stay on the ledger,
- * named there rather than argued about here.
+ * (Reflexive Antennae). The two Splits are a fifth, since W7-B12: a Reaction at
+ * `damaged-by-creature` whose response is two creatures of the holder's own
+ * block. Of the rest, the Goblin Boss's Redirect Attack is read as a *kind*
+ * nothing spends, and the others are each a different sentence, from an
+ * octopus's ink to the Stone Giant's deflection. Those stay prose and stay on
+ * the ledger, named there rather than argued about here.
  *
  * **And a fourth shape that is not printed under that heading at all** — SRD
  * Legendary Resistance, printed under **Traits**, which answers the

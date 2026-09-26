@@ -291,6 +291,32 @@ describe('the ledger measures the three populations of the roadmap', () => {
   });
 
   /**
+   * **A line that files one sentence and owes another is not read to the
+   * end** — W7-B12. SRD Corrosive Form files the hole an ooze eats and still
+   * owes the ammunition and the Mending, which is the first trait to do both;
+   * the list's own prose says such a line "is not here", and the predicate
+   * that decides it did not ask a trait's residue until a line came that had
+   * one beside a filing.
+   */
+  it('lists no line among those read to the end that still owes a sentence', () => {
+    const owes = new Set(
+      SRD_CONTENT.monsters.flatMap((monster) =>
+        statBlockLines(monster)
+          .filter(
+            (line) =>
+              ((line.trait as { readonly handedOver?: readonly string[] } | undefined)?.handedOver
+                ?.length ?? 0) > 0,
+          )
+          .map((line) => `${monster.name}/${line.name}`),
+      ),
+    );
+    expect(owes.has('Black Pudding/Corrosive Form')).toBe(true);
+    for (const one of ledger.monsters.filed) {
+      expect(owes.has(`${one.monster}/${one.line}`), `${one.monster}/${one.line}`).toBe(false);
+    }
+  });
+
+  /**
    * **Every handed-over line is accounted for exactly once**, by a shape or
    * by the residue, and the two together are the whole of it.
    *

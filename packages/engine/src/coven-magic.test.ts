@@ -17,7 +17,13 @@
 
 import { describe, expect, it } from 'vitest';
 import { SRD_CONTENT } from '@ie/content';
-import { asCharacterId, type CharacterId, isErr, expect as unwrap } from '@ie/shared';
+import {
+  asCharacterId,
+  type CharacterId,
+  isErr,
+  isNeedsContext,
+  expect as unwrap,
+} from '@ie/shared';
 import {
   addCreature,
   addSceneLandmark,
@@ -54,6 +60,7 @@ const supply = () => ({
 function coven(
   others: readonly (readonly [CharacterId, string, number, string])[],
   block = 'green-hag',
+  sided = true,
 ): GameState {
   let state = fold(SEED, []);
   const step = (events: readonly GameEvent[]): void => {
@@ -66,7 +73,7 @@ function coven(
   step(unwrap(setScene(state, { width: 400, depth: 400, height: 40 }), 'scene'));
   step(unwrap(addSceneLandmark(state, 'the hut', { x: 100, y: 100, z: 0 }), 'landmark'));
   step(unwrap(placeCreatureInScene(state, MOTHER, { from: { landmark: 'the hut' }, feet: 0 }), 'mother'));
-  step(unwrap(declareCreatureSide(state, MOTHER, 'coven'), 'side'));
+  if (sided) step(unwrap(declareCreatureSide(state, MOTHER, 'coven'), 'side'));
   others.forEach(([who, , feet, side], at) => {
     step(
       unwrap(
@@ -186,6 +193,12 @@ describe('SRD Coven Magic: the gate, the DC and the rest per spell', () => {
       'locate-object',
     );
     expect(isErr(rival) && rival.code).toBe('coven_too_small');
+  });
+
+  it('asks whose side the hag is on, where nobody has said, rather than counting no allies', () => {
+    const asked = cast(coven(WHOLE, 'green-hag', false), 'locate-object');
+    expect(isNeedsContext(asked)).toBe(true);
+    expect(isErr(asked) && asked.code).toBe('undeclared_side');
   });
 
   it('refuses a spell the menu does not print', () => {

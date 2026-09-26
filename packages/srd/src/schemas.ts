@@ -2438,9 +2438,9 @@ export type MonsterTreeStride = z.infer<typeof MonsterTreeStrideSchema>;
  * Class** against one attack (SRD Parry, SRD Riposte, the Mummy's Whirlwind of
  * Sand), and the other ten are ten different sentences — an ooze that splits,
  * an octopus's ink, a goblin redirecting a swing onto an ally, a rust monster
- * that eats the weapon that hit it. Every one of them wants a window or a rule
- * the engine does not have, so all nineteen stay prose and stay on the
- * ledger.
+ * that eats the weapon that hit it. Each wanted a window or a rule the engine
+ * did not have; the ooze's is read since W7-B12, as a trait kind the adapter
+ * compiles into a Reaction, and the rest stay prose and stay on the ledger.
  *
  * **The trigger's reach is part of the shape**, for {@link MonsterTraitSchema}'s
  * stated reason: a feet-less kind would give every holder whatever range the
