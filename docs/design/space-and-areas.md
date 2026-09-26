@@ -131,8 +131,14 @@ named Speed, provoking nothing where the line says so, spent by
 objects). **Two surcharges the glossary prints ride `wayOf`:** dragging a
 grappled creature costs one extra foot per foot unless it is Tiny or two sizes
 smaller (a trait may waive it), and a Prone creature crawls at the climb's
-multiplier. The engine does not yet carry the held creature along; that is
-the holds track's.
+multiplier. **A grappler's move carries what it holds**
+(`MoveCommand.carrying`): each held creature lands in a space adjacent to the
+destination — stated, or the single qualifying one taken unasked — as forced
+movement (no Opportunity Attack against the mover; a barrier stops the
+passenger where it stood and the mover's move stands), and a creature attached
+with `movesWithTarget` rides in the mover's space. A creature held *inside*
+the mover is not charged the drag. Not yet: a passenger's own route is not
+read, so Spike Growth cuts the mover and not what it carries.
 
 **The ground's vocabulary is three fields, not one rate.** `costPerFoot` is the
 rate, and where two patches overlap the dearer governs, as above. `damagePerFeet`

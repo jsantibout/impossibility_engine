@@ -2907,3 +2907,28 @@ Appended 2026-09-26, when the Fable budget ran out mid-wave:
   a stat block's save (Dwarven Resilience, Fey Ancestry, Brave never reach
   one) and no causer to a stat block's condition (the protection's immunity
   misses a Quasit's Scare). Briefed as W8-S24, after B10.
+
+Appended 2026-09-26, wave seven on Opus:
+
+- **Insides and holds** (W7-B10; parts 1–5 by the Fable builder, part 6 and
+  the review by Opus). A save whose failure puts the target inside (both
+  Engulfs, Ooze Cube's room and `roomInside`, the neighbour's pull-out as its
+  own door, `escape_from_inside`); what a hold says about the holder and the
+  held (Whelm's and the Rug's caps and shared damage, the Darkmantle attached
+  and moving with its target, the Stirge, the Mimic's harder escape, the
+  Allosaurus's follow-up, the Crocodile's line immunity); the Ettercap's Reel
+  gated on its web (`restrained-by-object`); the Roper's tentacle as an object
+  and its Multiattack with a use in it. **The carry**: `MoveCommand.carrying`,
+  passengers moved as forced movement, the drag waived for a creature held
+  inside. **A Multiattack that replaces an attack with a use**
+  (`printedUses`): the Wight, Lion, Pirate, Lamia, Gladiator, Salamander and
+  Shambling Mound at CR ≤ 5. Bestiary 51 → 45 lines, 193 → 199 clean blocks;
+  the session's handovers 3 → 1 (Life Drain through `take_printed_action`,
+  which B13 Part 4 makes refuse). Main re-ingested; indexes reproduced. Pins:
+  player 95 tools / 152545 bytes, DM 122 / 199694. **Handed over and still
+  counted:** suffocation (Smother, Crush, Whelm, the Cube), the Roper's
+  regrowth (needs a turn-boundary hook in `commands/turns.ts`). **Named
+  gaps:** a blow held open by a Reaction and landed through `settleDamage`
+  neither halves nor shares the Rug's damage; a passenger's own route is not
+  read; `lapsedGrapples` measures every grapple at 5 feet, so the Roper's
+  60-foot hold lapses until reeled. Two Opus reviews, every defect fixed.
