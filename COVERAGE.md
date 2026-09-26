@@ -683,7 +683,7 @@ is where a figure like that belongs.
 
 | Parsed | Transcribed | Instances | of which complete | of which partial |
 |---|---|---|---|---|
-| 258 | 86 | 247 | 190 | 57 |
+| 258 | 88 | 249 | 191 | 58 |
 
 An entry with **no** record is one whose whole text is beyond the grant
 vocabulary. `packages/content/src/items.ts` states the three rules that
@@ -700,7 +700,7 @@ inventing a column that nothing checks.
 
 | Category | Parsed | Transcribed | Instances | Complete | Partial |
 |---|---|---|---|---|---|
-| Armor | 19 | 10 | 55 | 48 | 7 |
+| Armor | 19 | 10 | 55 | 49 | 6 |
 | Potions | 24 | 11 | 14 | 9 | 5 |
 | Rings | 22 | 5 | 5 | 4 | 1 |
 | Rods | 7 | 1 | 1 | 0 | 1 |
@@ -708,7 +708,7 @@ inventing a column that nothing checks.
 | Staffs | 12 | 1 | 1 | 0 | 1 |
 | Wands | 13 | 8 | 8 | 1 | 7 |
 | Weapons | 33 | 15 | 128 | 115 | 13 |
-| Wondrous Items | 127 | 35 | 35 | 13 | 22 |
+| Wondrous Items | 127 | 37 | 37 | 13 | 24 |
 
 ### Entries transcribed
 
@@ -716,10 +716,11 @@ Each is one entry of "Magic Items A–Z", with the records it expands to and
 how many of those still carry a clause the engine does not say.
 
 - **Amulet of Health** (Wondrous Items) — 1 recorded, 1 partial
-- **Armor of Invulnerability** (Armor) — 1 recorded, 1 partial
+- **Armor of Invulnerability** (Armor) — 1 recorded, complete
 - **Armor, +1, +2, or +3** (Armor) — 36 recorded, complete
 - **Boots of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
 - **Boots of Levitation** (Wondrous Items) — 1 recorded, complete
+- **Boots of Speed** (Wondrous Items) — 1 recorded, 1 partial
 - **Boots of the Winterlands** (Wondrous Items) — 1 recorded, 1 partial
 - **Bracers of Defense** (Wondrous Items) — 1 recorded, complete
 - **Brooch of Shielding** (Wondrous Items) — 1 recorded, 1 partial
@@ -727,6 +728,7 @@ how many of those still carry a clause the engine does not say.
 - **Chime of Opening** (Wondrous Items) — 1 recorded, 1 partial
 - **Circlet of Blasting** (Wondrous Items) — 1 recorded, complete
 - **Cloak of Elvenkind** (Wondrous Items) — 1 recorded, 1 partial
+- **Cloak of Invisibility** (Wondrous Items) — 1 recorded, 1 partial
 - **Cloak of Protection** (Wondrous Items) — 1 recorded, complete
 - **Crystal Ball** (Wondrous Items) — 1 recorded, complete
 - **Crystal Ball of Mind Reading** (Wondrous Items) — 1 recorded, 1 partial
@@ -824,7 +826,7 @@ entry of "Magic Items A–Z" is in exactly one of them.
 
 | Parsed | Transcribed | Blocked | Ready | Fiction | Unread |
 |---|---|---|---|---|---|
-| 258 | 86 | 165 | 0 | 4 | 3 |
+| 258 | 88 | 163 | 0 | 4 | 3 |
 
 **Unread is the honest default**, not a backlog nobody got to. An entry
 whose blocker cannot be named from something this repository has already
@@ -873,8 +875,8 @@ the next tranche makes false.
 | `a-stat-block-created-mid-fight` | 17 | 0 | 4 |
 | `a-version-of-an-item-the-book-leaves-to-the-gm` | 28 | 0 | 3 |
 | `an-object-with-statistics-of-its-own` | 18 | 0 | 3 |
-| `a-benefit-an-item-switches-on-and-off` | 14 | 0 | 3 |
 | `a-fact-only-the-table-can-declare` | 12 | 0 | 3 |
+| `a-benefit-an-item-switches-on-and-off` | 12 | 0 | 2 |
 | `an-item-instance-with-a-state-of-its-own` | 12 | 0 | 2 |
 | `a-speed-an-item-grants` | 11 | 0 | 2 |
 | `a-reaction-an-item-grants` | 8 | 0 | 2 |
@@ -910,7 +912,6 @@ the next tranche makes false.
 | `a-selector-for-every-d20-test` | 2 | 0 | 0 |
 | `an-action-a-spell-compels-or-forbids` | 2 | 0 | 0 |
 | `difficult-terrain-an-area-creates` | 2 | 0 | 0 |
-| `a-deadline-anchored-to-a-rest` | 1 | 0 | 0 |
 | `a-hit-point-maximum-a-spell-moves` | 1 | 0 | 0 |
 | `an-automatic-success-by-creature-type` | 1 | 0 | 0 |
 | `an-effect-that-suppresses-other-magic` | 1 | 0 | 0 |

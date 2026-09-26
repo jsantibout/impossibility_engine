@@ -3032,3 +3032,17 @@ Appended 2026-09-26, wave seven on Opus:
   glyph's inscription (named in SLOW's `unmodelled`); Silence's
   `noVerbalComponent` is still declared, not derived. Main re-indexed.
   One Opus review, five defects, fixed.
+- **Treasure T-B3: until it comes off.** Two conferral endings beside the
+  four deeds (`CONFERRAL_END_CAUSES`: `source-item-removed`, read off
+  `item-unequipped` and matched to the timer's source; `target-drops-to-0`),
+  ending a `grants` timer as well as a condition one through `releaseGrants`;
+  `not_the_wearer` refuses using a worn item's conferral on anybody else,
+  before anything is spent. Armor of Invulnerability's Metal Shell (complete),
+  the Cloak of Invisibility and Boots of Speed (new, partial), the Potion of
+  Gaseous Form ending at 0 Hit Points. Magic items transcribed 86 → 88,
+  blocked 165 → 163. **Left:** `EffectEndCause` was widened rather than split
+  (the event is `events.ts`'s), so only the validators keep the new causes off
+  spells and features; three comments still count "four" causes
+  (`spell-definitions.ts` ≈6605 and ≈6630, `commands/unarmed.ts` ≈660); the
+  same hand-it-to-someone-else gap `not_the_wearer` closed for the cloak still
+  stands for Periapt of Health and Winged Boots. Opus review: PASS, one nit.
