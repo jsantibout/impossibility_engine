@@ -1823,26 +1823,62 @@ function itemCastsProblems(
   // would otherwise be the same record; a grant that names both is refused,
   // because an item prices its casting once.
   const atWill = grant.atWill === true;
-  if (atWill && grant.charges !== undefined) {
+  // **Or the item itself is the price**: SRD Potion of Animal Friendship's
+  // "When you drink this potion, you can cast ...", under "Once used, a potion
+  // ... is used up." A third answer, and like the other two it is given once —
+  // a bottle that also cost charges, or was also free, is two prices.
+  const usedUp: unknown = grant.usedUp;
+  if (usedUp !== undefined) {
+    const record =
+      usedUp !== null && typeof usedUp === 'object' && !Array.isArray(usedUp)
+        ? (usedUp as Record<string, unknown>)
+        : null;
+    const action = record?.['action'];
+    if (
+      record === null ||
+      Object.keys(record).some((key) => key !== 'action') ||
+      (action !== undefined && action !== 'action' && action !== 'bonus-action')
+    ) {
+      say(
+        'bad_used_up',
+        `${item.id} is used up by casting ${String(grant.spell)}, and says so with an object naming at most the action the use costs beside the casting ("bonus-action" for a potion drunk), not ${JSON.stringify(usedUp)}`,
+        `${at}.usedUp`,
+      );
+    }
+    if (grant.charges !== undefined || atWill || grant.upToCharges !== undefined) {
+      say(
+        'used_up_and_a_price',
+        `${item.id} is used up by casting ${String(grant.spell)} and also prices it in charges or at will, and an item's line prices a casting once`,
+        `${at}.usedUp`,
+      );
+    }
+  }
+  // Priced by the bottle, a used-up casting has answered the question the
+  // three rules below ask of the other two prices.
+  if (usedUp === undefined && atWill && grant.charges !== undefined) {
     say(
       'at_will_and_a_price',
       `${item.id} casts ${String(grant.spell)} at will and for ${String(grant.charges)} charges, and an item's line prices a casting once`,
       `${at}.atWill`,
     );
-  } else if (!atWill && grant.charges === undefined) {
+  } else if (usedUp === undefined && !atWill && grant.charges === undefined) {
     say(
       'casts_for_no_price',
       `${item.id} casts ${String(grant.spell)} and says neither what it costs nor that the book charges nothing for it; an item whose line prints no limit says so with "atWill"`,
       `${at}.charges`,
     );
-  } else if (!atWill && (!Number.isInteger(grant.charges) || (grant.charges ?? 0) < 1)) {
+  } else if (
+    usedUp === undefined &&
+    !atWill &&
+    (!Number.isInteger(grant.charges) || (grant.charges ?? 0) < 1)
+  ) {
     say(
       'bad_charge_cost',
       `the SRD prints what a casting from an item costs on the item's own line, and ${item.id} names ${String(grant.charges)}`,
       `${at}.charges`,
     );
   }
-  if (grant.upToCharges !== undefined) {
+  if (grant.upToCharges !== undefined && usedUp === undefined) {
     if (atWill) {
       say(
         'at_will_and_a_charge_range',
@@ -1917,7 +1953,7 @@ function itemCastsProblems(
   // **Asked only of a casting that has a price.** An at-will casting spends
   // nothing, so there is nothing for a pool to be behind, and requiring one
   // would put a limit on the page that the page does not print.
-  if (!atWill && itemChargePool(item) === null) {
+  if (!atWill && usedUp === undefined && itemChargePool(item) === null) {
     say(
       'casts_without_charges',
       `${item.id} casts ${String(grant.spell)} for charges and declares no charge pool for them to come out of`,

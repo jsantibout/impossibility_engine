@@ -16,7 +16,7 @@
  *
  * | Grant | Reached when |
  * |---|---|
- * | `casts` | handed over with `award_items`, put on with `equip_item`, attuned where the bracket asks, and cast with `cast_spell.item` — the casting the log records is the **item's route** |
+ * | `casts` | handed over with `award_items`, put on with `equip_item` (unless it is used up by the casting — a potion is drunk out of the pack), attuned where the bracket asks, and cast with `cast_spell.item` — the casting the log records is the **item's route** |
  * | `confers` | handed over (and, where it is spent rather than used up, put on and attuned), then used with `use_item` — the use comes back `ok` and lands on the creature it was aimed at |
  * | `standing` | handed over, put on and attuned where the bracket asks, and `sheet` shows it worn and attuned — which is what the benefit is derived from on every read |
  *
@@ -45,6 +45,7 @@ interface Grant {
   readonly spell?: string;
   readonly reach?: number;
   readonly charges?: number;
+  readonly usedUp?: object;
 }
 
 const grantsOf = (item: { readonly grants?: readonly unknown[] }): readonly Grant[] =>
@@ -532,7 +533,13 @@ function castingVerdict(itemId: string, spellId: string): Verdict {
       outcome = reactionCasting(itemId, spellId);
     } else {
       const t = scene(`reach:${key}`, itemId);
-      holding(t, itemId);
+      // A casting that uses the item up is drunk out of the pack, which is the
+      // fork `conferralVerdict` takes for a bottle; everything else is held.
+      const casts = grantsOf(SRD_CONTENT.item(itemId)!).find(
+        (grant) => grant.kind === 'casts' && grant.spell === spellId,
+      );
+      if (casts?.usedUp !== undefined) award(t, itemId);
+      else holding(t, itemId);
       STATED[spellId]?.setup?.(t);
       outcome = t.call('cast_spell', {
         caster: WIELDER,

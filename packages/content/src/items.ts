@@ -3636,6 +3636,38 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
 const POTIONS: readonly CatalogueItem[] = [
   {
     /**
+     * SRD Potion of Animal Friendship: "_Potion, Uncommon._ When you drink
+     * this potion, you can cast the level 3 version of the _Animal
+     * Friendship_ spell (save DC 13)."
+     *
+     * **The one potion that casts rather than confers**, and the sentence says
+     * which: "you can cast", where the others say "you gain the effect of". So
+     * it is a `casts` grant on the item's route — Animal Friendship's own
+     * Action, range, sight and Beast, at level 3 and against the bottle's 13 —
+     * whose price is the bottle (`usedUp`) rather than a charge, drunk out of
+     * the pack. The drinking is the Bonus Action the Potions rule prints, spent
+     * beside the casting's Action and not instead of it.
+     */
+    id: 'potion-of-animal-friendship',
+    name: 'Potion of Animal Friendship',
+    kind: 'potion',
+    weightLb: 0.5,
+    costCp: null,
+    armor: null,
+    weapon: null,
+    contents: [],
+    grants: [
+      {
+        kind: 'casts',
+        spell: 'animal-friendship',
+        usedUp: { action: 'bonus-action' },
+        level: 3,
+        saveDc: 13,
+      },
+    ],
+  },
+  {
+    /**
      * SRD Potion of Healing, printed in the equipment table as well as the
      * magic-item chapter: "As a Bonus Action, you can drink it or administer
      * it to another creature within 5 feet of yourself. The creature that

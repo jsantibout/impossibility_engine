@@ -2844,6 +2844,33 @@ export type FeatureGrant =
        */
       readonly atWill?: true;
       /**
+       * That the casting **uses the item up**, and that it is cast from the
+       * pack rather than from the hand.
+       *
+       * SRD Potion of Animal Friendship: "When you drink this potion, you can
+       * cast the level 3 version of the _Animal Friendship_ spell (save DC
+       * 13)", under the Potions rule: "Drinking a potion or administering it
+       * to another creature requires a Bonus Action. Once used, a potion takes
+       * effect immediately, and it is used up." So the price is the bottle —
+       * one copy off the inventory in the casting's own batch, where a wand's
+       * charge would go — and there is no pool and no charge. A bottle is not
+       * held ("consumed rather than worn"), so the route looks for it among
+       * what is carried, and refuses one that is worn or wielded.
+       *
+       * {@link action} is what the use costs **beside** the casting's own
+       * time, because the SRD prints both: the spell "uses its normal casting
+       * time", and the drinking is a Bonus Action of its own. Spent only in
+       * combat, where the action economy exists. Absent for a use that costs
+       * nothing beyond the casting.
+       *
+       * The third answer to "what does this casting cost", beside
+       * {@link charges} and {@link atWill}; `checkContent` refuses any two.
+       */
+      readonly usedUp?: {
+        /** SRD Potions: "Drinking a potion ... requires a Bonus Action." */
+        readonly action?: 'action' | 'bonus-action';
+      };
+      /**
        * The most this casting may spend, where the item lets the user choose.
        *
        * SRD Wand of Fireballs: "you can expend no more than 3 charges to cast

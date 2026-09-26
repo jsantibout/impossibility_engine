@@ -5123,10 +5123,6 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'a-fact-only-the-table-can-declare',
   ],
   'portable-hole': ['a-container-with-a-space-of-its-own'],
-  'potion-of-animal-friendship': {
-    unread:
-      'read, and since the wand door the record is sayable and still unreachable, which is a blocker nobody can name without inventing a shape. "you can cast the level 3 version of the _Animal Friendship_ spell (save DC 13)" is a **consumable whose one use is a casting**: `countedUses` with one use and a pool whose `onLastCharge` is `{ destroyed: \'always\' }` spends the flask with its casting, and `checkContent` accepts the spell, DC and level the line prints. What stops it is the route. packages/engine/src/commands/item-casting.ts casts from an item only where it is in `creature.equipped` — the refusal says it "is used while holding it" — and `EQUIPPABLE` in packages/engine/src/commands/inventory.ts leaves a potion out because it is "consumed rather than worn". So every use of the record would be refused, which is rule 1 of packages/content/src/items.ts, and what the potion waits on is a casting route that reaches a potion in the pack, as `useItem` already drinks one: an engine decision rather than a note.',
-  },
   'potion-of-clairvoyance': [
     {
       clause: 'you gain the effect of the _Clairvoyance_ spell (no Concentration required)',
