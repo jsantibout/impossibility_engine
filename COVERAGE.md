@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 29 | 158 (46.6%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 28 | 158 (46.6%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -118,7 +118,7 @@ a plain statement of what the table decides.
 - **Fly** (level 3) — untested
 - **Fog Cloud** (level 1) — verified
 - **Freezing Sphere** (level 6) — untested, partial — a clause the engine owns is still unbuilt
-- **Gaseous Form** (level 3) — verified, partial — a clause the engine owns is still unbuilt
+- **Gaseous Form** (level 3) — verified
 - **Gentle Repose** (level 2) — verified
 - **Glyph of Warding** (level 3) — verified
 - **Goodberry** (level 1) — verified
@@ -485,7 +485,6 @@ of *Tracked* and is never added to it.
 | `a-rider-on-a-later-weapon-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-spell-that-answers-a-later-attack` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `a-turn-a-spell-inserts-into-the-order` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
-| `an-action-the-engine-has-no-spender-for` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-area-that-filters-its-catch` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `an-area-trigger-measured-from-a-point` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |

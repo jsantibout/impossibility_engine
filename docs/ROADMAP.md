@@ -2972,3 +2972,19 @@ Appended 2026-09-26, wave seven on Opus:
   Speed beside a Haste mints two extra actions (Combining Magical Effects is
   not expressed between a spell and an item that confers it). One Opus review,
   one defect, fixed.
+- **A body that keeps its name, and a cloud that cannot speak** (W8-S23).
+  Animate Dead on a player character's corpse keeps the record under its own
+  id, dead and off the map (`settleDeparture` factored out of
+  `removeCreatureEverywhere`; `creature-summoned.raisedFrom`,
+  `CreatureState.raisedFrom`, `walkerOf`); a walking body refuses revival and
+  a second rite `body_walks`, and Gentle Repose's "can't become Undead" is
+  read (`cannot_become_undead`); when the Zombie falls, the body lies where
+  it fell (`layBodiesWhereWalkersFell` in `fold/scene.ts`) and a revival
+  within its window restores the character whole. The widening to every
+  corpse is one predicate, `keepsItsRecord` in `spell-effect-summon.ts`.
+  Gaseous Form's talking sentence is handed over whole, the no-Verbal
+  consequence stated in the catalogue; `an-action-the-engine-has-no-spender-for`
+  retired with its only claimant. Spells in reach 4 → 3. **Left:** Gaseous
+  Form's occupancy clause sits in `unmodelled` without an adjudication, so
+  "partial" (computed from `ADJUDICATED`) does not see it — an older gap this
+  made visible. One Opus review, three defects, fixed.

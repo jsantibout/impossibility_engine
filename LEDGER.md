@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 4 spells | 4 | 0 | 0 | 33 |
+| Spells in reach, not executed | 3 spells | 3 | 0 | 0 | 33 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -71,7 +71,6 @@ exactly the silently-missing entry this report’s header refuses.
 |---|---|---|
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
-| `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `senses-beyond-declared-sight` | 1 | 1 |
 
 **Blocks** is every spell of this population the shape touches;
@@ -86,10 +85,6 @@ sums to the population.
 #### `a-mode-on-the-save-a-spell-forces` — blocks 1, finishes 1
 
 - **Protection from Evil and Good** (level 1) — executed-partial
-
-#### `an-action-the-engine-has-no-spender-for` — blocks 1, finishes 1
-
-- **Gaseous Form** (level 3) — executed-partial
 
 #### `senses-beyond-declared-sight` — blocks 1, finishes 1
 
