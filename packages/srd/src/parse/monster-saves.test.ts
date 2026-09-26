@@ -399,12 +399,14 @@ describe('the clauses a failure prints besides the damage', () => {
           // round away from the creature that pays.
           onTurnOf: 'source',
         },
+        // The two sentences that were handed over until W7-B10: the cap on
+        // what the hold may have at once, and the neighbour's pull.
+        capacity: { large: 1, mediumOrSmaller: 2 },
+        pullOutBy: { within: 5, ability: 'str', skill: 'athletics', dc: 14 },
       },
     ]);
     expect(whelm?.handedOver).toEqual([
       'Until the grapple ends, the target is suffocating unless it can breathe water.',
-      'The elemental can grapple one Large creature or up to two Medium or smaller creatures at a time with Whelm.',
-      'As an action, a creature within 5 feet of the elemental can pull a creature out of it by succeeding on a DC 14 Strength (Athletics) check.',
     ]);
   });
 

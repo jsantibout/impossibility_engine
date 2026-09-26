@@ -49,7 +49,7 @@ import {
   type ParseProblem,
 } from '../schemas.js';
 import { ABILITY_OVERRIDES } from './overrides.js';
-import { parsePrintedSave, parseRiderSave } from './printed-save.js';
+import { parsePrintedSave, parseRiderSave, readPullOut } from './printed-save.js';
 /**
  * The spell list, for one job: turning a printed spell **name** into the id
  * the rest of the system knows that spell by.
@@ -1048,6 +1048,28 @@ const ABDUCT = new RegExp(
 );
 
 /**
+ * SRD Ooze Cube, on the Gelatinous Cube — W7-B10: "The cube fills its entire
+ * space and is transparent. Other creatures can enter that space, but a
+ * creature that does so is subjected to the cube's Engulf and has Disadvantage
+ * on the saving throw. Creatures inside the cube have Total Cover, and the
+ * cube can hold one Large creature or up to four Medium or Small creatures
+ * inside itself at a time. As an action, a creature within 5 feet of the cube
+ * can pull a creature or an object out of the cube by succeeding on a DC 12
+ * Strength (Athletics) check, and the puller takes 10 (3d6) Acid damage."
+ *
+ * Four sentences and one shape: the line an entrant is subjected to, the two
+ * counts the hold has room for, and the neighbour's pull — which is the same
+ * sentence SRD Water Elemental's Whelm prints on a line, read by the same
+ * reader. The Total Cover is what `inside` already means. The noun is
+ * back-referenced so the four sentences are about one creature, and the
+ * whole is anchored so a block that said one more thing stays prose.
+ */
+const OOZE_CUBE = new RegExp(
+  `^The ([a-z' -]+) fills its entire space and is transparent\\. Other creatures can enter that space, but a creature that does so is subjected to the \\1['’]s ([A-Z][A-Za-z' -]+?) and has Disadvantage on the saving throw\\. Creatures inside the \\1 have Total Cover, and the \\1 can hold (one|two|three|four) Large creatures? or up to (one|two|three|four|five|six) Medium or Small creatures inside itself at a time\\. (As an action, .+\\.)$`,
+);
+const COUNT_WORD: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+
+/**
  * The sentences the parser reads so that the **table** gets them, and that no
  * rule will ever consult.
  *
@@ -1629,6 +1651,20 @@ export function parseTraitShape(text: string): MonsterTrait | null {
   // cost a drag does not charge.
   if (JUMPER.test(text)) return { kind: 'jumps-by-dexterity' };
   if (ABDUCT.test(text)) return { kind: 'drags-for-free' };
+  // What a creature holds inside itself, and the neighbour's pull — W7-B10.
+  const oozeCube = OOZE_CUBE.exec(oneLine(text));
+  if (oozeCube !== null) {
+    const pullOutBy = readPullOut(oozeCube[5]!);
+    // A pull this cannot read leaves the heading prose: the capacity without
+    // the way out would be a hold nothing but the cube's death opens.
+    if (pullOutBy === null) return null;
+    return {
+      kind: 'holds-creatures-inside',
+      capacity: { large: COUNT_WORD[oozeCube[3]!]!, mediumOrSmaller: COUNT_WORD[oozeCube[4]!]! },
+      pullOutBy,
+      entrantsSubjectedTo: { line: oozeCube[2]!, disadvantage: true },
+    };
+  }
 
   // Last, because every sentence above states a mechanic and these state
   // none: a handover that matched first would be a rule read as fiction.

@@ -534,6 +534,57 @@ export const PrintedSavePayoutSchema = z.object({
 });
 export type PrintedSavePayout = z.infer<typeof PrintedSavePayoutSchema>;
 
+/**
+ * How many creatures a hold may have at once — W7-B10.
+ *
+ * SRD Shambling Mound's Engulf: "can have only one creature Grappled by this
+ * action at a time." SRD Water Elemental's Whelm: "can grapple one Large
+ * creature or up to two Medium or smaller creatures at a time." SRD Ooze Cube:
+ * "can hold one Large creature or up to four Medium or Small creatures inside
+ * itself at a time." SRD Animated Rug: "can smother only one creature at a
+ * time."
+ *
+ * Two shapes because the book writes two: a bare count, and a count that
+ * depends on the size of what is held — where one Large creature fills what
+ * would otherwise hold several smaller ones, so a Large newcomer needs the
+ * hold empty and a smaller one needs no Large creature already in it.
+ */
+export const PrintedHoldCapacitySchema = z.union([
+  z.object({ creatures: z.number().int().min(1) }),
+  z.object({
+    /** "one Large creature": how many Large creatures fill the hold alone. */
+    large: z.number().int().min(1),
+    /** "up to four Medium or Small creatures": how many smaller ones it holds instead. */
+    mediumOrSmaller: z.number().int().min(1),
+  }),
+]);
+export type PrintedHoldCapacity = z.infer<typeof PrintedHoldCapacitySchema>;
+
+/**
+ * A neighbour's action that frees a creature from a hold — W7-B10.
+ *
+ * SRD Water Elemental's Whelm: "As an action, a creature within 5 feet of the
+ * elemental can pull a creature out of it by succeeding on a DC 14 Strength
+ * (Athletics) check." SRD Ooze Cube prints the same sentence at DC 12 with a
+ * price: "and the puller takes 10 (3d6) Acid damage."
+ *
+ * The check is written down whole rather than assumed to be the escape's,
+ * because it is a different creature's roll: the book happens to print the
+ * same DC on both in every block that prints this, and the executor reads
+ * that equality rather than this schema asserting it.
+ */
+export const PrintedPullOutSchema = z.object({
+  /** "a creature within 5 feet of the elemental". */
+  within: z.number().int().min(5),
+  ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+  /** The skill the parenthesis names — SRD's "(Athletics)". */
+  skill: z.string().min(1),
+  dc: z.number().int().min(1),
+  /** What the pull costs the puller, where the line prints a price — the cube's acid. */
+  damage: MonsterDamageSchema.optional(),
+});
+export type PrintedPullOut = z.infer<typeof PrintedPullOutSchema>;
+
 const PRINTED_SAVE_CLAUSES = [
   z.object({
     kind: z.literal('condition'),
@@ -541,6 +592,21 @@ const PRINTED_SAVE_CLAUSES = [
     lasts: PrintedSpanSchema.optional(),
     escapeDc: z.number().int().min(1).optional(),
     ifNoLargerThan: CreatureSizeSchema.optional(),
+    /**
+     * SRD Shambling Mound's Engulf: "The target is pulled into the shambling
+     * mound's space and has the Grappled condition (escape DC 14)." — W7-B10.
+     *
+     * The hold puts its target **inside** the creature that made it: the
+     * second place the lattice has a word for (`inside`), so the target has no
+     * position, moves with the mound as the record does, and comes out where a
+     * return names once the grapple ends. Only onto a grapple, for
+     * {@link payout}'s reason: the sentence says "until the grapple ends".
+     */
+    inside: z.literal(true).optional(),
+    /** How many creatures the hold this clause makes may have at once — see {@link PrintedHoldCapacitySchema}. */
+    capacity: PrintedHoldCapacitySchema.optional(),
+    /** The neighbour's action that frees the held creature — see {@link PrintedPullOutSchema}. */
+    pullOutBy: PrintedPullOutSchema.optional(),
     /**
      * What the **hold** this clause makes costs at a turn boundary.
      *
@@ -1065,6 +1131,61 @@ const PRINTED_SAVE_CLAUSES = [
       dc: z.number().int().min(1),
     }),
   }),
+  /**
+   * SRD Gelatinous Cube's Engulf: "_Failure:_ 10 (3d6) Acid damage, and the
+   * target is engulfed. An engulfed target is suffocating, can't cast spells
+   * with a Verbal component, has the Restrained condition, and takes 10 (3d6)
+   * Acid damage at the start of each of the cube's turns. When the cube
+   * moves, the engulfed target moves with it. An engulfed target can try to
+   * escape by taking an action to make a DC 12 Strength (Athletics) check. On
+   * a successful check, the target escapes and enters the nearest unoccupied
+   * space." — W7-B10.
+   *
+   * **A failure that puts the target inside the creature that forced it**,
+   * which is the second place the lattice has a word for and the Giant Frog's
+   * Swallow is executed on: no position, caught by nothing, reaching only the
+   * host, moving with it because the record does. What this clause adds to
+   * that record is what the line prints beside it — the conditions hung
+   * while inside, the damage at the host's boundary, and the escape the
+   * target's own action buys. The suffocation is a handover kind and is
+   * carried; the room the cube has is the Ooze Cube trait's
+   * (`holds-creatures-inside`), read by the door that moves the cube.
+   */
+  z.object({
+    kind: z.literal('engulfs'),
+    /** "has the Restrained condition" — hung under the record and lifted by the way out. */
+    whileInside: z.array(PrintedConditionSchema).min(1).optional(),
+    /** "can't cast spells with a Verbal component" — SRD Silence's standing, on the record. */
+    noVerbalCasting: z.literal(true).optional(),
+    /** "takes 10 (3d6) Acid damage at the start of each of the cube's turns". */
+    payout: PrintedSavePayoutSchema.optional(),
+    /** "an action to make a DC 12 Strength (Athletics) check" — the target's own way out. */
+    escape: z
+      .object({
+        ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
+        skill: z.string().min(1),
+        dc: z.number().int().min(1),
+      })
+      .optional(),
+  }),
+  /**
+   * SRD Gelatinous Cube's Engulf: "_Success:_ Half damage, and the target
+   * moves to an unoccupied space within 5 feet of the cube. If there is no
+   * unoccupied space, the target fails the save instead." — W7-B10.
+   *
+   * **A success that relocates the target**, to a space the caller states or
+   * the one that qualifies; and the book's own second sentence, which turns
+   * the success back into a failure where the room is full. The executor
+   * settles that before anything is rolled for the success, because the
+   * failure's damage is not the success's half.
+   */
+  z.object({
+    kind: z.literal('steps-clear'),
+    /** "an unoccupied space within 5 feet of the cube". */
+    within: z.number().int().min(5),
+    /** "If there is no unoccupied space, the target fails the save instead." */
+    otherwiseFails: z.literal(true).optional(),
+  }),
 ] as const;
 
 const PrintedSaveClauseSchema = z.discriminatedUnion('kind', PRINTED_SAVE_CLAUSES);
@@ -1228,6 +1349,14 @@ export const MonsterPrintedMoveSchema = z.discriminatedUnion('kind', [
     noOpportunityAttacks: z.literal(true),
     /** "can move through the spaces of Medium or smaller creatures". */
     throughSpacesOf: CreatureSizeSchema,
+    /**
+     * SRD Gelatinous Cube's Engulf: "can move through the spaces of Large or
+     * smaller creatures **if it has room inside itself to contain them**" —
+     * W7-B10. The room is the block's `holds-creatures-inside` trait, and the
+     * door that moves the creature refuses a walk through more creatures than
+     * it has room for.
+     */
+    ifRoomInside: z.literal(true).optional(),
   }),
 ]);
 export type MonsterPrintedMove = z.infer<typeof MonsterPrintedMoveSchema>;
@@ -2898,6 +3027,36 @@ const MonsterTraitMechanicSchema = z.discriminatedUnion('kind', [
      * trait waiving a cost nobody paid would be a sentence read for nothing.
      */
     kind: z.literal('drags-for-free'),
+  }),
+  z.object({
+    /**
+     * SRD Ooze Cube, on the Gelatinous Cube: "The cube fills its entire space
+     * and is transparent. Other creatures can enter that space, but a
+     * creature that does so is subjected to the cube's Engulf and has
+     * Disadvantage on the saving throw. Creatures inside the cube have Total
+     * Cover, and the cube can hold one Large creature or up to four Medium or
+     * Small creatures inside itself at a time. As an action, a creature
+     * within 5 feet of the cube can pull a creature or an object out of the
+     * cube by succeeding on a DC 12 Strength (Athletics) check, and the
+     * puller takes 10 (3d6) Acid damage." — W7-B10.
+     *
+     * **What a creature holds inside itself, and how a neighbour gets
+     * somebody out.** The capacity is read by the door that moves the cube
+     * through other creatures' spaces and by the clause that engulfs; the pull
+     * is pinned onto the engulfed creature's record so the neighbour's action
+     * opens no book. The Total Cover is what `inside` already means — a
+     * creature with no position is reached by nothing — and the first
+     * sentence names the line an entrant is subjected to, which is carried
+     * as a fact rather than enforced: nothing here lets a creature willingly
+     * end a move in another creature's space.
+     */
+    kind: z.literal('holds-creatures-inside'),
+    capacity: PrintedHoldCapacitySchema,
+    pullOutBy: PrintedPullOutSchema.optional(),
+    /** "is subjected to the cube's Engulf and has Disadvantage on the saving throw". */
+    entrantsSubjectedTo: z
+      .object({ line: z.string().min(1), disadvantage: z.literal(true) })
+      .optional(),
   }),
 ]);
 

@@ -186,13 +186,15 @@ describe('parseTraitShape', () => {
 
   it('is null for a trait whose sentence nothing reads', () => {
     // A trait with a mechanic somebody has matched is `monster-traits.test.ts`'s
-    // subject; this is the other half. The Gelatinous Cube's Ooze Cube is one
-    // of the many the reader still says nothing about — a creature inside
-    // another creature, with Total Cover there and a check to pull it out — and
-    // it stays prose because it states a mechanic rather than a fact about the
-    // world. The Giant Spider's Web Walker used to stand here and is now read
-    // and handed over; see `HANDOVER_TRAIT_KINDS` for why the two differ.
-    expect(parseTraitShape(trait('gelatinous-cube', 'Ooze Cube').text)).toBeNull();
+    // subject; this is the other half. The Night Hag's Soul Bag is one of the
+    // many the reader still says nothing about — an object with an Armour
+    // Class that gates an action — and it stays prose because it states a
+    // mechanic rather than a fact about the world. The Giant Spider's Web
+    // Walker used to stand here and is now read and handed over; the
+    // Gelatinous Cube's Ooze Cube stood here after it and is read since
+    // W7-B10 (`holds-creatures-inside`). See `HANDOVER_TRAIT_KINDS` for why
+    // the read-and-handed-over differ from the read.
+    expect(parseTraitShape(trait('night-hag', 'Soul Bag').text)).toBeNull();
   });
 });
 
@@ -1177,7 +1179,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And the Night Hag's Soul Bag with it — W7-B11: an object the block
       // arrives holding, with the three statistics the line prints, and the two
       // sentences about souls and seven days on the trait's own `handedOver`.
-      traits: { printed: 337, read: 278 },
+      // And one more with the Gelatinous Cube's Ooze Cube — W7-B10: the room a
+      // creature has inside itself and the neighbour's pull, read the day the
+      // save reader learned an engulf.
+      traits: { printed: 337, read: 279 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read
@@ -1232,7 +1237,11 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And one more with a save a **move** precedes — W7-B9: the Bulette's
       // Deadly Leap, whose prelude is a jump into other creatures' spaces and
       // whose success is half damage *and* a push, both read.
-      actions: { printed: 811, read: 770 },
+      // And two more with a failure that puts the target **inside** — W7-B10:
+      // the Gelatinous Cube's Engulf (a walk through other creatures' spaces,
+      // then an engulf with its escape) and the Shambling Mound's (a grapple
+      // that pulls its target into the mound's space, capped at one).
+      actions: { printed: 811, read: 772 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
