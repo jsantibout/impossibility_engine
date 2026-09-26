@@ -5925,6 +5925,49 @@ export function checkSpellDefinition(
     }
   }
 
+  /*
+   * SRD Thaumaturgy's "**you** have Advantage": the caster and nobody else,
+   * held to the two things that sentence can mean.
+   *
+   * `self: true` is what admits the caster to the spell's own target list at
+   * all — `namedTargets` refuses a caster who is not admitted, so a
+   * `casterOnly` without it would refuse *every* target and the spell would be
+   * uncastable. And one is the only count "you and nobody else" can have: a
+   * second target would have to be somebody else, which the clause forbids.
+   */
+  if (definition.targets.casterOnly === true) {
+    if (definition.targets.self !== true) {
+      found.push({
+        field: 'targets.casterOnly',
+        code: 'caster_only_without_self',
+        reason:
+          '`casterOnly` names the caster as the one legal target, so the spell must admit the caster: write `self: true` beside it, or the casting refuses everybody',
+      });
+    }
+    if (definition.targets.count !== 1) {
+      found.push({
+        field: 'targets.count',
+        code: 'caster_only_count',
+        reason: `"you and nobody else" is one target; \`casterOnly\` with a count of ${definition.targets.count} promises a creature the clause forbids`,
+      });
+    }
+    if (definition.targets.notTheCaster === true) {
+      found.push({
+        field: 'targets.casterOnly',
+        code: 'caster_only_and_not_the_caster',
+        reason:
+          '`casterOnly` and `notTheCaster` are the two halves of one family and are the opposite sentences; a spell that says both reaches nobody',
+      });
+    }
+    if (definition.targets.unlimited === true) {
+      found.push({
+        field: 'targets.casterOnly',
+        code: 'caster_only_unlimited',
+        reason: '"each creature of your choice" and "you and nobody else" are different sentences',
+      });
+    }
+  }
+
   const mustBeType = definition.targets.mustBeType;
   if (mustBeType !== undefined && !CREATURE_TYPES.includes(mustBeType as string)) {
     found.push({

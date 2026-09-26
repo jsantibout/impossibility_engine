@@ -2363,6 +2363,17 @@ export function namedTargets(
       return err('cannot_target_self', `${definition.name} is not cast on yourself`);
     }
 
+    // SRD Thaumaturgy's Booming Voice: "**you** have Advantage on Charisma
+    // (Intimidation) checks." `cannot_target_self` above is this refusal's
+    // mirror, and the pair is the whole of what `casterOnly` says: the caster
+    // is admitted and nobody else is.
+    if (definition.targets.casterOnly === true && target !== casterId) {
+      return err(
+        'not_the_caster',
+        `${definition.name} is cast on yourself and nobody else; ${target} is not ${casterId}`,
+      );
+    }
+
     // A type the spell demands is checked; a type nobody has stated is asked
     // for rather than waved through.
     const wanted = definition.targets.mustBeType;
@@ -2804,6 +2815,18 @@ export function eligibleTargets(
     const target = state.creatures[key];
     if (target === undefined) continue;
     if (target.id === casterId && definition.targets.self !== true) continue;
+    // SRD Thaumaturgy's Booming Voice: the caster and nobody else, so the
+    // shortlist is the caster. Excluded rather than skipped, because the
+    // sentence is a rule about who may be named and a caller who sees an
+    // ally missing should be told why — the reading every other target rule
+    // in this loop takes.
+    if (definition.targets.casterOnly === true && target.id !== casterId) {
+      excluded.push({
+        target: target.id,
+        reason: `${definition.name} is cast on yourself and nobody else`,
+      });
+      continue;
+    }
     // **Unless the spell is about a body**, which is the reason `mustBeDead`
     // exists: a spell cast on a corpse and on nobody else would be offered an
     // empty shortlist for every legal casting. `namedTargets` has never

@@ -11325,7 +11325,12 @@ export const THAUMATURGY: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 0 },
+  // "**You** have Advantage on Charisma (Intimidation) checks": the caster and
+  // nobody else, which is the one target rule that hands Booming Voice's mode a
+  // creature without letting a cleric boom an ally's voice. The other five
+  // wonders happen within range and on nobody, and the caster names themselves
+  // for those too — the whole spell is a wonder the caster manifests.
+  targets: { count: 1, self: true, casterOnly: true },
   effects: [],
   // "You create **one** of the effects below": six branches, of which the
   // casting runs one and records which.
@@ -11336,11 +11341,24 @@ export const THAUMATURGY: SpellDefinition = {
     },
     'booming-voice': {
       label: 'Booming Voice',
-      handsOver: [
-        'Booming Voice. Your voice booms up to three times as loud as normal for 1 minute. For the duration, you have Advantage on Charisma (Intimidation) checks.',
-      ],
-      unmodelled: [
-        'the Advantage on Charisma (Intimidation) checks is not granted: the mode itself is ordinary — a roll modifier naming a Charisma check and the Intimidation skill — and what it has nowhere to land is a creature. Thaumaturgy names no target at all, the wonder happens "within range" rather than on somebody, and the only target rule that would hand the mode a creature would also let a caster boom an ally’s voice',
+      // "Your voice booms up to three times as loud as normal for 1 minute" is
+      // the fiction; the sentence after it is the mode.
+      handsOver: ['Booming Voice. Your voice booms up to three times as loud as normal for 1 minute.'],
+      effects: [
+        {
+          kind: 'roll-mode',
+          modifier: {
+            mode: 'advantage',
+            // "Charisma (Intimidation) checks" — the pair a selector already
+            // carries, on the caster, who is this spell's only target.
+            selector: {
+              roll: 'ability-check',
+              relation: 'roller',
+              ability: 'cha',
+              skill: 'intimidation',
+            },
+          },
+        },
       ],
     },
     'fire-play': {

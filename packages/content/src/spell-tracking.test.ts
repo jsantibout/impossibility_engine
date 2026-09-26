@@ -285,7 +285,13 @@ const cast = (
   // definition in this bucket took no target at all; Magic Jar takes one now,
   // because a definition that resolves something has to say whose body it is
   // about.
-  const mine = definition.range.kind === 'self' && definition.targets.self === true;
+  // **And a spell whose target rule says "you and nobody else"** — SRD
+  // Thaumaturgy's Booming Voice, whose Range is 30 feet and whose one legal
+  // target is still the caster. `casterOnly` is a rule about who may be named
+  // rather than about the Range, so it is asked beside it.
+  const mine =
+    definition.targets.casterOnly === true ||
+    (definition.range.kind === 'self' && definition.targets.self === true);
   const targets = aimsAtNobody ? [] : [mine ? WIZARD : at];
   // The eighth stated fact: a spell aimed at an object is refused until the
   // caster names which, and one that touches none is refused for naming one.

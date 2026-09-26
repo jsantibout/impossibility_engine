@@ -4863,6 +4863,25 @@ export interface TargetRule {
   /** Whether the caster may pick themselves. */
   readonly self?: boolean;
   /**
+   * SRD *Thaumaturgy*, _Booming Voice_: "For the duration, **you** have
+   * Advantage on Charisma (Intimidation) checks."
+   *
+   * {@link notTheCaster}'s opposite, and the other sentence of that family:
+   * one says the caster is the single creature an area does not catch, and this
+   * says the caster is the single creature the spell may be cast on at all. A
+   * spell whose whole benefit is the caster's has no other target rule to say
+   * so — `{ count: 1, self: true }` alone would let a cleric boom an ally's
+   * voice, and `{ count: 0 }` leaves the mode with no creature to land on.
+   *
+   * Read where a caller **names** targets and in the shortlist beside it, which
+   * is where every other rule about who may be named is read: a target who is
+   * not the caster is `not_the_caster`, and the shortlist offers the caster
+   * alone. Written with `self: true` and `count: 1`, which the validator holds
+   * it to — the first is what admits the caster at all and the second is the
+   * only count "you and nobody else" can have.
+   */
+  readonly casterOnly?: true;
+  /**
    * SRD "each creature of your choice", which names no number at all.
    *
    * Compulsion, Weird and Divine Word are all written this way. There is no

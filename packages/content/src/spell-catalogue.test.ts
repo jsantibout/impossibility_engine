@@ -542,7 +542,14 @@ const castAt = (
     // passing one is a refusal, not a courtesy.
     const aimsAtNobody =
       definition.targets.count === 0 && definition.targets.unlimited !== true;
-    const targets = aimsAtNobody ? [] : [TARGET];
+    // SRD Thaumaturgy's "**you** have Advantage": `casterOnly` says the caster
+    // is the one legal target, so the sweep names the caster. `notTheCaster`'s
+    // opposite number, and the one target rule for which TARGET is a refusal.
+    const targets = aimsAtNobody
+      ? []
+      : definition.targets.casterOnly === true
+        ? [CASTER]
+        : [TARGET];
     // A bounded target list takes both halves: the names, and the point whose
     // area bounds them. Centred on the caster, who has everyone in reach.
     //

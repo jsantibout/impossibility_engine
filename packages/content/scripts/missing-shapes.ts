@@ -1283,13 +1283,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // outlived both is the one clause of the six wonders that is not narration.
   // The other five were always fiction; this one is an ordinary roll modifier
   // with nowhere to stand.
-  thaumaturgy: [
-    {
-      clause: 'the Advantage on Charisma (Intimidation) checks is not granted',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'The mode itself is ordinary — a `RollModifier` naming a Charisma ability check narrowed to the Intimidation skill, which is the pair `RollSelector` already carries. What it has nowhere to land is a creature: Thaumaturgy prints Range 30 feet and `targets: { count: 0 }`, because the wonder happens within range rather than on somebody, so the per-target loop runs no times at all. The target rule that would hand the mode its creature is "the caster and nobody else", and `TargetRule` cannot state it — `notTheCaster` is the only sentence of that family it has, and it is the other one. Writing `{ count: 1, self: true }` instead would let a caster boom an ally’s voice, which is a rule the book does not grant.',
-    },
-  ],
   'unseen-servant': [
     {
       clause: 'more than 60 feet from the caster',
