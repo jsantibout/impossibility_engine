@@ -68,14 +68,40 @@ export const isSceneEvent = seamOf(SCENE_EVENTS);
  * Every hold is stamped and the **reader** decides whose cap it is:
  * `commands/movement.ts` caps a mover only against a hold whose casting is
  * the mover's own, because the twenty is the caster's to spend.
+ *
+ * **And a move somebody else made is not the creature's to be charged for.**
+ * A shove, a printed push and a pull all arrive here as an altitude-changing
+ * `creature-moved` on a held creature, and `checkLevitating` exempts every one
+ * of them by name — "it is not the creature's movement" — so counting them
+ * here made the two halves of one rule disagree: a wizard thrown ten feet down
+ * the wall by a Thunderwave had ten feet of their own climb taken away by it.
+ * `forced` is the flag that says whose movement it was, and this is the third
+ * road the docstring used to take silently. (W7-S19R)
+ *
+ * **What that leaves out, deliberately and not yet closed:** the caster's own
+ * Magic action moves a held creature with a `forced` move too — it is not the
+ * creature's movement either — so its feet are not counted here, and a caster
+ * holding themself up who takes the action first and climbs afterwards spends
+ * the twenty twice.
+ *
+ * Telling that move from a shove needs a fact the event does not carry, and
+ * **the shape of a placement is not that fact**: a fall writes the same
+ * `{ feet: 0, elevation: -n, forced: true }` an altitude change does, so a
+ * guess read off the geometry would charge a wizard's own allowance for
+ * falling. Closing it is a marker on `creature-moved` saying whose allowance a
+ * move spends, which is a decision nobody has taken; until somebody does, the
+ * half that is enforced is the half the activation refuses and this docstring
+ * is where the other half is written down. Not SRD Levitate's `unmodelled`,
+ * which hands a clause to the table, and this is nothing a DM adjudicates.
  */
 function stampAltitudeAltered(
   state: GameState,
   id: CharacterId,
   before: number | null,
   after: number | null,
+  forced: boolean,
 ): GameState {
-  if (before === null || after === null || before === after) return state;
+  if (forced || before === null || after === null || before === after) return state;
   const creature = state.creatures[id];
   if (creature === undefined || creature.lifts.length === 0) return state;
   const turn = state.combat?.turnsTaken ?? null;
@@ -135,6 +161,7 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
         event.id,
         altitudeOf(sceneOf(state, event), event.id),
         altitudeOf(outcome.state, event.id),
+        event.forced === true,
       );
     }
 

@@ -20,8 +20,8 @@ import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import { type Point } from '../positioning.js';
 import { actionRulesOn, canSee } from '../standing.js';
 import { type SpellActivation } from '../spell-definitions.js';
-import { lightPatchesOf, type Supply } from './casting.js';
-import { castingIdOf, regionOfArea } from '../spells.js';
+import { lightPatchesOf, terrainPatchOf, type Supply } from './casting.js';
+import { castingIdOf, regionOfArea, regionOfCastingArea } from '../spells.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
 import {
@@ -408,6 +408,39 @@ export function activateSpell(
           `${record.spell} changes an altitude by up to ${climbs} feet, and ${Math.abs(command.altitude)} is more`,
         );
       }
+
+      // — the twenty is one twenty, however it is spent ————————————————— (W7-S19R)
+      //
+      // SRD *Levitate* prints the allowance once — "You can change the
+      // target's altitude by up to 20 feet in either direction **on your
+      // turn**" — and then two ways to spend it: "If you are the target, you
+      // can move up or down as part of your move. **Otherwise**, you can take
+      // a Magic action to move the target." Two spellings of one number, so a
+      // caster who has already climbed the twenty with their own Speed has
+      // nothing left for the action, and the boundary that gives it back is the
+      // turn the move's own cap resets at.
+      //
+      // `GrantedLift.altered` is the tally, stamped by the fold off the
+      // caster's own move; `checkLevitating` is its other reader. **Read only
+      // where the caster is the creature being moved**, which is the same
+      // discrimination that reader makes from the other end: a target held up
+      // by somebody else's casting climbs on its own Speed, and its feet are
+      // the target's rather than the caster's to be charged for.
+      const turn = state.combat?.turnsTaken ?? null;
+      const ownHold =
+        target !== null && target === record.caster
+          ? (state.creatures[target]?.lifts ?? []).find(
+              (held) => castingIdOf(held.source) === record.castingId,
+            )
+          : undefined;
+      const already = turn !== null && ownHold?.altered?.turn === turn ? ownHold.altered.feet : 0;
+      const asked = Math.abs(command.altitude);
+      if (already + asked > climbs) {
+        return err(
+          'altitude_spent',
+          `${casterId} may change their own altitude by up to ${climbs} feet a turn under ${record.spell}, has moved ${already} of them, and this action would move ${asked} more`,
+        );
+      }
     }
 
     // A direction belongs to a re-aiming or to a directional template drawn
@@ -687,6 +720,40 @@ export function activateSpell(
         castingId: record.castingId,
         towards: command.towards,
       });
+
+      // — and the expensive ground turns with the wind ————————————— (W7-S19R)
+      //
+      // SRD Gust of Wind prints the ground in the same breath as the Line —
+      // "Any creature **in the Line** must spend 2 feet of movement for every
+      // 1 foot it moves when moving closer to you" — so a bearing that changes
+      // and a patch that does not would leave the dear ground lying where the
+      // wind no longer blows. Laid again exactly as the resolution laid it,
+      // under the name the cast gave it, which is what makes this a re-laying
+      // rather than a second patch: `declareDifficultPatch` overwrites a patch
+      // of the same name, and one patch is what a re-aimed Line is.
+      //
+      // **Off the record and not off a fresh request**, through the reader
+      // every standing clause already uses: the area, the anchoring and the
+      // bearing the `spell-aim-changed` above has just written are all pinned
+      // on the record, so the ground lies on the Line the record says is
+      // blowing. Read after the event rather than from `command.towards`, so
+      // the two cannot come to disagree.
+      //
+      // Moonbeam's sibling is a few lines below, where a patch of light
+      // follows its origin along a route; a definition that makes no ground
+      // expensive writes nothing here, which is every other redirecting spell.
+      const turned = current.ongoing[record.castingId];
+      if (turned !== undefined) {
+        for (const patch of terrainPatchOf(
+          definition,
+          record.castingId,
+          regionOfCastingArea(turned),
+          true,
+          record.option,
+        )) {
+          happened(patch);
+        }
+      }
     }
 
     // — the route, one leg at a time —————————————————————————————————————————

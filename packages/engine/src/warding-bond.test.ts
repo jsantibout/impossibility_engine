@@ -7,11 +7,13 @@ import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
-import { checkSpellDefinitionValue } from './spell-schema.js';
+import { checkSpellDefinition, checkSpellDefinitionValue } from './spell-schema.js';
 import { armorClassOf, defensesOf, requirementsHold } from './standing.js';
 import { savingSupport } from './commands/rolls.js';
 import { dealSpellDamage } from './commands/damage.js';
 import { resolveDamage, resolveSpell } from './commands.js';
+import { extendContent } from './content.js';
+import type { SpellDefinition } from './spell-definitions.js';
 
 /**
  * SRD Warding Bond:
@@ -261,6 +263,53 @@ describe('damage the two creatures share', () => {
     expect(hp(after, CLERIC)).toBe(hp(apart, CLERIC));
   });
 
+  /**
+   * **A pair nobody can measure gets neither half of the sentence.** "While the
+   * target is within 60 feet of you" fences the three benefits and the shared
+   * blow alike, and a cleric who has stepped onto the Ethereal Plane is at no
+   * distance at all — not sixty feet, not sixty-one. `separated-beyond` does
+   * not end the casting for the same reason (a pair nobody can measure has not
+   * been separated), so this is the one live case of the fence's withholding
+   * arm: the benefits are not held, the blow is reported rather than dealt, and
+   * the bond goes on running. (W7-S19R)
+   */
+  it('withholds the benefits and reports the shared blow when the two cannot be measured', () => {
+    const { log, casting } = bonded();
+    const away: readonly GameEvent[] = [
+      ...log,
+      {
+        type: 'creature-sent-elsewhere',
+        id: CLERIC,
+        kind: 'ethereal',
+        source: 'the Ethereal Plane',
+        returns: { within: 0 },
+      },
+    ];
+    const before = state(away);
+    // Still running: nobody can say the two are more than sixty feet apart.
+    expect(before.ongoing[casting]).toBeDefined();
+    // And none of the three benefits is held.
+    expect(armorClassOf(before, FIGHTER)).toBe(armorClassOf(state(SETUP), FIGHTER));
+    expect(defensesOf(before, FIGHTER)['fire']?.resistant).toBeUndefined();
+    expect(
+      savingSupport(before, FIGHTER, before.creatures[FIGHTER]!, 'dex', {}).bonuses.some(
+        (bonus) => bonus.source === 'Warding Bond',
+      ),
+    ).toBe(false);
+
+    const burned = fire(before, FIGHTER, 8);
+    const after = state([...away, ...burned.events]);
+    // The whole eight, because the Resistance is withheld with the rest.
+    expect(hp(after, FIGHTER)).toBe(hp(before, FIGHTER) - 8);
+    // And the cleric takes none of it, with the reason said rather than guessed.
+    expect(hp(after, CLERIC)).toBe(hp(before, CLERIC));
+    expect(
+      burned.unverified.some(
+        (line) => line.includes('Warding Bond') && line.includes('nobody has placed one of them'),
+      ),
+    ).toBe(true);
+  });
+
   /** The DM's own door shares too: the funnel is one. */
   it('shares an adjudicated amount, and says when the cleric’s defences could not be read', () => {
     const { log } = bonded();
@@ -273,6 +322,142 @@ describe('damage the two creatures share', () => {
     expect(hp(after, FIGHTER)).toBe(hp(before, FIGHTER) - 6);
     expect(hp(after, CLERIC)).toBe(hp(before, CLERIC) - 6);
     expect(struck.unverified.some((line) => line.includes('Warding Bond'))).toBe(true);
+  });
+});
+
+/**
+ * **The chain guard, and why it takes homebrew to reach.** SRD's own bond
+ * cannot be chained: "It also ends if the spell is cast again on either of the
+ * connected creatures" ends the first bond the moment a second one touches
+ * either end, whoever casts it — so two mutually bonded clerics, and every
+ * longer chain, are a state `replacedCastings` refuses to build. The guard in
+ * `bondSharedDamage` is therefore about the door the engine promises
+ * *homebrew*: a spell that shares damage and prints no recast clause, loaded
+ * through `createContent` like any other, may be laid both ways round, and one
+ * blow must not bounce between two records for ever.
+ *
+ * The ruling the guard makes is **one hop**: a blow shared onto a creature is
+ * not shared on to whoever bonded *them*. That is wider than either printed
+ * sentence — it stops a three-deep chain that is not a loop as well as the loop
+ * — and it is the conservative direction, because the alternative is a walk
+ * whose length is the number of bonds in play. (W7-S19R)
+ */
+describe('a blow travels one hop and no further', () => {
+  /** A bond with the recast clause left off, which is the only way to lay two. */
+  const TWINNED: SpellDefinition = {
+    id: 'twinned-hurt',
+    name: 'Twinned Hurt',
+    level: 2,
+    school: 'abjuration',
+    castingTime: 'action',
+    concentration: false,
+    range: { kind: 'ranged', feet: 60 },
+    targets: { count: 1, willing: true },
+    effects: [],
+    sharesDamage: { with: 'caster' },
+    durationSeconds: 600,
+    // A fixture bond rather than a printed spell: the shared damage is the
+    // whole of what it does, and the validator asks a spell that resolves
+    // nothing to say so.
+    unmodelled: ['whatever the connection is besides the damage it passes on is the DM’s'],
+  };
+
+  const content = unwrap(extendContent(SRD_CONTENT, { spells: [TWINNED] }), 'the homebrew bond');
+  const homebrew = (seed: string) => ({
+    issuer: createRollIssuer('r'),
+    rng: createRng(seed) as Rng,
+    content,
+  });
+
+  /** Both clerics know it and both have a slot. */
+  const CHAIN: readonly GameEvent[] = [
+    ...SETUP,
+    {
+      type: 'spellcasting-declared',
+      id: CLERIC,
+      spellcasting: declaredCasting({ ability: 'wis', prepared: ['warding-bond', 'twinned-hurt'] }),
+    },
+    {
+      type: 'spellcasting-declared',
+      id: ROGUE,
+      spellcasting: declaredCasting({ ability: 'wis', prepared: ['twinned-hurt'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: ROGUE,
+      pool: { key: spellSlotKey(2), label: 'level 2', max: 4, recovers: 'long-rest' },
+    },
+  ];
+
+  /** The cleric bonds the rogue, and the rogue bonds the cleric back. */
+  const bothWays = (): readonly GameEvent[] => {
+    const first = unwrap(
+      resolveSpell(
+        state(CHAIN),
+        CLERIC,
+        { spellId: 'twinned-hurt', targets: [ROGUE], slotLevel: 2, willing: [ROGUE] },
+        homebrew('first'),
+      ),
+      'the cleric’s bond',
+    );
+    const log = [...CHAIN, ...first.events];
+    const second = unwrap(
+      resolveSpell(
+        state(log),
+        ROGUE,
+        { spellId: 'twinned-hurt', targets: [CLERIC], slotLevel: 2, willing: [CLERIC] },
+        homebrew('second'),
+      ),
+      'the rogue’s bond',
+    );
+    return [...log, ...second.events];
+  };
+
+  const burn = (world: GameState, target: CharacterId, seed: string) =>
+    unwrap(
+      dealSpellDamage(
+        world,
+        target,
+        [{ source: 'a torch', type: 'fire', roll: null, flat: 8, total: 8 }],
+        'a torch',
+        { ...homebrew(seed), issuer: createRollIssuer('r') },
+        { by: GOBLIN },
+      ),
+      'the torch',
+    );
+
+  it('is a shape the validator accepts and SRD’s own bond refuses to be chained into', () => {
+    expect(checkSpellDefinition(TWINNED)).toEqual([]);
+    // Two of SRD's own cannot coexist: the second ends the first outright.
+    const first = bonded(FIGHTER);
+    const second = bonded(ROGUE, first.log);
+    expect(state(second.log).ongoing[first.casting]).toBeUndefined();
+  });
+
+  it('lays two homebrew bonds the other way round without ending either', () => {
+    const both = state(bothWays());
+    expect(Object.values(both.ongoing).filter((one) => one.spellId === 'twinned-hurt')).toHaveLength(2);
+  });
+
+  it('costs the other creature the same once, and costs nobody a second time', () => {
+    const log = bothWays();
+    const before = state(log);
+
+    // A blow on the rogue: the cleric's bond passes it to the cleric, and the
+    // cleric's own share is not passed back down the rogue's bond.
+    const onRogue = burn(before, ROGUE, 'rogue');
+    const afterRogue = state([...log, ...onRogue.events]);
+    expect(hp(afterRogue, ROGUE)).toBe(hp(before, ROGUE) - 8);
+    expect(hp(afterRogue, CLERIC)).toBe(hp(before, CLERIC) - 8);
+    expect(onRogue.events.filter((event) => event.type === 'damage-taken')).toHaveLength(2);
+
+    // And the other way round, which is the same sentence read from the other
+    // end: a blow on the cleric costs the rogue and stops there.
+    const onCleric = burn(before, CLERIC, 'cleric');
+    const afterCleric = state([...log, ...onCleric.events]);
+    expect(hp(afterCleric, CLERIC)).toBe(hp(before, CLERIC) - 8);
+    expect(hp(afterCleric, ROGUE)).toBe(hp(before, ROGUE) - 8);
+    expect(onCleric.events.filter((event) => event.type === 'damage-taken')).toHaveLength(2);
   });
 });
 

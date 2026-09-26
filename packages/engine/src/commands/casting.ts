@@ -2463,11 +2463,31 @@ export function resolveDamage(
  *   gap is said in `unverified`;
  * - **within the sentence's own fence** — `sharesDamage.withinFeet`, "while
  *   the target is within 60 feet of you" — measured at the blow, and withheld
- *   where nobody can measure it;
+ *   where nobody can measure it. The withholding arm's live case is a pair one
+ *   of whom is unplaced or **elsewhere**, and not one that is merely far apart:
+ *   past the feet, `separated-beyond` has already ended the casting;
  * - **never back, and never along a chain**: the caster's own damage is
  *   nobody's, which `record.caster !== victim` says, and a blow whose source is
  *   itself a bond's share is not shared again, so two clerics bonded to each
  *   other do not pass one blow back and forth for ever.
+ *
+ * **The chain clause is a ruling, and it is wider than the printed sentence.**
+ * "Each time it takes damage, you take the same amount of damage" says nothing
+ * about where the damage came from, so read literally a blow shared onto A
+ * would be a blow A took and would travel on to whoever bonded A. The ruling is
+ * **one hop**: a share is where a blow stops. That stops the loop two mutual
+ * bonds make, and it also stops a three-deep chain that is no loop at all —
+ * which is the conservative direction and the deliberate one, because the
+ * alternative is a walk as long as the number of bonds in play and a blow
+ * multiplied by it.
+ *
+ * **SRD's own bond cannot be chained at all**, which is why the guard is about
+ * the homebrew door rather than the book: "It also ends if the spell is cast
+ * again on either of the connected creatures" makes `replacedCastings` end the
+ * first bond the instant a second touches either end, whoever cast it. A spell
+ * that shares damage and prints no recast clause is a shape `createContent`
+ * accepts, and `warding-bond.test.ts` lays one both ways round to drive this
+ * line — without it, one torch is a stack overflow. (W7-S19R)
  *
  * The dealer stays the blow's own (`by`): the goblin whose torch burned the
  * fighter is the one whose damage the cleric took, which is what a Hellish

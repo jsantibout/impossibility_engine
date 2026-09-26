@@ -9,7 +9,7 @@ import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
 import { terrainAt, type Point } from './positioning.js';
-import { resolveMove, resolveSpell } from './commands.js';
+import { activateSpell, resolveMove, resolveSpell, settleAreaEffects } from './commands.js';
 
 /**
  * SRD Gust of Wind:
@@ -57,6 +57,9 @@ const added = (who: CharacterId): GameEvent => ({
 const HALL: Point = { x: 100, y: 100, z: 0 };
 const EAST: Point = { x: 200, y: 100, z: 0 };
 const FIGHTER_AT: Point = { x: 140, y: 100, z: 0 };
+/** Due north of the hall, for the bearing the Bonus Action turns the Line to. */
+const NORTH: Point = { x: 100, y: 200, z: 0 };
+const NORTH_OF_HALL: Point = { x: 100, y: 140, z: 0 };
 
 const SETUP: readonly GameEvent[] = [
   added(DRUID),
@@ -103,6 +106,20 @@ const blowing = (): readonly GameEvent[] => {
   );
   return [...SETUP, ...cast.events, { type: 'turn-advanced' }];
 };
+
+/**
+ * The druid's next turn, so the Bonus Action that re-aims the Line is there to
+ * spend — with the end-of-turn save the fighter owed for standing in the Line
+ * settled, because no action is taken into a world somebody is still owed one.
+ */
+const druidsTurn = (log: readonly GameEvent[]): readonly GameEvent[] => {
+  const round: readonly GameEvent[] = [...log, { type: 'turn-advanced' }];
+  const settled = unwrap(settleAreaEffects(state(round), supply('ends-its-turn')), 'the recurring save');
+  return [...round, ...settled.events];
+};
+
+/** The one casting this fixture ever has running. */
+const castingIn = (world: GameState): string => Object.keys(world.ongoing)[0]!;
 
 const along = (from: Point, dx: number, spaces: number): Point[] =>
   Array.from({ length: spaces }, (_, i) => ({ x: from.x + dx * (i + 1), y: from.y, z: from.z }));
@@ -172,6 +189,35 @@ describe('walking in the wind', () => {
     );
     expect(isNeedsContext(out)).toBe(true);
     expect(out.ok ? 'ok' : out.code).toBe('route_required');
+  });
+
+  /**
+   * **And the expensive ground turns with the wind.** "As a Bonus Action on
+   * your later turns, you can change the direction in which the Line blasts
+   * from you" moves every sentence the Line prints, the two feet per foot
+   * among them — so the patch is laid again down the new bearing, under the
+   * name the cast gave it, and the ground the wind has left is ordinary
+   * again. (W7-S19R)
+   */
+  it('lays the patch again down the new bearing when the Bonus Action re-aims the Line', () => {
+    const log = druidsTurn(blowing());
+    const castingId = castingIn(state(log));
+    expect(terrainAt(state(log), FIGHTER_AT).patches).toHaveLength(1);
+    expect(terrainAt(state(log), NORTH_OF_HALL).patches).toEqual([]);
+
+    const turned = unwrap(
+      activateSpell(state(log), DRUID, { castingId, targets: [], towards: NORTH }, supply('turn')),
+      're-aiming the Line',
+    );
+    // One patch, re-declared under the name the cast gave it rather than a second.
+    const relaid = turned.events.filter((event) => event.type === 'difficult-terrain-declared');
+    expect(relaid).toHaveLength(1);
+    expect(relaid[0]).toMatchObject({ costPerFoot: 2, onlyTowards: 'caster' });
+
+    const after = state([...log, ...turned.events]);
+    expect(Object.keys(after.scene!.terrain)).toHaveLength(1);
+    expect(terrainAt(after, NORTH_OF_HALL).patches).toHaveLength(1);
+    expect(terrainAt(after, FIGHTER_AT).patches).toEqual([]);
   });
 
   /**
