@@ -27,7 +27,6 @@
  */
 
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
-import type { MonsterSave } from '@ie/srd';
 import { spendMovement } from '../combat.js';
 import { isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
@@ -41,7 +40,7 @@ import {
   statedActionOf,
   statedBonusActionOf,
 } from '../monster.js';
-import type { StatedAction, StatedBonusAction } from '../character.js';
+import type { CharacterSheet, StatedAction, StatedBonusAction } from '../character.js';
 import {
   canPassThrough,
   checkRoute,
@@ -90,7 +89,7 @@ export interface PrintedMoveOutcome {
   readonly events: readonly GameEvent[];
   /** How far the creature went, on the lattice. */
   readonly feet: number;
-  /** One per creature whose space was entered, in roster order. */
+  /** One per creature whose space was entered, in id order. */
   readonly outcomes: readonly PrintedSaveOnACreature[];
   /** What the engine applied without being able to check, and what it handed over. */
   readonly unverified: readonly string[];
@@ -99,7 +98,7 @@ export interface PrintedMoveOutcome {
 
 /** The heading and the slot it costs, found on a sheet. Actions first, as every printed door searches. */
 function printedLineNamed(
-  sheet: StatedAction extends never ? never : Parameters<typeof statedActionOf>[0],
+  sheet: CharacterSheet,
   name: string,
 ): { readonly line: StatedAction | StatedBonusAction; readonly slot: 'action' | 'bonus-action' } | null {
   const action = statedActionOf(sheet, name);
@@ -108,7 +107,11 @@ function printedLineNamed(
   return bonus === null ? null : { line: bonus, slot: 'bonus-action' };
 }
 
-/** The distinct creatures a set of crossings entered, in roster order. */
+/**
+ * The distinct creatures a set of crossings entered, in id order — the same
+ * order `takePrintedPull` drags in, so two saves over one world land the same
+ * way on every replay.
+ */
 function enteredBy(crossings: readonly { readonly occupant: CharacterId }[]): readonly CharacterId[] {
   return [...new Set(crossings.map((crossing) => crossing.occupant))].sort();
 }
@@ -329,15 +332,22 @@ export function takePrintedMove(
         feet = distanceBetweenPoints(from, to);
 
         // "moves up to its Speed": a granted move, SRD Tactical Shift's shape,
-        // pinned at the Speed the line was taken at and spent at once. The
-        // ground charges what it charges; a space another creature stands in
-        // is charged as the ordinary move charges it.
+        // capped at the Speed the line was taken at. The ground charges what it
+        // charges; a space another creature stands in is charged as the
+        // ordinary move charges it.
+        //
+        // **The grant is the move, and nothing is left on the turn.** The line
+        // grants one walk and this door performs the whole of it, so the grant
+        // is pinned at what the route cost rather than at the Speed: a
+        // remainder would be feet a later move could spend under this source
+        // and provoke nobody with, for a line whose exemption was for the
+        // charge alone.
         const cost = costOfRoute(state, spaces).cost;
         if (cost > walk) {
           return err('not_enough_movement', `${line.name} moves ${id} up to ${walk} feet, and this route costs ${cost}`);
         }
         const source = printedLineSource(id, line.name);
-        const granted: GameEvent = { type: 'movement-granted', id, source, feet: walk };
+        const granted: GameEvent = { type: 'movement-granted', id, source, feet: cost };
         const spent = spendMovement(applyEvent(state, granted).combat!, id, cost, walk, { rules }, source);
         if (!spent.ok) return spent;
         movement.push(granted, { type: 'movement-spent', id, feet: cost, grant: source, from, to });
@@ -384,7 +394,7 @@ export function takePrintedMove(
       const unverified: string[] = [];
       for (const target of entered) {
         if (world.creatures[target]?.vitals.dead === true) continue;
-        const landed = forcePrintedSaveOn(world, id, target, line.name, save.value as MonsterSave, supply);
+        const landed = forcePrintedSaveOn(world, id, target, line.name, save.value, supply);
         if (!landed.ok) return landed;
         events.push(...landed.value.events);
         world = landed.value.events.reduce(applyEvent, world);

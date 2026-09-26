@@ -8,11 +8,13 @@ import {
   declareCreatureSide,
   declareSightBetween,
   placeCreatureInScene,
+  resolveMove,
   setScene,
   takePrintedMove,
 } from './commands.js';
 import { createRng, restoreRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
+import { printedLineSource } from './monster.js';
 import { createRollIssuer } from './rolls.js';
 import { positionOf, type Point } from './positioning.js';
 
@@ -144,8 +146,18 @@ describe('a Centaur Trooper’s Trampling Charge', () => {
     expect(out.events.some((e) => e.type === 'creature-moved' && e.id === CENTAUR)).toBe(true);
     expect(state.pendingMove).toBeNull();
 
-    // The move is the line's, not the turn's own thirty feet.
+    // The move is the line's, not the turn's own thirty feet — and the line
+    // granted exactly the move it made: nothing is left under its source for a
+    // later move to spend without provoking.
     expect(state.combat!.budgets[CENTAUR]!.movementSpent).toBe(0);
+    expect(out.events.find((e) => e.type === 'movement-granted')).toMatchObject({ feet: 30 });
+    const leftover = resolveMove(
+      state,
+      CENTAUR,
+      { placement: { from: { creature: CENTAUR }, feet: 5, bearing: 0 }, usingGrant: printedLineSource(CENTAUR, TRAMPLING_CHARGE) },
+      supply(state),
+    );
+    expect(leftover.ok).toBe(false);
 
     // "targeted once": Nob's space was entered twice and he saves once.
     expect(out.outcomes.map((o) => o.target)).toEqual([GRIX, NOB]);

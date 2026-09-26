@@ -494,7 +494,10 @@ export function moveWithin(
     //
     // **And the drag**, one extra foot per foot of the move where the mover is
     // holding somebody it must pay to move — the creature's own movement,
-    // which a shove is not. See {@link dragSurchargeFor}.
+    // which a shove is not. See {@link dragSurchargeFor}. Charged on `feet`,
+    // which is the same number of feet the ground charged: `checkRoute`
+    // refuses any stated route longer than the distance, so a walk that
+    // doubled back would be `bad_route` above rather than undercharged here.
     const ordinary =
       ground.value.cost +
       (charging === 'none' ? 0 : difficult * way.value.surcharge + feet * way.value.dragging);
@@ -516,7 +519,9 @@ export function moveWithin(
     if (lineMove !== null && cost > lineMove.cap) {
       return err(
         'not_enough_movement',
-        `${lineMove.name} moves ${id} up to ${lineMove.cap} feet this way, and this move costs ${cost}`,
+        `${lineMove.name} moves ${id} up to ${lineMove.capNamed} feet this way${
+          lineMove.spentSoFar === 0 ? '' : `, ${lineMove.spentSoFar} of them already moved on the line`
+        }, and this move costs ${cost}`,
       );
     }
 
@@ -984,8 +989,22 @@ interface LineMove {
   readonly name: string;
   /** The grant the spender wrote, by the source the log filed it under. */
   readonly source: string;
-  /** The printed fraction of the Speed this move is made with. */
+  /**
+   * What is left of the printed fraction of the Speed this move is made with.
+   *
+   * SRD: "If you have more than one Speed, you can switch between them during
+   * your move, **deducting the distance already moved from the new speed**."
+   * The grant was pinned at the largest of the line's Speeds and the feet
+   * already spent from it come off *this* Speed's fraction, so a creature
+   * that swam twenty on a line naming both its Speeds has twenty fewer feet
+   * of walking left under it — and two moves in the slower mode cannot add
+   * up to the faster one's allowance.
+   */
   readonly cap: number;
+  /** The printed fraction of this Speed, whole, for the refusal that quotes it. */
+  readonly capNamed: number;
+  /** Feet already spent from this line's grant on this turn. */
+  readonly spentSoFar: number;
   readonly noOpportunityAttacks: boolean;
   readonly handedOver: readonly string[];
 }
@@ -1021,11 +1040,18 @@ function lineMoveOf(
       `${line.name} has not been taken on this turn of ${id}'s, so it has handed over no move to make`,
     );
   }
-  const whole = speedOf(state, id, mode);
+  const fraction = (whole: number): number => (dashes.fraction === 'half' ? Math.floor(whole / 2) : whole);
+  const capNamed = fraction(speedOf(state, id, mode));
+  // The grant was pinned at the largest of the line's Speeds, so what has come
+  // off it is what this creature has already moved on the line this turn.
+  const pinned = Math.max(...dashes.modes.map((one) => fraction(speedOf(state, id, one))));
+  const spentSoFar = Math.max(0, pinned - held.feet);
   return ok({
     name: line.name,
     source,
-    cap: dashes.fraction === 'half' ? Math.floor(whole / 2) : whole,
+    cap: Math.max(0, capNamed - spentSoFar),
+    capNamed,
+    spentSoFar,
     noOpportunityAttacks: dashes.noOpportunityAttacks,
     handedOver: dashes.handedOver,
   });

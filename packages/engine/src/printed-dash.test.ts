@@ -196,6 +196,81 @@ describe('a Weretiger’s Prowl', () => {
   });
 });
 
+describe('a line that names two Speeds', () => {
+  const OTTER = id('otter');
+  const SURGE = 'Surge';
+
+  /**
+   * A homebrew otter: Speed 20, Swim 40, and a Bonus Action that prints the
+   * Xorn's sentence over two Speeds that differ — "moves up to its Speed or
+   * Swim Speed without provoking Opportunity Attacks." SRD's only such line
+   * prints two equal Speeds, so the bound is proved on an invented one.
+   */
+  const inTheRiver = (): Table => {
+    const table = new Table();
+    table.log.push({
+      type: 'creature-added',
+      id: OTTER,
+      name: 'otter',
+      sheet: {
+        level: 1,
+        abilities: { str: 10, dex: 14, con: 10, int: 4, wis: 12, cha: 6 },
+        skills: {},
+        saveProficiencies: [],
+        armor: null,
+        shield: null,
+        armorTraining: { light: false, medium: false, heavy: false, shields: false },
+        baseSpeed: 20,
+        speeds: { swim: 40 },
+        spellcastingAbility: null,
+        weaponProficiencies: [],
+        stated: {
+          bonusActions: [
+            {
+              name: SURGE,
+              text: 'The otter moves up to its Speed or Swim Speed without provoking Opportunity Attacks.',
+              dashes: { fraction: 'whole', modes: ['walk', 'swim'], noOpportunityAttacks: true, handedOver: [] },
+            },
+          ],
+        },
+      },
+      maxHp: 5,
+      diesAtZero: true,
+      creatureType: 'Beast',
+    });
+    table.do('the river', (s) => setScene(s, { width: 200, depth: 200, height: 30 }));
+    table.do('the rock', (s) => addSceneLandmark(s, 'the rock', { x: 50, y: 50, z: 0 }));
+    table.do('the otter', (s) => placeCreatureInScene(s, OTTER, { from: { landmark: 'the rock' }, feet: 0 }));
+    table.do('the order', (s) => beginCombat(s, [{ id: OTTER, initiative: 10, speed: 20 }]));
+    table.did('the surge', (s) => takeStatedBonusAction(s, OTTER, { line: SURGE }));
+    return table;
+  };
+
+  const onward = (feet: number) => ({ from: { creature: OTTER }, feet, bearing: 0 });
+
+  it('pins the larger Speed on the grant and lets the whole of it be swum', () => {
+    const table = inTheRiver();
+    expect(table.state.combat!.budgets[OTTER]!.grantedMoves).toEqual([{ source: printedLineSource(OTTER, SURGE), feet: 40 }]);
+    table.did('twenty feet of swimming', (s) => resolveMove(s, OTTER, { placement: onward(20), mode: 'swim', usingLine: SURGE }, supply(s)));
+    table.did('twenty more', (s) => resolveMove(s, OTTER, { placement: onward(20), mode: 'swim', usingLine: SURGE }, supply(s)));
+    expect(table.state.combat!.budgets[OTTER]!.grantedMoves).toEqual([{ source: printedLineSource(OTTER, SURGE), feet: 0 }]);
+  });
+
+  it('deducts the distance already moved from the slower Speed, as the glossary says', () => {
+    // SRD: "you can switch between them during your move, deducting the
+    // distance already moved from the new speed." Two walks of twenty would
+    // otherwise add up to the swim's forty.
+    const table = inTheRiver();
+    table.did('twenty feet on foot', (s) => resolveMove(s, OTTER, { placement: onward(20), usingLine: SURGE }, supply(s)));
+    const again = resolveMove(table.state, OTTER, { placement: onward(5), usingLine: SURGE }, supply(table.state));
+    expect(isErr(again) && again.code === 'not_enough_movement').toBe(true);
+    expect(isErr(again) && again.reason).toContain('20 of them already moved');
+    // But the swim's twenty are still there, because forty is the swim's.
+    const swim = resolveMove(table.state, OTTER, { placement: onward(20), mode: 'swim', usingLine: SURGE }, supply(table.state));
+    expect(swim.ok).toBe(true);
+  });
+});
+
 describe('a Troll’s Charge', () => {
   it('moves half its Speed on the line, provokes exactly as walking does, and hands the direction over', () => {
     const table = atTheReef({ id: TROLL, monster: 'troll', speed: 30 });

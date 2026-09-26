@@ -135,6 +135,7 @@ describe('a Bulette’s Deadly Leap', () => {
 
   it('spends five feet and the Action, lands among both goblins, and rolls each a Dexterity save', () => {
     const table = atThePit();
+    const giantBefore = table.state.creatures[GIANT]!.vitals.hp;
     const out = unwrap(
       takePrintedMove(table.state, BULETTE, { line: DEADLY_LEAP, to: ONTO_THE_GOBLINS }, supply(table.state)),
       'the leap',
@@ -170,8 +171,8 @@ describe('a Bulette’s Deadly Leap', () => {
         expect(state.creatures[outcome.target]!.conditions.conditions).toContain('prone');
       }
     }
-    // A goblin the bulette did not land on is untouched.
-    expect(state.creatures[GIANT]!.vitals.hp).toBe(table.state.creatures[GIANT]!.vitals.hp);
+    // A bystander the bulette did not land on is untouched.
+    expect(state.creatures[GIANT]!.vitals.hp).toBe(giantBefore);
   });
 
   it('lands both branches across seeds: the failure Prone, the success shoved five feet clear', () => {
