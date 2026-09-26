@@ -1303,6 +1303,12 @@ export interface StatBlockLine {
   readonly swallows?: unknown;
   /** The plane a line steps to and back from — SRD Phase Spider's Ethereal Jaunt. */
   readonly shiftsPlane?: unknown;
+  /** The jump a line buys its creature — SRD Bulette's Leap. */
+  readonly jumps?: unknown;
+  /** The move a line grants its creature — SRD Giant Seahorse's Bubble Dash, SRD Troll's Charge. */
+  readonly dashes?: unknown;
+  /** The step between two trees a line makes — SRD Dryad's Tree Stride. */
+  readonly treeStride?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
   readonly addsToRoll?: { readonly tests: readonly string[] } | undefined;
   /** What a Reaction line adds to its own Armour Class against one attack. */
@@ -1342,6 +1348,10 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.pulls !== undefined ||
   line.swallows !== undefined ||
   line.shiftsPlane !== undefined ||
+  // The moves a line makes — W7-B9; `isExecutedLine` names the three doors.
+  line.jumps !== undefined ||
+  line.dashes !== undefined ||
+  line.treeStride !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
@@ -1487,8 +1497,10 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'disadvantage-on-attacks-against-it',
   'does-not-provoke-when-flying-out-of-reach',
   'does-not-provoke-when-leaving-reach',
+  'drags-for-free',
   'emanation-is-difficult-terrain',
   'hides-in-dim-light-or-darkness',
+  'jumps-by-dexterity',
   'jumps-without-a-running-start',
   'long-jump-with-a-running-start',
   'magic-resistance',
@@ -1557,13 +1569,19 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
  * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
  * | Berserk ×2 | a creature somebody else is playing: a d6 at the start of a turn and a compulsion that picks the golem's target for it. `a-creature-somebody-else-is-playing` |
- * | Abduct ×2 | the price of dragging a creature you have Grappled. "Needn't spend extra movement to move a creature it is grappling" is a rule about a cost the engine charges, so it is a debt rather than a fact about the world |
  * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
  * | Succubus Form, Incubus Form, Troll Spawn | one stat block replaced by another, at a Long Rest or on a 24-hour timer. `assumeStatBlock` is the mechanism and Wild Shape is its one caller; what is missing is the door a *creature's own printed line* comes through, and the Troll Limb's d12 besides |
  * | Soul Bag | an object a block is born holding. `declareObject` holds a thing with an Armour Class, Hit Points and a Resistance that can be broken; nothing gives one to a creature when its stat block arrives, and the hag's Nightmare Haunting is gated on carrying it |
  * | Spider Climb (the Swarm's) | a **gate** on a kind that already has a reader: "If the swarm has a Climb Speed, the swarm can climb…". `climbs-without-a-check` is spent by `climbCheck`, so this is a field on that kind rather than a third answer — and a gate read away would be a rule nobody printed |
  * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
+ *
+ * **Abduct ×2 left this table in W7-B9**, and is written down rather than
+ * deleted because a row that leaves is a claim somebody may want to check: the
+ * drag surcharge it waives — SRD Grappled's "every foot of movement costs it 1
+ * extra foot unless you are Tiny or two or more sizes smaller" — is charged by
+ * the movement command now, and `drags-for-free` is its exemption, on the
+ * reader roster.
  *
  * **Those last two are read as *kinds* and still unspent**, which is the one
  * thing that makes them look different from the rest of this paragraph: a
@@ -1778,6 +1796,16 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // takes the creature (and the Nightmare's companions) out of the scene and
   // brings them back to the spot they left, by the same line.
   line.shiftsPlane !== undefined ||
+  // **The moves a line makes are spent** — W7-B9. A jump bought is a
+  // `GrantedJump` with a deadline at the end of the turn, read by `checkJump`;
+  // a move granted is a `GrantedMove` a move spends by naming the line, capped
+  // at the printed fraction of the printed Speed and provoking nothing where
+  // the line says so; a step between two trees is `takePrintedTeleport` with
+  // the two trees named. What each hands over — the water, the bearing — is
+  // reported at the moment of use, and the ledger's handover rows count it.
+  line.jumps !== undefined ||
+  line.dashes !== undefined ||
+  line.treeStride !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so
@@ -1872,18 +1900,23 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   ],
   /**
    * A line that forces a save and that the reader got nothing structured out
-   * of. Eleven at CR ≤ 5, and each is named here with the one seam it waits
-   * on, for the reason `RIDER_HANDOVER_SHAPE`'s own table is written out: a
-   * line with no note beside it looks like a line nobody read.
+   * of. Each at CR ≤ 5 is named here with the one seam it waits on, for the
+   * reason `RIDER_HANDOVER_SHAPE`'s own table is written out: a line with no
+   * note beside it looks like a line nobody read.
    *
    * | Lines | The kind, and the seam |
    * |---|---|
-   * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
    * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | a creature inside another one — a position the lattice has a word for now, `inside`, which the Giant Frog's and Giant Toad's Swallow are executed on. What these two wait on is the **save reader**: each is a saving throw whose failure puts the target inside, the cube's per space entered during a move and the mound's under a grapple, and the printed-save reader has no arm that hands its failure to the second place |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
    *
    * The table is pinned to the catalogue by {@link UNREAD_SAVE_SEAMS}, so a
    * row that has been built comes out in the same commit.
+   *
+   * **The Bulette's Deadly Leap and the Centaur Trooper's Trampling Charge
+   * left this table in W7-B9**: the save reader grew a `movesThen` prelude —
+   * a jump into occupied spaces, a walk through them — and `takePrintedMove`
+   * moves the creature and rolls the save once per creature whose space was
+   * entered, which is the seam the row said they waited on.
    *
    * **Three rows left this table on one night**, and are written down rather
    * than deleted because a row that leaves a report is a claim somebody may
@@ -1976,16 +2009,8 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
     'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states.',
   'wraith/Create Specter':
     'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
-  'bulette/Leap':
-    'a jump allowance with a lifetime. "Jumps up to 30 feet by spending 10 feet of movement" is SRD *Jump*\'s sentence word for word, and `GrantedJump` already carries both numbers — but a spell\'s allowance ends when its casting does, and a Bonus Action that buys one has no casting to end it. A grant a printed line hangs needs the deadline the mastery riders file, or the jump is free on every later turn. The Half-Dragon\'s and the Lamia\'s print the same sentence.',
-  'troll/Charge':
-    'nothing, and that is the answer. "The troll moves up to half its Speed straight toward an enemy it can see" is a move the DM makes with the move command, and the engine already refuses one that is too far or blocked; what the line adds over `move_creature` is a *restriction* on the DM rather than a rule the engine owes. The Xorn\'s and the Sahuagin\'s Aquatic Charge are the same sentence over a different Speed.',
-  'seahorse/Bubble Dash':
-    'a move that provokes nothing. "While underwater, the seahorse moves up to its Swim Speed without provoking Opportunity Attacks" — one field on a move, and `provokedBy` already reads the mover\'s mode for SRD Flyby and SRD Agile. What it waits on is a *declared* exemption on one move rather than a standing one on a creature, which is a field `MoveCommand` does not have. The Giant Seahorse prints it too.',
   'roper/Tentacle':
     'the same second place, reached the other way: the tendril the Reel pulls on is an object with its own Armour Class and Hit Points that a creature may attack, which is `declareObject` given to a creature as part of its body.',
-  'dryad/Tree Stride':
-    'a teleport between two trees the scene does not hold. The second place is built now — the Ghost\'s Etherealness, the Nightmare\'s Ethereal Stride and the Phase Spider\'s Ethereal Jaunt are executed on it — and this is its cousin with a tree in place of a plane: "within 5 feet of a Large or bigger tree … within 5 feet of a second Large or bigger tree that is within 60 feet" is a teleport whose two ends are objects, and the lattice holds no trees.',
   'sea-hag/Illusory Appearance':
     'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
 };
@@ -2009,10 +2034,6 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
  * puts at the table.
  */
 export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
-  'bulette/Deadly Leap':
-    'a move **through** other creatures\' spaces with a save per creature entered, and a movement spent before the save — "The bulette spends 5 feet of movement to jump to a space within 15 feet that contains one or more Large or smaller creatures." The lattice holds one occupant per space, so the space entered is a position nothing can be put in; the same seam Amorphous, Compression and Ooze Cube wait on.',
-  'centaur-trooper/Trampling Charge (Recharge 5–6)':
-    'the same move through Medium or smaller creatures\' spaces, with a save for each whose space was entered — "can move through the spaces of Medium or smaller creatures. Each creature whose space the centaur enters…". The movement half is the world\'s, and a save read without it would be a Trample a creature forces standing still.',
   'gelatinous-cube/Engulf':
     '`a-second-place-to-put-a-creature`: a creature inside another one, with its own escape, its own damage at the swallower\'s boundary and a way out when the cube dies. The Shambling Mound\'s Engulf, the Giant Frog\'s Swallow and the Giant Toad\'s are the same want.',
   'shambling-mound/Engulf':

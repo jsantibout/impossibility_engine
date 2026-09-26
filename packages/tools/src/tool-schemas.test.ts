@@ -169,8 +169,10 @@ describe('toolSchemas', () => {
     // And four more on each for the second-place track, plus two on the DM's
     // alone — see the pin below.
     // And one more on the DM's alone for the compulsions track, `trigger_glyph`.
+    // And one more on the DM's alone for the moves-a-line-makes track (W7-B9),
+    // `move_printed_line`; `teleport_printed_line` and `move` grew fields.
     expect(toolSchemas(player())).toHaveLength(91);
-    expect(toolSchemas(dm())).toHaveLength(117);
+    expect(toolSchemas(dm())).toHaveLength(118);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -282,9 +284,9 @@ describe('toolSchemas', () => {
     // And `activate_spell.option`, the word a re-choosing Magic action speaks —
     // SRD Alter Self — on a tool both doors publish: 340 bytes each.
     expect(toolSchemas(player())).toHaveLength(91);
-    expect(toolSchemas(dm())).toHaveLength(117);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(138552);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(180707);
+    expect(toolSchemas(dm())).toHaveLength(118);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(139450);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(184623);
   });
 });
 

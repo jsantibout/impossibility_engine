@@ -572,11 +572,16 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'addsToRoll',
       'attack',
       'casts',
+      // The moves a line makes — W7-B9 — read out of the sentence: a move a
+      // line grants (SRD Bubble Dash, SRD Charge), a jump a line buys (SRD
+      // Leap) and, further down, a stride between two trees (SRD Tree Stride).
+      'dashes',
       // The forms a Shape-Shift line offers, read out of the sentence, and the
       // forms a heading gates its line to — "Bite (Wolf or Hybrid Form Only)"
       // — read off the **name** like `recharge` and `perDay` beside it, and
       // changing what "read" counts for exactly as little.
       'forms',
+      'jumps',
       // What a legendary action does — SRD Unicorn's Charging Horn and
       // Shimmering Shield — read out of the sentence under that heading alone,
       // for the Multiattack's reason.
@@ -597,6 +602,7 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'teleports',
       'text',
       'trait',
+      'treeStride',
       'usesLine',
     ]);
   });
