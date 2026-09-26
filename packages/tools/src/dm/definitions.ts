@@ -112,6 +112,7 @@ import {
   takeStatedAction,
   takeStatedBonusAction,
   takeStudy,
+  triggerGlyph,
 } from '@ie/engine';
 import { z } from 'zod';
 import {
@@ -1908,6 +1909,43 @@ const PULL_PRINTED_LINE = tool({
     ),
 });
 
+/**
+ * Set off a glyph.
+ *
+ * SRD Glyph of Warding: "You decide what triggers the glyph when you cast the
+ * spell." A footfall, a book opened, a word spoken — fiction the caster
+ * invented and the engine holds nothing it could read it from, so whether it
+ * occurred is a decision the rules leave open, which is this door's whole
+ * criterion. **It states no number and names no creature**: the Sphere is
+ * measured from the point the glyph was pinned to, the saves are one per
+ * creature standing in it, the dice are the slot's and the type the caster's,
+ * and "Once a glyph is triggered, this spell ends" is written in the same
+ * batch. A model running the table holds this door as a human does, and a
+ * model *playing* holds neither — a caster does not decide whether the thief
+ * stepped on their own rune.
+ */
+const TRIGGER_GLYPH = tool({
+  name: 'trigger_glyph',
+  description:
+    'Say that a glyph’s trigger has occurred — the footfall, the opened book, the spoken word its caster set when inscribing it. Name the casting; the engine measures the 20-foot Sphere from where the glyph was drawn, rolls one Dexterity save per creature standing in it, deals the rune’s dice at the slot it was inscribed with and of the type its caster chose, and ends the spell, because a triggered glyph is spent. You state no number and no creature: who is in the Sphere is the scene’s to say. A casting that is not a glyph, or one that has already fired, is refused.',
+  mutates: true,
+  input: z.strictObject({
+    castingId: z.string().min(1).describe('The inscribed casting, as `look` lists it under the ongoing spells.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      triggerGlyph(
+        context.campaign.state(),
+        { castingId: args.castingId, ...identity(context) },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({ castingId: value.castingId, outcomes: value.outcomes }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   ABILITY_CHECK,
   CAST_PRINTED_LINE,
@@ -1932,6 +1970,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   TAKE_PRINTED_BONUS_ACTION,
   TAKE_TESTED_ACTION,
   TELEPORT_PRINTED_LINE,
+  TRIGGER_GLYPH,
 ].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export const DM_ONLY_TOOL_NAMES: readonly string[] = DM_ONLY_TOOLS.map((tool) => tool.name);

@@ -14028,10 +14028,20 @@ export const GIANT_INSECT: SpellDefinition = {
  * > store a prepared spell of level 3 or lower in the glyph by casting it as
  * > part of creating the glyph."
  *
- * The hour is real and the "until dispelled or triggered" is real, and that is
- * the whole of what a definition can say: the glyph's trigger, its type
- * filter, its damage type and its stored spell are all chosen when it is
- * inscribed, and one of those choices is *another casting*.
+ * The hour is real and the "until dispelled or triggered" is real — and so is
+ * the rune. **The trigger is a decision**: the caster invents it and the
+ * engine holds nothing it could read it from, so `triggerGlyph` on the DM's
+ * door says it occurred, and `triggered` is the effect list that door fires —
+ * a Dexterity save over the pinned Sphere, 5d8 of the type the caster stated
+ * (Chromatic Orb's `damageTypeStated`), half on a success, a die more per slot
+ * above 3, and the casting ending because it fired. The record pins the list
+ * with its type substituted, so the door opens no catalogue.
+ *
+ * Two halves stay filed. The **spell glyph** is a casting that casts another
+ * spell, stored now and set off later, which is the stack `docs/design/casting.md`
+ * declined; and the **creature-type refinement** is a predicate an area does not
+ * read — the rune catches whoever stands in the Sphere when the DM says it went
+ * off. The check to notice the glyph is the table's to call for.
  */
 export const GLYPH_OF_WARDING: SpellDefinition = {
   id: 'glyph-of-warding',
@@ -14043,15 +14053,38 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   concentration: false,
   range: { kind: 'touch' },
   targets: { count: 0 },
+  // "a 20-foot-radius Sphere centered on the glyph": the glyph is a point the
+  // caster touches, and the rune erupts over it later.
+  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  // "Acid, Cold, Fire, Lightning, or Thunder damage (your choice when you
+  // create the glyph)": stated at the inscription and pinned into the rune.
+  damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'thunder'],
+  // Nothing happens at the inscription; the rune is what the decision fires.
   effects: [],
+  triggered: {
+    label: 'Glyph of Warding (the explosive rune)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        // "5d8 … on a failed save or half as much damage on a successful one";
+        // "increases by 1d8 for each spell slot level above 3".
+        damage: { dice: '5d8', perSlotLevelAbove: '1d8' },
+        damageType: 'acid',
+        onSuccess: 'half',
+      },
+    ],
+  },
   untilDispelled: true,
+  dmDecides: [
+    'You inscribe it either on a surface (such as a table or a section of floor) or within an object that can be closed (such as a book or chest) to conceal the glyph.',
+    "You can also set conditions for creatures that don't trigger the glyph, such as those who say a certain password.",
+  ],
   unmodelled: [
-    'no glyph is inscribed: what it is and what sets it off are both chosen when the spell is cast — an explosive rune or a spell glyph, a trigger the caster invents, a damage type out of five — and a casting has nowhere to record a choice made at the moment it was made',
-    'so the Dexterity save in the 20-foot-radius Sphere and the 5d8 of the chosen type, half on a success, are never resolved, and neither is the extra die a slot above 3 adds',
-    'refining the trigger so that only named creature types set it off is a second absence: an area catches whoever is in it, and the one filter it has is an explicit list of creatures designated at the casting',
-    'a spell glyph is a casting that casts another spell, stored now and resolved later at a target chosen by whoever walked into it, which nothing does',
-    'the Wisdom (Perception) check to notice it is not offered, because the thing to be noticed is not in the world',
-    'the surface or object it is drawn on, the ten feet it may be moved before it breaks, and the passwords that excuse a creature are the DM’s',
+    'the spell glyph is not inscribed: "You can store a prepared spell of level 3 or lower in the glyph by casting it as part of creating the glyph" is a casting that casts another spell, stored now and set off later at whoever triggered it, which is the stack the casting design declined',
+    'refining the trigger so that only creatures of certain types set it off is not applied: the rune catches whoever stands in the Sphere when the DM says it went off, and a predicate over a creature type is a filter an area does not read',
+    'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: the DM calls for it when somebody searches, and the DC is the sheet’s',
+    'the ten feet the surface or object may be moved before the glyph breaks is the DM’s to watch, who ends the casting when it does',
   ],
 };
 

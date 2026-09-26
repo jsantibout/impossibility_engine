@@ -950,6 +950,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the sentence is executed while the casting runs — `preserves` marks the body, the record pins the moment, and `preservedSpan` takes the span back out of the time since `Vitals.diedAt`. What is left is the word **spent**: the span is read off the castings running on the body now, so a repose that has ended hands the window back, and a corpse ten days under one and then dispelled is refused a resurrection the book allows. Carrying that needs a span accumulated on the creature and written by an event, which is a primitive the vocabulary has not got — and the window is this shape\u2019s own mechanism, which is why the residue is filed here rather than anywhere new.',
     },
   ],
+  'glyph-of-warding': [
+    {
+      clause: 'Wisdom (Perception) check against your spell save DC to notice',
+      why: 'table',
+      note: 'SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." A check somebody makes when they search is the table’s to call for — `ability_check` rolls it against the DC the sheet derives — and the casting offers nothing of its own, because nothing in the engine says a creature is looking.',
+    },
+  ],
   'gust-of-wind': [
     {
       clause: 'must spend 2 feet of movement for every 1 foot it moves when moving closer to you',
@@ -2696,26 +2703,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: '40 ft., Climb 40 ft., Fly 40 ft.',
       why: 'a-stat-block-created-mid-fight',
       note: 'three Speeds printed in the stat block the spell contains, on the creature that stat block describes and that no casting produces.',
-    },
-  ],
-  'glyph-of-warding': [
-    {
-      marker: 'saving-throw',
-      clause: 'Each creature in the area makes a Dexterity saving throw',
-      why: 'a-creature-type-predicate-an-area-reads',
-      note: 'the rune catches whoever set it off, and the caster may refine the trigger so that only named creature types do — an area catches whoever is in it, and its one filter is an explicit list chosen at the casting.',
-    },
-    {
-      marker: 'dice',
-      clause: '5d8 Acid, Cold, Fire, Lightning, or Thunder damage',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the damage type is one of five chosen when the glyph is created, and a casting has nowhere to record a choice made at the moment it was made — so the dice cannot be typed and are not rolled.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'requires a successful Wisdom (Perception) check against your spell save DC to notice',
-      why: 'a-choice-made-at-the-casting',
-      note: 'the check is against a glyph whose whole configuration — explosive rune or spell glyph, trigger, damage type, stored spell — is chosen when it is inscribed, so there is nothing inscribed for anybody to notice.',
     },
   ],
   'magic-circle': [

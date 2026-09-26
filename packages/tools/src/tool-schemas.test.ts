@@ -167,7 +167,7 @@ describe('toolSchemas', () => {
     // Seven tracks moved these pins on one night; each move is recorded above
     // and the pins are the sum of them all.
     expect(toolSchemas(player())).toHaveLength(86);
-    expect(toolSchemas(dm())).toHaveLength(108);
+    expect(toolSchemas(dm())).toHaveLength(109);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -241,10 +241,14 @@ describe('toolSchemas', () => {
     // branch per creature SRD Calm Emotions' "(choose for each creature)"
     // asks for — one field on a tool both doors publish, so both lengths move
     // by the same 769 bytes and no tool count moves.
+    // And one door on the DM's surface alone: `trigger_glyph`, the decision
+    // that a glyph's invented trigger has occurred — a caster does not decide
+    // whether the thief stepped on their own rune, so a model playing holds
+    // no such door. One tool on one surface; the model's pins do not move.
     expect(toolSchemas(player())).toHaveLength(86);
-    expect(toolSchemas(dm())).toHaveLength(108);
+    expect(toolSchemas(dm())).toHaveLength(109);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(130909);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(166419);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(167256);
   });
 });
 

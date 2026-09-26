@@ -2363,19 +2363,20 @@ describe('a consumer count is a query', () => {
     // of named branches, one of which a casting runs, named as the tenth
     // stated fact and pinned onto the record. Thaumaturgy's six wonders and
     // Command's five words left by that door, and Enlarge/Reduce's two halves
-    // are the shell of it with every clause inside them filed under a shape of
-    // its own. What is left under the id is **Glyph of Warding**, whose two
-    // glyphs are a stored casting rather than a branch — a shape of its own,
-    // and the one population the claim still reads across.
+    // are whole. **Glyph of Warding left last**: its rune is `triggered`, an
+    // effect list a DM's decision fires over the pinned Sphere with the type
+    // the caster stated, so the damage type is `damageTypeStated` and no
+    // longer a choice with nowhere to go. The spell glyph — a stored casting
+    // — is a shape of its own and a sentence no marker sees, so it is the
+    // definition's own `unmodelled` and the executed map holds only the check
+    // to notice, which is the table's.
     for (const id of ['glyph-of-warding']) {
-      const shapes =
-        BLOCKED_ON[id] !== undefined
-          ? blockersOf(id)
-          : [
-              ...(ADJUDICATED[id]?.map((e) => e.why) ?? []),
-              ...(TRACKED_ADJUDICATED[id]?.map((e) => e.why) ?? []),
-            ];
-      expect(shapes, id).toContain('a-choice-made-at-the-casting');
+      expect(BLOCKED_ON[id]).toBeUndefined();
+      expect(TRACKED_ADJUDICATED[id]).toBeUndefined();
+      expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual(['table']);
+      expect(
+        (SRD_CONTENT.spell(id)?.unmodelled ?? []).some((line) => line.includes('casts another spell')),
+      ).toBe(true);
     }
   });
 

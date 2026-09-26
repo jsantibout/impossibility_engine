@@ -427,6 +427,9 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'floating-disk',
       'gate',
       'gentle-repose',
+      // SRD Glyph of Warding's inscription and its invented trigger, beside
+      // the rune the DM's door fires.
+      'glyph-of-warding',
       'identify',
       'illusory-script',
       'legend-lore',

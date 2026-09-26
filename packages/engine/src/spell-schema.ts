@@ -5561,6 +5561,48 @@ export function checkSpellDefinition(
   if (definition.areaTerrain !== undefined) {
     checkAreaTerrain(definition.areaTerrain, 'areaTerrain', definition.area !== undefined, found);
   }
+  // SRD Glyph of Warding's rune: fired by a decision over the spell's area,
+  // off a record — so it needs both, and a list with a label like an area
+  // trigger's. The effects themselves are walked by `effectLists`.
+  if (definition.triggered !== undefined) {
+    if (
+      readsAsObject(
+        definition.triggered,
+        'triggered',
+        'what a decision sets off is an object naming the effects it runs and how the roll reads',
+        found,
+      )
+    ) {
+      if (definition.area === undefined) {
+        found.push({
+          field: 'triggered',
+          code: 'trigger_without_area',
+          reason: 'a rune erupts over the spell’s area, and this spell has none',
+        });
+      }
+      if (!castingPersists(definition)) {
+        found.push({
+          field: 'triggered',
+          code: 'trigger_without_record',
+          reason: 'a decision fires what a record holds, and an Instantaneous casting leaves none to fire',
+        });
+      }
+      if (!Array.isArray(definition.triggered.effects) || definition.triggered.effects.length === 0) {
+        found.push({
+          field: 'triggered.effects',
+          code: 'trigger_fires_nothing',
+          reason: 'a rune that erupts with nothing is a decision with no consequence; name what it runs',
+        });
+      }
+      if (typeof definition.triggered.label !== 'string' || definition.triggered.label.trim().length === 0) {
+        found.push({
+          field: 'triggered.label',
+          code: 'missing_field',
+          reason: 'the roll reads by a label, as an area trigger’s does',
+        });
+      }
+    }
+  }
   // **And a branch's ground**, held to the same rules at its own path — SRD
   // Speak with Plants prints two directions over one Emanation and the branch
   // says which. The definition's `area` is what both read.
@@ -8265,6 +8307,7 @@ function effectLists(d: Record<string, unknown>): (readonly [string, readonly un
       ? ([['effects', d['effects']]] as (readonly [string, readonly unknown[]])[])
       : []),
     ...nested('areaTrigger'),
+    ...nested('triggered'),
     ...nested('activation'),
     ...branches(),
   ];

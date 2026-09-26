@@ -275,6 +275,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // without it, a repose laid seventy seconds late taking back only what it
   // ran for, a living target refused, and the record on the body.
   'gentle-repose',
+  // `glyph-of-warding.test.ts` (engine): an hour's inscription pinning the
+  // rune and its stated type on a record with no deadline, the DM's decision
+  // erupting on the thief ten feet from the glyph and not the one forty feet
+  // off, the casting ended by the firing, the slot carried into the dice, one
+  // command id firing it once, and a spent glyph or a spell with no trigger
+  // refused.
+  'glyph-of-warding',
   'goodberry',
   'grease',
   'greater-invisibility',
@@ -611,6 +618,8 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.effects.length > 0 ||
   definition.activation !== undefined ||
   definition.areaTrigger !== undefined ||
+  // What a DM's decision fires is resolved by the engine — SRD Glyph of Warding's rune.
+  definition.triggered !== undefined ||
   definition.areaStanding !== undefined ||
   definition.areaTerrain !== undefined ||
   definition.areaLight !== undefined ||

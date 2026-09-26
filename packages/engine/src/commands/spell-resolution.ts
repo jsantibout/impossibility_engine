@@ -1109,6 +1109,7 @@ export function castOrRelease(
       // leave all three with nowhere to be.
       if (
         (definition.areaTrigger !== undefined ||
+          definition.triggered !== undefined ||
           definition.areaStanding !== undefined ||
           laysTerrain(definition) ||
           definition.areaLight !== undefined ||
@@ -3330,6 +3331,16 @@ export function resolveEffects(
         // rewrite what a historical replay raised.
         ...(definition.area === undefined ? {} : { area: definition.area }),
         ...(definition.areaTrigger === undefined ? {} : { areaTrigger: definition.areaTrigger }),
+        // And what a DM's decision fires, pinned with the type the caster
+        // stated — SRD Glyph of Warding's rune. See `OngoingSpell.triggered`.
+        ...(definition.triggered === undefined
+          ? {}
+          : {
+              triggered: {
+                effects: statedDamageType(definition.triggered.effects, becomes.damageType),
+                label: definition.triggered.label,
+              },
+            }),
         ...(definition.areaStanding === undefined ? {} : { areaStanding: definition.areaStanding }),
         // And what ends it early, pinned by the same rule for the same
         // reason: a sentence corrected in the catalogue next month must not

@@ -4825,6 +4825,31 @@ export interface SpellDefinition {
    */
   readonly areaTerrain?: AreaTerrain;
   /**
+   * An effect list a **DM's decision** fires, once, over the spell's area.
+   *
+   * SRD Glyph of Warding: "You decide what triggers the glyph when you cast
+   * the spell … When triggered, the glyph erupts with magical energy in a
+   * 20-foot-radius Sphere centered on the glyph. Each creature in the area
+   * makes a Dexterity saving throw … Once a glyph is triggered, this spell
+   * ends." The trigger is fiction the caster invented — a footfall, a book
+   * opened — and the engine holds nothing it could read it from, so whether it
+   * occurred is a decision the rules leave open: `triggerGlyph`, on the DM's
+   * door alone. Everything after the decision is the engine's.
+   *
+   * **Not an {@link AreaTrigger}**, whose clauses fire on moments the engine
+   * sees — a turn boundary, an entry. And **not a {@link SpellActivation}**,
+   * which the caster takes on a later turn and pays an action for; a glyph
+   * fires for a caster who may be a mile away, and nobody spends anything.
+   *
+   * Pinned onto the record at the casting with the stated damage type
+   * substituted, exactly as `areaTrigger` is, so the door opens no catalogue.
+   * Presupposes an `area` to erupt over and a record to be fired from, and
+   * the casting ends when it fires — "Once a glyph is triggered, this spell
+   * ends" is the one sentence of that shape, and it is the rule rather than a
+   * field.
+   */
+  readonly triggered?: TriggeredEffects;
+  /**
    * What the area does to the **light** — see {@link AreaLight}.
    *
    * The fourth of the four, on the same terms as the third: set only
@@ -6818,6 +6843,19 @@ export function optionEffects(
 ): readonly SpellEffect[] {
   if (definition.options === undefined || option === undefined) return definition.effects;
   return [...definition.effects, ...(definition.options[option]?.effects ?? [])];
+}
+
+/**
+ * What a DM's decision sets off — see {@link SpellDefinition.triggered}.
+ *
+ * The same two fields an {@link AreaTrigger} carries for what it runs, and
+ * nothing of when: the when is the decision.
+ */
+export interface TriggeredEffects {
+  /** Run through the ordinary spell machinery at the level the casting was made with. */
+  readonly effects: readonly SpellEffect[];
+  /** How the roll reads in the log: "Glyph of Warding (the explosive rune)". */
+  readonly label: string;
 }
 
 /**

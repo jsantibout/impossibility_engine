@@ -12,6 +12,7 @@ import {
 } from './positioning.js';
 import type {
   AreaTrigger,
+  TriggeredEffects,
   CastingEndRider,
   CastingEndTrigger,
   SpellArea,
@@ -284,6 +285,13 @@ export interface OngoingSpell {
    * second shape for it.
    */
   readonly areaTrigger?: AreaTrigger;
+  /**
+   * What a DM's decision fires over {@link area}, once — SRD Glyph of
+   * Warding's explosive rune. Pinned at the cast with its stated type
+   * substituted, for the reason {@link areaTrigger} is: the door that fires it
+   * opens no catalogue. See `SpellDefinition.triggered`.
+   */
+  readonly triggered?: TriggeredEffects;
   /**
    * What stops this casting before its time is up — **as cast**.
    *
@@ -1043,6 +1051,12 @@ export const areaStampKey = (castingId: string, target: string): string =>
 export type OngoingEndReason =
   /** SRD Dispel Magic, and anything else that ends a spell by naming it. */
   | 'dispelled'
+  /**
+   * SRD Glyph of Warding: "Once a glyph is triggered, this spell ends." The
+   * DM decided the trigger occurred and the rune fired; the ending is what the
+   * firing costs, written by `triggerGlyph` in the same batch as the eruption.
+   */
+  | 'triggered'
   /** SRD Mage Hand: "The hand vanishes ... if you cast this spell again." */
   | 'recast'
   /**

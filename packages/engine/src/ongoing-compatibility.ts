@@ -182,6 +182,7 @@ export function upgradeOngoing(
     aimed: casting.aimed ?? (casting.on ?? []).filter(holdsNothingOf),
     ...(area === undefined ? {} : { area }),
     ...(areaTrigger === undefined ? {} : { areaTrigger }),
+    ...(casting.triggered === undefined ? {} : { triggered: casting.triggered }),
     ...(areaStanding === undefined ? {} : { areaStanding }),
     // And what ends the casting early, for the same reason and by the same
     // rule: a pre-versioned record never wrote it down, so the catalogue is

@@ -23,6 +23,7 @@ import { declaredCasting } from './spellcasting.js';
 import {
   activateFeature,
   activateSpell,
+  triggerGlyph,
   addCreature,
   addSceneLandmark,
   advanceTime,
@@ -1337,6 +1338,41 @@ const stung = (): readonly GameEvent[] => {
  * turn comes round, and the spell strikes again through a record that has to
  * survive everything in between.
  */
+/**
+ * A glyph inscribed on the threshold beside A, with B standing in its Sphere:
+ * the hour declared, waited out and settled, so `triggerGlyph` has a record to
+ * fire and somebody to catch.
+ */
+const glyphed = (): readonly GameEvent[] => {
+  const inscribing: readonly GameEvent[] = [
+    // No fight, because the hour is declared on the clock — see OUT_OF_COMBAT.
+    ...OUT_OF_COMBAT,
+    {
+      type: 'spellcasting-declared',
+      id: A,
+      spellcasting: declaredCasting({ ability: 'int', prepared: ['glyph-of-warding'] }),
+    },
+    {
+      type: 'resource-pool-declared',
+      id: A,
+      pool: { key: spellSlotKey(3), label: 'level 3 spell slot', max: 2, recovers: 'long-rest' },
+    },
+  ];
+  const declared = unwrap(
+    resolveSpell(
+      fold('s', inscribing),
+      A,
+      { spellId: 'glyph-of-warding', targets: [], at: { x: 100, y: 105, z: 0 }, damageType: 'fire' },
+      supply(),
+    ),
+    'inscribe',
+  );
+  let log: readonly GameEvent[] = [...inscribing, ...declared.events];
+  log = [...log, ...unwrap(advanceTime(fold('s', log), 3600, 'the hour'), 'the hour')];
+  const settled = unwrap(resolveDeclaredCast(fold('s', log), 'cast:1', supply()), 'settle');
+  return [...log, ...settled.events];
+};
+
 const draining = (): readonly GameEvent[] => {
   const armed: readonly GameEvent[] = [
     ...SETUP,
@@ -2665,6 +2701,17 @@ const GUARDED: readonly Guarded[] = [
    * fact landed — the trap this repository has sprung eight times, met by a
    * command whose own first run is what makes the world answer that way.
    */
+  /**
+   * A DM's decision that a glyph's trigger occurred. A retry that got past the
+   * guard would find the casting gone — the rune ended it — and report
+   * `not_ongoing` for a decision that had in fact been taken, which is the
+   * same trap `endOngoingSpell` below names.
+   */
+  {
+    name: 'triggerGlyph',
+    log: glyphed(),
+    run: (s, commandId) => triggerGlyph(s, { castingId: 'cast:1', commandId }, supply()),
+  },
   {
     name: 'endOngoingSpell',
     log: draining(),
@@ -3905,6 +3952,8 @@ const UNGUARDED_ON_PURPOSE: Readonly<Record<string, string>> = {
     'not an action in the turn economy: SRD spends no Action, Bonus Action or Reaction on a rest, and the Hit Dice it spends are the rest’s own payout rather than something taken during a turn. Whether an outstanding area effect should block a rest is a question neither the SRD nor this engine has asked; naming it here is how it gets asked',
   settleAreaEffects:
     'the settlement itself, and a guard that refused its own settlement would be a deadlock wearing a rule’s clothes — this is the command that discharges the debt every other one is waiting on. It moved here from `ENDS_A_CASTING_UNGUARDED` the day a `chance` effect began counting its casting: the count is a `resource-spent`, so an effect list this settles can reach one and the closure above finds it. The two lists are disjoint by construction and a name on both would be an exemption gone stale',
+  triggerGlyph:
+    'a DM’s decision that a glyph’s invented trigger occurred — SRD Glyph of Warding’s "You decide what triggers the glyph" — which is not an action in anybody’s turn: nobody spends anything to be caught by a rune, and a guard would refuse the eruption because somebody in the room owed a saving throw. What the closure sees is the effect list the rune resolves, which is `settleAreaEffects`’ exemption one door along: a `chance` effect in it would count its casting with a `resource-spent`, and the count is the spell’s bookkeeping rather than a thing the DM chose to spend',
   resolveTurn:
     'the turn boundary, which is not anybody’s action: nothing in the turn economy is spent on a turn beginning or ending, and a guard would refuse to end the very turn an outstanding debt is owed on. What the closure sees is the effect list a boundary may resolve — a payout, an area trigger — and a `chance` effect in one of those counts its casting with a `resource-spent`; the count is the spell’s bookkeeping rather than a thing the creature whose turn it is chose to spend',
 };
