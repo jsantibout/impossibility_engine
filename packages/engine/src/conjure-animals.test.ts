@@ -202,12 +202,47 @@ describe('Conjure Animals', () => {
     expect(settled.outcomes.map((one) => one.target)).toEqual([GOBLIN]);
     expect(settled.outcomes[0]!.save).toBeDefined();
 
-    // And once only, however many of the spell's three clauses reach it: the
-    // goblin ends its own turn inside the same ten feet.
+    // And the pack does not walk twice on one turn, however many commands the
+    // druid's thirty feet is broken into: "when you move on your turn" is one
+    // sentence about one turn's walking, and the record remembers the turn its
+    // point last moved on.
     const owed = [...after, ...settled.events];
-    const turn = must(resolveTurn(fold('seed', owed) as GameState, supply('turn')), 'the turn');
-    const round = fold('seed', [...owed, ...turn.events]) as GameState;
-    expect(round.owedAreaEffects).toEqual([]);
+    const again = resolveMove(
+      fold('seed', owed) as GameState,
+      DRUID,
+      {
+        placement: { from: { point: { x: 110, y: 100, z: 0 } }, feet: 0 },
+        alsoMoves: { castingId, to: { x: 165, y: 100, z: 0 } },
+      },
+      supply('again'),
+    );
+    expect(isErr(again) && again.code).toBe('pack_already_carried');
+  });
+
+  it('walks the pack again on the druid’s next turn', () => {
+    const { out, log, castingId } = walked(ONWARD);
+    const moved = must(out, 'the move');
+    let current: readonly GameEvent[] = [...log, ...moved.events];
+    // Round the table back to the druid, settling what the carry owed on the way.
+    for (let i = 0; i < 3; i += 1) {
+      const settled = must(
+        settleAreaEffects(fold('seed', current) as GameState, supply('bite')),
+        'the settlement',
+      );
+      current = [...current, ...settled.events];
+      const turn = must(resolveTurn(fold('seed', current) as GameState, supply('turn')), 'the turn');
+      current = [...current, ...turn.events];
+    }
+    const next = resolveMove(
+      fold('seed', current) as GameState,
+      DRUID,
+      {
+        placement: { from: { point: { x: 110, y: 100, z: 0 } }, feet: 0 },
+        alsoMoves: { castingId, to: { x: 165, y: 100, z: 0 } },
+      },
+      supply('walk'),
+    );
+    expect(isErr(next)).toBe(false);
   });
 
   it('refuses a pack walked further than thirty feet', () => {

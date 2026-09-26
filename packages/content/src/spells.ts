@@ -2005,13 +2005,15 @@ export const BLACK_TENTACLES: SpellDefinition = {
  * the phantasm is "perceivable only to the target", so it pays out on the one
  * creature the casting singled out and on nobody standing beside them.
  *
- * **The Cube is placed where the target is, and the caster draws it.** The book
- * never says where the phantasm is, and the clause that matters measures from it,
- * so the casting states a point and a direction as every Cube does; the target is
- * the creature named. Five feet from the anchor covers the whole Cube and one
- * space past it, which is the reading `AreaTrigger.within` takes of a point — a
- * creature ten feet beyond the Cube's far face is out of reach of the payout and
- * of the sentence alike.
+ * **The phantasm is a place, and the Cube is what it looks like.** The book never
+ * says where the phantasm stands, and it never makes the Cube catch anybody: "no
+ * larger than a 10-foot Cube" is a bound on the illusion, and the clause that
+ * reaches a creature is "in the phantasm's area **or within 5 feet of the
+ * phantasm**". So the template is the space the phantasm occupies — a radius of
+ * nothing, exactly as SRD Conjure Animals' pack is — and `AreaTrigger.within: 5`
+ * is the whole of the sentence, measured from that space. The ten feet of Cube go
+ * to the table with the sound and the temperature, which is where the rest of what
+ * the phantasm *is* already goes.
  *
  * The rationalising, what the target perceives the damage as, and the phantasm's
  * own appearance are handed to the table whole.
@@ -2025,16 +2027,16 @@ export const PHANTASMAL_FORCE: SpellDefinition = {
   concentration: true,
   // "a creature you can see within range"
   range: { kind: 'ranged', feet: 60 },
-  // "a creature you can see within range", read through the area the phantasm
-  // fills: the caster draws the Cube at a point within range and names the one
-  // creature inside it whose mind the illusion is in — SRD's "each creature of
-  // your choice in the area" narrowed to one, which is the only way a spell may
-  // both lay a template and name a creature.
+  // "a creature you can see within range", read through the place the phantasm
+  // takes: the caster puts the illusion in a space within range and names the one
+  // creature standing there whose mind it is in — SRD's "each creature of your
+  // choice in the area" narrowed to one, which is the only way a spell may both
+  // take a place and name a creature.
   targets: { count: 1, chosenFromTheArea: true },
   requiresSight: true,
-  // "no larger than a 10-foot Cube", placed at a point and drawn along a bearing
-  // like every other Cube the book prints.
-  area: { kind: 'cube', size: 10, origin: 'point' },
+  // The space the phantasm stands in. The book never places it and never makes
+  // its Cube catch anybody; what reaches a creature is the five feet below.
+  area: { kind: 'sphere', radius: 0, origin: 'point' },
   effects: [
     {
       kind: 'save',
@@ -2067,6 +2069,7 @@ export const PHANTASMAL_FORCE: SpellDefinition = {
   },
   durationSeconds: 60,
   dmDecides: [
+    'On a failed save, you create a phantasmal object, creature, or other phenomenon that is no larger than a 10-foot Cube and that is perceivable only to the target for the duration.',
     'The phantasm includes sound, temperature, and other stimuli.',
     'While affected by the spell, the target treats the phantasm as if it were real and rationalizes any illogical outcomes from interacting with it.',
     'For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.',

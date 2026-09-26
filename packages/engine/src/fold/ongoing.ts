@@ -225,9 +225,23 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       // other consequence in this file is derived: nobody *decides* that a
       // beam swept over somebody, and a replay reconstructs it because the
       // fold does.
+      // **And the turn it moved on**, for the one rule that has to count moves
+      // rather than actions: SRD Conjure Animals' pack rides the caster's own
+      // movement, and a creature may break one move into six commands. Stamped for
+      // every moved point, because an action is its own cap and a stamp on
+      // Moonbeam's beam changes nothing; absent outside a fight, where there is no
+      // turn to count. See `OngoingSpell.movedOnTurn`.
+      const turn = state.combat?.turnsTaken;
       const moved: GameState = {
         ...next,
-        ongoing: { ...state.ongoing, [event.castingId]: { ...record, origin: event.to } },
+        ongoing: {
+          ...state.ongoing,
+          [event.castingId]: {
+            ...record,
+            origin: event.to,
+            ...(turn === undefined ? {} : { movedOnTurn: turn }),
+          },
+        },
       };
       return raiseAreaArrivals(moved, event.castingId, from, event.to);
     }

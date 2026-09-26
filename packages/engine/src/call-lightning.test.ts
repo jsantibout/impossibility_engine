@@ -60,12 +60,14 @@ const added = (who: CharacterId, side: string): GameEvent => ({
   side,
 });
 
+/** The druid's own square, which is what the cloud rose above. */
+const CLOUD = { x: 100, y: 100, z: 0 };
 /** The first bolt's point, 40 feet east of the druid, with a goblin standing on it. */
 const FIRST = { x: 140, y: 100, z: 0 };
-/** Another point, 30 feet on again — still inside the cloud's 60-foot radius. */
-const SECOND = { x: 170, y: 100, z: 0 };
-/** And one 90 feet from the first, which is outside it. */
-const BEYOND = { x: 230, y: 100, z: 0 };
+/** Another point, twenty feet on again — still inside the cloud's 60-foot radius. */
+const SECOND = { x: 160, y: 100, z: 0 };
+/** And one 90 feet from the druid, which is outside it. */
+const BEYOND = { x: 190, y: 100, z: 0 };
 
 const FIELD: readonly GameEvent[] = [
   added(DRUID, 'party'),
@@ -89,7 +91,7 @@ const FIELD: readonly GameEvent[] = [
   { type: 'landmark-added', name: 'the moor', at: { x: 100, y: 100, z: 0 } },
   { type: 'creature-placed', id: DRUID, placement: { from: { landmark: 'the moor' }, feet: 0 } },
   { type: 'creature-placed', id: NEAR, placement: { from: { point: FIRST }, feet: 0 } },
-  { type: 'creature-placed', id: OFF, placement: { from: { point: SECOND }, feet: 0 } },
+  { type: 'creature-placed', id: OFF, placement: { from: { point: { x: 160, y: 100, z: 0 } }, feet: 0 } },
 ];
 
 const supply = (seed: string) => ({
@@ -136,9 +138,12 @@ describe('Call Lightning', () => {
     expect(dice.components.map((part) => part.type)).toEqual(['lightning']);
   });
 
-  it('keeps the cloud as the point it measures the next bolt from', () => {
+  it('keeps the cloud, which rose above its caster, as the point it measures from', () => {
     const { state, castingId } = called();
-    expect(state.ongoing[castingId]!.origin).toEqual(FIRST);
+    // Not the square the first bolt struck: "A storm cloud appears at a point
+    // within range that you can see **above yourself**", and every bolt after it
+    // falls under that cloud rather than under the last strike.
+    expect(state.ongoing[castingId]!.origin).toEqual(CLOUD);
   });
 
   it('calls another one down at a different point under the cloud', () => {
@@ -150,6 +155,16 @@ describe('Call Lightning', () => {
     expect(again.outcomes.map((one) => one.target)).toEqual([OFF]);
     expect(again.outcomes[0]!.save).toBeDefined();
     expect(diceThrown(again.events)).toEqual([3]);
+  });
+
+  it('refuses a first bolt outside the cloud, at the cast', () => {
+    const refused = resolveSpell(
+      fold('seed', FIELD),
+      DRUID,
+      { spellId: 'call-lightning', targets: [], slotLevel: 3, at: BEYOND },
+      supply('bolt'),
+    );
+    expect(isErr(refused) && refused.code).toBe('outside_the_kept_point');
   });
 
   it('refuses a point outside the cloud', () => {

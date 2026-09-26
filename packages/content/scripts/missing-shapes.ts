@@ -1696,9 +1696,9 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // **Detect Thoughts has left the tracked map**, and it took both of its
   // shapes with it: `SpellActivation.effects` forces the Wisdom save the probe
   // calls for, `save.onSuccess: 'end-casting'` is the success that ends the
-  // spell, and `SpellCheck.attemptBy: 'probed'` narrows the Intelligence
+  // spell, and `SpellCheck.attemptBy: 'singled-out'` narrows the Intelligence
   // (Arcana) check to the creature the probe named — read off
-  // `OngoingSpell.probing`, which the activation pins. What is left of the
+  // `OngoingSpell.singledOut`, which the activation pins. What is left of the
   // spell is its two options, which are information, and they are filed in
   // `ADJUDICATED` below.
   'private-sanctum': [

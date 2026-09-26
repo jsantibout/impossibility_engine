@@ -17,14 +17,19 @@ import { type CharacterId, err, ok, type Result } from '@ie/shared';
 import { spendAction, spendBonusAction } from '../combat.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
-import { distanceBetweenPoints, snapToSpace, type Point } from '../positioning.js';
+import { type Point } from '../positioning.js';
 import { actionRulesOn, canSee } from '../standing.js';
 import { type SpellActivation } from '../spell-definitions.js';
 import { lightPatchesOf, type Supply } from './casting.js';
 import { castingIdOf, regionOfArea } from '../spells.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
-import { reachFromCaster, reachFromOrigin, relocateOrigin } from './ongoing.js';
+import {
+  reachFromCaster,
+  reachFromOrigin,
+  relocateOrigin,
+  underTheKeptPoint,
+} from './ongoing.js';
 import { resolveEffects } from './spell-resolution.js';
 import { handedOver, statedChoice, statedDamageType } from '../spell-definitions.js';
 import {
@@ -277,7 +282,7 @@ export function activateSpell(
       if (!record.aimed.includes(casterId)) {
         return err(
           'not_your_spell',
-          `${record.spell} is exhaled by the creature it is on — ${record.aimed.join(', ') || 'nobody'} — and ${casterId} is not ${record.aimed.length === 1 ? 'them' : 'among them'}`,
+          `${record.spell} is acted through by the creature it is on — ${record.aimed.join(', ') || 'nobody'} — and ${casterId} is not ${record.aimed.length === 1 ? 'them' : 'among them'}`,
         );
       }
     } else if (record.caster !== casterId) {
@@ -443,17 +448,13 @@ export function activateSpell(
       );
     } else {
       // "a point you can see **under the cloud**": measured from the point the
-      // casting keeps — where the template was laid — and refused beyond the
-      // printed allowance before the action is charged.
+      // casting keeps — the cloud, which rose above its caster — and refused
+      // beyond the printed radius before the action is charged. The same reader
+      // the cast is held to, so the first bolt and the tenth fall in one place.
       const allowance = activation.redrawsArea;
       if (allowance !== undefined && record.origin !== undefined) {
-        const away = distanceBetweenPoints(record.origin, snapToSpace(command.at));
-        if (away > allowance) {
-          return err(
-            'outside_the_kept_point',
-            `${record.spell} reaches ${allowance} feet from the point it holds, and the point named is ${away} away`,
-          );
-        }
+        const beyond = underTheKeptPoint(record.origin, command.at, allowance, record.spell);
+        if (beyond !== null) return beyond;
       }
     }
 

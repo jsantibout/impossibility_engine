@@ -595,7 +595,20 @@ const castAt = (
       // one creature it has, who is standing five feet away and so inside
       // every template here.
       targets: definition.targets.chosenFromTheArea === true ? [TARGET] : [],
-      ...(definition.area.origin === 'point' ? { at } : {}),
+      // **The point goes on the creature where the area is what picks it out.**
+      // SRD Phantasmal Force takes the space its illusion stands in — a radius of
+      // nothing — and names the one creature standing there, so an area anchored
+      // on the caster's own square would catch the caster and refuse the target.
+      // Every other point-origin template here is wide enough to reach five feet
+      // and is left where it was.
+      ...(definition.area.origin === 'point'
+        ? {
+            at:
+              definition.targets.chosenFromTheArea === true
+                ? { x: at.x, y: at.y + 5, z: at.z }
+                : at,
+          }
+        : {}),
       ...(directional ? { towards } : {}),
       ...drawn,
       ...stated,

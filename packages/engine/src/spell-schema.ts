@@ -5926,15 +5926,21 @@ export function checkSpellDefinition(
    * day a spell prints both sentences the reader is written first and this row
    * goes; until then the refusal is what says the reader is missing.
    *
-   * **And one reader has now been written, for one of the three.** SRD
-   * Phantasmal Force draws a Cube and names the one creature inside it whose mind
-   * the illusion is in, and `AreaTrigger.onlyTarget` narrows the later catch to
-   * *that same creature* — off `OngoingSpell.singledOut`, which the cast pinned.
-   * So the filter does not let go of the casting a turn later: the same one
-   * creature is caught at the cast and at every boundary after it. The refusal
-   * stands for the other two clauses, which still have no reader on the later
-   * catch, and for a `chosenFromTheArea` whose trigger does not carry the
-   * narrowing.
+   * **And one reader has now been written, for one of the three, on one of the
+   * two later catches.** SRD Phantasmal Force takes a space and names the one
+   * creature standing there whose mind the illusion is in, and
+   * `AreaTrigger.onlyTarget` narrows the **trigger's** later catch to *that same
+   * creature* — off `OngoingSpell.singledOut`, which the cast pinned. So the
+   * filter does not let go of the casting a turn later: the same one creature is
+   * caught at the cast and at every boundary after it.
+   *
+   * **`areaStanding` is not excused with it**, and the asymmetry is the whole
+   * point of naming the reader rather than the field: a standing clause reads
+   * `singledOut` nowhere, so a definition that filtered its catch and then imposed
+   * something on whoever was standing in the area would be exactly the
+   * half-applied rule this row exists to refuse. The refusal also stands for the
+   * other two clauses, which have no reader on either later catch, and for a
+   * `chosenFromTheArea` whose trigger does not carry the narrowing.
    *
    * The other two target clauses need no such guard, because they are checked
    * wherever a caller *names* somebody and every definition does.
@@ -5952,8 +5958,8 @@ export function checkSpellDefinition(
     const narrowedLater =
       clause === 'chosenFromTheArea' && definition.areaTrigger?.onlyTarget === true;
     if (
-      !narrowedLater &&
-      (definition.areaTrigger !== undefined || definition.areaStanding !== undefined)
+      (definition.areaTrigger !== undefined && !narrowedLater) ||
+      definition.areaStanding !== undefined
     ) {
       found.push({
         field: `targets.${clause}`,

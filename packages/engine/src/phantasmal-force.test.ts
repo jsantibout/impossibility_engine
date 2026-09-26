@@ -35,6 +35,11 @@ import {
  * against the pinned target's position rather than against whoever is standing
  * there — `onlyTarget`, because the phantasm is perceivable only to the one mind
  * it is in.
+ *
+ * **The phantasm is a place and the Cube is what it looks like.** The book never
+ * puts the Cube anywhere and never makes it catch anybody; what reaches a creature
+ * is "in the phantasm's area **or within 5 feet of the phantasm**", so the template
+ * is the space the illusion occupies and the five feet is the whole clause.
  */
 
 const id = (s: string): CharacterId => asCharacterId(s);
@@ -66,14 +71,8 @@ const added = (who: CharacterId, side: string, over: Partial<CharacterSheet> = {
   side,
 });
 
-/**
- * Where the Cube is anchored: twenty-five feet from the bard, one space short of
- * the goblin, so the 10-foot Cube drawn eastward covers the space the goblin is
- * standing in.
- */
-const CUBE = { x: 125, y: 100, z: 0 };
-/** And the way it extends, which is what a Cube needs beside a point. */
-const ALONG = { x: 200, y: 100, z: 0 };
+/** The space the phantasm takes: the goblin's own, thirty feet from the bard. */
+const CUBE = { x: 130, y: 100, z: 0 };
 
 const HALL: readonly GameEvent[] = [
   added(BARD, 'party', { abilities: { str: 10, dex: 10, con: 12, int: 10, wis: 10, cha: 18 } }),
@@ -96,17 +95,14 @@ const HALL: readonly GameEvent[] = [
   { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
   { type: 'landmark-added', name: 'the hall', at: { x: 100, y: 100, z: 0 } },
   { type: 'creature-placed', id: BARD, placement: { from: { landmark: 'the hall' }, feet: 0 } },
-  {
-    type: 'creature-placed',
-    id: GOBLIN,
-    placement: { from: { point: { x: 130, y: 100, z: 0 } }, feet: 0 },
-  },
-  // Twenty feet past the anchor, which is outside the Cube and outside the five
-  // feet the sentence adds to it.
+  { type: 'creature-placed', id: GOBLIN, placement: { from: { point: CUBE }, feet: 0 } },
+  // **Five feet from the phantasm, which is inside its reach.** That is what makes
+  // `onlyTarget` observable: the geometry catches this creature and the clause does
+  // not, because the illusion is in one mind.
   {
     type: 'creature-placed',
     id: ALLY,
-    placement: { from: { point: { x: 145, y: 100, z: 0 } }, feet: 0 },
+    placement: { from: { point: { x: 135, y: 100, z: 0 } }, feet: 0 },
   },
   { type: 'sight-declared', from: BARD, to: GOBLIN, seen: true },
   { type: 'sight-declared', from: GOBLIN, to: BARD, seen: true },
@@ -138,7 +134,6 @@ const crafted = (seed: string) => {
         targets: [GOBLIN],
         slotLevel: 2,
         at: CUBE,
-        towards: ALONG,
       },
       supply(seed),
     ),
@@ -185,7 +180,7 @@ describe('Phantasmal Force', () => {
     const held = crafted(seedWhere(false));
     const record = held.state.ongoing[held.castingId]!;
     expect(record.singledOut).toBe(GOBLIN);
-    expect(record.area).toEqual({ kind: 'cube', size: 10, origin: 'point' });
+    expect(record.area).toEqual({ kind: 'sphere', radius: 0, origin: 'point' });
     expect(record.origin).toEqual(CUBE);
   });
 
@@ -200,9 +195,12 @@ describe('Phantasmal Force', () => {
       expect(rolled.components.map((part) => part.type)).toEqual(['psychic']);
       expect(rolled.components[0]!.dice.length).toBe(2);
     }
-    // And nobody else: the phantasm is perceivable only to the one mind it is in,
-    // so the creature ten feet along the Cube's axis takes nothing.
+    // **And nobody else, though the geometry caught them.** The ally stands five
+    // feet from the phantasm — inside the reach the sentence prints — and takes
+    // nothing, because the illusion is perceivable only to the one mind it is in.
+    // This is what `onlyTarget` is, and without it this line fails.
     const hurt = round.log.filter((event) => event.type === 'damage-taken');
+    expect(hurt.length).toBeGreaterThan(0);
     expect(hurt.every((blow) => blow.type === 'damage-taken' && blow.id === GOBLIN)).toBe(true);
   });
 
@@ -252,11 +250,11 @@ describe('Phantasmal Force', () => {
     throw new Error('no seed makes the goblin see through it');
   });
 
-  it('refuses a creature the Cube does not cover', () => {
+  it('refuses a creature the phantasm’s own space does not hold', () => {
     const refused = resolveSpell(
       fold('seed', HALL),
       BARD,
-      { spellId: 'phantasmal-force', targets: [ALLY], slotLevel: 2, at: CUBE, towards: ALONG },
+      { spellId: 'phantasmal-force', targets: [ALLY], slotLevel: 2, at: CUBE },
       supply('elsewhere'),
     );
     expect(isErr(refused) && refused.code).toBe('not_in_the_area');

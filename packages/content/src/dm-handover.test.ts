@@ -325,15 +325,7 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     // 30-foot cone — and the sweep points every one east of the shrine.
     ...(definition.area !== undefined && ['cone', 'cube', 'line'].includes(definition.area.kind)
       ? {
-          // **North rather than east where the area is what picks the target
-          // out**, so the Cube drawn from the shrine covers the sleeper standing
-          // five feet north of it. SRD's glossary leaves a point of origin out of
-          // the area it starts, so the anchor is the caster's own square and the
-          // creature is one space along.
-          towards:
-            definition.targets.chosenFromTheArea === true
-              ? { x: 50, y: 100, z: 0 }
-              : { x: 100, y: 50, z: 0 },
+          towards: { x: 100, y: 50, z: 0 },
         }
       : {}),
     // **An area the caster puts somewhere needs the point.** A `self` origin
@@ -350,7 +342,7 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
       ? {
           at:
             definition.targets.chosenFromTheArea === true
-              ? { x: 50, y: 50, z: 0 }
+              ? { x: 50, y: 55, z: 0 }
               : { x: 55, y: 50, z: 0 },
         }
       : {}),

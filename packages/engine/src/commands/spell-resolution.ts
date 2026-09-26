@@ -169,7 +169,7 @@ import {
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
-import { ongoingSpellsOn, replacedCastings } from './ongoing.js';
+import { ongoingSpellsOn, replacedCastings, underTheKeptPoint } from './ongoing.js';
 import {
   attunementProblem,
   maskProblem,
@@ -1017,6 +1017,23 @@ export function castOrRelease(
       altered.value.resolving,
     );
     if (!declared.ok) return declared;
+
+    // — the bolt under the cloud ———————————————————————————————————————————————
+    //
+    // SRD Call Lightning: "choose a point you can see **under the cloud**." The
+    // cloud rose above its caster, so the first bolt is held to its radius exactly
+    // as every bolt after it is — one reader, `underTheKeptPoint`, asked at both
+    // moments so the sixty feet cannot come to mean two things. The spell's
+    // printed Range is the wider number and binds nothing here, which is the
+    // book's own arithmetic rather than a second rule.
+    const redraws = definition.activation?.redrawsArea;
+    if (redraws !== undefined && request.at !== undefined && state.scene !== null) {
+      const above = positionOf(state.scene, casterId);
+      if (above !== null) {
+        const beyond = underTheKeptPoint(above, request.at, redraws, definition.name);
+        if (beyond !== null) return beyond;
+      }
+    }
 
     // — the hand that carries a touch —————————————————————————————————————————
     //
@@ -2257,7 +2274,25 @@ function resolveOnTargets(
     // nobody; everything else is on whoever it actually caught.
     on: onCaster(definition) ? 'caster' : origin === null ? 'targets' : 'point',
     ...(definition.area === undefined ? {} : { fromArea: true as const }),
-    ...(origin === null && area === null ? {} : { origin: origin ?? area!.at }),
+    // **The point the casting keeps.** For all but one spell it is where the
+    // casting put something — the force, the beam, the webs — and the area's own
+    // anchor is that point.
+    //
+    // **SRD Call Lightning keeps the cloud, and the cloud is above its caster**:
+    // "A storm cloud appears at a point within range that you can see **above
+    // yourself**", and every bolt after it falls "under the cloud". So a spell
+    // whose later action re-draws its template keeps the caster's own square
+    // rather than the square the first bolt struck — otherwise a bolt called down
+    // forty feet east would have moved the cloud, and the next one a hundred feet
+    // east would be under nothing at all.
+    ...(definition.activation?.redrawsArea !== undefined && state.scene !== null
+      ? (() => {
+          const above = positionOf(state.scene, casterId);
+          return above === null ? {} : { origin: above };
+        })()
+      : origin === null && area === null
+        ? {}
+        : { origin: origin ?? area!.at }),
     // A point-origin area's bearing travels beside its point; a **carried**
     // one's has no point to travel beside — see `carriedAim`.
     ...(area?.towards === undefined

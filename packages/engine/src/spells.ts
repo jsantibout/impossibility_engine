@@ -747,6 +747,28 @@ export interface OngoingSpell {
    */
   readonly singledOut?: string;
   /**
+   * The turn this casting's point last moved on, counted as the fight counts
+   * turns, or absent for one that has never moved or moved outside a fight.
+   *
+   * **The one thing "once per move" could not say.** SRD Conjure Animals: "**when
+   * you move on your turn**, you can also move the pack up to 30 feet." A rider on
+   * one command is once per command, and a creature may break its thirty feet into
+   * six commands of five — so without this a druid walks the pack a hundred and
+   * eighty feet a round, one carry at a time, each of them legal on its own.
+   *
+   * **A turn rather than a count**, which is how every other once-per-turn rule in
+   * this engine is written: `areaTriggers` stamps the turn a creature was caught
+   * on, and a stamp is what survives a replay without anything having to be reset
+   * at a boundary. Outside combat there is no turn to stamp and nothing is capped,
+   * which is the reading the one-slot-per-turn rule and every once-per-turn feature
+   * already take.
+   *
+   * Written by the fold on `spell-origin-moved`, so a beam an activation walks
+   * stamps it too — harmless, because an action is its own cap and Moonbeam's move
+   * *is* the action. `carryAreaWithMover` is the one reader.
+   */
+  readonly movedOnTurn?: number;
+  /**
    * Somebody other than the caster may end this casting, and pays for it —
    * SRD Gaseous Form's "if it takes a Magic action to end the spell on
    * itself".

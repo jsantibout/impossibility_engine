@@ -510,6 +510,19 @@ export function carryAreaWithMover(
   if (state.scene === null) {
     return err('no_scene', `${record.spell} needs a scene to be carried about in`);
   }
+  // **Once on the turn, not once on the command.** SRD Conjure Animals: "when you
+  // move on your turn, you can **also** move the pack" — one sentence about one
+  // turn's walking, and a creature may break thirty feet into six commands of
+  // five. So the cap is the turn the point last moved on rather than the rider
+  // being spent by the command that carries it. Outside a fight nothing is capped,
+  // which is what every other once-per-turn rule here does.
+  const turn = state.combat?.turnsTaken;
+  if (turn !== undefined && record.movedOnTurn === turn) {
+    return err(
+      'pack_already_carried',
+      `${record.spell} has already been carried this turn; the spell moves it when its caster moves, once`,
+    );
+  }
 
   const to = snapToSpace(asked.to);
   if (!isInsideScene(state.scene, to)) {
@@ -551,6 +564,30 @@ export function carryAreaWithMover(
   }
 
   return ok({ type: 'spell-origin-moved', castingId: record.castingId, to });
+}
+
+/**
+ * Whether a point is under the point a casting keeps — SRD Call Lightning's
+ * "choose a point you can see **under the cloud**", or null where it is.
+ *
+ * **One reader for two moments**, which is the discipline every printed number in
+ * this engine keeps: the bolt at the cast and the bolts called down afterwards are
+ * held to the same sixty feet, and two spellings of that would be two places for
+ * the cloud's radius to be got wrong.
+ */
+export function underTheKeptPoint(
+  from: Point,
+  to: Point,
+  allowance: number,
+  spell: string,
+): Err | null {
+  const away = distanceBetweenPoints(from, snapToSpace(to));
+  return away > allowance
+    ? err(
+        'outside_the_kept_point',
+        `${spell} reaches ${allowance} feet from the point it holds, and the point named is ${away} away`,
+      )
+    : null;
 }
 
 /** An ordinary later-turn spell: the caster's own reach, checked afresh. */

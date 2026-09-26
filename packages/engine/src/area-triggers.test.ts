@@ -964,7 +964,11 @@ describe('every trigger is a clause the SRD actually prints', () => {
       // the sweep reads that sentence rather than the two about the creature —
       // and a definition claiming the caster's boundary with no such clause in
       // the book is caught exactly as one claiming the wrong one is.
-      const casters = /\bon each of your turns\b/i.test(prose);
+      // **Anchored to the damage rather than to the phrase**, because "on each of
+      // your turns" is a common *activation* sentence too — and a definition that
+      // printed it about an action and a boundary clause about the caught creature
+      // would otherwise be asserted the wrong one of the two.
+      const casters = /\bon each of your turns\b[^.]*\bdamage\b/i.test(prose);
       expect(definition.areaTrigger?.at).toBe(
         casters
           ? 'start-of-casters-turn'
