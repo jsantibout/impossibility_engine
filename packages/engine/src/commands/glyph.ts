@@ -189,9 +189,9 @@ export interface StoringPlan {
  * **One guard, asked twice**: at the declaration, before the glyph's rite
  * begins, and again at the settlement an hour later, where the stored spell is
  * actually cast — for the reason the glyph's own route is re-derived there.
- * Null where the casting stores nothing. `glyphSlot` is the level of the
- * glyph's own slot where it has one, so a stored spell cast from a slot of the
- * same level is asked for two of them rather than one. (W7-S21)
+ * Null where the casting stores nothing. `glyphSlotKey` is the pool the
+ * glyph's own slot comes out of where it has one, so a stored spell cast from
+ * that same pool is asked for two slots rather than one. (W7-S21)
  */
 export function storedSpellProblem(
   state: GameState,
@@ -199,7 +199,7 @@ export function storedSpellProblem(
   glyph: SpellDefinition,
   stores: StoredSpellRequest | undefined,
   castLevel: number,
-  glyphSlot: number | null,
+  glyphSlotKey: string | null,
   content: Content,
 ): Result<StoringPlan | null> {
   if (stores === undefined) return ok(null);
@@ -265,11 +265,11 @@ export function storedSpellProblem(
     ...(stores.option === undefined ? {} : { option: stores.option }),
   });
   if (!stated.ok) return stated;
-  // Its own slot, beside the glyph's — two of one level where both are.
-  const kind = chooseSlotKind(caster, level, undefined);
+  // Its own slot, beside the glyph's — two out of one pool where both are.
+  const kind = chooseSlotKind(caster, level, stores.slotKind);
   if (!kind.ok) return kind;
   const key = slotKeyOf(kind.value, level);
-  const wanted = glyphSlot === level ? 2 : 1;
+  const wanted = glyphSlotKey === key ? 2 : 1;
   const left = remaining(caster.resources, key);
   if (left < wanted) {
     return err(

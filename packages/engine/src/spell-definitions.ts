@@ -26,7 +26,7 @@ import type {
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
-import type { Recovery } from './resources.js';
+import type { Recovery, SlotKind } from './resources.js';
 import type { CreatureSize } from '@ie/srd';
 
 /**
@@ -8185,6 +8185,13 @@ export interface StoredSpellRequest {
   readonly spellId: string;
   /** The slot the stored spell is cast from, spent at the inscription. */
   readonly slotLevel: number;
+  /**
+   * Which pool that slot comes out of, for a caster who has both — see
+   * `CastSpellRequest.slotKind`. The glyph's own slot says nothing about the
+   * stored spell's, so a Warlock multiclassed into a Spellcasting class says
+   * which here or is asked. (W7-S21)
+   */
+  readonly slotKind?: SlotKind;
   /** Which class route supplies it, where more than one would — see `CastSpellRequest.source`. */
   readonly source?: string;
   /** A damage type the stored spell prints a choice of — see `CastSpellRequest.damageType`. */

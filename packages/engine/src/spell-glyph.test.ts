@@ -6,7 +6,7 @@ import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
 import { declaredCasting } from './spellcasting.js';
-import { remaining, spellSlotKey } from './resources.js';
+import { pactSlotKey, remaining, spellSlotKey } from './resources.js';
 import {
   advanceTime,
   pendingCastingsOf,
@@ -320,6 +320,49 @@ describe('SRD Glyph of Warding’s spell glyph', () => {
       supply('ink'),
     );
     expect(isErr(rite) && rite.code).toBe('stored_spell_too_long');
+  });
+
+  it('asks which pool pays for the stored spell where two would, and counts each pool on its own', () => {
+    // One level 3 Spellcasting slot and one level 3 Pact Magic slot: a
+    // Warlock multiclassed into a Cleric.
+    const twoPools: readonly GameEvent[] = [
+      ...TEMPLE.filter(
+        (event) => !(event.type === 'resource-pool-declared' && event.pool.key === spellSlotKey(3)),
+      ),
+      {
+        type: 'resource-pool-declared',
+        id: CLERIC,
+        pool: { key: spellSlotKey(3), label: 'level 3', max: 1, recovers: 'long-rest' },
+      },
+      {
+        type: 'resource-pool-declared',
+        id: CLERIC,
+        pool: { key: pactSlotKey(3), label: 'pact 3', max: 1, recovers: 'short-rest' },
+      },
+    ];
+    const glyph = (stores: Record<string, unknown>) =>
+      resolveSpell(
+        fold('seed', twoPools),
+        CLERIC,
+        {
+          spellId: 'glyph-of-warding',
+          targets: [],
+          at: THRESHOLD,
+          slotLevel: 3,
+          slotKind: 'spell',
+          stores: stores as { spellId: string; slotLevel: number },
+        },
+        supply('ink'),
+      );
+    // Either pool has a level 3 slot, and the engine will not choose.
+    const unsaid = glyph({ spellId: 'hold-person', slotLevel: 3 });
+    expect(isErr(unsaid) && unsaid.code).toBe('slot_kind_required');
+    // The glyph out of Spellcasting and the stored spell out of Pact Magic:
+    // one slot from each pool, which is what the caster has.
+    expect(glyph({ spellId: 'hold-person', slotLevel: 3, slotKind: 'pact' }).ok).toBe(true);
+    // Both out of Spellcasting wants two, and there is one.
+    const same = glyph({ spellId: 'hold-person', slotLevel: 3, slotKind: 'spell' });
+    expect(isErr(same) && same.code).toBe('no_slot');
   });
 
   it('asks the DM who set a spell glyph off, and refuses a triggerer for a rune that stores nothing', () => {

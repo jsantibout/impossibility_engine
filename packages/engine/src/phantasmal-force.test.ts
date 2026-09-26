@@ -356,6 +356,13 @@ describe('Phantasmal Force', () => {
         area: { kind: 'sphere', radius: 0, origin: 'point', standsApart: false as unknown as true },
       });
       expect(malformed.map((problem) => problem.code)).toContain('malformed_field');
+      // A place is one space, which is a Sphere of nothing: the field on any
+      // other template is refused.
+      const cube = checkSpellDefinitionValue({
+        ...base,
+        area: { kind: 'cube', size: 10, origin: 'point', standsApart: true },
+      });
+      expect(cube.map((problem) => problem.code)).toContain('stands_apart_without_place');
     });
   });
 });

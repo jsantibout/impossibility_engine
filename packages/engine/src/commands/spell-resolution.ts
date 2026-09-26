@@ -85,7 +85,7 @@ import {
   type PointAnchoring,
   type TerrainRegion,
 } from '../positioning.js';
-import { remaining, tallied } from '../resources.js';
+import { remaining, slotKeyOf, tallied } from '../resources.js';
 import {
   breaksAttunement,
   castOnAHit,
@@ -153,6 +153,7 @@ import {
   answeredCasting,
   choosePayment,
   chooseRoute,
+  chooseSlotKind,
   type Supply,
   deflectTriggeringAttack,
   nextCastingId,
@@ -398,7 +399,7 @@ export function resolveDeclaredCast(
       definition,
       pending.stores,
       pending.level,
-      pending.slot?.level ?? null,
+      pending.slot?.key ?? null,
       supply.content,
     );
     if (!storing.ok) return storing;
@@ -1087,13 +1088,21 @@ export function castOrRelease(
     const statedAgainst: SpellDefinition = storesInstead
       ? (({ damageTypeStated: _rune, ...rest }) => rest)(definition)
       : definition;
+    // The pool the glyph's own slot will come out of, so a stored spell cast
+    // from the same one is asked for two. None for a casting no slot pays
+    // for, and none where the pool is itself still a question — `castSpell`
+    // asks that one, before anything is spent.
+    const glyphSlotKind =
+      request.stores === undefined || route.kind === 'item' || casting.value.ritual
+        ? null
+        : chooseSlotKind(caster, paidLevel, request.slotKind);
     const storing = storedSpellProblem(
       state,
       caster,
       definition,
       request.stores,
       castLevel,
-      route.kind === 'item' || casting.value.ritual ? null : paidLevel,
+      glyphSlotKind === null || !glyphSlotKind.ok ? null : slotKeyOf(glyphSlotKind.value, paidLevel),
       supply.content,
     );
     if (!storing.ok) return storing;

@@ -154,14 +154,17 @@ describe('a check with a choice of skill — SRD Spike Growth', () => {
     const { log } = spiked();
     const before = state(log);
     const [offered] = availableChecks(before, GOBLIN);
+    const held = supply();
     const refused = resolveEffectCheck(
       before,
       GOBLIN,
       { effectKey: offered!.effectKey, skill: 'athletics' },
-      supply(),
+      held,
     );
     expect(isErr(refused) && refused.code).toBe('skill_not_offered');
-    expect(supply().issuer.count).toBe(0);
+    // No die was thrown, and the goblin's Action is where it was.
+    expect(held.issuer.count).toBe(0);
+    expect(before.combat?.budgets[GOBLIN]?.action).toBe(true);
   });
 
   it('refuses to choose between the two when the attempter names neither', () => {
@@ -173,11 +176,52 @@ describe('a check with a choice of skill — SRD Spike Growth', () => {
   });
 
   it('lets a check that prints one skill be attempted with that skill named, and no other', () => {
-    // SRD Phantasmal Force prints "Intelligence (Investigation)": naming it
-    // restates the book, naming Arcana contradicts it.
-    const definition = SRD_CONTENT.spell('phantasmal-force')!;
+    // SRD Minor Illusion prints "Intelligence (Investigation)": naming it
+    // restates the book, naming Arcana contradicts it, and naming nothing is
+    // the ordinary attempt it always was.
+    const definition = SRD_CONTENT.spell('minor-illusion')!;
     expect(definition.check?.skill).toBe('investigation');
     expect(definition.check?.skills).toBeUndefined();
+
+    const armed: readonly GameEvent[] = [
+      ...SETUP,
+      {
+        type: 'spellcasting-declared',
+        id: DRUID,
+        spellcasting: declaredCasting({ ability: 'wis', prepared: ['spike-growth'], cantrips: ['minor-illusion'] }),
+      },
+    ];
+    const cast = unwrap(
+      resolveSpell(state(armed), DRUID, { spellId: 'minor-illusion', targets: [] }, supply('image')),
+      'the image',
+    );
+    const before = state([
+      ...armed,
+      ...cast.events,
+      {
+        type: 'combat-started',
+        combatants: [
+          { id: GOBLIN, initiative: 20, speed: 30 },
+          { id: DRUID, initiative: 10, speed: 30 },
+        ],
+      },
+    ]);
+    const [offered] = availableChecks(before, GOBLIN);
+    expect(offered?.skill).toBe('investigation');
+    expect(offered?.skills).toBeUndefined();
+
+    const restated = unwrap(
+      resolveEffectCheck(before, GOBLIN, { effectKey: offered!.effectKey, skill: 'investigation' }, supply('look')),
+      'restated',
+    );
+    expect(restated.check?.skill).toBe('investigation');
+    const unnamed = unwrap(
+      resolveEffectCheck(before, GOBLIN, { effectKey: offered!.effectKey }, supply('look')),
+      'unnamed',
+    );
+    expect(unnamed.check?.skill).toBe('investigation');
+    const other = resolveEffectCheck(before, GOBLIN, { effectKey: offered!.effectKey, skill: 'arcana' }, supply('look'));
+    expect(isErr(other) && other.code).toBe('skill_not_offered');
   });
 
   it('is validated: one skill or a list, never both, and every listed skill belongs to the ability', () => {

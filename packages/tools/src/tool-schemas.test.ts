@@ -321,12 +321,13 @@ describe('toolSchemas', () => {
     expect(toolSchemas(dm())).toHaveLength(121);
     // Re-pinned for W7-S21 part 4: `attempt_effect_check.skill` (SRD Spike
     // Growth's "Perception or Survival" — the attempter's pick) on both doors.
-    // And for part 2: `cast_spell.stores` (SRD Glyph of Warding's spell glyph)
+    // And for part 2: `cast_spell.stores` (SRD Glyph of Warding's spell glyph,
+    // with the stored spell's own `slotKind`)
     // on both doors, and `trigger_glyph.by` — who set it off — on the DM's.
     // And for part 3: `borrow_senses` (SRD Find Familiar's Bonus Action, the
     // third door on the kept bond), one tool more on both doors.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(150774);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(197076);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(150970);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(197272);
   });
 });
 

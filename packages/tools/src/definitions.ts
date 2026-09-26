@@ -2772,6 +2772,10 @@ const CAST_SPELL = tool({
       .strictObject({
         spellId: z.string().min(1).describe('The prepared spell to store.'),
         slotLevel: z.int().min(1).max(9).describe('The slot the stored spell is cast from — spent now, beside the glyph’s own.'),
+        slotKind: z
+          .enum(['spell', 'pact'])
+          .optional()
+          .describe('Which pool that slot comes out of, for a Warlock multiclassed into another caster, as `slotKind` above is for the glyph’s own.'),
         source: z.string().min(1).optional().describe('Which class route casts it, as `source` above, where more than one would.'),
         damageType: z.string().min(1).optional().describe('A damage type the stored spell prints a choice of.'),
         choice: z.string().min(1).optional().describe('A value the stored spell asks its caster to choose.'),
@@ -2922,6 +2926,7 @@ const CAST_SPELL = tool({
             stores: {
               spellId: args.stores.spellId,
               slotLevel: args.stores.slotLevel,
+              ...(args.stores.slotKind === undefined ? {} : { slotKind: args.stores.slotKind }),
               ...(args.stores.source === undefined ? {} : { source: args.stores.source }),
               ...(args.stores.damageType === undefined ? {} : { damageType: args.stores.damageType }),
               ...(args.stores.choice === undefined ? {} : { choice: args.stores.choice }),
