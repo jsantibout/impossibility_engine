@@ -523,7 +523,83 @@ function grantsOfPrintedLine(
     }
   }
 
-  return ok({ events, unverified, applied: line.jumps !== undefined || line.dashes !== undefined });
+  // **The move and the swing a blow on a Bloodied creature buys** — SRD Gnoll
+  // Warrior's Rampage and SRD Giant Hyena's. The trigger is read here and
+  // nowhere else, because it is the one thing about this line that is not a
+  // grant: "immediately after dealing damage to a creature that is **already**
+  // Bloodied" is a fact about a blow that has already landed, and
+  // `LastDamage.wasBloodied` is the record of it. A line taken without the
+  // trigger is refused rather than granted-and-reported, because the whole
+  // sentence is conditional on it. (W7-B11)
+  if (line.rampages !== undefined) {
+    const { fraction, attack, attacks } = line.rampages;
+    const mauled = bloodiedByThisTurn(state, id);
+    if (mauled === null) {
+      return err(
+        'no_bloodied_blow',
+        `${line.name} follows a blow ${id} has dealt this turn to a creature that was already Bloodied, and there has been none`,
+      );
+    }
+    const whole = speedOf(state, id);
+    const feet = fraction === 'half' ? Math.floor(whole / 2) : whole;
+    if (feet > 0) {
+      events.push({ type: 'movement-granted', id, source, feet });
+    } else {
+      unverified.push(
+        `${line.name} moves ${id} up to a fraction of a Speed it has none of; nothing was handed over`,
+      );
+    }
+    events.push({
+      type: 'turn-budget-granted',
+      id,
+      source,
+      attacks: { remaining: attacks, unarmedOnly: false },
+    });
+    // **Which attack is reported rather than enforced.** `GrantedAttacks`
+    // narrows by `unarmedOnly` and by nothing else — the SRD's own narrowing
+    // and the only one printed anywhere — so a grant that claimed to hold the
+    // swing to one heading would be a field nothing reads.
+    unverified.push(
+      `${line.name} follows ${id}'s blow on ${mauled} and buys ${attacks === 1 ? 'one' : String(attacks)} ${attack} attack${attacks === 1 ? '' : 's'}; the engine hands the turn ${attacks} attack outside the Attack action and does not hold the swing to that heading`,
+    );
+  }
+
+  return ok({
+    events,
+    unverified,
+    applied:
+      line.jumps !== undefined || line.dashes !== undefined || line.rampages !== undefined,
+  });
+}
+
+/**
+ * Somebody this creature has damaged **this turn** who was already Bloodied
+ * when the blow landed, or null.
+ *
+ * SRD Rampage's trigger, and the whole of it. Three facts and every one of them
+ * is already in state: who dealt the damage, when, and whether the creature was
+ * past half its Hit Points *before* it — see `LastDamage.wasBloodied`, which is
+ * why `isBloodied` asked now would be the wrong question.
+ *
+ * "Immediately after" is read the way {@link damageWindowOpen} reads it and for
+ * the same reason: the finest grain the engine has for *now* is the turn, and
+ * outside combat the clock stands in for it. A gnoll whose Bonus Action comes
+ * after a round has gone by has missed the moment.
+ *
+ * The creatures are asked in id order so two victims in one turn give one
+ * answer rather than whichever the record happened to hold first; which of them
+ * is named changes nothing mechanical and it is reported, so a stable order is
+ * what keeps two replays from reading differently.
+ */
+function bloodiedByThisTurn(state: GameState, id: CharacterId): CharacterId | null {
+  for (const key of Object.keys(state.creatures).sort()) {
+    const hurt = state.creatures[key]?.lastDamage ?? null;
+    if (hurt === null || hurt.by !== id || hurt.wasBloodied !== true) continue;
+    if (hurt.turn !== (state.combat?.turnsTaken ?? null)) continue;
+    if (hurt.elapsed !== state.elapsed) continue;
+    return key as CharacterId;
+  }
+  return null;
 }
 
 export interface StatedBonusActionCommand extends CommandIdentity {

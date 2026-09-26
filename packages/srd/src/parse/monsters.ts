@@ -24,6 +24,8 @@ import {
   type MonsterCastLine,
   type MonsterDamage,
   type MonsterDash,
+  MonsterRampageSchema,
+  type MonsterRampage,
   type MonsterJump,
   type MonsterTreeStride,
   type MonsterForm,
@@ -2120,6 +2122,44 @@ const DASH_LINE = new RegExp(
     `( At the end of this movement, the ${SUBJECT} can take the Hide action\\.)?$`,
 );
 
+/**
+ * SRD Gnoll Warrior, Rampage (1/Day): "Immediately after dealing damage to a
+ * creature that is already Bloodied, the gnoll moves up to half its Speed, and
+ * it makes one Rend attack." SRD Giant Hyena prints the same with "was already
+ * Bloodied", "can move" and a Bite.
+ *
+ * **The trigger clause is what this reads and {@link DASH_LINE} cannot**: the
+ * move is conditional on a fact about somebody else's hit points a moment ago,
+ * where a dash is conditional on nothing. Both tenses the book prints and both
+ * verbs are alternatives inside one anchored pattern, because a sentence is the
+ * same sentence whichever of them it chose.
+ *
+ * Anchored end to end, which is what refuses SRD Unicorn's Charging Horn: that
+ * is a move *and* an attack with no trigger at all, printed as a legendary
+ * action, and reading it here would be a unicorn rampaging. (W7-B11)
+ */
+const RAMPAGE_LINE = new RegExp(
+  `^Immediately after dealing damage to a creature that (?:is|was) already Bloodied, ` +
+    `the ${SUBJECT} (?:can move|moves) up to (half )?its Speed, ` +
+    `and it makes (one|two|three) ([A-Z][A-Za-z' -]*) attacks?\\.$`,
+);
+
+/** The counts the book writes out in words, which is how it writes every one. */
+const WRITTEN_COUNTS: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3 };
+
+/** The move and the swing this line takes after a blow, or null for every other line. */
+export function parseRampageLine(text: string): MonsterRampage | null {
+  const matched = RAMPAGE_LINE.exec(oneLine(text));
+  if (matched === null) return null;
+  const [, half, count, attack] = matched;
+  const checked = MonsterRampageSchema.safeParse({
+    fraction: half === undefined ? 'whole' : 'half',
+    attack: attack!.trim(),
+    attacks: WRITTEN_COUNTS[count!]!,
+  });
+  return checked.success ? checked.data : null;
+}
+
 const DASH_MODES: Readonly<Record<string, MonsterDash['modes'][number]>> = {
   Speed: 'walk',
   'Swim Speed': 'swim',
@@ -3064,6 +3104,8 @@ function parseFeatures(
       // step between two trees. Read on every section like everything else.
       const jumps = parseJumpLine(text);
       const dashes = parseDashLine(text);
+      // And the move-and-swing a blow on a Bloodied creature buys — W7-B11.
+      const rampages = parseRampageLine(text);
       const treeStride = parseTreeStrideLine(text);
       const addsToRoll = parseRollAddendLine(text);
       // The Reactions section's other two templates, read off the sentence for
@@ -3097,6 +3139,7 @@ function parseFeatures(
         ...(shiftsPlane === null ? {} : { shiftsPlane }),
         ...(jumps === null ? {} : { jumps }),
         ...(dashes === null ? {} : { dashes }),
+        ...(rampages === null ? {} : { rampages }),
         ...(treeStride === null ? {} : { treeStride }),
         ...(addsToRoll === null ? {} : { addsToRoll }),
         ...(addsToAc === null ? {} : { addsToAc }),

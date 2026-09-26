@@ -29,6 +29,7 @@ import type {
   MonsterForms,
   MonsterMultiattack,
   MonsterDash,
+  MonsterRampage,
   MonsterJump,
   MonsterPlaneShift,
   MonsterTreeStride,
@@ -237,6 +238,12 @@ export interface StatedBonusAction {
    */
   readonly dashes?: MonsterDash;
   /**
+   * The move and the swing a blow on a Bloodied creature buys — see
+   * {@link StatedAction.rampages}, the same field. **SRD prints both of them
+   * under this heading**: the Gnoll Warrior's Rampage and the Giant Hyena's.
+   */
+  readonly rampages?: MonsterRampage;
+  /**
    * The step between two trees this line makes — see
    * {@link StatedAction.treeStride}. SRD Dryad prints it under this heading.
    */
@@ -433,6 +440,18 @@ export interface StatedAction {
    * line names and provoking nothing where the line says so.
    */
   readonly dashes?: MonsterDash;
+  /**
+   * The move and the swing this line takes **immediately after a blow on a
+   * creature that was already Bloodied** — see `MonsterRampageSchema`.
+   *
+   * SRD Gnoll Warrior's Rampage and SRD Giant Hyena's. The spender hands the
+   * turn the printed fraction of its Speed as a `GrantedMove` and one attack
+   * outside the Attack action as `GrantedAttacks`; what it will not do is
+   * narrow *which* attack, because `GrantedAttacks` narrows by `unarmedOnly`
+   * and by nothing else. The name the line printed is reported instead of
+   * enforced, which is the honest half. (W7-B11)
+   */
+  readonly rampages?: MonsterRampage;
   /**
    * The step between two trees this line makes — see
    * `MonsterTreeStrideSchema`. SRD Dryad's Tree Stride; `takePrintedTeleport`

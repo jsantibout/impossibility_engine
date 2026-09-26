@@ -1459,6 +1459,8 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.jumps !== undefined ||
   line.dashes !== undefined ||
   line.treeStride !== undefined ||
+  // And the move a blow on an already-Bloodied creature buys — W7-B11.
+  line.rampages !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
   line.usesLine !== undefined ||
@@ -1917,6 +1919,13 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   line.jumps !== undefined ||
   line.dashes !== undefined ||
   line.treeStride !== undefined ||
+  // **And the move-and-swing a blow buys is spent** — W7-B11. SRD Rampage's
+  // trigger is read off `LastDamage.wasBloodied`, which the fold derives from
+  // the creature as it stood *before* the blow, and the two grants are the ones
+  // a Tactical Shift and a Flurry of Blows already hand a turn. Which heading
+  // the swing should be made with is reported rather than enforced, because
+  // `GrantedAttacks` narrows by `unarmedOnly` and by nothing else.
+  line.rampages !== undefined ||
   // **SRD Parry, executed at the window SRD *Shield* already answered.** The
   // number goes onto the Armour Class the held attack was measured against and
   // the hit is re-decided, which is the whole of what the sentence says — so

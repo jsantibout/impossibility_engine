@@ -592,6 +592,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       'perDay',
       // What SRD Roper's Reel drags toward it, read out of the sentence.
       'pulls',
+      // The move and the swing a blow on an already-Bloodied creature buys —
+      // W7-B11, read out of the sentence like the moves above it, and out of the
+      // trigger clause a `dashes` line has none of.
+      'rampages',
       'recharge',
       'save',
       // The two roads into the second place, read out of the sentence: SRD

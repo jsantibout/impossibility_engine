@@ -1894,6 +1894,40 @@ export const MonsterDashSchema = z.object({
 export type MonsterDash = z.infer<typeof MonsterDashSchema>;
 
 /**
+ * One line a creature takes **immediately after damaging a creature that was
+ * already Bloodied**.
+ *
+ * SRD Gnoll Warrior, Rampage (1/Day): "Immediately after dealing damage to a
+ * creature that is already Bloodied, the gnoll moves up to half its Speed, and
+ * it makes one Rend attack." SRD Giant Hyena prints the same with a Bite and
+ * with "can move" where the gnoll's says "moves".
+ *
+ * **The trigger is the whole reason this is its own shape rather than a
+ * `dashes` with an attack bolted on.** A `dashes` line is a move a creature
+ * takes because it spent the slot; this one is a move it may take *only* if a
+ * fact about somebody else's hit points was true a moment ago — "already
+ * Bloodied", which is Bloodied **before** the blow and not after it. That fact
+ * is `LastDamage.wasBloodied`, read at the door.
+ *
+ * The attack is a **name**, for `AttackCommand.action`'s reason: the block
+ * printed which of its own lines, and a door that took an attack bonus is a
+ * door a model-authored +12 walks through. What the engine grants is one
+ * attack outside the Attack action, and the name it should be swung with is
+ * reported — `GrantedAttacks` narrows by `unarmedOnly` and by nothing else,
+ * which is the SRD's own narrowing and the only one printed anywhere else.
+ * (W7-B11)
+ */
+export const MonsterRampageSchema = z.object({
+  /** "up to half its Speed" — both printed lines say half. */
+  fraction: z.enum(['whole', 'half']),
+  /** The attack the line names, by the heading the block prints it under. */
+  attack: z.string().min(1),
+  /** How many of it: "one Rend attack" is 1. */
+  attacks: z.number().int().min(1),
+});
+export type MonsterRampage = z.infer<typeof MonsterRampageSchema>;
+
+/**
  * One line that teleports its creature from beside one tree to beside another.
  *
  * SRD Dryad, Tree Stride: "If within 5 feet of a Large or bigger tree, the
@@ -3060,6 +3094,14 @@ export const FeatureSchema = z.object({
    * which is a heading saying what the use costs and nothing else.
    */
   dashes: MonsterDashSchema.optional(),
+  /**
+   * The move and the swing this line takes after a blow on a creature that was
+   * already Bloodied — see {@link MonsterRampageSchema}.
+   *
+   * SRD prints both under Bonus Actions, and it is read on every section for
+   * the reason everything here is: the heading says what a use costs. (W7-B11)
+   */
+  rampages: MonsterRampageSchema.optional(),
   /**
    * The teleport between two trees this line makes — see
    * {@link MonsterTreeStrideSchema}. SRD prints the one line under Bonus

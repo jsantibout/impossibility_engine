@@ -2579,6 +2579,7 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       // takes the stride.
       ...(line.jumps === undefined ? {} : { jumps: line.jumps }),
       ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
+      ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
       ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
@@ -2627,6 +2628,9 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // Dryad's Tree Stride are printed here.
     ...(line.jumps === undefined ? {} : { jumps: line.jumps }),
     ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
+    // **Both Rampages are printed here**, which is why the field is read on
+    // this section as well as the other — W7-B11.
+    ...(line.rampages === undefined ? {} : { rampages: line.rampages }),
     ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.

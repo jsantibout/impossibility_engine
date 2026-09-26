@@ -1274,6 +1274,23 @@ export interface LastDamage {
   readonly by: CharacterId;
   readonly turn: number | null;
   readonly elapsed: number;
+  /**
+   * Whether this creature was **already** Bloodied when the blow landed.
+   *
+   * SRD Gnoll Warrior's Rampage: "Immediately after dealing damage to a
+   * creature that is **already** Bloodied" — before the damage, not after it.
+   * `isBloodied` asked now cannot answer that: a creature the blow *took* to
+   * half its Hit Points is Bloodied and was not, and the sentence excludes it.
+   *
+   * **Derived by the reducer from the state it is reducing, and carried on no
+   * event.** The fold holds the creature as it stood before the `damage-taken`
+   * it is applying, so the answer is arithmetic on a record it already has —
+   * the same kind of derivation `turn` and `elapsed` beside it are, and nothing
+   * a command could tell it better. Absent means "not Bloodied, or a log
+   * written before the field", which read the same way then and reads the same
+   * way now: no Rampage. Both frozen fixtures fold unchanged. (W7-B11)
+   */
+  readonly wasBloodied?: true;
 }
 
 /**
