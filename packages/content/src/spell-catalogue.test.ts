@@ -615,13 +615,17 @@ const castAt = (
       // nothing — and names the one creature standing there, so an area anchored
       // on the caster's own square would catch the caster and refuse the target.
       // Every other point-origin template here is wide enough to reach five feet
-      // and is left where it was.
+      // and is left where it was — **except a point that must be an empty
+      // space on the floor** (SRD Flaming Sphere, W9-S4), which goes to the
+      // empty space diagonally behind the caster rather than into their own.
       ...(definition.area.origin === 'point'
         ? {
             at:
               definition.targets.chosenFromTheArea === true
                 ? { x: at.x, y: at.y + 5, z: at.z }
-                : at,
+                : definition.area.kind === 'sphere' && definition.area.pointOnUnoccupiedGround === true
+                  ? { x: at.x - 5, y: at.y - 5, z: at.z }
+                  : at,
           }
         : {}),
       ...(directional ? { towards } : {}),

@@ -45,6 +45,7 @@ import {
 } from '../positioning.js';
 import { fallWindowOpen } from '../reactions.js';
 import { typeMagicSees } from '../creature-type.js';
+import { OBJECT_CREATURE_TYPE } from '../objects.js';
 import { effectiveSizeOf } from '../size.js';
 import { canSee, canSeePoint, wardBetween } from '../standing.js';
 import { type SlotKind } from '../resources.js';
@@ -1091,6 +1092,19 @@ export function raiseAllowanceFor(
  * the bond the raising wrote (`SummonBond.controlled`); a creature the fold's
  * `lapseExpiredControl` has released answers no, because its bond is gone.
  */
+/**
+ * Whether a record is a declared object: its **own** type is the Object type
+ * `declareObject` writes — never `typeMagicSees`, because a Mask is what
+ * spells believe and not what the record is. Read by the consent a `willing`
+ * target is asked for and by `TargetRule.objectOrSelf`. (W9-S4)
+ */
+const isDeclaredObject = (state: GameState, who: CharacterId): boolean =>
+  state.creatures[who]?.creatureType === OBJECT_CREATURE_TYPE;
+
+/** `TargetRule.objectOrSelf`'s one reading, asked by the cast and the shortlist alike. */
+const isObjectOrCaster = (state: GameState, casterId: CharacterId, target: CharacterId): boolean =>
+  target === casterId || isDeclaredObject(state, target);
+
 const controlsThrough = (
   state: GameState,
   casterId: CharacterId,
@@ -1854,6 +1868,10 @@ function placeArea(
         );
       }
     }
+    if (area.kind === 'sphere' && area.pointOnUnoccupiedGround === true) {
+      const onTheGround = groundPointProblem(state.scene, source, request.at);
+      if (onTheGround !== null) return onTheGround;
+    }
     origin = areaPointAt(request.at, anchoring);
   }
 
@@ -1907,6 +1925,46 @@ function placeArea(
   }
 
   return ok({ origin, shape });
+}
+
+/**
+ * SRD Flaming Sphere: "an unoccupied space on the ground within range" — see
+ * `SpellArea.pointOnUnoccupiedGround`. (W9-S4)
+ *
+ * The space the point names, snapped as a creature's space is. **The ground**
+ * is the lattice floor, which `altitudeOf` calls the only floor the engine
+ * has: a ledge is fiction the lattice does not hold, so a point above z = 0 is
+ * in the air as far as this model is concerned, and the refusal says so.
+ * **Unoccupied** is nobody's volume overlapping that space, measured by the
+ * ruler every range is — a distance of zero is a shared space — so a Large
+ * ogre's four spaces are all its own, and the caster's space counts as
+ * anybody's.
+ */
+function groundPointProblem(
+  scene: NonNullable<GameState['scene']>,
+  source: AreaSource,
+  at: Point,
+): Result<never> | null {
+  const space = snapToSpace(at);
+  if (space.z > 0) {
+    return err(
+      'point_not_on_ground',
+      `${source.name} is created on the ground, and (${space.x}, ${space.y}, ${space.z}) is ${space.z} feet above the floor; the lattice holds no ledges`,
+    );
+  }
+  const occupants = Object.keys(scene.positions)
+    .sort()
+    .filter((who) => {
+      const apart = distanceToPoint(scene, who as CharacterId, space);
+      return apart.ok && apart.value === 0;
+    });
+  if (occupants.length > 0) {
+    return err(
+      'point_occupied',
+      `${source.name} is created in an unoccupied space, and (${space.x}, ${space.y}, ${space.z}) is ${occupants.join(' and ')}’s`,
+    );
+  }
+  return null;
 }
 
 /**
@@ -2569,6 +2627,15 @@ export function namedTargets(
         `${definition.name} is cast on yourself and nobody else; ${target} is not ${casterId}`,
       );
     }
+    // SRD Light: "an object that isn't being worn or carried by someone
+    // else". The caster's own object, or a declared one — see
+    // `TargetRule.objectOrSelf`. (W9-S4)
+    if (definition.targets.objectOrSelf === true && !isObjectOrCaster(state, casterId, target)) {
+      return err(
+        'carried_by_someone_else',
+        `${definition.name} is cast on an object that isn’t worn or carried by someone else; ${target} is not a declared object, and whatever it carries is carried by someone else`,
+      );
+    }
     // SRD Animate Dead's "reasserts your control": a creature this caster
     // already controls through this spell is admitted as itself, and the
     // corpse rules below — type, size, dead — stand down for it, because the
@@ -2634,9 +2701,17 @@ export function namedTargets(
     // rule 6 and the difference between a door and a wall.
     //
     // The caster is exempt because casting it *is* the consent.
+    //
+    // **And an object is not asked** (W9-S4). SRD Nondetection: "The target
+    // can be a willing creature, or it can be … an object" — consent is asked
+    // of a creature, and a declared object is a record of the Object type with
+    // no will to give. The record's **own** type is read, not `typeMagicSees`:
+    // a Mask changes what spells believe a creature is, not whether it has a
+    // mind to consent with.
     if (
       definition.targets.willing === true &&
       target !== casterId &&
+      !isDeclaredObject(state, target) &&
       request.willing?.includes(target) !== true
     ) {
       return needsContext(
@@ -3058,6 +3133,14 @@ export function eligibleTargets(
       excluded.push({
         target: target.id,
         reason: `${definition.name} is cast on yourself and nobody else`,
+      });
+      continue;
+    }
+    // SRD Light's object nobody else carries — the cast's own reading above.
+    if (definition.targets.objectOrSelf === true && !isObjectOrCaster(state, casterId, target.id)) {
+      excluded.push({
+        target: target.id,
+        reason: `${definition.name} is cast on an object that isn’t worn or carried by someone else`,
       });
       continue;
     }

@@ -331,6 +331,10 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'fireball',
   'flame-blade',
   'flame-strike',
+  // `sphere-on-the-ground.test.ts` (engine): the point refused in a goblin's
+  // space and ten feet up, the sphere conjured on an empty floor space with its
+  // light laid — and `point-measured-trigger.test.ts` rolls it. (W9-S4)
+  'flaming-sphere',
   'fog-cloud',
   // `dismissals-and-the-cloud.test.ts` (engine): the Fly Speed of 10 that is
   // the whole of how the cloud moves, the walking and swimming Speeds it
@@ -429,6 +433,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // `not_dismissible`, because the book prints a casting that runs until
   // dispelled no ending at all.
   'magic-mouth',
+  // `magic-weapon-nonmagical.test.ts` (engine): a Longsword imbued, a +1
+  // Longsword and a second caster's Magic Weapon refused as magic already, the
+  // caster's own recast replacing its rider — and `weapon-rider.test.ts`
+  // swings the plus. (W9-S4)
+  'magic-weapon',
   // `slot-changes-the-ending.test.ts` (engine): the illusion cast at a level 3
   // slot with a Concentration and a deadline, the same illusion at a level 4
   // slot with neither and still findable, and the Investigation check it could

@@ -203,6 +203,24 @@ export function handsFor(item: CatalogueItem): number {
 }
 
 /**
+ * Whether the item's own record is a magic item.
+ *
+ * **Derived, not declared.** A magic item is a `CatalogueItem` that has grown
+ * {@link CatalogueItem.grants} or an {@link CatalogueItem.attunement} — see
+ * the docstring on `grants` — and a record from the equipment tables has
+ * neither. So the answer is read off what the record already says, and a
+ * field saying it again would be a second place to get it wrong and a second
+ * thing `checkContent` would have to hold against the first.
+ *
+ * SRD Magic Weapon's "You touch a **nonmagical** weapon" is the first reader
+ * (W9-S4). What a *casting* made magic is not here: that is a running rider's,
+ * which a command reads off the casting that hung it.
+ */
+export function isMagicalItem(item: CatalogueItem): boolean {
+  return (item.grants?.length ?? 0) > 0 || item.attunement !== undefined;
+}
+
+/**
  * The standing effects an item puts on whoever is wearing or holding it.
  *
  * The item's compiler, and the counterpart of what `creation.ts` does with a

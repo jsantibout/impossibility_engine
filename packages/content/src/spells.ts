@@ -4889,8 +4889,14 @@ export const MOVE_EARTH: SpellDefinition = {
  *
  * "Can't be targeted by any Divination spell" is a rule now: Mind Spike and
  * Hunter's Mark are Divination spells aimed at a creature, and the ward below
- * refuses them. What is left — a place, an object and a scrying sensor — is
- * the table's, handed over in the book's words (W8-S26).
+ * refuses them. What is left — a place and a scrying sensor — is the table's,
+ * handed over in the book's words (W8-S26).
+ *
+ * **Three answers to "a willing creature, or … a place or an object"**
+ * (W9-S4). A creature is named and asked for its consent. An object is a
+ * declared record — `declareObject` adds one with the Object type — named the
+ * same way and not asked, because an object has no will to give. A place is
+ * nobody named, which `optional` admits, as Identify's object is.
  */
 export const NONDETECTION: SpellDefinition = {
   id: 'nondetection',
@@ -4900,7 +4906,7 @@ export const NONDETECTION: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'touch' },
-  targets: { count: 1, self: true, willing: true },
+  targets: { count: 1, self: true, willing: true, optional: true },
   effects: [],
   // "The target can't be targeted by any Divination spell": a ward the
   // casting's record holds for its target, read at every casting's pre-flight
@@ -4908,16 +4914,14 @@ export const NONDETECTION: SpellDefinition = {
   // before anything is spent, with this spell named.
   wardsTargets: { school: 'divination' },
   durationSeconds: 28_800,
-  // The scrying sensor, in the book's words (W8-S26): a sensor is
-  // Clairvoyance's, which is handed over whole, and nothing reads one. The
-  // ward on a creature in the same sentence is `wardsTargets` above. The place
-  // or the object is not the table's: the casting is refused without a
-  // creature to name, which a target rule reads.
+  // The place and the scrying sensor, in the book's words. A place is nobody
+  // named, so which room was warded, and that it is no larger than 10 feet, is
+  // the table's; a sensor is Clairvoyance's, which is handed over whole, and
+  // nothing reads one. The ward on a creature or a declared object is
+  // `wardsTargets` above.
   dmDecides: [
+    'The target can be a willing creature, or it can be a place or an object no larger than 10 feet in any dimension.',
     "The target can't be targeted by any Divination spell or perceived through magical scrying sensors.",
-  ],
-  unmodelled: [
-    'a place or an object as the target is refused: the casting must name a willing creature, where the book lets it ward a chest or a room — `targets.optional`, which Identify writes for the same choice, is not written here',
   ],
 };
 
@@ -10283,11 +10287,12 @@ export const ENHANCE_ABILITY: SpellDefinition = {
  * the highest key at or below the slot, and `bonus` for a slot below every
  * band. A level 5 slot falls in the band that opened at 3.
  *
- * "You touch a **nonmagical** weapon" is the one clause left, and it is a debt
- * rather than the table's (W8-S26): which weapon a casting may name is a
- * target rule, the catalogue holds a +1 Longsword apart from a Longsword, and
- * the weapon this spell makes magic is the one a second caster's Magic Weapon
- * would be refused on. Nothing asks either question yet.
+ * **"You touch a nonmagical weapon" and "that weapon becomes a magic weapon"
+ * are one fact read twice** (W9-S4). `makesMagical` on the rider is the
+ * second sentence, and the pre-flight reads both: a +1 Longsword is a magic
+ * item already, and a Longsword another caster's Magic Weapon is running on
+ * became one — either is refused before anything is spent. The caster's own
+ * recast is not refused, because the recast ends the casting in its way.
  */
 export const MAGIC_WEAPON: SpellDefinition = {
   id: 'magic-weapon',
@@ -10305,14 +10310,14 @@ export const MAGIC_WEAPON: SpellDefinition = {
       // higher-slot clause prints.
       bonus: 1,
       bonusAtSlot: { 3: 2, 6: 3 },
+      // "that weapon becomes a magic weapon" — and so "a nonmagical weapon" is
+      // asked of the one named.
+      makesMagical: true,
     },
   ],
   durationSeconds: 3600,
   // "The spell ends early if you cast it again."
   replacesPriorCasting: true,
-  unmodelled: [
-    'the weapon is not refused for being magic already, and does not become magic: "You touch a nonmagical weapon" is a rule about which weapon the casting may name, the catalogue holds a +1 Longsword apart from a Longsword, and nothing asks — and "that weapon becomes a magic weapon" is what a second caster’s Magic Weapon would be refused on',
-  ],
 };
 
 /**
@@ -11208,8 +11213,10 @@ export const FLAMING_SPHERE: SpellDefinition = {
   targets: { count: 0 },
   // "it sheds Bright Light in a 20-foot radius and Dim Light for an additional
   // 20 feet" — the one volume this spell fills, laid at the point the sphere
-  // is conjured on and laid again wherever it is rolled to.
-  area: { kind: 'sphere', radius: 20, origin: 'point' },
+  // is conjured on and laid again wherever it is rolled to. "In an unoccupied
+  // space on the ground" is the point's own rule: a point in somebody's space
+  // or above the floor is refused before anything is spent (W9-S4).
+  area: { kind: 'sphere', radius: 20, origin: 'point', pointOnUnoccupiedGround: true },
   areaLight: { level: 'bright', dimBeyond: 20 },
   effects: [],
   // "You create a 5-foot-diameter sphere of fire in an unoccupied space on the
@@ -11247,9 +11254,6 @@ export const FLAMING_SPHERE: SpellDefinition = {
   dmDecides: [
     'When you move the sphere, you can direct it over barriers up to 5 feet tall and jump it across pits up to 10 feet wide.',
     "Flammable objects that aren't being worn or carried start burning if touched by the sphere, and it sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet.",
-  ],
-  unmodelled: [
-    'the unoccupied space on the ground the sphere must be conjured in is not asked for: the point is measured against the Range and nothing else, so a sphere may appear in a creature’s space or in the air',
   ],
 };
 

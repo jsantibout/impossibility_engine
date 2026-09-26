@@ -431,6 +431,9 @@ const STATED: Readonly<
   // SRD Mass Cure Wounds: "a 30-foot-radius Sphere centered on a point within
   // range", and the point is the caster's to name.
   'mass-cure-wounds': { args: { at: BANDIT_AT } },
+  // SRD Flaming Sphere: "in an unoccupied space on the ground within range"
+  // (W9-S4), so not the bandit's square — the empty floor ten feet short of it.
+  'flaming-sphere': { args: { at: { x: BANDIT_AT.x - 10, y: BANDIT_AT.y } } },
   // SRD Enlarge/Reduce prints both and the engine will not choose.
   'enlarge-reduce': { args: { option: 'enlarge' } },
   // SRD Ray of Enfeeblement lasts "until the start of your next turn", so there

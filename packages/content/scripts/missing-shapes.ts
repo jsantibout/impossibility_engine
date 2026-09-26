@@ -122,7 +122,7 @@ export const MISSING_SHAPES = {
   'an-outcome-that-reads-the-targets-hit-points':
     'a threshold on the target’s current Hit Points, read before anything is rolled. PROGRESS.md ranks it: "Reads the target’s current Hit Points | 0 / 4 | vitals". The vitals are there and no effect asks them a question.',
   'a-target-rule-the-format-cannot-state':
-    '`TargetRule` in spell-definitions.ts selected by creature type and by whether armour is worn, and by nothing else. The SRD also selects by **size**, by **Challenge Rating** and by an **ability score**, and shapes outcomes by the same three facts. **The first of the three is built**: `mustBeSize` reads `effectiveSizeOf` — the size an active feature prints, then the size somebody stated, then the map’s — refuses a named target of the wrong one and filters the shortlist, and SRD Animal Messenger’s "a Tiny Beast" is written off it. **The second is built too**: a Challenge Rating is pinned at the arrival now — `creature-added.cr`, `CreatureState.cr`, off the block `adaptMonster` reads — and `save.autoSucceedIf.challengeRatingAbove` reads it, sparing a Beast the book rates above nothing and asking about a creature nobody has rated rather than calling it a 0. What is left under this name is the **ability score**, which is held and read by nothing here. Three facts, one missing reader, and the description says which is which. **Animal Messenger is written now** (2026-09-24) and this shape no longer holds it: the two facts it wanted were the size and the rating, both above, and the last thing in its way was where the verdict went. `save.verdictOnly` is that — a die whose whole content is its answer, rolled by the casting and reported in the casting’s own outcomes with no record written — so the spell is executed and the errand goes to the table as the handover it always was. **And a fourth claimant, which is not a fact about the target at all**: SRD Thaumaturgy’s Booming Voice grants Advantage on Charisma (Intimidation) checks to *the caster*, on a spell whose Range is 30 feet and whose target count is zero, so the mode has no creature to land on. The rule it needs is "the caster and nobody else", and `notTheCaster` is the only sentence of that family `TargetRule` has — it is the other one. `{ count: 1, self: true }` would let a caster boom an ally’s voice, which is a rule the book does not grant.',
+    '`TargetRule` in spell-definitions.ts says who a casting may be aimed at, and this id is what it still cannot say. **Built, and no longer here**: a size (`mustBeSize`, read through `effectiveSizeOf`) and a Challenge Rating (`save.autoSucceedIf.challengeRatingAbove`, off `CreatureState.cr`), which is what Animal Messenger wanted; the caster and nobody else (`casterOnly`, SRD Thaumaturgy’s Booming Voice); and four rules W9-S4 built. An object has no will to consent with, so a `willing` target that is a declared object is not asked, and a casting that names nobody wards a place (SRD Nondetection). A point is held to an unoccupied space on the lattice floor (`SpellArea.pointOnUnoccupiedGround`, SRD Flaming Sphere). A weapon that is magic already, by its record (`isMagicalItem`) or by a running rider whose spell makes it so (`weapon-rider.makesMagical`), is refused (SRD Magic Weapon). And the caster or a declared object and nobody else is `objectOrSelf`, written for SRD Light’s object that is not carried by someone else. **What is left in reach is four rules, each about a different fact.** SRD Suggestion’s target must hear and understand the caster: the Deafened condition is held, and a shared language is not, because a stat block’s Languages line reaches no sheet. SRD Heat Metal’s manufactured metal object: the catalogue records no material for an item. SRD Counterspell’s window opens on a casting that prints no components — a stat block’s componentless spellcasting — where the book opens none: a pin on the printed casting road and a filter on the reaction, which lead the next core batch. And SRD Dispel Magic’s magical effect: a Web or a Fog Cloud runs on nobody and a target is a creature or a declared object, so a casting on no creature cannot be named — a stated fact naming the running casting wants a request field pinned through a held declaration and a resolver run with no creature in it, which is more than a target rule. Past level-5 reach the id also holds Awaken, Animal Shapes and True Polymorph among the spells and the item packets that carry no target rule at all, each filed with its own note.',
   'a-creature-fact-an-effect-overrides':
     'an effect that changes what **other** rules believe about a creature. **The type is built and the name now means the other two facts.** PROGRESS.md named it — "Arcanist’s Magic Aura changes what other spells believe a creature’s type to be, which `mustBeType` reads on every casting" — and `creature-type-override` is that sentence: a sourced grant beside `CreatureState.creatureType` rather than a write over it, read by `typeMagicSees`, whose docstring draws the line the SRD sentence draws between a spell asking and a creature asking. The fact itself is untouched, and every door that ends a grant gives the goblin its own type back. What is left is **size** — held, read by sharing a space, passing through and the volume a template tests, and written over by nothing — and the third fact IE-044 read off SRD Gaseous Form: "The target can enter and occupy the space of another creature", where what the other rule believes is that a creature holds its space against a willing mover. One reader built, two facts left.',
   'an-ability-score-a-spell-changes':
@@ -999,13 +999,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26 read this line for the first time, and it said light is not modelled, which has been false since P3-S. A `light` effect carried by a creature is what SRD Light is written with, and `checkSpellDefinition` takes one on this definition; nobody wrote it. The ledger counts it under waits on a definition.',
     },
   ],
-  'flaming-sphere': [
-    {
-      clause: 'the unoccupied space on the ground the sphere must be conjured in',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'W8-S26 split this from the room, which is handed over. SRD: "You create a 5-foot-diameter sphere of fire in an unoccupied space on the ground within range." Occupancy is a rule the engine owns and the lattice holds elevation, so a sphere put down in a goblin’s space or in the air is a casting the book refuses and the engine does not. The closest id: a legality rule over where the casting is put, which the format cannot state.',
-    },
-  ],
   fly: [
     {
       clause: 'the fall when the spell ends on a creature still aloft',
@@ -1225,13 +1218,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the container is an object with a place and a fate of its own, the hundred feet are measured to it, and the soul inside "can perceive from the container using its own senses" — all of it fiction the DM keeps, and a record carrying it would carry nothing the engine reads.',
     },
   ],
-  'magic-weapon': [
-    {
-      clause: 'the weapon is not refused for being magic already',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'W8-S26 re-read this as a debt. SRD: "You touch a nonmagical weapon." Which weapon the casting may name is a target rule, and the catalogue holds a +1 Longsword apart from a Longsword; the weapon this casting makes magic is the one a second caster’s Magic Weapon is refused on. The closest id: a selection by a fact about the target that the format cannot state.',
-    },
-  ],
   'mind-blank': [
     {
       clause: 'the second sentence is the table’s',
@@ -1249,13 +1235,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'a shape-shifted creature reverting to its true form',
       why: 'a-standing-effect-derived-from-where-a-creature-stands',
       note: 'W8-S26 re-read this as a debt, because the reason it gave, that shape-shifting is not modelled, stopped being true when Wild Shape and the printed shape-shifters were built. A creature holds a shape now; the failed save should end it, and "can’t shape-shift until it leaves the Cylinder" is a refusal derived from where the creature stands, which is this id. The forced revert rides with it.',
-    },
-  ],
-  'nondetection': [
-    {
-      clause: 'a place or an object as the target is refused',
-      why: 'expressible',
-      note: 'W8-S26, on review. The book lets the ward go on a place or an object, and the definition names a willing creature and nothing else, so warding a chest or a room is refused before anything is spent — a target rule reading the table’s fact. `targets.optional` is what Identify writes for the same object-or-creature choice, and nobody wrote it here; what the ward then does to a place is the table’s, as the sensors are.',
     },
   ],
   'phantasmal-killer': [

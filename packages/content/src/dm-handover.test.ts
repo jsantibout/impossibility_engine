@@ -349,12 +349,17 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     // sleeper's own square rather than five feet east of the shrine, and the Cube
     // covers the creature this casting is aimed at. The anchor space is always in
     // the Cube, so no direction can put the target outside it.
+    // **And a point that must be an empty space on the floor** (SRD Flaming
+    // Sphere, W9-S4) goes where nobody stands: five feet west of the shrine,
+    // because the raven holds the square to the east.
     ...(definition.area?.origin === 'point'
       ? {
           at:
             definition.targets.chosenFromTheArea === true
               ? { x: 50, y: 55, z: 0 }
-              : { x: 55, y: 50, z: 0 },
+              : definition.area.kind === 'sphere' && definition.area.pointOnUnoccupiedGround === true
+                ? { x: 45, y: 50, z: 0 }
+                : { x: 55, y: 50, z: 0 },
         }
       : {}),
     // **And a casting that keeps a place of its own takes one** — W8-S26
