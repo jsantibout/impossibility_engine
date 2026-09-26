@@ -21,15 +21,10 @@ homebrew.
   with a lifetime, death saves, exhaustion; every ability a roll reads comes
   off `sheetAsItStands`, lowered scores included.
 - **Space and sight** — a cube lattice, distance between volumes, declared
-  sight and cover, seven area shapes, persistent and carried areas imposing a Speed, bonus, condition, defence or silence on whoever stands inside, bar passage,
-  ward other magic or deflect arrows, teleportation, the glossary's senses, mounting. **Light and obscurement are patches on the lattice**, declared or laid by a casting; magical darkness beats Darkvision, Devil's Sight beats that. A spell can push or lift a creature; a fall has a landing (1d6 per ten
-  feet to 20d6, and Prone); going up needs a way up. A creature may be **elsewhere**, ethereal, extradimensional or swallowed, with its way back pinned: Blink, Rope Trick, the familiar's pocket, the Swallows and the Ethereal lines run on it.
-- **Combat and time** — Initiative and Alert's swap, the action budget, an
-  extra action a running effect grants, a slot of somebody else's turn spent
-  by a spell, joining a running fight, the clock, turn-anchored deadlines,
-  repeat saves and delayed damage at the boundary, Short and Long Rests. A creature stands up for half its Speed unless a spell forbids it; the Bearded Devil's wound bleeds and closes on a minute, a Medicine check or a heal; forced movement stops at a barrier; a reversed Magic Circle binds the creature it holds. A
+  sight and cover, seven area shapes, persistent and carried areas that impose, bar passage, ward or deflect, teleportation, the glossary's senses, mounting. **Light and obscurement are patches on the lattice**, declared or laid by a casting; magical darkness beats Darkvision, Devil's Sight beats that. A spell can push or lift a creature; a fall has a landing (1d6 per ten feet, and Prone); going up needs a way up. A creature may be **elsewhere**, ethereal, extradimensional or swallowed, with its way back pinned: Blink, Rope Trick, the familiar's pocket, the Swallows and the Ethereal lines run on it.
+- **Combat and time** — Initiative and Alert's swap, the action budget, an extra action a running effect grants, a slot of another's turn spent by a spell, joining a running fight, the clock, turn-anchored deadlines, repeat saves and delayed damage at the boundary, Short and Long Rests. A creature stands up for half its Speed unless a spell forbids it; the Bearded Devil's wound bleeds and closes on a minute, a Medicine check or a heal; forced movement stops at a barrier; a reversed Magic Circle binds the creature it holds. A
   fight **ends** when no hostile remains or they surrender.
-- **Monsters that fight from their own printed lines** — Multiattack as a named sequence, an opportunity attack with the best printed melee attack, recharge and daily limits, sunlight sensitivity, the Hydra's declared head count. **A printed saving throw is an effect list**: the DM's door rolls it and the engine applies what the failure prints — damage, a condition, a grapple, a push, a mode, a penalty, a worn-down object, a revealed fact — handing over the rest; a legendary block's uses are a pool spent one per
+- **Monsters that fight from their own printed lines** — Multiattack as a named sequence, an opportunity attack with the best printed melee attack, recharges and daily limits, sunlight sensitivity, the Hydra's head count. **A printed saving throw is an effect list**: the DM's door rolls it and the engine applies what the failure prints — damage, a condition, a grapple, a push, a mode, a penalty, a worn-down object, a revealed fact — handing over the rest; a legendary block's uses are a pool spent one per
   turn boundary; a printed teleport is spent at its distance, a
   printed Reaction adds to an ally's roll, and a block's aura, absorption and frenzy are read off its traits; a hit may set a creature **burning** (put out by its own action), wear its armour down, or hand a graded failure to
   the printed-save reader; a save may spin a web; a Parry raises Armour Class in the hit window; a printed Reaction may spend another line; a cast line is spent at its heading's price; a creature carries its Challenge Rating, may take its block's printed form, and a Roper reels what it holds. A block's move executes: Deadly Leap and Trampling Charge with a save per space entered, the Leaps, the Dashes, Tree Stride, the Charges; dragging and crawling cost extra feet.
@@ -38,8 +33,7 @@ homebrew.
   budget, the Unarmed Strike's three options, fighting styles, weapon
   masteries, and the defender answering first. A feature may
   carry several grants, each gated on one option of its choice; a species may
-  grant a spell; a feature may raise the hit point maximum; a reroll may be **elected**
-  on the roll command — if it misses, fails, or shows a named face or lower (Heroic Inspiration). **The glossary's
+  grant a spell; a feature may raise the hit point maximum; a reroll may be **elected** on the roll command (Heroic Inspiration). **The glossary's
   Help, Influence, Search, Study and Utilize are actions a command spends**,
   the Light property's extra attack carries Nick and Two-Weapon
   Fighting, and the small named features execute; a feature may ask two questions, grant a language, or know a quarry's defences through `look`; Eldritch Invocations executes whole, both Pacts included. **Wild Shape executes**: a Druid wears a learned Beast's stat block and comes back by every ending the book names.
@@ -50,14 +44,12 @@ homebrew.
   save, make a creature subtract from its own damage rolls, or pick out D20
   Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its Concentration, a save may be nothing but its verdict or be cast on a hit and fought off by
   a neighbour's check, a spell's attack may leap to creatures the caster names,
-  a spell may print its own stat block, a casting may leave something behind or be dismissed by its target, a slot may change a casting's ending, a Speed may be replaced, and a blow may raise a repeat save; a casting may choose a branch per creature, suppress a held condition, move a body a size step, re-choose its branch, pin an Emanation in place, and erupt on a DM's decision. A summons may be **controlled** (Animate Dead's, a day's bond that lapses while the creature stays) or **commanded** for a Bonus Action; Find Steed's slam carries the paladin's numbers. Spike Growth cuts by the route, Gust of Wind charges by the step, a lifted creature climbs a stated surface, Warding Bond runs whole, Nondetection wards a school, Sending throws its die, and a repose's days stay spent. A casting's later action may be the target's, draw a fresh template, force a save, single out a mind, owe a payout at the caster's boundary, ride a familiar's touch, or walk a pack with its druid; a tracked spell read to
+  a spell may print its own stat block, a casting may leave something behind or be dismissed by its target, a slot may change a casting's ending, a Speed may be replaced, and a blow may raise a repeat save; a casting may choose a branch per creature, suppress a held condition, move a body a size step, re-choose its branch, pin an Emanation in place, and erupt on a DM's decision. A summons may be **controlled** (Animate Dead's, a day's bond that lapses while the creature stays) or **commanded** for a Bonus Action; Find Steed's slam carries the paladin's numbers. Spike Growth cuts by the route, Gust of Wind charges by the step, a lifted creature climbs a stated surface, Warding Bond runs whole, Nondetection wards a school, Sending throws its die, and a repose's days stay spent. A casting's later action may be the target's, draw a fresh template, force a save, single out a mind, owe a payout at the caster's boundary, ride a familiar's touch, or walk a pack with its druid. A save knows what forced it, a check what it is for; an Attack action may be capped, a smite may mark its target, a branch may carry its own casting time; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
-- **Characters** — twelve SRD classes with their subclass, nine species,
-  backgrounds, feats, multiclassing, creation and advancement.
+- **Characters** — twelve SRD classes with a subclass each, nine species, backgrounds, feats, multiclassing, creation and advancement.
 - **Items and objects** — grants live while worn or wielded, attunement,
   charges, a copy told apart from its twin, an item that moves between
-  people, a purse. **An item nobody holds lies on the floor**
-  with an instance id, and a creature can be too laden to lift it. **An object is declared into the scene and broken**: a door stated by
+  people, a purse. **An item nobody holds lies on the floor** with an instance id, and a creature may be too laden to lift it. **An object is declared into the scene and broken**: a door stated by
   material and size, swung at and destroyed, with a threshold. **Hands are a count**: a Two-Handed weapon and a shield refuse each other, and a conjured thing occupies one while its casting runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from JSON; homebrew uses the same door.
 - **Two doors above the engine** (`@ie/tools`) — the player's and, under `dm/`, the DM's, partitioned by **authority**: a DM's door takes a decision the rules leave open; neither takes a die face.
@@ -65,21 +57,18 @@ homebrew.
 
 ## What does not
 
-- **No orchestration, persistence or web app.** Nothing stores a log. The
-  engine has no idea a language model exists.
+- **No orchestration, persistence or web app.** Nothing stores a log; the engine has no idea a language model exists.
 - **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed, timed, the effect the table's; `LEDGER.md` names each.
 - **No feature in a level 5 character's reach is `manual`**; the Champion's
   second Fighting Style at level 7 still is. Every pool buys something.
-- **A Druid's known forms are the ones it was made with**; no rest replaces one, and the block's senses are not carried.
+- **A Druid's known forms are the ones it was made with**; no rest replaces one; the block's senses are not carried.
 
-- **Jumping is half**; Slow Fall is elected on the landing.
-- **A printed hit is read clause by clause**, what nothing read handed back. A repeat save may deepen its condition
-  and stop asking; Resistance's d4 comes off the total before defences.
+- **Jumping is half**; Slow Fall is elected at the landing.
+- **A printed hit is read clause by clause**, what nothing read handed back. A repeat save may deepen its condition and stop asking; Resistance's d4 comes off before defences.
 - **Nothing brings a jumper down** from a High Jump.
 - No ammunition spent. **An object cannot make an ability check**, and may be put in the turn order.
 - A conferral refuses by name what it cannot do: attack bonuses, set ability scores, curses, item Speed.
-- **Two corpus migrations are owed**: a weapon mastery is a ceiling, not a
-  quota; an unchosen size defaults rather than refusing.
+- **Two corpus migrations are owed**: a mastery is a ceiling, not a quota; an unchosen size defaults rather than refusing.
 - Homebrew adds beside printed content, never overriding an id.
 
 ## Rulings that stand
@@ -101,8 +90,7 @@ hit points, or dead, keeps its hit points when a maximum rises: raising them
 would lift the Unconscious that having none caused, which SRD lifts only on
 regaining hit points. Argued in `vitals.ts`, pinned by two fixtures.
 
-**Owner, 2026-09-21.** Infinite Realms is the AI-DM product, Nimbus Quill the
-human DM's companion · **"playable to level 5" means everything a level 1–5
+**Owner, 2026-09-21.** Infinite Realms is the AI-DM product, Nimbus Quill the human DM's · **"playable to level 5" means everything a level 1–5
 character can reach is executed** · persistence is Supabase with the event log as the only truth · one
 player per campaign for the first release · Infinite Realms calls OpenAI, so the wire format is OpenAI function
 calling · movement modes are ordinary spatial dynamics and are built · Find Familiar names a bestiary id at the

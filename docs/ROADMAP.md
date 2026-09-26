@@ -2798,3 +2798,35 @@ Appended after wave seven's first spells track (2026-09-24):
   one exception to "never both", stated in the design note when built).
   Two Fable reviews (eight defects, then five and one escalation, all
   fixed on the branch).
+- **The economy, the save and the smite.** Eleven of thirteen: Haste's
+  parenthesis is `GrantedAction.attacksCap` (minted through
+  `turn-budget-granted`) and Slow's one attack is `ActionRule`'s sixth member
+  `caps-attacks` — two fields, because a hasted Fighter swings twice on their
+  own action and once on Haste's; `cappedAttacks` takes the smallest.
+  **A save knows what forced it**: `RollQuery.forcedBy` named by the boundary
+  off the timer's casting and its caster, `RollSelector.againstSourceType`
+  read through `typeMagicSees` (Protection from Evil and Good). **A check
+  knows what it is for**: `TestCommand.purpose` / `ability_check.findingCreature`,
+  `RollSelector.purpose: 'find-marked'` looked up in `attackRiders`, the grant
+  on the caster (`roll-mode.onCaster`). `does-not-sleep` is a `FeatureGrant`
+  granted by Trance, compiled onto the sheet, read with the Exhaustion
+  Immunity in one `autoSucceedIf` clause. `RepeatSave.onSuccess: 'nothing'`
+  and a rule arm on `onFailure` (Bestow Curse's Dodge, the rule hung under the
+  per-creature `grants` key to the turn's end; `rule_on_a_shared_key` refused
+  at authoring). `attack-damage` carries `riders` applied to the creature the
+  blow landed on (Shining Smite — light, Advantage against, no Invisible
+  benefit; `a-condition-benefit-an-effect-takes-away` retired). `TargetRule.casterOnly`
+  (Thaumaturgy), `forbids.objects` at six doors (Gaseous Form),
+  `SpellOption.castingTime` with `castingTimeOf` the one reader (Plant Growth),
+  Magic Circle's six bands, Silence's object a reading (the filed clause was
+  stale), Command's Approach and Flee as verdict-only saves. `fold/combat.ts`
+  passes `spendAttack` the action rules (Slow's cap is arithmetic; both frozen
+  logs fold unchanged). **Not built, each with its decision, re-briefed as
+  S22:** Slow's Somatic chance — the engine cannot tell what a spell's
+  components are (`SpellEntry` carries none; the parser does) — the index may
+  be regenerated, so the entry gains `components`; and Command's Drop and
+  Grovel deferred into the target's next turn — a new boundary debt, its own
+  track. Gaseous Form's talking stays a debt (the sentence the object clauses
+  share cannot be handed over by half); Protection from Evil and Good keeps
+  its shape claimant narrowed to the printed-save road. The reviewer ran on
+  Fable (five defects, fixed).

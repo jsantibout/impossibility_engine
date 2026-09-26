@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 15 spells | 15 | 0 | 0 | 34 |
+| Spells in reach, not executed | 5 spells | 5 | 0 | 0 | 34 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -69,83 +69,36 @@ exactly the silently-missing entry this report’s header refuses.
 
 | Shape | Blocks | Finishes |
 |---|---|---|
-| `a-fact-only-the-table-can-declare` | 2 | 2 |
-| `an-action-a-spell-compels-or-forbids` | 2 | 2 |
 | `a-check-another-creature-may-attempt` | 1 | 1 |
-| `a-choice-made-at-the-casting` | 1 | 1 |
 | `a-creature-somebody-else-is-playing` | 1 | 1 |
-| `a-duration-the-slot-changes` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
-| `a-repeat-save-that-does-something-on-a-failure` | 1 | 1 |
-| `a-target-rule-the-format-cannot-state` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
-| `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `senses-beyond-declared-sight` | 1 | 1 |
-| `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
-| `a-spells-effects-applied-to-different-targets` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
 **finishes** is what it is the *only* blocker for — the column a tranche
 is planned from. A spell can need more than one shape, so neither column
 sums to the population.
 
-#### `a-fact-only-the-table-can-declare` — blocks 2, finishes 2
-
-- **Hunter's Mark** (level 1) — executed-partial
-- **Sleep** (level 1) — executed-partial
-
-#### `an-action-a-spell-compels-or-forbids` — blocks 2, finishes 2
-
-- **Haste** (level 3) — executed-partial
-- **Slow** (level 3) — executed-partial
-
 #### `a-check-another-creature-may-attempt` — blocks 1, finishes 1
 
 - **Spike Growth** (level 2) — executed-partial
-
-#### `a-choice-made-at-the-casting` — blocks 1, finishes 1
-
-- **Plant Growth** (level 3) — executed-partial
 
 #### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
 
 - **Command** (level 1) — executed-partial
 
-#### `a-duration-the-slot-changes` — blocks 1, finishes 1
-
-- **Magic Circle** (level 3) — executed-partial
-
 #### `a-mode-on-the-save-a-spell-forces` — blocks 1, finishes 1
 
 - **Protection from Evil and Good** (level 1) — executed-partial
-
-#### `a-repeat-save-that-does-something-on-a-failure` — blocks 1, finishes 1
-
-- **Bestow Curse** (level 3) — executed-partial
-
-#### `a-target-rule-the-format-cannot-state` — blocks 1, finishes 1
-
-- **Thaumaturgy** (level 0) — executed-partial
 
 #### `an-action-the-engine-has-no-spender-for` — blocks 1, finishes 1
 
 - **Gaseous Form** (level 3) — executed-partial
 
-#### `an-object-with-statistics-of-its-own` — blocks 1, finishes 1
-
-- **Silence** (level 2) — executed-partial
-
 #### `senses-beyond-declared-sight` — blocks 1, finishes 1
 
 - **Find Familiar** (level 1) — executed-partial
-
-#### `a-condition-benefit-an-effect-takes-away` — blocks 1, finishes 0
-
-- **Shining Smite** (level 2) — executed-partial — also waits on 1
-
-#### `a-spells-effects-applied-to-different-targets` — blocks 1, finishes 0
-
-- **Shining Smite** (level 2) — executed-partial — also waits on 1
 
 #### Waiting on a definition — 0
 
