@@ -61,6 +61,7 @@ import {
   raiseTurnEnd,
   raiseTurnSaves,
 } from './turns.js';
+import { forgetDeferredRiders } from './deferred.js';
 
 /** The event types this seam owns. Every one of them, and no other seam's. */
 export const COMBAT_EVENTS = [
@@ -146,8 +147,12 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
       // because turn numbers restart with the next fight.
       combatOf(state, event);
       // Both stamps are counted in this fight's turns, and both go with it — see
-      // `forgetSustainedTurns` and `forgetCarriedTurns`.
-      return forgetCarriedTurns(forgetSustainedTurns({ ...next, combat: null }));
+      // `forgetSustainedTurns` and `forgetCarriedTurns`. And every debt owed to
+      // somebody's next turn goes too, for the same reason: it named a turn of
+      // this fight — see `forgetDeferredRiders`. (W7-S22)
+      return forgetDeferredRiders(
+        forgetCarriedTurns(forgetSustainedTurns({ ...next, combat: null })),
+      );
     }
 
     case 'turn-advanced': {

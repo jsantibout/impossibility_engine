@@ -679,6 +679,16 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // spends nothing, and the flames that answer a melee blow from inside five
   // feet and stay cold for one an illusion took.
   'decoy-destroyed',
+  // A failed save's riders owed to the target's next turn, and the debt paid
+  // as that turn begins — SRD Command's "follow the command on its next
+  // turn". Neither log was written when a rider could land anywhere but at
+  // the outcome that bought it, so neither carries the record, and both fold
+  // to exactly the states they always did with an empty `deferredRiders`.
+  // `command-deferred.test.ts` folds both and drives them end to end: the
+  // gear held until the turn begins, the drop and the Prone landed then, the
+  // turn's two actions spent, the boundary refusing without a catalogue, and
+  // the debt forgotten with its fight. (W7-S22)
+  'deferred-riders-settled',
   // A patch of Difficult Terrain the table declared: neither log was written
   // when the ground could cost anything but a foot per foot — the scene held
   // no terrain at all — and both fixtures fold to exactly the states they
@@ -876,6 +886,7 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // refusal on a key the creature has no pool for. `font-of-inspiration.test.ts`
   // takes it through the catalogue, on both paths into the level that grants it.
   'resource-pool-recovery-changed',
+  'riders-deferred',
   // A grant a roll used up. No frozen log carries a one-shot modifier — the
   // mechanic postdates both of them by a long way — so neither could carry the
   // event that spends one. `one-shot-modifiers.test.ts` folds it and drives it
@@ -915,6 +926,12 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // which way, nothing rolled or moved by the turning, and a Bonus Action that
   // named no direction refused.
   'spell-aim-changed',
+  // A casting made and failed — SRD Slow's "a 25 percent chance the spell
+  // fails". Neither log was written when a casting could fail after its cost
+  // was paid; `slow-somatic.test.ts` folds it and drives both faces of the
+  // die, the slot kept spent and the Concentration the casting began ended.
+  // (W7-S22)
+  'spell-fizzled',
   // A running spell swapping one of its printed branches for another — SRD
   // Alter Self's Magic action. Neither log was written when a casting could
   // re-choose; `alter-self.test.ts` folds it and drives it: the claws gone,

@@ -5,7 +5,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
  *
  * The engine is pure: no filesystem, no JSON loading at runtime. What it needs
  * is every fact a spell choice or a spell *definition* can be checked against
- * — level, school, class list, casting time, Concentration, ritual — and not
+ * — level, school, class list, casting time, Concentration, ritual, and whether
+ * the casting has a Verbal, a Somatic and a Material component — and not
  * the 1.4MB of prose, which is narration rather than mechanics.
  *
  * The casting time and Concentration flag are here so a hand-written
@@ -24,13 +25,22 @@ const rows = spells
     castingTime: s.castingTime,
     ritual: s.ritual,
     concentration: s.concentration,
+    // The three the book prints after the Range. The material description is
+    // prose and stays behind with the rest of it; what a rule asks is only
+    // whether the casting has the component at all — SRD Slow's "a spell with
+    // a Somatic component".
+    components: {
+      verbal: s.components.verbal,
+      somatic: s.components.somatic,
+      material: s.components.material,
+    },
   }))
   .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
 const body = rows
   .map(
     (r) =>
-      `  { id: ${JSON.stringify(r.id)}, name: ${JSON.stringify(r.name)}, level: ${r.level}, school: ${JSON.stringify(r.school)}, classes: [${r.classes.map((c) => JSON.stringify(c)).join(', ')}], castingTime: ${JSON.stringify(r.castingTime)}, ritual: ${r.ritual}, concentration: ${r.concentration} },`,
+      `  { id: ${JSON.stringify(r.id)}, name: ${JSON.stringify(r.name)}, level: ${r.level}, school: ${JSON.stringify(r.school)}, classes: [${r.classes.map((c) => JSON.stringify(c)).join(', ')}], castingTime: ${JSON.stringify(r.castingTime)}, ritual: ${r.ritual}, concentration: ${r.concentration}, components: { verbal: ${r.components.verbal}, somatic: ${r.components.somatic}, material: ${r.components.material} } },`,
   )
   .join('\n');
 
@@ -60,6 +70,18 @@ export interface SpellIndexEntry {
   readonly castingTime: string;
   readonly ritual: boolean;
   readonly concentration: boolean;
+  /**
+   * Whether the casting has each of the three components the book prints.
+   *
+   * The material list itself is prose and is not here: what a rule asks is
+   * whether a component is present — SRD Slow's "a spell with a Somatic
+   * component", SRD Silence's "a spell that includes a Verbal component".
+   */
+  readonly components: {
+    readonly verbal: boolean;
+    readonly somatic: boolean;
+    readonly material: boolean;
+  };
 }
 
 export const SPELL_INDEX: readonly SpellIndexEntry[] = [

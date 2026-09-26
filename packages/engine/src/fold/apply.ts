@@ -64,6 +64,7 @@ import { applyHolds, isHoldsEvent } from './holds.js';
 import { applyInventory, isInventoryEvent, withEquipment } from './inventory.js';
 import { applyGrants, isGrantsEvent } from './grants.js';
 import { applyRolls, isRollsEvent } from './rolls.js';
+import { applyDeferred, isDeferredEvent } from './deferred.js';
 
 /**
  * Whether any creature at all matches, without allocating anything.
@@ -985,6 +986,7 @@ function applyOne(state: GameState, event: GameEvent, legacy: Content | null): G
   if (isInventoryEvent(event)) return applyInventory(applying, event);
   if (isGrantsEvent(event)) return applyGrants(applying, event);
   if (isRollsEvent(event)) return applyRolls(applying, event);
+  if (isDeferredEvent(event)) return applyDeferred(applying, event);
 
   return unhandledEvent(event);
 }

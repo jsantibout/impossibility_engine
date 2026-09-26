@@ -51,7 +51,8 @@ import {
   freeHands,
   quantityOf,
 } from './inventory.js';
-import { spendAction, spendBonusAction, spendReaction } from '../combat.js';
+import { type GrantedActionRule, spendAction, spendBonusAction, spendReaction } from '../combat.js';
+import { hasComponent, type SpellEntry } from '../content.js';
 import { type CommandIdentity, commandOutcome, once } from '../idempotency.js';
 import {
   type Ability,
@@ -405,10 +406,25 @@ export function resolveDeclaredCast(
     if (!storing.ok) return storing;
     const storedCast = storing.value === null ? null : storedSpellCast(state, pending.caster, storing.value);
 
-    const events: GameEvent[] = [
-      ...settlementEvents(state, pending, stamp),
-      ...(storedCast === null ? [] : [storedCast.event]),
-    ];
+    const events: GameEvent[] = [...settlementEvents(state, pending, stamp)];
+
+    // **The settlement is where the slot goes, so it is where the gestures can
+    // fail** — SRD Slow's 25 percent, asked of the caster as they stand now,
+    // after the `spell-cast` above and before the spell it stores or any
+    // effect of its own. An item's casting (the record carries its numbers)
+    // and a Subtle one have no components to fumble. (W7-S22)
+    const fumbled = castingFailure(state, pending.caster, supply.content.spellEntry(pending.spellId), {
+      castingId: pending.castingId,
+      name: definition.name,
+      supply,
+      exempt: pending.numbers !== undefined || pending.subtle === true,
+    });
+    if (!fumbled.ok) return fumbled;
+    events.push(...fumbled.value.events);
+    if (fumbled.value.failed) {
+      return ok({ events, castingId: pending.castingId, outcomes: [], unverified: [] });
+    }
+    if (storedCast !== null) events.push(storedCast.event);
 
     // What the caster stated at the declaration, read back off the record it
     // was written on. Normalised already — this is the same function that
@@ -2190,6 +2206,82 @@ function itemFailure(
 }
 
 /**
+ * Whether a casting fails for want of a component its caster cannot manage,
+ * and the die that decided it.
+ *
+ * > SRD Slow: "If it casts a spell with a Somatic component, there is a 25
+ * > percent chance the spell fails as a result of the target making the
+ * > spell's gestures too slowly."
+ *
+ * **Read after the cost, never before it**, which is what separates "the spell
+ * fails" from "the spell cannot be cast": both callers ask with the
+ * `spell-cast` that spent the slot already in their batch, so a failure keeps
+ * the slot, the action and the Concentration the casting dropped, and
+ * `spell-fizzled` then ends the casting it began — its Concentration and its
+ * deadline — through the door every other ending uses. Nothing of the spell's
+ * own runs: no attack, no save, nothing conjured, nothing stored.
+ *
+ * **One die however many rules stand**: the rules standing on the caster are
+ * `ActionRule`s of kind `casting-chance`, and the effects of one spell cast
+ * twice do not combine — the likeliest failure is the one thrown. A casting
+ * whose entry prints none of the named component throws nothing, and neither
+ * does one that has no components at all (`exempt`), because a die thrown for a
+ * decided outcome moves the generator for nothing. The throw is
+ * `thrownAgainst`'s, which Augury's and the Wind Fan's already share, so the
+ * one comparison that reads a percentage as a chance of *failing* exists once.
+ *
+ * **Its own `rolls-issued`**, because a failure never reaches `runEffects`,
+ * which writes the batch's — and a casting that holds writes this one and then
+ * that one, which is `itemFailure`'s arrangement. (W7-S22)
+ */
+function castingFailure(
+  state: GameState,
+  casterId: CharacterId,
+  entry: SpellEntry | null,
+  casting: {
+    readonly castingId: string;
+    readonly name: string;
+    readonly supply: Supply;
+    readonly exempt: boolean;
+  },
+): Result<{ readonly events: readonly GameEvent[]; readonly failed: boolean }> {
+  if (casting.exempt) return ok({ events: [], failed: false });
+  let worst: { readonly held: GrantedActionRule; readonly percent: number } | null = null;
+  for (const held of actionRulesOn(state, casterId)) {
+    const rule = held.rule;
+    if (rule.kind !== 'casting-chance' || !hasComponent(entry, rule.component)) continue;
+    if (worst === null || rule.percent > worst.percent) worst = { held, percent: rule.percent };
+  }
+  if (worst === null) return ok({ events: [], failed: false });
+
+  const { supply } = casting;
+  const issuedBefore = supply.issuer.count;
+  const thrown = thrownAgainst(
+    supply,
+    casterId,
+    `${casting.name} under ${worst.held.label}`,
+    worst.percent,
+    { failed: 'the spell fails', held: 'the spell is cast' },
+  );
+  if (!thrown.ok) return thrown;
+
+  const events: GameEvent[] = [
+    thrown.value.recorded,
+    { type: 'rolls-issued', count: supply.issuer.count - issuedBefore, rng: supply.rng.snapshot() },
+  ];
+  if (thrown.value.failed) {
+    events.push({
+      type: 'spell-fizzled',
+      castingId: casting.castingId,
+      id: casterId,
+      source: worst.held.source,
+      label: worst.held.label,
+    });
+  }
+  return ok({ events, failed: thrown.value.failed });
+}
+
+/**
  * The action, Bonus Action or Reaction a casting spends, or null outside
  * combat — worked out **without spending it**.
  *
@@ -3136,6 +3228,27 @@ function resolveOnTargets(
   // of the rule that a retry must never look at the world it made.
   events.push(...replacedCastings(state, casterId, definition, targets));
   events.push(...cast.value);
+
+  // **Whether the casting fails for want of its gestures** — SRD Slow's 25
+  // percent — asked here, where the slot and the action are both spent and
+  // not a die of the spell's own has been thrown. A declaration spends no slot
+  // and is asked at its settlement instead; an item's casting and a Subtle one
+  // have no components to fumble, and a stored spell a glyph lets go was cast
+  // at the inscription. (W7-S22)
+  if (!declaring) {
+    const fumbled = castingFailure(state, casterId, supply.content.spellEntry(definition.id), {
+      castingId,
+      name: definition.name,
+      supply,
+      exempt:
+        route.kind === 'item' ||
+        altered.resolving.subtle !== undefined ||
+        context.pinnedNumbers !== undefined,
+    });
+    if (!fumbled.ok) return fumbled;
+    events.push(...fumbled.value.events);
+    if (fumbled.value.failed) return ok({ events, castingId, outcomes: [], unverified: [] });
+  }
 
   // **The spell it stores, cast "as part of creating the glyph"** — its own
   // slot spent and its casting begun immediately after this one's, and nothing

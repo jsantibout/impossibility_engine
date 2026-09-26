@@ -45,7 +45,7 @@ import type { RestState } from './rest.js';
 import type { HitOption, StandingEffect } from './standing.js';
 import { type Deadline } from './time.js';
 import type { Elsewhere } from './elsewhere.js';
-import type { StoredSpellRequest } from './spell-definitions.js';
+import type { DeferredRiderSet, StoredSpellRequest } from './spell-definitions.js';
 import {
   type GrantedPayout,
   type PendingSave,
@@ -2538,6 +2538,18 @@ export interface GameState {
    */
   readonly owedAreaEffects: readonly OwedAreaEffect[];
   /**
+   * What a failed save bought that the book lands on the target's next turn
+   * rather than at the casting — see {@link DeferredRiders}. (W7-S22)
+   *
+   * A list for `owedAreaEffects`' reason: two Commands spoken at one goblin
+   * before its turn are two debts, and the fold appends them in the order the
+   * castings resolved, which replays identically with no key to invent. The
+   * turn boundary settles every one owed by the creature whose turn begins,
+   * in that order; a fight ending takes them all, because "its next turn"
+   * names a turn of the fight the command was spoken in.
+   */
+  readonly deferredRiders: readonly DeferredRiders[];
+  /**
    * When each casting's area last caught each creature — see
    * {@link AreaTriggerStamp}.
    *
@@ -2568,6 +2580,40 @@ export interface GameState {
   readonly pendingTurnStart: { readonly who: CharacterId; readonly turn: number } | null;
 }
 
+/**
+ * Riders a settled outcome **owes** its target, to land as that creature's
+ * next turn begins — SRD Command's "follow the command on its next turn".
+ * (W7-S22)
+ *
+ * Everything the landing reads is pinned here, because it happens a turn after
+ * the casting that read the definition and the fold opens no catalogue: the
+ * riders themselves, the names the log will use, and the numbers a condition
+ * rider's repeat save would roll against. The item catalogue a drop consults
+ * is read by the settling command, which writes what it read into the events
+ * it emits — `forcedDrop`'s own rule.
+ */
+export interface DeferredRiders {
+  /** The creature that owes it, and whose turn beginning settles it. */
+  readonly target: CharacterId;
+  /** `Command#cast:3` — the casting the failure came out of. */
+  readonly source: string;
+  readonly castingId: string;
+  /** The spell's name, as the log calls it. */
+  readonly spell: string;
+  /** The spell's own level, the level it was cast at, and its caster's — the casting's numbers. */
+  readonly spellLevel: number;
+  readonly castLevel: number;
+  readonly casterLevel: number;
+  readonly casterId: CharacterId;
+  /** The numbers the casting was made with, for a condition rider's repeat save. */
+  readonly saveDc: number;
+  readonly saveAbility: Ability | null;
+  /** The object the casting named, where the drop names one rather than emptying the hands. */
+  readonly object?: string;
+  /** What lands: the three riders `OutcomeRiders.at` admits. */
+  readonly riders: DeferredRiderSet;
+}
+
 export function initialState(seed: string): GameState {
   return {
     seed,
@@ -2592,6 +2638,7 @@ export function initialState(seed: string): GameState {
     pendingTest: null,
     ongoing: {},
     owedAreaEffects: [],
+    deferredRiders: [],
     areaTriggers: {},
     pendingTurnStart: null,
   };

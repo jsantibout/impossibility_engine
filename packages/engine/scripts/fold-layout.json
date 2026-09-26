@@ -16,6 +16,7 @@
     "AppliedCommand",
     "CommandStamp",
     "LastDamage",
+    "DeferredRiders",
     "FallMoment",
     "GrantedFallWard",
     "GrantedLift",
@@ -200,6 +201,13 @@
     "TimersEvent",
     "isTimersEvent",
     "applyTimers"
+  ],
+  "fold/deferred.ts": [
+    "DEFERRED_EVENTS",
+    "DeferredEvent",
+    "isDeferredEvent",
+    "applyDeferred",
+    "forgetDeferredRiders"
   ],
   "fold/combat.ts": [
     "COMBAT_EVENTS",

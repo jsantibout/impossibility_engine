@@ -255,6 +255,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'dash-taken',
   'death-save-recorded',
   'decoy-destroyed',
+  // W7-S22: a word obeyed on the target's next turn, owed and then settled.
+  'deferred-riders-settled',
   'difficult-terrain-declared',
   'disengage-taken',
   'dismounted',
@@ -316,6 +318,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'resources-restored',
   'rest-begun',
   'rest-ended',
+  'riders-deferred',
   'roll-modifier-consumed',
   'roll-modifier-granted',
   'roll-recorded',
@@ -335,6 +338,8 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'spell-cast',
   'spell-declared',
   'spell-ended',
+  // W7-S22: a casting made and failed — SRD Slow's gestures.
+  'spell-fizzled',
   'spell-interrupted',
   'spell-ongoing',
   'spell-option-changed',

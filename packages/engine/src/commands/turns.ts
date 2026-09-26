@@ -94,6 +94,7 @@ import {
   spentRollModifiers,
 } from './rolls.js';
 import { resolveEffects } from './spell-resolution.js';
+import { settleDeferredRiders } from './spell-effect-riders.js';
 import { type SpellTargetOutcome } from './targeting.js';
 import { grapplerOf, grapplesOn, attachmentsOf } from './unarmed.js';
 import { attachedTo } from '../state.js';
@@ -2416,6 +2417,18 @@ export function resolveTurn(
     const granted = settleStartOfTurnGrants(after, beginning);
     advanced.push(...granted);
     after = granted.reduce(applyEvent, after);
+
+    // SRD Command: "follow the command **on its next turn**" — what a failed
+    // save bought on an earlier turn, landed now: the hands emptied, the
+    // Prone, and "then ends its turn" as the turn's two actions spent. After
+    // the Haste grant, so a turn that ends at its start ends the budget it was
+    // handed; refused `riders_owed` where there is no catalogue to settle it
+    // with, so the fight never advances past the word. (W7-S22)
+    const obeyed = settleDeferredRiders(after, supply?.content, beginning);
+    if (!obeyed.ok) return obeyed;
+    advanced.push(...obeyed.value.events);
+    unverified.push(...obeyed.value.unverified);
+    after = obeyed.value.events.reduce(applyEvent, after);
 
     // SRD *Monsters*: "regains all expended uses at the start of each of its
     // turns." Beside the recharge, because it is the same half of the boundary
