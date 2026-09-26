@@ -300,6 +300,9 @@ const CONDITIONAL = /^\s+(?:if|unless|when|while)\b/i;
 /** `, plus` and ` plus` — the only continuation that adds damage. */
 const PLUS = /^\s*(?:,\s*)?plus\s+/;
 
+/** The one thing a hit that deals no damage may do instead: impose a condition — W7-B10. */
+const HIT_IMPOSES_A_CONDITION = /^\s*The target has the [A-Z][a-z]+ condition/;
+
 /**
  * Two lines whose markup the source got wrong, corrected the way
  * `overrides.ts` corrects three ability tables: by naming the exact string.
@@ -363,7 +366,12 @@ export function parseAttackLine(text: string): MonsterAttack | null {
   if (kind !== 'melee' && range === null) return null;
 
   const { damage, rest } = parseDamageChain(afterHit.join('_Hit:_'));
-  if (damage.length === 0) return null;
+  // **A hit that deals nothing is an attack only where it imposes something**
+  // — W7-B10. SRD Roper's Tentacle: "_Hit:_ The target has the Grappled
+  // condition (escape DC 14) …" is the one line in the book whose chain is
+  // empty, and its rider is the whole of what the hit does. A hit with neither
+  // is a die thrown for nothing, and stays prose.
+  if (damage.length === 0 && !HIT_IMPOSES_A_CONDITION.test(rest)) return null;
 
   const qualified = qualification?.trim() ?? '';
 
@@ -2057,11 +2065,36 @@ const PULL_LINE = new RegExp(
   `^The ${SUBJECT} pulls each creature Grappled by it up to (\\d+) feet straight toward it\\.$`,
 );
 
+/**
+ * SRD Ettercap, Reel: "The ettercap pulls one creature within 30 feet of
+ * itself that is Restrained by its Web Strand up to 25 feet straight toward
+ * itself." — W7-B10.
+ *
+ * The same heading over the other hold: one creature, within a reach, held by
+ * an object a named line of this block spun. The heading is captured so the
+ * engine can ask which object is *its* web; the reach and the distance are
+ * both the line's.
+ */
+const WEB_PULL_LINE = new RegExp(
+  `^The ${SUBJECT} pulls one creature within (\\d+) feet of itself that is Restrained by its ([A-Z][A-Za-z' -]+?) up to (\\d+) feet straight toward itself\\.$`,
+);
+
 /** What this line drags toward its creature, or null for every other line. */
 export function parsePullLine(text: string): MonsterPull | null {
-  const matched = PULL_LINE.exec(text.replace(/\s+/g, ' ').trim());
-  if (matched === null) return null;
-  const checked = MonsterPullSchema.safeParse({ feet: Number(matched[1]!), of: 'grappled' });
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const matched = PULL_LINE.exec(flat);
+  if (matched !== null) {
+    const checked = MonsterPullSchema.safeParse({ feet: Number(matched[1]!), of: 'grappled' });
+    return checked.success ? checked.data : null;
+  }
+  const webbed = WEB_PULL_LINE.exec(flat);
+  if (webbed === null) return null;
+  const checked = MonsterPullSchema.safeParse({
+    feet: Number(webbed[3]!),
+    of: 'web',
+    within: Number(webbed[1]!),
+    heldBy: webbed[2]!,
+  });
   return checked.success ? checked.data : null;
 }
 
@@ -2690,7 +2723,17 @@ const MAKES = /^The (?:[A-Za-z'’-]+ ){1,3}makes /;
 const NAME = "[A-Z][A-Za-z'’-]*";
 const NAMES = `${NAME}(?: ${NAME})*`;
 const COUNT = '(one|two|three|four|five|six)';
-const CLAUSE = new RegExp(`^${COUNT} (${NAMES}(?: or ${NAMES})*) (attack|attacks)$`);
+const CLAUSE = new RegExp(`^(?:makes )?${COUNT} (${NAMES}(?: or ${NAMES})*) (attack|attacks)$`);
+
+/**
+ * "uses Reel" — a **use** inside the sequence, which is an entry of its own —
+ * W7-B10. SRD Roper: "makes two Tentacle attacks, uses Reel, and makes two
+ * Bite attacks." Anchored to a bare name, for {@link NAMED_USE_CLAUSE}'s
+ * reason: a count, a qualification or a choice is a rule this grammar does not
+ * read. The verb the book resumes the sequence with afterwards — "and makes
+ * two Bite attacks" — is admitted by {@link CLAUSE}'s optional opening.
+ */
+const USE_CLAUSE = new RegExp(`^uses (${NAMES})$`);
 
 /**
  * "three attacks" and the Tarrasque's "three other attacks" — a count whose
@@ -2806,7 +2849,7 @@ const alreadyNamed = (
   name: string,
 ): boolean =>
   branch.some((entry) =>
-    (entry.attacks ?? [entry.attack!]).some(
+    (entry.attacks ?? [entry.attack ?? entry.uses!]).some(
       (printed) => printed.toLowerCase() === name.toLowerCase(),
     ),
   );
@@ -2830,6 +2873,12 @@ function parseSequence(text: string): MonsterMultiattackEntry[] | null {
   // attack" is a pure named sequence that ` and ` alone could not see.
   for (const raw of body.split(/,\s+and\s+|\s+and\s+|,\s+/)) {
     const part = raw.trim();
+    // A use in the middle of the sequence — W7-B10 — is an entry of one.
+    const use = USE_CLAUSE.exec(part);
+    if (use !== null) {
+      entries.push({ count: 1, uses: use[1]! });
+      continue;
+    }
     const clause = CLAUSE.exec(part);
     const bare = clause === null ? BARE.exec(part) : null;
     if (clause === null && bare === null) return null;

@@ -119,7 +119,14 @@ export const grappleSource = (grappler: CharacterId): string => `grapple:${grapp
 
 /** Who is doing the grappling, read back out of the source. Null for any other cause. */
 export const grapplerOf = (source: string): CharacterId | null =>
-  source.startsWith('grapple:') ? (source.slice('grapple:'.length) as CharacterId) : null;
+  // **Up to the slash**, where there is one — W7-B10. A hold made with a limb
+  // that is a thing of its own is filed under `grapple:<who>/held-by:<limb>`,
+  // so the grappler is still read here and the limb is read by `heldByObject`,
+  // and a destroyed limb frees the creature through the pass that already
+  // frees what a broken web held. See `makeTheGrapple`.
+  source.startsWith('grapple:')
+    ? (source.slice('grapple:'.length).split('/')[0] as CharacterId)
+    : null;
 
 /**
  * The escape a grapple offers, as the {@link EffectCheck} it is pinned as.

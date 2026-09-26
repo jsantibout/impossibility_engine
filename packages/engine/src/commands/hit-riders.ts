@@ -41,7 +41,8 @@ import { applyEvent, type GameEvent, type GameState, grantSourcesOf } from '../e
 import { featureSource } from '../progression.js';
 import { sizeAtMost } from '../positioning.js';
 import { effectiveSizeOf } from '../size.js';
-import { attachSource } from '../state.js';
+import { attachSource, heldByObjectSource } from '../state.js';
+import { printedObjectId, raisePrintedObject } from './objects.js';
 import { remaining } from '../resources.js';
 import {
   abilityScoresOf,
@@ -561,7 +562,7 @@ export function applyHitRider(
   // it is neither: it hangs no condition the option's own span is about — SRD
   // ends a grapple on facts about the grappler and never on the clock — and it
   // must see the world the effects left.
-  const grabbed = makeTheGrapple(resolved.value.state, hit, option, unverified);
+  const grabbed = makeTheGrapple(resolved.value.state, hit, option, unverified, supply.issuer.count);
   if (!grabbed.ok) return grabbed;
   events.push(...grabbed.value);
 
@@ -863,16 +864,46 @@ function makeTheGrapple(
   hit: { readonly attacker: CharacterId; readonly target: CharacterId },
   option: HitOption,
   unverified: string[],
+  /** The roll issuer's position, which names the limb a hold is made with — see `printedObjectId`. */
+  useTag: number,
 ): Result<readonly GameEvent[]> {
   const grapple = option.grapples;
   if (grapple === undefined) return ok([]);
 
+  // **The thing the hold is made with** — W7-B10. SRD Roper's Tentacle: "The
+  // tentacle can be damaged, freeing a creature it has Grappled when destroyed
+  // (AC 20, HP 10, …)." Raised first with the line's own numbers, exactly as
+  // a web is on the save side, and the Grappled is filed under the grapple
+  // *and* the limb — `grapple:<who>/held-by:<limb>` — so `grapplerOf` still
+  // finds the roper, `heldByObject` finds the tentacle, and the pass that
+  // frees what a broken web held frees this creature the moment the tentacle
+  // is destroyed. A blow at the tentacle lands on the tentacle, which is what
+  // "Damaging the tentacle deals no damage to the roper" says.
+  const raised: GameEvent[] = [];
+  let limb: CharacterId | null = null;
+  if (grapple.heldByObject !== undefined) {
+    const printed = grapple.heldByObject;
+    limb = printedObjectId(printed.noun, hit.attacker, hit.target, useTag);
+    const thing = raisePrintedObject(world, limb, {
+      name: `${hit.attacker}'s ${printed.noun}`,
+      armorClass: printed.armorClass,
+      hitPoints: printed.hitPoints,
+      ...(printed.vulnerabilities === undefined ? {} : { vulnerabilities: printed.vulnerabilities }),
+      ...(printed.resistances === undefined ? {} : { resistances: printed.resistances }),
+      ...(printed.immunities === undefined ? {} : { immunities: printed.immunities }),
+    });
+    if (!thing.ok) return thing;
+    raised.push(...thing.value);
+  }
+  const source =
+    limb === null ? grappleSource(hit.attacker) : `${grappleSource(hit.attacker)}/${heldByObjectSource(limb)}`;
+
   const landed = conditionLanding(
     applyConditionTo(
-      world,
+      raised.reduce(applyEvent, world),
       hit.target,
       'grappled',
-      grappleSource(hit.attacker),
+      source,
       [],
       undefined,
       undefined,
@@ -890,7 +921,13 @@ function makeTheGrapple(
     unverified.push(
       `${option.featureName} grapples, and ${hit.target} cannot be given the Grappled condition at all`,
     );
-    return ok([]);
+    // A limb raised for a hold that never took is a thing in the room holding
+    // nothing; it stands, as a web spun at a creature immune to Restrained
+    // would, and the table is told.
+    if (raised.length > 0) {
+      unverified.push(`${hit.attacker}'s ${grapple.heldByObject!.noun} (${limb}) was raised for the hold and holds nobody`);
+    }
+    return ok(raised);
   }
   // **Filed under the grapple's own instance** — W7-B10 — so both lift the
   // moment the hold ends, through `releaseInstanceGrants`, whichever of the
@@ -899,7 +936,7 @@ function makeTheGrapple(
   // "Ability checks made to escape this grapple have Disadvantage" is a mode
   // on the one check the escape rolls, keyed to the condition it would end,
   // which is the axis `escapeGrapple` and `resolveEffectCheck` both report.
-  const instance = conditionInstanceId('grappled', grappleSource(hit.attacker));
+  const instance = conditionInstanceId('grappled', source);
   const bound: GameEvent[] = [];
   if (grapple.immuneToLine !== undefined) {
     bound.push({
@@ -922,12 +959,13 @@ function makeTheGrapple(
     });
   }
   return ok([
+    ...raised,
     ...landed.value.events,
     // SRD Animated Rug of Smothering: "takes 10 (2d6 + 3) Bludgeoning damage
     // at the start of each of its turns" — an arrangement the hold makes,
     // filed under the hold's own source so the boundary can read it and
     // `holdStillStands` can stop reading it the moment the escape succeeds.
-    ...payoutEvents(grapple.payout, grappleSource(hit.attacker), hit),
+    ...payoutEvents(grapple.payout, source, hit),
     ...bound,
   ]);
 }

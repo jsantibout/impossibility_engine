@@ -20,7 +20,7 @@ import type { CreatureSize, PrintedHoldCapacity } from '@ie/srd';
 import type { HazardName } from './hazards.js';
 // Type-only, so the cycle with `monster.ts` (which imports this file's types)
 // is erased: the shape a printed hold binds its holder with — W7-B10.
-import type { PrintedWhileHolding } from './monster.js';
+import type { PrintedHeldObject, PrintedWhileHolding } from './monster.js';
 import type { TurnAnchor, TurnMoment } from './time.js';
 import {
   grantedRollModes,
@@ -3275,6 +3275,12 @@ export interface HitGrapple {
    * standing hold rather than pinned; see `PrintedWhileHolding`.
    */
   readonly whileHolding?: PrintedWhileHolding;
+  /**
+   * SRD Roper's Tentacle — W7-B10: the thing the hold is made with, raised at
+   * the hit with the numbers the line prints and filed with the grapple so
+   * destroying it frees the creature. See `PrintedHeldObject`.
+   */
+  readonly heldByObject?: PrintedHeldObject;
 }
 
 /**

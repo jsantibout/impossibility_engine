@@ -625,8 +625,13 @@ describe('a line that pulls what it is holding', () => {
     expect(lineOf('roper', 'Reel').pulls).toEqual({ feet: 30, of: 'grappled' });
   });
 
-  it('refuses the ettercap’s, whose hold is a web rather than a grapple', () => {
-    expect(lineOf('ettercap', 'Reel').pulls).toBeUndefined();
+  it('reads the ettercap’s, whose hold is a web its own line spun — W7-B10', () => {
+    expect(lineOf('ettercap', 'Reel').pulls).toEqual({
+      feet: 25,
+      of: 'web',
+      within: 30,
+      heldBy: 'Web Strand',
+    });
   });
 
   it('refuses a sentence that moves any of its clauses', () => {
@@ -635,13 +640,17 @@ describe('a line that pulls what it is holding', () => {
     expect(parsePullLine(printed.replace('Grappled by it', 'Restrained by it'))).toBeNull();
     expect(parsePullLine(printed.replace('each creature', 'one creature'))).toBeNull();
     expect(parsePullLine(printed.replace(' straight toward it', ''))).toBeNull();
+    const webbed =
+      'The ettercap pulls one creature within 30 feet of itself that is Restrained by its Web Strand up to 25 feet straight toward itself.';
+    expect(parsePullLine(webbed.replace('Restrained', 'Grappled'))).toBeNull();
+    expect(parsePullLine(webbed.replace('one creature', 'each creature'))).toBeNull();
   });
 
-  it('is the only line in the bestiary that prints it', () => {
+  it('is printed on two lines in the bestiary, one over each hold', () => {
     const printed = bestiary.flatMap((block) =>
       [...block.actions, ...block.bonusActions].filter((line) => line.pulls !== undefined),
     );
-    expect(printed.length).toBe(1);
+    expect(printed.map((line) => line.pulls!.of).sort()).toEqual(['grappled', 'web']);
   });
 });
 

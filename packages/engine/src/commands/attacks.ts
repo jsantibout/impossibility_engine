@@ -951,6 +951,7 @@ function printedRiderOnASwing(
           ...(rider.escapeMode === undefined ? {} : { escapeMode: rider.escapeMode }),
           ...(rider.capacity === undefined ? {} : { capacity: rider.capacity }),
           ...(rider.whileHolding === undefined ? {} : { whileHolding: rider.whileHolding }),
+          ...(rider.heldByObject === undefined ? {} : { heldByObject: rider.heldByObject }),
         };
         break;
       }

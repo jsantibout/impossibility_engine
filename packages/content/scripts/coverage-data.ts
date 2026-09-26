@@ -1543,6 +1543,12 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | Salamander's Flame Spear | fiction. "The spear magically returns to the salamander's hand" — nothing tracks where a thrown weapon went, and nothing would read the answer |
  * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
  * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
+ * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
+ *
+ * **Six lines left this table in W7-B10** — the Rug's Smother, the
+ * Darkmantle's Crush, the Stirge's Proboscis, the Mimic's Pseudopod, the
+ * Allosaurus's Claws and the Giant Crocodile's Bite — each read to the end but
+ * for the suffocation the first two print, which is a handover kind.
  */
 export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
 export const hasHandedOverRider = (line: StatBlockLine): boolean => {
@@ -2058,9 +2064,11 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
   // Still the predicate it was, with the half that is now read taken out of
   // it: a Multiattack whose sentence states a named sequence is structure
   // the engine spends, so what is left here is the sentences that say
-  // something else — an alternative, a free choice from a menu, a use that
-  // is not an attack. The row shrinks rather than going quiet, which is what
-  // this table was built to do.
+  // something else — an alternative, a free choice from a menu, a count read
+  // off a fact nobody declared. A use inside the sequence left this row in
+  // W7-B10 (the Roper's "uses Reel" is a slot the Attack action holds). The
+  // row shrinks rather than going quiet, which is what this table was built
+  // to do.
   [
     'How many attacks the Attack action holds',
     (line) => line.name === 'Multiattack' && line.multiattack === undefined,
@@ -2156,12 +2164,18 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * for the third half, and `coverage.test.ts` holds it to the catalogue so an
  * entry that has been built, renamed or retired fails rather than rotting.
  *
- * **Read against the book, not against a summary.** Four of the entries below
+ * **Read against the book, not against a summary.** Three of the entries below
  * correct a claim that had been made about them from a heading alone: the
- * Ettercap's Reel pulls by a **web** and not by a grapple, the Magmin's block
- * prints no `sheds-light` trait for its Bonus Action to toggle, the Wisp's
- * Vanish is Concentration on something that is not a spell, and the Succubus's
- * Charm is a **cast** line at a fixed level rather than a save.
+ * Magmin's block prints no `sheds-light` trait for its Bonus Action to toggle,
+ * the Wisp's Vanish is Concentration on something that is not a spell, and the
+ * Succubus's Charm is a **cast** line at a fixed level rather than a save.
+ *
+ * **The Ettercap's Reel and the Roper's Tentacle left this table in W7-B10**:
+ * a printed pull may say which hold it reads (`MonsterPull.of: 'web'`, the
+ * creature a web this creature spun is holding), and a hit whose chain deals
+ * no damage is read where its rider imposes a condition — the tentacle the
+ * hold is made with is an object the hit raises, filed with the grapple so
+ * destroying it frees the creature.
  *
  * Keyed `<block id>/<heading>`, because two blocks print one heading over two
  * rules and the pair is what a reader needs.
@@ -2172,16 +2186,12 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
-  'ettercap/Reel':
-    'a pull whose **gate** is a hold. The web is a thing the engine keeps a record of now — the Web Strand save raises an object and files the Restrained under `held-by:<it>` — and the Roper\'s Reel under the same heading is executed. What is left is the clause between the two: "one creature within 30 feet of itself **that is Restrained by its Web Strand**" is a printed pull narrowed to whoever this creature\'s own web is holding, and `takePrintedPull` drags whoever it is holding by a *grapple*. It lands the day a printed pull may say which hold it reads.',
   'will-o-wisp/Vanish':
     'Concentration on something that is not a casting. "The wisp and its light have the Invisible condition until the wisp\'s Concentration ends on this effect, which ends early immediately after the wisp makes an attack roll or uses Consume Life." Every clause but the first is machinery the engine holds — the condition, the trigger that ends it, the light — and all of it hangs off `CreatureState.concentration`, which only a casting may occupy.',
   'succubus/Charm':
     'a cast line at a **fixed level**. "The succubus casts Dominate Person (level 8 version), requiring no spell components and using Charisma as the spellcasting ability (spell save DC 15)" is the book\'s cast template with one clause the reader has no field for, and `parseCastLine` refuses it whole rather than casting the spell at its own level. `a-duration-the-slot-changes` is the shape beside it; what this needs is a slot level a printed route states.',
   'wraith/Create Specter':
     'a-stat-block-created-mid-fight, at a door the summoning spells do not use. The raising itself is `summonCreature`, `Vitals.diedAt` answers the minute, and a cap of seven is a count a sheet can hold; what is missing is a *printed line* reaching the road a casting reaches, and a corpse being a thing the scene holds — the line targets "a Humanoid corpse within 10 feet", and a dead creature is a creature here rather than an object with a space.',
-  'roper/Tentacle':
-    'the same second place, reached the other way: the tendril the Reel pulls on is an object with its own Armour Class and Hit Points that a creature may attack, which is `declareObject` given to a creature as part of its body.',
   'sea-hag/Illusory Appearance':
     'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
 };

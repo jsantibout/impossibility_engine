@@ -457,8 +457,15 @@ export const attachedTo = (source: string): CharacterId | null =>
 export const heldByObjectSource = (object: CharacterId): string => `held-by:${object}`;
 
 /** Which thing holds a condition, read back out of the source. Null for any other cause. */
-export const heldByObject = (source: string): CharacterId | null =>
-  source.startsWith('held-by:') ? (source.slice('held-by:'.length) as CharacterId) : null;
+export const heldByObject = (source: string): CharacterId | null => {
+  // **Anywhere in the source, not only at its head** — W7-B10. A grapple made
+  // with a limb that is a thing of its own is filed under
+  // `grapple:<who>/held-by:<limb>`, so the grappler's half is read by
+  // `grapplerOf` and this reads the limb's; a web's own `held-by:<web>` is the
+  // whole source and reads as it always did.
+  const at = source.indexOf('held-by:');
+  return at === -1 ? null : (source.slice(at + 'held-by:'.length) as CharacterId);
+};
 
 /**
  * What the engine calls an object a **stat block arrived holding**.

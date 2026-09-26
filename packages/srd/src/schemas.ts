@@ -236,10 +236,23 @@ export const MonsterMultiattackEntrySchema = z
     attack: z.string().min(1).optional(),
     /** The printed names this clause offers a choice of — `[Scimitar, Pistol]`. */
     attacks: z.array(z.string().min(1)).min(1).optional(),
+    /**
+     * The printed heading of a line this clause **uses** rather than swings —
+     * SRD Roper: "makes two Tentacle attacks, **uses Reel**, and makes two Bite
+     * attacks." — W7-B10.
+     *
+     * A third exclusive member, because a use inside the sequence is a slot
+     * the Attack action holds and spends by taking the line: the engine binds
+     * the name against the block's own lines exactly as it binds an attack's,
+     * and the door that takes the line spends it out of the action where the
+     * sequence names it.
+     */
+    uses: z.string().min(1).optional(),
   })
   .refine(
-    (entry) => (entry.attack === undefined) !== (entry.attacks === undefined),
-    'a Multiattack entry names one attack or a menu of them, never both and never neither',
+    (entry) =>
+      [entry.attack, entry.attacks, entry.uses].filter((one) => one !== undefined).length === 1,
+    'a Multiattack entry names one attack, a menu of them, or a use, never more than one and never none',
   );
 export type MonsterMultiattackEntry = z.infer<typeof MonsterMultiattackEntrySchema>;
 
@@ -1601,7 +1614,14 @@ export const MonsterAttackSchema = z.object({
   range: z
     .object({ normal: z.number().int().min(0), long: z.number().int().min(0) })
     .nullable(),
-  damage: z.array(MonsterDamageSchema).min(1),
+  /**
+   * The components the `_Hit:_` chain deals. **Empty for exactly one line in
+   * the book** — W7-B10, SRD Roper's Tentacle: "_Hit:_ The target has the
+   * Grappled condition (escape DC 14) …" — a hit that deals nothing and
+   * imposes something, which the reader admits only where a condition rides
+   * on it; a hit that deals nothing and imposes nothing stays prose.
+   */
+  damage: z.array(MonsterDamageSchema),
   /**
    * A condition the book puts on the **roll**, kept as printed and evaluated
    * by nobody: "with Advantage if the target is Grappled by the ankheg".
@@ -1898,12 +1918,25 @@ export type MonsterForms = z.infer<typeof MonsterFormsSchema>;
  * engine has no record of. A shape that read only the distance would have
  * turned that web into a grapple.
  */
-export const MonsterPullSchema = z.object({
-  /** "up to 30 feet", measured toward the puller and capped at the gap. */
-  feet: z.number().int().min(5),
-  /** What the line pulls. One member today, and the field exists to keep it one. */
-  of: z.literal('grappled'),
-});
+export const MonsterPullSchema = z
+  .object({
+    /** "up to 30 feet", measured toward the puller and capped at the gap. */
+    feet: z.number().int().min(5),
+    /**
+     * What the line pulls: every creature it grapples, or — W7-B10 — one
+     * creature a **web** of its own holds. SRD Ettercap's Reel: "one creature
+     * within 30 feet of itself that is Restrained by its Web Strand".
+     */
+    of: z.enum(['grappled', 'web']),
+    /** "within 30 feet of itself" — how far the web-held creature may be. */
+    within: z.number().int().min(5).optional(),
+    /** The heading of the line whose object holds the creature — SRD's "Web Strand". */
+    heldBy: z.string().min(1).optional(),
+  })
+  .refine(
+    (pull) => (pull.of === 'web') === (pull.within !== undefined && pull.heldBy !== undefined),
+    'a pull by a web names the reach and the line that spun it, and a pull by a grapple names neither',
+  );
 export type MonsterPull = z.infer<typeof MonsterPullSchema>;
 
 /**

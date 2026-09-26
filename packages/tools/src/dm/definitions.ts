@@ -1935,17 +1935,22 @@ const SHAPE_SHIFT_PRINTED_LINE = tool({
 const PULL_PRINTED_LINE = tool({
   name: 'pull_printed_line',
   description:
-    'Have the engine take the pull a creature’s stat block prints — the Roper’s Reel. Name the heading as the block prints it; the engine reads the distance off the block, drags every creature that creature is Grappling straight toward it, stops each at the gap rather than through it, and spends whichever slot the heading names along with any recharge or daily limit. You state no distance and choose nobody: the line says "each creature". Only some printed lines can be taken this way: `look` says which, under `engineMakesThePull` on `printed.actions[]` and `printed.bonusActions[]` alike. The Ettercap’s line under the same heading pulls by a web rather than a grapple and is refused here — take it with `take_printed_action` and rule it yourself.',
+    'Have the engine take the pull a creature’s stat block prints — the Roper’s Reel, the Ettercap’s. Name the heading as the block prints it; the engine reads the distance off the block, drags what the line says the creature is holding straight toward it, stops each at the gap rather than through it, and spends whichever slot the heading names along with any recharge or daily limit — or, where the block’s Multiattack names the line as a use, a slot of the Attack action already taken. You state no distance. A line that pulls "each creature" it is Grappling chooses nobody; a line that pulls "one creature" its own web holds takes `target` where several are webbed, and the engine says whom it holds when you omit it. Only some printed lines can be taken this way: `look` says which, under `engineMakesThePull` on `printed.actions[]` and `printed.bonusActions[]` alike.',
   mutates: true,
+  selfAnswers: ['creature'],
   input: z.strictObject({
     who: creatureId.describe('Which creature is taking the line.'),
     line: printedLineName,
+    target: creatureId
+      .optional()
+      .describe('For a line that pulls one creature its web holds: whom. Omit it and the engine takes the one it holds, or says which qualify.'),
   }),
   run: (context, args) =>
     settle(
       context,
       takePrintedPull(context.campaign.state(), who(args.who), {
         line: args.line,
+        ...(args.target === undefined ? {} : { target: who(args.target) }),
         ...identity(context),
       }),
       (value) => value.events,
