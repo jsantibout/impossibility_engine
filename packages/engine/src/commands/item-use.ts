@@ -52,7 +52,7 @@ import {
   type ItemConfersGrant,
 } from '../catalogue.js';
 import { conditionInstanceId } from '../conditions.js';
-import { type EffectTarget, timerKey } from '../timers.js';
+import { CONFERRAL_END_CAUSES, type EffectTarget, timerKey } from '../timers.js';
 import { grantSourcesOf, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { rollRecorded } from '../rolls.js';
@@ -287,6 +287,19 @@ export function useItem(
     const target = command.target ?? id;
     if (creatureOf(state, target) === null) return unknownCreature(target);
 
+    // **An effect that lasts while the item is worn lands on its wearer.** SRD
+    // Cloak of Invisibility: "give **yourself** the Invisible condition ... The
+    // effect ends early if you ... cease wearing the cloak." What ends it is
+    // the item coming off the creature the effect is on, so on a friend who
+    // never wore it that could never happen, and the hour would outlast the
+    // doffing it was printed with — a better cloak than the book's.
+    if (target !== id && conferral.endsEarly?.includes('source-item-removed') === true) {
+      return err(
+        'not_the_wearer',
+        `${item.name}'s effect lasts only while the creature it is on wears it, so it is ${id}'s own and cannot be given to ${target}`,
+      );
+    }
+
     // SRD: "administer it to another creature within 5 feet of yourself" — the
     // rule a Paladin's touch already asks, asked from the one place.
     const beyond = reachedBy(state, id, target, item.name);
@@ -503,12 +516,27 @@ export function useItem(
       // keyed where a later grant from the same item would have landed.
       // `grantSourcesOf` is the one enumerator of the eight sourced families,
       // and it is the honest question here.
+      //
+      // **With the causes that reach a grant, and no deed.** SRD Armor of
+      // Invulnerability's Immunity lasts "for 10 minutes or until you are no
+      // longer wearing the armor", and a grant is what the Immunity is; a
+      // deed's sentence is about a condition, so it stays on that timer.
+      const endsGrant = conferral.endsEarly?.filter((cause) =>
+        (CONFERRAL_END_CAUSES as readonly string[]).includes(cause),
+      );
       for (const on of [...resolved.value.held].sort()) {
         const creature = world.creatures[on];
         if (creature === undefined || !grantSourcesOf(creature).includes(source)) continue;
         const lasts = lastsFor();
         if (!lasts.ok) return lasts;
-        const timer = schedule(world, { kind: 'grants', on, source }, lasts.value);
+        const timer = schedule(
+          world,
+          { kind: 'grants', on, source },
+          lasts.value,
+          undefined,
+          undefined,
+          endsGrant === undefined || endsGrant.length === 0 ? undefined : endsGrant,
+        );
         if (!timer.ok) return timer;
         events.push(timer.value);
       }

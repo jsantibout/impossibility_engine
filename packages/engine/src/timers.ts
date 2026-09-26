@@ -454,13 +454,19 @@ export interface EffectCheck {
 }
 
 /**
- * What has to **happen** for a timed effect to stop before its deadline.
+ * What has to **happen** for a timed effect to stop before its deadline — the
+ * four **deeds**.
  *
  * The four causes that are a fact about *one creature* — they name who did it,
  * and nothing else — which is why they can be read by a timer that knows only
  * whom it sits on. SRD Potion of Invisibility prints three of them in one
  * sentence: "The effect ends early if you make an attack roll, deal damage, or
  * cast a spell."
+ *
+ * **Not the whole of {@link EffectEndCause}**, which is these four and
+ * {@link CONFERRAL_END_CAUSES}. The split is who may write them: these four
+ * are shared with a casting and with a feature's option, and the two beside
+ * them are what only an item's conferral prints.
  *
  * **Here rather than in `spell-definitions.ts`, and the import direction is
  * what decides it.** A timer is a duration's business and `timers.ts` is
@@ -489,8 +495,54 @@ export const EFFECT_END_CAUSES = [
   'target-dons-armor',
 ] as const;
 
-/** One of {@link EFFECT_END_CAUSES}. */
-export type EffectEndCause = (typeof EFFECT_END_CAUSES)[number];
+/** One of the four deeds, {@link EFFECT_END_CAUSES}. */
+export type DeedEndCause = (typeof EFFECT_END_CAUSES)[number];
+
+/**
+ * What ends an item's conferral early besides a deed: something that happens
+ * **to** the creature it is on, rather than something it does.
+ *
+ * **Both end a hung grant as well as a condition**, which is why they are a
+ * list of their own: every deed ends a condition's timer and nothing else,
+ * and both of these were written for sentences whose benefit *is* a grant —
+ * Metal Shell's Immunity and a gaseous cloud's Resistance.
+ *
+ * **An item's alone.** A casting has its own record of the same two facts —
+ * `target-drops-to-0` is a `CastingEndCause` read through `isOn`, and no
+ * spell prints a garment — and `checkSpellDefinition` refuses the removal,
+ * while `checkContent` refuses both on a feature's option, so this list
+ * reaches the fold through a conferral's timer and nowhere else.
+ */
+export const CONFERRAL_END_CAUSES = [
+  /**
+   * SRD Gaseous Form, which a Potion of Gaseous Form confers: "The spell ends
+   * on the target if it drops to 0 Hit Points." The casting's own cause of
+   * the same name, read off the same `damage-taken` that leaves the creature
+   * at 0 — the total and not the transition, with the residue that member
+   * already records.
+   */
+  'target-drops-to-0',
+  /**
+   * SRD Armor of Invulnerability: "for 10 minutes **or until you are no longer
+   * wearing the armor**"; SRD Cloak of Invisibility: "or **cease wearing the
+   * cloak**". The item the effect came from — the `item:<id>` it is filed
+   * under — taken off the creature it is on, read off `item-unequipped`.
+   */
+  'source-item-removed',
+] as const;
+
+/** One of {@link CONFERRAL_END_CAUSES}. */
+export type ConferralEndCause = (typeof CONFERRAL_END_CAUSES)[number];
+
+/**
+ * Anything a timer may be ended early by: a deed, or what a conferral adds.
+ *
+ * One type rather than two because the log already carries it — an
+ * `effect-scheduled` names its causes in this vocabulary — and a stored
+ * event must go on meaning what it meant. Which of them a given writer may
+ * *use* is the validators' question, and each answers it from the lists.
+ */
+export type EffectEndCause = DeedEndCause | ConferralEndCause;
 
 export interface TimedEffect {
   readonly target: EffectTarget;
@@ -502,15 +554,17 @@ export interface TimedEffect {
   /**
    * What ends this effect **before** its deadline, when something does.
    *
-   * On a `condition` target and no other, because every cause is a fact about
-   * a creature and that is the only member naming one. A casting's own early
-   * endings are the casting's — they live on its `ongoing` record, where a
-   * scope ("the casting" or "this target") can be written beside them — and
-   * a `grants` or `feature` timer has no SRD sentence asking for one yet.
-   * `endTriggeredEffects` therefore walks past anything that is not a
-   * condition rather than the fold refusing it: a log cannot say this today,
-   * because nothing that writes an `effect-scheduled` will put the field on
-   * another target.
+   * On a `condition` target for any cause, and on a `grants` target for the
+   * two {@link CONFERRAL_END_CAUSES} and no deed: SRD Armor of
+   * Invulnerability's Immunity "for 10 minutes or until you are no longer
+   * wearing the armor" is a grant, and it is the sentence this used to say had
+   * not been printed yet. A casting's own early endings are the casting's —
+   * they live on its `ongoing` record, where a scope ("the casting" or "this
+   * target") can be written beside them — and a `feature` timer has no SRD
+   * sentence asking for one. `endTriggeredEffects` walks past a cause on a
+   * target it does not end rather than the fold refusing it: `useItem` files
+   * a grant's timer with the conferral causes only, so no log this engine
+   * writes says otherwise.
    */
   readonly endsEarly?: readonly EffectEndCause[];
 }

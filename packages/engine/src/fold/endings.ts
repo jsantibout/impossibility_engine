@@ -24,8 +24,15 @@
  * `allyOfCaster` withholds rather than inventing.
  */
 import type { CharacterId } from '@ie/shared';
-import { instancesEndingEarly } from '../conditions.js';
-import { type EffectEndCause, timerKey } from '../timers.js';
+import { itemSource } from '../catalogue.js';
+import { instancesEndingEarly, sourceOfInstance } from '../conditions.js';
+import {
+  CONFERRAL_END_CAUSES,
+  type DeedEndCause,
+  type EffectEndCause,
+  type EffectTarget,
+  timerKey,
+} from '../timers.js';
 import {
   castingIdOf,
   castingNumber,
@@ -102,8 +109,8 @@ export function allyOfCaster(
  */
 type EndingFact =
   | {
-      /** {@link EffectEndCause} — the four that name one creature and nothing else. */
-      readonly cause: EffectEndCause;
+      /** {@link DeedEndCause} — the four that name one creature and nothing else. */
+      readonly cause: DeedEndCause;
       readonly who: CharacterId;
     }
   | {
@@ -174,6 +181,17 @@ type EndingFact =
   | {
       readonly cause: 'separated-beyond';
       readonly mover: CharacterId;
+    }
+  /**
+   * An item taken off the creature wearing it — SRD Armor of Invulnerability's
+   * "or until you are no longer wearing the armor". `unworn` rather than `who`
+   * for the reason `to` is not `who`: this is not a deed, and it carries the
+   * item, which a timer has to match against the source it was filed under.
+   */
+  | {
+      readonly cause: 'source-item-removed';
+      readonly unworn: CharacterId;
+      readonly item: string;
     };
 
 /**
@@ -211,6 +229,13 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
       return [{ cause: 'target-casts', who: event.id }];
     case 'item-equipped':
       return isBodyArmor(state, event) ? [{ cause: 'target-dons-armor', who: event.id }] : [];
+    // SRD Armor of Invulnerability: "or until you are no longer wearing the
+    // armor". **The one door a worn copy leaves by**: `equipped` changes on
+    // this event and no other, and every command that would take a worn copy
+    // away — a loss, a hand-over, a drop — refuses while it is worn, and the
+    // two that destroy one (a corroded suit, a torn fan) write this first.
+    case 'item-unequipped':
+      return [{ cause: 'source-item-removed', unworn: event.id, item: event.item }];
     // SRD Sleep: "…or someone within 5 feet of it takes an action to shake it
     // out of the spell's effect." The five feet and the action were spent by
     // `wakeCreature`; what is left is the fact, and it names one creature.
@@ -354,6 +379,11 @@ function subjectOf(
     case 'caster-leaves-the-area':
       return fact.mover === record.caster && casterOutsideArea(state, record) ? fact.mover : null;
 
+    // An item's conferral alone: `checkSpellDefinition` refuses it on a
+    // definition, so no casting is ever about a garment.
+    case 'source-item-removed':
+      return null;
+
     default:
       return isOn(state, record, fact.who) ? fact.who : null;
   }
@@ -472,7 +502,9 @@ const endingKey = (castingId: string, subject: CharacterId): string =>
  * **Cheap first.** Seven event types can say anything at all here — the six
  * consequence events (`endingFactsOf`'s cases, `roll-recorded` the newest of
  * them) and `creature-moved`, for the one cause about a place —
- * and every other event returns before `ongoing` is touched. That is the
+ * and every other event returns before `ongoing` is touched. (An
+ * `item-unequipped` reaches the walk too and matches nothing: its one fact is
+ * an item's conferral's, which no definition may print.) That is the
  * discipline `anyCreature` established for the three passes that sort the
  * whole cast.
  *
@@ -516,41 +548,6 @@ export function endTriggeredCastings(state: GameState, event: GameEvent): GameSt
   }
 }
 
-/**
- * A timed effect ended by something that happens, with no casting anywhere.
- *
- * SRD Potion of Invisibility: "you have the Invisible condition for 1 hour.
- * The effect ends early if you make an attack roll, deal damage, or cast a
- * spell." The same three sentences Invisibility prints, on a thing that was
- * never cast — so there is no `ongoing` record for {@link
- * endTriggeredCastings} to walk and nothing for `releaseCasting` to address.
- * What holds it is the **timer**, and the timer is what this pass reads.
- *
- * Beside that function rather than inside it, and reading the same
- * {@link EndingFact}s off the same six events: one reading of the log, two
- * populations. Folding the two loops together would mean one walk over two
- * unrelated records answering to two different release doors, which is a
- * shared loop rather than a shared rule.
- *
- * **Only the who-shaped causes can reach a timer.** A timer knows the creature
- * it sits on and nothing else — no caster, no allegiance — so
- * `caster-or-ally-damages-target` has nothing here to be about, and
- * {@link EffectEndCause} is exactly the four that do. That is a property of
- * the type rather than a filter written by hand: the `'who' in fact` narrowing
- * below is what the compiler checks `endsEarly.includes` against.
- *
- * **Derived, and it writes nothing**, for the reason every pass in the fold's
- * chain does: nobody decides that the drinker swung. And it terminates
- * structurally — the candidate keys are read from the state this pass was
- * handed, each is visited once, and `endTimedCondition` deletes the key before
- * it touches the condition, so nothing a release does can hand the loop back
- * a timer it has already settled.
- *
- * **Cheap first.** Six event types can say anything at all *to a timer*, and
- * every other one returns before `timers` is touched — including a
- * `creature-moved`, whose one fact names no `who` and so is dropped here
- * before the walk rather than discarded once per timer inside it.
- */
 /**
  * A printed condition ended by a blow or by a neighbour shaking the creature.
  *
@@ -669,11 +666,118 @@ export function closeHealedWounds(state: GameState, event: GameEvent): GameState
   };
 }
 
+/**
+ * What a fact says to a timer: the creature it happened to, the cause, and —
+ * for a removal — the item that came off.
+ *
+ * **A timer knows the creature it sits on and nothing else** — no caster, no
+ * allegiance, no area — so only a fact that names that one creature can reach
+ * it: the four deeds, the fall, and the removal. Everything else a casting
+ * reads is dropped here, before the walk.
+ */
+interface TimerFact {
+  readonly cause: EffectEndCause;
+  readonly on: CharacterId;
+  /** The catalogue id taken off, for `source-item-removed` and nothing else. */
+  readonly item?: string;
+}
+
+function timerFactsOf(fact: EndingFact): readonly TimerFact[] {
+  if ('who' in fact) return [{ cause: fact.cause, on: fact.who }];
+  if (fact.cause === 'target-drops-to-0') return [{ cause: fact.cause, on: fact.to }];
+  if (fact.cause === 'source-item-removed') {
+    return [{ cause: fact.cause, on: fact.unworn, item: fact.item }];
+  }
+  return [];
+}
+
+/**
+ * Whether this fact ends a timer on `on` whose effect came from `source`.
+ *
+ * The creature first, then the sentence, then — for a removal only — that the
+ * item taken off is the one the effect was filed under: a Potion of
+ * Invisibility's Invisible and a Cloak of Invisibility's are two instances
+ * under two sources, and taking the cloak off ends one of them.
+ */
+const pulls = (
+  fact: TimerFact,
+  on: CharacterId,
+  source: string,
+  triggers: readonly EffectEndCause[],
+): boolean =>
+  fact.on === on &&
+  triggers.includes(fact.cause) &&
+  (fact.item === undefined || itemSource(fact.item) === source);
+
+/** What a conferral may end on a `grants` timer: its own two causes, never a deed. */
+const ENDS_A_GRANT: ReadonlySet<EffectEndCause> = new Set(CONFERRAL_END_CAUSES);
+
+/**
+ * Lift a hung grant before its deadline, through the reading its deadline
+ * arriving already takes.
+ *
+ * The key first and the grants by their bare source second — `expireEffects`'
+ * `grants` branch, asked early — so what ends is what that source granted on
+ * that creature and nothing else. A worn item's *standing* benefit is derived
+ * on every read and stored nowhere, so the armour's own Resistance is not what
+ * this takes away.
+ */
+function endTimedGrants(
+  state: GameState,
+  key: string,
+  target: Extract<EffectTarget, { kind: 'grants' }>,
+): GameState {
+  const timers = { ...state.timers };
+  delete timers[key];
+  const creature = state.creatures[target.on];
+  return {
+    ...state,
+    timers,
+    ...(creature === undefined
+      ? {}
+      : { creatures: { ...state.creatures, [target.on]: releaseGrants(creature, target.source) } }),
+  };
+}
+
+/**
+ * A timed effect ended by something that happens, with no casting anywhere.
+ *
+ * SRD Potion of Invisibility: "you have the Invisible condition for 1 hour.
+ * The effect ends early if you make an attack roll, deal damage, or cast a
+ * spell." The same three sentences Invisibility prints, on a thing that was
+ * never cast — so there is no `ongoing` record for {@link
+ * endTriggeredCastings} to walk and nothing for `releaseCasting` to address.
+ * What holds it is the **timer**, and the timer is what this pass reads.
+ *
+ * Beside that function rather than inside it, and reading the same
+ * {@link EndingFact}s off the same events: one reading of the log, two
+ * populations. Folding the two loops together would mean one walk over two
+ * unrelated records answering to two different release doors, which is a
+ * shared loop rather than a shared rule.
+ *
+ * **Only a fact naming one creature can reach a timer** — see
+ * {@link timerFactsOf} — and **only a conferral's own two causes reach a
+ * grant.** SRD Armor of Invulnerability's Immunity "for 10 minutes or until
+ * you are no longer wearing the armor" and a Potion of Gaseous Form's
+ * Resistance, which ends where the spell's "drops to 0 Hit Points" does, are
+ * grants; the deeds end a condition and nothing else, because no item prints
+ * one over a grant.
+ *
+ * **Derived, and it writes nothing**, for the reason every pass in the fold's
+ * chain does: nobody decides that the drinker swung, or that the armour came
+ * off with its shell still up. And it terminates structurally — the candidate
+ * keys are read from the state this pass was handed, each is visited once,
+ * and both doors delete the key before they touch the creature, so nothing a
+ * release does can hand the loop back a timer it has already settled.
+ *
+ * **Cheap first.** Only the events {@link endingFactsOf} reads can say
+ * anything to a timer, and every other one returns before `timers` is
+ * touched — including a `creature-moved`, whose facts name no creature a
+ * timer can sit on and so are dropped before the walk rather than discarded
+ * once per timer inside it.
+ */
 export function endTriggeredEffects(state: GameState, event: GameEvent): GameState {
-  // Only the who-shaped causes can reach a timer — see the docstring — so the
-  // rest are dropped before the walk, and an event that says nothing a timer
-  // can hear costs nothing.
-  const facts = endingFactsOf(state, event).filter((fact) => 'who' in fact);
+  const facts = endingFactsOf(state, event).flatMap(timerFactsOf);
   if (facts.length === 0) return state;
 
   let current = state;
@@ -685,17 +789,22 @@ export function endTriggeredEffects(state: GameState, event: GameEvent): GameSta
 
     const target = timer.target;
     const triggers = timer.endsEarly;
+    if (triggers === undefined) continue;
+
+    if (target.kind === 'condition') {
+      const source = sourceOfInstance(target.instance);
+      if (!facts.some((fact) => pulls(fact, target.on, source, triggers))) continue;
+      current = endTimedCondition(current, key, target);
+    } else if (target.kind === 'grants') {
+      const pulled = facts.some(
+        (fact) => ENDS_A_GRANT.has(fact.cause) && pulls(fact, target.on, target.source, triggers),
+      );
+      if (!pulled) continue;
+      current = endTimedGrants(current, key, target);
+    }
     // A casting's own early endings live on its `ongoing` record, where a
-    // scope can be written beside them; nothing else a timer can end has an
-    // SRD sentence asking for one.
-    if (target.kind !== 'condition' || triggers === undefined) continue;
-
-    const pulled = facts.some(
-      (fact) => 'who' in fact && fact.who === target.on && triggers.includes(fact.cause),
-    );
-    if (!pulled) continue;
-
-    current = endTimedCondition(current, key, target);
+    // scope can be written beside them; a feature's activation has no SRD
+    // sentence asking for one.
   }
   return current;
 }

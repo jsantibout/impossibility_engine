@@ -1048,12 +1048,38 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       /**
        * SRD Armor of Invulnerability: "Armor (Plate Armor), Legendary
        * (Requires Attunement). You have Resistance to Bludgeoning, Piercing,
-       * and Slashing damage while you wear this armor."
+       * and Slashing damage while you wear this armor. **_Metal Shell._** You
+       * can take a Magic action to give yourself Immunity to Bludgeoning,
+       * Piercing, and Slashing damage for 10 minutes or until you are no
+       * longer wearing the armor. Once this property is used, it can't be used
+       * again until the next dawn."
+       *
+       * **Transcribed whole.** The Resistance is worn; Metal Shell is the
+       * Periapt of Health's shape — a per-dawn pool of one and a conferral
+       * priced at it — with an Immunity where the healing is, for ten
+       * minutes. What kept it out was the clause that *limits* it, which is
+       * `items.ts` rule 3: a conferral used to run its span after the armour
+       * came off. `source-item-removed` is that clause, filed on the grant's
+       * own timer, so taking the plate off ends the shell with it.
        */
       attunement: {},
-      grants: [resistanceWhileWorn(['bludgeoning', 'piercing', 'slashing'])],
-      unmodelled: [
-        '"**_Metal Shell._** You can take a Magic action to give yourself Immunity to Bludgeoning, Piercing, and Slashing damage for 10 minutes or until you are no longer wearing the armor. Once this property is used, it can\'t be used again until the next dawn": an action that switches a defence on for a span is the unbuilt `use` grant, and a standing grant offers Resistance rather than Immunity',
+      grants: [
+        resistanceWhileWorn(['bludgeoning', 'piercing', 'slashing']),
+        charges('armor-of-invulnerability', 'Armor of Invulnerability', 1),
+        {
+          kind: 'confers',
+          action: 'action',
+          charges: 1,
+          durationSeconds: 600,
+          endsEarly: ['source-item-removed'],
+          effects: [
+            {
+              kind: 'damage-defense',
+              damageTypes: ['bludgeoning', 'piercing', 'slashing'],
+              defense: 'immune',
+            },
+          ],
+        },
       ],
     },
   ),
@@ -2130,6 +2156,47 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
     },
   ),
+  wornItem(
+    { id: 'cloak-of-invisibility', name: 'Cloak of Invisibility', kind: 'wondrous' },
+    {
+      /**
+       * SRD Cloak of Invisibility: "Wondrous Item, Legendary (Requires
+       * Attunement). This cloak has 3 charges and regains 1d3 expended
+       * charges daily at dawn. While wearing the cloak, you can take a Magic
+       * action to pull its hood over your head and expend 1 charge to give
+       * yourself the Invisible condition for 1 hour. The effect ends early if
+       * you pull the hood down (no action required) or cease wearing the
+       * cloak."
+       *
+       * **The Potion of Invisibility's condition on a charge**: a pool the
+       * dawn partly refills, a Magic action priced at one charge out of it,
+       * and the Invisible condition for the hour. The clause that limits it —
+       * "or cease wearing the cloak" — is `source-item-removed` on the
+       * condition's own timer, so the hour ends when the cloak comes off; it
+       * was out until that cause existed, under `items.ts` rule 3.
+       *
+       * The hood is the one clause left, and it is a benefit withheld rather
+       * than a limit dropped — a wearer who cannot pull it down ends the hour
+       * by taking the cloak off, which is a narrower cloak and not a better
+       * one — so this is rule 2.
+       */
+      attunement: {},
+      grants: [
+        charges('cloak-of-invisibility', 'Cloak of Invisibility', 3, '1d3'),
+        {
+          kind: 'confers',
+          action: 'action',
+          charges: 1,
+          durationSeconds: 3600,
+          endsEarly: ['source-item-removed'],
+          effects: [{ kind: 'condition', condition: { name: 'invisible' } }],
+        },
+      ],
+      unmodelled: [
+        '"The effect ends early if you pull the hood down (no action required)": a conferral is a moment with a lifetime the item states and offers no dismissal, so the hour runs until it is up or the cloak comes off',
+      ],
+    },
+  ),
   magicArmor(
     {
       id: 'plate-armor-of-etherealness',
@@ -2530,6 +2597,57 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
       unmodelled: [
         '"If you are flying when the duration expires, you descend at a rate of 30 feet per round until you land": nothing fires when a conferral\'s hour runs out, so a wearer still aloft is the table\'s to bring down — the fall SRD Fly leaves to the DM, and here a gentler one',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'boots-of-speed', name: 'Boots of Speed', kind: 'wondrous' },
+    {
+      /**
+       * SRD Boots of Speed: "Wondrous Item, Rare (Requires Attunement). While
+       * you wear these boots, you can take a Bonus Action to click the boots'
+       * heels together. If you do, the boots double your Speed, and any
+       * creature that makes an Opportunity Attack against you has
+       * Disadvantage on the attack roll. If you click your heels together
+       * again, you end the effect. When you've used the boots' property for a
+       * total of 10 minutes, the magic ceases to function for you until you
+       * finish a Long Rest."
+       *
+       * **The Potion of Speed's doubling on a pair of boots**, for the ten
+       * minutes the book allows, bought with a pool of one that a Long Rest
+       * gives back. "The boots double your Speed" is the boots' own effect,
+       * so it ends when they come off — `source-item-removed` — which is the
+       * clause that kept them out under `items.ts` rule 3: without it the
+       * doubling ran its ten minutes on bare feet.
+       *
+       * What is left out is benefit withheld, so this is rule 2. The ten
+       * minutes are spent in one click rather than split across several, the
+       * heels cannot be clicked again to stop early, and the Opportunity
+       * Attack's Disadvantage is not given — each is a narrower pair of boots
+       * than the book's and never a better one.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'pool',
+          key: 'boots-of-speed:charges',
+          label: 'Boots of Speed',
+          uses: 1,
+          recovers: 'long-rest',
+        },
+        {
+          kind: 'confers',
+          action: 'bonus-action',
+          charges: 1,
+          durationSeconds: 600,
+          endsEarly: ['source-item-removed'],
+          effects: [{ kind: 'speed', change: 'double' }],
+        },
+      ],
+      unmodelled: [
+        '"any creature that makes an Opportunity Attack against you has Disadvantage on the attack roll": a conferral grants no roll mode narrowed to an Opportunity Attack, so the attack is rolled as it would be anyway',
+        '"If you click your heels together again, you end the effect": a conferral offers no dismissal, so the doubling runs until its ten minutes are up or the boots come off',
+        '"When you\'ve used the boots\' property for a total of 10 minutes": one click spends the whole ten minutes, because nothing counts the time a conferral ran and a pool counts uses — so the minutes cannot be split across several clicks before the Long Rest',
       ],
     },
   ),
@@ -2954,6 +3072,10 @@ const POTIONS: readonly CatalogueItem[] = [
         kind: 'confers',
         action: 'bonus-action',
         durationSeconds: 3600,
+        // The spell's "The spell ends on the target if it drops to 0 Hit
+        // Points", which the effect the potion confers carries with it: every
+        // grant below is filed on one timer, and the fall ends that timer.
+        endsEarly: ['target-drops-to-0'],
         effects: [
           { kind: 'damage-defense', damageTypes: ['bludgeoning', 'piercing', 'slashing'], defense: 'resistant' },
           // "You have Immunity to the Prone condition" — the spell's own
@@ -2990,7 +3112,6 @@ const POTIONS: readonly CatalogueItem[] = [
       'one of the four things the cloud cannot do is not forbidden: talking, which the Gaseous Form definition leaves undone for its own reason — it is not an action anything spends, and it sits in the same printed sentence as the object clauses this record does forbid',
       'occupying another creature\'s space is not allowed: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature — the Gaseous Form definition\'s own note',
       'passing through narrow openings and treating liquids as solid surfaces are the DM\'s, as they are for the spell: the cloud itself is fiction',
-      'the spell ends on a target that drops to 0 Hit Points, and this conferral does not: its lifetime is the hour, because what may cut a conferral short is `endsEarly`, which ends a conferred condition rather than a grant and names no fall to 0',
     ],
   },
   {

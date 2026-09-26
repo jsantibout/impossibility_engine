@@ -89,6 +89,22 @@ const dawnSentences = (description: string): readonly string[] =>
     .filter((sentence) => contains(sentence, DAWN_LIMIT));
 
 /**
+ * **A per-rest property**, which is the per-day one with a Long Rest where the
+ * dawn is. SRD Boots of Speed: "When you've used the boots' property for a
+ * total of 10 minutes, the magic ceases to function for you **until you finish
+ * a Long Rest**." The same pool of one, given back by the rest the page names
+ * rather than by a declared morning.
+ */
+const REST_LIMIT = 'until you finish a Long Rest';
+
+/** The sentences of an entry that print a per-rest limit. */
+const restSentences = (description: string): readonly string[] =>
+  description
+    .split(/(?<=\.)\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => contains(sentence, REST_LIMIT));
+
+/**
  * **A use count with no morning behind it**, in the words the book gives it.
  *
  * Every charged item in the book but one prints a dawn line, and the Chime of
@@ -281,8 +297,9 @@ describe('every transcribed item agrees with the entry it was read from', () => 
         // print rather than against a charge count it does not.
         expect(pool.uses, `${item.id} has no charge count in the book`).toBe(1);
         expect(pool.regainsAtDawn, `${item.id} refills whole`).toBeUndefined();
+        // Or a Long Rest where the morning is — see {@link REST_LIMIT}.
         expect(
-          dawnSentences(entry.description).length,
+          dawnSentences(entry.description).length + restSentences(entry.description).length,
           `${item.id} declares a pool the entry prints nothing for`,
         ).toBeGreaterThan(0);
       } else {
@@ -314,10 +331,18 @@ describe('every transcribed item agrees with the entry it was read from', () => 
       // and gets one is an item quietly refilled every day — the mirror of
       // the staff quietly made cheap below, and the reason `special` is a tag
       // that has to be checked rather than a default.
+      //
+      // **And a Long Rest is a third answer**, printed as "until you finish a
+      // Long Rest" on an entry that prints no morning: a pool tagged `dawn`
+      // there would come back at a declared dawn the book never mentions, and
+      // one tagged `special` would never come back at all.
       const morning =
         contains(entry.description, 'daily at dawn') || dawnSentences(entry.description).length > 0;
-      expect(pool.recovers, `${item.id}: the entry ${morning ? 'prints' : 'prints no'} morning`)
-        .toBe(morning ? 'dawn' : 'special');
+      const rested = !morning && restSentences(entry.description).length > 0;
+      expect(
+        pool.recovers,
+        `${item.id}: the entry ${morning ? 'prints' : 'prints no'} morning${rested ? ' and prints a Long Rest' : ''}`,
+      ).toBe(morning ? 'dawn' : rested ? 'long-rest' : 'special');
     }
   });
 

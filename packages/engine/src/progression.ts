@@ -2947,7 +2947,7 @@ export type FeatureGrant =
         readonly secondsEach: number;
       };
       /**
-       * What ends the conferred condition **before** its hour is up.
+       * What ends the conferred effect **before** its hour is up.
        *
        * SRD Potion of Invisibility prints the sentence right after the
        * duration: "you have the Invisible condition for 1 hour. The effect ends
@@ -2955,17 +2955,29 @@ export type FeatureGrant =
        * is transcribed beside {@link durationSeconds}, which is the other half
        * of the same clause.
        *
+       * **Two lists, and what each may end.** The four deeds
+       * (`EFFECT_END_CAUSES`) end a conferred condition. The two
+       * `CONFERRAL_END_CAUSES` end a condition **or a hung grant**: SRD Armor
+       * of Invulnerability's Immunity "for 10 minutes or until you are no
+       * longer wearing the armor" (`source-item-removed`, the item the effect
+       * is filed under taken off the creature it is on), and SRD Gaseous
+       * Form's "ends on the target if it drops to 0 Hit Points", which a
+       * Potion of Gaseous Form confers (`target-drops-to-0`). A removal is
+       * refused on an item that is used up rather than spent — a bottle is
+       * never worn once it has been drunk — and `useItem` lands such an effect
+       * on its wearer and on nobody else.
+       *
        * On the **grant** rather than on the effect, because the SRD writes it
        * about the whole draught rather than about one clause of it, and because
        * a conferral hangs at most one condition today; the day an item confers
        * two with different escapes it becomes a field on the rider, which is
        * a move a conferral's own validator can make without touching a casting.
        *
-       * Refused when the conferral hangs no condition
-       * (`conferral_end_trigger_ends_nothing`), for the reason a duration that
-       * ends nothing is: a sentence that could never fire is one that reads as
-       * transcribed and is not. A `grants` timer takes no trigger — no SRD
-       * item asks for one — so this is a condition's field in practice.
+       * Refused where a cause has nothing it may end
+       * (`conferral_end_trigger_ends_nothing`) — a deed on a conferral that
+       * hangs no condition, a conferral cause on one that hangs neither — for
+       * the reason a duration that ends nothing is: a sentence that could
+       * never fire is one that reads as transcribed and is not.
        */
       readonly endsEarly?: readonly EffectEndCause[];
       /**
