@@ -398,6 +398,11 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'mind-spike',
   'misty-step',
   'moonbeam',
+  // `nondetection.test.ts` (engine): a ranger's Hunter's Mark at the warded
+  // goblin refused `warded` with the slot unspent and the ward named, a Fire
+  // Bolt through, the ward on the casting's record and gone with it, and the
+  // wizard beside the goblin still a target.
+  'nondetection',
   // `area-standing.test.ts`: the Ranger's aura, the Rogue on the list taking
   // the +10 on a Stealth check and nothing on a Perception one, the Fighter
   // inside it and off the list taking nothing, the Rogue five feet too far
@@ -477,6 +482,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // paying double each time. Divine Smite beside it is asserted to leave no
   // record at all.
   'searing-smite',
+  // `sending.test.ts` (engine): the die thrown only when the caster states the
+  // recipient is on another plane, both faces reached across seeds, the
+  // message handed over when it arrives and withheld when it does not, no die
+  // and no generator movement for a recipient on this plane, and the plane
+  // refused on a spell that prints no such clause.
+  'sending',
   'shatter',
   // `shield.test.ts` (engine): both triggers. The Armour Class raised against
   // a held hit, and the second clause the spell waited on a window for — the
@@ -580,6 +591,14 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'vampiric-touch',
   'vicious-mockery',
   'vitriolic-sphere',
+  // `warding-bond.test.ts` (engine): the +1 to AC and saves and the Resistance
+  // held at fifty feet and gone at sixty-five, the requirement withheld where
+  // the caster is unplaced, 8 Fire costing the fighter 4 and the cleric 4
+  // through the cleric's own defences, the caster's own damage rebounding on
+  // nobody, an adjudicated amount shared with its defences unread, and the
+  // three endings — the cleric at 0, the pair past sixty feet, a recast on
+  // either end.
+  'warding-bond',
   'web',
   'wind-walk',
   // `barriers.test.ts` and `wall-template.test.ts`: the path pinned on the
@@ -686,6 +705,9 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.areaObscurement !== undefined ||
   definition.conjures !== undefined ||
   definition.maxRunning !== undefined ||
+  // A ward a creature holds against a school is read at every casting's
+  // pre-flight — SRD Nondetection resolves a refusal and nothing else.
+  definition.wardsTargets !== undefined ||
   Object.values(definition.options ?? {}).some(
     // A branch's own standing clauses count for the reason the common list's
     // do: SRD Magic Circle's two directions are two lists of clauses the

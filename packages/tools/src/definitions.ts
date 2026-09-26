@@ -2684,6 +2684,12 @@ const CAST_SPELL = tool({
       .describe(
         'Which stat block a summoning spell that leaves the form to its caster raises, by its id in the bestiary — Find Familiar’s "Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that has a Challenge Rating of 0". The engine refuses a block the spell does not admit and will not pick one. Leaving it out for such a spell is refused, and so is naming one for a spell that names its own block.',
       ),
+    otherPlane: z
+      .boolean()
+      .optional()
+      .describe(
+        'True when the creature a message spell reaches is on another plane of existence — Sending’s "if the target is on a different plane than you, there is a 5 percent chance that the message doesn’t arrive". Only you can say where the recipient is; say so and the engine throws the die, leave it out and the message simply arrives. Refused on a spell that prints no such clause.',
+      ),
     bonesAt: z
       .array(placementSchema)
       .optional()
@@ -2816,6 +2822,8 @@ const CAST_SPELL = tool({
       ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
       ...(args.object === undefined ? {} : { object: args.object }),
       ...(args.form === undefined ? {} : { form: args.form }),
+      // A stated fact and never a number: the die it gates is the engine's.
+      ...(args.otherPlane === true ? { otherPlane: true as const } : {}),
       ...(args.bonesAt === undefined ? {} : { bonesAt: args.bonesAt.map((pile) => placementOf(pile)) }),
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),

@@ -4990,6 +4990,16 @@ function checkEffect(
     // at a hundred, and that is a different rule from a printed number the
     // author got wrong.
     case 'chance': {
+      // SRD Sending's "if the target is on a different plane than you": the one
+      // fact a chance may be gated on, and the only value. (W7-S19)
+      const gate = (effect as { onlyIf?: unknown }).onlyIf;
+      if (gate !== undefined && gate !== 'other-plane') {
+        found.push({
+          field: `${path}.onlyIf`,
+          code: 'malformed_field',
+          reason: `a chance is thrown on a stated plane or unconditionally; the only gate is 'other-plane', not ${String(gate)}`,
+        });
+      }
       const printed = effect.percent;
       if (typeof printed === 'number') {
         if (!Number.isFinite(printed) || printed <= 0 || printed > 100) {
@@ -5575,6 +5585,43 @@ function checkSharesDamage(
       code: 'shared_damage_with_nobody',
       reason:
         'damage is shared from a creature the casting is on while the casting runs; a spell with no target or no duration has nobody’s damage to share',
+    });
+  }
+}
+
+/**
+ * SRD Nondetection's "can't be targeted by any Divination spell": a ward held
+ * by a creature for a span, against one of the eight schools — see
+ * `SpellDefinition.wardsTargets`. A ward on nobody, or one that ends the moment
+ * it is laid, refuses nothing. (W7-S19)
+ */
+function checkWardsTargets(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const wards = (definition as { wardsTargets?: unknown }).wardsTargets;
+  if (wards === undefined) return;
+  if (
+    !readsAsObject(wards, 'wardsTargets', 'a ward a creature holds names the school it refuses', found)
+  ) {
+    return;
+  }
+  const { school } = wards as { school?: unknown };
+  if (typeof school !== 'string' || !SCHOOLS.has(school)) {
+    found.push({
+      field: 'wardsTargets.school',
+      code: 'bad_ward',
+      reason: `"${String(school)}" is not one of the eight schools of magic a ward can refuse`,
+    });
+  }
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (definition.targets.count === 0 || !persists) {
+    found.push({
+      field: 'wardsTargets',
+      code: 'bad_ward',
+      reason:
+        'a ward is held by a creature the casting is on for as long as it runs; a spell with no target or no duration wards nobody',
     });
   }
 }
@@ -7579,6 +7626,7 @@ export function checkSpellDefinition(
   checkRecastOnEither(definition, found);
   checkSharesDamage(definition, lasts, found);
   checkSummonCommand(definition, lasts, found);
+  checkWardsTargets(definition, lasts, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //

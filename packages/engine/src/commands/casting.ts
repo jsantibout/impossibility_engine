@@ -736,6 +736,14 @@ export interface CastingPlan {
    */
   readonly form?: string;
   /**
+   * That the recipient of a message spell is on another plane — SRD Sending.
+   * Beside the form and for its reason: a settlement takes no fresh request,
+   * so a casting declared across the planes must settle with the die the
+   * book gives it. Carried verbatim; it is a stated fact and there is nothing
+   * to normalise. (W7-S19)
+   */
+  readonly otherPlane?: true;
+  /**
    * Where the piles of bones lie that a `raise` effect turns into creatures.
    * Beside the form and for its reason: SRD Animate Dead is a rite of a
    * minute, so the points are stated before there is a casting to raise

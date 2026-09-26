@@ -936,13 +936,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'two of the four, and the other two are built: "Finally, the target can\u2019t attack or cast spells" is one `forbids` rule naming the Attack action and, through the field this track gave that arm, the casting. What is left is "The target can\u2019t talk or manipulate objects" and "any objects it was carrying or holding can\u2019t be dropped, used, or otherwise interacted with" \u2014 talking is not an action anything spends, and what is in a creature\u2019s hands is a fact the engine does not hold. The Magic action its target takes to end the spell is no longer here either: `endOngoingSpellOnSelf` is that door and it charges that price.',
     },
   ],
-  'gentle-repose': [
-    {
-      clause: 'the days are taken back only while this casting is still running',
-      why: 'healing-that-raises-the-dead',
-      note: 'the sentence is executed while the casting runs — `preserves` marks the body, the record pins the moment, and `preservedSpan` takes the span back out of the time since `Vitals.diedAt`. What is left is the word **spent**: the span is read off the castings running on the body now, so a repose that has ended hands the window back, and a corpse ten days under one and then dispelled is refused a resurrection the book allows. Carrying that needs a span accumulated on the creature and written by an event, which is a primitive the vocabulary has not got — and the window is this shape\u2019s own mechanism, which is why the residue is filed here rather than anywhere new.',
-    },
-  ],
   'glyph-of-warding': [
     {
       clause: 'Wisdom (Perception) check against your spell save DC to notice',
@@ -3224,15 +3217,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // sizes the book prints), the bones are stated points, and the `raise`
   // effect binds what it makes by `SummonBond.controlled`. It is executed and
   // its notes are in `ADJUDICATED`.
-  nondetection: [
-    {
-      marker: null,
-      clause: 'targeted by any Divination spell',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'a creature that refuses a casting rather than an area that does, which is the same missing state arriving at a different holder — the reading this shape already records for Freedom of Movement’s refusal of a Speed reduction. **The second half of this note was wrong and is corrected here**: it said every Divination this catalogue defines is cast at Self or at no creature, so the rule would have no reachable case. Two executed Divinations take a creature as their target — Mind Spike (level 2, `targets: { count: 1 }`, Range 120 feet) and Hunter’s Mark (level 1, the same) — and both are inside level-5 reach, so a Nondetection on a quarry is a case a table reaches this year. What is missing is only the state and its reader, and the reader is the one place a casting checks its targets.',
-    },
-  ],
-
   // — the thirty-four the ledger called finished business ————————————————————
   //
   // **Gate G1's serious finding, recorded where the report can count it.**
@@ -3829,28 +3813,6 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
       clause: 'the creature can see through the image',
       why: 'table',
       note: 'What a creature that has seen through the illusion then perceives is narration: no state the engine holds differs, because the image was never a thing it held.',
-    },
-  ],
-  sending: [
-    {
-      clause: 'a creature you have met or a creature described to you by someone who has met it',
-      why: 'table',
-      note: 'How well the caster knows the target is a fact the engine does not hold and cannot derive, and declaring it is the discipline this repository already draws for cover, sight and who you are fighting.',
-    },
-    {
-      clause: 'even to other planes of existence',
-      why: 'a-second-place-to-put-a-creature',
-      note: 'There is one scene, so a target on another plane is not a creature the engine can find at all — this spell is the shape read from the other end, reaching somebody who is nowhere rather than sending them there.',
-    },
-    {
-      clause: "there is a 5 percent chance that the message doesn't arrive",
-      why: 'a-random-outcome-that-is-not-a-d20',
-      note: 'A percentage the generator could throw and no `SpellEffect` asks for. Recorded although the sentence trips no marker, because it is one of the two mechanical things this spell does.',
-    },
-    {
-      clause: 'a creature can block your ability to reach it again with this spell for 8 hours',
-      why: 'an-effect-that-suppresses-other-magic',
-      note: 'A creature that refuses a casting aimed at it, for a stated span. That is IE-044\'s reading of Freedom of Movement with a clock on it — the same missing state arriving at a holder rather than an area — and it is filed to the nearest honest existing shape rather than a new one.',
     },
   ],
   // Three sentences, three shapes, and the third trips no marker at all — the

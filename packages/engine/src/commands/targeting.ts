@@ -229,6 +229,18 @@ export interface AimedRolls {
 export interface CastSpellRequest extends CommandIdentity {
   readonly spellId: string;
   /**
+   * That the creature this casting reaches is on another plane — SRD Sending:
+   * "if the target is on a different plane than you, there is a 5 percent
+   * chance that the message doesn't arrive."
+   *
+   * A fact only the table can declare, the shape `fought` and `willing`
+   * have: stated, the die the definition prints for it is thrown; absent, it
+   * is not; stated on a spell whose chance prints no plane clause, refused
+   * (`no_plane_clause`). Never a number — whether the message arrived is the
+   * engine's die. (W7-S19)
+   */
+  readonly otherPlane?: true;
+  /**
    * The eleventh stated fact: the caster chooses, **at the casting**, that
    * this casting can be ended early.
    *
@@ -2889,7 +2901,8 @@ export function eligibleTargets(
   // accepting a target the shortlist had already excluded. Everything else the
   // shortlist checks — Total Cover, sight, creature type, the dead — still
   // applies, because none of those is the Range.
-  const bounded = definition.range.kind !== 'dm';
+  // Nor for SRD Sending's Unlimited, which measures nothing either. (W7-S19)
+  const bounded = definition.range.kind !== 'dm' && definition.range.kind !== 'unlimited';
   // **The band the caster has reached, not the printed number.** SRD Spare the
   // Dying's range doubles at levels 5, 11 and 17, and `rangeFeetAt` is the one
   // reader — so the shortlist a caller is shown and the casting they then send

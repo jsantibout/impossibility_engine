@@ -1839,6 +1839,16 @@ export interface PendingCasting {
    */
   readonly form?: string;
   /**
+   * That a message spell's recipient is on another plane — SRD Sending's
+   * "if the target is on a different plane than you". The twelfth stated
+   * fact, beside the form and for the same reason: a declaration made across
+   * the planes must settle with the die the book gives it, and settlement
+   * takes no fresh request. Absent for every spell that prints no plane
+   * clause, so a declaration written before this folds to exactly the state
+   * it always did. (W7-S19)
+   */
+  readonly otherPlane?: true;
+  /**
    * Where the piles of bones lie that a `raise` effect turns into creatures.
    *
    * SRD Animate Dead is a rite of a minute, so the points are stated before

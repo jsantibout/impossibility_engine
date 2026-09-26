@@ -181,6 +181,9 @@ const AUDIT: readonly {
       form: because(
         'which stat block a summoning spell that leaves the form to its caster raises — SRD Find Familiar’s "Bat, Cat, … or another Beast that has a Challenge Rating of 0". Required by that one spell and refused by every other; neither benchmark character prepares it, and the answer is a bestiary id rather than anything this surface would have to teach. `packages/tools` publishes it as `cast_spell.form`',
       ),
+      otherPlane: because(
+        'that the recipient of a message spell is on another plane — SRD Sending’s "if the target is on a different plane than you, there is a 5 percent chance that the message doesn’t arrive". One spell prints the clause, the engine refuses the fact on every other, and no benchmark character has Sending prepared; the answer is a stated fact and never a number, because the die it gates is the engine’s. `packages/tools` publishes it as `cast_spell.otherPlane`',
+      ),
       payment: because(
         'a free daily casting *and* a slot both serving. Reachable in principle — all three Tier 2 characters carry a Magic Initiate free casting — and measured as unreachable in practice: Shield refuses on its Reaction trigger first and Mage Armor has no executable definition, so the engine never gets as far as asking',
       ),
@@ -275,6 +278,9 @@ const AUDIT: readonly {
     fates: {
       placement: expose('from_landmark'),
       forced: expose('forced'),
+      alongSurface: because(
+        'that a creature something is holding off the ground — SRD Levitate’s target — is pulling itself along a fixed surface within reach, which is the only way the book lets it move. A fact about the room and not a number; no creature in either benchmark is levitating, so a published field would be refused every value it could be sent today. `packages/tools` publishes it as `move.alongSurface`',
+      ),
       usingGrant: because(
         'SRD Tactical Shift\'s "you can move up to half your Speed without provoking Opportunity Attacks", spent out of feet a feature handed the turn rather than out of the Speed. A decision rather than a number, and `packages/tools` publishes it as `using_grant`. It is not on **this** surface because this one is a benchmark held fixed: neither benchmark character has a feature that hands a move over, so a published field would be refused every value it could be sent today',
       ),

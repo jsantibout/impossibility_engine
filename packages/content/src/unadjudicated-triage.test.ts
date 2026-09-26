@@ -86,7 +86,9 @@ const FILED: Readonly<Record<string, readonly string[]>> = {
   // Arcane Lock clause could never be reached — the lock is on a door and a
   // door is not in state — and the four printed sentences are handed over.
   knock: [],
-  nondetection: ['an-effect-that-suppresses-other-magic'],
+  // Nondetection moved to {@link EXECUTES} on 2026-09-26: the ward a creature
+  // holds against a school is on the casting's record and read at every
+  // casting's pre-flight, which is the whole of the shape it waited on.
 };
 
 /**
@@ -229,6 +231,12 @@ const EXECUTES: readonly string[] = [
   // Undead, and remains that are not a creature — is the table's.
   'gentle-repose',
   'magic-weapon',
+  // And the one whose whole mechanical sentence is a refusal: SRD
+  // Nondetection's "can't be targeted by any Divination spell" is a school
+  // pinned on the record and read where a casting checks its targets, so a
+  // Hunter's Mark at the quarry is refused `warded` before anything is spent.
+  // The scrying sensors and a place or an object as the target are the table's.
+  'nondetection',
   // And the one the area-standing track finished: the +10 on Dexterity
   // (Stealth) checks of whoever is in the aura is derived from the scene on
   // every read, which is both shapes this pass filed it against.

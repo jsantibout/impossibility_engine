@@ -397,6 +397,13 @@ export function alteredCasting(
           `needs a spell with a range in feet, and ${definition.name}'s printed Range is the DM's to decide`,
         );
       }
+      // And nothing to double in a Range the book prints as Unlimited — SRD
+      // Sending — for the same reason. (W7-S19)
+      if (definition.range.kind === 'unlimited') {
+        return refuse(
+          `needs a spell with a range in feet, and ${definition.name}'s printed Range is Unlimited`,
+        );
+      }
       if (definition.range.kind === 'touch') {
         if (alters.touchBecomesFeet === undefined) {
           return refuse(`says nothing about a range of Touch, and ${definition.name} has one`);

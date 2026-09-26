@@ -65,6 +65,7 @@ import {
   type CreatureState,
   type GameEvent,
   type GameState,
+  isOn,
 } from '../events.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import {
@@ -114,6 +115,7 @@ import {
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute } from '../spellcasting.js';
 import {
+  castingNumber,
   castingSource,
   type CastingNumbers,
   type CastingTime,
@@ -505,6 +507,8 @@ export function resolveDeclaredCast(
       // The sixth, read back the same way. A Find Familiar declared as a Cat
       // settles as a Cat an hour later and as nothing else.
       ...(pending.form === undefined ? {} : { form: pending.form }),
+      // And the plane, read back the same way — SRD Sending. (W7-S19)
+      ...(pending.otherPlane === undefined ? {} : { otherPlane: pending.otherPlane }),
       // And the bones, read back the same way: a rite of a minute stated where
       // they lie before there was a casting to raise anything at.
       ...(pending.bonesAt === undefined ? {} : { bonesAt: pending.bonesAt }),
@@ -1219,6 +1223,46 @@ export function castOrRelease(
           );
         }
       }
+    }
+
+    // — the ward a creature holds against a school (W7-S19) ——————————————————
+    //
+    // SRD Nondetection: "The target can't be targeted by any Divination
+    // spell." The same refusal as the dome's, read off a creature rather than
+    // off an area: a running casting that wards its targets against this
+    // spell's school, and is on a creature this casting names, refuses the
+    // casting before anything is spent. The caster is left out as the dome
+    // leaves them out — a Range: Self casting names its caster as a target
+    // only in the engine's sense, and a warded diviner still reads their own
+    // mind.
+    for (const target of targets) {
+      if (target === casterId) continue;
+      const ward = creatureWardAgainst(state, target, definition.school);
+      if (ward !== null) {
+        return err(
+          'warded',
+          `${definition.name} is a ${definition.school} spell, and ${target} can't be targeted by one while ${ward} holds`,
+        );
+      }
+    }
+
+    // — a plane the caster states, on a spell that prints no such clause (W7-S19)
+    //
+    // SRD Sending: "if the target is on a different plane than you, there is
+    // a 5 percent chance that the message doesn't arrive." That the recipient
+    // is on another plane is a fact only the table can declare, so it is
+    // stated on the request and throws the die the definition prints for it;
+    // stated on a spell that prints no plane clause it is refused, the shape
+    // `no_fought_clause` and `form_not_offered` already take for a fact a
+    // spell does not ask for.
+    if (
+      request.otherPlane === true &&
+      !definition.effects.some((effect) => effect.kind === 'chance' && effect.onlyIf === 'other-plane')
+    ) {
+      return err(
+        'no_plane_clause',
+        `${definition.name} prints nothing about a target on another plane; whether one is elsewhere is not a fact it asks for`,
+      );
     }
 
     // — the creatures an option spared ————————————————————————————————————
@@ -2474,6 +2518,7 @@ function resolveOnTargets(
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
         ...(request.object === undefined ? {} : { object: request.object }),
         ...(request.form === undefined ? {} : { form: request.form }),
+        ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
         ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
@@ -2826,6 +2871,9 @@ function resolveOnTargets(
               ...(request.object === undefined ? {} : { object: request.object }),
               // The sixth: a Find Familiar declared as a Cat settles as a Cat.
               ...(request.form === undefined ? {} : { form: request.form }),
+              // And the plane a message spell's recipient is on — SRD Sending —
+              // pinned on the declaration for the form's reason. (W7-S19)
+              ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
               // The seventh: where the bones lie, which a rite of a minute
               // states before there is a casting to raise anything at.
               ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
@@ -2918,6 +2966,7 @@ function resolveOnTargets(
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
       ...(request.object === undefined ? {} : { object: request.object }),
       ...(request.form === undefined ? {} : { form: request.form }),
+      ...(request.otherPlane === undefined ? {} : { otherPlane: request.otherPlane }),
       ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
@@ -3354,6 +3403,12 @@ export function resolveEffects(
      */
     readonly form?: string;
     /**
+     * That a message spell's recipient is on another plane — see
+     * `EffectContext.otherPlane`. Stated at the casting for the form's reason.
+     * (W7-S19)
+     */
+    readonly otherPlane?: true;
+    /**
      * Where the piles of bones lie that a `raise` effect turns into creatures
      * — see `EffectContext.bonesAt`. Pinned on a declaration for the form's
      * reason: a rite of a minute states them before anything is raised.
@@ -3455,6 +3510,7 @@ export function resolveEffects(
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
     ...(context.object === undefined ? {} : { object: context.object }),
     ...(context.form === undefined ? {} : { form: context.form }),
+    ...(context.otherPlane === undefined ? {} : { otherPlane: context.otherPlane }),
     ...(context.bonesAt === undefined ? {} : { bonesAt: context.bonesAt }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
@@ -3510,6 +3566,9 @@ export function resolveEffects(
         ...(summonCommandOf(definition) === undefined
           ? {}
           : { commanded: summonCommandOf(definition)! }),
+        // And the school of casting the creature it is on refuses — SRD
+        // Nondetection — pinned for the same reason. (W7-S19)
+        ...(definition.wardsTargets === undefined ? {} : { wardsTargets: definition.wardsTargets }),
         // And what it leaves behind when it ends, pinned by the same rule and
         // for a sharper version of the same reason: `releaseCasting` performs
         // this inside the fold, which opens no catalogue at all.
@@ -3685,6 +3744,7 @@ export interface EffectRun {
   readonly weapon?: string;
   readonly object?: string;
   readonly form?: string;
+  readonly otherPlane?: true;
   readonly bonesAt?: readonly Placement[];
   readonly answers?: string;
   /**
@@ -3979,6 +4039,7 @@ export function runEffects(
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
     ...(run.object === undefined ? {} : { object: run.object }),
     ...(run.form === undefined ? {} : { form: run.form }),
+    ...(run.otherPlane === undefined ? {} : { otherPlane: run.otherPlane }),
     ...(run.bonesAt === undefined ? {} : { bonesAt: run.bonesAt }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
@@ -4080,6 +4141,28 @@ export function runEffects(
  * world was already answering for. The caster branch is where the same
  * subtraction *is* reachable, and `derived-on.test.ts` drives it.
  */
+/**
+ * The running casting that wards this creature against a school, or null.
+ *
+ * SRD Nondetection: "The target can't be targeted by any Divination spell."
+ * `wardBetween`'s twin read off a creature rather than an area: every running
+ * record that pins `wardsTargets` for the school and is **on** the creature —
+ * `isOn`, so a ward that hung nothing still finds its target through `aimed` —
+ * refuses the casting, and the first in casting order is the one named. The
+ * school is the definition's, so an upcast changes nothing: the book's
+ * sentence is about the school and not the level. (W7-S19)
+ */
+function creatureWardAgainst(state: GameState, who: CharacterId, school: string): string | null {
+  for (const castingId of Object.keys(state.ongoing).sort(
+    (a, b) => castingNumber(a) - castingNumber(b),
+  )) {
+    const record = state.ongoing[castingId];
+    if (record?.wardsTargets === undefined || record.wardsTargets.school !== school) continue;
+    if (isOn(state, record, who)) return record.spell;
+  }
+  return null;
+}
+
 function aimedAt(
   targets: readonly CharacterId[],
   outcomes: readonly SpellTargetOutcome[],

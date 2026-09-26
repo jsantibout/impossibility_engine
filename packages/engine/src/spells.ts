@@ -328,6 +328,14 @@ export interface OngoingSpell {
    */
   readonly commanded?: { readonly costs: 'bonus-action'; readonly moveUpTo: number };
   /**
+   * SRD Nondetection's "can't be targeted by any Divination spell" — see
+   * `SpellDefinition.wardsTargets`, pinned verbatim so the casting pre-flight
+   * reads the log's own ward and no book. Absent for every casting written
+   * before the field and for every spell that prints no such sentence.
+   * (W7-S19)
+   */
+  readonly wardsTargets?: { readonly school: string };
+  /**
    * What this casting leaves on its targets the moment it ends — SRD Haste's
    * lethargy. See `SpellDefinition.onEnd`, where the rule is argued.
    *

@@ -216,6 +216,17 @@ export function releaseCasting(
   state: GameState,
   casterId: CharacterId | null,
   castingId: string,
+  /**
+   * The clock at which the casting ended, where that is not the clock the fold
+   * is at: a deadline the expiry pass found due after a `time-advanced` that
+   * carried the clock past it. Absent is now — a dispel, a broken
+   * Concentration, a trigger — which is the moment it happened. Read by the
+   * one accrual that needs the moment the casting *ended* rather than the
+   * moment the fold noticed: SRD Gentle Repose's span is spent up to the
+   * deadline, so a wait of a year over a ten-day repose accrues ten days.
+   * (W7-S19)
+   */
+  endedAt?: number,
 ): GameState {
   const creatures: Record<string, CreatureState> = {};
   let changed = false;
@@ -232,11 +243,44 @@ export function releaseCasting(
   );
   const landed: TimedEffect[] = [];
 
+  // **The days a body spent under a repose, accrued as the repose ends.** SRD
+  // Gentle Repose: "days **spent** under the influence of this spell don't
+  // count against the time limit" — spent, so a casting that has ended keeps
+  // what it ran. Read before the record goes, onto every body the casting was
+  // on, and derived with no event exactly as the landing below is: nobody
+  // decides that a deadline arrived. The span runs to the ending — the
+  // casting's own deadline where it ran out, the clock where it was ended —
+  // so a fold moved past the deadline in one step accrues the ten days and not
+  // the year. See `Vitals.preservedSeconds`. (W7-S19)
+  const preserved = new Set(
+    record === undefined || record.preserving === undefined ? [] : spellOn(state, record),
+  );
+  const spentUntil = Math.min(state.elapsed, endedAt ?? state.elapsed);
+
   for (const key of Object.keys(state.creatures)) {
     const creature = state.creatures[key];
     if (creature === undefined) continue;
 
     let updated = creature;
+
+    if (
+      record?.preserving !== undefined &&
+      preserved.has(key) &&
+      updated.vitals.dead &&
+      updated.vitals.diedAt !== null
+    ) {
+      const since = Math.max(record.preserving, updated.vitals.diedAt);
+      const seconds = Math.max(0, spentUntil - since);
+      if (seconds > 0) {
+        updated = {
+          ...updated,
+          vitals: {
+            ...updated.vitals,
+            preservedSeconds: (updated.vitals.preservedSeconds ?? 0) + seconds,
+          },
+        };
+      }
+    }
 
     // **The one grant whose release the book gives a consequence to.** SRD
     // *Levitate*: "When the spell ends, the target floats gently to the ground

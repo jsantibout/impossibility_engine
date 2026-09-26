@@ -313,6 +313,14 @@ export interface EffectContext {
    */
   readonly form?: string;
   /**
+   * That the recipient of a message spell is on another plane — SRD
+   * Sending's "if the target is on a different plane than you". Stated at the
+   * casting, refused there when the spell's chance prints no such clause, and
+   * read by `resolveChanceEffect` to decide whether the die is thrown at all.
+   * (W7-S19)
+   */
+  readonly otherPlane?: true;
+  /**
    * The casting a Reaction spell answers, by id.
    *
    * Resolved before anything was spent, by the same function the trigger check

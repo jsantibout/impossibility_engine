@@ -46,7 +46,15 @@ export function preservedSpan(state: GameState, target: CharacterId, diedAt: num
     const since = Math.max(record.preserving, diedAt);
     if (earliest === null || since < earliest) earliest = since;
   }
-  return earliest === null ? 0 : Math.max(0, state.elapsed - earliest);
+  const running = earliest === null ? 0 : Math.max(0, state.elapsed - earliest);
+  // **And the days already spent.** SRD's word is "spent": a repose that has
+  // ended keeps the span it ran, which the fold accrued onto the body when the
+  // casting went — see `Vitals.preservedSeconds`. Added to the running span
+  // rather than unioned with it, because a casting that has ended and one that
+  // is running cannot overlap: the accrual is made at the ending, up to the
+  // ending, and the running span begins where the record says. (W7-S19)
+  const spent = state.creatures[target]?.vitals.preservedSeconds ?? 0;
+  return running + spent;
 }
 
 /**

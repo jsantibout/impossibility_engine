@@ -4496,12 +4496,12 @@ export const GENTLE_REPOSE: SpellDefinition = {
   // `revive.within` is subtraction over `Vitals.diedAt`, so a rule the engine
   // runs really does read the time limit this spell extends — and now the
   // `preserves` mark takes the repose's own running span back out of it.
+  // And "days **spent**": a repose that has ended keeps the span it ran, which
+  // the fold accrues onto the body when the casting goes (`Vitals.preservedSeconds`)
+  // and `preservedSpan` reads beside the castings still running.
   dmDecides: [
     'You touch a corpse or other remains.',
     "For the duration, the target is protected from decay and can't become Undead.",
-  ],
-  unmodelled: [
-    'the days are taken back only while this casting is still running: `preservedSpan` reads the castings on the body **now**, so a repose that has ended — its ten days run out, a Dispel Magic, the caster dead — gives the window back and a corpse the book would still raise is refused. SRD says "days **spent** under the influence of this spell", which is a fact about days elapsed rather than about the casting standing, and nothing accumulates a span on a creature',
   ],
 };
 
@@ -4721,18 +4721,13 @@ export const NONDETECTION: SpellDefinition = {
   range: { kind: 'touch' },
   targets: { count: 1, self: true, willing: true },
   effects: [],
+  // "The target can't be targeted by any Divination spell": a ward the
+  // casting's record holds for its target, read at every casting's pre-flight
+  // — a Mind Spike or a Hunter's Mark aimed at the target is refused `warded`
+  // before anything is spent, with this spell named.
+  wardsTargets: { school: 'divination' },
   durationSeconds: 28_800,
-  // **Tracked, not handed over, and the reason is a correction.** This note
-  // used to say the refusal had no reachable case because every Divination
-  // spell the engine defines is cast at Self or at no creature. That was
-  // wrong: SRD Mind Spike and SRD Hunter's Mark are Divinations aimed at one
-  // creature, both executed and both inside level-5 reach, so a Nondetection
-  // on a quarry is a casting a table reaches. What is missing is the state a
-  // creature holds that refuses a school of casting, and its reader at the one
-  // seam a casting checks its targets — `an-effect-that-suppresses-other-magic`
-  // from the target's side, which `missing-shapes.ts` files.
   unmodelled: [
-    'the refusal is not applied: "The target can’t be targeted by any Divination spell" would stop a Mind Spike or a Hunter’s Mark aimed at the target, and no state on a creature refuses a casting by its school',
     'scrying sensors are not modelled, and a place or an object as the target is not a creature in state',
   ],
 };
@@ -11235,6 +11230,62 @@ export const REVERSE_GRAVITY: SpellDefinition = {
 };
 
 /**
+ * SRD Sending:
+ *
+ * > _Level 3 Divination (Bard, Cleric, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Unlimited. **Duration:** Instantaneous.
+ * > "You send a short message of 25 words or fewer to a creature you have met
+ * > or a creature described to you by someone who has met it. … You can send
+ * > the message across any distance and even to other planes of existence,
+ * > but if the target is on a different plane than you, there is a 5 percent
+ * > chance that the message doesn't arrive. You know if the delivery fails.
+ * > Upon receiving your message, a creature can block your ability to reach
+ * > it again with this spell for 8 hours. If you try to send another message
+ * > during that time, you learn that you are blocked, and the spell fails."
+ *
+ * The owner's ruling (2026-09-25): define it. The one die in it is the
+ * `chance` effect Augury is written on, gated on a fact only the table can
+ * declare — `cast_spell.otherPlane`, that the recipient is on another plane —
+ * because a model deciding whether a message arrived would be a number the
+ * model produced. The recipient is nowhere in the scene, so the casting is on
+ * its caster as Augury's is, and its printed Range is the fourth kind the
+ * vocabulary carries: Unlimited, which measures nothing and asks nothing. The
+ * message, the reply and the eight-hour block are the table's; "the spell
+ * fails" on a blocked sending is narrated over a slot already spent, a fact
+ * nothing reads afterwards.
+ */
+export const SENDING: SpellDefinition = {
+  id: 'sending',
+  name: 'Sending',
+  level: 3,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'unlimited' },
+  // On the caster, as SRD Augury is: the recipient is not a creature in the
+  // scene, and the one thing the engine resolves is the caster's own die.
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'chance',
+      // "there is a 5 percent chance that the message doesn't arrive" — thrown
+      // only when the caster states the recipient is on another plane.
+      percent: 5,
+      onlyIf: 'other-plane',
+      // "You know if the delivery fails": the casting happened and the slot is
+      // gone, and what the caster does not get is the message through.
+      onFailure: 'no-answer',
+    },
+  ],
+  dmDecides: [
+    'You send a short message of 25 words or fewer to a creature you have met or a creature described to you by someone who has met it.',
+    'The target hears the message in its mind, recognizes you as the sender if it knows you, and can answer in a like manner immediately.',
+    'Upon receiving your message, a creature can block your ability to reach it again with this spell for 8 hours.',
+    'If you try to send another message during that time, you learn that you are blocked, and the spell fails.',
+  ],
+};
+
+/**
  * SRD Sequester:
  *
  * > _Level 7 Transmutation (Wizard)._ **Casting Time:** Action.
@@ -16136,6 +16187,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SECRET_CHEST,
   SEE_INVISIBILITY,
   SEEMING,
+  SENDING,
   SEQUESTER,
   SHAPECHANGE,
   SHATTER,

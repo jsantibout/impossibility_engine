@@ -55,6 +55,19 @@ export type SpellRange =
   | { readonly kind: 'touch' }
   | { readonly kind: 'ranged'; readonly feet: number }
   /**
+   * SRD Sending: "**Range:** Unlimited" — "You can send the message across
+   * any distance and even to other planes of existence."
+   *
+   * A Range the book prints as a word rather than a number, and unlike the
+   * three the `dm` arm carries it is not a question: nothing is measured, and
+   * nothing about the distance is the table's to decide. {@link ranged}
+   * answers null for it, as it does for `self` and `dm`, so a casting refuses
+   * nothing on grounds of how far away anything is — which is the whole of
+   * the engine's opinion. Kept apart from `dm` so that arm stays the one for
+   * a Range that asks the table something. (W7-S19)
+   */
+  | { readonly kind: 'unlimited' }
+  /**
    * The book printed something here that only the DM can answer.
    *
    * SRD prints three Ranges that are not a distance at all — `Special`,
@@ -3843,6 +3856,21 @@ export type SpellEffect =
             };
           };
       readonly onFailure: 'no-answer';
+      /**
+       * SRD Sending: "**if the target is on a different plane than you**,
+       * there is a 5 percent chance that the message doesn't arrive."
+       *
+       * The die is thrown only when the caster states the fact the sentence
+       * gates on — `CastSpellRequest.otherPlane`, a fact about a recipient
+       * who is nowhere in the scene and which only the table can declare, the
+       * shape `fought` and `willing` have. Stated on a spell whose chance
+       * prints no such clause it is refused (`no_plane_clause`); absent, no
+       * die is thrown and the generator does not move, which is the rule the
+       * zero chance already keeps. The die is the engine's because a model
+       * deciding whether a message arrived would be a number the model
+       * produced. (W7-S19)
+       */
+      readonly onlyIf?: 'other-plane';
     }
   /**
    * The target is somewhere else, and nothing was spent getting there.
@@ -6080,6 +6108,21 @@ export interface SpellDefinition {
    * share. (W7-S19)
    */
   readonly sharesDamage?: { readonly with: 'caster'; readonly withinFeet?: number };
+  /**
+   * SRD Nondetection: "The target **can't be targeted by any Divination
+   * spell** or perceived through magical scrying sensors."
+   *
+   * A creature that refuses a casting rather than an area that does —
+   * `AreaWardStanding`'s `wards-magic` read from the target's side. The school
+   * is pinned onto the ongoing record and read by `resolveSpell`'s pre-flight
+   * over every named target: a casting of that school naming a creature the
+   * record is on is refused `warded` before anything is spent, with the ward
+   * named. Scrying sensors and a place or an object as the target stay the
+   * table's, which the definition says in its own notes. Only on a spell with
+   * a target and a duration, because a ward is held by somebody for a span.
+   * (W7-S19)
+   */
+  readonly wardsTargets?: { readonly school: string };
   /**
    * What stops this casting before its time is up.
    *

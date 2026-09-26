@@ -848,6 +848,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'gentle-repose',
     'light',
     'magic-weapon',
+    // And the eighth kind: SRD Nondetection's paragraph is a school of magic,
+    // a scrying sensor, a place and an object, and the marker list knows none
+    // of those words — yet "can't be targeted by any Divination spell" is a
+    // refusal the casting pre-flight executes off the record.
+    'nondetection',
     // And the sixth kind of clean paragraph: SRD Pass without Trace's says
     // "+10 bonus" and "Dexterity (Stealth) checks", and the marker list knows
     // neither: the word-bounded check pattern does not match "checks", and a
