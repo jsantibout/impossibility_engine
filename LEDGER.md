@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 27 spells | 27 | 0 | 0 | 34 |
+| Spells in reach, not executed | 20 spells | 20 | 0 | 0 | 34 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -71,28 +71,21 @@ exactly the silently-missing entry this report’s header refuses.
 |---|---|---|
 | `a-fact-only-the-table-can-declare` | 3 | 2 |
 | `an-action-a-spell-compels-or-forbids` | 2 | 2 |
-| `a-creature-somebody-else-is-playing` | 2 | 1 |
-| `an-effect-that-suppresses-other-magic` | 2 | 1 |
+| `a-check-another-creature-may-attempt` | 2 | 1 |
 | `a-choice-made-at-the-casting` | 1 | 1 |
+| `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-duration-the-slot-changes` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
 | `a-repeat-save-that-does-something-on-a-failure` | 1 | 1 |
 | `a-target-rule-the-format-cannot-state` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
-| `difficult-terrain-an-area-creates` | 1 | 1 |
-| `healing-that-raises-the-dead` | 1 | 1 |
-| `movement-modes` | 1 | 1 |
-| `a-casting-ended-by-a-trigger` | 3 | 0 |
-| `a-check-another-creature-may-attempt` | 2 | 0 |
-| `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 0 |
 | `an-activation-taken-by-somebody-other-than-the-caster` | 2 | 0 |
 | `an-activation-that-resolves-an-area` | 2 | 0 |
+| `a-casting-ended-by-a-trigger` | 1 | 0 |
 | `a-condition-benefit-an-effect-takes-away` | 1 | 0 |
-| `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
-| `a-random-outcome-that-is-not-a-d20` | 1 | 0 |
-| `a-second-place-to-put-a-creature` | 1 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 1 | 0 |
+| `a-standing-effect-derived-from-where-a-creature-stands` | 1 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 1 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
 | `an-area-trigger-measured-from-a-point` | 1 | 0 |
@@ -115,19 +108,18 @@ sums to the population.
 - **Haste** (level 3) — executed-partial
 - **Slow** (level 3) — executed-partial
 
-#### `a-creature-somebody-else-is-playing` — blocks 2, finishes 1
+#### `a-check-another-creature-may-attempt` — blocks 2, finishes 1
 
-- **Command** (level 1) — executed-partial
-- **Unseen Servant** (level 1) — executed-partial — also waits on 1
-
-#### `an-effect-that-suppresses-other-magic` — blocks 2, finishes 1
-
-- **Nondetection** (level 3) — tracked
-- **Sending** (level 3) — no-definition — also waits on 2
+- **Detect Thoughts** (level 2) — tracked — also waits on 1
+- **Spike Growth** (level 2) — executed-partial
 
 #### `a-choice-made-at-the-casting` — blocks 1, finishes 1
 
 - **Plant Growth** (level 3) — executed-partial
+
+#### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
+
+- **Command** (level 1) — executed-partial
 
 #### `a-duration-the-slot-changes` — blocks 1, finishes 1
 
@@ -153,34 +145,6 @@ sums to the population.
 
 - **Silence** (level 2) — executed-partial
 
-#### `difficult-terrain-an-area-creates` — blocks 1, finishes 1
-
-- **Gust of Wind** (level 2) — executed-partial
-
-#### `healing-that-raises-the-dead` — blocks 1, finishes 1
-
-- **Gentle Repose** (level 2) — executed-partial
-
-#### `movement-modes` — blocks 1, finishes 1
-
-- **Levitate** (level 2) — executed-partial
-
-#### `a-casting-ended-by-a-trigger` — blocks 3, finishes 0
-
-- **Unseen Servant** (level 1) — executed-partial — also waits on 1
-- **Phantasmal Force** (level 2) — no-definition — also waits on 2
-- **Warding Bond** (level 2) — tracked — also waits on 1
-
-#### `a-check-another-creature-may-attempt` — blocks 2, finishes 0
-
-- **Detect Thoughts** (level 2) — tracked — also waits on 1
-- **Spike Growth** (level 2) — executed-partial — also waits on 1
-
-#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 2, finishes 0
-
-- **Warding Bond** (level 2) — tracked — also waits on 1
-- **Conjure Animals** (level 3) — tracked — also waits on 1
-
 #### `an-activation-taken-by-somebody-other-than-the-caster` — blocks 2, finishes 0
 
 - **Find Familiar** (level 1) — executed-partial — also waits on 1
@@ -191,25 +155,21 @@ sums to the population.
 - **Dragon's Breath** (level 2) — tracked — also waits on 1
 - **Call Lightning** (level 3) — tracked — also waits on 1
 
+#### `a-casting-ended-by-a-trigger` — blocks 1, finishes 0
+
+- **Phantasmal Force** (level 2) — no-definition — also waits on 2
+
 #### `a-condition-benefit-an-effect-takes-away` — blocks 1, finishes 0
 
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
 
-#### `a-distance-a-creature-travels-inside-an-area` — blocks 1, finishes 0
-
-- **Spike Growth** (level 2) — executed-partial — also waits on 1
-
-#### `a-random-outcome-that-is-not-a-d20` — blocks 1, finishes 0
-
-- **Sending** (level 3) — no-definition — also waits on 2
-
-#### `a-second-place-to-put-a-creature` — blocks 1, finishes 0
-
-- **Sending** (level 3) — no-definition — also waits on 2
-
 #### `a-spells-effects-applied-to-different-targets` — blocks 1, finishes 0
 
 - **Shining Smite** (level 2) — executed-partial — also waits on 1
+
+#### `a-standing-effect-derived-from-where-a-creature-stands` — blocks 1, finishes 0
+
+- **Conjure Animals** (level 3) — tracked — also waits on 1
 
 #### `an-activation-that-forces-a-saving-throw` — blocks 1, finishes 0
 

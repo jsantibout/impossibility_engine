@@ -2728,3 +2728,37 @@ Appended after wave seven's first spells track (2026-09-24):
   extra foot (2 extra feet in Difficult Terrain)" gives three. The engine's
   established reading stands until the owner rules. Builder on Fable, reviewer
   on Opus. Main re-ingested.
+- **The ground, the move and the bond.** Spike Growth cuts by the route:
+  `AreaTerrain.damagePerFeet` pinned through the patch, a move that could
+  cross cutting ground with no route asked `route_required` whether or not a
+  budget is spent, one summed roll per patch (fifteen feet is 6d4) with the
+  casting as source; a forced move with a route pays the same and one without
+  says so. Gust of Wind charges by the step (`AreaTerrain.onlyTowards`, a
+  directional patch read against where the caster stands now) — and a fix on
+  the way: a carried directional area laid no patch at all, its aim never
+  reaching the terrain region. Levitate: a held-up creature is refused every
+  mode but climb, asked for its surface (`move.alongSurface`, a fact about the
+  room), and a self-lifted caster's altitude is tallied in the fold
+  (`GrantedLift.altered`, stamped in `fold/scene.ts`) against the twenty.
+  Warding Bond executes whole: `StandingRequirement.within-feet-of` on the
+  three grants, **shared damage** in `commands/casting.ts` beside `resolveDamage`
+  (the amount the target took, of the stated type, through the caster's own
+  defences, never back and never along a chain), `caster-drops-to-0` and
+  `separated-beyond` in `fold/endings.ts`, `replacesPriorCastingOn: 'either'`.
+  Unseen Servant: `summon.commanded { costs, moveUpTo }` and a new
+  `commandSummons` / `command_summons` (the caster's Bonus Action, the spell's
+  feet, the object interaction the table's), `separated-beyond: 60`.
+  Nondetection: `SpellDefinition.wardsTargets { school }` pinned on the record
+  and read at `resolveSpell`'s pre-flight — no grant family, `releaseCasting`
+  lifts it for free. **Sending is defined** on the coordinator's ruling:
+  `range: unlimited` (a fourth range kind), the `chance` die thrown only when
+  `cast_spell.otherPlane` is stated (`no_plane_clause` otherwise), the block
+  and the message the table's. Gentle Repose: `Vitals.preservedSeconds`
+  accrued at `releaseCasting` up to the deadline the expiry passes, cleared
+  by `revive`. **Not built:** Spike Growth's Search-action check — "Perception
+  or Survival" needs a check with a choice of skill (`SpellCheck.skills`,
+  `EffectCheckCommand.skill`), re-briefed into S21 with the activations
+  track's remainders. Residues to S21: `activation.redirects` does not re-lay
+  a directional patch; the altitude activation does not read the tally.
+  Builder on Fable; the reviewer (Opus) had not returned at the handback —
+  its verdict is applied on main.
