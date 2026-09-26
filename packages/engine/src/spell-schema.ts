@@ -6989,6 +6989,16 @@ export function checkSpellDefinition(
           reason: 'the roll reads by a label, as an area trigger’s does',
         });
       }
+      // SRD Glyph of Warding's spell glyph: the other thing the same decision
+      // may set off, offered or not — there is no third value. (W7-S21)
+      const storesSpell = (definition.triggered as { readonly storesSpell?: unknown }).storesSpell;
+      if (storesSpell !== undefined && storesSpell !== true) {
+        found.push({
+          field: 'triggered.storesSpell',
+          code: 'malformed_field',
+          reason: 'a rune either offers to store a spell in its place or says nothing; the only value is true',
+        });
+      }
     }
   }
   // **And a branch's ground**, held to the same rules at its own path — SRD

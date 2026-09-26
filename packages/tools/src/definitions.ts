@@ -2736,6 +2736,19 @@ const CAST_SPELL = tool({
       .describe(
         'Where the piles of bones lie that Animate Dead turns into Skeletons, one placement per pile, measured from a landmark or a creature like every other space and never as a raw coordinate. A corpse is a creature and goes in `targets` instead; bones were never one, so you point at the space. The engine checks that each pile is inside the spell’s range and that corpses and piles together do not exceed what the slot allows — one at level 3 and two more per level above for a casting that animates anything; a casting that only renews control over undead you already command reaches four at level 3 and two more per level above — and raises a Skeleton at each; whether bones really lie there is yours. Naming any on a spell that raises nothing from bones is refused, and so is a casting that names neither a corpse nor a pile.',
       ),
+    stores: z
+      .strictObject({
+        spellId: z.string().min(1).describe('The prepared spell to store.'),
+        slotLevel: z.int().min(1).max(9).describe('The slot the stored spell is cast from — spent now, beside the glyph’s own.'),
+        source: z.string().min(1).optional().describe('Which class route casts it, as `source` above, where more than one would.'),
+        damageType: z.string().min(1).optional().describe('A damage type the stored spell prints a choice of.'),
+        choice: z.string().min(1).optional().describe('A value the stored spell asks its caster to choose.'),
+        option: z.string().min(1).optional().describe('A branch the stored spell prints.'),
+      })
+      .optional()
+      .describe(
+        'A spell to store in this casting, for the one spell that offers it — Glyph of Warding’s spell glyph: "You can store a prepared spell of level 3 or lower in the glyph by casting it as part of creating the glyph." The stored spell must be prepared, no higher than the glyph’s own slot, and aimed at one creature or at an area; its slot is spent when the glyph is finished, and it takes effect on whoever the DM later says set the glyph off, with nothing more spent and no Concentration held. A glyph that stores a spell has no explosive rune, so it takes no `damageType` of its own. Refused on any other spell.',
+      ),
     slotKind: z
       .enum(['spell', 'pact'])
       .optional()
@@ -2870,6 +2883,19 @@ const CAST_SPELL = tool({
       // A stated fact and never a number: the die it gates is the engine's.
       ...(args.otherPlane === true ? { otherPlane: true as const } : {}),
       ...(args.bonesAt === undefined ? {} : { bonesAt: args.bonesAt.map((pile) => placementOf(pile)) }),
+      // The spell a glyph stores, said once at the inscription. (W7-S21)
+      ...(args.stores === undefined
+        ? {}
+        : {
+            stores: {
+              spellId: args.stores.spellId,
+              slotLevel: args.stores.slotLevel,
+              ...(args.stores.source === undefined ? {} : { source: args.stores.source }),
+              ...(args.stores.damageType === undefined ? {} : { damageType: args.stores.damageType }),
+              ...(args.stores.choice === undefined ? {} : { choice: args.stores.choice }),
+              ...(args.stores.option === undefined ? {} : { option: args.stores.option }),
+            },
+          }),
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),
       ...(args.source === undefined ? {} : { source: args.source }),

@@ -2415,17 +2415,19 @@ describe('a consumer count is a query', () => {
     // are whole. **Glyph of Warding left last**: its rune is `triggered`, an
     // effect list a DM's decision fires over the pinned Sphere with the type
     // the caster stated, so the damage type is `damageTypeStated` and no
-    // longer a choice with nowhere to go. The spell glyph — a stored casting
-    // — is a shape of its own and a sentence no marker sees, so it is the
-    // definition's own `unmodelled` and the executed map holds only the check
-    // to notice, which is the table's.
+    // longer a choice with nowhere to go. The spell glyph — a stored request
+    // rather than a pending casting — is built too (`triggered.storesSpell`,
+    // W7-S21), so its sentence has left the definition's own `unmodelled`,
+    // and the executed map holds only the check to notice, which is the
+    // table's.
     for (const id of ['glyph-of-warding']) {
       expect(BLOCKED_ON[id]).toBeUndefined();
       expect(TRACKED_ADJUDICATED[id]).toBeUndefined();
       expect(ADJUDICATED[id]?.map((e) => e.why)).toEqual(['table']);
+      expect(SRD_CONTENT.spell(id)?.triggered?.storesSpell).toBe(true);
       expect(
         (SRD_CONTENT.spell(id)?.unmodelled ?? []).some((line) => line.includes('casts another spell')),
-      ).toBe(true);
+      ).toBe(false);
     }
   });
 

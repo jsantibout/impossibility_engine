@@ -14844,10 +14844,14 @@ export const GIANT_INSECT: SpellDefinition = {
  * above 3, and the casting ending because it fired. The record pins the list
  * with its type substituted, so the door opens no catalogue.
  *
- * Two halves stay filed. The **spell glyph** is a casting that casts another
- * spell, stored now and set off later, which is the stack `docs/design/casting.md`
- * declined; and the **creature-type refinement** is a predicate an area does not
- * read — the rune catches whoever stands in the Sphere when the DM says it went
+ * The **spell glyph** is the other option, and a stored request rather than a
+ * pending casting: the stored spell is cast at the inscription — its slot
+ * spent, no Concentration held — and pinned on the record
+ * (`triggered.storesSpell`, `OngoingSpell.stored`), so nothing sits open for a
+ * Counterspell between the inscription and the trigger; the DM names who set
+ * it off and it takes effect on them, or centred on them for an area. The
+ * **creature-type refinement** stays filed — a predicate an area does not read,
+ * so the rune catches whoever stands in the Sphere when the DM says it went
  * off. The check to notice the glyph is the table's to call for.
  */
 export const GLYPH_OF_WARDING: SpellDefinition = {
@@ -14870,6 +14874,12 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   effects: [],
   triggered: {
     label: 'Glyph of Warding (the explosive rune)',
+    // "_Spell Glyph._ You can store a prepared spell of level 3 or lower in the
+    // glyph by casting it as part of creating the glyph." The other option: a
+    // casting that names a spell to store (`CastSpellRequest.stores`) runs no
+    // rune and states no type for one, and the DM's trigger lets the stored
+    // spell go at whoever set it off.
+    storesSpell: true,
     effects: [
       {
         kind: 'save-damage',
@@ -14888,7 +14898,6 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
     "You can also set conditions for creatures that don't trigger the glyph, such as those who say a certain password.",
   ],
   unmodelled: [
-    'the spell glyph is not inscribed: "You can store a prepared spell of level 3 or lower in the glyph by casting it as part of creating the glyph" is a casting that casts another spell, stored now and set off later at whoever triggered it, which is the stack the casting design declined',
     'refining the trigger so that only creatures of certain types set it off is not applied: the rune catches whoever stands in the Sphere when the DM says it went off, and a predicate over a creature type is a filter an area does not read',
     'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: the DM calls for it when somebody searches, and the DC is the sheet’s',
     'the ten feet the surface or object may be moved before the glyph breaks is the DM’s to watch, who ends the casting when it does',

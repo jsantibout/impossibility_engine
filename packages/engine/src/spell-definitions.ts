@@ -8135,6 +8135,49 @@ export interface TriggeredEffects {
   readonly effects: readonly SpellEffect[];
   /** How the roll reads in the log: "Glyph of Warding (the explosive rune)". */
   readonly label: string;
+  /**
+   * **Or a spell the caster stores at the casting**, set off by the same
+   * decision in this list's place — SRD Glyph of Warding's spell glyph: "You
+   * can store a prepared spell of level 3 or lower in the glyph by casting it
+   * as part of creating the glyph. … When the glyph is triggered, the stored
+   * spell takes effect."
+   *
+   * The permission is the definition's and the request is the caster's
+   * (`CastSpellRequest.stores`). A casting that names one runs no list and
+   * states no damage type for it; the stored spell is prepared, of a level no
+   * higher than this casting's slot ("you can store any spell of up to the
+   * same level as the spell slot you use"), aimed at one creature or at an
+   * area, and its own slot is spent at the inscription beside this one's.
+   * What the record keeps is {@link StoredSpellRequest} with the numbers it
+   * was cast with — a request stored, **not** a pending casting, so nothing
+   * sits open for a Counterspell to answer between the inscription and the
+   * trigger. Absent is every other rune. (W7-S21)
+   */
+  readonly storesSpell?: true;
+}
+
+/**
+ * The spell a casting stores to be set off later — see
+ * {@link TriggeredEffects.storesSpell}.
+ *
+ * The half of a `CastSpellRequest` that is said **at the inscription**: which
+ * spell, the slot it is cast from, the route it comes through and the facts a
+ * casting of it states. Who it lands on is not here, because that is whoever
+ * sets the glyph off; and nothing here is a number the caller produced — the
+ * slot level is the caster's to name exactly as it is on any casting. (W7-S21)
+ */
+export interface StoredSpellRequest {
+  readonly spellId: string;
+  /** The slot the stored spell is cast from, spent at the inscription. */
+  readonly slotLevel: number;
+  /** Which class route supplies it, where more than one would — see `CastSpellRequest.source`. */
+  readonly source?: string;
+  /** A damage type the stored spell prints a choice of — see `CastSpellRequest.damageType`. */
+  readonly damageType?: string;
+  /** A value the stored spell asks its caster to choose — see `CastSpellRequest.choice`. */
+  readonly choice?: string;
+  /** A branch the stored spell prints — see `CastSpellRequest.option`. */
+  readonly option?: string;
 }
 
 /**

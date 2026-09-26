@@ -59,7 +59,12 @@ import { damageWindowOpen, fallingNow } from '../reactions.js';
 import { remaining, slotKeyOf, type SlotKind } from '../resources.js';
 import { type RollIssuer } from '../rolls.js';
 import { type Content } from '../content.js';
-import { areaTerrainOf, type ReactionTrigger, type SpellDefinition } from '../spell-definitions.js';
+import {
+  areaTerrainOf,
+  type ReactionTrigger,
+  type SpellDefinition,
+  type StoredSpellRequest,
+} from '../spell-definitions.js';
 import { type CastingRoute, routesFor, type SpellcastingState } from '../spellcasting.js';
 import {
   castingIdOf,
@@ -794,6 +799,13 @@ export interface CastingPlan {
    */
   readonly bonesAt?: readonly Placement[];
   /**
+   * The spell this casting stores — SRD Glyph of Warding's spell glyph, an
+   * hour's rite, so the request is stated now and the stored spell is cast
+   * when the settlement is. Carried verbatim; `resolveSpell` has already held
+   * it to the rules the stored spell has to meet. (W7-S21)
+   */
+  readonly stores?: StoredSpellRequest;
+  /**
    * The numbers this casting was made with, for a casting an item made.
    *
    * SRD "Spells Cast from Items" makes a wand's spell an ordinary casting, and
@@ -1224,6 +1236,9 @@ function castSpellWith(
         ...(command.hold.form === undefined ? {} : { form: command.hold.form }),
         // And where the bones lie, for the same reason.
         ...(command.hold.bonesAt === undefined ? {} : { bonesAt: command.hold.bonesAt }),
+        // And the spell it stores, for the same reason — SRD Glyph of Warding's
+        // spell glyph is cast when the rite is finished. (W7-S21)
+        ...(command.hold.stores === undefined ? {} : { stores: command.hold.stores }),
         // And the numbers, and the ability they were worked out with, for the
         // one route a settlement cannot re-derive.
         ...(command.hold.numbers === undefined ? {} : { numbers: command.hold.numbers }),
@@ -1661,7 +1676,7 @@ function mustResolve(state: GameState, duration: Duration): Deadline {
  * because a Pact slot back in an hour and an ordinary slot back tomorrow are
  * not interchangeable and choosing between them is not the engine's to make.
  */
-function chooseSlotKind(
+export function chooseSlotKind(
   caster: CreatureState,
   level: number,
   named: SlotKind | undefined,

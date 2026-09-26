@@ -319,8 +319,10 @@ describe('toolSchemas', () => {
     expect(toolSchemas(dm())).toHaveLength(120);
     // Re-pinned for W7-S21 part 4: `attempt_effect_check.skill` (SRD Spike
     // Growth's "Perception or Survival" — the attempter's pick) on both doors.
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(148456);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(194156);
+    // And for part 2: `cast_spell.stores` (SRD Glyph of Warding's spell glyph)
+    // on both doors, and `trigger_glyph.by` — who set it off — on the DM's.
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(149866);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(196168);
   });
 });
 

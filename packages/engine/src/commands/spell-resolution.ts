@@ -134,7 +134,9 @@ import {
   type OngoingSpell,
   regionOfArea,
   type StatedChoicePin,
+  type StoredCasting,
 } from '../spells.js';
+import { storedSpellCast, storedSpellProblem, type StoringPlan } from './glyph.js';
 import {
   actionRulesOn,
   castingDamageFeatures,
@@ -384,7 +386,28 @@ export function resolveDeclaredCast(
         : ok(null);
     if (!chosen.ok) return chosen;
 
-    const events: GameEvent[] = settlementEvents(state, pending, stamp);
+    // **The spell it stores, asked again and cast now** — SRD Glyph of
+    // Warding's spell glyph is cast "as part of creating the glyph", and the
+    // glyph is created when the rite is finished. Held to its rules a second
+    // time for the reason the route above is re-derived; its slot goes beside
+    // this casting's, and its casting begins immediately after this one's,
+    // which settles under the id the declaration already began. (W7-S21)
+    const storing = storedSpellProblem(
+      state,
+      caster,
+      definition,
+      pending.stores,
+      pending.level,
+      pending.slot?.level ?? null,
+      supply.content,
+    );
+    if (!storing.ok) return storing;
+    const storedCast = storing.value === null ? null : storedSpellCast(state, pending.caster, storing.value);
+
+    const events: GameEvent[] = [
+      ...settlementEvents(state, pending, stamp),
+      ...(storedCast === null ? [] : [storedCast.event]),
+    ];
 
     // What the caster stated at the declaration, read back off the record it
     // was written on. Normalised already — this is the same function that
@@ -528,6 +551,7 @@ export function resolveDeclaredCast(
         ? {
             becomesOngoing: {
               spellId: definition.id,
+              ...(storedCast === null ? {} : { stored: storedCast.stored }),
               on: onCaster(definition)
                 ? ('caster' as const)
                 : pending.origin === undefined
@@ -580,6 +604,23 @@ export function resolveDeclaredCast(
 }
 
 /**
+ * What a stored spell was cast with at its inscription, handed back when a
+ * glyph lets it go — SRD Glyph of Warding's spell glyph.
+ *
+ * Three things a release through the held path would otherwise re-derive, and
+ * none of which may be re-derived here: the **route**, because a Cleric who
+ * prepared other spells since has not uncast the one in the rune; the
+ * **numbers**, for the rule every casting's are pinned by; and the **reach**,
+ * which is not asked at all — the stored spell "targets the creature that
+ * triggered the glyph" wherever the caster happens to be, so its Range and its
+ * "a creature you can see" belong to a casting that already happened. (W7-S21)
+ */
+export interface StoredRelease {
+  readonly route: CastingRoute;
+  readonly numbers: CastingNumbers;
+}
+
+/**
  * {@link resolveSpell}, and the same thing for a spell already paid for.
  *
  * One function rather than two because everything after the payment is
@@ -604,6 +645,14 @@ export function castOrRelease(
    * the entry point every other caller uses — cannot supply one at all.
    */
   taking?: { readonly throughLine: string },
+  /**
+   * The route and the numbers a **stored** spell was cast with, where a glyph
+   * is letting it go — see {@link StoredRelease}. A parameter for `taking`'s
+   * reason: a caller that could set it would be casting a spell nobody has
+   * prepared, from nowhere, at the numbers it chose. Absent for every casting
+   * but `triggerGlyph`'s. (W7-S21)
+   */
+  stored?: StoredRelease,
 ): Result<SpellResolution> {
   // **The duplicate check comes first, always.** A retry arrives at whatever
   // the world has become since its first run — the caster removed, the free
@@ -820,9 +869,13 @@ export function castOrRelease(
       if (!paid.ok) return paid;
     }
 
-    // SRD: you cast what you know or have prepared, and nothing else.
+    // SRD: you cast what you know or have prepared, and nothing else — or, for
+    // a stored spell a glyph is letting go, what you had prepared when you
+    // cast it into the glyph. See `StoredRelease`.
     const chosen =
-      fromItem.value === null
+      stored !== undefined
+        ? ok<CastingRoute>(stored.route)
+        : fromItem.value === null
         ? chooseRoute(caster.spellcasting, request.spellId, request.source, {
             ritual: request.ritual === true,
             fromBook: ritualsFromBookOn(state, casterId),
@@ -843,6 +896,12 @@ export function castOrRelease(
           );
     if (!chosen.ok) return chosen;
     const route = chosen.value;
+    // The numbers this casting is made with: pinned at the inscription for a
+    // stored spell a glyph lets go, and derived from the sheet as it stands for
+    // every other casting. One reader for every place below that asks.
+    const numbersAsCast = (): CastingNumbers =>
+      stored?.numbers ??
+      numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route);
 
     // **And the standing clause a granted route prints over its own casting.**
     // SRD One with Shadows: "**While you're in an area of Dim Light or
@@ -949,12 +1008,7 @@ export function castOrRelease(
     // same numbers every other derivation of this casting reads, and therefore
     // off the sheet as it stands — and both the *item's* where an item is
     // casting it, exactly as its dice are.
-    const asCast = numbersFor(
-      state,
-      casterId,
-      sheetAsItStands(state, casterId) ?? caster.sheet,
-      route,
-    );
+    const asCast = numbersAsCast();
     const altered = alteredCasting(
       definition,
       {
@@ -1023,9 +1077,29 @@ export function castOrRelease(
     // nothing. Both are clauses transcribed from the book, and both refuse to be
     // used by a spell that does not print them — a field quietly ignored is a
     // caller who thinks they said something.
+    //
+    // **A casting that stores a spell states no type for the rune it does not
+    // run** — SRD Glyph of Warding's explosive rune and spell glyph are its
+    // two options — so the rune's printed choice of types is read out of the
+    // definition this casting's facts are held to. See
+    // `TriggeredEffects.storesSpell`. (W7-S21)
+    const storesInstead = request.stores !== undefined && definition.triggered?.storesSpell === true;
+    const statedAgainst: SpellDefinition = storesInstead
+      ? (({ damageTypeStated: _rune, ...rest }) => rest)(definition)
+      : definition;
+    const storing = storedSpellProblem(
+      state,
+      caster,
+      definition,
+      request.stores,
+      castLevel,
+      route.kind === 'item' || casting.value.ritual ? null : paidLevel,
+      supply.content,
+    );
+    if (!storing.ok) return storing;
     const declared = declaredFacts(
       state,
-      definition,
+      statedAgainst,
       request,
       fixedChoiceOf(route),
       // What the caster's elected options let this casting say — the
@@ -1086,8 +1160,12 @@ export function castOrRelease(
       slotLevel: castLevel,
       using: [],
     });
+    // **No reach at all for a stored spell a glyph lets go**: it "targets the
+    // creature that triggered the glyph", and the Range and the sight a
+    // casting is measured by belong to the one made at the inscription. See
+    // `StoredRelease`. (W7-S21)
     const reach =
-      altered.value.reachFeet === null
+      stored !== undefined || altered.value.reachFeet === null
         ? null
         : altered.value.reachFeet + lengthened.reduce((feet, bonus) => feet + (bonus.flat ?? 0), 0);
     let targets: readonly CharacterId[];
@@ -1183,7 +1261,7 @@ export function castOrRelease(
           reach,
           needs,
           origin,
-          numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+          numbersAsCast().casterLevel,
         );
         if (!named.ok) return named;
         targets = named.value;
@@ -1257,7 +1335,7 @@ export function castOrRelease(
         reach,
         needs,
         origin,
-        numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+        numbersAsCast().casterLevel,
       );
       if (!named.ok) return named;
       targets = named.value;
@@ -1420,7 +1498,7 @@ export function castOrRelease(
       request,
       targets,
       castLevel,
-      numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route).casterLevel,
+      numbersAsCast().casterLevel,
     );
     if (!aimed.ok) return aimed;
 
@@ -1826,6 +1904,10 @@ export function castOrRelease(
       paidLevel,
       altered: altered.value,
       ...(answering !== null && answering.ok ? { answers: answering.value.castingId } : {}),
+      // The spell this casting stores, already held to its rules — and the
+      // numbers a stored spell being let go was cast with. (W7-S21)
+      ...(storing.value === null ? {} : { storing: storing.value }),
+      ...(stored === undefined ? {} : { pinnedNumbers: stored.numbers }),
     });
     if (!resolved.ok || wardEvents.length === 0) return resolved;
     return ok({ ...resolved.value, events: [...wardEvents, ...resolved.value.events] });
@@ -2287,6 +2369,17 @@ function resolveOnTargets(
      * happens to be open when it runs.
      */
     readonly answers?: string;
+    /**
+     * The spell this casting stores — SRD Glyph of Warding's spell glyph —
+     * held to its rules by `storedSpellProblem` before anything was spent, and
+     * cast beside this casting when it takes effect. (W7-S21)
+     */
+    readonly storing?: StoringPlan;
+    /**
+     * The numbers a stored spell being let go was cast with, which stand in
+     * for the sheet's — see `StoredRelease`. (W7-S21)
+     */
+    readonly pinnedNumbers?: CastingNumbers;
   },
 ): Result<SpellResolution> {
   const { castLevel, route, targets, unverified, supply, held, origin, area, stamp, casting } =
@@ -2373,8 +2466,16 @@ function resolveOnTargets(
           area?.anchoring ?? 'space',
         );
 
+  /**
+   * The spell this casting stored, once the casting has actually been made —
+   * set below on the atomic path and read by `ongoingWith` when the record is
+   * written. See `storedSpellCast`. (W7-S21)
+   */
+  let storedRecord: StoredCasting | undefined;
+
   const ongoingWith = (): OngoingRecordPlan => ({
     spellId: definition.id,
+    ...(storedRecord === undefined ? {} : { stored: storedRecord }),
     // **What this casting turns aside**, where the definition says its benefit
     // does. SRD *Shield*'s "you take no damage from *Magic Missile*" is the
     // only sentence of this shape in the book, and both halves of what is
@@ -2524,7 +2625,9 @@ function resolveOnTargets(
   // and the spell attack modifier a wizard's casting is made with. Asked once,
   // here, where the state is — and pinned into the events below like every
   // other number, so the substitution happens at the casting and never again.
-  const numbers = numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route);
+  const numbers =
+    context.pinnedNumbers ??
+    numbersFor(state, casterId, sheetAsItStands(state, casterId) ?? caster.sheet, route);
 
   // What the caster's own features do to this casting's damage, asked once,
   // here, where the request and the route are both in hand. `running` is the
@@ -2995,6 +3098,9 @@ function resolveOnTargets(
               // The seventh: where the bones lie, which a rite of a minute
               // states before there is a casting to raise anything at.
               ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
+              // And the spell it stores, which is cast when the settlement is
+              // — SRD Glyph of Warding's spell glyph. (W7-S21)
+              ...(request.stores === undefined ? {} : { stores: request.stores }),
               // **And the numbers, for a casting an item made.** A class
               // casting's route is re-derived at settlement because it is a
               // fact about a sheet nothing between here and there can change.
@@ -3021,6 +3127,21 @@ function resolveOnTargets(
   // of the rule that a retry must never look at the world it made.
   events.push(...replacedCastings(state, casterId, definition, targets));
   events.push(...cast.value);
+
+  // **The spell it stores, cast "as part of creating the glyph"** — its own
+  // slot spent and its casting begun immediately after this one's, and nothing
+  // else, because "the spell being stored has no immediate effect". A casting
+  // held open casts it at the settlement instead. See `storedSpellCast`.
+  // (W7-S21)
+  if (context.storing !== undefined && !declaring) {
+    const storedCast = storedSpellCast(
+      cast.value.reduce(applyEvent, state),
+      casterId,
+      context.storing,
+    );
+    events.push(storedCast.event);
+    storedRecord = storedCast.stored;
+  }
 
   // **What the spell puts in its caster's hand**, after the casting itself so
   // the line names a casting the log has already opened. SRD Goodberry's ten
@@ -3724,7 +3845,10 @@ export function resolveEffects(
         ...(becomes.path === undefined ? {} : { path: becomes.path }),
         // And what a DM's decision fires, pinned with the type the caster
         // stated — SRD Glyph of Warding's rune. See `OngoingSpell.triggered`.
-        ...(definition.triggered === undefined
+        // **Or the spell it stores in the rune's place**, never both — see
+        // `OngoingSpell.stored`. (W7-S21)
+        ...(becomes.stored === undefined ? {} : { stored: becomes.stored }),
+        ...(definition.triggered === undefined || becomes.stored !== undefined
           ? {}
           : {
               triggered: {
@@ -4413,6 +4537,8 @@ function aimedAt(
  */
 interface OngoingRecordPlan {
   readonly spellId: string;
+  /** The spell this casting stores — see `OngoingSpell.stored`. (W7-S21) */
+  readonly stored?: StoredCasting;
   readonly on: 'caster' | 'targets' | 'point';
   /** What this casting answered and turns aside — see `OngoingSpell.negates`. */
   readonly negates?: { readonly casting: string; readonly spell: string };

@@ -61,6 +61,7 @@ import {
   type SpellArea,
   type SpellDefinition,
   type SpellEffect,
+  type StoredSpellRequest,
   statedChoiceReaches,
   statesFoughtFact,
   statesWillingFact,
@@ -706,6 +707,24 @@ export interface CastSpellRequest extends CommandIdentity {
    * the slot allows (`too_many_raised`).
    */
   readonly bonesAt?: readonly Placement[];
+  /**
+   * A spell this casting stores, to take effect when a DM says the casting's
+   * trigger occurred — SRD Glyph of Warding's spell glyph: "You can store a
+   * prepared spell of level 3 or lower in the glyph by casting it as part of
+   * creating the glyph."
+   *
+   * The fourteenth fact a casting states rather than derives, and the same
+   * discipline: refused on a spell whose definition prints no such option
+   * (`stores_nothing`), refused for a spell that is not prepared
+   * (`stored_not_prepared`), above this casting's slot
+   * (`stored_level_too_high`), aimed at neither one creature nor an area
+   * (`stored_targets_nothing`) or taking a minute or more to cast
+   * (`stored_spell_too_long`) — all before a slot is spent. The stored spell's
+   * own slot is spent when this casting takes effect, and a casting that
+   * stores one runs no rune and states no damage type for it. See
+   * `TriggeredEffects.storesSpell`. (W7-S21)
+   */
+  readonly stores?: StoredSpellRequest;
   /**
    * Which of this casting's targets consent to it.
    *

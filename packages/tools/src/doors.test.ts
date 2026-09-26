@@ -1004,6 +1004,13 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // Growth's "Wisdom (Perception or Survival)". The engine names the skills
   // and will not pick between them. (W7-S21)
   skill_required: { fields: ['attempt_effect_check.skill'] },
+  // Who set off a glyph that stores a spell — SRD Glyph of Warding: "it
+  // targets the creature that triggered the glyph". The DM's to say, on the
+  // DM's door, as whether anybody did is. (W7-S21)
+  triggerer_required: {
+    unanswerable:
+      'not on this surface: whether a glyph went off, and who set it off, are the DM’s decisions, so the answer is `trigger_glyph.by` on the DM’s door — which this probe is not aimed at. `dm/glyph.test.ts` drives the refusal and the answer through that door.',
+  },
 
   // — a creature named for a roll that the split never gave one ——————————————
   // SRD Scorching Ray's "at one target within range or at several" with the

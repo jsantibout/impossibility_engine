@@ -45,6 +45,7 @@ import type { RestState } from './rest.js';
 import type { HitOption, StandingEffect } from './standing.js';
 import { type Deadline } from './time.js';
 import type { Elsewhere } from './elsewhere.js';
+import type { StoredSpellRequest } from './spell-definitions.js';
 import {
   type GrantedPayout,
   type PendingSave,
@@ -1933,6 +1934,14 @@ export interface PendingCasting {
    * always did.
    */
   readonly bonesAt?: readonly Placement[];
+  /**
+   * The spell this casting stores — SRD Glyph of Warding's spell glyph, whose
+   * rite takes an hour, so the request is stated at the declaration and the
+   * stored spell is cast, and its slot spent, only when the settlement is.
+   * Pinned for the reason every stated fact here is: settlement takes no
+   * fresh request. Absent for every casting that stores nothing. (W7-S21)
+   */
+  readonly stores?: StoredSpellRequest;
   /**
    * The numbers the casting was made with, for a casting an item made.
    *
