@@ -1,4 +1,3 @@
-import { type Content } from '../content.js';
 /**
  * What a casting left behind, read back.
  *
@@ -23,7 +22,9 @@ import {
   type Result,
 } from '@ie/shared';
 import { allyOfCaster, isOn, spellOn, type GameEvent, type GameState } from '../events.js';
+import { type Content } from '../content.js';
 import {
+  creaturesInArea,
   distanceBetween,
   distanceBetweenPoints,
   distanceToPoint,
@@ -32,6 +33,7 @@ import {
   type PositionState,
   snapToSpace,
 } from '../positioning.js';
+import { canSeePoint } from '../standing.js';
 import {
   ranged,
   type SpellActivation,
@@ -479,6 +481,140 @@ function routeRequest(
     because: `${record.spell} catches every creature its area moves into, and the spaces between two points are not something the engine may decide`,
     satisfyWith: `activateSpell again with \`via\` listing each space the area passes through, one 5-foot step at a time`,
   };
+}
+
+/**
+ * The area a caster carries while walking — SRD Conjure Animals' pack.
+ *
+ * > "when you move on your turn, you can also move the pack up to 30 feet to an
+ * > unoccupied space you can see."
+ *
+ * **A rider on a move, not an action**, which is the whole reason it is here
+ * rather than in `relocateOrigin`: that one spends a Magic action or rides a
+ * Bonus Action that also strikes, and this costs nothing at all — the pack goes
+ * nowhere on a turn its druid stands still, and everywhere the druid's own
+ * command goes it may go too. So the allowance is the definition's
+ * (`areaMovesWithCaster`) and the decision is the caller's, exactly as the
+ * destination of every other moved area is.
+ *
+ * Four refusals and all of them before the move is spent: the casting has to be
+ * running, it has to be this mover's, it has to hold a point, and the
+ * destination has to be inside the allowance, inside the scene, empty and seen.
+ * The space and the sight are read now rather than pinned, because both are facts
+ * about the scene at the moment the pack is walked.
+ *
+ * Returns the one event the move appends, or null where the caller asked for
+ * nothing.
+ */
+export function carryAreaWithMover(
+  state: GameState,
+  moverId: CharacterId,
+  asked: { readonly castingId: string; readonly to: Point } | undefined,
+  content: Content,
+  unverified: string[],
+): Result<GameEvent | null> {
+  if (asked === undefined) return ok(null);
+
+  const record = state.ongoing[asked.castingId];
+  if (record === undefined) {
+    return err('not_ongoing', `${asked.castingId} is not a spell that is still running`);
+  }
+  if (record.caster !== moverId) {
+    return err(
+      'not_your_spell',
+      `${asked.castingId} is ${record.caster}'s casting; ${moverId} cannot carry it`,
+    );
+  }
+  const allowance = content.spell(record.spellId)?.areaMovesWithCaster;
+  if (allowance === undefined || record.origin === undefined) {
+    return err(
+      'not_movable',
+      `${record.spell} holds nothing its caster can carry along while walking`,
+    );
+  }
+  if (state.scene === null) {
+    return err('no_scene', `${record.spell} needs a scene to be carried about in`);
+  }
+  // **Once on the turn, not once on the command.** SRD Conjure Animals: "when you
+  // move on your turn, you can **also** move the pack" — one sentence about one
+  // turn's walking, and a creature may break thirty feet into six commands of
+  // five. So the cap is the turn the point last moved on rather than the rider
+  // being spent by the command that carries it. Outside a fight nothing is capped,
+  // which is what every other once-per-turn rule here does.
+  const turn = state.combat?.turnsTaken;
+  if (turn !== undefined && record.movedOnTurn === turn) {
+    return err(
+      'pack_already_carried',
+      `${record.spell} has already been carried this turn; the spell moves it when its caster moves, once`,
+    );
+  }
+
+  const to = snapToSpace(asked.to);
+  if (!isInsideScene(state.scene, to)) {
+    return err(
+      'outside_scene',
+      `${record.spell} cannot be carried to (${to.x}, ${to.y}, ${to.z}); that is outside this scene`,
+    );
+  }
+  // "up to 30 feet", measured from where the pack is now rather than from the
+  // caster: it is the pack that travels, and a druid who has walked it thirty
+  // feet a round has walked it three hundred in ten.
+  const travelled = distanceBetweenPoints(record.origin, to);
+  if (travelled > allowance) {
+    return err(
+      'pack_too_far',
+      `${record.spell} is carried up to ${allowance} feet and that space is ${travelled} away`,
+    );
+  }
+  // "to an **unoccupied** space", asked of the lattice the ruler already reads.
+  const standing = creaturesInArea(state.scene, { space: to }, { kind: 'sphere', radius: 0 });
+  if (standing.ok && standing.value.length > 0) {
+    return err(
+      'pack_space_occupied',
+      `${record.spell} is carried to an unoccupied space, and ${standing.value.join(', ')} ${standing.value.length === 1 ? 'is' : 'are'} standing there`,
+    );
+  }
+  // "a space **you can see**", asked of the caster's senses exactly as a casting
+  // asks them — a declaration first, then what reaches. Three-valued like every
+  // sight question: nobody can declare a line to a patch of ground, so silence is
+  // reported and the pack goes, and only a declared *no* refuses.
+  const seen = canSeePoint(state, moverId, to);
+  if (seen === false) {
+    return err('pack_unseen', `${moverId} cannot see the space ${record.spell} would be carried to`);
+  }
+  if (seen === null) {
+    unverified.push(
+      `nobody has said whether ${moverId} can see (${to.x}, ${to.y}, ${to.z}), and ${record.spell} is carried to a space its caster can see`,
+    );
+  }
+
+  // `carried` is what tells this apart from a beam an activation walked, and it is
+  // what the turn stamp is read off — see `spell-origin-moved.carried`.
+  return ok({ type: 'spell-origin-moved', castingId: record.castingId, to, carried: true });
+}
+
+/**
+ * Whether a point is under the point a casting keeps — SRD Call Lightning's
+ * "choose a point you can see **under the cloud**", or null where it is.
+ *
+ * **One reader for two moments**, which is the discipline every printed number in
+ * this engine keeps: the bolt at the cast and the bolts called down afterwards are
+ * held to the same sixty feet, and two spellings of that would be two places for
+ * the cloud's radius to be got wrong.
+ */
+export function underTheKeptPoint(
+  from: Point,
+  to: Point,
+  allowance: number,
+  spell: string,
+): Err | null {
+  const away = distanceBetweenPoints(from, snapToSpace(to));
+  return away > allowance
+    ? err(
+        'outside_the_kept_point',
+        `${spell} reaches ${allowance} feet from the point it holds, and the point named is ${away} away`,
+      )
+    : null;
 }
 
 /** An ordinary later-turn spell: the caster's own reach, checked afresh. */

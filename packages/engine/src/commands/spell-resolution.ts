@@ -54,6 +54,7 @@ import {
   type ContextRequest,
   contextRequestsOf,
   err,
+  type Err,
   needsContext,
   ok,
   type Result,
@@ -104,6 +105,7 @@ import {
   optionEffects,
   laysTerrain,
   type SpellOption,
+  singlesOutAtTheCast,
   statedChoice,
   statedDamageType,
   damageTypesDealt,
@@ -170,7 +172,7 @@ import {
 import { unsettledRefusal } from './holds.js';
 import { teleportTo } from './teleport.js';
 import { payCastingDamageCost } from './damage.js';
-import { ongoingSpellsOn, replacedCastings } from './ongoing.js';
+import { ongoingSpellsOn, replacedCastings, underTheKeptPoint } from './ongoing.js';
 import {
   attunementProblem,
   maskProblem,
@@ -489,6 +491,7 @@ export function resolveDeclaredCast(
       // fresh request there is none of. A held Charm Person settles with the
       // Advantage its caster said it had.
       ...(pending.fought === undefined ? {} : { fought: pending.fought }),
+      ...(pending.inAStorm === undefined ? {} : { inAStorm: pending.inAStorm }),
       // And where the orb leaps, read back off the record for the same reason.
       ...(pending.leapTo === undefined ? {} : { leapTo: pending.leapTo }),
       // And the ninth, read back the same way: a Levitate declared over a
@@ -1024,6 +1027,31 @@ export function castOrRelease(
     );
     if (!declared.ok) return declared;
 
+    // — the bolt under the cloud ———————————————————————————————————————————————
+    //
+    // SRD Call Lightning: "choose a point you can see **under the cloud**." The
+    // cloud rose above its caster, so the first bolt is held to its radius exactly
+    // as every bolt after it is — one reader, `underTheKeptPoint`, asked at both
+    // moments so the sixty feet cannot come to mean two things. The spell's
+    // printed Range is the wider number and binds nothing here, which is the
+    // book's own arithmetic rather than a second rule.
+    const redraws = definition.activation?.redrawsArea;
+    if (redraws !== undefined && request.at !== undefined && state.scene !== null) {
+      const above = positionOf(state.scene, casterId);
+      if (above !== null) {
+        const beyond = underTheKeptPoint(above, request.at, redraws, definition.name);
+        if (beyond !== null) return beyond;
+      }
+    }
+
+    // — the hand that carries a touch —————————————————————————————————————————
+    //
+    // SRD Find Familiar's delivery, asked beside the stated facts and for their
+    // reason: a Reaction the familiar cannot pay must cost it nothing. See
+    // {@link deliveryProblem}, which holds the four refusals.
+    const carried = deliveryProblem(state, casterId, definition, request);
+    if (carried !== null) return carried;
+
     // — targets ————————————————————————————————————————————————————————————
     //
     // Two ways a spell finds its targets, and they do not mix. A named-target
@@ -1151,6 +1179,13 @@ export function castOrRelease(
       if (
         (definition.areaTrigger !== undefined ||
           definition.triggered !== undefined ||
+          // **A sixth clause wants the point**, and it is the one that wants it
+          // as a *bound* rather than as a place: SRD Call Lightning's later
+          // Magic action draws the template again "at a point you can see under
+          // the cloud", and the cloud is measured from where the first bolt
+          // fell. Without this the record kept no point at all and the
+          // allowance had nothing to be measured from.
+          definition.activation?.redrawsArea !== undefined ||
           definition.areaStanding !== undefined ||
           Object.values(definition.options ?? {}).some(
             (branch) => branch.areaStanding !== undefined,
@@ -2325,7 +2360,25 @@ function resolveOnTargets(
     // nobody; everything else is on whoever it actually caught.
     on: onCaster(definition) ? 'caster' : origin === null ? 'targets' : 'point',
     ...(definition.area === undefined ? {} : { fromArea: true as const }),
-    ...(origin === null && area === null ? {} : { origin: origin ?? area!.at }),
+    // **The point the casting keeps.** For all but one spell it is where the
+    // casting put something — the force, the beam, the webs — and the area's own
+    // anchor is that point.
+    //
+    // **SRD Call Lightning keeps the cloud, and the cloud is above its caster**:
+    // "A storm cloud appears at a point within range that you can see **above
+    // yourself**", and every bolt after it falls "under the cloud". So a spell
+    // whose later action re-draws its template keeps the caster's own square
+    // rather than the square the first bolt struck — otherwise a bolt called down
+    // forty feet east would have moved the cloud, and the next one a hundred feet
+    // east would be under nothing at all.
+    ...(definition.activation?.redrawsArea !== undefined && state.scene !== null
+      ? (() => {
+          const above = positionOf(state.scene, casterId);
+          return above === null ? {} : { origin: above };
+        })()
+      : origin === null && area === null
+        ? {}
+        : { origin: origin ?? area!.at }),
     // A point-origin area's bearing travels beside its point; a **carried**
     // one's has no point to travel beside — see `carriedAim`.
     ...(area?.towards === undefined
@@ -2342,6 +2395,16 @@ function resolveOnTargets(
     // anything else. **A carried area records no position**: `caster` and the
     // definition's `origin: 'self'` already say where it is.
     ...stated,
+    // **And the one creature the spell singled out**, for the two clauses that
+    // reach it by identity rather than by geometry: the check only it may attempt
+    // and the trigger that pays out only on it. SRD Phantasmal Force's phantasm
+    // is "perceivable only to the target", and that target rolled a saving throw
+    // — which takes it off `aimed` by that field's own rule — so this is the only
+    // place the name can be. See `singlesOutAtTheCast`, which is what decides
+    // whether the cast is the moment or a later action is.
+    ...(singlesOutAtTheCast(definition) && targets[0] !== undefined
+      ? { singledOut: targets[0] }
+      : {}),
     // And the choice as the pair a record keeps — see `choicePinned`.
     ...(pinned === undefined ? {} : { choice: pinned }),
     // And the branch, as the bare name: which effects a word runs is a lookup
@@ -2512,6 +2575,7 @@ function resolveOnTargets(
         effects: running,
         ...(origin === null ? {} : { from: origin }),
         ...(fought === undefined ? {} : { fought }),
+        ...(stated.inAStorm === undefined ? {} : { inAStorm: stated.inAStorm }),
         ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
         ...(willing === undefined ? {} : { willing }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -2759,6 +2823,25 @@ function resolveOnTargets(
                 ...(request.slotKind === undefined ? {} : { slotKind: request.slotKind }),
               }),
       route: routeLabel(route),
+      // **And whose hand carried it**, where the caster sent a familiar — SRD
+      // Find Familiar. The name is history on the event and the Reaction is a
+      // slot of the familiar's own turn, so both ride here and are spent in the
+      // casting's own batch: "it must take a Reaction to deliver the touch **when
+      // you cast the spell**" is one moment, and `deliveryProblem` above has
+      // already refused a Reaction that had gone.
+      ...(request.deliveredBy === undefined
+        ? {}
+        : {
+            deliveredBy: request.deliveredBy,
+            ...(state.combat?.budgets[request.deliveredBy] === undefined
+              ? {}
+              : {
+                  delivererReaction: {
+                    type: 'reaction-spent' as const,
+                    id: request.deliveredBy,
+                  },
+                }),
+          }),
       // The printed text the book leaves to whoever is running the table, on
       // its way to the event that records the casting. Rule 5: a handover is
       // something this command read from content, so an atomic casting pins it
@@ -2960,6 +3043,7 @@ function resolveOnTargets(
       ...(answeredChoice === undefined ? {} : { choice: answeredChoice }),
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
+      ...(stated.inAStorm === undefined ? {} : { inAStorm: stated.inAStorm }),
       ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
       ...(willing === undefined ? {} : { willing }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
@@ -3352,6 +3436,16 @@ export function resolveEffects(
      * cancels rather than stacks.
      */
     readonly fought?: readonly CharacterId[];
+    /**
+     * Whether the caster was outdoors in a storm when this casting was made.
+     *
+     * SRD Call Lightning's "the spell's damage increases by 1d10", and the
+     * casting's own answer is the whole of what decides it: the request's at the
+     * cast, the declaration's for one held open, and the **record's** for a bolt
+     * called down nine minutes later. Read by `scaledDiceFor` through
+     * `DiceScaling.plusInAStorm`, and by nothing else.
+     */
+    readonly inAStorm?: true;
     /** Where the orb leaps, in the caster's order — see `CastSpellRequest.leapTo`. */
     readonly leapTo?: readonly CharacterId[];
     /**
@@ -3503,6 +3597,7 @@ export function resolveEffects(
     ...(context.label === undefined ? {} : { label: context.label }),
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
+    ...(context.inAStorm === undefined ? {} : { inAStorm: context.inAStorm }),
     ...(context.leapTo === undefined ? {} : { leapTo: context.leapTo }),
     ...(context.willing === undefined ? {} : { willing: context.willing }),
     ...(context.altitude === undefined ? {} : { altitude: context.altitude }),
@@ -3516,7 +3611,7 @@ export function resolveEffects(
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
   if (!resolved.ok) return resolved;
-  const { numbers, outcomes, held, summoned } = resolved.value;
+  const { numbers, outcomes, held, summoned, resisted } = resolved.value;
 
   // The live half of the casting, now that it is known what the casting
   // actually caught. See `OngoingSpell` for why each field is there.
@@ -3611,6 +3706,14 @@ export function resolveEffects(
         // the opposite polarity, pinned beside it. See `OngoingSpell.chosen`.
         ...(becomes.chosen === undefined ? {} : { chosen: becomes.chosen }),
         ...(becomes.damageType === undefined ? {} : { damageType: becomes.damageType }),
+        // **And the weather, which is the first fact pinned here that is about
+        // the world rather than about a creature.** SRD Call Lightning's storm
+        // was true when the cloud rose and the bolts it calls down nine minutes
+        // later read it off this record rather than asking again — the same
+        // reason every other stated fact is here.
+        ...(becomes.inAStorm === undefined ? {} : { inAStorm: becomes.inAStorm }),
+        // And the creature the spell picked out — see `OngoingSpell.singledOut`.
+        ...(becomes.singledOut === undefined ? {} : { singledOut: becomes.singledOut }),
         // The casting this one turns aside, pinned at the cast — see
         // `OngoingSpell.negates`.
         ...(becomes.negates === undefined ? {} : { negates: becomes.negates }),
@@ -3649,6 +3752,23 @@ export function resolveEffects(
   // the same words for a DM binding a creature by hand.
   if (becomes !== undefined && summoned.length > 0) {
     events.push(...bindSummonsToCasting(summoned, casterId, castingId));
+  }
+
+  // **The casting its own saving throw ended, released below the record it
+  // leaves.** SRD Detect Thoughts and SRD Phantasmal Force: "On a successful
+  // save, the spell ends." The record is written first because the fold refuses
+  // a `spell-ended` for a casting it has not seen, and because the slot, the
+  // Concentration and the deadline have all already gone out — so the honest log
+  // is the spell taking hold and then being shrugged off, which is the order
+  // Ensnaring Strike's `resisted` ending already reads in.
+  //
+  // `resisted` names the casting rather than being a flag, because a run that
+  // ends a casting is always ending *this* one: `resolveSaveEffect` reads it off
+  // its own context. A run reached through an activation has no record to write
+  // and the ending goes out on its own, which is what Detect Thoughts' probe
+  // does.
+  for (const ended of resisted) {
+    events.push({ type: 'spell-ended', castingId: ended, on: null, reason: 'resisted' });
   }
 
   // **After the record, because the patch may hang on it.** The fold does not
@@ -3737,6 +3857,8 @@ export interface EffectRun {
   readonly label?: string;
   readonly from?: Point;
   readonly fought?: readonly CharacterId[];
+  /** Whether the caster was outdoors in a storm — see `CastSpellRequest.inAStorm`. */
+  readonly inAStorm?: true;
   readonly leapTo?: readonly CharacterId[];
   readonly willing?: readonly CharacterId[];
   readonly altitude?: number;
@@ -3791,6 +3913,16 @@ export interface EffectRunOutcome {
    * and the fold refuses a `creature-summoned` that arrives before it.
    */
   readonly summoned: readonly CharacterId[];
+  /**
+   * The castings a **successful saving throw** of this run ended — see
+   * `EffectContext.resisted`.
+   *
+   * Returned rather than released inside the run for the reason the summons
+   * above is returned rather than bound: the record the ending releases is
+   * written after the effects resolve, and the fold refuses a `spell-ended` that
+   * arrives before it.
+   */
+  readonly resisted: readonly string[];
 }
 
 /**
@@ -3974,6 +4106,10 @@ export function runEffects(
   // What it put into the world, for the caller to bind once its record exists
   // — see `EffectContext.summoned`.
   const summoned: CharacterId[] = [];
+  // Castings a successful saving throw of this run ended — see
+  // `EffectContext.resisted`. Collected rather than written, because the record
+  // a casting releases is written after its effects have run.
+  const resisted: string[] = [];
   const issuedBefore = supply.issuer.count;
 
   // **Derived once, at the casting, and read from the record ever after.**
@@ -4028,10 +4164,12 @@ export function runEffects(
     outcomes,
     held,
     summoned,
+    resisted,
     leapt: [],
     alters: run.alters ?? NO_ALTERATIONS(),
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
+    ...(run.inAStorm === undefined ? {} : { inAStorm: run.inAStorm }),
     ...(run.leapTo === undefined ? {} : { leapTo: run.leapTo }),
     ...(run.willing === undefined ? {} : { willing: run.willing }),
     ...(run.altitude === undefined ? {} : { altitude: run.altitude }),
@@ -4098,7 +4236,7 @@ export function runEffects(
     });
   }
 
-  return ok({ state: current, numbers, outcomes, held, summoned });
+  return ok({ state: current, numbers, outcomes, held, summoned, resisted });
 }
 
 /**
@@ -4218,6 +4356,10 @@ interface OngoingRecordPlan {
   readonly types?: readonly string[];
   /** The spaces a wall runs through, for the one template that is drawn — see `OngoingSpell.path`. */
   readonly path?: readonly Point[];
+  /** Whether the caster said they were outdoors in a storm — see `OngoingSpell.inAStorm`. */
+  readonly inAStorm?: true;
+  /** The one creature the cast singled out — see `OngoingSpell.singledOut`. */
+  readonly singledOut?: string;
 }
 
 /**
@@ -4254,6 +4396,7 @@ function statedFacts(
     readonly unaffected?: readonly CharacterId[];
     readonly chosen?: readonly CharacterId[];
     readonly types?: readonly string[];
+    readonly inAStorm?: true;
   },
   /**
    * Whose casting this is, for the one fact that names them without being
@@ -4276,6 +4419,7 @@ function statedFacts(
   readonly unaffected?: readonly CharacterId[];
   readonly chosen?: readonly CharacterId[];
   readonly types?: readonly string[];
+  readonly inAStorm?: true;
 } {
   return {
     ...(stated.unaffected === undefined || stated.unaffected.length === 0
@@ -4294,6 +4438,12 @@ function statedFacts(
       return chosen === undefined ? {} : { chosen };
     })(),
     ...(stated.damageType === undefined ? {} : { damageType: stated.damageType }),
+    // The weather the caster stated, carried as given and idempotent for the
+    // reason everything here is: `true` or absent, and `declaredFacts` has
+    // already refused it on a spell that prints no such clause. SRD Call
+    // Lightning's storm is a fact about the world at the moment the cloud rose,
+    // so it is pinned rather than asked again nine minutes later.
+    ...(stated.inAStorm === true ? { inAStorm: true as const } : {}),
   };
 }
 
@@ -4400,6 +4550,77 @@ function withInsideAtTheCast(state: GameState, casting: OngoingSpell): OngoingSp
   const inside = creaturesStandingInCastingArea(state.scene, casting);
   if (inside === null) return casting;
   return { ...casting, insideAtTheCast: [...inside].sort() };
+}
+
+/**
+ * Whether a casting may be carried by the hand it named — SRD Find Familiar's
+ * delivered touch, or null where it is legal.
+ *
+ * > "when you cast a spell with a range of touch, your familiar can deliver the
+ * > touch. Your familiar must be within 100 feet of you, and it must take a
+ * > Reaction to deliver the touch when you cast the spell."
+ *
+ * **Four refusals and every one of them before a slot is spent**, which is why
+ * this is asked in the pre-flight beside the weapon's and the form's rather than
+ * at the target loop: a Reaction the familiar cannot pay must cost it nothing.
+ *
+ * **The permission is the spell that made the creature.** `KeptBond.delivers`
+ * is written at the binding off `KeptSummons.delivers`, which Find Familiar's
+ * definition prints and Find Steed's does not — so the engine compares a flag
+ * on a bond and names no spell, and a paladin's steed may not carry a Cure
+ * Wounds. It is the summoner's own creature or nobody's, because "**your**
+ * familiar" is what the sentence says.
+ *
+ * What it does *not* touch is whose casting this is: the slot, the Action, the
+ * save DC and the dice are the caster's throughout. The one thing that moves is
+ * the square the Touch is measured from, and `namedTargets` reads the request
+ * for it.
+ */
+function deliveryProblem(
+  state: GameState,
+  casterId: CharacterId,
+  definition: SpellDefinition,
+  request: CastSpellRequest,
+): Err | null {
+  const deliverer = request.deliveredBy;
+  if (deliverer === undefined) return null;
+  if (definition.range.kind !== 'touch') {
+    return err(
+      'not_a_touch',
+      `${definition.name} is not cast with a range of touch, so there is no touch for ${deliverer} to deliver`,
+    );
+  }
+  const carrier = creatureOf(state, deliverer);
+  if (carrier === null) {
+    return err('cannot_deliver', `${deliverer} is not a creature this table holds`);
+  }
+  const bond = carrier.summonedBy;
+  const allowed = bond !== null && bond.by === casterId ? bond.kept?.delivers : undefined;
+  if (allowed === undefined) {
+    return err(
+      'cannot_deliver',
+      `${deliverer} is not a creature ${casterId} keeps that may deliver a touch`,
+    );
+  }
+  if (state.scene !== null) {
+    const apart = distanceBetween(state.scene, casterId, deliverer);
+    if (apart.ok && apart.value > allowed.within) {
+      return err(
+        'deliverer_too_far',
+        `${deliverer} delivers a touch while it is within ${allowed.within} feet of ${casterId}, and it is ${apart.value} away`,
+      );
+    }
+  }
+  // "it must take a Reaction to deliver the touch". Outside combat there is no
+  // economy to spend, exactly as there is none for the caster's own Action.
+  const budget = state.combat?.budgets[deliverer];
+  if (budget !== undefined && !budget.reaction) {
+    return err(
+      'no_reaction',
+      `${deliverer} has spent its Reaction and cannot deliver ${definition.name}`,
+    );
+  }
+  return null;
 }
 
 /**

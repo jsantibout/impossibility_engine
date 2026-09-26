@@ -674,31 +674,46 @@ describe('the shape stops where the SRD stops being expressible', () => {
   // way**, and for a reason that was never about the check either: its area
   // has to spare the caster, and `notTheCaster` is what it was waiting for.
   // Its Athletics escape is asserted end to end in `filtered-catch.test.ts`.
-  it.each([['maze'], ['phantasmal-force']])('has not quietly implemented %s', (spellId) => {
+  // **And Phantasmal Force has left this list too, by being built.** The
+  // `end-casting` its check now carries is the sentence the book prints, and what
+  // had kept the spell undefined was never the check: it was a payout owed at the
+  // caster's own boundary, which `AreaTrigger.at: 'start-of-casters-turn'` is.
+  // Maze is the one left, and what blocks it is a demiplane the engine has no
+  // position for rather than anything about a check.
+  it.each([['maze']])('has not quietly implemented %s', (spellId) => {
     expect(SRD_CONTENT.spell(spellId)).toBeNull();
   });
 
   /**
-   * **Detect Thoughts left that list by being written, not by being built**,
-   * and the distinction is the whole of what this guard is about.
+   * **Detect Thoughts has now left that list twice over**: first by being
+   * written as a tracked definition, and now by being built.
    *
    * The magic items waiting on it — a Medallion of Thoughts, a Crystal Ball of
-   * Mind Reading — needed a *definition*, and a tracked one spends the slot,
-   * takes the Action, holds the Concentration and runs the minute without
-   * resolving anything. So the claim is no longer that the spell is absent: it
-   * is that the spell offers **no check**, which is the same claim made where
-   * it can now be checked. An approximation would be a `check` carrying
-   * `end-on-target`, quietly ending the probe on its target instead of ending
-   * the casting the SRD says it ends.
+   * Mind Reading — needed a *definition*, and a tracked one spent the slot, took
+   * the Action, held the Concentration and ran the minute without resolving
+   * anything; the claim the guard then made was that the spell offered **no
+   * check**, because an approximation would have been one carrying
+   * `end-on-target` and quietly ending the probe on its target instead of
+   * ending the casting the SRD says it ends.
+   *
+   * What it carries now is the sentence itself: `end-casting`, narrowed to the
+   * creature the probe named by `attemptBy: 'singled-out'`. So this asserts the
+   * *unapproximated* shape rather than the absence of one — the outcome the book
+   * prints, and the attempter the book names.
    */
-  it('defines Detect Thoughts and offers no check on it', () => {
+  it('offers the probed creature’s own check, ending the casting on a success', () => {
     const definition = SRD_CONTENT.spell('detect-thoughts');
     expect(definition).not.toBeNull();
-    expect(definition?.check).toBeUndefined();
-    expect(definition?.effects).toEqual([]);
-    expect(
-      (definition?.unmodelled ?? []).some((note) => note.includes('Intelligence (Arcana) check')),
-    ).toBe(true);
+    expect(definition?.check).toEqual({
+      ability: 'int',
+      skill: 'arcana',
+      onSuccess: 'end-casting',
+      attemptBy: 'singled-out',
+    });
+    // And the probe that names the mind, which is what the pin is read off.
+    expect(definition?.activation?.effects).toEqual([
+      { kind: 'save', ability: 'wis', onSuccess: 'end-casting' },
+    ]);
   });
 
   /** No definition claims an outcome the engine cannot carry out. */

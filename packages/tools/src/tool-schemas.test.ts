@@ -306,10 +306,15 @@ describe('toolSchemas', () => {
     // recipient elsewhere, a fact and never a number). One tool and the same
     // bytes on each; the lengths sum with whatever the other tracks of this
     // wave moved.
+    // Re-pinned for the activations track (W7-S18), on both doors at once and
+    // with no new tool: `activate_spell.at` (a template drawn again at a
+    // stated point — SRD Call Lightning), `cast_spell.inAStorm` (the first
+    // stated fact about the world), `cast_spell.deliveredBy` (SRD Find
+    // Familiar's touch) and `move.also_moves` (SRD Conjure Animals' pack).
     expect(toolSchemas(player())).toHaveLength(93);
     expect(toolSchemas(dm())).toHaveLength(120);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(144812);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(189985);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(147836);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(193009);
   });
 });
 

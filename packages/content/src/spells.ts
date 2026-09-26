@@ -1981,6 +1981,106 @@ export const BLACK_TENTACLES: SpellDefinition = {
 };
 
 /**
+ * SRD Phantasmal Force:
+ *
+ * > _Level 2 Illusion (Bard, Sorcerer, Wizard)._ **Casting Time:** Action.
+ * > **Range:** 60 feet. **Duration:** Concentration, up to 1 minute.
+ * > "You attempt to craft an illusion in the mind of a creature you can see
+ * > within range. The target makes an Intelligence saving throw. On a failed
+ * > save, you create a phantasmal object, creature, or other phenomenon that is
+ * > no larger than a 10-foot Cube and that is perceivable only to the target for
+ * > the duration." / "The target can take a Study action to examine the phantasm
+ * > with an Intelligence (Investigation) check against your spell save DC. If the
+ * > check succeeds, the target realizes that the phantasm is an illusion, and the
+ * > spell ends." / "On each of your turns, such a phantasm can deal 2d8 Psychic
+ * > damage to the target if it is in the phantasm's area or within 5 feet of the
+ * > phantasm."
+ *
+ * **Three filed blockers and only one of them was still real.** The check whose
+ * success ends the casting had been built for Ensnaring Strike, and the reach
+ * measured from a point for Flaming Sphere. What nothing could say was a payout
+ * owed at the **caster's** own boundary: every other clause an area prints fires
+ * at a boundary belonging to whoever is caught. `AreaTrigger.at:
+ * 'start-of-casters-turn'` is that moment and `onlyTarget` is its population —
+ * the phantasm is "perceivable only to the target", so it pays out on the one
+ * creature the casting singled out and on nobody standing beside them.
+ *
+ * **The phantasm is a place, and the Cube is what it looks like.** The book never
+ * says where the phantasm stands, and it never makes the Cube catch anybody: "no
+ * larger than a 10-foot Cube" is a bound on the illusion, and the clause that
+ * reaches a creature is "in the phantasm's area **or within 5 feet of the
+ * phantasm**". So the template is the space the phantasm occupies — a radius of
+ * nothing, exactly as SRD Conjure Animals' pack is — and `AreaTrigger.within: 5`
+ * is the whole of the sentence, measured from that space. The ten feet of Cube go
+ * to the table with the sound and the temperature, which is where the rest of what
+ * the phantasm *is* already goes.
+ *
+ * The rationalising, what the target perceives the damage as, and the phantasm's
+ * own appearance are handed to the table whole.
+ */
+export const PHANTASMAL_FORCE: SpellDefinition = {
+  id: 'phantasmal-force',
+  name: 'Phantasmal Force',
+  level: 2,
+  school: 'illusion',
+  castingTime: 'action',
+  concentration: true,
+  // "a creature you can see within range"
+  range: { kind: 'ranged', feet: 60 },
+  // "a creature you can see within range", read through the place the phantasm
+  // takes: the caster puts the illusion in a space within range and names the one
+  // creature standing there whose mind it is in — SRD's "each creature of your
+  // choice in the area" narrowed to one, which is the only way a spell may both
+  // take a place and name a creature.
+  targets: { count: 1, chosenFromTheArea: true },
+  requiresSight: true,
+  // The space the phantasm stands in. The book never places it and never makes
+  // its Cube catch anybody; what reaches a creature is the five feet below.
+  area: { kind: 'sphere', radius: 0, origin: 'point' },
+  effects: [
+    {
+      kind: 'save',
+      ability: 'int',
+      // "On a failed save, you create a phantasmal object" — so a success leaves
+      // nothing at all, which is the spell ending.
+      onSuccess: 'end-casting',
+    },
+  ],
+  // "On each of your turns, such a phantasm can deal 2d8 Psychic damage to the
+  // target if it is in the phantasm's area or within 5 feet of the phantasm."
+  areaTrigger: {
+    at: 'start-of-casters-turn',
+    within: 5,
+    onlyTarget: true,
+    label: 'Phantasmal Force (the phantasm)',
+    effects: [
+      { kind: 'auto-damage', damage: { dice: '2d8' }, damageType: 'psychic' },
+    ],
+  },
+  // "The target can take a Study action to examine the phantasm with an
+  // Intelligence (Investigation) check against your spell save DC. If the check
+  // succeeds, the target realizes that the phantasm is an illusion, and the
+  // spell ends."
+  check: {
+    ability: 'int',
+    skill: 'investigation',
+    onSuccess: 'end-casting',
+    attemptBy: 'singled-out',
+  },
+  durationSeconds: 60,
+  dmDecides: [
+    'The phantasm includes sound, temperature, and other stimuli.',
+    'While affected by the spell, the target treats the phantasm as if it were real and rationalizes any illogical outcomes from interacting with it.',
+    'For example, if the target steps through a phantasmal bridge and survives the fall, it believes the bridge exists and something else caused it to fall.',
+    'An affected target can even take damage from the illusion if the phantasm represents a dangerous creature or hazard.',
+    'The target perceives the damage as a type appropriate to the illusion.',
+  ],
+  unmodelled: [
+    'where the phantasm stands is not the caster’s to choose: the engine puts it in the space of the creature whose mind it is in, because a casting fills a place or names a creature and never both, so a wolf conjured beside its target rather than on it is a casting this engine refuses — which of two answers is right is a ruling nobody has taken',
+  ],
+};
+
+/**
  * SRD Phantasmal Killer:
  *
  * > _Level 4 Illusion (Bard, Wizard)._ **Casting Time:** Action. **Range:**
@@ -7409,13 +7509,42 @@ export const DETECT_THOUGHTS: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
+  // The spell listens; nothing happens to anybody until the probe is taken.
   effects: [],
+  // "As a Magic action on your next turn, you can try to probe deeper into the
+  // target's mind. If you probe deeper, the target makes a Wisdom saving throw."
+  // Thirty feet, which is the reach the spell's own two options print.
+  activation: {
+    action: 'action',
+    range: { kind: 'ranged', feet: 30 },
+    label: 'Detect Thoughts (probing deeper)',
+    effects: [
+      {
+        kind: 'save',
+        ability: 'wis',
+        // "On a successful save, the spell ends." What a failure buys is the
+        // caster's knowledge, which is handed over below.
+        onSuccess: 'end-casting',
+      },
+    ],
+  },
+  // "the target can take an action on its turn to make an Intelligence (Arcana)
+  // check against your spell save DC, ending the spell on a success" — offered
+  // to the creature the probe named and to nobody else.
+  check: {
+    ability: 'int',
+    skill: 'arcana',
+    onSuccess: 'end-casting',
+    attemptBy: 'singled-out',
+  },
   durationSeconds: 60,
+  dmDecides: [
+    "On a failed save, you discern the target's reasoning, emotions, and something that looms large in its mind (such as a worry, love, or hate).",
+  ],
   unmodelled: [
     'Sense Thoughts is the DM’s: which thinking creatures are within 30 feet, and the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — are facts about a room',
     'Read Thoughts is the DM’s: "You learn what is most on the target’s mind right now" is information rather than state',
-    'the deeper probe is not run: "As a Magic action on your next turn, you can try to probe deeper into the target’s mind. If you probe deeper, the target makes a Wisdom saving throw" is an activation that forces a saving throw, and every registered activation resolves an attack or moves an area instead',
-    'the target’s escape is not offered: "the target can take an action on its turn to make an Intelligence (Arcana) check against your spell save DC, ending the spell on a success" is a check made by somebody the casting holds nothing on, and whose success ends the casting — an outcome `SpellCheck` deliberately has no member for, naming this spell',
+    'and which of the two options a Magic action turns on is the DM’s too: the probe is the one of them the engine resolves, and the spell prints "you can activate either effect as a Magic action on your later turns"',
   ],
 };
 
@@ -11844,13 +11973,32 @@ export const DRAGONS_BREATH: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, self: true, willing: true },
+  // "choose Acid, Cold, Fire, Lightning, or Poison": stated at the touch,
+  // pinned on the record, and read by the Cone every later turn.
+  damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'poison'],
+  // Nothing happens at the touch; the Cone is what the later action breathes.
   effects: [],
+  // "Until the spell ends, **the target** can take a Magic action to exhale a
+  // 15-foot Cone." The one action in the book its caster may not take.
+  activation: {
+    action: 'action',
+    by: 'target',
+    label: "Dragon's Breath (the Cone)",
+    area: { kind: 'cone', length: 15, origin: 'self' },
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        // "3d6 damage of the chosen type on a failed save or half as much
+        // damage on a successful one"; "increases by 1d6 for each spell slot
+        // level above 2".
+        damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
+        damageType: 'acid',
+        onSuccess: 'half',
+      },
+    ],
+  },
   durationSeconds: 60,
-  unmodelled: [
-    'nobody exhales: the Magic action that breathes the Cone is taken by the creature the caster touched, and a spell’s later action is the caster’s — nobody else may act through a casting',
-    'so the 15-foot Cone is never resolved either, and with it the Dexterity saving throw and the 3d6 of the chosen type, half as much on a success, growing by 1d6 for each slot level above 2',
-    'which of Acid, Cold, Fire, Lightning or Poison was chosen is not recorded, because there is nothing left for the choice to type',
-  ],
 };
 
 /**
@@ -13919,13 +14067,16 @@ export const FIND_FAMILIAR: SpellDefinition = {
       // pocket dimension … cause it to reappear in an unoccupied space within
       // 30 feet of you." The pocket is pinned on the bond, and
       // `dismissKeptSummons` / `recallKeptSummons` are the two doors.
-      kept: { pocket: { within: 30 } },
+      // "Your familiar must be within 100 feet of you, and it must take a
+      // Reaction to deliver the touch when you cast the spell." The permission
+      // and the distance are the spell's own sentence, so they are pinned on the
+      // bond and `cast_spell.deliveredBy` reads them.
+      kept: { pocket: { within: 30 }, delivers: { within: 100 } },
       cannotAttack: true,
     },
   ],
   unmodelled: [
     'seeing through the familiar’s eyes and hearing what it hears as a Bonus Action, with the benefits of any special senses it has, is not granted: sight here is a pairwise declaration, and one creature borrowing another’s senses has no state to sit in',
-    'the familiar delivering a touch spell — "your familiar can deliver the touch" — is not offered, and neither is the Reaction it must take to do so: a casting is acted through by its caster, and a second creature spending its own Reaction to deliver another’s spell has no field',
     'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
     'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
   ],
@@ -14171,13 +14322,43 @@ export const CALL_LIGHTNING: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 120 },
   targets: { count: 0 },
-  effects: [],
+  // "Each creature within 5 feet of that point": the bolt's own template. One
+  // template and one number, placed at the cast and drawn again by every later
+  // Magic action — see the activation below.
+  area: { kind: 'sphere', radius: 5, origin: 'point' },
+  // "If you're outdoors in a storm when you cast this spell ... the spell's
+  // damage increases by 1d10." The caster's word, because the engine holds no
+  // weather; pinned on the record, so the bolts after the first know it too.
+  stormStated: true,
+  effects: [
+    {
+      kind: 'save-damage',
+      ability: 'dex',
+      // "taking 3d10 Lightning damage on a failed save or half as much damage
+      // on a successful one"; "increases by 1d10 for each spell slot level
+      // above 3"; and the storm's own die beside them.
+      damage: { dice: '3d10', perSlotLevelAbove: '1d10', plusInAStorm: '1d10' },
+      damageType: 'lightning',
+      onSuccess: 'half',
+    },
+  ],
+  // "Until the spell ends, you can take a Magic action to call down lightning
+  // in that way again, targeting the same point or a different one."
+  activation: {
+    action: 'action',
+    label: 'Call Lightning (another bolt)',
+    // "targeting the same point or a different one", where a point is one the
+    // caster "can see under the cloud" — the 60-foot radius the cloud prints,
+    // measured from the cloud, which rose above the caster's own square and stays
+    // there however far off the bolts fall.
+    redrawsArea: 60,
+    effects: [],
+  },
   durationSeconds: 600,
-  unmodelled: [
-    'no lightning falls: the spell is a Magic action taken on later turns that resolves a five-foot area at a point chosen then, and an activation calls a saving throw on a target rather than laying down a fresh template',
-    'so the Dexterity save and the 3d10 Lightning, half on a success, are not resolved at the casting either — the first bolt is the same activation taken immediately, and writing only that one would be a different spell',
-    'the extra 1d10 for being outdoors in a storm is not applied: whether the weather is doing that is a fact the engine does not hold and cannot derive',
-    'the ten-minute cloud, its 60-foot radius and the 10 feet of its height are the DM’s',
+  dmDecides: [
+    'A storm cloud appears at a point within range that you can see above yourself.',
+    'It takes the shape of a Cylinder that is 10 feet tall with a 60-foot radius.',
+    "If you're outdoors in a storm when you cast this spell, the spell gives you control over that storm instead of creating a new one.",
   ],
 };
 
@@ -14206,13 +14387,51 @@ export const CONJURE_ANIMALS: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
+  // "a Large pack of spectral, intangible animals in an unoccupied space you can
+  // see within range": the pack is a place the casting keeps rather than a
+  // creature, and every clause the spell prints is measured from it. A radius of
+  // nothing is the space it stands in; the ten feet and the five are the two
+  // reaches the sentences print, and each is measured from this point.
+  area: { kind: 'sphere', radius: 0, origin: 'point' },
+  // "when you move on your turn, you can also move the pack up to 30 feet"
+  areaMovesWithCaster: 30,
+  // "You have Advantage on Strength saving throws while you're within 5 feet of
+  // the pack" — the caster's own die, and Strength alone.
+  areaStanding: [{ kind: 'save-mode', mode: 'advantage', ability: 'str', within: 5, onlyCaster: true }],
+  // Nothing happens at the casting: the pack simply appears.
   effects: [],
+  // "Whenever the pack moves within 10 feet of a creature you can see and
+  // whenever a creature you can see enters a space within 10 feet of the pack or
+  // ends its turn there, you can force that creature to make a Dexterity saving
+  // throw. On a failed save, the creature takes 3d10 Slashing damage. A creature
+  // makes this save only once per turn."
+  areaTrigger: {
+    at: 'end-of-turn',
+    onEntry: 'every-entry',
+    onAreaEntry: true,
+    within: 10,
+    oncePerTurn: true,
+    label: 'Conjure Animals (the pack)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        // "increases by 1d10 for each spell slot level above 3"
+        damage: { dice: '3d10', perSlotLevelAbove: '1d10' },
+        damageType: 'slashing',
+        // The book gives a successful save nothing at all: no half.
+        onSuccess: 'none',
+      },
+    ],
+  },
   durationSeconds: 600,
+  dmDecides: [
+    "You conjure nature spirits that appear as a Large pack of spectral, intangible animals in an unoccupied space you can see within range.",
+    "The pack lasts for the duration, and you choose the spirits' animal form, such as wolves, serpents, or birds.",
+  ],
   unmodelled: [
-    'the pack is not in the scene: an area a caster may move up to thirty feet whenever they move is an area that follows its caster, and a casting pins its template where it was put',
-    'so the Dexterity save it forces on whoever it reaches, and the 3d10 Slashing on a failure, are not resolved — nor is the once-per-turn cap on that save',
-    'the Advantage on Strength saving throws within five feet of the pack is not granted: a benefit that holds while you stand somewhere is derived from where you stand, and only a feature derives one',
-    'and the extra 1d10 a slot above 3 buys goes with the damage it would have scaled',
+    'the caster’s sight of whoever the pack reaches is not read at the boundary: "a creature you can see" gates each of the three clauses, and an area trigger catches whoever the geometry catches',
+    'and "you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces: a trigger the caster may decline has no word, so the save is rolled and a pack that held back is the table’s to narrate',
   ],
 };
 
@@ -16144,6 +16363,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   NONDETECTION,
   PASS_WITHOUT_TRACE,
   PASSWALL,
+  PHANTASMAL_FORCE,
   PHANTASMAL_KILLER,
   PHANTOM_STEED,
   PLANAR_ALLY,

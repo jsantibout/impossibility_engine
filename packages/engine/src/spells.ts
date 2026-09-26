@@ -718,6 +718,81 @@ export interface OngoingSpell {
    */
   readonly endsAfterTrigger?: true;
   /**
+   * The caster said at the casting that they were outdoors in a storm — SRD
+   * Call Lightning.
+   *
+   * > "If you're outdoors in a storm when you cast this spell, the spell gives
+   * > you control over that storm instead of creating a new one. Under such
+   * > conditions, the spell's damage increases by 1d10."
+   *
+   * **The first fact pinned on this record that is about the world rather than
+   * about a creature.** The engine holds no weather and nothing to infer one
+   * from, so the caster's word is the whole of the answer — and the word was
+   * spoken when the cloud rose, which is why it is written down here instead of
+   * being asked again: a bolt called down nine minutes later falls in the storm
+   * the spell took hold of, whatever the sky has done since.
+   *
+   * `DiceScaling.plusInAStorm` is the one reader, through `scaledDiceFor`.
+   * Absent on every other casting in the book, which is every casting that was
+   * never asked.
+   */
+  readonly inAStorm?: true;
+  /**
+   * The one creature this casting picked out, where neither the world nor
+   * {@link aimed} can say who it was.
+   *
+   * > SRD Detect Thoughts: "As a Magic action on your next turn, you can try to
+   * > probe deeper into the target's mind. ... until you shift your attention
+   * > away from the target's mind, **the target** can take an action on its turn
+   * > to make an Intelligence (Arcana) check against your spell save DC."
+   * > SRD Phantasmal Force: "a phantasmal object ... that is **perceivable only
+   * > to the target** for the duration. ... **The target** can take a Study
+   * > action to examine the phantasm."
+   *
+   * **Not {@link aimed}, and the two spells are outside it for two different
+   * reasons.** That field is what the **cast** declared, minus whatever the
+   * casting is holding in the world. Detect Thoughts is Range: Self and names
+   * the mind at a *later action*, so the cast declared nobody; Phantasmal Force
+   * names its creature at the cast and that creature *rolled a saving throw*,
+   * which takes it off `aimed` by the rule that field keeps — an outcome is a
+   * fact the log already holds. Either way there was nowhere for the name to be,
+   * and the check the book offers had nobody to be narrowed to, which is the
+   * whole of what `a-check-another-creature-may-attempt` was.
+   *
+   * **Two writers, one field.** A casting pins it at the cast where the spell
+   * singles out its target then, and `spell-activated` pins it where a later
+   * action does — that event had changed no state until this. Replaced rather
+   * than joined, because both sentences are about one creature: "you shift your
+   * attention away from the target's mind" is not a thing that happens to two.
+   *
+   * `SpellCheck.attemptBy: 'singled-out'` and `AreaTrigger.onlyTarget` are the
+   * readers. Absent on every other casting in the book, and on one whose later
+   * action has not been taken yet.
+   */
+  readonly singledOut?: string;
+  /**
+   * The turn this casting's point last moved on, counted as the fight counts
+   * turns, or absent for one that has never moved or moved outside a fight.
+   *
+   * **The one thing "once per move" could not say.** SRD Conjure Animals: "**when
+   * you move on your turn**, you can also move the pack up to 30 feet." A rider on
+   * one command is once per command, and a creature may break its thirty feet into
+   * six commands of five — so without this a druid walks the pack a hundred and
+   * eighty feet a round, one carry at a time, each of them legal on its own.
+   *
+   * **A turn rather than a count**, which is how every other once-per-turn rule in
+   * this engine is written: `areaTriggers` stamps the turn a creature was caught
+   * on, and a stamp is what survives a replay without anything having to be reset
+   * at a boundary. Outside combat there is no turn to stamp and nothing is capped,
+   * which is the reading the one-slot-per-turn rule and every once-per-turn feature
+   * already take.
+   *
+   * Written by the fold on `spell-origin-moved`, so a beam an activation walks
+   * stamps it too — harmless, because an action is its own cap and Moonbeam's move
+   * *is* the action. `carryAreaWithMover` is the one reader.
+   */
+  readonly movedOnTurn?: number;
+  /**
    * Somebody other than the caster may end this casting, and pays for it —
    * SRD Gaseous Form's "if it takes a Magic action to end the spell on
    * itself".

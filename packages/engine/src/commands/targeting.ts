@@ -539,6 +539,50 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Whether the caster is outdoors in a storm, for the one spell that asks.
+   *
+   * SRD Call Lightning: "If you're outdoors in a storm when you cast this
+   * spell, the spell gives you control over that storm instead of creating a
+   * new one. Under such conditions, the spell's damage increases by 1d10."
+   *
+   * The twelfth fact a casting states rather than derives, and it is the first
+   * that is about **the world** rather than about a creature: the engine holds
+   * no weather and nothing to infer one from, so the layer that reads the
+   * fiction says. Refused on a spell that prints no such clause
+   * (`storm_states_nothing`), pinned on the record, and read by the dice ten
+   * minutes later.
+   *
+   * **Not required**, which is where it follows {@link willing} rather than
+   * {@link fought}: absence is "no storm", the book's own default, because the
+   * spell's first sentence makes a cloud of its own and the storm is the
+   * exception to it.
+   */
+  readonly inAStorm?: true;
+  /**
+   * The creature whose hand carries a Touch casting — SRD Find Familiar.
+   *
+   * > "when you cast a spell with a range of touch, your familiar can deliver
+   * > the touch. Your familiar must be within 100 feet of you, and it must take
+   * > a Reaction to deliver the touch when you cast the spell."
+   *
+   * **The one sentence in the book that lets a second creature carry somebody
+   * else's casting, and it is not an activation.** The spell is cast now, by its
+   * caster, off its caster's sheet and out of its caster's slot; what moves is
+   * the hand the Touch is measured from. So this is a stated fact on the *cast*
+   * rather than a later action, and everything it changes is one distance.
+   *
+   * The thirteenth fact a casting states rather than derives, in the shape of the
+   * twelve before it: **refused** for a spell whose Range is not Touch
+   * (`not_a_touch`), for a creature the book gives no such permission
+   * (`cannot_deliver` — read off `KeptBond.delivers`, which Find Familiar's own
+   * definition writes and Find Steed's does not), for one beyond the distance
+   * that permission prints (`deliverer_too_far`), and for one whose Reaction has
+   * already gone (`no_reaction`) — all four before a slot is spent. The Reaction
+   * then goes inside the casting's own batch, and the target's reach is measured
+   * from the deliverer's square.
+   */
+  readonly deliveredBy?: CharacterId;
+  /**
    * Where the orb goes when its dice pair, **in order** — SRD Chromatic Orb's
    * "the orb leaps to a different target of your choice within 30 feet of the
    * target".
@@ -1305,6 +1349,23 @@ export function declaredFacts(
     return err(
       'no_fought_clause',
       `${definition.name} does not change its save for a creature you are fighting; which of them you are fighting is not a fact it asks for`,
+    );
+  }
+
+  // — the weather, which is the first fact here that is about the world ——————
+  //
+  // SRD Call Lightning: "If you're outdoors in a storm when you cast this
+  // spell ... the spell's damage increases by 1d10." The engine holds no sky
+  // and nothing to infer one from, so the layer that reads the fiction says.
+  //
+  // **Refused where the spell prints no such clause and never required where
+  // it does**, which is `willing`'s shape rather than `fought`'s: the spell's
+  // own first sentence makes a cloud, and the storm is the exception to it, so
+  // silence is the book's own answer rather than a fact nobody supplied.
+  if (request.inAStorm !== undefined && definition.stormStated !== true) {
+    return err(
+      'storm_states_nothing',
+      `${definition.name} does not change for the weather; whether you are outdoors in a storm is not a fact it asks for`,
     );
   }
 
@@ -2685,7 +2746,14 @@ export function namedTargets(
           );
         }
       } else if (!self) {
-        const apart = distanceBetween(state.scene, casterId, target);
+        // **From the hand that carries it.** SRD Find Familiar: "your familiar
+        // can deliver the touch" — the spell's Range is unchanged and so is
+        // whose spell it is; what moves is the square the five feet is measured
+        // from. `declaredFacts` has already refused a deliverer the book does
+        // not allow, one too far from its summoner and one whose Reaction has
+        // gone, so by here the only question left is the ordinary one.
+        const reaching = request.deliveredBy ?? casterId;
+        const apart = distanceBetween(state.scene, reaching, target);
         if (!apart.ok) {
           // A creature that is **elsewhere** is a settled fact rather than a
           // missing one: the geometry refuses `not_here`, nobody can place it,
@@ -2701,14 +2769,19 @@ export function namedTargets(
         } else if (apart.value > reach) {
           return err(
             'out_of_range',
-            `${definition.name} reaches ${reach} feet; ${target} is ${apart.value} away`,
+            `${definition.name} reaches ${reach} feet${reaching === casterId ? '' : ` from ${reaching}`}; ${target} is ${apart.value} away`,
           );
         }
       }
 
       // SRD: "To target something with a spell, a caster must have a clear
-      // path to it, so it can't be behind Total Cover."
-      if (!self && coverBetween(state.scene, casterId, target) === 'total') {
+      // path to it, so it can't be behind Total Cover." Asked of the hand that
+      // carries it, for the reason the distance above is: the path a delivered
+      // touch needs is the familiar's.
+      if (
+        !self &&
+        coverBetween(state.scene, request.deliveredBy ?? casterId, target) === 'total'
+      ) {
         return err('total_cover', `${target} is behind Total Cover`);
       }
     }

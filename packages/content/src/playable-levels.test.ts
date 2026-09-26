@@ -255,7 +255,11 @@ describe('the level rows agree with the tables they are derived from', () => {
     expect(fifth.reachable).toBeGreaterThan(0);
     expect(fifth.executedSpells).toBeGreaterThan(0);
     expect(fifth.executedSpells).toBeLessThan(fifth.reachable);
-    expect(fifth.executedSpells + fifth.tracked).toBeLessThan(fifth.reachable);
+    // Executed and tracked together reached the whole of the fifth level's
+    // spells on 2026-09-26, when Sending and Phantasmal Force — the last two in
+    // reach with no definition — were written; the sum can no longer be less,
+    // and it may never be more.
+    expect(fifth.executedSpells + fifth.tracked).toBeLessThanOrEqual(fifth.reachable);
   });
 
   /**

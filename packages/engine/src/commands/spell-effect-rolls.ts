@@ -473,7 +473,7 @@ function resolveOneAttackRoll(
 
     const splashDice = alteredCastingDice(
       alters,
-      scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+      scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel, ctx.inAStorm),
     );
     if (!splashDice.ok) return splashDice;
 
@@ -563,7 +563,7 @@ function resolveOneAttackRoll(
   // maximisation maximises whatever dice end up rolling.
   const scaled = alteredCastingDice(
     alters,
-    scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel),
+    scaledDiceFor(effect.damage, definition.level, numbers.casterLevel, castLevel, ctx.inAStorm),
     attack.value.critical,
   );
   if (!scaled.ok) return scaled;
@@ -866,7 +866,7 @@ export function resolveAutoDamageEffect(
     // feature that behaved differently at two darts than at one.
     const scaled = alteredCastingDice(
       alters,
-      scaledDiceFor(effect.damage, level, numbers.casterLevel, castLevel),
+      scaledDiceFor(effect.damage, level, numbers.casterLevel, castLevel, ctx.inAStorm),
     );
     if (!scaled.ok) return scaled;
 
@@ -1074,7 +1074,7 @@ export function resolveSaveDamageEffect(
   for (const [index, part] of parts.entries()) {
     const dice = alteredCastingDice(
       alters,
-      scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel),
+      scaledDiceFor(part.damage, level, numbers.casterLevel, castLevel, ctx.inAStorm),
     );
     if (!dice.ok) return dice;
     const rolled = rollSpellDice(
@@ -1571,6 +1571,20 @@ export function resolveSaveEffect(
       if (!hung.ok) return hung;
       events.push(...hung.value.events);
       current = hung.value.events.reduce(applyEvent, current);
+    }
+    // **And the one success in the book that ends the spell it was forced by.**
+    // SRD Detect Thoughts and SRD Phantasmal Force: "On a successful save, the
+    // spell ends." The same release a check's `end-casting` and a repeated
+    // save's already perform, recorded here because this is the only place a
+    // save forced *once* knows how it fell.
+    //
+    // **The fact, not the event.** A casting's own record is written after its
+    // effects have run, and a `spell-ended` naming a casting the fold has not
+    // seen is refused — so `resolveEffects` writes the ending below the record,
+    // which is where Ensnaring Strike's `resisted` ending already goes.
+    if (effect.onSuccess === 'end-casting' && ctx.origin.kind === 'casting') {
+      const ended = ctx.casting().castingId;
+      if (!ctx.resisted.includes(ended)) ctx.resisted.push(ended);
     }
     outcomes.push({ target, save: thrown, affected: false });
     return ok(current);

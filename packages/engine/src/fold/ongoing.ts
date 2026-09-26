@@ -108,11 +108,31 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
         : releaseOnTarget(next, event.on, event.castingId);
     }
 
-    // Changes nothing, like `roll-recorded`: the action it cost and the damage
-    // it dealt are their own events. It is here so the log can say why a spell
-    // struck on a turn nobody cast it.
-    case 'spell-activated':
-      return next;
+    // Changes nothing for all but one spell, like `roll-recorded`: the action it
+    // cost and the damage it dealt are their own events. It is here so the log
+    // can say why a spell struck on a turn nobody cast it.
+    //
+    // **The one thing it writes is a creature the action named.** SRD Detect
+    // Thoughts' probe turns a Range: Self casting on one mind, and the check the
+    // book then offers that creature has to be narrowed to it — so the name is
+    // pinned on the record here, which is the only place it could be: the cast
+    // aimed at nobody, and nothing in the world holds the fact. Replaced rather
+    // than joined, because "you shift your attention away from the target's
+    // mind" is a sentence about one mind at a time.
+    case 'spell-activated': {
+      if (event.singledOut === undefined) return next;
+      const record = state.ongoing[event.castingId];
+      if (record === undefined) {
+        throw new CorruptLogError(event, `${event.castingId} is not running`);
+      }
+      return {
+        ...next,
+        ongoing: sortedRecord({
+          ...next.ongoing,
+          [event.castingId]: { ...record, singledOut: event.singledOut },
+        }),
+      };
+    }
 
     // SRD Alter Self's swap: what the casting hung on its caster goes, and the
     // word is re-pinned. The caster's grants alone — a re-choosing spell is
@@ -205,9 +225,26 @@ export function applyOngoing({ state, next, legacy }: Applying, event: OngoingEv
       // other consequence in this file is derived: nobody *decides* that a
       // beam swept over somebody, and a replay reconstructs it because the
       // fold does.
+      // **And the turn a carry happened on**, for the one rule that has to count
+      // moves rather than actions: SRD Conjure Animals' pack rides the caster's
+      // own movement, and a creature may break one move into six commands.
+      //
+      // **Only a carry, which is what the event says.** An action is its own cap —
+      // Moonbeam's walk *is* the Magic action — so a beam walked by an activation
+      // writes no flag and this writes no stamp, and every log written before the
+      // field folds to exactly the state it always folded to. Absent outside a
+      // fight too, where there is no turn to count. See `OngoingSpell.movedOnTurn`.
+      const turn = event.carried === true ? state.combat?.turnsTaken : undefined;
       const moved: GameState = {
         ...next,
-        ongoing: { ...state.ongoing, [event.castingId]: { ...record, origin: event.to } },
+        ongoing: {
+          ...state.ongoing,
+          [event.castingId]: {
+            ...record,
+            origin: event.to,
+            ...(turn === undefined ? {} : { movedOnTurn: turn }),
+          },
+        },
       };
       return raiseAreaArrivals(moved, event.castingId, from, event.to);
     }

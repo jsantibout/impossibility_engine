@@ -167,11 +167,18 @@ describe('the blocked-on map covers the undefined population', () => {
    * time; it is lowered by one rather than deleted because what it still
    * catches is an empty map, and an empty map is exactly what a wrong
    * directory produces.
+   *
+   * **Moved from 5 to 4 by the payout at the caster's own boundary**, which
+   * wrote Phantasmal Force — and two of that entry's three shapes had been built
+   * for other spells before the third arrived, which is the map predicting a
+   * build again. Lowered by one for the fourth time, and for the same one
+   * reason: what it catches is the map being read out of nowhere.
    */
   it('covers a population worth deriving', () => {
-    // Lowered by one again when Sending was defined (2026-09-26): what it still
-    // catches is an empty map, and the map is not empty.
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(4);
+    // Lowered by one again when Sending was defined (2026-09-26), and once
+    // more when Phantasmal Force was, the same day: what it still catches is
+    // an empty map, and the map is not empty.
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(3);
   });
 
   it('names only shapes the vocabulary has', () => {
@@ -490,11 +497,13 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * being the second the day somebody writes it, and being the most heavily
    * read entry in the map is exactly what makes a spell worth writing next.
    * Find Familiar was the third fixture and went the same way on 2026-09-22,
-   * written on the kept summons; Phantasmal Force is the replacement, and it
-   * is what "most heavily read" means now: nine clauses over one paragraph.
+   * written on the kept summons; Phantasmal Force was the fourth and has gone the
+   * same way again, written on the payout owed at the caster's own boundary. Maze
+   * is the replacement, and it is what "most heavily read" means now: nineteen
+   * clauses, which is the whole of the longest entry left in the map.
    */
   it('reports nothing once that sentence is answered', () => {
-    expect(sentenceGaps('phantasmal-force')).toEqual([]);
+    expect(sentenceGaps('maze')).toEqual([]);
   });
 
   /**
@@ -505,7 +514,7 @@ describe('a read entry answers every sentence that names a mechanic', () => {
    * told apart by the clause rather than by the silence.
    */
   it('does not call a grandfathered entry read', () => {
-    expect(isSentenceComplete('phantasmal-force')).toBe(true);
+    expect(isSentenceComplete('maze')).toBe(true);
     expect(isSentenceComplete('aid')).toBe(false);
     expect(clausesIn(BLOCKED_ON['aid'] ?? [])).toEqual([]);
   });
@@ -1282,8 +1291,10 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // which is where an executed-partial spell's debts are adjudicated.
     // The pocket dimension is built — `dismissKeptSummons` and
     // `recallKeptSummons` on the bond's pinned `pocket` — so its row is gone
-    // rather than kept.
-    ['find-familiar', 'unmodelled', 'your familiar can deliver the touch'],
+    // rather than kept, and **the delivered touch has gone the same way**:
+    // `KeptSummons.delivers` is the permission and the hundred feet, pinned onto
+    // the bond, and `cast_spell.deliveredBy` is the hand the Touch is measured
+    // from. One reading is left, and it is the one about sight.
     ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
     // Sending, defined on the owner's ruling of 2026-09-25. Three of its four
     // rows were spent by being built or by being a fact the caster states —
@@ -2284,16 +2295,17 @@ describe('the fought fact is a second build that corrected the query', () => {
    */
   it('keeps the shape for the facts the build did not reach', () => {
     const fact = consumersOf('a-fact-only-the-table-can-declare');
-    // Call Lightning was the second undefined consumer and is tracked now, so
-    // its reading — the extra 1d10 for being outdoors in a storm — moved into
-    // the tracked map against the sentence it was read from. Enthrall followed
-    // the same way once a tracked entry could carry the half of it no
-    // mechanical marker sees, and has since left the map altogether: the
-    // fought fact it read is `autoSucceedIf.fought` now. The undefined
-    // population is empty of this shape and the claims are live elsewhere.
+    // Call Lightning was the second undefined consumer, became tracked, and has
+    // now left the map altogether: `SpellDefinition.stormStated` prints the
+    // question, `cast_spell.inAStorm` is the caster's answer and
+    // `DiceScaling.plusInAStorm` is the die it buys — a claimant leaving by
+    // being given a field to declare into, which is the third time this shape
+    // has worked that way. Enthrall left the same way, its fought fact read by
+    // `autoSucceedIf.fought`. The undefined population is empty of this shape
+    // and the claims are live elsewhere.
     expect(fact.undefined).toEqual([]);
     expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
-    expect(fact.tracked).toEqual(['call-lightning', 'scrying']);
+    expect(fact.tracked).toEqual(['scrying']);
   });
 });
 
@@ -2713,7 +2725,11 @@ describe('a consumer count is a query', () => {
       // stands level with the three below it. Sending's definition took one
       // off `a-second-place-to-put-a-creature` and one off the leader in the
       // same track, which is why the leader still leads alone.
-      'a-casting-ended-by-a-trigger',
+      // And the activations track took Phantasmal Force's "the spell ends"
+      // off the trigger shape on a **stale** claim rather than a build —
+      // `SpellCheck.onSuccess: 'end-casting'` had existed since Ensnaring
+      // Strike — which is said plainly, because a ranking that moved for that
+      // reason is reporting a filing rather than a difficulty.
       'a-choice-made-at-the-casting',
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',

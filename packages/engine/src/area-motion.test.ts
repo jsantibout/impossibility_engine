@@ -434,11 +434,19 @@ describe('only a spell whose area the rules move has an area-entry clause', () =
    * | An action moves it | `activation.movesArea` | Moonbeam |
    * | An action moves it as a rider | `origin.movableBy` | *(none with this clause yet)* |
    * | Its carrier walks | `area.origin === 'self'` | Spirit Guardians |
+   * | Its caster carries it while walking | `areaMovesWithCaster` | Conjure Animals |
    *
    * The third needs no field at all, which is the whole finding: SRD's
    * glossary says an Emanation moves with its origin, so a self-origin area
    * moving is the shape's own definition rather than a permission a spell
    * grants.
+   *
+   * **The fourth is the third read the other way round**, and the SRD writes it
+   * as a sentence rather than leaving it to the shape: Conjure Animals' pack has
+   * a point of its own and travels *with* its caster all the same — "when you
+   * move on your turn, you can also move the pack up to 30 feet". So it needs a
+   * field, and the field is a permission the spell grants rather than a fact
+   * about the template.
    */
   it('gives every area-entry clause a way for the area to move', () => {
     const stuck = triggered.filter(
@@ -446,6 +454,7 @@ describe('only a spell whose area the rules move has an area-entry clause', () =
         d.areaTrigger?.onAreaEntry === true &&
         d.activation?.movesArea === undefined &&
         d.origin?.movableBy === undefined &&
+        d.areaMovesWithCaster === undefined &&
         d.area?.origin !== 'self',
     );
     expect(stuck.map((d) => d.id)).toEqual([]);

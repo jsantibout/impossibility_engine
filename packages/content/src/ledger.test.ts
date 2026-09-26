@@ -169,10 +169,20 @@ describe('the ledger measures the three populations of the roadmap', () => {
     }
   });
 
-  /** All four states are represented, or the status reading has gone quiet. */
-  it('keeps partial, tracked and undefined apart', () => {
+  /**
+   * The states that are left are represented, or the status reading has gone
+   * quiet. **`no-definition` is no longer among them, and that is a
+   * milestone rather than a quiet reading**: Sending and Phantasmal Force
+   * were the last two spells in a level 1–5 party's reach without a
+   * definition, and both were written on 2026-09-26. Every spell in reach
+   * now has a definition, so the undefined population the third column was
+   * invented to expose is empty by construction — asserted here so a spell
+   * added to the catalogue without a definition would bring the state back
+   * and fail this test by name.
+   */
+  it('keeps partial and tracked apart, and holds no undefined spell in reach', () => {
     const states = new Set(ledger.spells.map((one) => one.status));
-    expect([...states].sort()).toEqual(['executed-partial', 'no-definition', 'tracked']);
+    expect([...states].sort()).toEqual(['executed-partial', 'tracked']);
   });
 
   /**

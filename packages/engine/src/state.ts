@@ -274,6 +274,16 @@ export interface KeptBond {
    * offers no pocket to.
    */
   readonly pocket?: { readonly within: number };
+  /**
+   * SRD Find Familiar: "your familiar can deliver the touch. Your familiar must
+   * be within 100 feet of you" — the permission and the distance, pinned from the
+   * spell at the binding so a casting an hour later opens no book.
+   *
+   * Read by `resolveSpell` where a casting names a `deliveredBy`, and by nothing
+   * else. Absent for every kept creature the book gives no such sentence, which
+   * is SRD Find Steed's steed.
+   */
+  readonly delivers?: { readonly within: number };
 }
 
 /**
@@ -1712,6 +1722,19 @@ export interface PendingCasting {
    * a declaration written before this fold to exactly the state it always did.
    */
   readonly fought?: readonly CharacterId[];
+  /**
+   * Whether the caster was outdoors in a storm — SRD Call Lightning's "the
+   * spell's damage increases by 1d10", pinned here beside the fought list and
+   * for the same reason: settlement takes no fresh request, so a Call Lightning
+   * declared in a storm must not settle out of one.
+   *
+   * **Elided when false**, which is where it follows `willing` rather than
+   * `fought`: the spell's own first sentence makes a cloud of its own, so
+   * silence is the book's answer and not a fact nobody supplied. Absent on every
+   * declaration written before the field existed, which is a casting nobody
+   * asked about the weather.
+   */
+  readonly inAStorm?: true;
   /**
    * Where the orb leaps, in the caster's order — SRD Chromatic Orb, held open
    * for a Counterspell and settled with the list its caster stated. Absent for

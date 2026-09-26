@@ -195,10 +195,12 @@ export type StandingReach =
  * | Wind Wall, "ordinary projectiles … are deflected upward and miss automatically" | {@link AreaDeflectionStanding} |
  * | Magic Circle, "Disadvantage on attack rolls against targets within the Cylinder" | {@link AreaAttackModeStanding} |
  * | Magic Circle, "Targets within the Cylinder can't … gain the Charmed or Frightened condition from the creature" | {@link AreaConditionImmunityStanding} |
+ * | Conjure Animals, "You have Advantage on Strength saving throws while you're within 5 feet of the pack" | {@link AreaSaveModeStanding} |
  */
 export type AreaStanding =
   | AreaSpeedStanding
   | AreaBonusStanding
+  | AreaSaveModeStanding
   | AreaConditionStanding
   | AreaDefenseStanding
   | AreaSilenceStanding
@@ -268,6 +270,44 @@ export type AreaSpeedStanding = WhollyInside & {
   readonly change: Exclude<SpeedChange, 'match-walk' | 'double' | 'only'>;
   /** Signed feet, required by `add` and refused by the other two. */
   readonly feet?: number;
+};
+
+/**
+ * SRD Conjure Animals: "**You** have Advantage on Strength saving throws while
+ * you're **within 5 feet of the pack**."
+ *
+ * {@link AreaAttackModeStanding}'s sibling on the other family of roll, and the
+ * first clause here that is about the **caster's** own die: that one is a mode
+ * the *target's* position confers on somebody attacking them, and this is a mode
+ * a caster has for standing beside their own magic. Gathered by `savingSupport`
+ * beside the modes the roller holds, so the save site learns nothing new.
+ *
+ * **Two narrowings, and the sentence prints both.** `ability` is which saves it
+ * reaches — Strength, and a Dexterity save beside the pack gets nothing — and
+ * {@link within} is how far from the casting's own point it reaches, which is
+ * `AreaTrigger.within`'s question asked of a standing clause rather than of a
+ * trigger. `onlyCaster` is the first word of the sentence: nobody else beside the
+ * pack has Advantage on anything, which is what tells this apart from Pass
+ * without Trace's aura and is why it is a flag rather than a `chosen` list.
+ *
+ * **Flat modes only, and there is nothing to stack.** Advantage cancels rather
+ * than adds, so two packs over one druid are one Advantage — which `combineRollModes`
+ * decides, and the source it is named under is the spell.
+ */
+export type AreaSaveModeStanding = {
+  readonly kind: 'save-mode';
+  readonly mode: RollMode;
+  /** Which saves it reaches: SRD's "Strength saving throws". */
+  readonly ability: Ability;
+  /**
+   * Feet from the casting's own point, for the clause that is measured from the
+   * thing rather than over the template it filled — `AreaTrigger.within`'s
+   * question, asked of a standing clause. Absent reaches over the area itself,
+   * which is every other clause here.
+   */
+  readonly within?: number;
+  /** SRD's first word: "**You** have Advantage". */
+  readonly onlyCaster?: true;
 };
 
 /**
@@ -6272,12 +6312,28 @@ export function areaStandingOn(
     let wholly: ReadonlySet<CharacterId> | null | undefined;
     for (const standing of standings) {
       let inside: ReadonlySet<CharacterId> | null;
-      if ((standing as WhollyInside).whollyInside === true) {
+      const within = 'within' in standing ? standing.within : undefined;
+      if (within !== undefined) {
+        // **A reach measured from the casting's point rather than over its
+        // template**, which is the third reading and the same substitution
+        // `AreaTrigger.within` makes: SRD Conjure Animals' pack is a space and
+        // the Advantage reaches five feet from it. Asked per clause rather than
+        // cached, because a record may print two different distances.
+        inside = creaturesStandingInCastingArea(scene, {
+          ...record,
+          area: { kind: 'sphere', radius: within, origin: 'point' },
+        });
+      } else if ((standing as WhollyInside).whollyInside === true) {
         wholly ??= creaturesStandingInCastingArea(scene, record, { whollyInside: true });
         inside = wholly;
       } else {
         ordinary ??= creaturesStandingInCastingArea(scene, record);
         inside = ordinary;
+      }
+      // SRD Conjure Animals' first word: "**You** have Advantage." A clause the
+      // caster alone has, whoever else is standing in the same five feet.
+      if ('onlyCaster' in standing && standing.onlyCaster === true && record.caster !== who) {
+        continue;
       }
       if (inside === null) continue;
       // SRD Magic Circle's reverse, "protecting targets outside it": the
@@ -6625,6 +6681,33 @@ export function areaAttackModesAgainst(
     // about is the one the circle is penning in, so a Fiend outside a reversed
     // circle is nothing to do with it. See {@link AreaSide.attackerInside}.
     if (standing.attackerInside === true && !inside.has(attacker)) continue;
+    modes.push({ source: spell, mode: standing.mode });
+  }
+  return modes;
+}
+
+/**
+ * The modes an area this creature is standing in puts on its **own** saving
+ * throws.
+ *
+ * SRD Conjure Animals: "You have Advantage on Strength saving throws while you're
+ * within 5 feet of the pack." {@link areaAttackModesAgainst}'s sibling on the
+ * other family of roll, and the difference is whose die it is: that one reads the
+ * *target's* position and hands a mode to somebody attacking them, and this reads
+ * the roller's own. Gathered into `savingSupport` beside the modes the creature
+ * holds, so the save site learns nothing new.
+ *
+ * Narrowed by the ability the sentence names, because the sentence names one: a
+ * Dexterity save beside the pack gets nothing.
+ */
+export function areaSaveModesOn(
+  state: GameState,
+  who: CharacterId,
+  ability: Ability,
+): readonly ModeSource[] {
+  const modes: ModeSource[] = [];
+  for (const { spell, standing } of areaStandingOn(state, who)) {
+    if (standing.kind !== 'save-mode' || standing.ability !== ability) continue;
     modes.push({ source: spell, mode: standing.mode });
   }
   return modes;

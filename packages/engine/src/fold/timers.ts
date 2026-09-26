@@ -102,10 +102,33 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
             };
       }
 
-      // The only other consequence this union can express, and it is the one
-      // the repeat save already performs: the casting's effect on that
-      // creature ends, and the casting itself carries on for anyone else it
-      // caught.
+      // **A check offered against the casting itself, whose success ends it.**
+      // SRD Detect Thoughts: "the target can take an action on its turn to make
+      // an Intelligence (Arcana) check against your spell save DC, **ending the
+      // spell on a success**." The timer is the casting's own deadline, so there
+      // is no condition to release and nothing on any one creature — what the
+      // success ends is the whole spell, through the same `releaseCasting` a
+      // snared creature's check already reaches. `end-on-target` is a different
+      // matter and stays a log this engine did not write: a casting sitting on
+      // nobody has nothing to release on a target, which `checkSpellCheck`
+      // refuses at authoring.
+      if (timer.target.kind === 'casting') {
+        if (timer.check.onSuccess !== 'end-casting') {
+          throw new CorruptLogError(
+            event,
+            `${event.effectKey} ends on its target, but it is the casting itself and sits on no creature`,
+          );
+        }
+        return releaseCasting(
+          next,
+          casterOf(next, timer.target.castingId),
+          timer.target.castingId,
+        );
+      }
+
+      // The only other consequence this union can express, and it is the one the
+      // repeat save already performs: the casting's effect on that creature
+      // ends, and the casting itself carries on for anyone else it caught.
       if (timer.target.kind !== 'condition') {
         throw new CorruptLogError(
           event,

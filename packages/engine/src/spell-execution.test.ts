@@ -212,11 +212,12 @@ describe('the definitions match the SRD', () => {
   it('is found by the id the SRD index uses', () => {
     expect(SRD_CONTENT.spell('fire-bolt')).toBe(FIRE_BOLT);
     expect(SRD_CONTENT.spell('hold-person')).toBe(HOLD_PERSON);
-    // Phantasmal Force is parsed and has no definition: an illusion only its
-    // target believes in is a shape the engine does not have. (This was Magic
-    // Missile until the pool of hits landed, and Fireball before that; the
-    // point is the missing definition, not the spell.)
-    expect(SRD_CONTENT.spell('phantasmal-force')).toBeNull();
+    // Maze is parsed and has no definition: a creature shut in a labyrinthine
+    // demiplane is a second place to put a creature that the engine has no
+    // position for. (This was Phantasmal Force until the payout at the caster's
+    // own boundary landed, Magic Missile before that and Fireball before that;
+    // the point is the missing definition, not the spell.)
+    expect(SRD_CONTENT.spell('maze')).toBeNull();
   });
 });
 
@@ -425,7 +426,7 @@ describe('what a cast refuses, and what it admits it cannot check', () => {
   };
 
   it('refuses a spell the engine cannot execute', () => {
-    reject({ spellId: 'phantasmal-force', targets: [GOBLIN] }, 'no_definition');
+    reject({ spellId: 'maze', targets: [GOBLIN] }, 'no_definition');
   });
 
   /** SRD: you cast what you know or have prepared. */

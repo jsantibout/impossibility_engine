@@ -598,7 +598,20 @@ const castAt = (
       // one creature it has, who is standing five feet away and so inside
       // every template here.
       targets: definition.targets.chosenFromTheArea === true ? [TARGET] : [],
-      ...(definition.area.origin === 'point' ? { at } : {}),
+      // **The point goes on the creature where the area is what picks it out.**
+      // SRD Phantasmal Force takes the space its illusion stands in — a radius of
+      // nothing — and names the one creature standing there, so an area anchored
+      // on the caster's own square would catch the caster and refuse the target.
+      // Every other point-origin template here is wide enough to reach five feet
+      // and is left where it was.
+      ...(definition.area.origin === 'point'
+        ? {
+            at:
+              definition.targets.chosenFromTheArea === true
+                ? { x: at.x, y: at.y + 5, z: at.z }
+                : at,
+          }
+        : {}),
       ...(directional ? { towards } : {}),
       ...drawn,
       ...stated,
@@ -750,6 +763,13 @@ describe('every definition in the catalogue actually casts', () => {
       // simply appear, and every save Web ever calls for comes from a creature
       // starting its turn in them or walking into them. A casting that
       // resolves nothing here is correct; the trigger is where the spell is.
+      expect(out.outcomes).toEqual([]);
+    } else if (run.length === 0 && definition.activation !== undefined) {
+      // The third case's twin, and it is a spell rather than a stub for the
+      // same reason: SRD Dragon's Breath's touch does nothing at all, and
+      // every die the spell ever throws comes from the later Magic action the
+      // creature it is on takes. A casting that resolves nothing here is
+      // correct; the activation is where the spell is.
       expect(out.outcomes).toEqual([]);
     } else if (run.length === 0) {
       expect(out.outcomes).toEqual([]);

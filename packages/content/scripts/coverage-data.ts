@@ -216,6 +216,15 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // silenced and back when the Concentration is let go, the second's sentence
   // handed over, a saved creature granted nothing, the map pinned on the
   // record, and the six refusals a per-creature choice is held to.
+  // `call-lightning.test.ts` (engine): the bolt at the cast asking the goblin
+  // standing on the point for a Dexterity save and dealing 3d10 Lightning, the
+  // cloud kept as the point the next bolt is measured from, a second bolt called
+  // down thirty feet on with its own save, a point ninety feet off refused and a
+  // later action naming no point refused, and a storm stated at the cast adding
+  // a fourth die to the first bolt and to the second — with the storm refused on
+  // a spell that prints no such clause and a point refused on one that draws no
+  // template.
+  'call-lightning',
   'calm-emotions',
   'charm-monster',
   'charm-person',
@@ -232,10 +241,18 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'command',
   'compulsion',
   'cone-of-cold',
-  'conjure-fey',
-  'conjure-woodland-beings',
   // `sight.test.ts` (engine): cast on its bearer, its light read back and
   // standing until dispelled.
+  // `conjure-animals.test.ts` (engine): the pack standing where the druid put it,
+  // the druid's Advantage on a Strength save five feet from it and on no other
+  // ability, at no other distance and for nobody else, the pack walked thirty feet
+  // inside the druid's own move and biting the goblin it comes within ten feet of
+  // — once, although the goblin also ends its turn there — and a pack refused a
+  // space too far off, one somebody is standing in, one a blinded druid cannot see
+  // and a casting that holds none.
+  'conjure-animals',
+  'conjure-fey',
+  'conjure-woodland-beings',
   'continual-flame',
   'counterspell',
   'cure-wounds',
@@ -249,11 +266,25 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // `sight.test.ts` (engine): the sense conferred and read by `sensesOf`.
   'darkvision',
   'daylight',
+  // `detect-thoughts.test.ts` (engine): the spell listening on its caster and
+  // probing nobody, the Magic action forcing the goblin's Wisdom save, a success
+  // ending the spell as resisted and a failure pinning the mind it read, the
+  // Intelligence (Arcana) check offered to that goblin at the wizard's own DC
+  // and refused to the fighter beside it, and the check landing ending the
+  // casting.
+  'detect-thoughts',
   'dimension-door',
   'dispel-magic',
   'dissonant-whispers',
   'divine-favor',
   'divine-smite',
+  // `dragons-breath.test.ts` (engine): the sorcerer's touch with Fire stated
+  // and pinned, the fighter's Magic action exhaling a 15-foot Cone east, both
+  // goblins asked for a Dexterity save and scorched for 3d6 Fire with the
+  // fighter named as the dealer, the sorcerer refused their own spell's action,
+  // an exhalation with no direction refused, a target list refused, and the
+  // exhaler's own Action spent rather than the caster's.
+  'dragons-breath',
   'eldritch-blast',
   'enhance-ability',
   // `enlarge-reduce.test.ts` (engine): the fighter Large to every reader and
@@ -413,6 +444,14 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // point, the four feet per foot its own paragraph prints charged over the
   // Sphere, and the patch left standing because the casting is Instantaneous
   // and SRD gives the plants no ending.
+  // `phantasmal-force.test.ts` (engine): the goblin's Intelligence save ending
+  // the spell on a success and crafting the phantasm on a failure, the target
+  // singled out on the record, 2d8 Psychic at the start of the bard's own turn
+  // and on that goblin alone, nothing once it has walked out of the Cube's five
+  // feet, the Study-action Investigation check offered to the goblin and to
+  // nobody else and ending the casting when it lands, and a creature the Cube
+  // does not cover refused.
+  'phantasmal-force',
   'plant-growth',
   'poison-spray',
   // Driven end to end by `executed-second-pass.test.ts`: the ten-minute rite

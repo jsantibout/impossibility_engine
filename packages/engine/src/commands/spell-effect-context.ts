@@ -225,6 +225,31 @@ export interface EffectContext {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Whether the caster was outdoors in a storm when this casting was made.
+   *
+   * SRD Call Lightning is the one spell that asks, and `DiceScaling.plusInAStorm`
+   * is the one reader: the extra die it prints is added wherever this casting
+   * rolls its damage. Absent for every other casting, which is the book's own
+   * default — the spell makes a cloud of its own and the storm is the exception.
+   */
+  readonly inAStorm?: true;
+  /**
+   * Castings a **successful saving throw** of this run ended — SRD Detect
+   * Thoughts' and SRD Phantasmal Force's "On a successful save, the spell ends."
+   *
+   * **The fact and not the event**, which is the discipline {@link summoned}
+   * already keeps for the same reason: the record a casting leaves is written
+   * *after* its effects run, and a `spell-ended` naming a casting the fold has
+   * not seen yet is refused by the reducer. So the resolver records that the die
+   * ended it and `resolveEffects` writes the ending one line below the record it
+   * releases — which is the order Ensnaring Strike's `resisted` ending already
+   * goes out in.
+   *
+   * Mutable and appended to, like the three collectors beside it. Empty for every
+   * casting whose saves decide something other than its own lifetime.
+   */
+  readonly resisted: string[];
+  /**
    * Where the orb leaps, in the caster's order — SRD Chromatic Orb's "a
    * different target of your choice". Read by the attack resolver when the
    * spell's own dice pair; absent for every other casting, and for a leaping

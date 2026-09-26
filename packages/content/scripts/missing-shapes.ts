@@ -735,6 +735,25 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The engine owns the death and records it; what the corpse then looks like, and whether it ever thaws, is narration with no mechanical consequence the engine could read back. There is nothing here for a rule to decide.',
     },
   ],
+  // **Conjure Animals, executed whole and with two sentences left to the
+  // table.** The pack walks thirty feet with its druid's own move
+  // (`areaMovesWithCaster`, spent by `MoveCommand.alsoMoves`), bites whoever it
+  // comes within ten feet of and keeps the once-per-turn cap across all three of
+  // its clauses, and lends its caster Advantage on a Strength save five feet from
+  // it — a mode derived from where the druid is standing at the moment the die is
+  // thrown. What is left is the sight the clauses are gated on and the word "can".
+  'conjure-animals': [
+    {
+      clause: 'the caster\u2019s sight of whoever the pack reaches is not read at the boundary',
+      why: 'table',
+      note: 'SRD gates all three of the pack\u2019s clauses on "a creature you can see", and an area trigger catches whoever the geometry catches: the debt is raised in the fold, which holds no pairwise sight declaration for a creature the caster has never looked at, and a boundary that asked would be asking a question only the table can answer at a moment no command is running. The ten feet, the once-per-turn cap and the 3d10 are all executed; whether the druid saw is the DM\u2019s, who may decline the save.',
+    },
+    {
+      clause: '"you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces',
+      why: 'table',
+      note: 'The word is a permission and the engine has no vocabulary for a trigger its caster may decline \u2014 every `AreaTrigger` in the book fires when its moment arrives. So the save is rolled, which is the reading that never quietly loses a rule, and a pack that chose not to bite is the table\u2019s to narrate over a die that was thrown.',
+    },
+  ],
   'conjure-fey': [
     {
       clause: 'a Fey creature of your choice',
@@ -808,6 +827,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'the object half, as Darkness prints it and for its reason: an Emanation originating from a thing state does not hold, and a bowl or a helm over it. The sixty feet of Bright Light, the sixty more of Dim and the dispel against a Darkness of level 3 or lower are all executed.',
     },
   ],
+  'detect-thoughts': [
+    {
+      clause: 'Sense Thoughts is the DM’s',
+      why: 'table',
+      note: 'SRD: "You sense the presence of thoughts within 30 feet of yourself that belong to creatures that know languages or are telepathic." The thirty feet is a distance the engine measures, and everything the sentence measures it *to* is not: which creatures know a language, which are telepathic, and whether a foot of stone, an inch of metal or a thin sheet of lead stands between. What a caster senses is information the DM supplies, and the spell holds nothing for it to be recorded on.',
+    },
+    {
+      clause: 'which of the two options a Magic action turns on is the DM’s too',
+      why: 'table',
+      note: 'SRD: "Until the spell ends, you can activate either effect as a Magic action on your later turns." The probe is the one later action the engine resolves — it forces a save, ends on a success and pins the mind it read — and turning on Sense Thoughts or Read Thoughts buys information rather than state, so a second activation would be an action spent on a handover. `SpellActivation` carries one action for that reason and the DM narrates the other.',
+    },
+  ],
   'dimension-door': [
     {
       clause: 'the willing creature who comes along',
@@ -875,11 +906,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'seeing through the familiar’s eyes and hearing what it hears',
       why: 'senses-beyond-declared-sight',
       note: 'Sight here is a pairwise declaration and there is nothing else, so one creature borrowing another’s senses — including any special senses it has — has no state to sit in. Filed under the nearest honest shape rather than a new one; the shape’s named consumer is an attacker’s Blindsight, and this is the same absence at the other end.',
-    },
-    {
-      clause: 'your familiar can deliver the touch',
-      why: 'an-activation-taken-by-somebody-other-than-the-caster',
-      note: 'A second casting measured from the familiar rather than from its caster, and a Reaction spent by the familiar for a spell that belongs to the caster. The rule that a casting is acted through by the caster and nobody else is exactly what this inverts, and the reach half has no field of its own either.',
     },
     {
       clause: 'the telepathic connection within 100 feet',
@@ -1650,20 +1676,14 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'the DC is modified by two printed tables of facts the engine does not hold and must not guess: how well the caster knows the target, and whether they are holding a possession, a likeness or a lock of its hair. Declared cover and declared sight are the line this follows.',
     },
   ],
-  'detect-thoughts': [
-    {
-      marker: 'saving-throw',
-      clause: 'If you probe deeper, the target makes a Wisdom saving throw',
-      why: 'an-activation-that-forces-a-saving-throw',
-      note: 'the probe is a Magic action on a later turn and the save is what it forces; every registered SpellActivation resolves an attack or moves an area instead, which is the machinery standing beside this with no consumer.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'make an Intelligence (Arcana) check against your spell save DC, ending the spell on a success',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'who may attempt a check is derived from what its timer sits on, and this one sits on neither branch: the casting is on the caster and holds nothing on the creature being probed. SpellCheck.onSuccess has deliberately no end-casting either, and names this spell while refusing it.',
-    },
-  ],
+  // **Detect Thoughts has left the tracked map**, and it took both of its
+  // shapes with it: `SpellActivation.effects` forces the Wisdom save the probe
+  // calls for, `save.onSuccess: 'end-casting'` is the success that ends the
+  // spell, and `SpellCheck.attemptBy: 'singled-out'` narrows the Intelligence
+  // (Arcana) check to the creature the probe named — read off
+  // `OngoingSpell.singledOut`, which the activation pins. What is left of the
+  // spell is its two options, which are information, and they are filed in
+  // `ADJUDICATED` below.
   'private-sanctum': [
     {
       marker: 'teleport',
@@ -2008,20 +2028,12 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // mode narrowed by the attacker's creature type, and a condition Immunity
   // narrowed by the type of whatever is causing the condition — so the spell
   // is executed-partial and what is left of it is filed in `ADJUDICATED`.
-  'dragons-breath': [
-    {
-      marker: 'saving-throw',
-      clause: 'Each creature in that area makes a Dexterity saving throw',
-      why: 'an-activation-that-resolves-an-area',
-      note: 'every registered SpellActivation resolves an attack at a named target or moves an area along a stated route, and this one evokes a fresh 15-foot Cone in a direction chosen when the action is taken.',
-    },
-    {
-      marker: 'dice',
-      clause: 'taking 3d6 damage of the chosen type on a failed save',
-      why: 'an-activation-taken-by-somebody-other-than-the-caster',
-      note: 'the dice and the halving are ordinary; who throws them is not. A spell’s later action is the caster’s and nobody else may act through a casting, and this one hands the action to the creature that was touched.',
-    },
-  ],
+  // **Dragon's Breath has left the tracked map**, and it took both of its
+  // shapes with it: `SpellActivation.by` hands the Magic action to the creature
+  // the casting is on, and `SpellActivation.area` draws the 15-foot Cone afresh
+  // at the exhaler's own space in the direction stated when the action is
+  // taken. Every printed sentence of the spell is executed, so the two entries
+  // that stood here are gone rather than re-worded.
   // **Three sentences and one entry, which was one reading short.** The
   // definition's own `unmodelled` names three clauses and this map recorded
   // the first; the other two were paid for by nobody and the shapes they claim
@@ -2489,40 +2501,24 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'healCreature refuses a corpse and the refusal costs no slot; and the amount is derived from the target’s own maximum besides, which is the other residue this spell names.',
     },
   ],
-  'call-lightning': [
-    {
-      marker: 'saving-throw',
-      clause: 'Each creature within 5 feet of that point makes a Dexterity saving throw',
-      why: 'an-activation-that-resolves-an-area',
-      note: 'the save is raised by an activation taken on a later turn that lays a five-foot area at a point chosen then; an activation calls a save on a target and never on a fresh template, so the bolt at the casting cannot be written apart from the ones after it.',
-    },
-    {
-      marker: 'dice',
-      clause: 'Under such conditions',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'the extra 1d10 is conditioned on the caster being outdoors in a storm, which is a fact about the weather that the engine does not hold and cannot derive from anything it does hold.',
-    },
-  ],
-  'conjure-animals': [
-    {
-      marker: 'roll-mode',
-      clause: 'You have Advantage on Strength saving throws',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'the Advantage holds while the caster is within five feet of the pack, so whether it applies is recomputed from a position every time a roll is made, and only a feature derives a standing effect that way.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'you can force that creature to make a Dexterity saving throw',
-      why: 'an-area-moved-by-the-casters-own-movement',
-      note: 'the save is forced on whoever the pack reaches, and the pack may be moved thirty feet whenever the caster moves — a casting pins its template where it was put and has no way to carry one along.',
-    },
-    {
-      marker: 'dice',
-      clause: 'the creature takes 3d10 Slashing damage',
-      why: 'an-area-moved-by-the-casters-own-movement',
-      note: 'the damage hangs off the save above it and goes wherever that goes; the extra 1d10 a slot above 3 buys would scale a number nothing rolls.',
-    },
-  ],
+  // **Call Lightning has left the tracked map**, and it took both of its shapes
+  // with it: `SpellActivation.redrawsArea` draws the casting's own 5-foot Sphere
+  // again at a point stated when the Magic action is taken, bounded by the
+  // cloud's own radius, so the bolt at the cast and the bolts after it are one
+  // template and one number written once; and the storm is a stated fact —
+  // `SpellDefinition.stormStated` prints the question, `cast_spell.inAStorm`
+  // answers it, the record pins it and `DiceScaling.plusInAStorm` reads it.
+  // What is left of the spell is the cloud itself, which is narration and is in
+  // the definition's `dmDecides`.
+  // **Conjure Animals has left the tracked map**, and it took both of its shapes
+  // with it: `SpellDefinition.areaMovesWithCaster` is the thirty feet the pack
+  // travels and `MoveCommand.alsoMoves` is the rider that spends it, on the one
+  // command that moved the druid — which is how the book writes it; and the
+  // Advantage is an `AreaStanding` clause of a new kind, a mode on the caster's own
+  // Strength saves, derived from where they are standing at the moment the die is
+  // thrown. `AreaTrigger.within` carries all three of its printed reaches. What is
+  // left of the spell is filed in `ADJUDICATED` below: the sight the caster's three
+  // clauses are gated on, and the pack that may hold back.
   'conjure-minor-elementals': [
     {
       marker: 'dice',
@@ -3739,53 +3735,15 @@ export const BLOCKED_ON: Readonly<Record<string, readonly BlockedEntry[]>> = {
   // The bare list had two shapes and the paragraph prints three. The check that
   // sees through the phantasm ends the casting, which is Maze's sentence in
   // different words and is filed to the same shape it is.
-  'phantasmal-force': [
-    {
-      clause: 'craft an illusion in the mind of a creature you can see within range',
-      why: 'table',
-      note: 'What the illusion is, and that only one creature perceives it, is narration; the range and the sight are checked before anything is spent and are the only mechanical words in the sentence.',
-    },
-    {
-      clause: 'The target makes an Intelligence saving throw',
-      why: 'expressible',
-      note: 'An Intelligence save against the casting’s pinned DC, with the whole of the spell on the failure branch — the plainest thing the definition format does.',
-    },
-    {
-      clause: 'no larger than a 10-foot Cube and that is perceivable only to the target',
-      why: 'table',
-      note: 'The Cube bounds a thing nobody but the target perceives and carries no effect of its own; what the size is later used for is the damage clause below, which is filed where its own blocker is.',
-    },
-    {
-      clause: 'The target can take a Study action to examine the phantasm with an Intelligence (Investigation) check',
-      why: 'expressible',
-      note: '`SpellCheck` carries an ability, a skill and the casting’s own DC, and a casting with no victim is anybody’s to see through — which here is the one creature the phantasm is on.',
-    },
-    {
-      clause: 'the target realizes that the phantasm is an illusion, and the spell ends',
-      why: 'a-casting-ended-by-a-trigger',
-      note: '`SpellCheck.onSuccess` is `none` or `end-on-target` and says in its own words that `end-casting` is deliberately absent. Ending the effect on the only target is not ending the casting, and the caster would still be concentrating — Maze prints the identical sentence and is filed the same way.',
-    },
-    {
-      clause: 'An affected target can even take damage from the illusion',
-      why: 'table',
-      note: 'Whether the phantasm is a dangerous creature or a hazard at all is the DM’s to decide, and this sentence decides nothing else; the damage it introduces is the clause below.',
-    },
-    {
-      clause: 'On each of your turns, such a phantasm can deal 2d8 Psychic damage to the target',
-      why: 'an-area-trigger-on-the-casters-turn',
-      note: 'The two boundaries an `AreaTrigger` knows are the caught creature’s, and the queue that raises area debt is keyed to the creature whose turn it is. A payout owed at the **caster’s** boundary is a third moment nothing schedules.',
-    },
-    {
-      clause: 'if it is in the phantasm’s area or within 5 feet of the phantasm',
-      why: 'an-area-trigger-measured-from-a-point',
-      note: 'A reach measured from the casting’s own origin rather than from a template. `CastingOrigin.reach` answers that for an attack the caster makes and for nothing that fires on its own.',
-    },
-    {
-      clause: 'The target perceives the damage as a type appropriate to the illusion',
-      why: 'table',
-      note: 'The damage type is whatever the fiction says it is, which is the DM’s sentence; the engine would need a type to roll against a defence and the book declines to print one.',
-    },
-  ],
+  // **Phantasmal Force has left the undefined population**, and the three shapes
+  // its entry named went with it. Two were already stale when the entry was read
+  // back: `SpellCheck.onSuccess: 'end-casting'` had been built for Ensnaring
+  // Strike, and `AreaTrigger.within` — a reach measured from the casting's own
+  // point rather than over its template — for Flaming Sphere. The third was real
+  // and is built now: `AreaTrigger.at: 'start-of-casters-turn'` is the moment,
+  // and `onlyTarget` is its population, read off `OngoingSpell.singledOut`. What
+  // is left of the spell is the illusion itself, and it is filed in `ADJUDICATED`
+  // below and handed to the table in the book's own words.
   // **Blocked on nothing, and now read.** Every trigger it has is fiction and
   // the one mechanical clause is a check the vocabulary states exactly. What
   // stops the definition being written is neither: `check_without_duration`

@@ -910,6 +910,11 @@ const ANSWERS: Readonly<Record<string, Answer>> = {
   // produced — one is a distance on the lattice and the other is a space to
   // point at.
   altitude_required: { fields: ['activate_spell.altitude'] },
+  // And the third, which arrived with a later action that draws a template
+  // rather than turning one: SRD Call Lightning's "targeting the same point or
+  // a different one". A place, not a bearing, so it takes the point field of
+  // its own rather than the three spellings of a direction below.
+  point_required: { fields: ['activate_spell.at'] },
   direction_required: {
     fields: [
       'activate_spell.towards',

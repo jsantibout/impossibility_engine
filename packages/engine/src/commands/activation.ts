@@ -24,10 +24,20 @@ import { lightPatchesOf, type Supply } from './casting.js';
 import { castingIdOf, regionOfArea } from '../spells.js';
 import { creatureOf, unknownCreature } from './command.js';
 import { unsettledRefusal } from './holds.js';
-import { reachFromCaster, reachFromOrigin, relocateOrigin } from './ongoing.js';
+import {
+  reachFromCaster,
+  reachFromOrigin,
+  relocateOrigin,
+  underTheKeptPoint,
+} from './ongoing.js';
 import { resolveEffects } from './spell-resolution.js';
 import { handedOver, statedChoice, statedDamageType } from '../spell-definitions.js';
-import { type SpellResolution, type SpellTargetOutcome } from './targeting.js';
+import {
+  areaCatch,
+  areaSourceOf,
+  type SpellResolution,
+  type SpellTargetOutcome,
+} from './targeting.js';
 import { settleAreaEffects } from './turns.js';
 
 export interface ActivateSpellCommand extends CommandIdentity {
@@ -116,6 +126,26 @@ export interface ActivateSpellCommand extends CommandIdentity {
    * turning nothing is not a thing the book offers.
    */
   readonly towards?: Point;
+  /**
+   * Where the template this action draws is centred.
+   *
+   * SRD Call Lightning: "you can take a Magic action to call down lightning in
+   * that way again, **targeting the same point or a different one**." The same
+   * word a casting places its area with, and the same discipline: **required**
+   * where the action draws a point-origin template and **refused** where it
+   * draws none — a Magic action spent aiming nothing is not a thing the book
+   * offers.
+   *
+   * **Not {@link to}, which moves a point the casting keeps.** The cloud stays
+   * where it rose; what moves is where the bolt falls, and the two are
+   * different facts about the same casting — see
+   * {@link SpellActivation.redrawsArea}.
+   *
+   * Checked against the kept origin's own reach rather than against the
+   * caster's range, because that is what the book measures: "a point you can
+   * see **under the cloud**".
+   */
+  readonly at?: Point;
 }
 
 /**
@@ -229,18 +259,6 @@ export function activateSpell(
       );
     }
 
-    // SRD: "**you** can make the attack again." A spell is not a thing lying
-    // about for anyone to pick up, and this is the refusal that says so.
-    if (record.caster !== casterId) {
-      return err(
-        'not_your_spell',
-        `${command.castingId} is ${record.caster}'s casting; ${casterId} cannot act through it`,
-      );
-    }
-
-    const caster = creatureOf(state, casterId);
-    if (caster === null) return unknownCreature(casterId);
-
     const definition = supply.content.spell(record.spellId);
     if (definition?.activation === undefined) {
       return err(
@@ -249,6 +267,33 @@ export function activateSpell(
       );
     }
     const activation = definition.activation;
+
+    // SRD: "**you** can make the attack again." A spell is not a thing lying
+    // about for anyone to pick up, and this is the refusal that says so.
+    //
+    // **One spell in the book hands the action to somebody else**, and it hands
+    // it to exactly one creature: SRD Dragon's Breath's "**the target** can
+    // take a Magic action to exhale a 15-foot Cone". So the same refusal asks
+    // the other question for that definition — is this the creature the casting
+    // is on — off `aimed`, which is what the cast declared and the world cannot
+    // say. A caster who touched themselves is on that list and may exhale; one
+    // who touched somebody else is not, and may not.
+    if (activation.by === 'target') {
+      if (!record.aimed.includes(casterId)) {
+        return err(
+          'not_your_spell',
+          `${record.spell} is acted through by the creature it is on — ${record.aimed.join(', ') || 'nobody'} — and ${casterId} is not ${record.aimed.length === 1 ? 'them' : 'among them'}`,
+        );
+      }
+    } else if (record.caster !== casterId) {
+      return err(
+        'not_your_spell',
+        `${command.castingId} is ${record.caster}'s casting; ${casterId} cannot act through it`,
+      );
+    }
+
+    const caster = creatureOf(state, casterId);
+    if (caster === null) return unknownCreature(casterId);
 
     // **The numbers the casting was made with**, off the record. Re-deriving
     // them from the caster's sheet is how a minute-old Vampiric Touch quietly
@@ -260,15 +305,22 @@ export function activateSpell(
     // melee spell attack" — a target that may be declined. Moonbeam's later
     // Magic action has no attack to decline, so a named target is a caller
     // asking the beam to do something it does not do.
+    // **A template this action draws catches whoever it covers**, so a named
+    // target is a caller asking a Cone to be aimed at somebody: the geometry
+    // decides, exactly as it decides a casting's own area — see
+    // {@link SpellActivation.area}.
+    const drawn =
+      activation.area ?? (activation.redrawsArea === undefined ? undefined : definition.area);
     if (
       activation.movesArea !== undefined ||
       activation.redirects === true ||
-      activation.reoptions === true
+      activation.reoptions === true ||
+      drawn !== undefined
     ) {
       if (command.targets.length > 0) {
         return err(
           'wrong_target_count',
-          `${record.spell}'s later action ${activation.reoptions === true ? 'changes its own form' : 'moves the area'} and strikes nobody, got ${command.targets.length} target(s)`,
+          `${record.spell}'s later action ${activation.reoptions === true ? 'changes its own form' : drawn === undefined ? 'moves the area' : `fills a ${drawn.kind} and catches whoever is in it`}, got ${command.targets.length} target(s)`,
         );
       }
     } else {
@@ -358,18 +410,52 @@ export function activateSpell(
       }
     }
 
-    if (activation.redirects !== true) {
+    // A direction belongs to a re-aiming or to a directional template drawn
+    // now, and to nothing else. The *missing* half of each is the geometry's
+    // own refusal (`no_direction`, out of `placeArea`), asked below before
+    // anything is spent; this is the other half.
+    if (activation.redirects !== true && drawn === undefined) {
       if (command.towards !== undefined) {
         return err(
           'not_directional',
           `${record.spell}'s later action re-aims nothing; which way is not a fact it asks for`,
         );
       }
-    } else if (command.towards === undefined) {
+    } else if (activation.redirects === true && command.towards === undefined) {
       return err(
         'direction_required',
         `${record.spell}'s later action changes the direction it blasts in; name which way`,
       );
+    }
+
+    // — the point a re-drawn template is centred on ——————————————————————————
+    //
+    // SRD Call Lightning's "the same point or a different one", asked before
+    // the action is charged like every other stated fact here. Where the point
+    // may be is the kept origin's business and is checked below, against the
+    // same reach a target would be measured by.
+    if (drawn === undefined || drawn.origin !== 'point') {
+      if (command.at !== undefined) {
+        return err(
+          'no_point_clause',
+          `${record.spell}'s later action centres nothing on a point; where is not a fact it asks for`,
+        );
+      }
+    } else if (command.at === undefined) {
+      return err(
+        'point_required',
+        `${record.spell}'s later action falls on a point of its caster's choosing, and nobody said where`,
+      );
+    } else {
+      // "a point you can see **under the cloud**": measured from the point the
+      // casting keeps — the cloud, which rose above its caster — and refused
+      // beyond the printed radius before the action is charged. The same reader
+      // the cast is held to, so the first bolt and the tenth fall in one place.
+      const allowance = activation.redrawsArea;
+      if (allowance !== undefined && record.origin !== undefined) {
+        const beyond = underTheKeptPoint(record.origin, command.at, allowance, record.spell);
+        if (beyond !== null) return beyond;
+      }
     }
 
     // — the mark, and the printed condition on moving it ————————————————
@@ -444,6 +530,41 @@ export function activateSpell(
       if (checked !== null) return checked;
     }
 
+    // — the template this action draws, and who it covers ————————————————————
+    //
+    // SRD Dragon's Breath's Cone and SRD Call Lightning's bolt, caught through
+    // `areaCatch` — the one ruler a casting's own area is caught through, so
+    // Total Cover, the dead, a creature type the spell cannot touch and a ward
+    // standing between are all taken out here rather than in a second filter.
+    //
+    // **From where the actor is standing.** A `self`-origin template starts at
+    // whoever took the action, which is the whole of what Dragon's Breath
+    // needed: the Cone comes out of the creature that inhaled. A point-origin
+    // one is centred where `at` says, and the origin creature of a Cone, Cube,
+    // Line or Emanation is left out of it by the geometry, as SRD leaves a
+    // caster out of their own.
+    //
+    // Before the action is charged, because a refusal must cost nothing — and
+    // `no_direction` for a Cone nobody aimed comes back out of here.
+    let covered: readonly CharacterId[] | null = null;
+    if (drawn !== undefined) {
+      const caught = areaCatch(
+        state,
+        casterId,
+        { ...areaSourceOf(definition), castLevel: record.level },
+        drawn,
+        {
+          targets: [],
+          ...(command.at === undefined ? {} : { at: command.at }),
+          ...(command.towards === undefined ? {} : { towards: command.towards }),
+        },
+        null,
+        unverified,
+      );
+      if (!caught.ok) return caught;
+      covered = caught.value;
+    }
+
     // Nothing is rolled until the action is known to be affordable — the same
     // validate-before-rolling rule casting itself obeys. Outside combat there is
     // no economy to spend.
@@ -484,6 +605,15 @@ export function activateSpell(
       type: 'spell-activated',
       castingId: record.castingId,
       by: casterId,
+      // **The one creature a later action leaves behind**, for the one spell
+      // that prints a check the creature it probed may attempt: SRD Detect
+      // Thoughts' Magic action turns a Range: Self casting on a mind, and the
+      // cast aimed at nobody. Pinned only where the definition's check asks for
+      // it — see `SpellCheck.attemptBy` — so every other activation writes the
+      // event it always wrote.
+      ...(definition.check?.attemptBy === 'singled-out' && target !== null
+        ? { singledOut: target }
+        : {}),
       ...(stamp === null ? {} : { command: stamp }),
     });
 
@@ -630,13 +760,21 @@ export function activateSpell(
     // The activation's own effects, from where the area actually ended up. The
     // caster is re-read: a route that ended its own casting may have ended the
     // caster too, and `resolveEffects` is explicit about a caster who has gone.
+    // **The actor, and the numbers are still the caster's.** SRD Dragon's
+    // Breath's Cone comes out of the creature that inhaled, so the blow names
+    // *them* as its dealer — which is the fact SRD Hellish Rebuke reads, "damage
+    // from a creature that you can see", and a goblin scorched by a fighter's
+    // breath rebukes the fighter. Nothing about the spell moves with the actor:
+    // the level, the route and the save DC are `record.numbers`, pinned at the
+    // cast and passed below, so a fighter who breathes fire does not roll it off
+    // their own sheet.
     const resolved = resolveEffects(state, casterId, creatureOf(current, casterId), definition, {
       // The level the casting was made at. A wizard who gained a level since
       // does not upcast a spell already in the air.
       castLevel: record.level,
       route: null,
       numbers: record.numbers,
-      targets: target === null ? [] : [target],
+      targets: covered ?? (target === null ? [] : [target]),
       unverified,
       supply,
       castingId: record.castingId,
@@ -647,20 +785,37 @@ export function activateSpell(
       // through the same two substitutions the cast ran them through, off the
       // record rather than out of a fresh request — the caster named the
       // ability once, when they cast it.
-      effects:
-        activation.reAims === true
-          ? statedChoice(
-              statedDamageType(definition.effects, record.damageType),
-              record.choice?.of,
-              record.choice?.value,
-            )
-          : activation.effects,
+      // **And a re-drawing action runs them too**, for the same reason written
+      // about the same list: SRD Call Lightning calls down lightning "in that
+      // way again", and the way is the one sentence the spell printed once.
+      //
+      // **The substitutions travel with every list, not only those two.** SRD
+      // Dragon's Breath's Cone deals "damage of the chosen type", and the type
+      // was chosen at the cast and pinned on the record — so the activation's
+      // own list is read through the same two readers. Both are the identity
+      // for a casting that stated nothing, which is every activation written
+      // before this line.
+      effects: statedChoice(
+        statedDamageType(
+          activation.reAims === true || activation.redrawsArea !== undefined
+            ? definition.effects
+            : activation.effects,
+          record.damageType,
+        ),
+        record.choice?.of,
+        record.choice?.value,
+      ),
       label: activation.label,
       // The object the casting was pointed at, off the record rather than out
       // of a fresh request: SRD Heat Metal deals "**this** damage again" to the
       // thing it was cast on, and an activation that asked again could heat
       // one object on this turn and another on the next.
       ...(record.object === undefined ? {} : { object: record.object }),
+      // **The weather the cloud rose in**, off the record rather than out of a
+      // fresh request: SRD Call Lightning's storm was a fact about the world at
+      // the cast, and a bolt called down nine minutes later falls in the storm
+      // the spell took hold of.
+      ...(record.inAStorm === undefined ? {} : { inAStorm: record.inAStorm }),
       // The one fact a later action states rather than reads off the record:
       // how far, and which way — see {@link ActivateSpellCommand.altitude}.
       ...(command.altitude === undefined ? {} : { altitude: command.altitude }),

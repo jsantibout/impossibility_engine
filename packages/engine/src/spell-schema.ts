@@ -25,6 +25,8 @@ import {
   modifierRidersOf,
   persists as castingPersists,
   optionEffectLists,
+  readsAStatedStorm,
+  singlesOutAtTheCast,
   statedChoiceCollides,
   statedChoiceReaches,
 } from './spell-definitions.js';
@@ -422,6 +424,10 @@ function checkScaling(
   for (const [key, notation] of [
     ['dice', scaling.dice],
     ['perSlotLevelAbove', scaling.perSlotLevelAbove],
+    // The dice a stated fact about the world buys — SRD Call Lightning's storm
+    // — read for its count exactly as the per-slot notation is, and so held to
+    // the same parse for the same reason.
+    ['plusInAStorm', scaling.plusInAStorm],
   ] as const) {
     if (notation === undefined) continue;
     if (typeof notation !== 'string' || !parseNotation(notation).ok) {
@@ -451,7 +457,7 @@ function checkScaling(
     // in, so the upcast would silently come to nothing. `flatPerSlotLevelAbove`
     // is deliberately not here — `scaledFlatFor` never reads a notation, so a
     // printed number that grows flatly with the slot is perfectly sayable.
-    for (const key of ['perSlotLevelAbove', 'cantripUpgradesAt'] as const) {
+    for (const key of ['perSlotLevelAbove', 'cantripUpgradesAt', 'plusInAStorm'] as const) {
       if (scaling[key] !== undefined) {
         found.push({
           field: `${path}.${key}`,
@@ -896,6 +902,49 @@ function checkAreaStanding(
       }
       checkTypeList(standing['attackerType'], `${path}.attackerType`, statesTypes, found);
       checkOutside(standing, path, found);
+      return;
+    }
+
+    /*
+     * SRD Conjure Animals: "**You** have Advantage on Strength saving throws
+     * while you're **within 5 feet of the pack**." The mode above read on the
+     * other family of roll, and held to the three things the sentence prints: a
+     * mode, the ability it narrows to, and a reach that is measured from the
+     * casting's own point rather than over the template it filled.
+     */
+    case 'save-mode': {
+      if (standing['mode'] !== 'advantage' && standing['mode'] !== 'disadvantage') {
+        found.push({
+          field: `${path}.mode`,
+          code: 'bad_area_mode',
+          reason: `an area puts Advantage or Disadvantage on a roll, and this is ${nameOf(standing['mode'])}`,
+        });
+      }
+      // A save is made *with* an ability and the sentence names it, so the
+      // narrowing is required rather than optional: a mode on every saving throw
+      // a creature makes is not a clause the book prints.
+      if (!ABILITY_NAMES_SET.has(standing['ability'] as Ability)) {
+        found.push({
+          field: `${path}.ability`,
+          code: 'bad_ability',
+          reason: `a saving throw is made with one of the six abilities, and this is ${nameOf(standing['ability'])}`,
+        });
+      }
+      const reach = standing['within'];
+      if (reach !== undefined && (typeof reach !== 'number' || !Number.isInteger(reach) || reach < 0)) {
+        found.push({
+          field: `${path}.within`,
+          code: 'bad_reach',
+          reason: `a reach measured from the casting's point is a whole number of feet, not ${nameOf(reach)}`,
+        });
+      }
+      if (standing['onlyCaster'] !== undefined && standing['onlyCaster'] !== true) {
+        found.push({
+          field: `${path}.onlyCaster`,
+          code: 'malformed_field',
+          reason: 'a clause reaches its caster alone or whoever is standing in the area; the only value is true',
+        });
+      }
       return;
     }
 
@@ -2089,12 +2138,22 @@ function checkSaveWithoutCondition(
   // are what keep this from being a licence to throw a die for nothing.
   const verdict = (effect as { readonly verdictOnly?: unknown }).verdictOnly === true;
 
-  if (!hangs && effect.recordsOutcome !== true && !verdict) {
+  // **The fifth way out, and it is the only one where the *success* is what
+  // decided something.** SRD Detect Thoughts' probe: "On a successful save, the
+  // spell ends." A die that ends the spell it was forced by is not a die thrown
+  // for nothing, whichever way it falls — and what the failure buys is the
+  // caster's knowledge, which the definition hands to the table. Every other
+  // way out above reads the failure, because a saving throw's affirmative
+  // outcome is its failure; this is the one sentence in the book that hangs the
+  // consequence on the other branch.
+  const ends = effect.onSuccess === 'end-casting';
+
+  if (!hangs && effect.recordsOutcome !== true && !verdict && !ends) {
     found.push({
       field: `${path}.condition`,
       code: 'save_imposes_nothing',
       reason:
-        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer, or set verdictOnly where the verdict is the whole of it',
+        'a saving throw whose failure imposes no condition, hangs no rider and records no outcome is a die thrown for nothing; name the condition, or the grants the failure hands out, or set recordsOutcome where the sentence says somebody knows the answer, or set verdictOnly where the verdict is the whole of it, or end the casting on a success',
     });
   }
 
@@ -6281,6 +6340,22 @@ export function checkSpellDefinition(
    * day a spell prints both sentences the reader is written first and this row
    * goes; until then the refusal is what says the reader is missing.
    *
+   * **And one reader has now been written, for one of the three, on one of the
+   * two later catches.** SRD Phantasmal Force takes a space and names the one
+   * creature standing there whose mind the illusion is in, and
+   * `AreaTrigger.onlyTarget` narrows the **trigger's** later catch to *that same
+   * creature* — off `OngoingSpell.singledOut`, which the cast pinned. So the
+   * filter does not let go of the casting a turn later: the same one creature is
+   * caught at the cast and at every boundary after it.
+   *
+   * **`areaStanding` is not excused with it**, and the asymmetry is the whole
+   * point of naming the reader rather than the field: a standing clause reads
+   * `singledOut` nowhere, so a definition that filtered its catch and then imposed
+   * something on whoever was standing in the area would be exactly the
+   * half-applied rule this row exists to refuse. The refusal also stands for the
+   * other two clauses, which have no reader on either later catch, and for a
+   * `chosenFromTheArea` whose trigger does not carry the narrowing.
+   *
    * The other two target clauses need no such guard, because they are checked
    * wherever a caller *names* somebody and every definition does.
    */
@@ -6294,7 +6369,12 @@ export function checkSpellDefinition(
       });
       continue;
     }
-    if (definition.areaTrigger !== undefined || definition.areaStanding !== undefined) {
+    const narrowedLater =
+      clause === 'chosenFromTheArea' && definition.areaTrigger?.onlyTarget === true;
+    if (
+      (definition.areaTrigger !== undefined && !narrowedLater) ||
+      definition.areaStanding !== undefined
+    ) {
       found.push({
         field: `targets.${clause}`,
         code: 'area_filter_and_a_later_catch',
@@ -6431,6 +6511,51 @@ export function checkSpellDefinition(
         checkEffect(effect, definition.level, `areaTrigger.effects[${i}]`, found),
       );
       checkPointMeasuredTrigger(definition.areaTrigger, definition.area, found);
+
+      // — the trigger that fires at the caster's boundary ————————————————————
+      //
+      // SRD Phantasmal Force: "**On each of your turns**, such a phantasm can
+      // deal 2d8 Psychic damage to the target." The moment belongs to the caster
+      // and the creature that pays is standing still somewhere else, so the
+      // clause only means anything where the casting has singled one creature
+      // out — a payout owed at the caster's boundary against whoever happened to
+      // walk into the area is a spell the book does not print.
+      if (definition.areaTrigger.at === 'start-of-casters-turn') {
+        if (definition.areaTrigger.onlyTarget !== true) {
+          found.push({
+            field: 'areaTrigger.at',
+            code: 'casters_turn_without_a_target',
+            reason:
+              'a trigger that fires at the caster’s own boundary pays out on the creature the casting singled out, and this one reaches whoever is standing in the area',
+          });
+        }
+      } else if (
+        definition.areaTrigger.at !== undefined &&
+        !TURN_MOMENT_NAMES.has(definition.areaTrigger.at)
+      ) {
+        found.push({
+          field: 'areaTrigger.at',
+          code: 'unknown_turn_moment',
+          reason: `"${String(definition.areaTrigger.at)}" is neither of the SRD's two turn boundaries nor the caster's own`,
+        });
+      }
+      if (definition.areaTrigger.onlyTarget !== undefined) {
+        if (definition.areaTrigger.onlyTarget !== true) {
+          found.push({
+            field: 'areaTrigger.onlyTarget',
+            code: 'malformed_field',
+            reason:
+              'a trigger reaches only the creature the casting singled out or it reaches whoever the geometry catches; the only value is true',
+          });
+        } else if (!singlesOutAtTheCast(definition)) {
+          found.push({
+            field: 'areaTrigger.onlyTarget',
+            code: 'only_target_without_a_target',
+            reason:
+              'a trigger narrowed to the creature the casting singled out needs the cast to single one out, and this spell names none',
+          });
+        }
+      }
     }
   }
 
@@ -6519,6 +6644,30 @@ export function checkSpellDefinition(
         code: 'stated_types_reach_nothing',
         reason:
           'nothing in this spell’s area clauses says "stated" for the casting’s types to replace',
+      });
+    }
+  }
+
+  // — the area the caster carries while walking ——————————————————————————————
+  //
+  // SRD Conjure Animals' thirty feet, held to the two things that make it mean
+  // anything: something to carry, and a distance to carry it.
+  if (definition.areaMovesWithCaster !== undefined) {
+    if (definition.area === undefined) {
+      found.push({
+        field: 'areaMovesWithCaster',
+        code: 'moves_area_without_area',
+        reason: 'an area a caster carries while walking needs the spell to have one',
+      });
+    }
+    if (
+      typeof definition.areaMovesWithCaster !== 'number' ||
+      definition.areaMovesWithCaster <= 0
+    ) {
+      found.push({
+        field: 'areaMovesWithCaster',
+        code: 'bad_movement_allowance',
+        reason: 'an allowance of nothing is an area that never goes anywhere',
       });
     }
   }
@@ -6794,6 +6943,37 @@ export function checkSpellDefinition(
     definition.damageTypeStated.forEach((type, i) =>
       checkDamageType(type, `damageTypeStated[${i}]`, found),
     );
+  }
+
+  // — the one question a spell asks about the world ————————————————————————
+  //
+  // SRD Call Lightning's storm, held to the two halves the book prints: the
+  // question, and what the answer buys. Either alone is silent — a caster
+  // asked a question nothing reads, or dice conditioned on a question nobody
+  // is asked — which is the reachability rule `stated_choice_reaches_nothing`
+  // already states about the other stated fact.
+  if (definition.stormStated !== undefined && definition.stormStated !== true) {
+    found.push({
+      field: 'stormStated',
+      code: 'malformed_field',
+      reason: 'a spell asks whether its caster is outdoors in a storm or it does not; the only value is true',
+    });
+  }
+  if (definition.stormStated === true && !readsAStatedStorm(definition)) {
+    found.push({
+      field: 'stormStated',
+      code: 'stated_storm_reaches_nothing',
+      reason:
+        'nothing this spell rolls reads the weather, so the caster would be asked a question whose answer goes nowhere',
+    });
+  }
+  if (definition.stormStated !== true && readsAStatedStorm(definition)) {
+    found.push({
+      field: 'stormStated',
+      code: 'storm_dice_without_the_clause',
+      reason:
+        'dice conditioned on a storm need the spell to print the clause the caster answers, and this one asks nothing',
+    });
   }
 
   // — the one thing the spell asks its caster to choose ————————————————————
@@ -7289,6 +7469,23 @@ export function checkSpellDefinition(
       });
     }
     checkSpellCheck(definition.check, 'check', found);
+    // SRD Detect Thoughts and SRD Phantasmal Force: a check only the creature the
+    // casting singled out may attempt. Either the cast singles one out, or a
+    // later action does — and a definition with neither would offer the check to
+    // nobody for ever, which is the reachability rule every stated fact here
+    // keeps.
+    if (
+      definition.check.attemptBy === 'singled-out' &&
+      !singlesOutAtTheCast(definition) &&
+      definition.activation === undefined
+    ) {
+      found.push({
+        field: 'check.attemptBy',
+        code: 'attempter_is_never_named',
+        reason:
+          'a check only the creature the casting singled out may attempt needs the cast or a later action to single one out, and this spell does neither',
+      });
+    }
   }
 
   // — the Reaction clause ——————————————————————————————————————————————————
@@ -7405,13 +7602,150 @@ export function checkSpellDefinition(
       definition.origin === undefined &&
       activation.movesArea === undefined &&
       activation.redirects !== true &&
-      activation.reoptions !== true
+      activation.reoptions !== true &&
+      activation.area === undefined &&
+      activation.redrawsArea === undefined
     ) {
       found.push({
         field: 'activation.range',
         code: 'activation_reaches_nothing',
         reason: 'an activation that targets a creature needs a range, from the caster or from a point',
       });
+    }
+    /*
+     * SRD Dragon's Breath's "**the target** can take a Magic action", held to
+     * the one thing the sentence needs: a creature for the casting to be on.
+     *
+     * The actor is read off `OngoingSpell.aimed`, which is what the *cast*
+     * declared — so a spell that names nobody has nothing there, and the field
+     * would hand the action to a creature that does not exist. `targets.count`
+     * is the printed answer to that, read at the definition's own level
+     * because a target a slot buys is not a target the spell has.
+     */
+    if (activation.by !== undefined) {
+      if (activation.by !== 'target') {
+        found.push({
+          field: 'activation.by',
+          code: 'malformed_field',
+          reason:
+            'a later action belongs to the caster or to the creature the casting is on; the only value is "target"',
+        });
+      } else if (definition.targets.count < 1) {
+        found.push({
+          field: 'activation.by',
+          code: 'activation_by_nobody',
+          reason:
+            'an action taken by the creature the casting is on needs the spell to be cast on a creature, and this one names none',
+        });
+      }
+    }
+    /*
+     * SRD Dragon's Breath's Cone and SRD Call Lightning's bolt: a template the
+     * action draws afresh, held to the two things that make it mean anything.
+     *
+     * It is one of the six shapes, checked by the same reader the definition's
+     * own template is checked by; and it is **not** the persistent area, which
+     * the casting pinned and the fold reads — a definition that wrote both
+     * would have two templates and one word (`towards`, `at`) to place them
+     * with, and the request could not say which it meant.
+     */
+    if (activation.area !== undefined) {
+      if (
+        readsAsObject(
+          activation.area,
+          'activation.area',
+          'a template an action draws is an object naming its shape',
+          found,
+        )
+      ) {
+        if (!AREA_KINDS.has(activation.area.kind)) {
+          found.push({
+            field: 'activation.area.kind',
+            code: 'unknown_area',
+            reason: `"${activation.area.kind}" is not one of the SRD's six areas of effect, nor the wall the caster draws`,
+          });
+        } else if (activation.area.kind === 'wall') {
+          found.push({
+            field: 'activation.area',
+            code: 'activation_draws_a_wall',
+            reason:
+              'a wall is a path the caster draws space by space, and a later action states a direction or a point rather than a path',
+          });
+        }
+      }
+      if (activation.redrawsArea !== undefined) {
+        found.push({
+          field: 'activation.area',
+          code: 'activation_area_and_redraw',
+          reason:
+            'an action either draws a template of its own or draws the casting’s again; two templates and one point to place them with is one sentence written twice',
+        });
+      }
+      if (activation.redirects === true) {
+        found.push({
+          field: 'activation.area',
+          code: 'activation_area_and_redirects',
+          reason:
+            'both a fresh template and a re-aiming read the direction off the same request, and no printed action does both',
+        });
+      }
+      if (activation.range !== undefined) {
+        found.push({
+          field: 'activation.range',
+          code: 'activation_area_and_range',
+          reason:
+            'an action that draws a template catches whoever it covers and reaches no named creature, so it takes no range',
+        });
+      }
+    }
+    /*
+     * SRD Call Lightning: "you can take a Magic action to call down lightning
+     * in that way again, **targeting the same point or a different one**."
+     *
+     * The casting's own template, drawn again at a point stated now, running
+     * the casting's own effects — which is why the action carries no list of
+     * its own and needs the spell to have a template with a point to move.
+     */
+    if (activation.redrawsArea !== undefined) {
+      if (typeof activation.redrawsArea !== 'number' || activation.redrawsArea <= 0) {
+        found.push({
+          field: 'activation.redrawsArea',
+          code: 'bad_movement_allowance',
+          reason:
+            'how far from the point the casting keeps the fresh template may be centred is a distance in feet, and an allowance of nothing is an action spent on the same square for ever',
+        });
+      } else {
+        if (definition.area === undefined) {
+          found.push({
+            field: 'activation.redrawsArea',
+            code: 'redraw_without_area',
+            reason: 'an action that draws the spell’s template again needs the spell to have one',
+          });
+        } else if (definition.area.origin !== 'point') {
+          found.push({
+            field: 'activation.redrawsArea',
+            code: 'redraw_without_a_point',
+            reason:
+              'a template that starts at its caster has no point to re-choose; only a point-origin area is drawn somewhere else',
+          });
+        }
+        if (Array.isArray(activation.effects) && activation.effects.length > 0) {
+          found.push({
+            field: 'activation.effects',
+            code: 'redraw_with_effects',
+            reason:
+              'what a re-drawing action resolves is the casting’s own effects; a list here would be a second place for one sentence to be got wrong',
+          });
+        }
+        if (activation.range !== undefined) {
+          found.push({
+            field: 'activation.range',
+            code: 'redraw_with_range',
+            reason:
+              'an action that draws a template catches whoever it covers and reaches no named creature, so it takes no range',
+          });
+        }
+      }
     }
     if (activation.movesArea !== undefined) {
       if (definition.area === undefined) {
@@ -7443,7 +7777,8 @@ export function checkSpellDefinition(
       activation.movesArea === undefined &&
       activation.redirects !== true &&
       activation.reAims !== true &&
-      activation.reoptions !== true
+      activation.reoptions !== true &&
+      activation.redrawsArea === undefined
     ) {
       found.push({
         field: 'activation.effects',

@@ -2070,6 +2070,21 @@ export type GameEvent =
        * so every log written before this folds to exactly the state it did.
        */
       readonly dmDecides?: readonly string[];
+      /**
+       * The creature whose hand carried a Touch casting — SRD Find Familiar's
+       * "your familiar can deliver the touch".
+       *
+       * **History, and it says so.** Nothing folds it and nothing reads it back:
+       * the spell is its caster's, off its caster's sheet and out of its caster's
+       * slot, and the one thing the delivery changed — the square the five feet
+       * was measured from — was settled before the slot went. What is left is a
+       * fact a reader of the log would otherwise have no way to recover, which is
+       * exactly what `spell-activated` exists for on the other side of the same
+       * question. The Reaction beside it is the familiar's own `reaction-spent`.
+       *
+       * Absent for every other casting in the book.
+       */
+      readonly deliveredBy?: CharacterId;
       /** The command that caused it, so a retry is recognised as one. */
       readonly command?: CommandStamp;
     }
@@ -2111,16 +2126,31 @@ export type GameEvent =
   /**
    * An ongoing spell was used again on a later turn.
    *
-   * Changes no state — the action it costs and the damage it deals are their
-   * own events — so this is `roll-recorded`'s shape and exists for the same
-   * two reasons: without it the log shows an attack with no visible cause, and
-   * a command whose only other events may be a miss has nowhere to put its
-   * stamp.
+   * Changes almost no state — the action it costs and the damage it deals are
+   * their own events — so this is close to `roll-recorded`'s shape and exists
+   * for the same two reasons: without it the log shows an attack with no visible
+   * cause, and a command whose only other events may be a miss has nowhere to
+   * put its stamp.
+   *
+   * **One thing it does write, and it is a decision the action itself took.**
+   * SRD Detect Thoughts' probe names a mind, and the casting is Range: Self —
+   * so the creature is neither a target of the cast nor anything the world holds,
+   * and the event that records the action is the only place it could be written.
+   * See {@link singledOut} and `OngoingSpell.singledOut`.
    */
   | {
       readonly type: 'spell-activated';
       readonly castingId: string;
       readonly by: CharacterId;
+      /**
+       * The creature this later action turned the casting on — SRD Detect
+       * Thoughts' "probe deeper into **the target's** mind".
+       *
+       * Pinned onto the ongoing record, where the check the book offers reads it.
+       * Absent for every other activation in the book, which names its target
+       * for the length of one action and leaves nothing behind.
+       */
+      readonly singledOut?: CharacterId;
       readonly command?: CommandStamp;
     }
   /**
@@ -2158,6 +2188,23 @@ export type GameEvent =
       readonly type: 'spell-origin-moved';
       readonly castingId: string;
       readonly to: Point;
+      /**
+       * That the caster carried the point along **with their own movement** —
+       * SRD Conjure Animals' "when you move on your turn, you can also move the
+       * pack up to 30 feet".
+       *
+       * **How it moved and not merely that it did**, because the cap is about the
+       * how: an action is its own cap — a creature has one Magic action a turn and
+       * Moonbeam's walk *is* that action — while a move may be broken into six
+       * commands of five feet, and a rider on one command is once per command. So
+       * the turn is stamped for a carry and for nothing else, which is also what
+       * keeps every log written before this field folding to exactly the state it
+       * always folded to: a beam an activation walked writes no flag and the
+       * reducer writes no stamp.
+       *
+       * See `OngoingSpell.movedOnTurn`, which is what it sets.
+       */
+      readonly carried?: true;
     }
   /**
    * The directional area an ongoing spell blows from its caster now points

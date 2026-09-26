@@ -106,6 +106,7 @@
     "raiseTurnSaves",
     "sourceOfCasting",
     "failUnsustainedCastings",
+    "forgetCarriedTurns",
     "forgetSustainedTurns",
     "raiseTurnEnd",
     "openTurnStart",

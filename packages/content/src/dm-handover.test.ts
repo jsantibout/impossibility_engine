@@ -323,13 +323,28 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     // A cone, a cube or a line needs a direction to point it in — SRD Fear's
     // 30-foot cone — and the sweep points every one east of the shrine.
     ...(definition.area !== undefined && ['cone', 'cube', 'line'].includes(definition.area.kind)
-      ? { towards: { x: 100, y: 50, z: 0 } }
+      ? {
+          towards: { x: 100, y: 50, z: 0 },
+        }
       : {}),
     // **An area the caster puts somewhere needs the point.** A `self` origin
     // is the caster's own space and refuses to be moved, so only a
     // point-origin volume is placed — five feet from the shrine, which is
     // inside the scene and within every Range this population prints.
-    ...(definition.area?.origin === 'point' ? { at: { x: 55, y: 50, z: 0 } } : {}),
+    // **Except where the area is what picks the target out.** SRD Phantasmal
+    // Force draws its Cube and names the one creature inside it — "each creature
+    // of your choice in the area" narrowed to one — so the point goes on the
+    // sleeper's own square rather than five feet east of the shrine, and the Cube
+    // covers the creature this casting is aimed at. The anchor space is always in
+    // the Cube, so no direction can put the target outside it.
+    ...(definition.area?.origin === 'point'
+      ? {
+          at:
+            definition.targets.chosenFromTheArea === true
+              ? { x: 50, y: 55, z: 0 }
+              : { x: 55, y: 50, z: 0 },
+        }
+      : {}),
     // A cantrip is cast off the known list and spends no slot, so naming one
     // is the refusal rather than the casting.
     ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
@@ -414,10 +429,23 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'animate-dead',
       'arcane-lock',
       'augury',
+      // **The cloud, which is the whole of what is left of a spell whose bolts
+      // the engine now throws.** SRD Call Lightning's template, its numbers and
+      // its later Magic action are executed, and the storm cloud itself — where
+      // it appears, the Cylinder it takes the shape of, and the difference
+      // between making one and taking hold of one already there — is narration
+      // the engine holds nothing of. Handed over in the book's own words.
+      'call-lightning',
       'clairvoyance',
       'commune',
       'commune-with-nature',
       'comprehend-languages',
+      // **The pack itself**, which is what is left of a spell whose every number
+      // the engine now rolls: SRD Conjure Animals' spirits "appear as a Large pack
+      // of spectral, intangible animals" and "you choose the spirits' animal
+      // form, such as wolves, serpents, or birds". What they look like is
+      // narration; the ten feet, the thirty, the five and the 3d10 are not.
+      'conjure-animals',
       'contact-other-plane',
       'control-weather',
       'create-food-and-water',
@@ -425,6 +453,12 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'detect-evil-and-good',
       'detect-magic',
       'detect-poison-and-disease',
+      // **The knowledge a failed probe buys**, which is the one sentence of SRD
+      // Detect Thoughts the engine leaves alone now that the probe throws its
+      // saving throw and the check the probed creature makes ends the spell:
+      // what looms large in a goblin's mind is the table's, and it goes out in
+      // the book's own words.
+      'detect-thoughts',
       'disguise-self',
       'divination',
       'dream',
@@ -471,6 +505,14 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'message',
       'minor-illusion',
       'mirage-arcane',
+      // **The phantasm itself, which is every sentence about it that is not the
+      // damage.** SRD Phantasmal Force's Intelligence save, its Cube, the
+      // Investigation check the target may attempt and the 2d8 Psychic at the
+      // caster's own boundary are executed; what goes to the table is the
+      // illusion — the sound and the temperature, the target treating it as real
+      // and rationalising the fall through a bridge that was never there, and the
+      // damage type it thinks it took. All of it in the book's own words.
+      'phantasmal-force',
       'planar-ally',
       'purify-food-and-drink',
       // Rope Trick left this list on the second place: the climb, the eight,

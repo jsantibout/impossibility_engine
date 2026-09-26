@@ -1871,12 +1871,20 @@ const membersOf = (source: string, name: string): readonly FormatMember[] => {
    */
   const addField = (host: string, prefix: string, field: FieldDeclaration): void => {
     if (field.optional) add(`${host}.${field.key}?`, `${prefix}${field.key}?`);
-    for (const value of VOCABULARIES[field.type] ?? []) {
-      add(`${host}.${field.key}='${value}'`, `${prefix}${field.key}='${value}'`);
-    }
-    if (LITERAL_UNION.test(field.type)) {
-      for (const literal of field.type.split('|')) {
-        const value = literal.trim().slice(1, -1);
+    // **Arm by arm, because a field may name a vocabulary *and* a literal.**
+    // `AreaTrigger.at` is `TurnMoment | 'start-of-casters-turn'`: two moments the
+    // engine declares once and a third this type adds, and a reader that took the
+    // whole right-hand side as one name would have stopped seeing all three — the
+    // sweep quietly covering less while reporting the same, which is the failure
+    // the vocabulary map's own docstring is about. Splitting first subsumes both
+    // readings it replaced: a bare vocabulary name is one arm, and a union of
+    // literals is several.
+    for (const arm of unionArms(field.type)) {
+      for (const value of VOCABULARIES[arm] ?? []) {
+        add(`${host}.${field.key}='${value}'`, `${prefix}${field.key}='${value}'`);
+      }
+      if (LITERAL_UNION.test(arm)) {
+        const value = arm.slice(1, -1);
         add(`${host}.${field.key}='${value}'`, `${prefix}${field.key}='${value}'`);
       }
     }
@@ -2490,6 +2498,13 @@ describe('every member of the definition format has a user or a written exemptio
       // the spell ends."
       "SpellCheck.onSuccess='end-casting' + SpellRepeatSave.onSuccess='end-casting'",
       "SpellCheck.onSuccess='end-on-target' + SpellRepeatSave.onSuccess='end-on-target'",
+      // A casting's own template against the one a later action draws, which
+      // share a field name and nothing else: the first is pinned on the record
+      // and read by the fold at every boundary, the second exists for the
+      // length of one action. Both are written — every area spell in the book
+      // writes the first and SRD Dragon's Breath's Cone writes the second —
+      // and `checkSpellDefinition` keeps them apart on one definition.
+      'SpellDefinition.area? + SpellActivation.area?',
       'SpellDefinition.check? + ConditionRider.check?',
       // **Three names now, and the third is the `elsewhere` arm's**: a
       // definition's *nested* `returns.at` and the arm's own `at` are probed

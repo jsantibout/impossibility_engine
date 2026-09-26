@@ -29,7 +29,7 @@ export function resolveTempHpEffect(
   const { casterSheet, name, level, castLevel, numbers, supply, events, outcomes } = ctx;
   let current = world;
 
-  const dice = scaledDiceFor(effect.amount, level, numbers.casterLevel, castLevel);
+  const dice = scaledDiceFor(effect.amount, level, numbers.casterLevel, castLevel, ctx.inAStorm);
   // **What the route this casting was made through says about the dice.** SRD
   // Fiendish Vigor: "When you cast the spell with this feature, you don't roll
   // the die for the Temporary Hit Points; you automatically get the highest
@@ -80,7 +80,7 @@ export function resolveHealEffect(
   const { casterId, casterSheet, name, level, castLevel, numbers, supply, events, outcomes } = ctx;
   let current = world;
 
-  const dice = scaledDiceFor(effect.healing, level, numbers.casterLevel, castLevel);
+  const dice = scaledDiceFor(effect.healing, level, numbers.casterLevel, castLevel, ctx.inAStorm);
   // **What the target's own running effects say about the dice, before they
   // are thrown.** SRD Beacon of Hope: "regains the maximum number of Hit
   // Points possible from any healing." It is the *target's* rule rather than

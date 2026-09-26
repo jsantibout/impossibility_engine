@@ -48,6 +48,7 @@ import {
   rollModesFor,
   sensesPerceiving,
   areaAttackModesAgainst,
+  areaSaveModesOn,
   standingBonuses,
   standingCheckBonuses,
   standingSaveBonuses,
@@ -794,7 +795,12 @@ export function savingSupport(
         // says nothing, which a Concentration-keyed selector reads as a miss.
         ...(concentration === undefined ? {} : { concentration }),
       }).modes,
-      supply.modes ?? [],
+      // **And what an area the roller is standing in does to its own saves.**
+      // SRD Conjure Animals: "You have Advantage on Strength saving throws while
+      // you're within 5 feet of the pack" — derived from the scene on every read,
+      // like every other clause an area imposes, and narrowed to the ability the
+      // sentence names. See `areaSaveModesOn`.
+      [...areaSaveModesOn(state, who, ability), ...(supply.modes ?? [])],
     ),
     conditions: effectiveConditions(state, who),
   };
@@ -1125,6 +1131,7 @@ export function effectCheckFrom(
     dc: check.dc ?? saveDc,
     onSuccess: check.onSuccess,
     ...(check.byAnotherWithinReach === true ? { byAnotherWithinReach: true as const } : {}),
+    ...(check.attemptBy === undefined ? {} : { attemptBy: check.attemptBy }),
     label: `${ABILITY_NAMES[check.ability]}${check.skill === undefined ? '' : ` (${skillName(check.skill)})`} check vs ${spell}`,
   };
 }

@@ -395,6 +395,14 @@ export interface EffectCheck {
    * them — see `SpellCheck.byAnotherWithinReach`, which this is pinned from.
    */
   readonly byAnotherWithinReach?: true;
+  /**
+   * SRD Detect Thoughts: "**the target** can take an action on its turn to make
+   * an Intelligence (Arcana) check against your spell save DC". Narrows who may
+   * attempt the check from anybody — which is what a casting sitting on nobody
+   * otherwise offers — to the creature the casting's probe named. See
+   * `SpellCheck.attemptBy`, which this is pinned from.
+   */
+  readonly attemptBy?: 'singled-out';
   /** How the roll reads in the log. */
   readonly label: string;
 }

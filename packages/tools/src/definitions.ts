@@ -2318,6 +2318,15 @@ const MOVE = tool({
         .describe(
           'The 5-foot spaces this move passed through, in order, ending where it ends. Send it when a move came back `route_required`: the same call again with this filled in is the whole of the answer. Not the answer to `single_steps_required`, which wants the walk re-sent as several calls of one space each.',
         ),
+      also_moves: z
+        .object({
+          castingId: z.string().min(1).describe('The casting whose area travels with you.'),
+          to: pointSchema.describe('The unoccupied space it is carried to.'),
+        })
+        .optional()
+        .describe(
+          'Carry one of your own castings\u2019 areas along with this move \u2014 SRD Conjure Animals is "when you move on your turn, you can also move the pack up to 30 feet to an unoccupied space you can see". It costs nothing and rides on the move because the book writes one sentence about both; a turn you stand still is a turn the pack stays put. The engine owns the allowance and refuses a space beyond it, one outside the room, one somebody is standing in and one you have been declared unable to see \u2014 all before a foot of movement is spent.',
+        ),
       using_grant: z
         .string()
         .min(1)
@@ -2346,6 +2355,15 @@ const MOVE = tool({
           ...(args.alongSurface === true ? { alongSurface: true as const } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.using_line === undefined ? {} : { usingLine: args.using_line }),
+          // And the area this move carries along — SRD Conjure Animals' pack.
+          ...(args.also_moves === undefined
+            ? {}
+            : {
+                alsoMoves: {
+                  castingId: args.also_moves.castingId,
+                  to: point(args.also_moves.to),
+                },
+              }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
           ...(args.jump === undefined
             ? {}
@@ -2654,6 +2672,17 @@ const CAST_SPELL = tool({
       .describe(
         'Which of the targets you or your allies are already fighting, for a spell that prints the clause — Charm Person and Charm Monster roll that creature’s save with Advantage. A list, because an upcast Charm names several and the answer differs per creature. Send an empty list to say you are fighting none of them; leaving it out entirely is refused, because silence is not an answer the engine may fill in.',
       ),
+    deliveredBy: creatureId
+      .optional()
+      .describe(
+        'Send a familiar to carry a Touch spell — SRD Find Familiar’s "your familiar can deliver the touch". The spell is still yours: your slot, your action, your save DC. What moves is the hand the five feet is measured from, so a creature only the familiar can reach is a legal target. The engine refuses a spell whose range is not Touch, a creature that is not a familiar of yours that may deliver, one more than a hundred feet from you, and one whose Reaction has gone — all before the slot is spent — and then spends the familiar’s Reaction in the same breath as the casting.',
+      ),
+    inAStorm: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Say the caster is outdoors in a storm, for the one spell that asks — Call Lightning’s "the spell’s damage increases by 1d10". A fact about the weather, which the engine does not hold and will not guess; leave it out and the spell makes a cloud of its own, which is the book’s default. Refused on any spell that prints no such clause. The answer is pinned on the casting, so every bolt called down afterwards falls in the same storm.',
+      ),
     leapTo: z
       .array(creatureId)
       .optional()
@@ -2820,6 +2849,11 @@ const CAST_SPELL = tool({
       // caller who has not read the spell, and the engine tells the two
       // apart. Every other stated fact here is absent-or-present.
       ...(args.fought === undefined ? {} : { fought: args.fought.map(who) }),
+      // And the weather, which is absent-or-present for `willing`'s reason:
+      // no storm is the book's own default rather than an unanswered question.
+      ...(args.inAStorm === undefined ? {} : { inAStorm: args.inAStorm }),
+      // And the hand that carries a Touch, where it is not the caster's own.
+      ...(args.deliveredBy === undefined ? {} : { deliveredBy: who(args.deliveredBy) }),
       // The order is the choice, so the list goes through as it was said.
       ...(args.leapTo === undefined ? {} : { leapTo: args.leapTo.map(who) }),
       // And its opposite number, which **is** absent-or-present: neither
@@ -2988,7 +3022,9 @@ const ACTIVATE_SPELL = tool({
   mutates: true,
   establishes: ['route'],
   input: z.object({
-    caster: creatureId.describe('Whose casting it is. Nobody else may act through it.'),
+    caster: creatureId.describe(
+      'Who is taking the action. The casting’s own caster, for all but one spell — Dragon’s Breath hands the Magic action to the creature that was touched, and then the caster is the one refused.',
+    ),
     castingId: z.string().min(1).describe('From the cast_spell that started it.'),
     targets: z
       .array(creatureId)
@@ -3026,7 +3062,12 @@ const ACTIVATE_SPELL = tool({
     towards: pointSchema
       .optional()
       .describe(
-        'Or the space it points at, for SRD Gust of Wind’s "As a Bonus Action on your later turns, you can change the direction in which the Line blasts from you". Nothing is rolled by the turning: the Line points the new way and catches whoever ends a turn in it.',
+        'Or the space it points at, for SRD Gust of Wind’s "As a Bonus Action on your later turns, you can change the direction in which the Line blasts from you". Nothing is rolled by the turning: the Line points the new way and catches whoever ends a turn in it. It is also the direction a fresh template is drawn in — Dragon’s Breath’s Cone — which is aimed the same way and by the same word.',
+      ),
+    at: pointSchema
+      .optional()
+      .describe(
+        'Where a template this action draws is centred — Call Lightning’s "targeting the same point or a different one". Required by an action that calls something down on a point and refused by every other; the engine checks the point is still under the cloud and refuses one beyond it before the action is spent.',
       ),
   }),
   run: (context, args) => {
@@ -3050,6 +3091,9 @@ const ACTIVATE_SPELL = tool({
           ...(args.altitude === undefined ? {} : { altitude: args.altitude }),
           ...(args.option === undefined ? {} : { option: args.option }),
           ...(towards.value === undefined ? {} : { towards: towards.value }),
+          // And where a template this action draws is centred, which is a place
+          // rather than a bearing — see `ActivateSpellCommand.at`.
+          ...(args.at === undefined ? {} : { at: point(args.at) }),
           ...identity(context),
         },
         context.campaign.supply(),

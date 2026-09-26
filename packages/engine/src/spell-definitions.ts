@@ -185,6 +185,26 @@ export interface DiceScaling {
    * {@link scaledFlatFor} never looks at a notation.
    */
   readonly perSlotLevelAbove?: string;
+  /**
+   * Extra dice a **fact about the world the caster stated** buys.
+   *
+   * SRD Call Lightning: "If you're outdoors in a storm when you cast this
+   * spell, the spell gives you control over that storm instead of creating a
+   * new one. Under such conditions, **the spell's damage increases by 1d10**."
+   *
+   * **Read exactly as {@link perSlotLevelAbove} is read** — the count is what
+   * matters and the faces are the base notation's — and applied **once**
+   * rather than per level, because the sentence is a condition rather than a
+   * table. Presupposes {@link dice} for that reason.
+   *
+   * **The fact is the caster's word, and the definition has to print the
+   * question for the word to be legal**: `SpellDefinition.stormStated` is that
+   * printing, `CastSpellRequest.inAStorm` is the answer, and
+   * `checkSpellDefinition` refuses this field on a definition that asks
+   * nothing. The answer is pinned on the ongoing record, so a bolt called down
+   * nine minutes later still knows what the weather was when the cloud rose.
+   */
+  readonly plusInAStorm?: string;
 }
 
 /**
@@ -459,6 +479,36 @@ export interface SpellCheck {
    * affected creature alone may attempt.
    */
   readonly byAnotherWithinReach?: true;
+  /**
+   * SRD Detect Thoughts: "**the target** can take an action on its turn to make
+   * an Intelligence (Arcana) check against your spell save DC, ending the spell
+   * on a success." SRD Phantasmal Force: "**The target** can take a Study action
+   * to examine the phantasm with an Intelligence (Investigation) check against
+   * your spell save DC."
+   *
+   * {@link byAnotherWithinReach}'s opposite: that clause **widens** who may
+   * attempt a check from the creature the effect sits on, and this **narrows**
+   * it on a casting that sits on nobody. A casting with no victim is anybody's
+   * to see through — which is right for an illusion standing in a corridor and
+   * wrong for a spell that is inside one goblin's head, or for a phantasm
+   * "perceivable only to the target" — so the one creature the casting singled
+   * out is pinned on the record (`OngoingSpell.singledOut`) and this is what says
+   * to read the pin.
+   *
+   * **`singled-out` rather than `target`, because `aimed` cannot answer**, and
+   * the two spells cannot answer for two different reasons: Detect Thoughts is
+   * Range: Self and names the mind at a *later action*, and Phantasmal Force's
+   * one target rolled a saving throw, which takes it out of `aimed` by that
+   * field's own rule. So the pin is a field of its own, written by the cast for
+   * one spell and by the activation for the other. The only value is
+   * `singled-out`; absent is every other check.
+   *
+   * `mayAttemptOrReach` is the one reader, and a casting that has singled nobody
+   * out offers the check to nobody at all — which is the book's reading of a
+   * probe not yet taken: the sentence begins "**Either way**, the target knows
+   * that you are probing into its mind".
+   */
+  readonly attemptBy?: 'singled-out';
 }
 
 /**
@@ -2821,6 +2871,36 @@ export type SpellEffect =
        */
       readonly onSuccessRiders?: OutcomeRiders;
       /**
+       * A **successful** save ends the whole casting.
+       *
+       * SRD Detect Thoughts, of the deeper probe: "If you probe deeper, the
+       * target makes a Wisdom saving throw. On a failed save, you discern the
+       * target's reasoning, emotions, and something that looms large in its
+       * mind. **On a successful save, the spell ends.**"
+       *
+       * **The other end of a sentence the vocabulary already had at one end.**
+       * `SpellCheck.onSuccess: 'end-casting'` is a *check* whose success ends
+       * the casting, and `SpellRepeatSave.onSuccess: 'end-casting'` is a save a
+       * turn boundary repeats; what had no spelling was a save the spell forces
+       * **once**, whose success is the end of it. All three converge on
+       * `releaseCasting`, so this is a third writer of one release rather than a
+       * third release.
+       *
+       * **A member rather than a flag, and the only member is the one the book
+       * prints.** `end-on-target` would be the release a repeat save already
+       * performs on a creature the casting is holding something on, and a save
+       * of this shape holds nothing — the whole point of the sentence is that
+       * the failure's consequence is the *caster's* knowledge. `none` is the
+       * absence, which is every other save in the book.
+       *
+       * **A save that does nothing else is legal because of this**, which is
+       * the one authoring rule it relaxes: `checkEffect` refuses a save that
+       * imposes nothing and hangs nothing, and a save whose success ends the
+       * casting does something whichever way it falls. What a failure buys is
+       * handed to the table, in the definition's own `handsOver`.
+       */
+      readonly onSuccess?: 'end-casting';
+      /**
        * A saving throw the condition repeats at a turn boundary, if it does.
        * Feeds straight into the turn-hook machinery.
        */
@@ -4296,6 +4376,27 @@ export interface KeptSummons {
   /** SRD Find Steed: "or if you die". */
   readonly untilSummonerDies?: true;
   /**
+   * SRD Find Familiar: "when you cast a spell with a range of touch, your
+   * familiar can deliver the touch. Your familiar must be within 100 feet of
+   * you, and it must take a Reaction to deliver the touch when you cast the
+   * spell."
+   *
+   * **The permission is the spell's, not the command's**, which is why it is a
+   * field here rather than a rule in `resolveSpell`: SRD Find Steed keeps a
+   * creature on the same terms and prints no such sentence, so a steed may not
+   * carry its paladin's Cure Wounds and a familiar may. The engine compares a
+   * flag on a bond and names no spell.
+   *
+   * The hundred feet is here too, because it is the same sentence and there is
+   * nowhere else for it: a distance the book prints belongs with the permission
+   * it qualifies, and a number the command held would be the engine deciding how
+   * far somebody else's magic reaches. Pinned onto the bond at the binding, like
+   * {@link pocket}, so the casting a year later opens no book.
+   *
+   * Absent for every kept creature the book gives no such sentence.
+   */
+  readonly delivers?: { readonly within: number };
+  /**
    * SRD Find Familiar: "As a Magic action, you can temporarily dismiss the
    * familiar to a pocket dimension. … As a Magic action while it is
    * temporarily dismissed, you can cause it to reappear in an unoccupied space
@@ -4621,12 +4722,29 @@ export const DIRECTIONAL_AREAS: ReadonlySet<SpellArea['kind']> = new Set([
  */
 export interface AreaTrigger {
   /**
-   * SRD "starts its turn there" / "ends its turn there".
+   * SRD "starts its turn there" / "ends its turn there", and **one more moment
+   * that is not the caught creature's at all**.
    *
    * Absent means the spell names no boundary at all — which is a real state,
    * not an omission: a spell can trigger only on entry.
+   *
+   * **`start-of-casters-turn` is the third moment, and the reason it is a member
+   * here rather than a `TurnMoment`.** SRD Phantasmal Force: "**On each of your
+   * turns**, such a phantasm can deal 2d8 Psychic damage to the target if it is
+   * in the phantasm's area or within 5 feet of the phantasm." Every other clause
+   * on this type fires at a boundary belonging to whoever is caught — the fold
+   * reads the creature whose turn began and asks which areas hold it — and this
+   * one fires at the **caster's**, against a creature standing still somewhere
+   * else. So the moment is read the same way and the population is the opposite
+   * one, which `TurnMoment` cannot say because it names a boundary and not whose
+   * it is.
+   *
+   * It presupposes {@link onlyTarget}, because "the target" is the whole of who
+   * the sentence is about: a payout owed at the caster's boundary against
+   * whoever happened to be standing in the area would be a spell the book does
+   * not print, and `checkSpellDefinition` refuses the pair apart.
    */
-  readonly at?: TurnMoment;
+  readonly at?: TurnMoment | 'start-of-casters-turn';
   /**
    * SRD "enters the area", and how often it may do so in one turn.
    *
@@ -4709,6 +4827,28 @@ export interface AreaTrigger {
    * clauses and the next caps the creature across all of them.
    */
   readonly oncePerTurn?: true;
+  /**
+   * Whether this trigger reaches **only the one creature the casting singled
+   * out**, rather than whoever the geometry catches.
+   *
+   * SRD Phantasmal Force: "a phantasmal object, creature, or other phenomenon
+   * that is no larger than a 10-foot Cube and that is **perceivable only to the
+   * target** for the duration ... such a phantasm can deal 2d8 Psychic damage
+   * **to the target**."
+   *
+   * **Not {@link SpellDefinition.designatesUnaffected} or `chosen`, which are
+   * lists the caster names at the cast**: this is the spell's own sentence and
+   * there is nothing to choose — an illusion in one mind is in one mind. And not
+   * a narrower template either, because the creature is picked out by *identity*
+   * and not by where it is standing; the geometry still decides whether the
+   * phantasm reaches it.
+   *
+   * Read off `OngoingSpell.singledOut`, which is the pin the same sentence made
+   * necessary for the check the target may attempt — one fact, one place. A
+   * casting that singled nobody out catches nobody here, which is the honest
+   * answer rather than a fallback to everybody.
+   */
+  readonly onlyTarget?: true;
   /**
    * What the trigger does, in the same vocabulary the casting itself uses.
    *
@@ -5342,6 +5482,31 @@ export interface SpellDefinition {
    */
   readonly areaTerrain?: AreaTerrain;
   /**
+   * How far the caster may carry this casting's area **as part of their own
+   * move**, in feet.
+   *
+   * SRD Conjure Animals: "**when you move on your turn, you can also move the
+   * pack up to 30 feet** to an unoccupied space you can see."
+   *
+   * **Not {@link SpellActivation.movesArea} and not `CastingOrigin.movableBy`**,
+   * and the SRD writes three different sentences. Moonbeam's move *is* a Magic
+   * action; Spiritual Weapon's is a rider on a Bonus Action that also strikes;
+   * this one costs no action at all — it is a thing the caster may do while
+   * walking, and the pack goes nowhere on a turn the druid stands still. So the
+   * allowance lives here, beside the other things an area does, and
+   * `MoveCommand.alsoMoves` is the rider that spends it: one command moved the
+   * druid and the pack, because the book wrote one sentence about both.
+   *
+   * **Once per move**, which is what "when you move on your turn" means and what
+   * a rider on one command gives for free.
+   *
+   * The unoccupied space and the caster's sight of it are checked by the move
+   * rather than here: both are facts about the scene at the moment the pack is
+   * walked. Set only alongside `area`, for the reason `areaTrigger` and
+   * `areaStanding` are — there has to be something to carry.
+   */
+  readonly areaMovesWithCaster?: number;
+  /**
    * An effect list a **DM's decision** fires, once, over the spell's area.
    *
    * SRD Glyph of Warding: "You decide what triggers the glyph when you cast
@@ -5476,6 +5641,31 @@ export interface SpellDefinition {
    * that evidence; it is.
    */
   readonly damageTypeStated?: readonly string[];
+  /**
+   * The spell prints a clause conditioned on **the weather where it is cast**,
+   * and the caster is the one who may answer.
+   *
+   * SRD Call Lightning: "If you're outdoors in a storm when you cast this
+   * spell, the spell gives you control over that storm instead of creating a
+   * new one. Under such conditions, the spell's damage increases by 1d10."
+   *
+   * **The one fact of its kind in the book, and it is a fact about the world.**
+   * {@link damageTypeStated} records who may tell the engine what the SRD
+   * decided about the caster; this records who may tell it what the SRD decided
+   * about the sky. The engine holds no weather, no indoors and no outdoors, and
+   * there is nothing to derive one from — so the casting states it, absence is
+   * "no storm" (which is the book's own default: the spell makes a cloud of its
+   * own), and `CastSpellRequest.inAStorm` on a spell that prints no such clause
+   * is refused rather than ignored.
+   *
+   * **What the answer buys is the effect's**, exactly as a stated damage type's
+   * is: `DiceScaling.plusInAStorm` is the dice, and `checkSpellDefinition`
+   * refuses a definition that asks the question and reads the answer nowhere.
+   *
+   * The half of the sentence about controlling the storm rather than making one
+   * is narration — the engine holds neither cloud — and is handed over.
+   */
+  readonly stormStated?: true;
   /**
    * The one thing this spell asks the caster to choose, and what it prints.
    *
@@ -6441,6 +6631,101 @@ export interface SpellActivation {
   /** SRD writes "a Magic action" or "a Bonus Action"; both appear. */
   readonly action: 'action' | 'bonus-action';
   /**
+   * **Whose action it is.** Absent is the caster's, which is every other
+   * activation in the book.
+   *
+   * SRD Dragon's Breath: "You touch one willing creature ... Until the spell
+   * ends, **the target** can take a Magic action to exhale a 15-foot Cone."
+   * The one sentence in the book that hands a spell's later action to somebody
+   * else, and the reason `not_your_spell` used to be the whole rule: "a spell
+   * is not a thing lying about for anyone to pick up" is still the rule, and
+   * this says which one person may pick it up.
+   *
+   * **The creature the casting is *on*, read off `OngoingSpell.aimed` and
+   * nowhere else.** That list is what the cast declared and the world cannot
+   * say, which is exactly what "the target" means for a spell that hangs
+   * nothing on them — and it shrinks when a creature sheds the casting, so a
+   * target the spell has left behind cannot go on exhaling. The caster is
+   * refused by the same guard unless they touched themselves, because then
+   * they *are* the target and the book's sentence reaches them.
+   *
+   * **It changes whose action is spent and where the template is drawn**, and
+   * nothing else: the level, the route, the save DC and the damage type are
+   * the caster's, pinned at the cast, because the spell is still the caster's
+   * spell. A fighter who breathes fire does not roll it off their own sheet.
+   */
+  readonly by?: 'target';
+  /**
+   * A **fresh template** this action draws, from wherever the actor is
+   * standing.
+   *
+   * SRD Dragon's Breath: "the target can take a Magic action to exhale a
+   * **15-foot Cone**. Each creature in that area makes a Dexterity saving
+   * throw." SRD Call Lightning: "you can take a Magic action to call down
+   * lightning in that way again, **targeting the same point or a different
+   * one**", and the bolt is "each creature within 5 feet of that point".
+   *
+   * **Not {@link SpellDefinition.area}, which is a template the casting laid
+   * down and keeps.** That one is pinned on the record, read by the fold at
+   * every boundary, and moved only by {@link movesArea}; this one exists for
+   * the length of one action and is pinned nowhere, because the book draws it
+   * afresh each time — "the same point **or a different one**" is a sentence
+   * about a template with no memory.
+   *
+   * The direction or the point is stated on the activation's own request,
+   * through the same two words a casting states them with (`towards`, `at`),
+   * and caught through `areaCatch` — the one ruler a casting's own area is
+   * caught through — so there is no second geometry and no second filter.
+   *
+   * An area origin of `self` is the **actor's** space, which is what makes
+   * this the field Dragon's Breath needed: the Cone comes out of the creature
+   * that inhaled, not out of the wizard who touched them.
+   */
+  readonly area?: SpellArea;
+  /**
+   * Whether this action draws the **casting's own** template again, at a point
+   * stated now, and resolves the casting's own effects over it.
+   *
+   * SRD Call Lightning: "When you cast the spell, choose a point you can see
+   * under the cloud. A lightning bolt shoots from the cloud to that point.
+   * Each creature within 5 feet of that point makes a Dexterity saving
+   * throw ... Until the spell ends, you can take a Magic action to call down
+   * lightning **in that way again, targeting the same point or a different
+   * one**."
+   *
+   * **The bolt at the cast and the bolts after it are one sentence**, which is
+   * why this is a flag rather than an {@link area} beside a second effect list:
+   * the spell prints the template once and the number once, and a definition
+   * that wrote both twice would have two places for "5 feet" and "3d10" to be
+   * got wrong. So the template is {@link SpellDefinition.area}, the effects are
+   * {@link SpellDefinition.effects}, and this says the later action places the
+   * first and runs the second.
+   *
+   * **Not {@link movesArea}, and the SRD writes two different sentences.**
+   * Moonbeam's action *carries* a pinned Cylinder to a new point and every
+   * clause the spell has goes on reading the record; this draws a template that
+   * exists for the length of one action and leaves the record's own point where
+   * the cloud is. A field that meant both would have had to decide whether the
+   * pinned area moved, and Call Lightning's cloud does not.
+   *
+   * **The number is how far from the point the casting keeps the fresh template
+   * may be centred**, in feet — "a point you can see **under the cloud**", where
+   * the cloud is the 60-foot radius the spell's first sentence prints.
+   *
+   * **And the point a re-drawing casting keeps is its caster's own square**, not
+   * where the last template was laid: "A storm cloud appears at a point within
+   * range that you can see **above yourself**", so the cloud is above the druid
+   * and every bolt falls under it rather than under the last strike. `ongoingWith`
+   * pins it and `underTheKeptPoint` is the one reader, asked of the cast's point
+   * and of every later one, refusing `outside_the_kept_point` before the action is
+   * charged.
+   *
+   * A number rather than a flag for {@link movesArea}'s reason: the allowance is
+   * the printed one, the engine owns the geometry, and a boolean would have had
+   * nothing honest to check the caller's point against.
+   */
+  readonly redrawsArea?: number;
+  /**
    * How far the **caster** reaches, checked afresh each time.
    *
    * Absent when the casting holds an origin: the reach is then measured from
@@ -7055,6 +7340,62 @@ export function statedChoiceReaches(
 ): boolean {
   const after = statedChoice(effects, of, probe);
   return after.some((effect, i) => effect !== effects[i]);
+}
+
+/**
+ * Whether a **cast** of this spell singles its one target out.
+ *
+ * Two clauses read `OngoingSpell.singledOut` — the check only that creature may
+ * attempt (`SpellCheck.attemptBy`) and the trigger that reaches only it
+ * (`AreaTrigger.onlyTarget`) — and there are two moments the name can be pinned
+ * at. This is the one for a spell that names a creature when it is cast: SRD
+ * Phantasmal Force's "a creature you can see within range". The other is a later
+ * action, SRD Detect Thoughts' probe, and that spell names nobody at the cast at
+ * all, which is what tells the two apart.
+ *
+ * One reader for three askers — the resolution that writes the pin, and the two
+ * validator rules that refuse a clause with nothing to read — so a definition
+ * the validator accepts is one the cast really pins.
+ */
+export function singlesOutAtTheCast(definition: SpellDefinition): boolean {
+  const reads =
+    definition.check?.attemptBy === 'singled-out' || definition.areaTrigger?.onlyTarget === true;
+  return reads && definition.targets.count === 1;
+}
+
+/**
+ * Whether anything a casting of this definition could roll reads the answer to
+ * the one question about the world a spell may ask.
+ *
+ * SRD Call Lightning prints the storm and prints what it buys — "the spell's
+ * damage increases by 1d10" — and `DiceScaling.plusInAStorm` is where the
+ * second half is written. So the two halves are checked against each other:
+ * a definition that asks the caster a question and reads the answer nowhere is
+ * the silent failure every reachability rule in the validator exists to catch,
+ * and dice conditioned on a question the spell never asks would never be rolled.
+ *
+ * **Every list a casting could run**, which is the union `dropsAnObject` takes
+ * of the same definition: the common list, an activation's, an area trigger's,
+ * what a DM's decision fires, and each branch's. A nested scaling is found by
+ * reading the key rather than by naming the effect kinds that carry one, so a
+ * kind that grows a `DiceScaling` is covered the day it is written.
+ */
+export function readsAStatedStorm(definition: SpellDefinition): boolean {
+  const lists: readonly (readonly SpellEffect[])[] = [
+    definition.effects,
+    definition.activation?.effects ?? [],
+    definition.areaTrigger?.effects ?? [],
+    definition.triggered?.effects ?? [],
+    ...optionEffectLists(definition),
+  ];
+  const holds = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(holds);
+    if (value === null || typeof value !== 'object') return false;
+    const record = value as Record<string, unknown>;
+    if (record.plusInAStorm !== undefined) return true;
+    return Object.values(record).some(holds);
+  };
+  return lists.some(holds);
 }
 
 /**
@@ -8214,21 +8555,36 @@ export function scaledDiceFor(
   spellLevel: number,
   casterLevel: number,
   slotLevel: number,
+  /**
+   * Whether the casting answered yes to the one fact about the world a spell
+   * may ask about — see {@link DiceScaling.plusInAStorm}. Absent is no, which
+   * is the book's own default and what every caller before this said.
+   */
+  inAStorm = false,
 ): string | undefined {
   if (scaling.dice === undefined) return undefined;
   const [count, faces] = scaling.dice.split('d');
   const base = Number(count ?? '1');
   const sides = faces ?? '6';
+  // The stated fact adds its dice once, whatever the slot did — SRD Call
+  // Lightning prints the storm and the slot table as two separate sentences,
+  // and a storm at level 5 is 5d10 by both of them.
+  const stormy =
+    inAStorm && scaling.plusInAStorm !== undefined
+      ? Number(scaling.plusInAStorm.split('d')[0] ?? '0')
+      : 0;
 
   if (spellLevel === 0) {
     const upgrades = (scaling.cantripUpgradesAt ?? []).filter((at) => casterLevel >= at).length;
-    return `${base + upgrades}d${sides}`;
+    return `${base + upgrades + stormy}d${sides}`;
   }
 
-  if (scaling.perSlotLevelAbove === undefined) return scaling.dice;
+  if (scaling.perSlotLevelAbove === undefined) {
+    return stormy === 0 ? scaling.dice : `${base + stormy}d${sides}`;
+  }
   const [extraCount] = scaling.perSlotLevelAbove.split('d');
   const above = Math.max(0, slotLevel - spellLevel);
-  return `${base + Number(extraCount ?? '0') * above}d${sides}`;
+  return `${base + Number(extraCount ?? '0') * above + stormy}d${sides}`;
 }
 
 /**

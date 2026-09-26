@@ -70,11 +70,25 @@ function creaturesInCastingArea(
   if (definition === null) return null;
 
   const within = definition.trigger.within;
-  if (within === undefined) return creaturesStandingInCastingArea(scene, record);
-  return creaturesStandingInCastingArea(scene, {
-    ...record,
-    area: { kind: 'sphere', radius: within, origin: 'point' },
-  });
+  const caught =
+    within === undefined
+      ? creaturesStandingInCastingArea(scene, record)
+      : creaturesStandingInCastingArea(scene, {
+          ...record,
+          area: { kind: 'sphere', radius: within, origin: 'point' },
+        });
+  if (caught === null || definition.trigger.onlyTarget !== true) return caught;
+
+  // **And the third thing, which narrows by identity rather than by geometry.**
+  // SRD Phantasmal Force's phantasm is "perceivable only to the target", so the
+  // clause reaches the one creature the casting singled out and nobody else
+  // however many are standing in the Cube. Read off the record, like everything
+  // else here; a casting that singled nobody out catches nobody, which is the
+  // honest answer rather than a fallback to everybody.
+  const only = record.singledOut;
+  return only !== undefined && caught.has(only as CharacterId)
+    ? new Set([only as CharacterId])
+    : new Set();
 }
 
 /**
@@ -205,6 +219,31 @@ export function raiseAreaBoundary(
     if (record === undefined) continue;
     const definition = areaDefinitionOf(record);
     if (definition === null) continue;
+
+    // — the boundary that is not the caught creature's ————————————————————————
+    //
+    // SRD Phantasmal Force: "**On each of your turns**, such a phantasm can deal
+    // 2d8 Psychic damage to the target if it is in the phantasm's area or within
+    // 5 feet of the phantasm." The same moment read the same way and the
+    // opposite population: the turn beginning is the **caster's**, and who pays
+    // is the creature the casting singled out, standing still somewhere else.
+    //
+    // The debt is stamped `start-of-turn` like any other beginning, because that
+    // is the moment it happened at and `MOMENT_ORDER` has nothing else to say
+    // about it; what differs is whose beginning it was, which is decided here
+    // and not carried on the debt. `onlyTarget` is what makes the catch one
+    // creature, and `checkSpellDefinition` refuses this moment without it.
+    if (definition.trigger.at === 'start-of-casters-turn') {
+      if (moment !== 'start-of-turn' || record.caster !== whose) continue;
+      const reached = creaturesInCastingArea(scene, record);
+      if (reached === null) continue;
+      for (const who of [...reached].sort()) {
+        if (!areaTriggerAllowed(current, castingId, who, definition.trigger, moment, turn)) continue;
+        current = oweAreaEffect(current, castingId, who, moment, turn);
+      }
+      continue;
+    }
+
     if (definition.trigger.at !== moment) continue;
 
     const inside = creaturesInCastingArea(scene, record);
