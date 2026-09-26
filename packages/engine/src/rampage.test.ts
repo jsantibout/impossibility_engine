@@ -96,7 +96,7 @@ function bloodied(state: GameState): GameState {
   const half = Math.ceil(state.creatures[OGRE]!.vitals.hpMax / 2) + 1;
   const hurt = after(
     state,
-    unwrap(damageCreature(state, OGRE, { amount: half, type: 'fire', commandId: 'brand' }), 'the brand'),
+    unwrap(damageCreature(state, OGRE, { amount: half, types: ['fire'], commandId: 'brand' }), 'the brand'),
   );
   if (!isBloodied(hurt.creatures[OGRE])) throw new Error('the ogre is not Bloodied');
   return hurt;

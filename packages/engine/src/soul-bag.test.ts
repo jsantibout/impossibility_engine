@@ -137,7 +137,7 @@ describe('the gate the heading prints', () => {
     // printed object dies by — nothing is remembered and nothing is swept.
     const dusted = after(
       state,
-      unwrap(damageCreature(state, BAG, { amount: 40, type: 'force', commandId: 'burn' }), 'the fire'),
+      unwrap(damageCreature(state, BAG, { amount: 40, types: ['force'], commandId: 'burn' }), 'the fire'),
     );
     expect(dusted.creatures[BAG]!.vitals.dead).toBe(true);
 

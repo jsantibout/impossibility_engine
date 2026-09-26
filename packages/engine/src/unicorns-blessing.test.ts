@@ -90,7 +90,7 @@ function inTheGlade(): GameState {
     'combat',
   );
   // A wound for the Cure Wounds to close.
-  step(damageCreature(state, DRUID, { amount: 8, type: 'slashing', commandId: 'hurt' }), 'the wound');
+  step(damageCreature(state, DRUID, { amount: 8, types: ['slashing'], commandId: 'hurt' }), 'the wound');
   return state;
 }
 

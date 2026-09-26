@@ -1382,6 +1382,10 @@ export interface StatBlockLine {
   readonly jumps?: unknown;
   /** The move a line grants its creature — SRD Giant Seahorse's Bubble Dash, SRD Troll's Charge. */
   readonly dashes?: unknown;
+  /** The move and the swing a blow on an already-Bloodied creature buys — SRD Rampage. */
+  readonly rampages?: unknown;
+  /** The light a use switches on and the next switches off — SRD Ignited Illumination. */
+  readonly togglesLight?: unknown;
   /** The step between two trees a line makes — SRD Dryad's Tree Stride. */
   readonly treeStride?: unknown;
   /** The flat addend a Reaction line puts on somebody's D20 Test. */
