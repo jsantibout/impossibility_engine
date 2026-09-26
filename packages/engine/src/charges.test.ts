@@ -43,10 +43,11 @@ import { createCharacter, type CharacterChoices } from './creation.js';
  *   calendar and no time of day; the SRD hands the moment to the GM in as many
  *   words, so `declareDawn` states it and moves the clock not at all.
  *
- * What a charge *buys* is deliberately absent. The Wand of Secrets points at a
- * secret door and the Eyes of Charming cast _Charm Person_, and neither is a
- * thing this engine can resolve from an item yet — so these prove the charge
- * economy and say so, rather than proving that a wand can cast.
+ * What a charge *buys* is deliberately absent here. The Wand of Secrets points
+ * at a secret door, which is still a note on its record; the Eyes of Charming
+ * cast _Charm Person_ at a level their charges decide, which is the casting
+ * route's and is driven through the door in `packages/tools/src` — so these
+ * prove the charge economy and nothing more.
  */
 
 const id = (s: string) => asCharacterId(s);

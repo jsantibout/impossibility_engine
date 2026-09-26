@@ -457,6 +457,29 @@ describe('the Wand of Paralysis reaches sixty feet, at a creature its wielder ca
     expect(isErr(out) && out.code).toBe('cannot_see_target');
   });
 
+  /**
+   * And sight nobody has stated is a fact to go and get rather than a no —
+   * the three-valued reading a spell's "a creature you can see" already
+   * takes. Nothing is spent asking.
+   */
+  it('asks whether its wielder can see a goblin nobody has said about', () => {
+    const log = holding(PARALYSIS, 7, SRD_CONTENT, 30).filter(
+      (event) => event.type !== 'sight-declared',
+    );
+    const out = paralyse(log, undefined, DOOMED);
+    expect(isErr(out) && out.kind).toBe('needs-context');
+    if (!isErr(out)) return;
+    expect(out.code).toBe('undeclared_sight');
+    expect(out.requests).toEqual([
+      expect.objectContaining({
+        kind: 'visibility',
+        subject: GOBLIN,
+        satisfyWith: `a declareSightBetween command from ${WIELDER} to ${GOBLIN}`,
+      }),
+    ]);
+    expect(chargesLeft(fold('seed', log), SRD_CONTENT, WIELDER, PARALYSIS)).toBe(7);
+  });
+
   it('the goblin repeats the save at the end of its own turn', () => {
     const log = seen(holding(PARALYSIS, 7, SRD_CONTENT, 60), true);
     const fight: readonly GameEvent[] = [

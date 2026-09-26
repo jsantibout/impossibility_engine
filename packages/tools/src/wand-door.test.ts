@@ -192,6 +192,34 @@ describe('a wizard casts Fireball from the Wand of Fireballs, through the door',
     expectOk(t.call('cast_spell', { ...FIREBALL, item: copy }));
     expect(chargesLeft(t)).toBe(before - 1);
   });
+
+  /**
+   * A copy's charges are its own, so the copy named is the copy that has to
+   * be in hand: a wand in the pack cannot be cast by naming it while another
+   * one is held, and neither wand loses a charge for the asking.
+   */
+  it('refuses a copy that is in the pack rather than the hand, and spends nothing', () => {
+    const t = armed();
+    expectOk(t.rule('award_items', { who: 'mira', items: [{ id: WAND }], because: 'a second vault' }));
+    const sheet = expectOk(t.call('sheet', { who: 'mira' })).resolution;
+    const held = (sheet['equipped'] as readonly { id: string; instance?: string }[]).find(
+      (worn) => worn.id === WAND,
+    )?.instance;
+    const packed = (sheet['carrying'] as readonly { id: string; instance?: string }[]).find(
+      (line) => line.id === WAND && line.instance !== held,
+    )?.instance;
+    expect(packed).toBeDefined();
+    const pools = () =>
+      (expectOk(t.call('sheet', { who: 'mira' })).resolution['pools'] as readonly Pool[])
+        .filter((one) => one.key.startsWith(`${WAND}:`))
+        .map((one) => one.left);
+    const before = pools();
+
+    const out = expectRefused(t.call('cast_spell', { ...FIREBALL, item: packed }));
+    expect(out.code).toBe('not_equipped');
+    expect(out.reason).toContain(packed!);
+    expect(pools()).toEqual(before);
+  });
 });
 
 describe('what the wand refuses, it refuses before a charge is spent', () => {
