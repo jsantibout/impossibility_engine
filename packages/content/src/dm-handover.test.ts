@@ -443,6 +443,12 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'commune',
       'commune-with-nature',
       'comprehend-languages',
+      // **The pack itself**, which is what is left of a spell whose every number
+      // the engine now rolls: SRD Conjure Animals' spirits "appear as a Large pack
+      // of spectral, intangible animals" and "you choose the spirits' animal
+      // form, such as wolves, serpents, or birds". What they look like is
+      // narration; the ten feet, the thirty, the five and the 3d10 are not.
+      'conjure-animals',
       'contact-other-plane',
       'control-weather',
       'create-food-and-water',

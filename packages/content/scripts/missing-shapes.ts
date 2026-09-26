@@ -716,6 +716,27 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'The engine owns the death and records it; what the corpse then looks like, and whether it ever thaws, is narration with no mechanical consequence the engine could read back. There is nothing here for a rule to decide.',
     },
   ],
+  // **Conjure Animals, executed whole and with two sentences left to the
+  // table.** The pack walks thirty feet with its druid's own move
+  // (`areaMovesWithCaster`, spent by `MoveCommand.alsoMoves`), bites whoever it
+  // comes within ten feet of and keeps the once-per-turn cap across all three of
+  // its clauses, and lends its caster Advantage on a Strength save five feet from
+  // it — a mode derived from where the druid is standing at the moment the die is
+  // thrown. What is left is the sight the clauses are gated on and the word "can".
+  'conjure-animals': [
+    {
+      marker: 'senses',
+      clause: 'the caster\u2019s sight of whoever the pack reaches is not read at the boundary',
+      why: 'table',
+      note: 'SRD gates all three of the pack\u2019s clauses on "a creature you can see", and an area trigger catches whoever the geometry catches: the debt is raised in the fold, which holds no pairwise sight declaration for a creature the caster has never looked at, and a boundary that asked would be asking a question only the table can answer at a moment no command is running. The ten feet, the once-per-turn cap and the 3d10 are all executed; whether the druid saw is the DM\u2019s, who may decline the save.',
+    },
+    {
+      marker: 'saving-throw',
+      clause: '"you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces',
+      why: 'table',
+      note: 'The word is a permission and the engine has no vocabulary for a trigger its caster may decline \u2014 every `AreaTrigger` in the book fires when its moment arrives. So the save is rolled, which is the reading that never quietly loses a rule, and a pack that chose not to bite is the table\u2019s to narrate over a die that was thrown.',
+    },
+  ],
   'conjure-fey': [
     {
       clause: 'a Fey creature of your choice',
@@ -2536,26 +2557,15 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // answers it, the record pins it and `DiceScaling.plusInAStorm` reads it.
   // What is left of the spell is the cloud itself, which is narration and is in
   // the definition's `dmDecides`.
-  'conjure-animals': [
-    {
-      marker: 'roll-mode',
-      clause: 'You have Advantage on Strength saving throws',
-      why: 'a-standing-effect-derived-from-where-a-creature-stands',
-      note: 'the Advantage holds while the caster is within five feet of the pack, so whether it applies is recomputed from a position every time a roll is made, and only a feature derives a standing effect that way.',
-    },
-    {
-      marker: 'saving-throw',
-      clause: 'you can force that creature to make a Dexterity saving throw',
-      why: 'an-area-moved-by-the-casters-own-movement',
-      note: 'the save is forced on whoever the pack reaches, and the pack may be moved thirty feet whenever the caster moves — a casting pins its template where it was put and has no way to carry one along.',
-    },
-    {
-      marker: 'dice',
-      clause: 'the creature takes 3d10 Slashing damage',
-      why: 'an-area-moved-by-the-casters-own-movement',
-      note: 'the damage hangs off the save above it and goes wherever that goes; the extra 1d10 a slot above 3 buys would scale a number nothing rolls.',
-    },
-  ],
+  // **Conjure Animals has left the tracked map**, and it took both of its shapes
+  // with it: `SpellDefinition.areaMovesWithCaster` is the thirty feet the pack
+  // travels and `MoveCommand.alsoMoves` is the rider that spends it, on the one
+  // command that moved the druid — which is how the book writes it; and the
+  // Advantage is an `AreaStanding` clause of a new kind, a mode on the caster's own
+  // Strength saves, derived from where they are standing at the moment the die is
+  // thrown. `AreaTrigger.within` carries all three of its printed reaches. What is
+  // left of the spell is filed in `ADJUDICATED` below: the sight the caster's three
+  // clauses are gated on, and the pack that may hold back.
   'conjure-minor-elementals': [
     {
       marker: 'dice',

@@ -904,6 +904,15 @@ describe('every trigger is a clause the SRD actually prints', () => {
       const printed =
         /\benters? the (spell’s |spell's )?(area|webs|emanation|sphere|cylinder|cloud)\b/i.test(
           prose,
+        ) ||
+        // **And the same clause written as a reach from the thing.** SRD Conjure
+        // Animals: "whenever a creature you can see **enters a space within 10
+        // feet of the pack**". The area is a place with a name of its own and the
+        // entry is measured to it rather than into it, which is `AreaTrigger.within`
+        // on the same clause — one more alternative rather than a looser pattern,
+        // because what this asserts is that the book prints the clause.
+        /\benters? a space within \d+ feet of the (pack|area|sphere|cylinder|cloud|emanation)\b/i.test(
+          prose,
         );
       expect(definition.areaTrigger?.onEntry !== undefined).toBe(printed);
     },
@@ -945,7 +954,10 @@ describe('every trigger is a clause the SRD actually prints', () => {
     (spellId, definition) => {
       const prose = PROSE.get(spellId) ?? '';
       const starts = /\bstarts its turn\b/i.test(prose);
-      const ends = /\bends? it'?s? turn\b/i.test(prose);
+      // `\s+` rather than a space: the raw book wraps "or ends\nits turn there"
+      // across a line, and a pattern that could not read a newline would have
+      // called the clause absent for a spell that prints it.
+      const ends = /\bends?\s+it'?s?\s+turn\b/i.test(prose);
       // **And the third boundary, which is not the caught creature's.** SRD
       // Phantasmal Force: "On each of **your** turns, such a phantasm can deal
       // 2d8 Psychic damage to the target." The prose says whose turn it is, so
@@ -1006,6 +1018,14 @@ describe('every trigger is a clause the SRD actually prints', () => {
           prose,
         ) ||
         /\b(area|sphere|cloud|cylinder|emanation)\s+enters\s+the space of a creature\b/i.test(
+          prose,
+        ) ||
+        // **And the fourth spelling, which names the thing and gives it a
+        // reach.** SRD Conjure Animals: "Whenever **the pack moves within 10 feet
+        // of a creature** you can see". Nobody moved but the area, which is this
+        // clause exactly; what differs is that the area is a place with a name
+        // and the arrival is measured rather than shared.
+        /\bthe (pack|area|sphere|cloud|cylinder|emanation)\s+moves within \d+ feet of a creature\b/i.test(
           prose,
         );
       expect(definition.areaTrigger?.onAreaEntry === true).toBe(printed);

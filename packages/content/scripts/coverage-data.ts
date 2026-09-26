@@ -235,10 +235,18 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'command',
   'compulsion',
   'cone-of-cold',
-  'conjure-fey',
-  'conjure-woodland-beings',
   // `sight.test.ts` (engine): cast on its bearer, its light read back and
   // standing until dispelled.
+  // `conjure-animals.test.ts` (engine): the pack standing where the druid put it,
+  // the druid's Advantage on a Strength save five feet from it and on no other
+  // ability, at no other distance and for nobody else, the pack walked thirty feet
+  // inside the druid's own move and biting the goblin it comes within ten feet of
+  // — once, although the goblin also ends its turn there — and a pack refused a
+  // space too far off, one somebody is standing in, one a blinded druid cannot see
+  // and a casting that holds none.
+  'conjure-animals',
+  'conjure-fey',
+  'conjure-woodland-beings',
   'continual-flame',
   'counterspell',
   'cure-wounds',

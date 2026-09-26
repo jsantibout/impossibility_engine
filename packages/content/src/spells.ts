@@ -14200,13 +14200,51 @@ export const CONJURE_ANIMALS: SpellDefinition = {
   concentration: true,
   range: { kind: 'ranged', feet: 60 },
   targets: { count: 0 },
+  // "a Large pack of spectral, intangible animals in an unoccupied space you can
+  // see within range": the pack is a place the casting keeps rather than a
+  // creature, and every clause the spell prints is measured from it. A radius of
+  // nothing is the space it stands in; the ten feet and the five are the two
+  // reaches the sentences print, and each is measured from this point.
+  area: { kind: 'sphere', radius: 0, origin: 'point' },
+  // "when you move on your turn, you can also move the pack up to 30 feet"
+  areaMovesWithCaster: 30,
+  // "You have Advantage on Strength saving throws while you're within 5 feet of
+  // the pack" — the caster's own die, and Strength alone.
+  areaStanding: [{ kind: 'save-mode', mode: 'advantage', ability: 'str', within: 5, onlyCaster: true }],
+  // Nothing happens at the casting: the pack simply appears.
   effects: [],
+  // "Whenever the pack moves within 10 feet of a creature you can see and
+  // whenever a creature you can see enters a space within 10 feet of the pack or
+  // ends its turn there, you can force that creature to make a Dexterity saving
+  // throw. On a failed save, the creature takes 3d10 Slashing damage. A creature
+  // makes this save only once per turn."
+  areaTrigger: {
+    at: 'end-of-turn',
+    onEntry: 'every-entry',
+    onAreaEntry: true,
+    within: 10,
+    oncePerTurn: true,
+    label: 'Conjure Animals (the pack)',
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        // "increases by 1d10 for each spell slot level above 3"
+        damage: { dice: '3d10', perSlotLevelAbove: '1d10' },
+        damageType: 'slashing',
+        // The book gives a successful save nothing at all: no half.
+        onSuccess: 'none',
+      },
+    ],
+  },
   durationSeconds: 600,
+  dmDecides: [
+    "You conjure nature spirits that appear as a Large pack of spectral, intangible animals in an unoccupied space you can see within range.",
+    "The pack lasts for the duration, and you choose the spirits' animal form, such as wolves, serpents, or birds.",
+  ],
   unmodelled: [
-    'the pack is not in the scene: an area a caster may move up to thirty feet whenever they move is an area that follows its caster, and a casting pins its template where it was put',
-    'so the Dexterity save it forces on whoever it reaches, and the 3d10 Slashing on a failure, are not resolved — nor is the once-per-turn cap on that save',
-    'the Advantage on Strength saving throws within five feet of the pack is not granted: a benefit that holds while you stand somewhere is derived from where you stand, and only a feature derives one',
-    'and the extra 1d10 a slot above 3 buys goes with the damage it would have scaled',
+    'the caster’s sight of whoever the pack reaches is not read at the boundary: "a creature you can see" gates each of the three clauses, and an area trigger catches whoever the geometry catches',
+    'and "you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces: a trigger the caster may decline has no word, so the save is rolled and a pack that held back is the table’s to narrate',
   ],
 };
 

@@ -312,6 +312,16 @@ describe('the clause is the spell’s, not the mechanism’s', () => {
         expect(definition.areaTrigger?.onPointEntry).toBeUndefined();
         continue;
       }
+      // **And the third**, which prints the reach three times in one paragraph:
+      // SRD Conjure Animals' pack is a Large space and every clause it has is
+      // "within 10 feet of the pack" — the pack moving into that reach, a creature
+      // entering it, and a creature ending its turn in it. The area itself is the
+      // space the pack stands in, which is what the ten feet is measured from.
+      if (definition.id === 'conjure-animals') {
+        expect(definition.areaTrigger?.within).toBe(10);
+        expect(definition.areaTrigger?.onPointEntry).toBeUndefined();
+        continue;
+      }
       expect(definition.areaTrigger?.within, definition.id).toBeUndefined();
       expect(definition.areaTrigger?.onPointEntry, definition.id).toBeUndefined();
     }

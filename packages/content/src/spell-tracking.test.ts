@@ -1456,7 +1456,9 @@ const ADDED_THIRD: readonly string[] = [
   // ones it calls down afterwards are one template drawn again, and the storm
   // is a stated fact, so nothing of it waits.
   'confusion',
-  'conjure-animals',
+  // **Conjure Animals has left**: the pack walks with its druid, bites whoever it
+  // reaches and lends its caster Advantage on a Strength save, so nothing of it
+  // waits on a shape.
   'conjure-celestial',
   'conjure-minor-elementals',
   'control-water',

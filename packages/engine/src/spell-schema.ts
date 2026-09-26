@@ -905,6 +905,49 @@ function checkAreaStanding(
       return;
     }
 
+    /*
+     * SRD Conjure Animals: "**You** have Advantage on Strength saving throws
+     * while you're **within 5 feet of the pack**." The mode above read on the
+     * other family of roll, and held to the three things the sentence prints: a
+     * mode, the ability it narrows to, and a reach that is measured from the
+     * casting's own point rather than over the template it filled.
+     */
+    case 'save-mode': {
+      if (standing['mode'] !== 'advantage' && standing['mode'] !== 'disadvantage') {
+        found.push({
+          field: `${path}.mode`,
+          code: 'bad_area_mode',
+          reason: `an area puts Advantage or Disadvantage on a roll, and this is ${nameOf(standing['mode'])}`,
+        });
+      }
+      // A save is made *with* an ability and the sentence names it, so the
+      // narrowing is required rather than optional: a mode on every saving throw
+      // a creature makes is not a clause the book prints.
+      if (!ABILITY_NAMES_SET.has(standing['ability'] as Ability)) {
+        found.push({
+          field: `${path}.ability`,
+          code: 'bad_ability',
+          reason: `a saving throw is made with one of the six abilities, and this is ${nameOf(standing['ability'])}`,
+        });
+      }
+      const reach = standing['within'];
+      if (reach !== undefined && (typeof reach !== 'number' || !Number.isInteger(reach) || reach < 0)) {
+        found.push({
+          field: `${path}.within`,
+          code: 'bad_reach',
+          reason: `a reach measured from the casting's point is a whole number of feet, not ${nameOf(reach)}`,
+        });
+      }
+      if (standing['onlyCaster'] !== undefined && standing['onlyCaster'] !== true) {
+        found.push({
+          field: `${path}.onlyCaster`,
+          code: 'malformed_field',
+          reason: 'a clause reaches its caster alone or whoever is standing in the area; the only value is true',
+        });
+      }
+      return;
+    }
+
     case 'condition-immunity': {
       const conditions = standing['conditions'];
       if (
@@ -6171,6 +6214,30 @@ export function checkSpellDefinition(
         code: 'stated_types_reach_nothing',
         reason:
           'nothing in this spell’s area clauses says "stated" for the casting’s types to replace',
+      });
+    }
+  }
+
+  // — the area the caster carries while walking ——————————————————————————————
+  //
+  // SRD Conjure Animals' thirty feet, held to the two things that make it mean
+  // anything: something to carry, and a distance to carry it.
+  if (definition.areaMovesWithCaster !== undefined) {
+    if (definition.area === undefined) {
+      found.push({
+        field: 'areaMovesWithCaster',
+        code: 'moves_area_without_area',
+        reason: 'an area a caster carries while walking needs the spell to have one',
+      });
+    }
+    if (
+      typeof definition.areaMovesWithCaster !== 'number' ||
+      definition.areaMovesWithCaster <= 0
+    ) {
+      found.push({
+        field: 'areaMovesWithCaster',
+        code: 'bad_movement_allowance',
+        reason: 'an allowance of nothing is an area that never goes anywhere',
       });
     }
   }

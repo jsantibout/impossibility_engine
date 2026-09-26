@@ -283,8 +283,8 @@ describe('toolSchemas', () => {
     // SRD Alter Self — on a tool both doors publish: 340 bytes each.
     expect(toolSchemas(player())).toHaveLength(91);
     expect(toolSchemas(dm())).toHaveLength(117);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(140535);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(182690);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(141576);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(183731);
   });
 });
 

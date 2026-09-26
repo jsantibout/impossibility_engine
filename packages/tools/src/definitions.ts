@@ -2224,6 +2224,15 @@ const MOVE = tool({
         .describe(
           'The 5-foot spaces this move passed through, in order, ending where it ends. Send it when a move came back `route_required`: the same call again with this filled in is the whole of the answer. Not the answer to `single_steps_required`, which wants the walk re-sent as several calls of one space each.',
         ),
+      also_moves: z
+        .object({
+          castingId: z.string().min(1).describe('The casting whose area travels with you.'),
+          to: pointSchema.describe('The unoccupied space it is carried to.'),
+        })
+        .optional()
+        .describe(
+          'Carry one of your own castings\u2019 areas along with this move \u2014 SRD Conjure Animals is "when you move on your turn, you can also move the pack up to 30 feet to an unoccupied space you can see". It costs nothing and rides on the move because the book writes one sentence about both; a turn you stand still is a turn the pack stays put. The engine owns the allowance and refuses a space beyond it, one outside the room, one somebody is standing in and one you have been declared unable to see \u2014 all before a foot of movement is spent.',
+        ),
       using_grant: z
         .string()
         .min(1)
@@ -2243,6 +2252,15 @@ const MOVE = tool({
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
+          // And the area this move carries along — SRD Conjure Animals' pack.
+          ...(args.also_moves === undefined
+            ? {}
+            : {
+                alsoMoves: {
+                  castingId: args.also_moves.castingId,
+                  to: point(args.also_moves.to),
+                },
+              }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
           ...(args.jump === undefined
             ? {}

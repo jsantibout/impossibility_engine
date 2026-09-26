@@ -77,7 +77,7 @@ import {
   unknownCreature,
 } from './command.js';
 import { completeIfSettled, mayAct } from './holds.js';
-import { sweptRoute } from './ongoing.js';
+import { carryAreaWithMover, sweptRoute } from './ongoing.js';
 
 /**
  * A jump, as the SRD glossary prints it: which kind, and whether they ran.
@@ -148,6 +148,28 @@ export interface MoveCommand extends CommandIdentity {
    * than falling back on their Speed.
    */
   readonly usingGrant?: string;
+  /**
+   * An area this mover's own casting carries along with them — SRD Conjure
+   * Animals' pack.
+   *
+   * > "when you move on your turn, you can also move the pack up to 30 feet to
+   * > an unoccupied space you can see."
+   *
+   * **One command, because the book wrote one sentence about both moves.** A
+   * command of its own would either charge something — and this costs nothing at
+   * all — or charge nothing and let a druid who stood still walk the pack across
+   * the moor, which is exactly what "when you move on your turn" forbids. So it
+   * is a rider, spent once per move by construction.
+   *
+   * The allowance is the spell's (`SpellDefinition.areaMovesWithCaster`) and the
+   * destination is the caller's, which is the split every moved area already
+   * keeps. Refused for a casting that is not running, not this mover's, holds no
+   * point or offers no such sentence; and for a space beyond the allowance
+   * (`pack_too_far`), outside the scene, occupied (`pack_space_occupied`) or one
+   * the mover has been declared unable to see (`pack_unseen`) — every one of
+   * them before a foot of movement is spent.
+   */
+  readonly alsoMoves?: { readonly castingId: string; readonly to: Point };
   /**
    * Which of the mover's Speeds this move is made with.
    *
@@ -431,6 +453,23 @@ export function moveWithin(
     const barred = checkBarriers(state, scene.value, id, from, to, command.route, mode, charging);
     if (!barred.ok) return barred;
 
+    // — the area this mover carries along ———————————————————————————————————
+    //
+    // SRD Conjure Animals' pack, validated here with everything else about the
+    // move and written below where the movement is spent: a space beyond the
+    // allowance, occupied or unseen must cost the druid no feet. See
+    // {@link carryAreaWithMover}, which holds the refusals.
+    const carriedAlong: string[] = [];
+    const alsoMoved = carryAreaWithMover(
+      state,
+      id,
+      command.alsoMoves,
+      supply.content,
+      carriedAlong,
+    );
+    if (!alsoMoved.ok) return alsoMoved;
+    const carried = alsoMoved.value;
+
     const difficult = command.difficultFeet ?? 0;
     if (!Number.isInteger(difficult) || difficult < 0 || difficult > feet) {
       return err(
@@ -586,6 +625,15 @@ export function moveWithin(
       events.push({ type: 'movement-spent', id, feet: cost, from, to });
     }
 
+    // — the area the mover carries along ————————————————————————————————————
+    //
+    // SRD Conjure Animals: "when you move on your turn, you can **also** move the
+    // pack." Its own move inside this one, so it is written here, once, whichever
+    // way the rest of the command goes — a move held open for an Opportunity
+    // Attack still moved, and the pack is not the mover's body for anybody to
+    // swing at. Validated above, before a foot was spent.
+    if (carried !== null) events.push(carried);
+
     // **And the allowance is spent once the move is known to have happened**,
     // which is why it is here rather than beside the bound that read it: every
     // refusal above leaves the creature's turn with its jump still in it, and
@@ -639,6 +687,7 @@ export function moveWithin(
           ...barred.value.unverified,
           ...jumped.value.unverified,
           ...climbing,
+          ...carriedAlong,
         ],
         duplicate: false,
       });
@@ -667,6 +716,7 @@ export function moveWithin(
         ...barred.value.unverified,
         ...jumped.value.unverified,
         ...climbing,
+        ...carriedAlong,
       ],
       duplicate: false,
     });

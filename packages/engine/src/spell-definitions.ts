@@ -5266,6 +5266,31 @@ export interface SpellDefinition {
    */
   readonly areaTerrain?: AreaTerrain;
   /**
+   * How far the caster may carry this casting's area **as part of their own
+   * move**, in feet.
+   *
+   * SRD Conjure Animals: "**when you move on your turn, you can also move the
+   * pack up to 30 feet** to an unoccupied space you can see."
+   *
+   * **Not {@link SpellActivation.movesArea} and not `CastingOrigin.movableBy`**,
+   * and the SRD writes three different sentences. Moonbeam's move *is* a Magic
+   * action; Spiritual Weapon's is a rider on a Bonus Action that also strikes;
+   * this one costs no action at all — it is a thing the caster may do while
+   * walking, and the pack goes nowhere on a turn the druid stands still. So the
+   * allowance lives here, beside the other things an area does, and
+   * `MoveCommand.alsoMoves` is the rider that spends it: one command moved the
+   * druid and the pack, because the book wrote one sentence about both.
+   *
+   * **Once per move**, which is what "when you move on your turn" means and what
+   * a rider on one command gives for free.
+   *
+   * The unoccupied space and the caster's sight of it are checked by the move
+   * rather than here: both are facts about the scene at the moment the pack is
+   * walked. Set only alongside `area`, for the reason `areaTrigger` and
+   * `areaStanding` are — there has to be something to carry.
+   */
+  readonly areaMovesWithCaster?: number;
+  /**
    * An effect list a **DM's decision** fires, once, over the spell's area.
    *
    * SRD Glyph of Warding: "You decide what triggers the glyph when you cast
