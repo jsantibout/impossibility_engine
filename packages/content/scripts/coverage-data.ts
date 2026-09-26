@@ -1892,6 +1892,8 @@ export const HANDOVER_LINE_KINDS: Readonly<Record<string, string>> = {
     'SRD Wight ("rises 24 hours later as a Zombie under the wight\'s control"; "no more than twelve zombies") and SRD Shadow ("a Shadow rises from the corpse 1d4 hours later"). A stat block made from a corpse hours after the fight, under the control of a creature the table is playing, which the doctrine puts at the table; the cap counts creatures nothing here raised. The death that precedes it is the engine\'s and is executed.',
   'a-body-absorbed':
     'SRD Gibbering Mouther\'s Bite: "Its body is then absorbed into the mouther, leaving only equipment behind." The death is executed; what the corpse looks like afterwards is narration, in the family of SRD Cone of Cold\'s frozen statue. A revival that needs the body is the table\'s to refuse, as it is for every body destroyed off the page — the engine keeps no body apart from the creature\'s record.',
+  'a-hole-eaten-through-the-world':
+    'SRD Black Pudding\'s and SRD Gray Ooze\'s Corrosive Form: "In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal." — W7-B12. A hole left in a wall is SRD Tunneler\'s tunnel by another means: a change to the map the table is drawing, and the engine draws none. The scene holds no wall between two places for a hole to open — a barrier that blocks passage is a shape nothing has built — so no rule reads the hole afterwards, and a declared object the ooze destroys is destroyed through the door that damages one. The day a barrier blocks passage, this sentence is a debt and leaves this list.',
 };
 
 /**

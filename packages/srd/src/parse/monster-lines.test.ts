@@ -510,14 +510,19 @@ describe('the corpus', () => {
       'doppelganger/Read Thoughts',
       'drider/Magic of the Spider Queen (Recharge 5–6)',
       'dust-mephit/Sleep (1/Day)',
+      // W7-B12: the three hags' Coven Magic, a trait whose price is a Long
+      // Rest per spell and whose gate is two allies within thirty feet.
+      'green-hag/Coven Magic',
       'ice-mephit/Fog Cloud (1/Day)',
       'imp/Invisibility',
       'mage/Misty Step (3/Day)',
+      'night-hag/Coven Magic',
       'oni/Invisibility',
       'planetar/Divine Aid (2/Day)',
       'priest-acolyte/Divine Aid (1/Day)',
       'priest/Divine Aid (3/Day)',
       'quasit/Invisibility',
+      'sea-hag/Coven Magic',
       'sprite/Invisibility',
       'stone-golem/Slow (Recharge 5–6)',
       // W7-B11: the menu of two, the ability borrowed off the block's own
@@ -528,7 +533,8 @@ describe('the corpus', () => {
 
     // Asserted over the corpus rather than assumed, which is how every other
     // claim about "no SRD line does X" in this parser is held down. Every cast
-    // line is a heading a creature spends: none of them declares a spell list
+    // line is a heading a creature spends, or a trait whose price is a rest
+    // per spell (the hags' Coven Magic): none of them declares a spell list
     // as well, because the two are different sentences and the second is
     // `parseSpellcastingLine`'s. And none prints an attack roll or the save
     // template, which is what keeps the four openings one apiece.
@@ -1496,5 +1502,178 @@ describe('the honesty pass: compulsions and fiction filed apart from the residue
       }
     }
     expect(filed).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * **Regeneration, forms, coven magic and splits** — W7-B12.
+ *
+ * Sixteen CR ≤ 5 lines that were prose or a bare kind, each a trait a turn
+ * boundary, a rest, a blow or a Reaction reads. Every pattern is anchored end
+ * to end like the rest of this parser: a sentence that says one more thing is a
+ * different sentence and gets nothing. What each line leaves the table is said
+ * beside the reading — owed in `handedOver`, filed in `forTheTable` under a
+ * reason somebody argued, or consumed because the engine already holds it.
+ */
+describe('regeneration, forms, coven magic and splits — W7-B12', () => {
+  it("reads the troll's Regeneration: the amount, the types that stop it, and the death that waits", () => {
+    expect(lineOf('troll', 'Regeneration').trait).toEqual({
+      kind: 'regenerates',
+      hitPoints: 15,
+      suppressedBy: ['acid', 'fire'],
+    });
+    expect(lineOf('troll-limb', 'Regeneration').trait).toEqual({
+      kind: 'regenerates',
+      hitPoints: 5,
+      suppressedBy: ['acid', 'fire'],
+    });
+  });
+
+  it("reads the vampire spawn's Sunlight: the burn at the turn's start beside the Disadvantage", () => {
+    expect(lineOf('vampire-spawn', 'Sunlight').trait).toEqual({
+      kind: 'disadvantage-in-sunlight',
+      rolls: ['ability-check', 'attack-roll'],
+      hurtAtTurnStart: { amount: 20, damageType: 'radiant' },
+    });
+  });
+
+  it("reads the fire elemental's Fire Aura and the burning it lights, and owes the flammable objects", () => {
+    expect(lineOf('fire-elemental', 'Fire Aura').trait).toEqual({
+      kind: 'damages-creatures-in-an-emanation',
+      moment: 'end',
+      feet: 10,
+      dice: '1d10',
+      damageType: 'fire',
+      chosen: false,
+      unlessIncapacitated: false,
+      ignites: true,
+      // A declared object has nothing on it that takes light — the Barbed
+      // Devil's Hurl Flame seam — so the sentence is owed, not filed.
+      handedOver: ['Creatures and flammable objects in the Emanation start burning.'],
+    });
+    // The azer's aura prints no such sentence and lights nobody.
+    expect(lineOf('azer-sentinel', 'Fire Aura').trait).not.toHaveProperty('ignites');
+  });
+
+  it("reads the black pudding's Corrosive Form: the acid back, the weapon worn down, the rest said", () => {
+    expect(lineOf('black-pudding', 'Corrosive Form').trait).toEqual({
+      kind: 'corrodes-what-hits-it',
+      meleeHitterTakes: { dice: '1d8', damageType: 'acid' },
+      weaponPenalty: 1,
+      weaponDestroyedAt: 5,
+      handedOver: [
+        'Nonmagical ammunition is destroyed immediately after hitting the pudding and dealing any damage.',
+        'The penalty can be removed by casting the _Mending_ spell on the weapon.',
+      ],
+      forTheTable: [
+        {
+          kind: 'a-hole-eaten-through-the-world',
+          sentence: 'In 1 minute, the pudding can eat through 2 feet of nonmagical wood or metal.',
+        },
+      ],
+    });
+  });
+
+  it("reads the gray ooze's Corrosive Form, which burns nobody back", () => {
+    expect(lineOf('gray-ooze', 'Corrosive Form').trait).toEqual({
+      kind: 'corrodes-what-hits-it',
+      weaponPenalty: 1,
+      weaponDestroyedAt: 5,
+      handedOver: [
+        'Nonmagical ammunition is destroyed immediately after hitting the ooze and dealing any damage.',
+        'The penalty can be removed by casting the _Mending_ spell on the weapon.',
+      ],
+      forTheTable: [
+        {
+          kind: 'a-hole-eaten-through-the-world',
+          sentence: 'The ooze can eat through 2-inch-thick, nonmagical metal or wood in 1 round.',
+        },
+      ],
+    });
+  });
+
+  it("reads the giant boar's Bloodied Fury as the melee half of the rule the boar prints whole", () => {
+    expect(lineOf('giant-boar', 'Bloodied Fury').trait).toEqual({
+      kind: 'advantage-while-bloodied',
+      rolls: ['attack-roll'],
+      reach: 'melee',
+    });
+    // The boar's own sentence names every attack roll and keeps no axis.
+    expect(lineOf('boar', 'Bloodied Fury').trait).toEqual({
+      kind: 'advantage-while-bloodied',
+      rolls: ['attack-roll'],
+    });
+  });
+
+  it("reads the swarm of insects' Spider Climb with the gate it prints", () => {
+    expect(lineOf('swarm-of-insects', 'Spider Climb').trait).toEqual({
+      kind: 'climbs-without-a-check',
+      ifHasClimbSpeed: true,
+    });
+    expect(lineOf('black-pudding', 'Spider Climb').trait).toEqual({ kind: 'climbs-without-a-check' });
+  });
+
+  it("reads the three hags' Coven Magic: the menu, the DC, the two allies and the rest per spell", () => {
+    const menu = ['augury', 'find-familiar', 'identify', 'locate-object', 'scrying', 'unseen-servant'];
+    const coven = (dc: number) => ({
+      spells: menu,
+      ability: 'int',
+      saveDc: dc,
+      alliesWithin: { count: 2, feet: 30, kind: 'hag' },
+      eachSpellOncePer: 'long-rest',
+      ownCastingTime: true,
+    });
+    expect(lineOf('green-hag', 'Coven Magic').casts).toEqual(coven(11));
+    expect(lineOf('night-hag', 'Coven Magic').casts).toEqual(coven(14));
+    // The sea hag's menu is italicised as one run; it is the same menu.
+    expect(lineOf('sea-hag', 'Coven Magic').casts).toEqual(coven(11));
+  });
+
+  it('reads the incubus and the succubus as each other at a Long Rest', () => {
+    expect(lineOf('incubus', 'Succubus Form').trait).toEqual({
+      kind: 'becomes-another-block-at-a-long-rest',
+      block: 'succubus',
+      keepsEquipment: true,
+    });
+    expect(lineOf('succubus', 'Incubus Form').trait).toEqual({
+      kind: 'becomes-another-block-at-a-long-rest',
+      block: 'incubus',
+    });
+  });
+
+  it("reads the troll limb's Troll Spawn: a day, a d12, a troll or nothing", () => {
+    expect(lineOf('troll-limb', 'Troll Spawn').trait).toEqual({
+      kind: 'becomes-another-block-on-a-die',
+      afterHours: 24,
+      dice: '1d12',
+      on: 12,
+      block: 'troll',
+    });
+  });
+
+  it("reads the black pudding's and the ochre jelly's Split: the gate, the two triggers", () => {
+    const split = {
+      kind: 'splits-into-two-creatures',
+      sizes: ['large', 'medium'],
+      minimumHitPoints: 10,
+      whenBloodied: true,
+      damageTypes: ['lightning', 'slashing'],
+    };
+    expect(lineOf('black-pudding', 'Split').trait).toEqual(split);
+    expect(lineOf('ochre-jelly', 'Split').trait).toEqual(split);
+  });
+
+  it('names a block that the bestiary prints, wherever a line becomes one', () => {
+    const ids = new Set(bestiary.map((block) => block.id));
+    let named = 0;
+    for (const block of bestiary) {
+      for (const line of block.traits) {
+        const trait = line.trait as { readonly kind: string; readonly block?: string } | undefined;
+        if (trait?.block === undefined) continue;
+        named += 1;
+        expect(ids, `${block.id}/${line.name}`).toContain(trait.block);
+      }
+    }
+    expect(named).toBeGreaterThanOrEqual(3);
   });
 });
