@@ -323,6 +323,9 @@ const AUDIT: readonly {
       // Illusion makes a sound *or* an image, so whether seeing it through
       // needs eyes depends on the illusion.
       senses: expose('requires_sight'),
+      purpose: because(
+        'what the check is *for* — SRD Hunter’s Mark grants Advantage on "any Wisdom (Perception or Survival) check you make **to find it**", and tracking the quarry and listening at a door are the same Perception check. `packages/tools` publishes it on the DM’s door as `findingCreature`, because that is the door a check comes through at all. It is not on **this** surface for the reason the reroll below is not: a benchmark is held fixed, the party is a Fighter, a Cleric and a Wizard, and nothing any of them can cast marks a creature — so the field could be sent and could never change an outcome, which is noise on a surface that measures whether a model can drive the engine',
+      ),
       modes: because('same as the attack roll: a DM granting Advantage by fiat wants its own decision'),
       bonuses: because('a number that would decide an outcome'),
       election: because(

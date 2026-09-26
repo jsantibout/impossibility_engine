@@ -674,6 +674,24 @@ export interface TestCommand extends CommandIdentity {
    */
   readonly senses?: CheckContext;
   /**
+   * What this check is **for**, where a rule narrows by that rather than by the
+   * roll.
+   *
+   * SRD Hunter's Mark: "You also have Advantage on any Wisdom (Perception or
+   * Survival) check you make **to find it**." The ability and the skill are
+   * both already selectable and neither is the narrowing — a ranger tracking
+   * the quarry and a ranger listening at a door roll the same Wisdom
+   * (Perception) check — so the difference is a fact about the attempt, and
+   * only whoever asked for it holds one. The same class of statement as
+   * {@link senses} beside it: never a result, and never anything the engine
+   * could work out.
+   *
+   * **One member, and what it names is a creature rather than a phrase.** The
+   * engine decides whether that creature is one the roller has marked; a
+   * caller cannot assert the mark. See `CheckPurpose`.
+   */
+  readonly purpose?: { readonly find: CharacterId };
+  /**
    * A reroll the roller elects **before** the die — see {@link RollElection}.
    *
    * The other half of the `test-rolled` window, and the half a window could
@@ -790,6 +808,13 @@ export function resolveTest(
       roller: who,
       ability: command.ability,
       ...(command.skill === undefined ? {} : { skill: command.skill }),
+      // **And what the check is for**, where the asker said. SRD Hunter's
+      // Mark's "to find it" is not a narrowing on the roll, so the creature the
+      // attempt is about travels on the query and `rollModesFor` decides
+      // whether the roller has marked them. On the same query the spend below
+      // reads, which is what keeps a one-shot grant from being consumed by a
+      // roll it did not reach.
+      ...(command.purpose === undefined ? {} : { finding: command.purpose.find }),
     };
 
     const saidModes = [...(supply.modes ?? []), ...(command.modes ?? [])];

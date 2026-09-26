@@ -2761,6 +2761,11 @@ export type GameEvent =
       readonly action?: {
         readonly except?: readonly NamedAction[];
         readonly only?: readonly NamedAction[];
+        /**
+         * SRD Haste's "the Attack (one attack only)" — the parenthesis, pinned
+         * onto the action it narrows. See {@link GrantedAction.attacksCap}.
+         */
+        readonly attacksCap?: number;
       };
       /** SRD Flurry of Blows: "two Unarmed Strikes". */
       readonly attacks?: { readonly remaining: number; readonly unarmedOnly: boolean };

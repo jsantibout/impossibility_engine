@@ -4578,6 +4578,13 @@ export function planCharacter(
     ...(longRestSecondsFor(features) === null
       ? {}
       : { longRestSeconds: longRestSecondsFor(features)! }),
+    // SRD Trance's other sentence: "You don't need to sleep, and magic can't
+    // put you to sleep." The same trait, the same road, and absent on every
+    // sheet whose features say nothing — which is what keeps SRD Sleep
+    // catching everybody the book does not spare.
+    ...([...grantsIn(features)].some(([, grant]) => grant.kind === 'does-not-sleep')
+      ? { doesNotSleep: true as const }
+      : {}),
     // The *first* casting class's ability, and null for a character who casts
     // nothing. Falling back to the primary ability gave a Fighter a spell save
     // DC off Strength. A multiclassed caster has more than one, and every

@@ -392,6 +392,31 @@ export type ActionRule =
        * made.
        */
       readonly casting?: true;
+      /**
+       * SRD Gaseous Form: "The target can't talk or **manipulate objects**, and
+       * any objects it was carrying or holding can't be dropped, used, or
+       * otherwise interacted with."
+       *
+       * **Not a slot and not one of {@link NAMED_ACTIONS}**, which is
+       * {@link casting}'s reason with a different list on the other side of it:
+       * `utilize` is a named action and is *one* of the things this sentence
+       * forbids, and the rest — a drop, an equip, a free interaction, a
+       * purchase, something picked up off the floor — are spenders that cost
+       * nothing, or nothing nameable. A rule forbidding the Utilize alone would
+       * have left a cloud free to shed its armour and hand its sword to a
+       * friend.
+       *
+       * So every command that puts a hand on a thing reads it, through
+       * {@link refuseObjectHandling}, and refuses `cannot_manipulate_objects`.
+       * {@link governs} does not read it, for `casting`'s reason: it is not a
+       * fact about a *slot* being spent.
+       *
+       * **What it does not reach is somebody else's hands.** A forced drop is a
+       * thing done *to* the creature — SRD Command's Drop, a disarm — and this
+       * sentence is about what the target may do, so `forcedDrop` is left alone
+       * deliberately rather than by omission.
+       */
+      readonly objects?: true;
     }
   /**
    * SRD Wind Walk, Fear, Magic Jar: one slot narrowed to a named few.
@@ -487,11 +512,28 @@ export type ActionRule =
        * Disengage, Hide, or Utilize action" — and writes all five of them,
        * because {@link NAMED_ACTIONS} holds Utilize and `takeUtilize` is the
        * spender that names itself as one. The parenthesis is not here: how
-       * many attacks one Attack action contains is a count the economy does
-       * not keep, and it stays filed under
-       * `an-action-a-spell-compels-or-forbids`.
+       * many attacks one Attack action contains is {@link attacksCap}.
        */
       readonly only?: readonly NamedAction[];
+      /**
+       * The parenthesis: SRD Haste's "the Attack (**one attack only**)".
+       *
+       * How many swings the Attack action holds **when it is bought with this
+       * extra action**, which is a different question from how many the
+       * creature's own action holds — a hasted level 5 Fighter takes two swings
+       * on their own Attack action and one on Haste's, out of the same Extra
+       * Attack. So it travels on the grant rather than standing on the creature,
+       * and {@link GrantedAction.attacksCap} is where `extraActionsOwedAtTurnStart`
+       * puts it.
+       *
+       * {@link ActionRule}'s `caps-attacks` member is the same number said about
+       * every Attack action a creature takes — SRD Slow — and the two are not one
+       * field for that reason.
+       *
+       * Absent is uncapped, which is Action Surge and every extra action written
+       * before this field: the action it buys is an Attack action like any other.
+       */
+      readonly attacksCap?: number;
     }
   /**
    * SRD Slow, SRD Dretch, SRD Copper Dragon Wyrmling: "it can take either an
@@ -527,6 +569,33 @@ export type ActionRule =
       readonly kind: 'one-of';
       /** The slots coupled to each other; spending any one closes the rest. */
       readonly slots: readonly ActionSlot[];
+    }
+  /**
+   * SRD Slow: "it can make **only one attack** if it takes the Attack action."
+   *
+   * **The count inside an action, where the five members above govern the
+   * action itself.** Each of them answers a question about a *spend* — may this
+   * slot go, what may it be spent on, what does spending it foreclose — and this
+   * answers a question about what the spend then contains. `refuseSpend` never
+   * consults it, for the reason it never consults `grants`: it is not a fact
+   * about whether the slot may be spent.
+   *
+   * It is read where the quiver is filled, so it reaches **every** Attack action
+   * the creature takes — its own, and any an Action Surge or a Haste buys — which
+   * is what "if it takes the Attack action" says. `GrantedAction.attacksCap` is
+   * the same number said of one *particular* extra action and is not this: SRD
+   * Haste's parenthesis narrows the action it hands over and leaves the turn's
+   * own alone.
+   *
+   * **A cap rather than a count**, so two of them do not add up and neither
+   * raises anything: a creature under two such rules takes the smaller, and one
+   * with no Extra Attack is not given a second swing by a spell that took one
+   * away.
+   */
+  | {
+      readonly kind: 'caps-attacks';
+      /** How many swings an Attack action may hold. SRD prints one. */
+      readonly attacks: number;
     };
 
 /**
@@ -654,6 +723,8 @@ export function extraActionsOwedAtTurnStart(
     owed.push({
       source: held.label,
       ...(held.rule.only === undefined ? {} : { only: held.rule.only }),
+      // SRD Haste's parenthesis, travelling with the action it narrows.
+      ...(held.rule.attacksCap === undefined ? {} : { attacksCap: held.rule.attacksCap }),
     });
   }
   return owed;
@@ -746,6 +817,68 @@ function refuseSpend(
       'action_forbidden',
       `${id} cannot take ${SLOT_NAMES[slot]}: ${held.label} forbids it until ${held.until}`,
     );
+  }
+  return ok(true);
+}
+
+/**
+ * How many swings this Attack action holds, after everything that caps it.
+ *
+ * Two sentences, and they are about different things. SRD Slow's "it can make
+ * only one attack if it takes the Attack action" stands on the *creature* and
+ * reaches every Attack action it takes; SRD Haste's "the Attack (one attack
+ * only)" narrows the one action the spell hands over and leaves the turn's own
+ * alone. So the rules are read off the creature and the cap off whichever extra
+ * action is about to pay, and the answer is the smallest of the three.
+ *
+ * **A cap and never a count**, which is why this is `Math.min` rather than an
+ * assignment: two such rules do not add up, neither of them raises anything, and
+ * a creature with no Extra Attack is not handed a second swing by a spell that
+ * took one away.
+ */
+const cappedAttacks = (
+  attacksPerAction: number,
+  rules: readonly GrantedActionRule[],
+  paying: GrantedAction | undefined,
+): number => {
+  let most = attacksPerAction;
+  for (const held of rules) {
+    if (held.rule.kind === 'caps-attacks') most = Math.min(most, held.rule.attacks);
+  }
+  if (paying?.attacksCap !== undefined) most = Math.min(most, paying.attacksCap);
+  return Math.max(0, most);
+};
+
+/**
+ * The refusal every command that puts a hand on a thing shares.
+ *
+ * SRD Gaseous Form: "The target can't talk or manipulate objects, and any
+ * objects it was carrying or holding can't be dropped, used, or otherwise
+ * interacted with." One sentence over six spenders — a free interaction, a
+ * Utilize, a drop, an equip, an unequip, a purchase and whatever is lying on the
+ * floor — so it is one reader rather than six spellings, for
+ * {@link refuseSpend}'s reason.
+ *
+ * **It is not {@link refuseSpend}**, because nothing here is a slot. Half of
+ * these spend nothing at all, and `governs` therefore has nothing to answer
+ * about them: the question is not "may this creature take an action" but "may
+ * this creature touch anything", which is a different sentence that happens to
+ * be written on the same rule.
+ *
+ * The first rule that bites wins, and the refusal names it and says until when —
+ * the discipline every refusal in this file keeps.
+ */
+export function refuseObjectHandling(
+  id: CharacterId,
+  rules: readonly GrantedActionRule[],
+): Result<true> {
+  for (const held of rules) {
+    if (held.rule.kind === 'forbids' && held.rule.objects === true) {
+      return err(
+        'cannot_manipulate_objects',
+        `${id} cannot handle anything: ${held.label} until ${held.until}`,
+      );
+    }
   }
   return ok(true);
 }
@@ -979,6 +1112,20 @@ export interface GrantedAction {
    * both, which is what a reader would expect of a sentence printing both.
    */
   readonly only?: readonly NamedAction[];
+  /**
+   * How many swings the Attack action holds when **this** extra pays for it.
+   *
+   * SRD Haste: "That action can be used to take only the Attack (**one attack
+   * only**), Dash, Disengage, Hide, or Utilize action." Read by
+   * {@link spendAttack} where the quiver is filled, off whichever extra is about
+   * to pay — so a hasted Fighter swings twice on their own Attack action and once
+   * on Haste's, which is what the parenthesis says and what neither a rule on the
+   * creature nor a number on the sheet could have said.
+   *
+   * Absent is uncapped: Action Surge's extra action is an Attack action like any
+   * other, and so is every extra written before this field.
+   */
+  readonly attacksCap?: number;
 }
 
 /**
@@ -1817,6 +1964,20 @@ export function spendAttack(
   // second action — and the quiver fills again exactly as it did the first
   // time. Refusing here without asking was a Fighter who could Dodge after a
   // surge and could not swing.
+  // **Which extra would pay, asked before the spend rather than after it.**
+  // `spendAction` matches an extra on its source alone — the reducer folds
+  // `action-spent` without knowing which action it was — so the grant that is
+  // about to pay cannot be read back out of the state afterwards. It is found
+  // here with `permitsExtra`, the one predicate `spendExtraAction` uses, so the
+  // two can never disagree about which extra a swing spent.
+  //
+  // Only where the turn's own action has gone: the turn's own comes first, and
+  // an Attack action paid for out of it is capped by whatever stands on the
+  // creature and by nothing a grant says.
+  const paying = budget.value.action
+    ? undefined
+    : budget.value.extraActions.find((extra) => permitsExtra(extra, 'attack'));
+
   const taken = spendAction(state, id, conditions, { rules: spend?.rules ?? [], as: 'attack' });
   if (!taken.ok) {
     // The more useful of two true sentences: a creature whose Attack action is
@@ -1834,7 +1995,13 @@ export function spendAttack(
     state: withBudget(
       taken.value,
       id,
-      { attacksRemaining: Math.max(0, attacksPerAction - 1), ...remembering(after.value) },
+      {
+        attacksRemaining: Math.max(
+          0,
+          cappedAttacks(attacksPerAction, spend?.rules ?? [], paying) - 1,
+        ),
+        ...remembering(after.value),
+      },
       after.value,
     ),
     tookAction: true,

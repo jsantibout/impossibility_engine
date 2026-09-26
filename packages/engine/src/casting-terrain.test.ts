@@ -153,7 +153,7 @@ class Game {
    * direction outright, so the aim goes with the shape rather than with every
    * casting.
    */
-  conjure(spellId: string, slotLevel?: number, towards?: Point): string {
+  conjure(spellId: string, slotLevel?: number, towards?: Point, option?: string): string {
     const out = unwrap(
       resolveSpell(
         this.state,
@@ -164,6 +164,10 @@ class Game {
           at: AT,
           ...(towards === undefined ? {} : { towards }),
           ...(slotLevel === undefined ? {} : { slotLevel }),
+          // SRD Plant Growth prints two branches and the ground is one of
+          // them — "Casting Time: Action (Overgrowth) or 8 hours (Enrichment)"
+          // — so a casting of it names which, exactly as Magic Circle's does.
+          ...(option === undefined ? {} : { option }),
         },
         supply(spellId),
       ),
@@ -211,7 +215,7 @@ describe('a casting writes a patch on the lattice', () => {
    */
   it('charges the rate the spell prints where that is not the glossary’s', () => {
     const game = new Game();
-    game.conjure('plant-growth', 3);
+    game.conjure('plant-growth', 3, undefined, 'overgrowth');
     expect(terrainAt(game.state, INSIDE).costPerFoot).toBe(4);
   });
 
@@ -248,7 +252,7 @@ describe('a casting writes a patch on the lattice', () => {
    */
   it('leaves an Instantaneous casting’s overgrowth standing', () => {
     const game = new Game();
-    game.conjure('plant-growth', 3);
+    game.conjure('plant-growth', 3, undefined, 'overgrowth');
     // Nothing is running: the spell has no duration and no record to end.
     expect(Object.keys(game.state.ongoing)).toEqual([]);
     expect(terrainAt(game.state, INSIDE).costPerFoot).toBe(4);

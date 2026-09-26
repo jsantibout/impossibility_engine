@@ -2274,14 +2274,16 @@ describe('the fought fact is a second build that corrected the query', () => {
    * instead. The shape did not move; the spell did.
    *
    * **And a second executed claimant arrived by a build finishing half a
-   * sentence**, which is the reading this shape exists to keep honest. SRD
+   * sentence, and has since left by a grant finishing the other half.** SRD
    * Sleep spares "Creatures that don't sleep, such as elves, or that have
-   * Immunity to the Exhaustion condition"; `save.autoSucceedIf` is the second
-   * clause, read off `conditionImmunitiesOf`, and the first is a fact the
-   * engine holds about nobody — the SRD prints it of no creature type and the
-   * Elf states it as a species trait no grant kind carries. So the spell moved
-   * off the shape the build retired and onto this one, which is where a fact
-   * rather than a mechanism belongs.
+   * Immunity to the Exhaustion condition"; `save.autoSucceedIf` was the second
+   * clause, read off `conditionImmunitiesOf`, and the first was a fact the
+   * engine held about nobody — so the spell moved off the shape the build
+   * retired and onto this one. It was never quite a *declared* fact, though: the
+   * Elf states it as a species trait, and a species trait is a grant. Trance
+   * writes `does-not-sleep` now, the clause reads it off the sheet, and Sleep
+   * leaves — which is the same departure Levitate's consent made, by being given
+   * somewhere for the fact to live rather than by the shape shrinking.
    *
    * **And a third executed claimant arrived the same way — and has since left
    * again**, which is the other half of the same honesty. SRD Levitate asks
@@ -2303,8 +2305,16 @@ describe('the fought fact is a second build that corrected the query', () => {
     // has worked that way. Enthrall left the same way, its fought fact read by
     // `autoSucceedIf.fought`. The undefined population is empty of this shape
     // and the claims are live elsewhere.
+    //
+    // **And the executed population is empty too, which is the shape working
+    // rather than the shape ending.** Both of its claimants left by being given
+    // somewhere for their fact to live: Sleep's elves are a species grant, and
+    // Hunter's Mark's "to find it" is a purpose the asker states on the check.
+    // Scrying alone still holds it, and the machinery stays — a fact only the
+    // table can declare is a real category, and the next spell that needs one
+    // is filed here rather than argued about.
     expect(fact.undefined).toEqual([]);
-    expect(fact.executed).toEqual(['hunters-mark', 'sleep']);
+    expect(fact.executed).toEqual([]);
     expect(fact.tracked).toEqual(['scrying']);
   });
 });
@@ -2730,7 +2740,9 @@ describe('a consumer count is a query', () => {
       // `SpellCheck.onSuccess: 'end-casting'` had existed since Ensnaring
       // Strike — which is said plainly, because a ranking that moved for that
       // reason is reporting a filing rather than a difficulty.
-      'a-choice-made-at-the-casting',
+      // `a-choice-made-at-the-casting` stood here until the economy track gave
+      // Plant Growth's Enrichment its own casting time (`SpellOption.castingTime`)
+      // and the shape fell below the band.
       'a-second-place-to-put-a-creature',
       'a-stat-block-created-mid-fight',
     ]);

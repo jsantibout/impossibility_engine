@@ -168,6 +168,7 @@ import {
   riderPricePaid,
   type HitRiderRequest,
 } from './hit-riders.js';
+import { applyRiders } from './spell-effect-riders.js';
 import { grapplesOn } from './unarmed.js';
 import { effectiveSizeOf } from '../size.js';
 import { typeMagicSees } from '../creature-type.js';
@@ -4049,6 +4050,51 @@ function castOnHit(
     ...keeps.value,
   ];
   const unverified: string[] = [];
+
+  // **What the casting leaves on the creature the blow landed on.** SRD Shining
+  // Smite: "Until the spell ends, the target sheds Bright Light in a 5-foot
+  // radius, attack rolls against it have Advantage, and it can't benefit from
+  // the Invisible condition."
+  //
+  // All three were sayable as riders and none of them had a **host**: a smite is
+  // cast in the window a hit opens, so the creature the sentence is about is the
+  // one the blow landed on and nothing in the request names them. So the target
+  // is the one `keptRunning` has just written onto the record as `aimed`, and the
+  // riders are applied in the world that record and its deadline exist in —
+  // which is what lets every door that ends the casting take them away.
+  //
+  // Nothing at all for a smite that prints none, which is SRD Divine Smite and
+  // every cast-on-hit spell written before this field.
+  const riding = effect?.riders;
+  if (riding !== undefined) {
+    const cast = events.find((event) => event.type === 'spell-cast');
+    if (cast?.type !== 'spell-cast') {
+      return err(
+        'no_casting',
+        `${definition.name} leaves something on the creature it was cast on and the casting wrote nothing for it to hang on`,
+      );
+    }
+    const world = events.reduce(applyEvent, state);
+    const sheet = sheetAsItStands(world, id) ?? attacker.sheet;
+    const rode = applyRiders(world, target, riding, {
+      definition,
+      castingId: cast.castingId,
+      casterId: id,
+      saveDc: numbersFor(world, id, sheet, route).saveDc,
+      castLevel,
+      casterLevel: sheet.level,
+      unverified,
+      // The creature the casting is holding something on is the one the record
+      // already names, so the set the riders fill is read for nothing here —
+      // it is the argument `applyRiders` takes and not a second answer.
+      held: new Set<CharacterId>(),
+      // The host rolled no saving throw: the attack it joins has already hit.
+      saveAbility: null,
+      content,
+    });
+    if (!rode.ok) return rode;
+    events.push(...rode.value.events);
+  }
 
   // **The saving throw the blow's creature makes**, where the spell prints one
   // — SRD Ensnaring Strike's "As you hit the target, grasping vines appear on

@@ -127,18 +127,27 @@ describe('a spell may name a shape in any book', () => {
    * **And the smaller half has since been paid too**, which is what the split
    * was worth: the narrowing was filed on its own, the reason it was filed
    * turned out to be one stale sentence about Utilize having no spender, and
-   * paying it moved nothing else. What is left of Haste's paragraph is the
-   * parenthesis inside that list — "(one attack only)", a count of the attacks
-   * inside one Attack action — which is the sentence SRD Slow prints from the
-   * other end and is filed where that one is.
+   * paying it moved nothing else.
+   *
+   * **And the parenthesis is paid now as well, which is the third and last
+   * arm** — so the spell files nothing at all. "(one attack only)" was the
+   * count of attacks inside one Attack action, and it was never the same number
+   * as SRD Slow's: this one narrows the action the spell *hands over*
+   * (`GrantedAction.attacksCap`) and Slow's stands on the creature
+   * (`ActionRule`'s `caps-attacks`), so a hasted Fighter swings twice on their
+   * own Attack action and once on Haste's. Had the two been filed as one clause
+   * and paid with one field, one of them would have been wrong in the direction
+   * nothing measures.
    */
-  it('paid both arms it had split out, and kept the parenthesis apart', () => {
+  it('paid all three arms it had split out, the parenthesis last', () => {
     const filed = (ADJUDICATED['haste'] ?? []).map((entry) => entry.why);
     expect(filed).not.toContain('an-action-the-engine-has-no-spender-for');
-    expect(filed).toEqual(['an-action-a-spell-compels-or-forbids']);
-    expect((ADJUDICATED['haste'] ?? []).map((entry) => entry.clause)).toEqual([
-      '(one attack only)',
-    ]);
+    expect(filed).toEqual([]);
+    // And SRD Slow's end of the same sentence went with it, by a second field
+    // rather than by the same one.
+    expect((ADJUDICATED['slow'] ?? []).map((entry) => entry.clause)).not.toContain(
+      'it can make only one attack if it takes the Attack action',
+    );
   });
 });
 

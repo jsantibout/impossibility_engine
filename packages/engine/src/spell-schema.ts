@@ -1583,6 +1583,15 @@ function checkSaveCastingRepeat(
   repeats: SpellRepeatSave,
   path: string,
   found: SpellDefinitionProblem[],
+  /**
+   * Whether the failure that hangs this hook also hangs **grants on the target**.
+   *
+   * The one input the rule arm below needs and the repeat cannot see: a
+   * `modifiers` rider files its grants under `grants|<target>|<casting source>`,
+   * and so would a rule a failed repeat hung there — one key, two writers, and
+   * the deadline of whichever wrote last releasing what the other one granted.
+   */
+  ridersOnTheTarget = false,
 ): void {
   const at = `${path}.repeats`;
   if (!readsAsObject(repeats, at, 'a repeat save is an object naming when it fires', found)) {
@@ -1604,12 +1613,16 @@ function checkSaveCastingRepeat(
   // casting because neither failure imposed a condition to file a hook on —
   // see `castingHostedRepeat`, where `end-on-target` files the hook on the
   // casting's grants on that one creature.
-  if (repeats.onSuccess !== 'end-casting' && repeats.onSuccess !== 'end-on-target') {
+  if (
+    repeats.onSuccess !== 'end-casting' &&
+    repeats.onSuccess !== 'end-on-target' &&
+    repeats.onSuccess !== 'nothing'
+  ) {
     found.push({
       field: `${at}.onSuccess`,
       code: 'repeat_without_condition',
       reason:
-        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so the hook rides on the casting instead, and a success either ends the casting ("end-casting") or releases what the casting hung on that one creature ("end-on-target")',
+        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so the hook rides on the casting instead, and a success either ends the casting ("end-casting"), releases what the casting hung on that one creature ("end-on-target"), or ends nothing at all ("nothing"), which is SRD Bestow Curse’s Dodge',
     });
   }
 
@@ -1634,12 +1647,61 @@ function checkSaveCastingRepeat(
     });
   }
 
-  if (repeats.onFailure !== undefined) {
+  // **The deepening is still refused and the rule arm is not**, which is the
+  // whole of the distinction: a deepening replaces a condition and this failure
+  // imposed none, where a rule imposes nothing and narrows the turn the failure
+  // happened on. SRD Bestow Curse's Dodge is the second, and the reason the
+  // failure branch is a union rather than one object.
+  if (repeats.onFailure?.rule !== undefined) {
+    checkActionRule(repeats.onFailure.rule, `${at}.onFailure.rule`, found);
+    /*
+     * **The key the rule is hung on has to be free, and two things can be
+     * standing there.** `deepenedBy` schedules the rule under
+     * `grants|<target>|<casting source>` with a deadline at the end of the turn
+     * it governs, and that key is *the* per-creature key a casting has:
+     *
+     * - a repeat whose success ends the spell **on one target** rides on it, so
+     *   the first failure would replace the hook with the rule and the boundary
+     *   would never ask again;
+     * - a `modifiers` rider that the same failure hung is filed under it, so the
+     *   rule's deadline would release the rider at the end of the turn.
+     *
+     * Both are silent, which is why they are refused here rather than argued
+     * about in a comment. What is left — a success that ends nothing, and a
+     * failure whose whole content is the rule — is SRD Bestow Curse's Dodge, and
+     * for that one the key really is free: the hook rides the casting's own
+     * timer and nothing else is hung on the creature.
+     */
+    if (repeats.onSuccess !== 'nothing') {
+      found.push({
+        field: `${at}.onFailure.rule`,
+        code: 'rule_on_a_shared_key',
+        reason:
+          'the rule a failed repeat hangs is filed under this casting’s grants on that creature, and a repeat whose success ends the spell on one target is filed there too; a success that ends nothing ("nothing") is what leaves the key free',
+      });
+    }
+    if (ridersOnTheTarget) {
+      found.push({
+        field: `${at}.onFailure.rule`,
+        code: 'rule_on_a_shared_key',
+        reason:
+          'this failure hangs grants on the target as well, filed under the same key the rule would be — so the rule’s deadline at the end of the turn would release them; a failure that hangs a rule hangs nothing else on the creature',
+      });
+    }
+    if (repeats.onFailure.lasts !== 'this-turn') {
+      found.push({
+        field: `${at}.onFailure.lasts`,
+        code: 'bad_repeat_rule_span',
+        reason:
+          'a rule a failed repeat hangs governs the turn the failure happened on and no other, which is the one span it may name: write `lasts: "this-turn"`',
+      });
+    }
+  } else if (repeats.onFailure !== undefined) {
     found.push({
       field: `${at}.onFailure`,
       code: 'deepening_without_a_condition',
       reason:
-        'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
+        'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch — or hangs a rule over the turn instead, which is the other arm of this field',
     });
   }
 }
@@ -2127,7 +2189,13 @@ function checkSaveWithoutCondition(
     // second sentence imposes no condition and hangs nothing unless the thing
     // cannot be dropped, and a die that empties a hand is not a die thrown for
     // nothing.
-    effect.drops !== undefined;
+    effect.drops !== undefined ||
+    // **A repeat whose failure acts is content too**, and SRD Bestow Curse's
+    // Dodge face is the sentence that says so: the save imposes nothing at the
+    // casting and puts the creature under an obligation it must save against at
+    // the start of every turn, whose own failure narrows its whole action. A die
+    // that does that is not a die thrown for nothing.
+    (effect.repeats !== undefined && effect.repeats.onFailure !== undefined);
 
   // **The fourth way out, and it is the only one that needs no record.** SRD
   // Animal Messenger's failure imposes nothing and there is nowhere to keep
@@ -2166,7 +2234,11 @@ function checkSaveWithoutCondition(
     });
   }
 
-  if (effect.repeats !== undefined) checkSaveCastingRepeat(effect.repeats, path, found);
+  if (effect.repeats !== undefined) {
+    // The riders this failure hangs on the target, which the rule arm's own key
+    // rule reads — see `checkSaveCastingRepeat`.
+    checkSaveCastingRepeat(effect.repeats, path, found, (effect.modifiers ?? []).length > 0);
+  }
 
   for (const field of ['lasts', 'check', 'outlivesCasting'] as const) {
     if (effect[field] === undefined) continue;
@@ -2282,11 +2354,21 @@ export function checkActionRule(
     if (rule.casting !== undefined && rule.casting !== true) {
       bad('a rule either forbids casting or says nothing about it; `casting` is `true` or absent');
     }
+    // **And handling a thing is the fourth**, for the casting's reason: SRD
+    // Gaseous Form's "can't … manipulate objects, and any objects it was
+    // carrying or holding can't be dropped, used, or otherwise interacted with"
+    // is one sentence over spenders that mostly cost nothing, so it is neither a
+    // slot nor a named action and a rule whose whole content is this forbids
+    // something.
+    if (rule.objects !== undefined && rule.objects !== true) {
+      bad('a rule either forbids handling objects or says nothing about it; `objects` is `true` or absent');
+    }
     if (
       (rule.slots?.length ?? 0) + (rule.actions?.length ?? 0) === 0 &&
-      rule.casting !== true
+      rule.casting !== true &&
+      rule.objects !== true
     ) {
-      bad('a rule that forbids no slot, no action and no casting forbids nothing; name what the spell takes away');
+      bad('a rule that forbids no slot, no action, no casting and no handling forbids nothing; name what the spell takes away');
     }
     return;
   }
@@ -2431,6 +2513,27 @@ export function checkActionRule(
       );
       return;
     }
+    /*
+     * SRD Haste's parenthesis — "the Attack (one attack only)" — held to the
+     * same arithmetic the rule above it is, and to one more thing: a cap on the
+     * attacks inside an action a narrowing has already withheld is a sentence
+     * nothing could ever read.
+     */
+    if (rule.attacksCap !== undefined) {
+      if (
+        typeof rule.attacksCap !== 'number' ||
+        !Number.isInteger(rule.attacksCap) ||
+        rule.attacksCap < 1
+      ) {
+        bad(
+          `an Attack action holds a whole number of attacks, at least one, not ${String(rule.attacksCap)}; an extra action that buys no attack at all simply does not name the Attack action`,
+        );
+      } else if (Array.isArray(rule.only) && !rule.only.includes('attack')) {
+        bad(
+          'this extra action may not be spent on the Attack action at all, so a cap on the attacks inside one would be read by nothing; name `attack` in the list, or drop the cap',
+        );
+      }
+    }
     if (rule.only === undefined) return;
     if (!Array.isArray(rule.only)) {
       bad('the actions a granted action may be spent on are a list');
@@ -2454,8 +2557,30 @@ export function checkActionRule(
     return;
   }
 
+  /*
+   * SRD Slow's "it can make only one attack if it takes the Attack action",
+   * held to the two things a cap can be wrong about.
+   *
+   * A whole number of at least one, because a cap of nothing is an Attack
+   * action that holds no attack — which is `forbids` naming the action, in
+   * fewer words and through the reader that refuses the spend rather than
+   * emptying the quiver.
+   */
+  if (rule.kind === 'caps-attacks') {
+    if (
+      typeof rule.attacks !== 'number' ||
+      !Number.isInteger(rule.attacks) ||
+      rule.attacks < 1
+    ) {
+      bad(
+        `an Attack action holds a whole number of attacks, at least one, not ${String(rule.attacks)}; a cap of none is the Attack action forbidden`,
+      );
+    }
+    return;
+  }
+
   bad(
-    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, grants, or couples one of several slots`,
+    `"${String((rule as { readonly kind?: unknown }).kind)}" is not something a spell does to a turn; a spell forbids, permits only, allows, grants, couples one of several slots, or caps the attacks inside an Attack action`,
   );
 }
 
@@ -3693,6 +3818,11 @@ function checkEffect(
           }
         }
       }
+      // SRD Shining Smite's three sentences about the creature the blow landed
+      // on. The host rolls no saving throw of its own — the attack it joins has
+      // already hit — so a rider here may not repeat one, which is the same
+      // `false` an attack's own riders are judged with.
+      checkRiders(effect.riders ?? {}, level, `${path}.riders`, host(false), found);
       return;
 
     // `save` spells its **first** rider flat and `condition` nests its only
@@ -4200,6 +4330,22 @@ function checkEffect(
 
     case 'roll-mode':
       checkRollModifier(effect.modifier, `${path}.modifier`, found);
+      // **Whose mode it is, held to `true`-or-absent** like every other
+      // printed-or-not clause in this format. SRD Hunter's Mark hangs its mode
+      // on the caster while the casting is aimed at the quarry, and a value
+      // this validator read as absent would land the mode on the wrong
+      // creature — silently, which is the whole defect this file refuses.
+      if (
+        (effect as { readonly onCaster?: unknown }).onCaster !== undefined &&
+        (effect as { readonly onCaster?: unknown }).onCaster !== true
+      ) {
+        found.push({
+          field: `${path}.onCaster`,
+          code: MALFORMED,
+          reason:
+            'a mode is hung on the caster or on the creature the casting named; `onCaster` is `true` or absent',
+        });
+      }
       return;
 
     // A Speed change names an operation and, for one of the three, a number.
@@ -5796,7 +5942,21 @@ function checkGrantRequirements(
  * nobody can read carries no lifetime worth reporting, so it falls through to
  * the reader that will report what is actually wrong with it.
  */
-function grantCarried(effect: SpellEffect): string | null {
+function grantCarried(given: SpellEffect): string | null {
+  // **One kind nests its riders and the rest spell them inline**, and this is
+  // where the two layouts are made one question. SRD Shining Smite's are on
+  // `attack-damage.riders`, because a smite's own fields are its damage and its
+  // repeat and a reader should not have to tell those from a glow; every other
+  // host carries `& OutcomeRiders` flat. A normalisation here is the alternative
+  // to teaching the four reads below about a second place to look — and without
+  // it an Instantaneous smite carrying a grant would slip past the one rule that
+  // exists to catch exactly that.
+  const nested = (given as { readonly riders?: unknown }).riders;
+  const effect: SpellEffect =
+    typeof nested === 'object' && nested !== null && !Array.isArray(nested)
+      ? ({ ...given, ...(nested as object) } as SpellEffect)
+      : given;
+
   switch (effect.kind) {
     case 'buff':
       return 'a bonus';
@@ -6379,6 +6539,66 @@ export function checkSpellDefinition(
         field: `targets.${clause}`,
         code: 'area_filter_and_a_later_catch',
         reason: `\`${clause}\` narrows the catch this casting settles, and an area that goes on catching creatures at a later boundary re-derives its own catch from the pinned record and would not narrow it`,
+      });
+    }
+  }
+
+  /*
+   * SRD Thaumaturgy's "**you** have Advantage": the caster and nobody else,
+   * held to the two things that sentence can mean.
+   *
+   * `self: true` is what admits the caster to the spell's own target list at
+   * all — `namedTargets` refuses a caster who is not admitted, so a
+   * `casterOnly` without it would refuse *every* target and the spell would be
+   * uncastable. And one is the only count "you and nobody else" can have: a
+   * second target would have to be somebody else, which the clause forbids.
+   */
+  /*
+   * `true`-or-absent, for the reason every other clause of this shape is: a
+   * value this validator read as absent would leave the spell castable at
+   * anybody, which is the opposite of what the clause says and the kind of
+   * silence the two rules below could not catch.
+   */
+  if (
+    definition.targets.casterOnly !== undefined &&
+    definition.targets.casterOnly !== true
+  ) {
+    found.push({
+      field: 'targets.casterOnly',
+      code: MALFORMED,
+      reason: 'a spell either names the caster alone or does not; `casterOnly` is `true` or absent',
+    });
+  }
+
+  if (definition.targets.casterOnly === true) {
+    if (definition.targets.self !== true) {
+      found.push({
+        field: 'targets.casterOnly',
+        code: 'caster_only_without_self',
+        reason:
+          '`casterOnly` names the caster as the one legal target, so the spell must admit the caster: write `self: true` beside it, or the casting refuses everybody',
+      });
+    }
+    if (definition.targets.count !== 1) {
+      found.push({
+        field: 'targets.count',
+        code: 'caster_only_count',
+        reason: `"you and nobody else" is one target; \`casterOnly\` with a count of ${definition.targets.count} promises a creature the clause forbids`,
+      });
+    }
+    if (definition.targets.notTheCaster === true) {
+      found.push({
+        field: 'targets.casterOnly',
+        code: 'caster_only_and_not_the_caster',
+        reason:
+          '`casterOnly` and `notTheCaster` are the two halves of one family and are the opposite sentences; a spell that says both reaches nobody',
+      });
+    }
+    if (definition.targets.unlimited === true) {
+      found.push({
+        field: 'targets.casterOnly',
+        code: 'caster_only_unlimited',
+        reason: '"each creature of your choice" and "you and nobody else" are different sentences',
       });
     }
   }
@@ -8513,6 +8733,57 @@ function checkOptions(
         definition.typesStated !== undefined,
       ),
     );
+
+    /*
+     * SRD Plant Growth's "Action (Overgrowth) or 8 hours (Enrichment)", held to
+     * the rules the definition's own casting time is held to, and one more.
+     *
+     * The vocabulary and the seconds are the same three refusals one level up —
+     * `long` is a bucket rather than a span, and the engine will not invent the
+     * moment it defers a casting to. The extra rule is about the Ritual arm:
+     * `castingOf` builds a Ritual's span from `definition.castingSeconds` and
+     * nothing else, because the ten minutes are added to *the spell's* time, so a
+     * branch time on a Ritual would be silently ignored by the one route that
+     * matters most to it.
+     */
+    if (branch.castingTime !== undefined) {
+      if (!CASTING_TIMES.has(branch.castingTime)) {
+        found.push({
+          field: `options.${key}.castingTime`,
+          code: 'unknown_casting_time',
+          reason: `"${String(branch.castingTime)}" is not a casting time the engine has`,
+        });
+      } else if (branch.castingTime === 'long') {
+        const seconds = branch.castingSeconds;
+        if (
+          typeof seconds !== 'number' ||
+          !Number.isInteger(seconds) ||
+          seconds < LONG_CASTING_SECONDS
+        ) {
+          found.push({
+            field: `options.${key}.castingSeconds`,
+            code: 'bad_casting_seconds',
+            reason:
+              'a branch whose casting time is "1 minute or more" says how many seconds, at least 60; the engine defers the casting to that moment and will not invent one',
+          });
+        }
+      }
+      if (definition.ritual === true) {
+        found.push({
+          field: `options.${key}.castingTime`,
+          code: 'branch_time_on_a_ritual',
+          reason:
+            'a Ritual adds ten minutes to the spell’s own casting time, which a branch’s would not be read as; a spell whose branches are cast over different spans has no Ritual version the engine can price',
+        });
+      }
+    } else if (branch.castingSeconds !== undefined) {
+      found.push({
+        field: `options.${key}.castingSeconds`,
+        code: 'casting_seconds_without_long',
+        reason:
+          'a span of seconds belongs to a casting time this branch does not state; write the branch’s `castingTime` beside it, or leave both off and take the definition’s',
+      });
+    }
 
     if (
       effects.length === 0 &&

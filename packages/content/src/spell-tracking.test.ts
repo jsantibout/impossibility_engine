@@ -12,6 +12,7 @@ import { dropsAnObject, statesWillingFact } from '@ie/engine';
 import { optionEffects, statesFoughtFact, type SpellDefinition } from '@ie/engine';
 import { dmDecisionsIn } from '@ie/engine';
 import { riderDurations, type RiderDuration } from '@ie/engine';
+import { castingTimeOf } from '@ie/engine';
 import {
   advanceTime,
   DIRECTIONAL_AREAS,
@@ -285,7 +286,13 @@ const cast = (
   // definition in this bucket took no target at all; Magic Jar takes one now,
   // because a definition that resolves something has to say whose body it is
   // about.
-  const mine = definition.range.kind === 'self' && definition.targets.self === true;
+  // **And a spell whose target rule says "you and nobody else"** — SRD
+  // Thaumaturgy's Booming Voice, whose Range is 30 feet and whose one legal
+  // target is still the caster. `casterOnly` is a rule about who may be named
+  // rather than about the Range, so it is asked beside it.
+  const mine =
+    definition.targets.casterOnly === true ||
+    (definition.range.kind === 'self' && definition.targets.self === true);
   const targets = aimsAtNobody ? [] : [mine ? WIZARD : at];
   // The eighth stated fact: a spell aimed at an object is refused until the
   // caster names which, and one that touches none is refused for naming one.
@@ -483,14 +490,31 @@ const resolved = (spellId: string, over = {}, log: readonly GameEvent[] = logFor
  * against the printed casting time, so the clock is moved by the number the
  * book prints rather than by one this fixture chose.
  */
-const driven = (spellId: string, log: readonly GameEvent[] = logFor(spellId)) => {
+/**
+ * How long a casting made by this fixture takes, which is **the branch's** where
+ * the branches do not share a time.
+ *
+ * SRD Plant Growth: "Casting Time: Action (Overgrowth) or 8 hours (Enrichment)."
+ * The fixture speaks the first branch alphabetically, so for that spell the
+ * casting is a rite of eight hours out of a definition whose own printed time is
+ * an Action. `castingTimeOf` is the engine's own reader of the pair.
+ */
+const timingOf = (spellId: string) => {
   const definition = SRD_CONTENT.spell(spellId)!;
+  return castingTimeOf(
+    definition,
+    definition.options === undefined ? undefined : Object.keys(definition.options).sort()[0]!,
+  );
+};
+
+const driven = (spellId: string, log: readonly GameEvent[] = logFor(spellId)) => {
+  const timing = timingOf(spellId);
   const first = resolved(spellId, {}, log);
-  if (definition.castingTime !== 'long') return first;
+  if (timing.castingTime !== 'long') return first;
 
   const open = fold('seed', [...log, ...first.events]);
   const castingId = pendingCastingsOf(open)[0]!.castingId;
-  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const tick = unwrap(advanceTime(open, timing.castingSeconds!, 'the rite'), `tick ${spellId}`);
   const ticked = [...log, ...first.events, ...tick];
   const settled = unwrap(
     resolveDeclaredCast(fold('seed', ticked), castingId, supply()),
@@ -516,7 +540,7 @@ describe('a tracked spell is cast, not refused', () => {
    * stopped declaring would make the sweep above pass for the wrong reason.
    */
   it('declares the casting for every tracked spell that takes a minute or more', () => {
-    const long = TRACKED.filter((spellId) => SRD_CONTENT.spell(spellId)?.castingTime === 'long');
+    const long = TRACKED.filter((spellId) => timingOf(spellId).castingTime === 'long');
     expect(long.length).toBeGreaterThan(0);
     for (const spellId of long) {
       const declaration = resolved(spellId);
@@ -2157,7 +2181,7 @@ describe('every spell this batch added is cast for real', () => {
     ];
     const out = resolved(spellId, {}, inCombat);
     const budget = fold('seed', [...inCombat, ...out.events]).combat?.budgets.wizard;
-    if (SRD_CONTENT.spell(spellId)!.castingTime === 'bonus-action') {
+    if (timingOf(spellId).castingTime === 'bonus-action') {
       expect(budget?.bonusAction, spellId).toBe(false);
       expect(budget?.action, spellId).toBe(true);
     } else {
@@ -2304,6 +2328,13 @@ describe('every spell this batch added is cast for real', () => {
     // And the fourth, finished by the consent track: a `willing` list to
     // declare into.
     'resistance',
+    // And the last clause of this one was half a sentence: "Creatures that
+    // don't sleep, such as elves, **or** that have Immunity to the Exhaustion
+    // condition automatically succeed." The Immunity was read off the creature
+    // and the other fact was held about nobody; `does-not-sleep` is the grant
+    // Trance writes, and the two are asked in one clause because the book joins
+    // them with "or".
+    'sleep',
     // The fifth, and the shortest paragraph in the book to need three
     // mechanisms: `stabilise` for the four words that are the spell,
     // `TargetRule.mustBeDying` for the sentence that chooses whom, and
@@ -2405,7 +2436,15 @@ describe('every spell this batch added is cast for real', () => {
       // sweep makes is that the casting tells the table what it was left
       // with, and it does; what it may not be is *silent*, which either list
       // answers and neither being there would fail.
-      const given = definition.dmDecides ?? [];
+      // **A branch's handover counts for the same reason the definition's
+      // does**, and Command is what notices: its Approach rolls a verdict-only
+      // save now and hands the walking over, so the branch owes no debt and is
+      // very far from silent. A sweep reading only the debts would have called
+      // that a spell saying nothing.
+      const given = [
+        ...(definition.dmDecides ?? []),
+        ...(branch === undefined ? [] : (definition.options![branch]!.handsOver ?? [])),
+      ];
       expect([...owed, ...given], spellId).not.toEqual([]);
       for (const gap of owed) {
         expect(out.unverified).toContain(`${definition.name}: ${gap}`);

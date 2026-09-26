@@ -35,7 +35,8 @@ import {
   type GameState,
   type InventoryLine,
 } from '../events.js';
-import { standingFor } from '../standing.js';
+import { actionRulesOn, standingFor } from '../standing.js';
+import { refuseObjectHandling } from '../combat.js';
 import { anchorNeeded, creatureOf, sceneFor, spendFor, unknownCreature } from './command.js';
 import { mayAct } from './holds.js';
 import { once } from '../idempotency.js';
@@ -307,6 +308,12 @@ export function purchaseItem(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
+    // SRD Gaseous Form: "any objects it was carrying or holding can't be
+    // dropped, used, or otherwise interacted with." One reader for every
+    // command that puts a hand on a thing — see `refuseObjectHandling`.
+    const handling = refuseObjectHandling(id, actionRulesOn(state, id));
+    if (!handling.ok) return handling;
+
     if (!Number.isInteger(quantity) || quantity < 1) {
       return err('bad_quantity', `a purchase takes a positive whole number, got ${quantity}`);
     }
@@ -464,6 +471,12 @@ export function equipItem(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
+    // SRD Gaseous Form: "any objects it was carrying or holding can't be
+    // dropped, used, or otherwise interacted with." One reader for every
+    // command that puts a hand on a thing — see `refuseObjectHandling`.
+    const handling = refuseObjectHandling(id, actionRulesOn(state, id));
+    if (!handling.ok) return handling;
+
     // Which copy, asked first: the name may be a kind of thing or one of them,
     // and an item's own id is not in the catalogue under that name.
     const named = copyNamed(state, creature, itemId);
@@ -580,6 +593,12 @@ export function unequipItem(
   return once(state, `unequip:${id}`, inputs, () => [], (stamp) => {
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
+
+    // SRD Gaseous Form: "any objects it was carrying or holding can't be
+    // dropped, used, or otherwise interacted with." One reader for every
+    // command that puts a hand on a thing — see `refuseObjectHandling`.
+    const handling = refuseObjectHandling(id, actionRulesOn(state, id));
+    if (!handling.ok) return handling;
     // By kind of thing or by copy, whichever the caller has to hand: only one
     // copy of a kind is ever in a pair of hands, so the two names find the
     // same thing and the event names the kind, as it always has.
@@ -1020,6 +1039,12 @@ export function dropItem(
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
 
+    // SRD Gaseous Form: "any objects it was carrying or holding can't be
+    // dropped, used, or otherwise interacted with." One reader for every
+    // command that puts a hand on a thing — see `refuseObjectHandling`.
+    const handling = refuseObjectHandling(id, actionRulesOn(state, id));
+    if (!handling.ok) return handling;
+
     const scene = sceneFor(state, id, `${id} to put something down in`);
     if (!scene.ok) return scene;
 
@@ -1219,6 +1244,12 @@ export function takeItemUp(
   return once(state, `take-item-up:${id}`, command, () => [], (stamp) => {
     const creature = creatureOf(state, id);
     if (creature === null) return unknownCreature(id);
+
+    // SRD Gaseous Form: "any objects it was carrying or holding can't be
+    // dropped, used, or otherwise interacted with." One reader for every
+    // command that puts a hand on a thing — see `refuseObjectHandling`.
+    const handling = refuseObjectHandling(id, actionRulesOn(state, id));
+    if (!handling.ok) return handling;
 
     const scene = sceneFor(state, id, `${id} to pick something up in`);
     if (!scene.ok) return scene;

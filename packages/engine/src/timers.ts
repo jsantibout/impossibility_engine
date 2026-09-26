@@ -22,6 +22,10 @@
  */
 import type { Ability, CharacterId, ConditionName, Skill } from '@ie/shared';
 import type { Deadline, TurnMoment } from './time.js';
+// Type-only, and one way: `combat.ts` holds the action economy's own vocabulary
+// and imports nothing from here, so a rule a failed repeat hangs is named where
+// it is enforced rather than spelled a second time.
+import type { ActionRule } from './combat.js';
 
 /**
  * The longest one activation of a feature may be maintained.
@@ -171,8 +175,21 @@ export interface RepeatSave {
    * hands one over directly. The first two are at authoring, which is where a
    * defect in written content belongs; the last is the backstop, because a
    * caller writes no content to validate.
+   *
+   * **`nothing` is the third value, and SRD Bestow Curse's Dodge face is the one
+   * sentence in reach that needs it**: "the target must succeed on a Wisdom
+   * saving throw at the start of each of its turns **or be forced to take the
+   * Dodge action on that turn**." The whole content of that save is on its
+   * *failure* — a success buys the creature this turn and nothing more, and the
+   * curse runs on to ask again at the next one.
+   *
+   * It ends nothing, so it releases nothing: the fold discharges the debt and is
+   * finished with it. And it rides on the **casting's own timer** rather than on
+   * a per-creature key, for `end-casting`'s reason — there is nothing standing on
+   * one target for a success to lift, so a key per target would be a key about
+   * nothing.
    */
-  readonly onSuccess: 'end-on-target' | 'end-casting';
+  readonly onSuccess: 'end-on-target' | 'end-casting' | 'nothing';
   /**
    * What a **failure** does, where the SRD writes a failure that acts.
    *
@@ -208,8 +225,37 @@ export interface RepeatSave {
    * of its own, and a line may print both (the Silver Dragon's minute is the
    * cap after which its save succeeds automatically).
    */
-  readonly onFailure?: {
+  /**
+   * **And a second arm, which imposes no condition at all.**
+   *
+   * SRD Bestow Curse: "In combat, the target must succeed on a Wisdom saving
+   * throw at the start of each of its turns **or be forced to take the Dodge
+   * action on that turn**." There is nothing to deepen — the curse imposed no
+   * condition — and what the failure does is narrow the turn it happened on,
+   * which is the engine's legality form of a compulsion: `permits-only` on the
+   * Action slot with `dodge` the only member, failing closed, so everything else
+   * is refused and nobody is walked through a Dodge. The owner's compulsion
+   * ruling is exactly that — legality is the engine's and the choosing is the
+   * table's.
+   *
+   * **A span of one turn and no other**, because the rule is hung at a boundary
+   * that has already arrived: the turn it governs is the one that is running, so
+   * `end-of-current-turn` is its ending. That is the one anchor a *deepening* may
+   * not name, for the opposite reason — a deepening's would be the moment it
+   * happened.
+   *
+   * Told apart from the deepening by which field is present, which is the
+   * discipline every union in this file keeps.
+   */
+  readonly onFailure?:
+    | {
+        readonly rule: ActionRule;
+        readonly lasts: 'this-turn';
+        readonly condition?: undefined;
+      }
+    | {
     readonly condition: ConditionName;
+    readonly rule?: undefined;
     /**
      * How long the deeper condition lasts, where the sentence says.
      *
@@ -254,7 +300,7 @@ export interface RepeatSave {
     readonly endsOnDamage?: true;
     /** The other half of the same sentence — see `wakeCreature`. */
     readonly endsWhenWoken?: true;
-  };
+      };
   /**
    * Damage the creature takes **before** the die is thrown.
    *
@@ -554,7 +600,8 @@ interface PendingSaveCommon {
 
 /** A save owed against an effect the engine is holding — SRD's "repeats the save". */
 export interface RepeatPendingSave extends PendingSaveCommon {
-  readonly onSuccess: 'end-on-target' | 'end-casting';
+  /** The hook's own three values — see {@link RepeatSave.onSuccess}. */
+  readonly onSuccess: 'end-on-target' | 'end-casting' | 'nothing';
   /**
    * Absent, and declared so the union can be told apart by it.
    *

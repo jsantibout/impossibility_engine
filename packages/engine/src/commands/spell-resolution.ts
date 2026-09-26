@@ -113,6 +113,7 @@ import {
   isCreatureType,
   swingReachIn,
   areaStandingFor,
+  castingTimeOf,
   type SequencedBurst,
 } from '../spell-definitions.js';
 import { castsAtWill, type CastingRoute } from '../spellcasting.js';
@@ -1879,13 +1880,18 @@ export function castingOf(
     // Familiar's hour) stay with the definition they belong to.
     const stated = route?.kind === 'granted' ? route.grant.castingTime : undefined;
     if (stated !== undefined) return ok({ castingTime: stated, ritual: false });
-    return ok({
-      castingTime: definition.castingTime,
-      ...(definition.castingSeconds === undefined
-        ? {}
-        : { castingSeconds: definition.castingSeconds }),
-      ritual: false,
-    });
+
+    // **And what the branch prints, where the branches do not share a time.**
+    // SRD Plant Growth: "Casting Time: Action (Overgrowth) or 8 hours
+    // (Enrichment)", and "The casting time you use determines whether the spell
+    // has the Overgrowth or the Enrichment effect below." The route above still
+    // wins, because a stat block's heading is about the *use*; a branch's time
+    // is the spell's own, for the word the caster spoke.
+    //
+    // **The seconds travel with the time and are never mixed** — see
+    // `castingTimeOf`, which is the one reader of the printed pair and is what
+    // the catalogue sweeps ask too.
+    return ok({ ...castingTimeOf(definition, request.option), ritual: false });
   }
 
   if (definition.ritual !== true) {
@@ -2590,6 +2596,7 @@ function resolveOnTargets(
         // readied Bless was running, concentrated on, and invisible to Dispel
         // Magic.
         ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+        ...(request.option === undefined ? {} : { option: request.option }),
         ...(terrainRegion === null ? {} : { terrainRegion }),
       }),
     );
@@ -3059,6 +3066,7 @@ function resolveOnTargets(
       // accepted and reads it as it now stands.
       ...(context.answers === undefined ? {} : { answers: context.answers }),
       ...(persists(definition) ? { becomesOngoing: ongoingWith() } : {}),
+      ...(request.option === undefined ? {} : { option: request.option }),
       ...(terrainRegion === null ? {} : { terrainRegion }),
     }),
   );
@@ -3403,6 +3411,18 @@ export function resolveEffects(
      * answered exactly as the common one was.
      */
     readonly optionByTarget?: Readonly<Record<string, string>>;
+    /**
+     * The one branch this casting ran, where it ran one.
+     *
+     * **A record's `option` is not this, and Plant Growth is why.** A branch
+     * that persists carries its word on the ongoing record, and every reader of
+     * a later boundary asks the record. An **Instantaneous** branch leaves no
+     * record at all — SRD Plant Growth's Overgrowth thickens the ground and the
+     * book gives the thickness no ending — so the ground it lays had nowhere to
+     * read the word from, and the patch went down with the definition's own
+     * terrain or none.
+     */
+    readonly option?: string;
     /** The damage type the casting stated, for the branch lists above. */
     readonly damageType?: string;
     /** The value the casting chose, for the branch lists above. */
@@ -3783,8 +3803,9 @@ export function resolveEffects(
       context.terrainRegion ?? null,
       becomes !== undefined,
       // The branch the casting ran, where the ground is the branch's — SRD
-      // Speak with Plants' two directions.
-      becomes?.option,
+      // Speak with Plants' two directions, and SRD Plant Growth's Overgrowth,
+      // which is Instantaneous and so has no record to carry the word.
+      context.option ?? becomes?.option,
     ),
     ...lightPatchesOf(
       state,

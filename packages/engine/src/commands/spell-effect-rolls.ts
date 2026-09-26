@@ -1284,6 +1284,18 @@ function castingHostedRepeat(
 
   // The casting's deadline either way; whose turns raise it and what a success
   // ends are the two things the spelling decides.
+  // **`end-on-target` is the one spelling that needs a key per creature**, and
+  // the other two share the casting's own timer: `end-casting` ends the spell
+  // outright, and `nothing` ends nothing at all, so neither has anything standing
+  // on one target for a success to lift.
+  //
+  // That is also what lets a failure hang a rule under the per-creature key —
+  // SRD Bestow Curse's Dodge, scheduled there by `deepenedBy` with a deadline at
+  // the end of the turn it governs. **The key being free is a rule rather than a
+  // coincidence**: `checkSaveCastingRepeat` refuses `onFailure.rule` beside any
+  // success but `nothing`, and beside a failure that hangs `modifiers` on the
+  // target, because either of those files something under that same key and the
+  // two deadlines would release each other's work.
   const on: EffectTarget =
     repeats.onSuccess === 'end-on-target'
       ? { kind: 'grants', on: target, source: ctx.source }
@@ -1299,6 +1311,11 @@ function castingHostedRepeat(
       ability: effect.ability,
       dc: saveDc,
       onSuccess: repeats.onSuccess,
+      // **What a failure leaves**, where the sentence writes one. SRD Bestow
+      // Curse's Dodge is the arm a casting-hosted repeat may carry: a rule over
+      // the turn the failure happened on rather than a condition to deepen,
+      // because this failure imposed no condition to deepen.
+      ...(repeats.onFailure === undefined ? {} : { onFailure: repeats.onFailure }),
       ...(repeats.onlyIf === undefined ? {} : { onlyIf: repeats.onlyIf }),
       label: `${ctx.name} (${ABILITY_NAMES[effect.ability]} save)`,
     },
@@ -1454,9 +1471,19 @@ export function resolveSaveEffect(
             ? fought?.includes(target) === true
               ? `${name}: a creature you or your companions are fighting automatically succeeds on the save`
               : null
-            : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
-              ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
-              : null;
+            : // **Or that it does not sleep, which is the other half of the same
+              // printed sentence.** SRD Sleep: "Creatures that don't sleep,
+              // such as elves, **or** that have Immunity to the Exhaustion
+              // condition automatically succeed" — either fact spares the
+              // creature, so the two are asked in one clause and the first
+              // that answers names itself. Read off the sheet as it stands, so
+              // an item that ever granted it would reach the save by the door
+              // the Immunity above already uses.
+              effect.autoSucceedIf.doesNotSleep === true && sheet.doesNotSleep === true
+              ? `${name}: a creature that does not sleep automatically succeeds on the save`
+              : conditionImmunitiesOf(current, target).includes(effect.autoSucceedIf.immuneTo)
+                ? `${name}: a creature with Immunity to the ${effect.autoSucceedIf.immuneTo} condition automatically succeeds on the save`
+                : null;
     const save = rollSavingThrow(supply.issuer, supply.rng, sheet, effect.ability, {
       dc: saveDc,
       conditions: support.conditions,

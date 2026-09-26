@@ -230,6 +230,7 @@ export const READABLE_GRANT_KINDS: ReadonlySet<string> = new Set([
   'casting-options',
   'creates-object',
   'critical-range',
+  'does-not-sleep',
   'expertise',
   'extra-attack',
   'hit-point-maximum',

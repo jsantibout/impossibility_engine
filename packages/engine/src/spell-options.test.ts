@@ -338,7 +338,9 @@ describe('Thaumaturgy works the wonder its caster named', () => {
     resolveSpell(
       fold('seed', log),
       CLERIC,
-      { spellId: 'thaumaturgy', targets: [], option } as never,
+      // "**You** have Advantage": `casterOnly` makes the caster the one
+      // creature this cantrip may be cast on, so the caster names themselves.
+      { spellId: 'thaumaturgy', targets: [CLERIC], option } as never,
       supply(FAILS),
     );
 

@@ -3687,6 +3687,66 @@ function rollerCreatureType(state: GameState, query: RollQuery): RollQuery {
 }
 
 /**
+ * The query with the **cause's** creature type worked out, where the site that
+ * rolled the save named a cause.
+ *
+ * SRD Protection from Evil and Good: "If the target is already possessed,
+ * Charmed, or Frightened **by such a creature**, the target has Advantage on any
+ * new saving throw against the relevant effect." The roller of the save says who
+ * forced it and the type is read here, beside {@link rollerCreatureType} and for
+ * the same reason — one predicate decides every mode, and no site that throws a
+ * die has to remember a field.
+ *
+ * **Through `typeMagicSees`**, because the sentence that reads it is a spell's,
+ * exactly as the neighbouring gatherer and `conditionImmunitiesOf` read it. A
+ * cause nobody named, or one this state does not hold, is left alone rather than
+ * answered null: absent and null read the same way to the predicate, and writing
+ * one would claim the engine had looked.
+ */
+function forcedByCreatureType(state: GameState, query: RollQuery): RollQuery {
+  const forcedBy = query.forcedBy ?? null;
+  if (forcedBy === null) return query;
+  const causer = state.creatures[forcedBy];
+  if (causer === undefined) return query;
+  return { ...query, forcedByType: typeMagicSees(causer) };
+}
+
+/**
+ * The query with SRD Hunter's Mark's other fact worked out: whether the creature
+ * this check is being made to find is one the roller has **marked**.
+ *
+ * "You also have Advantage on any Wisdom (Perception or Survival) check you make
+ * **to find it**." Two halves, and they are held by different people: which
+ * creature the attempt is about is the asker's — nothing else could know
+ * whether a Perception check is tracking the quarry or listening at a door — and
+ * whether that creature is marked is the engine's own record, `attackRiders`,
+ * which is what `attack-rider.marksTarget` wrote. So the purpose is stated and
+ * the mark is looked up, here, beside {@link rollerCreatureType} and for its
+ * reason: one predicate decides every mode and no site that throws a die has to
+ * remember a field.
+ *
+ * **The same reader `knowledge.ts` uses**, in the sense that both ask the
+ * rider's own `target` — the rider sits on the *ranger*, because Hunter's Mark
+ * is cast at a quarry ninety feet away and the die is the ranger's, so this is a
+ * question about the roller's own state that reaches the quarry only to compare
+ * ids. And the casting's lifetime is the mark's: every door that ends a casting
+ * takes the rider with it, so nothing here has to remember that the spell
+ * stopped.
+ *
+ * A check that stated no purpose is left alone rather than answered false,
+ * because absent and false read the same way to the predicate and writing one
+ * would claim the engine had looked.
+ */
+function findingMarked(state: GameState, query: RollQuery): RollQuery {
+  const finding = query.finding ?? null;
+  if (finding === null) return query;
+  const marked = (state.creatures[query.roller]?.attackRiders ?? []).some(
+    (rider) => rider.target === finding,
+  );
+  return { ...query, findingMarked: marked };
+}
+
+/**
  * The style that reaches this swing, or null where none does.
  *
  * Three questions, and a style has to answer all three: its gate holds, it
@@ -4355,7 +4415,10 @@ export function rollModesFor(
   // `selectorMatches` stays the single predicate every mode is decided by. A
   // roll with no second creature is left silent, and a selector asking for it
   // reads that as a miss.
-  const query: RollQuery = rollerCreatureType(state, missingHitPoints(state, asked));
+  const query: RollQuery = forcedByCreatureType(
+    state,
+    findingMarked(state, rollerCreatureType(state, missingHitPoints(state, asked))),
+  );
   const modes: ModeSource[] = [];
   const unverified: string[] = [];
   const seen = new Set<string>();

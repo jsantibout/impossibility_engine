@@ -145,6 +145,19 @@ function familyReaches(selector: RollFamily, rolled: RollFamily): boolean {
 export type RollRelation = 'roller' | 'against-holder';
 
 /**
+ * What an ability check is being made **for**, as a rule can read it.
+ *
+ * A closed vocabulary of *mechanisms*, not of fictions: the caller states the
+ * creature they are trying to find and the engine decides whether that creature
+ * is one the roller has marked, so nothing here is a phrase somebody typed.
+ *
+ * One member, because one sentence in reach asks: SRD Hunter's Mark's "any
+ * Wisdom (Perception or Survival) check you make **to find it**". A second
+ * arrives with the sentence that needs it — see {@link RollSelector.purpose}.
+ */
+export type CheckPurpose = 'find-marked';
+
+/**
  * Which rolls a modifier picks out.
  *
  * `ability` and `skill` are filters and both narrow rather than widen: absent
@@ -202,6 +215,61 @@ export interface RollSelector {
    * "ability checks using the chosen ability".
    */
   readonly skill?: Skill;
+  /**
+   * What the check is **for**, where a sentence narrows by that rather than by
+   * the roll.
+   *
+   * SRD Hunter's Mark: "You also have Advantage on any Wisdom (Perception or
+   * Survival) check you make **to find it**." The ability and the skill are
+   * already selectable and neither of them is the narrowing: a ranger tracking
+   * the quarry and a ranger listening at a door roll the same Wisdom
+   * (Perception) check, and the difference is a fact about the *attempt*. So it
+   * is stated by whoever asks for the check — `TestCommand.purpose`, the shape
+   * `senses` and `fought` already have — and left silent otherwise, which a
+   * purpose-keyed selector reads as a miss.
+   *
+   * **The member names a mechanism rather than a spell.** `find-marked` is
+   * "this check is being made to find a creature the roller has marked", and
+   * whether the roller has marked them is `attackRiders`' answer — what
+   * `attack-rider.marksTarget` wrote, which is the same fact `knowledge.ts`
+   * reads and no spell's name. A homebrew spell that marks a quarry and grants
+   * this mode reaches it.
+   *
+   * **Only for `ability-check`.** An attack roll and a saving throw are not
+   * made *to* anything the caller could state — an attack has its target and a
+   * save has what it is about, both already selectable — so a purpose on either
+   * would pick out nothing for ever.
+   */
+  readonly purpose?: CheckPurpose;
+  /**
+   * The creature types this **saving throw's source** must be one of.
+   *
+   * SRD Protection from Evil and Good: "If the target is already possessed,
+   * Charmed, or Frightened by such a creature, the target has Advantage on any
+   * new saving throw against the relevant effect."
+   *
+   * **{@link attackerType}'s sibling on the axis a save has instead of an
+   * attacker.** That one reads the creature *making* the roll and is confined to
+   * `against-holder` for the reason `against-holder` exists: an attack is the one
+   * D20 Test with a second participant. A saving throw has no second
+   * participant — and it does have a **cause**, which is what this reads: the
+   * creature whose effect forced it. `GrantedConditionImmunity.fromTypes` is the
+   * same question asked one layer along, on the condition rather than on the
+   * save, and the answer is read the same way: through `typeMagicSees`, because
+   * a ward is a spell and SRD says spells read a type through the Mask.
+   *
+   * **A cause nobody named does not bite**, which is the direction every
+   * unsettled fact in this engine takes and the reading `fromTypes` already has:
+   * the site that rolls the save says who forced it, and a DM's bare ruling, a
+   * trap or a hazard says nobody. One site answers today — the turn boundary
+   * repeating a save, which reads the casting the timer names and the caster on
+   * its record.
+   *
+   * **Only on a saving throw.** An ability check has no cause outside itself and
+   * an attack roll's second creature is the one `attackerType` and `counterpart`
+   * already reach, so a list here on either would pick out nothing for ever.
+   */
+  readonly againstSourceType?: readonly string[];
   /**
    * The other participant, pinned — so the selector picks out rolls involving
    * one named creature rather than anybody.
@@ -612,6 +680,20 @@ export function rollModifierKey(source: string, selector: RollSelector): string 
     ...(selector.attackerType === undefined
       ? []
       : [`attacker-type:${[...selector.attackerType].sort().join(',')}`]),
+    // **And what the check is for**, appended for the two paragraphs above's
+    // reasons: every key an existing log holds stays byte-identical, and the
+    // segment carries its own name and a colon, so it cannot be read as the
+    // marker, a class id or a type list. One source that grants a mode on a
+    // check made to find its quarry and another on the same check made for
+    // anything would be two statements, and a key that could not tell them
+    // apart would evict the first.
+    ...(selector.purpose === undefined ? [] : [`purpose:${selector.purpose}`]),
+    // **And the types whatever forced a save must be one of**, appended for the
+    // same two reasons and carrying its own name and colon so it cannot be read
+    // as any of the tails above it. Sorted, because a list is a set here.
+    ...(selector.againstSourceType === undefined
+      ? []
+      : [`source-type:${[...selector.againstSourceType].sort().join(',')}`]),
   ].join('|');
 }
 
@@ -776,6 +858,61 @@ export interface RollQuery {
    * creature.
    */
   readonly rollerType?: string | null;
+  /**
+   * The creature this check is being made **to find** — SRD Hunter's Mark's
+   * "any Wisdom (Perception or Survival) check you make to find it".
+   *
+   * Stated by whoever asks for the check, because nothing else could know:
+   * tracking the quarry and listening at a door are the same Wisdom
+   * (Perception) check and the difference is what the attempt is *for*. It is
+   * the shape {@link aboutConditions} has on the other family — a fact about
+   * the roll that only its asker holds — and the shape `senses` has on the
+   * command.
+   *
+   * Absent is a check nobody said the purpose of, which is most of them.
+   */
+  readonly finding?: CharacterId;
+  /**
+   * Whether {@link finding} names a creature the **roller** has marked — what
+   * {@link RollSelector.purpose}'s `find-marked` matches.
+   *
+   * **Filled in by the gatherer rather than by the site that throws the die**,
+   * which is the reading {@link rollerType} and
+   * {@link targetMissingHitPoints} already take: the mark is
+   * `CreatureState.attackRiders`, which `rollModesFor` has the state for and a
+   * caller would only be repeating. So the asker states the purpose and the
+   * engine decides whether the sentence is about it.
+   *
+   * Absent means nobody worked it out, which a purpose-keyed selector reads as
+   * a miss.
+   */
+  readonly findingMarked?: boolean;
+  /**
+   * The creature whose effect **forced this saving throw**, where the site that
+   * rolls it knows one.
+   *
+   * SRD Protection from Evil and Good's "already … Frightened **by such a
+   * creature**": a save knows its DC and not who set it, which `CLAUDE.md` has
+   * recorded as a gap since Countercharm. This is that gap closed from the one
+   * end where the answer really is in the log: a repeat save is raised by a
+   * timer, the timer names the source that hung the condition, and a casting's
+   * record names its caster.
+   *
+   * Absent is "nobody said", which a type-keyed selector reads as a miss — a DM's
+   * bare ruling, a trap, a hazard. See {@link RollSelector.againstSourceType}.
+   */
+  readonly forcedBy?: CharacterId;
+  /**
+   * What {@link forcedBy} **is**, as a spell or other magical effect sees it —
+   * what {@link RollSelector.againstSourceType} matches.
+   *
+   * **Filled in by the gatherer rather than by the site that throws the die**,
+   * which is the reading {@link rollerType} takes and for its reason: the type is
+   * read off `CreatureState` through `typeMagicSees`, which `rollModesFor` has
+   * the state for and a caller would only be repeating. So the roller of a save
+   * says *who* forced it and never *what they are*.
+   */
+  readonly forcedByType?: string | null;
 }
 
 /**
@@ -849,6 +986,19 @@ export function selectorMatches(
     return false;
   }
 
+  // SRD Protection from Evil and Good: "already … Frightened **by such a
+  // creature** … has Advantage on any new saving throw against the relevant
+  // effect." The type read is neither participant's — a save has one — but the
+  // *cause's*, and a save nobody said the cause of is a miss, which is the
+  // reading `GrantedConditionImmunity.fromTypes` already takes of an unnamed
+  // causer.
+  if (
+    selector.againstSourceType !== undefined &&
+    (query.forcedByType == null || !selector.againstSourceType.includes(query.forcedByType))
+  ) {
+    return false;
+  }
+
   // SRD Faerie Fire: "if the attacker can see it". A declared *no* withholds
   // the mode; a yes or a silence applies it, and `rollModesFor` reports the
   // silence — see {@link unsettledSightGrants}.
@@ -879,6 +1029,13 @@ export function selectorMatches(
   // narrowings of one sentence, read the same way `againstMagic` is: a swing
   // that said nothing about being a spell's is not one, and a casting through
   // no class is not a casting through this one.
+  // SRD Hunter's Mark: "any Wisdom (Perception or Survival) check you make **to
+  // find it**." The asker states which creature the attempt is about and the
+  // gatherer decides whether it is one the roller has marked; a check nobody
+  // said the purpose of is a miss, because an unkeyed Perception check is a
+  // different sentence from this one.
+  if (selector.purpose === 'find-marked' && query.findingMarked !== true) return false;
+
   if (selector.onlySpellAttacks === true && query.spellAttack !== true) return false;
   if (
     selector.onlyThroughClass !== undefined &&
@@ -1109,6 +1266,64 @@ export function rollSelectorProblems(
       found.push({
         code: 'condition_off_a_saving_throw',
         reason: `a saving throw and the ability check that ends an effect say what they are about; a ${selector.roll} does not, so naming a condition on one would pick out nothing for ever`,
+      });
+    }
+  }
+
+  // The type of whatever **forced** a save, held to the one family that has a
+  // cause. The three refusals `attackerType` makes on its own axis, with the
+  // family check turned round: an ability check has no cause outside itself, and
+  // an attack roll's second creature is the one `attackerType` already reaches.
+  if (selector.againstSourceType !== undefined) {
+    // The shape before the vocabulary, for the sense clause's reason: this
+    // validator meets homebrew, and a bare string walked with `for…of` would
+    // report one problem per letter.
+    if (!Array.isArray(selector.againstSourceType)) {
+      found.push({
+        code: 'source_type_is_not_a_list',
+        reason:
+          'a filter on what forced a save is a list of creature types — the six SRD Protection from Evil and Good names',
+      });
+    } else {
+      if (
+        selector.againstSourceType.some((type) => typeof type !== 'string' || type.length === 0)
+      ) {
+        found.push({
+          code: 'bad_creature_type',
+          reason: 'a creature type is a non-empty name, as the table and the stat blocks write it',
+        });
+      }
+      if (selector.againstSourceType.length === 0) {
+        found.push({
+          code: 'type_filters_nothing',
+          reason: 'a filter that names no creature type reaches nobody; leave the field off instead',
+        });
+      }
+      if (selector.roll !== 'saving-throw') {
+        found.push({
+          code: 'source_type_off_a_saving_throw',
+          reason: `a saving throw is the one D20 Test with a cause outside itself, so a filter on what forced it cannot pick out a ${selector.roll}`,
+        });
+      }
+    }
+  }
+
+  // What a check is **for**, held to the one family that can say. See
+  // {@link RollSelector.purpose}: an attack roll and a saving throw are not made
+  // *to* anything a caller states, so a purpose on either would pick out
+  // nothing for ever — the refusal `skill_off_ability_check` makes about the
+  // narrowing beside it.
+  if (selector.purpose !== undefined) {
+    if (selector.purpose !== 'find-marked') {
+      found.push({
+        code: 'bad_check_purpose',
+        reason: `"${String(selector.purpose)}" is not a purpose a check can be made for; the engine reads find-marked`,
+      });
+    }
+    if (selector.roll !== 'ability-check') {
+      found.push({
+        code: 'purpose_off_ability_check',
+        reason: `only an ability check is made *to* something a caller states, so a purpose cannot pick out a ${selector.roll}`,
       });
     }
   }

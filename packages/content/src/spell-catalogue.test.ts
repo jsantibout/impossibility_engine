@@ -28,6 +28,7 @@ import {
   dropsAnObject,
   optionEffects,
   weaponRiderOf,
+  castingTimeOf,
 } from '@ie/engine';
 
 /**
@@ -545,7 +546,14 @@ const castAt = (
     // passing one is a refusal, not a courtesy.
     const aimsAtNobody =
       definition.targets.count === 0 && definition.targets.unlimited !== true;
-    const targets = aimsAtNobody ? [] : [TARGET];
+    // SRD Thaumaturgy's "**you** have Advantage": `casterOnly` says the caster
+    // is the one legal target, so the sweep names the caster. `notTheCaster`'s
+    // opposite number, and the one target rule for which TARGET is a refusal.
+    const targets = aimsAtNobody
+      ? []
+      : definition.targets.casterOnly === true
+        ? [CASTER]
+        : [TARGET];
     // A bounded target list takes both halves: the names, and the point whose
     // area bounds them. Centred on the caster, who has everyone in reach.
     //
@@ -631,15 +639,33 @@ const castAt = (
  * casting by its id, so a sweep over the whole catalogue asks every definition
  * the same question rather than asking twelve of them half of it.
  */
+/**
+ * How long the casting this sweep makes takes, which is **the branch's** where
+ * the branches do not share a time.
+ *
+ * SRD Plant Growth: "Casting Time: Action (Overgrowth) or 8 hours (Enrichment)."
+ * The sweep speaks the first branch alphabetically, so for that spell it is the
+ * Enrichment and the casting is a rite of eight hours out of a definition whose
+ * own printed time is an Action. `castingTimeOf` is the engine's own reader of
+ * that pair, asked here so the sweep and the command cannot disagree.
+ */
+const timingOf = (spellId: string) => {
+  const definition = SRD_CONTENT.spell(spellId)!;
+  return castingTimeOf(
+    definition,
+    definition.options === undefined ? undefined : Object.keys(definition.options).sort()[0]!,
+  );
+};
+
 const castAndSettle = (spellId: string, bonus = -40, seed = 'cast'): readonly GameEvent[] => {
   const base = logFor(spellId);
   const first = unwrap(castAt(fold('seed', base), spellId, bonus, seed), spellId);
-  const definition = SRD_CONTENT.spell(spellId)!;
-  if (definition.castingTime !== 'long') return first.events;
+  const timing = timingOf(spellId);
+  if (timing.castingTime !== 'long') return first.events;
 
   const open = fold('seed', [...base, ...first.events]);
   const castingId = pendingCastingsOf(open)[0]!.castingId;
-  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const tick = unwrap(advanceTime(open, timing.castingSeconds!, 'the rite'), `tick ${spellId}`);
   const ticked = [...base, ...first.events, ...tick];
   const settled = unwrap(
     resolveDeclaredCast(fold('seed', ticked), castingId, supply(seed, bonus)),
@@ -662,12 +688,12 @@ const castAndSettle = (spellId: string, bonus = -40, seed = 'cast'): readonly Ga
 const castFully = (spellId: string, bonus = -40, seed = 'cast') => {
   const base = logFor(spellId);
   const first = unwrap(castAt(fold('seed', base), spellId, bonus, seed), spellId);
-  const definition = SRD_CONTENT.spell(spellId)!;
-  if (definition.castingTime !== 'long') return first;
+  const timing = timingOf(spellId);
+  if (timing.castingTime !== 'long') return first;
 
   const open = fold('seed', [...base, ...first.events]);
   const castingId = pendingCastingsOf(open)[0]!.castingId;
-  const tick = unwrap(advanceTime(open, definition.castingSeconds!, 'the rite'), `tick ${spellId}`);
+  const tick = unwrap(advanceTime(open, timing.castingSeconds!, 'the rite'), `tick ${spellId}`);
   const settled = unwrap(
     resolveDeclaredCast(fold('seed', [...base, ...first.events, ...tick]), castingId, supply(seed, bonus)),
     `settle ${spellId}`,
@@ -812,7 +838,7 @@ describe('every definition in the catalogue actually casts', () => {
     // And a long casting really does take the two-event route, so the branch
     // above is exercised rather than merely present.
     expect(out.some((e) => e.type === 'spell-declared')).toBe(
-      SRD_CONTENT.spell(spellId)!.castingTime === 'long',
+      timingOf(spellId).castingTime === 'long',
     );
   });
 

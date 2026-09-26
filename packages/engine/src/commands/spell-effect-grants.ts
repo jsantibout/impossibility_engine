@@ -119,8 +119,15 @@ export function resolveRollModeEffect(
   target: CharacterId,
   world: GameState,
 ): Result<GameState> {
-  const { source, events, outcomes, held } = ctx;
+  const { casterId, source, events, outcomes, held } = ctx;
   let current = world;
+
+  // **Whose mode it is.** Almost always the creature the casting named — Blur
+  // and Beacon of Hope — and SRD Hunter's Mark is the exception the field
+  // exists for: the spell is cast at a quarry and the Advantage on finding it
+  // is the ranger's. `held` follows the grant, because a casting is on a
+  // creature while it holds a live effect of that casting's.
+  const holder = effect.onCaster === true ? casterId : target;
 
   // **Nothing is resisted here**, and that is the effect rather than an
   // omission: Blur and Beacon of Hope ask nobody to save, and the
@@ -133,10 +140,10 @@ export function resolveRollModeEffect(
   // a broken Concentration, the minute running out, a dispel, the
   // caster leaving — ends this too, through machinery that already
   // existed rather than a lifecycle of its own.
-  held.add(target);
+  held.add(holder);
   events.push({
     type: 'roll-modifier-granted',
-    id: target,
+    id: holder,
     modifier: {
       source,
       modifier: effect.modifier,
@@ -404,6 +411,7 @@ export function resolveActionRuleEffect(
     const theirTurn = combat !== null && combat.order[combat.turnIndex]?.id === target;
     if (theirTurn) {
       const only = effect.rule.only;
+      const attacksCap = effect.rule.attacksCap;
       events.push({
         type: 'turn-budget-granted',
         id: target,
@@ -411,7 +419,14 @@ export function resolveActionRuleEffect(
         // refusal a narrowed extra prints has to name what bought it, and
         // `combat.ts` can reach no catalogue.
         source: name,
-        action: only === undefined ? {} : { only },
+        action: {
+          ...(only === undefined ? {} : { only }),
+          // And the parenthesis, where a once-only grant prints one. No SRD
+          // spell of this shape does — Expeditious Retreat hands over a Dash —
+          // but the field travels with the action either way, because a mint
+          // that dropped it would be the one place the cap silently did nothing.
+          ...(attacksCap === undefined ? {} : { attacksCap }),
+        },
       });
       current = events.slice(-1).reduce(applyEvent, current);
     }

@@ -875,6 +875,24 @@ export interface CharacterSheet {
    * the rest and Trance says nothing about it.
    */
   readonly longRestSeconds?: number;
+  /**
+   * Whether this creature sleeps at all — SRD Elf's Trance: "You don't need to
+   * sleep, and magic can't put you to sleep."
+   *
+   * {@link longRestSeconds}' neighbour, written by the same trait and here for
+   * the same two reasons: it is a fact of the sheet with no state for a reader
+   * to consult — an Elf Stunned, Poisoned or at one hit point is still an Elf —
+   * and absent is every sheet ever written, so both frozen fixtures fold
+   * unchanged.
+   *
+   * **One reader, and it is a saving throw**: SRD Sleep's "Creatures that don't
+   * sleep, such as elves … automatically succeed on saves against this spell",
+   * read through `save.autoSucceedIf`. The sentence's first clause — not
+   * *needing* sleep — has nothing to read it, because the engine holds no
+   * notion of being asleep outside a spell that put you there; a rest is hours
+   * on the clock either way.
+   */
+  readonly doesNotSleep?: true;
   readonly spellcastingAbility: Ability | null;
   /**
    * Weapon categories this character is proficient with.

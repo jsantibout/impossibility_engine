@@ -597,10 +597,11 @@ export interface SpellRepeatSave {
   };
   /**
    * What a success does — see `RepeatSave.onSuccess`, which is where the
-   * difference between ending the casting and ending it on one target is
-   * argued and where the three doors that refuse the first are named.
+   * difference between ending the casting, ending it on one target and ending
+   * nothing at all is argued and where the three doors that refuse the first
+   * are named.
    */
-  readonly onSuccess: 'end-on-target' | 'end-casting';
+  readonly onSuccess: 'end-on-target' | 'end-casting' | 'nothing';
   /**
    * A second moment the save is raised at, and what that moment does to it —
    * see `RepeatSave.alsoWhenDamaged`, where the shape and its reader are
@@ -676,8 +677,32 @@ export interface SpellRepeatSave {
    * the DC a record pins. A definition that needs one is a change to that
    * spread as well as to this type.
    */
-  readonly onFailure?: {
+  readonly onFailure?:
+    | {
+        /**
+         * The rule the failure hangs on the creature for the turn it happened
+         * on — see `RepeatSave.onFailure`'s second arm, where the sentence and
+         * the span are argued.
+         *
+         * SRD Bestow Curse: "In combat, the target must succeed on a Wisdom
+         * saving throw at the start of each of its turns **or be forced to take
+         * the Dodge action on that turn**." Written as the legality it is, which
+         * is the compulsion ruling: the engine refuses everything else and walks
+         * nobody through a Dodge.
+         *
+         * **This arm is assignable to the engine's**, which is the rule this
+         * whole object is kept by — see the paragraph above about the spread in
+         * `castOnHit`. The span is the one word `'this-turn'` for the reason the
+         * deepening's is a number of seconds: a rule is hung at a boundary that
+         * has already arrived, so the turn it governs is the one running.
+         */
+        readonly rule: ActionRule;
+        readonly lasts: 'this-turn';
+        readonly condition?: undefined;
+      }
+    | {
     readonly condition: ConditionName;
+    readonly rule?: undefined;
     /**
      * How long the deeper condition lasts, where the sentence says.
      *
@@ -697,7 +722,7 @@ export interface SpellRepeatSave {
      * what the paragraph above refuses.
      */
     readonly lasts?: { readonly seconds: number };
-  };
+      };
 }
 
 /**
@@ -2133,6 +2158,28 @@ export type SpellEffect =
        * which is a change with no rules gain.
        */
       readonly modifier: RollModifier;
+      /**
+       * Hang it on the **caster** rather than on whom the effect was aimed at.
+       *
+       * SRD Hunter's Mark: the spell is cast at a quarry ninety feet away, and
+       * "**you** also have Advantage on any Wisdom (Perception or Survival)
+       * check you make to find it". The mode is the ranger's and the target is
+       * the quarry, which is exactly the asymmetry `attack-rider` beside it has
+       * — there the die is thrown by whoever swings and the mark is on somebody
+       * else.
+       *
+       * **Said out loud here where `attack-rider` has it implicitly**, because a
+       * mode's holder is not implied by the sentence: Blur and Beacon of Hope
+       * put theirs on the creature the casting named, and most sentences of this
+       * shape do. Absent is that reading, which is every `roll-mode` effect
+       * written before this field.
+       *
+       * The outcome is still the target's — the effect resolved *on* the quarry
+       * — and `held` records the caster, because a casting is on a creature
+       * while it holds a live effect of that casting's, and this one is on the
+       * caster.
+       */
+      readonly onCaster?: true;
     }
   /**
    * A defence that answers somebody else's attack, with nobody taking a
@@ -2448,6 +2495,30 @@ export type SpellEffect =
        * nothing, for ever.
        */
       readonly repeats?: SpellRepeatSave;
+      /**
+       * What the casting leaves on the creature the **hosting blow landed on**,
+       * for as long as it runs.
+       *
+       * SRD Shining Smite: "Until the spell ends, the target sheds Bright Light
+       * in a 5-foot radius, **attack rolls against it have Advantage**, and it
+       * can't benefit from the Invisible condition."
+       *
+       * **The host was the gap, not the riders.** All three of those sentences
+       * were already sayable — `light` hangs a glow, a `mode` rider with
+       * `relation: 'against-holder'` *is* "attack rolls against it have
+       * Advantage" written as a grant on the creature every attacker reads, and
+       * `benefit` denies what a condition would otherwise give. What this kind
+       * had was no target list and no riders: a smite is cast in the window a
+       * hit opens, so the creature it is about is the one the blow landed on and
+       * nothing else in the request names them.
+       *
+       * So the target is derived rather than declared — `keptRunning` applies
+       * them to the creature the record already writes as `aimed` — and the
+       * lifetime is the casting's, which is what `checkGrantLifetimes` insists
+       * on: riders here presuppose a duration for the reason {@link repeats}
+       * does, because an Instantaneous smite has nothing to hang a grant on.
+       */
+      readonly riders?: OutcomeRiders;
     }
   /**
    * A condition the spell simply imposes, with **no saving throw**.
@@ -2620,6 +2691,26 @@ export type SpellEffect =
         | {
             /** SRD Sleep's "Immunity to the Exhaustion condition". */
             readonly immuneTo: ConditionName;
+            /**
+             * SRD Sleep: "Creatures that **don't sleep, such as elves**, or
+             * that have Immunity to the Exhaustion condition automatically
+             * succeed on saves against this spell."
+             *
+             * **The other half of the same printed sentence, so it sits inside
+             * the same member rather than beside it as a fourth.** The book
+             * joins the two facts with "or" — either spares the creature — and
+             * a union arm apiece would have made a definition choose which
+             * half of one sentence to write.
+             *
+             * It is a fact about the creature in exactly the way the Immunity
+             * is, and it reaches the sheet the way every other such fact does:
+             * a `does-not-sleep` {@link FeatureGrant} compiled onto
+             * `CharacterSheet.doesNotSleep`, which SRD Elf's Trance grants —
+             * "You don't need to sleep, and magic can't put you to sleep." A
+             * stat block that prints no such trait does not have it, and
+             * absent is every sheet ever written.
+             */
+            readonly doesNotSleep?: true;
           }
         | {
             /**
@@ -5179,6 +5270,25 @@ export interface TargetRule {
   /** Whether the caster may pick themselves. */
   readonly self?: boolean;
   /**
+   * SRD *Thaumaturgy*, _Booming Voice_: "For the duration, **you** have
+   * Advantage on Charisma (Intimidation) checks."
+   *
+   * {@link notTheCaster}'s opposite, and the other sentence of that family:
+   * one says the caster is the single creature an area does not catch, and this
+   * says the caster is the single creature the spell may be cast on at all. A
+   * spell whose whole benefit is the caster's has no other target rule to say
+   * so — `{ count: 1, self: true }` alone would let a cleric boom an ally's
+   * voice, and `{ count: 0 }` leaves the mode with no creature to land on.
+   *
+   * Read where a caller **names** targets and in the shortlist beside it, which
+   * is where every other rule about who may be named is read: a target who is
+   * not the caster is `not_the_caster`, and the shortlist offers the caster
+   * alone. Written with `self: true` and `count: 1`, which the validator holds
+   * it to — the first is what admits the caster at all and the second is the
+   * only count "you and nobody else" can have.
+   */
+  readonly casterOnly?: true;
+  /**
    * SRD "each creature of your choice", which names no number at all.
    *
    * Compulsion, Weird and Divine Word are all written this way. There is no
@@ -5284,6 +5394,33 @@ export interface SpellOption {
    * the definition's field does.
    */
   readonly areaTerrain?: AreaTerrain;
+  /**
+   * How long **this branch** takes to cast, where the book prints a different
+   * time for each.
+   *
+   * SRD Plant Growth: "**Casting Time:** Action (Overgrowth) or 8 hours
+   * (Enrichment)", and "The casting time you use determines whether the spell
+   * has the Overgrowth or the Enrichment effect below."
+   *
+   * **The one field on a branch that is read before the branch is.** Every other
+   * field here resolves at the end of the casting; this one decides what the
+   * casting *is* — whether an action is spent now or a rite is declared and
+   * settled when the clock arrives — so `castingOf` reads it beside the route's
+   * stated time and the definition's own. Absent is the definition's, which is
+   * every branch written before the field.
+   *
+   * The layering is route, then branch, then definition: a stat block heading
+   * that prices a use ("cast it as a Magic action") overrides whatever the spell
+   * prints, branch or no branch, because that clause is about the *use* rather
+   * than about the spell.
+   *
+   * {@link castingSeconds} travels with it and is required by a `long` time, for
+   * the reason `SpellDefinition.castingSeconds` is: `long` is a bucket rather
+   * than a span, and the engine will not invent the moment it defers to.
+   */
+  readonly castingTime?: CastingTime;
+  /** The span a `long` {@link castingTime} on this branch takes — Plant Growth's eight hours. */
+  readonly castingSeconds?: number;
   /**
    * Printed text this branch hands to whoever is running the table — see
    * {@link SpellDefinition.dmDecides}, which is the same field one level up
@@ -7892,6 +8029,32 @@ export interface TriggeredEffects {
   readonly effects: readonly SpellEffect[];
   /** How the roll reads in the log: "Glyph of Warding (the explosive rune)". */
   readonly label: string;
+}
+
+/**
+ * How long a casting of this spell takes, for the branch spoken.
+ *
+ * **The one reader of the printed time**, so `castingOf` — which layers a route's
+ * stated price on top of it — and every sweep that drives the catalogue agree
+ * about what a word costs. SRD Plant Growth is the spell that needs it:
+ * "**Casting Time:** Action (Overgrowth) or 8 hours (Enrichment)", so a caller
+ * who says "enrichment" is declaring a rite and one who says "overgrowth" is
+ * spending an action, out of one definition.
+ *
+ * The seconds travel with the time and are never mixed: a branch that states a
+ * time states its own span, so an eight-hour branch cannot inherit an absent one
+ * and an Action branch cannot inherit the definition's hour.
+ */
+export function castingTimeOf(
+  definition: SpellDefinition,
+  option?: string,
+): { readonly castingTime: CastingTime; readonly castingSeconds?: number } {
+  const branch = option === undefined ? undefined : definition.options?.[option];
+  const printed = branch?.castingTime === undefined ? definition : branch;
+  return {
+    castingTime: printed.castingTime!,
+    ...(printed.castingSeconds === undefined ? {} : { castingSeconds: printed.castingSeconds }),
+  };
 }
 
 /**

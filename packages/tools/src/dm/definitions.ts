@@ -296,6 +296,11 @@ const ABILITY_CHECK = tool({
       .describe(
         'A reroll the **roller** elected before the die — SRD Heroic Inspiration. It is here rather than on a model’s surface because this is the door the check comes through at all; what it carries is the player’s own condition, relayed. Send `{"pool": "human:heroic-inspiration", "when": "fails"}`, or a face to rethrow at. The use is spent only if the condition was met, and the `test-rolled` window still opens afterwards for whoever else can push the number.',
       ),
+    findingCreature: creatureId
+      .optional()
+      .describe(
+        'The creature this check is being made **to find**, where that is what it is for — SRD Hunter’s Mark grants Advantage on "any Wisdom (Perception or Survival) check you make to find it". A fact about the attempt, like the two senses fields: tracking the quarry and listening at a door are the same Perception check, and only you know which this is. The engine decides whether that creature is one the roller has marked; naming somebody buys nothing on its own.',
+      ),
     ...sensesFields,
     ...ADVANTAGE_FIELDS,
   }),
@@ -312,6 +317,13 @@ const ABILITY_CHECK = tool({
           dc: args.dc,
           ...(args.skill === undefined ? {} : { skill: args.skill }),
           ...(args.because === undefined ? {} : { label: args.because }),
+          // What the attempt is *for*, where the table said. One member today,
+          // so the tool spells the creature rather than the wrapper: a field
+          // named for the fact reads better on a surface than an object with
+          // one key in it, and the command's `purpose` is where the shape lives.
+          ...(args.findingCreature === undefined
+            ? {}
+            : { purpose: { find: who(args.findingCreature) } }),
           ...(modes.length === 0 ? {} : { modes }),
           ...(args.reroll === undefined ? {} : { election: electionOf(args.reroll) }),
           ...senses(args),

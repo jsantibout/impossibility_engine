@@ -311,10 +311,14 @@ describe('toolSchemas', () => {
     // stated point — SRD Call Lightning), `cast_spell.inAStorm` (the first
     // stated fact about the world), `cast_spell.deliveredBy` (SRD Find
     // Familiar's touch) and `move.also_moves` (SRD Conjure Animals' pack).
+    // Re-pinned for the economy track (W7-S20): `ability_check.findingCreature`
+    // — the creature a Perception or Survival check is made to find, SRD
+    // Hunter's Mark's purpose — on the DM's door alone; the player's is
+    // untouched.
     expect(toolSchemas(player())).toHaveLength(93);
     expect(toolSchemas(dm())).toHaveLength(120);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(147836);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(193009);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(193536);
   });
 });
 

@@ -237,7 +237,17 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
               ),
             ),
             creature.conditions,
-            undefined,
+            // **The rules standing on the creature, which this case can pass and
+            // `action-spent` cannot.** SRD Slow caps the Attack action at one
+            // swing, and that cap is *arithmetic* — it changes what
+            // `attacksRemaining` is seeded with — so a reducer that could not
+            // read it would write a different budget than the command measured
+            // against, which is a fork rather than a guard. The ambiguity
+            // `action-spent` records does not arise: `spendAttack` names the
+            // spend `attack` itself, so a `permits-only` here answers exactly
+            // what the command asked it, on the same pre-event state. Passing
+            // them is therefore `budget-compelled`'s case.
+            { rules: actionRulesOn(state, event.id) },
             // The command's own question again: attacks a feature bought
             // outside the Attack action may be narrowed to Unarmed Strikes,
             // and which this was is a fact only the command held until the
@@ -408,6 +418,13 @@ export function applyCombat({ state, next }: Applying, event: CombatEvent): Game
                     source: event.source,
                     ...(event.action.except === undefined ? {} : { except: event.action.except }),
                     ...(event.action.only === undefined ? {} : { only: event.action.only }),
+                    // SRD Haste's parenthesis, read off the event like the two
+                    // narrowings beside it: the budget is written by a combat
+                    // event and nothing else, so this is where the cap enters
+                    // the turn it governs.
+                    ...(event.action.attacksCap === undefined
+                      ? {}
+                      : { attacksCap: event.action.attacksCap }),
                   },
                 }),
             ...(event.attacks === undefined

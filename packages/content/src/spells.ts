@@ -2688,12 +2688,16 @@ export const SLOW: SpellDefinition = {
         // both" — the two slots coupled, so whichever goes first closes the
         // other for that turn. A fourth grant off the same saving throw.
         { kind: 'action', rule: { kind: 'one-of', slots: ['action', 'bonus-action'] } },
+        // "and it can make **only one attack** if it takes the Attack action" —
+        // a cap on what the action holds rather than on whether it may be
+        // spent, so it stands on the creature and reaches every Attack action
+        // it takes, its own and any a Haste or an Action Surge buys.
+        { kind: 'action', rule: { kind: 'caps-attacks', attacks: 1 } },
       ],
     },
   ],
   durationSeconds: 60,
   unmodelled: [
-    '"it can make only one attack if it takes the Attack action" is not applied: the economy counts one Attack action and not the attacks inside it',
     'the 25 percent chance a Somatic spell fails is not rolled: it is a percentage no effect asks for, deciding whether another casting happens at all',
   ],
 };
@@ -6412,7 +6416,43 @@ export const HUNTERS_MARK: SpellDefinition = {
   range: { kind: 'ranged', feet: 90 },
   requiresSight: true,
   targets: { count: 1 },
-  effects: [{ kind: 'attack-rider', dice: '1d6', damageType: 'force', marksTarget: true }],
+  effects: [
+    { kind: 'attack-rider', dice: '1d6', damageType: 'force', marksTarget: true },
+    // "You also have Advantage on any Wisdom (Perception or Survival) check you
+    // make **to find it**." Two grants, because a selector names one skill and
+    // the book names two; both hang on the **caster** — the spell is cast at the
+    // quarry and the check is the ranger's — and both are narrowed by what the
+    // check is *for*, so a ranger listening at a door rolls an ordinary
+    // Perception check.
+    {
+      kind: 'roll-mode',
+      onCaster: true,
+      modifier: {
+        mode: 'advantage',
+        selector: {
+          roll: 'ability-check',
+          relation: 'roller',
+          ability: 'wis',
+          skill: 'perception',
+          purpose: 'find-marked',
+        },
+      },
+    },
+    {
+      kind: 'roll-mode',
+      onCaster: true,
+      modifier: {
+        mode: 'advantage',
+        selector: {
+          roll: 'ability-check',
+          relation: 'roller',
+          ability: 'wis',
+          skill: 'survival',
+          purpose: 'find-marked',
+        },
+      },
+    },
+  ],
   // "Concentration, up to 1 hour" — the cap a level 1 or 2 slot buys.
   durationSeconds: 3600,
   // "level 3–4 (up to 8 hours) or 5+ (up to 24 hours)": 8 × 3600 and 24 × 3600.
@@ -6431,9 +6471,6 @@ export const HUNTERS_MARK: SpellDefinition = {
     label: "Hunter's Mark (a new quarry)",
     effects: [],
   },
-  unmodelled: [
-    'the Advantage on a Wisdom (Perception or Survival) check made to find the quarry is not granted: a roll modifier selects Wisdom (Perception) and Wisdom (Survival) perfectly well, and what nothing can select is *which* check is being made to find the quarry — so a grant would hand the ranger Advantage on every Perception check they ever roll',
-  ],
 };
 
 // — the third tracked batch: the twelve a casting time of a minute or more blocked —
@@ -7214,6 +7251,10 @@ export const HASTE: SpellDefinition = {
         kind: 'grants',
         at: 'each-turn',
         only: ['attack', 'dash', 'disengage', 'hide', 'utilize'],
+        // "the Attack (**one attack only**)" — the parenthesis, on the action it
+        // narrows rather than on the creature: a hasted Fighter with Extra
+        // Attack swings twice on their own Attack action and once on this one.
+        attacksCap: 1,
       },
     },
   ],
@@ -7224,9 +7265,6 @@ export const HASTE: SpellDefinition = {
   // arrives, under the spell's bare name so the release that lays it does not
   // lift it in the same breath.
   onEnd: [{ conditions: ['incapacitated'], speed: 'zero', lasts: 'end-of-next-turn' }],
-  unmodelled: [
-    '"(one attack only)" is not enforced: the parenthesis counts the attacks inside one Attack action, and the economy counts one Attack action and not the swings in it',
-  ],
 };
 
 /**
@@ -7288,12 +7326,19 @@ export const GASEOUS_FORM: SpellDefinition = {
     // feet of walking back into a body that has no legs. The hovering is what
     // `flightLost` reads, so a cloud that stops does not fall.
     { kind: 'speed', change: 'only', mode: 'fly', feet: 10, hover: true },
-    // "Finally, the target can't attack or cast spells." Two halves of one
-    // sentence in one rule: the Attack action is one of the twelve a spender
-    // names itself as, and a casting is the third thing a `forbids` may take —
-    // read by `castSpell`, because a casting comes out of three different
-    // slots and no one of them names it.
-    { kind: 'action-rule', rule: { kind: 'forbids', actions: ['attack'], casting: true } },
+    // "The target can't talk or **manipulate objects**, and any objects it was
+    // carrying or holding can't be dropped, used, or otherwise interacted
+    // with." / "Finally, the target can't attack or cast spells." Three of the
+    // four in one rule: the Attack action is one of the twelve a spender names
+    // itself as, a casting is the third thing a `forbids` may take — read by
+    // `castSpell`, because a casting comes out of three different slots and no
+    // one of them names it — and handling is the fourth, read by every command
+    // that puts a hand on a thing. Talking is the one the engine has no spender
+    // for and never will.
+    {
+      kind: 'action-rule',
+      rule: { kind: 'forbids', actions: ['attack'], casting: true, objects: true },
+    },
   ],
   durationSeconds: 3600,
   // "or if it takes a Magic action to end the spell on itself" — both
@@ -7310,7 +7355,7 @@ export const GASEOUS_FORM: SpellDefinition = {
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
-    'two of the things the cloud cannot do are not forbidden: "The target can’t talk or manipulate objects" and "any objects it was carrying or holding can’t be dropped, used, or otherwise interacted with" — talking is nothing anybody spends, and what is in a creature’s hands is a fact the engine does not hold. The other two of that sentence are taken away: the Attack action and the casting',
+    'one of the four things the cloud cannot do is not forbidden: "The target can’t talk". Three are taken away — the Attack action, the casting, and every hand a command puts on a thing, which is "manipulate objects" and the objects that "can’t be dropped, used, or otherwise interacted with" — and talking is not an action anything spends. It is not a handover either, because the SRD prints it inside the same sentence as the object clauses the engine now enforces, and handing that sentence over would ask the table to adjudicate three quarters of a rule',
   ],
 };
 
@@ -8632,11 +8677,22 @@ export const COMMAND: SpellDefinition = {
   options: {
     approach: {
       label: 'Approach',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          // "The target must succeed on a Wisdom saving throw or follow the
+          // command on its next turn." The die is the engine's and the
+          // following is the table's: what a failure buys here is a route
+          // nobody chose and a turn spent walking it, which is a creature being
+          // played rather than a spend being charged. So the verdict *is* the
+          // content — `verdictOnly`, the mark SRD Animal Messenger's errand
+          // uses — and the sentence below goes over with it.
+          verdictOnly: true,
+        },
+      ],
       handsOver: [
         'Approach. The target moves toward you by the shortest and most direct route, ending its turn if it moves within 5 feet of you.',
-      ],
-      unmodelled: [
-        'the Wisdom saving throw is not rolled for Approach: what a failure would buy is a route nobody chose and a whole turn spent walking it, which is a creature being played rather than a spend being charged — so the die goes to the table with the sentence',
       ],
     },
     drop: {
@@ -8658,11 +8714,14 @@ export const COMMAND: SpellDefinition = {
     },
     flee: {
       label: 'Flee',
+      effects: [
+        // The same die for the same reason as Approach's: a direction and a
+        // turn spent running in it are the table's, and the verdict is the
+        // whole of what the engine decides.
+        { kind: 'save', ability: 'wis', verdictOnly: true },
+      ],
       handsOver: [
         'Flee. The target spends its turn moving away from you by the fastest available means.',
-      ],
-      unmodelled: [
-        'the Wisdom saving throw is not rolled for Flee, for the reason Approach’s is not: the whole of what a failure buys is a direction and a turn spent running in it, which the engine adjudicates rather than performs',
       ],
     },
     grovel: {
@@ -9775,12 +9834,13 @@ export const SLEEP: SpellDefinition = {
       kind: 'save',
       ability: 'wis',
       condition: 'incapacitated',
-      // "or that have Immunity to the Exhaustion condition automatically
-      // succeed on saves against this spell" — a defence the target already
-      // has, read off the creature. The die is still thrown and recorded and
-      // the total overridden, which is the automatic *failure*'s reading with
-      // the sign turned round.
-      autoSucceedIf: { immuneTo: 'exhaustion' },
+      // "Creatures that don't sleep, such as elves, or that have Immunity to
+      // the Exhaustion condition automatically succeed on saves against this
+      // spell" — one sentence, two facts about the target, either of which
+      // spares it, so both go in one clause. The die is still thrown and
+      // recorded and the total overridden, which is the automatic *failure*'s
+      // reading with the sign turned round.
+      autoSucceedIf: { immuneTo: 'exhaustion', doesNotSleep: true },
       repeats: {
         // "until the end of its next turn, at which point it must repeat the
         // save" — the sleeper's own turn, and the condition's lifetime is the
@@ -9806,9 +9866,6 @@ export const SLEEP: SpellDefinition = {
   endsEarly: [
     { on: 'target-takes-damage', ends: 'target' },
     { on: 'shaken-awake', ends: 'target' },
-  ],
-  unmodelled: [
-    '"Creatures that don’t sleep, such as elves" are not spared: the Immunity half of that sentence is executed — `autoSucceedIf` reads it off the target — and this half is not a fact the engine holds about anybody. The SRD prints it of no creature type, and the 2024 Elf states it as a species trait no `FeatureGrant` member carries, so whether a creature sleeps at all is the DM’s',
   ],
 };
 
@@ -11561,7 +11618,12 @@ export const THAUMATURGY: SpellDefinition = {
   castingTime: 'action',
   concentration: false,
   range: { kind: 'ranged', feet: 30 },
-  targets: { count: 0 },
+  // "**You** have Advantage on Charisma (Intimidation) checks": the caster and
+  // nobody else, which is the one target rule that hands Booming Voice's mode a
+  // creature without letting a cleric boom an ally's voice. The other five
+  // wonders happen within range and on nobody, and the caster names themselves
+  // for those too — the whole spell is a wonder the caster manifests.
+  targets: { count: 1, self: true, casterOnly: true },
   effects: [],
   // "You create **one** of the effects below": six branches, of which the
   // casting runs one and records which.
@@ -11572,11 +11634,24 @@ export const THAUMATURGY: SpellDefinition = {
     },
     'booming-voice': {
       label: 'Booming Voice',
-      handsOver: [
-        'Booming Voice. Your voice booms up to three times as loud as normal for 1 minute. For the duration, you have Advantage on Charisma (Intimidation) checks.',
-      ],
-      unmodelled: [
-        'the Advantage on Charisma (Intimidation) checks is not granted: the mode itself is ordinary — a roll modifier naming a Charisma check and the Intimidation skill — and what it has nowhere to land is a creature. Thaumaturgy names no target at all, the wonder happens "within range" rather than on somebody, and the only target rule that would hand the mode a creature would also let a caster boom an ally’s voice',
+      // "Your voice booms up to three times as loud as normal for 1 minute" is
+      // the fiction; the sentence after it is the mode.
+      handsOver: ['Booming Voice. Your voice booms up to three times as loud as normal for 1 minute.'],
+      effects: [
+        {
+          kind: 'roll-mode',
+          modifier: {
+            mode: 'advantage',
+            // "Charisma (Intimidation) checks" — the pair a selector already
+            // carries, on the caster, who is this spell's only target.
+            selector: {
+              roll: 'ability-check',
+              relation: 'roller',
+              ability: 'cha',
+              skill: 'intimidation',
+            },
+          },
+        },
       ],
     },
     'fire-play': {
@@ -11696,11 +11771,30 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
       conditions: ['charmed', 'frightened'],
       fromTypes: WARDED_AGAINST,
     },
+    // "If the target is already possessed, Charmed, or Frightened by such a
+    // creature, the target has Advantage on any new saving throw against the
+    // relevant effect." Two of the three: the Immunity above refuses a *new*
+    // Charm or Fright from those types, and this is the sentence about one the
+    // target already had when the ward went up — the repeat save that would
+    // shake it off, narrowed by the condition it is about and by what forced
+    // it. One grant per condition, because a selector names one.
+    ...(['charmed', 'frightened'] as const).map((condition) => ({
+      kind: 'roll-mode' as const,
+      modifier: {
+        mode: 'advantage' as const,
+        selector: {
+          roll: 'saving-throw' as const,
+          relation: 'roller' as const,
+          condition,
+          againstSourceType: WARDED_AGAINST,
+        },
+      },
+    })),
   ],
   durationSeconds: 600,
   unmodelled: [
-    'the target does not gain Advantage on any new saving throw against the relevant effect: nothing records what a save was against, so the mode could not find the saves it belongs to',
     'the clause that the target can’t be possessed by such a creature is not applied: possession is not a state the engine holds, so there is nothing for the protection to refuse',
+    'the Advantage reaches a repeat save a casting raised and not one a printed line raised: a save knows what forced it where the timer names a casting and the casting’s record names its caster, and a stat block’s own save — a Fiend’s Frightful Presence — is settled by a road that carries no such name yet',
   ],
 };
 
@@ -12047,9 +12141,6 @@ export const SILENCE: SpellDefinition = {
   dmDecides: [
     'For the duration, no sound can be created within or pass through a 20-foot-radius Sphere centered on a point you choose within range.',
   ],
-  unmodelled: [
-    'an *object* entirely inside the Sphere is immune to Thunder damage too, and a declared object has no position on the lattice for the Sphere to catch it by',
-  ],
 };
 
 /**
@@ -12275,14 +12366,37 @@ export const PLANT_GROWTH: SpellDefinition = {
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 100, origin: 'point' },
-  // "must spend 4 feet of movement for every 1 foot it moves" — the rate the
-  // book prints for itself, which is why the field is a number and not a
-  // flag. **Instantaneous**, so the casting leaves no record and the patch
-  // names none: the plants are thick now and SRD gives them no ending.
-  areaTerrain: { costPerFoot: 4 },
   effects: [],
+  // "The casting time you use determines whether the spell has the Overgrowth
+  // or the Enrichment effect below." The branch is spoken as any other is, and
+  // it carries the casting time with it: an Action for the thick ground, eight
+  // hours for the year of doubled harvests.
+  options: {
+    overgrowth: {
+      label: 'Overgrowth',
+      castingTime: 'action',
+      // "must spend 4 feet of movement for every 1 foot it moves" — the rate the
+      // book prints for itself, which is why the field is a number and not a
+      // flag. **Instantaneous**, so the casting leaves no record and the patch
+      // names none: the plants are thick now and SRD gives them no ending.
+      areaTerrain: { costPerFoot: 4 },
+    },
+    enrichment: {
+      label: 'Enrichment',
+      // "**Casting Time:** Action (Overgrowth) or **8 hours** (Enrichment)."
+      castingTime: 'long',
+      castingSeconds: 8 * 60 * 60,
+      // A year of better harvests over half a mile, and no rule reads any of
+      // it: the engine holds no crops, no acreage and no calendar of what a
+      // field has already had cast on it.
+      handsOver: [
+        'All plants in a half-mile radius centered on a point within range become enriched for 365 days.',
+        'The plants yield twice the normal amount of food when harvested.',
+        'They can benefit from only one Plant Growth per year.',
+      ],
+    },
+  },
   unmodelled: [
-    'the Enrichment branch is not castable at all: it takes eight hours where the Overgrowth takes an Action, and a definition carries one casting time — the year of doubled harvests was never arithmetic anyway',
     'the areas the caster excludes from the Sphere are the DM’s, and so is every word about what the plants look like',
   ],
 };
@@ -13820,13 +13934,35 @@ export const SHINING_SMITE: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
-  effects: [{ kind: 'attack-damage', damage: { dice: '2d6', perSlotLevelAbove: '1d6' }, damageType: 'radiant' }],
-  durationSeconds: 60,
-  unmodelled: [
-    'the Advantage on attack rolls against the target is not granted: it belongs to every other creature in the fight rather than to the one this casting touched, and a spell applies its effects to the targets it reached',
-    'and "it can’t benefit from the Invisible condition" switches off a benefit the condition layer derives while leaving the condition on the creature. The rider that does that exists — Starry Wisp, Faerie Fire and Mind Spike all hang it — and what this spell cannot reach it with is the host: a smite is cast on a hit, its one effect kind is `attack-damage`, and that kind carries no riders at all',
-    'the Bright Light in a 5-foot radius is the DM’s, because light is not a state the engine holds',
+  effects: [
+    {
+      kind: 'attack-damage',
+      damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+      damageType: 'radiant',
+      // "Until the spell ends, the target sheds Bright Light in a 5-foot
+      // radius, attack rolls against it have Advantage, and it can't benefit
+      // from the Invisible condition." Three sentences about the creature the
+      // blow landed on, which is the creature this kind now hands its riders.
+      riders: {
+        // The glow, bound to the creature and gone with the casting.
+        light: { level: 'bright', radius: 5 },
+        modifiers: [
+          // "attack rolls against it have Advantage" — a grant on the target
+          // that every attacker reads, which is what `against-holder` says.
+          {
+            kind: 'mode',
+            modifier: { mode: 'advantage', selector: { roll: 'attack', relation: 'against-holder' } },
+          },
+          // "it can't benefit from the Invisible condition" — the benefit is
+          // withheld and the condition stays, which is the third thing beside
+          // ending one and refusing one. No `against`: the book narrows this
+          // to nobody, where Mind Spike narrows it to the caster.
+          { kind: 'benefit', denies: 'invisible' },
+        ],
+      },
+    },
   ],
+  durationSeconds: 60,
 };
 
 /**
@@ -14255,9 +14391,35 @@ export const BESTOW_CURSE: SpellDefinition = {
     },
     dodge: {
       label: 'A Wisdom save at the start of each of its turns or Dodge',
-      unmodelled: [
-        'this branch resolves nothing at all, so the opening Wisdom save the other three roll — "must succeed on a Wisdom saving throw or become cursed" — is not raised for it either, and nobody is cursed',
-        'the Wisdom save at the start of each of the target’s turns is not raised, and a failure does not compel the Dodge action: a repeat save hung on a casting ends the spell on a success and this one ends nothing, and its failure spends an action rather than deepening a condition',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          // "must succeed on a Wisdom saving throw or become cursed" — the same
+          // opening roll the other three branches make. What this one's failure
+          // imposes is the obligation below and nothing else, which is why the
+          // repeat *is* the content of the save.
+          repeats: {
+            // "In combat, the target must succeed on a Wisdom saving throw at
+            // the start of each of its turns."
+            at: 'start-of-turn',
+            // "or be forced to take the Dodge action on that turn": a success
+            // buys the creature that turn and nothing more. The curse runs on
+            // and asks again at the next one, which is the third value
+            // `onSuccess` carries and the only sentence in reach that needs it.
+            onSuccess: 'nothing',
+            onFailure: {
+              // The legality form of the compulsion, which is the owner's
+              // ruling: the Action slot narrowed to the Dodge and failing
+              // closed, so everything else is refused and nobody is walked
+              // through a Dodge.
+              rule: { kind: 'permits-only', slot: 'action', actions: ['dodge'] },
+              // "on that turn" — the turn the failed save was raised at the
+              // start of, and no other.
+              lasts: 'this-turn',
+            },
+          },
+        },
       ],
     },
     'extra-damage': {
@@ -14780,13 +14942,18 @@ export const MAGIC_CIRCLE: SpellDefinition = {
     },
   },
   durationSeconds: 3600,
+  // "_Using a Higher-Level Spell Slot._ The duration increases by 1 hour for
+  // each spell slot level above 3." An hour a level, written out as the six
+  // bands the six higher slots reach: the field is a table of whole durations
+  // rather than increments, because the SRD prints a different table for every
+  // spell that has one and no arithmetic produces them all.
+  durationAtSlot: { 4: 7200, 5: 10800, 6: 14400, 7: 18000, 8: 21600, 9: 25200 },
   dmDecides: [
     'Glowing runes appear wherever the Cylinder intersects with the floor or other surface.',
   ],
   unmodelled: [
     'possession is not a state the engine holds, so "can’t be possessed by … the creature" is the DM’s; the Charmed and Frightened halves of the sentence are refused',
     'interplanar travel is not modelled — there is one scene — so the save is raised for a teleport and for nothing else',
-    'the duration increasing by 1 hour for each spell slot level above 3 is not applied; a slot reaches damage dice, a target count and, for the few that print it, a duration this definition does not',
   ],
 };
 

@@ -257,8 +257,17 @@ export const MISSING_SHAPES = {
     'the **exceptions** to the general dismissal, which is built: `endOngoingSpell` ends a casting of the caster’s own by id and spends nothing, which is what SRD prints for a **Time Span** duration, and `docs/design/casting.md` is where the three exceptions to it are described — “every one of those three prints an exception to it”. Two of them are built now, and by this id’s own claimants: SRD Gaseous Form’s **target** ends the casting on itself and pays the Magic action the book charges (`dismissibleBy`, `endOngoingSpellOnSelf`), and SRD Magic Mouth’s caster may choose at the casting that a spell running “until dispelled” can be ended at all (`offersEndAfterTrigger`). What the three spells still filed here want is the same ending at a **price the built fields do not carry**: SRD Dream’s messenger “can emerge from the trance at any time, ending the spell” — a creature the casting is on, which `dismissibleBy` says, and for nothing, where that field charges the Magic action both its printings charge; SRD Magic Jar’s caster ends a casting that runs until dispelled by returning to their living body, which no fact stated at the casting unlocks because the book offers its caster no choice to state; and SRD Dispel Evil and Good’s Break Enchantment is the casting spending **itself** to end, which is a cause rather than a door.',
   'a-dc-the-caster-does-not-set':
     'every saving throw a spell forces is measured against the casting’s pinned `saveDc`. The audit names the asymmetry from the other side — "**Three members of the definition format have zero catalogue users**, not one: `roll-mode.save` ..., `SpellCheck.dc` ..., and `’end-casting’` as a `save.repeats.onSuccess` value" — so an *ability check* may already name a printed DC and a *saving throw* may not.',
-  'a-condition-benefit-an-effect-takes-away':
-    'a benefit the condition layer derives, switched off while the condition itself stays. Three SRD spells print the sentence — Faerie Fire, Starry Wisp, and Mind Spike’s "against you" — and PROGRESS.md already lists Faerie Fire among the clauses the roll vocabulary cannot reach. **The shape itself is built now**: the `benefit` rider hangs a denial off a settled outcome, and `benefitsFrom` is what all three readers of the Invisible condition’s benefits ask — including the Initiative Advantage, which nothing used to reach. What is left is one further shape each. Faerie Fire is finished — `save.condition` is optional, so its Dexterity save hangs this rider, and its 20-foot Cube is an ordinary `area` picking its own targets. **And Mind Spike is finished too**: the further shape it needed was the denial narrowed to the caster alone — what used to be filed as a second shape, the effect’s source as a participant, since retired because `RollSelector.counterpart` and `DeniedBenefit.against` had both answered it — and `DeniedBenefit.against` is it — an id bound from a role at the cast, read by `deniedBenefitsOf` off the creature on the other side of the question, and absent for a roll with no second participant, so the Initiative Advantage the spell does not take away goes on standing. A blanket denial would have been wrong for it rather than merely coarse. What is left is Shining Smite, which hangs the same sentence on an ongoing casting whose beneficiaries are everybody the casting did not target — and needs `attack-damage`, the cast-on-hit host, to carry riders at all.',
+  // **`a-condition-benefit-an-effect-takes-away` was here and is retired.** The
+  // rider itself had been built for a while — `benefit` withholds what a
+  // condition gives while leaving the condition on the creature, which is the
+  // third thing beside ending one and refusing one, and Starry Wisp, Faerie
+  // Fire and Mind Spike all hang it. Shining Smite was the last claimant and
+  // what it lacked was never the rider but the **host**: a smite is cast in the
+  // window a hit opens, its one effect kind is `attack-damage`, and that kind
+  // carried no riders and had no target list. It carries `riders` now, applied
+  // to the creature the hosting blow landed on — the one the record already
+  // writes as `aimed` — so all three of the spell's sentences land and a shape
+  // nothing is blocked on is one the guard deletes.
   'a-random-outcome-that-is-not-a-d20':
     '**Half built, and the half that is names itself.** PROGRESS.md ranked it "A random outcome that is not a d20 | 1 / 19 | the generator, `parseNotation`", over three different dice: a percentage chance, a 1d10 behaviour table and a 1d100 mishap roll. The **percentage** is built — the `chance` effect throws a d100 against a number the book printed, flat or grown by the castings that have gone before, and the count is the `Tally` a Wind Fan’s uses were already kept in. Augury is executed off it and Gust of Wind’s 50 and Sending’s 5 are writable by it. What is left is every other die in this family, and they are not the same shape twice: a **table** the face indexes into, which needs somewhere for the rows to live, and a die thrown **at a turn boundary** whose face branches — SRD Blink’s 1d6 — which is a payout that can hand over hit points and cannot ask a question. **Two consumers have now left the count without the gap closing, and both are recorded here rather than lost.** Slow prints a 25 percent chance that a casting with a Somatic component fails, and was filed under this id while it had no definition; the spell is executed now, and the executed map has no marker-less entry form — `Adjudication` carries a clause, a shape and a note and `CLAUSE_MARKERS` knows dice, saves, checks and twenty other words but not a percentage, so the reading has nowhere to sit. It is in that spell’s own `unmodelled` list, where `spell-catalogue.test.ts` hands it to the table on every casting, and the day `Adjudication` gains the null marker `TrackedAdjudication` already has is the day it comes back to this count. **Gust of Wind left the same way and for the same reason**: it was tracked and filed here for the 50 percent chance of snuffing a lantern, the push and both saving throws are executed now, and the clause went with it into that spell’s own `unmodelled` list. So the census fell by one on a day nothing was built, which is what this paragraph exists to say out loud.',
   'a-rest-an-effect-gives-or-denies':
@@ -644,18 +653,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'A repeat save is raised by a turn boundary. This one runs on elapsed time, which `Deadline` can express and `RepeatSave` cannot, and the Greater Restoration that ends it sooner is the same missing hook from the other side.',
     },
   ],
-  'bestow-curse': [
-    {
-      clause: 'the opening Wisdom save the other three roll',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the same debt seen from the branch rather than from the clause. Each of this spell’s four faces carries the save that gates it, because a save in the common list would be one roll no branch could read — so a branch that can resolve nothing rolls nothing, and the third face resolves nothing because the sentence after its save is the shape below. The two entries are one gap and are filed apart because the honesty guard reads a clause at a time.',
-    },
-    {
-      clause: 'at the start of each of the target’s turns is not raised',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the third of the four faces, and the one branch of the spell that is still a debt. A repeat save hung on a casting ends the casting on a success and this one ends nothing — a third value the vocabulary does not carry — and its failure compels the Dodge action for that turn, where a failure branch applies a condition. Both halves are the shape’s own sentence.',
-    },
-  ],
   'black-tentacles': [
     {
       clause: 'the area is Difficult Terrain',
@@ -695,16 +692,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // obeyed inside a turn somebody else is directing, which is the id these
   // entries already named before any of it was built.
   command: [
-    {
-      clause: 'the Wisdom saving throw is not rolled for Approach',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'SRD: "The target moves toward you by the shortest and most direct route, ending its turn if it moves within 5 feet of you." The whole of what a failure buys is a route and a turn spent walking it, and a failure that imposes nothing is a die thrown for nothing — which the definition validator refuses rather than accepts. So this word has no effects at all, and the save goes to the table with the sentence.',
-    },
-    {
-      clause: 'the Wisdom saving throw is not rolled for Flee',
-      why: 'a-creature-somebody-else-is-playing',
-      note: 'SRD: "The target spends its turn moving away from you by the fastest available means." Approach’s reading with the direction reversed: a whole turn spent running is a creature being played, the engine adjudicates legality and walks nobody anywhere, and a save with nothing to gate is not rolled.',
-    },
     {
       clause: 'the hands are emptied at the casting rather than on the target’s next turn',
       why: 'a-creature-somebody-else-is-playing',
@@ -957,9 +944,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // casting — which a level 4 slot is what makes visible.
   'gaseous-form': [
     {
-      clause: 'the things the cloud cannot do are not forbidden',
+      clause: 'one of the four things the cloud cannot do is not forbidden',
       why: 'an-action-the-engine-has-no-spender-for',
-      note: 'two of the four, and the other two are built: "Finally, the target can\u2019t attack or cast spells" is one `forbids` rule naming the Attack action and, through the field this track gave that arm, the casting. What is left is "The target can\u2019t talk or manipulate objects" and "any objects it was carrying or holding can\u2019t be dropped, used, or otherwise interacted with" \u2014 talking is not an action anything spends, and what is in a creature\u2019s hands is a fact the engine does not hold. The Magic action its target takes to end the spell is no longer here either: `endOngoingSpellOnSelf` is that door and it charges that price.',
+      note: 'one of the four, and the other three are built: "Finally, the target can’t attack or cast spells" is one `forbids` rule naming the Attack action and the casting, and "manipulate objects" with the objects that "can’t be dropped, used, or otherwise interacted with" is `forbids.objects`, read by every command that puts a hand on a thing — a drop, an equip, an unequip, a purchase, a free interaction, a Utilize and the ground pile. What is left is "The target can’t talk", and talking is not an action anything spends. It cannot be handed over either: the SRD prints it inside the same sentence as the object clauses, and a handover is a verbatim sentence, so handing it over would ask the table to adjudicate three quarters of a rule the engine enforces.',
     },
   ],
   'glyph-of-warding': [
@@ -983,13 +970,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // `NAMED_ACTIONS` holds Utilize and `takeUtilize` is a spender that names
   // itself as one. The note that said otherwise was written before that
   // spender existed.
-  haste: [
-    {
-      clause: '(one attack only)',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'SRD: "That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action." The list is written; the parenthesis is not, and it is the sentence SRD Slow prints from the other end about the attacks inside one Attack action. What both want is a **count** of those, and the economy counts one Attack action and not the swings in it.',
-    },
-  ],
   'heat-metal': [
     {
       clause: 'an object nobody is wearing or wielding',
@@ -1011,13 +991,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // failure creates, so it lifts when the Laughter does and `standUp` refuses
   // `cannot_stand` while it stands. What is left of the paragraph is the
   // laughing itself, which is narration.
-  'hunters-mark': [
-    {
-      clause: 'Advantage on a Wisdom (Perception or Survival) check made to find the quarry',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "You also have Advantage on any Wisdom (Perception or Survival) check you make to find it." A `RollModifier` selects a check by ability and by skill, so Wisdom (Perception) and Wisdom (Survival) are each perfectly expressible — two grants, one sentence. What no selector can say is which of those checks is the one being made *to find the quarry*, and that is a fact about the attempt rather than about the roll. Granted unconditionally it would hand the ranger Advantage on every Perception check they roll for the hour the spell runs, which is the silent wrong answer this discipline exists to refuse.',
-    },
-  ],
   // **Hypnotic Pattern is off this map entirely**, and both of the clauses it
   // used to carry left by different doors. "Only a creature that can see the
   // pattern" is `mustSeeTheOrigin`: the pattern is at the casting's origin and
@@ -1084,11 +1057,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'interplanar travel is not modelled',
       why: 'table',
       note: 'SRD: "If the creature tries to use teleportation or interplanar travel to do so, it must first succeed on a Charisma saving throw." The teleport half is executed — `teleportTo` hands the save back and the spell’s own road rolls it before the creature arrives — and the markers fire on the save and the teleport. Interplanar travel is the other half, and there is one scene: a creature arriving from another plane has no position to arrive from, so nothing here could raise the save against it, and whether a Fiend steps in from the Abyss is the table’s.',
-    },
-    {
-      clause: 'the duration increasing by 1 hour for each spell slot level above 3',
-      why: 'a-duration-the-slot-changes',
-      note: 'SRD, _Using a Higher-Level Spell Slot_: "The duration increases by 1 hour for each spell slot level above 3." A slot reaches damage dice, a target count and, for the one spell that prints it, a Concentration the slot drops; a duration that grows by the slot is the shape Major Image’s level-4 sentence is filed under, and this is a second writer of it — an hour a level rather than a casting that outlasts its Concentration.',
     },
   ],
   'magic-jar': [
@@ -1164,13 +1132,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // no about it and `summonedBy` — the link `strandedSummons` already reads —
   // is what says which casting a bleeding steed belongs to. Everything else
   // this spell prints is the table's.
-  'plant-growth': [
-    {
-      clause: 'the Enrichment branch is not castable at all',
-      why: 'a-choice-made-at-the-casting',
-      note: 'SRD prints one spell with two effects and lets the **casting time** choose between them, Action for the Overgrowth and eight hours for the Enrichment — "This spell channels vitality into plants. The casting time you use determines whether the spell has the Overgrowth or the Enrichment effect below." That is the second arm of this shape exactly as its description states it — a choice of which effects run rather than which value one of them carries, which is Enlarge/Reduce’s two halves and Glyph of Warding’s two glyphs — with the extra turn of the screw that the two branches do not even share a casting time, and a definition carries one. The Overgrowth is what is written, and its four feet per foot are charged.',
-    },
-  ],
   'prayer-of-healing': [
     {
       clause: 'remain within range for the spell',
@@ -1180,9 +1141,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'protection-from-evil-and-good': [
     {
-      clause: 'Advantage on any new saving throw against the relevant effect',
+      clause: 'a repeat save a casting raised and not one a printed line raised',
       why: 'a-mode-on-the-save-a-spell-forces',
-      note: 'nothing records what a save was against, so "the relevant effect" cannot be selected for. The same sentence that blocks Countercharm, arriving on the save rather than on the attack — and the one benefit of the three this spell prints that its two new axes did not reach: the Disadvantage is a roll mode narrowed by the attacker’s creature type, and the Charmed and Frightened Immunity is a grant narrowed by the type of whatever is causing them.',
+      note: '**The sentence is granted and this is the road it does not reach.** `RollSelector.againstSourceType` is the axis the fourth audit said this id had left — a save remembering its provenance — and `RollQuery.forcedBy` is the fact the roller of the save supplies: the turn boundary reads the casting its timer names and the caster on that casting’s record, so a cleric Frightened by an Undead’s Fear rolls the repeat with Advantage and one Frightened by a bandit rolls it plainly. What carries no such name is the **printed** road: `settlePrintedSave` rolls a stat block’s own save — a Fiend’s Frightful Presence, an aura caught at the start of a turn — and asks the gatherer nothing about what forced it, although `PrintedSaveDebt.by` is sitting on the debt. One argument, in a file this track does not own.',
     },
   ],
   revivify: [
@@ -1214,18 +1175,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     // it, so an Opportunity Attack that misses ends the ward where the book
     // ends it. Removed rather than reworded, because the map holds gaps.
   ],
-  'shining-smite': [
-    {
-      clause: 'the Advantage on attack rolls against the target is not granted',
-      why: 'a-spells-effects-applied-to-different-targets',
-      note: 'SRD: "attack rolls against it have Advantage". The mode is ordinary and who holds it is not — it belongs to every other creature in the fight, where this casting reached one, and a spell applies its effects to the targets it was given.',
-    },
-    {
-      clause: 'switches off a benefit the condition layer derives',
-      why: 'a-condition-benefit-an-effect-takes-away',
-      note: 'SRD: "it can\'t benefit from the Invisible condition". The condition stays on the creature and one of the things it confers stops working. **The rider that does this exists** — `benefit`, which Starry Wisp, Faerie Fire and Mind Spike all hang — and what this spell cannot reach it with is the *host*: a smite is cast on a hit, its one effect kind is `attack-damage`, and that kind carries no `OutcomeRiders` at all. The blocker is a host without riders rather than a missing rider, and giving it some is a decision about what the settled outcome of a cast-on-hit is.',
-    },
-  ],
   // **The shaking has left this map**, and it left by being built: "someone
   // within 5 feet of it takes an action to shake it out of the spell's effect"
   // is `wakeCreature`, a command that spends the onlooker's Action, measures
@@ -1244,20 +1193,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // Pass without Trace is the other and carries no entry at all: what is left
   // of it prints no mechanic, so its `unmodelled` line names nothing for an
   // adjudication to be written about.
-  silence: [
-    {
-      clause: 'a declared object has no position on the lattice',
-      why: 'an-object-with-statistics-of-its-own',
-      note: 'the creature half is executed — a defence derived from the spaces a creature occupies, and the Deafened beside it — and the object half is the shape this spell shares with the tower and the boat: a declared object has no position on the lattice, so the Sphere has nothing to measure it against and cannot tell whether it is entirely inside.',
-    },
-  ],
-  sleep: [
-    {
-      clause: 'such as elves',
-      why: 'a-fact-only-the-table-can-declare',
-      note: 'SRD: "Creatures that don’t sleep, such as elves, or that have Immunity to the Exhaustion condition automatically succeed on saves against this spell." **The Immunity half is executed** — `save.autoSucceedIf` reads it off the target through `conditionImmunitiesOf`, and `checks.ts` carries the automatic success the automatic failure was the only half of. What is left is whether a creature sleeps at all, and it is a fact rather than a mechanism: the SRD prints it of no creature type, and the 2024 Elf states it as a species trait — Trance, which says a creature of that species neither needs sleep nor can be put to sleep by magic — that no `FeatureGrant` member carries.',
-    },
-  ],
   // **Two of Slow's four are gone and both were built.** The −2 on Dexterity
   // saving throws is a `bonus` rider carrying a `BonusNarrowing`, which is the
   // half of `a-bonus-narrowed-to-a-skill` the ongoing side had already grown —
@@ -1267,11 +1202,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // the `grants` timer the casting's own source already keys, so "ending the
   // spell on itself" reaches the goblin that made its save and nobody else.
   slow: [
-    {
-      clause: 'it can make only one attack if it takes the Attack action',
-      why: 'an-action-a-spell-compels-or-forbids',
-      note: 'the second half of the same sentence, and a different absence: the economy counts one Attack action and not the attacks inside it, which `docs/design/characters-and-equipment.md` states from the feature side — "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
-    },
   ],
   'spider-climb': [
     {
@@ -1305,13 +1235,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // outlived both is the one clause of the six wonders that is not narration.
   // The other five were always fiction; this one is an ordinary roll modifier
   // with nowhere to stand.
-  thaumaturgy: [
-    {
-      clause: 'the Advantage on Charisma (Intimidation) checks is not granted',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'The mode itself is ordinary — a `RollModifier` naming a Charisma ability check narrowed to the Intimidation skill, which is the pair `RollSelector` already carries. What it has nowhere to land is a creature: Thaumaturgy prints Range 30 feet and `targets: { count: 0 }`, because the wonder happens within range rather than on somebody, so the per-target loop runs no times at all. The target rule that would hand the mode its creature is "the caster and nobody else", and `TargetRule` cannot state it — `notTheCaster` is the only sentence of that family it has, and it is the other one. Writing `{ count: 1, self: true }` instead would let a caster boom an ally’s voice, which is a rule the book does not grant.',
-    },
-  ],
   web: [
     {
       clause: 'flammable',

@@ -449,7 +449,13 @@ export function repeatsRaisedByDamage(
         save.value,
         save.value.success ? 'shakes it off' : 'still held',
       ),
-      ...(save.value.success ? endingFor(current, timer.target, hook.onSuccess, host, target) : []),
+      // **A success that ends nothing ends nothing here either.** SRD Bestow
+      // Curse's Dodge face is the one hook that says so, and the road this
+      // function is on — a repeat raised by damage rather than by a boundary —
+      // reads the same three values the boundary does.
+      ...(save.value.success && hook.onSuccess !== 'nothing'
+        ? endingFor(current, timer.target, hook.onSuccess, host, target)
+        : []),
     ];
     events.push(...settled);
     current = settled.reduce(applyEvent, current);
