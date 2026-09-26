@@ -846,7 +846,9 @@ describe('parseMultiattack reads the rest of the sentence', () => {
         }
       }
     }
-    expect(alternations).toBe(11);
+    // Thirteen more since W7-B10: "It can replace one attack with a use of X",
+    // where X is a save line the block prints, is a branch holding a use.
+    expect(alternations).toBe(24);
     expect(gated).toBe(1);
   });
 });
@@ -952,6 +954,59 @@ describe('a use that names an attack the block prints', () => {
   });
 
   /**
+   * And a use of a line the block prints a **save** for is a use the Attack
+   * action holds — W7-B10, the Roper's `uses` entry reached by the book's
+   * other wording. SRD Wight: "The wight makes two attacks, using Necrotic
+   * Sword or Necrotic Bow in any combination. It can replace one attack with
+   * a use of Life Drain." One swing for one use, bound to the printed
+   * heading, recharge and all; a use that takes the place of two swings — SRD
+   * Young Brass Dragon's Sleep Breath — is a branch of another size, and stays
+   * prose.
+   */
+  it('reads a replacement whose use names a save line the block prints', () => {
+    const text =
+      'The wight makes two attacks, using Necrotic Sword or Necrotic Bow in any combination. It can replace one attack with a use of Life Drain.';
+    const swings = ['Necrotic Sword', 'Necrotic Bow'];
+    expect(parseMultiattack(text, swings).handOver).toBe('It can replace one attack with a use of Life Drain.');
+    expect(parseMultiattack(text, swings, [], ['Life Drain'])).toEqual({
+      alternatives: [
+        [{ count: 2, attacks: swings }],
+        [
+          { count: 1, attacks: swings },
+          { count: 1, uses: 'Life Drain' },
+        ],
+      ],
+    });
+    expect(
+      parseMultiattack(
+        'The dragon makes three Rend attacks. It can replace one attack with a use of Paralyzing Breath.',
+        ['Rend'],
+        [],
+        ['Paralyzing Breath (Recharge 5–6)'],
+      ),
+    ).toEqual({
+      alternatives: [
+        [{ count: 3, attack: 'Rend' }],
+        [
+          { count: 2, attack: 'Rend' },
+          { count: 1, uses: 'Paralyzing Breath (Recharge 5–6)' },
+        ],
+      ],
+    });
+    const two =
+      'The dragon makes three Rend attacks. It can replace two attacks with a use of Sleep Breath.';
+    expect(parseMultiattack(two, ['Rend'], [], ['Sleep Breath (Recharge 5–6)']).handOver).toBe(
+      'It can replace two attacks with a use of Sleep Breath.',
+    );
+    // A use of Spellcasting is not a line with a save, and stays prose.
+    const cast =
+      'The mage makes three Arcane Burst attacks. It can replace one attack with a use of Spellcasting.';
+    expect(parseMultiattack(cast, ['Arcane Burst'], [], ['Life Drain']).handOver).toBe(
+      'It can replace one attack with a use of Spellcasting.',
+    );
+  });
+
+  /**
    * Shapes that name a printed attack and are still not one swing of it. Each
    * stays exactly the hand-over it was, because reading it would be the grammar
    * deciding something the sentence does not say.
@@ -1034,7 +1089,8 @@ describe('a use that names an attack the block prints', () => {
       }
     }
     expect(binding).toEqual([]);
-    expect(clauses).toBe(55);
+    // Thirteen fewer since W7-B10, for the thirteen alternations above.
+    expect(clauses).toBe(42);
   });
 });
 

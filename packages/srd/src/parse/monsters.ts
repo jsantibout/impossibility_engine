@@ -2928,6 +2928,28 @@ function withOneReplaced(
 }
 
 /**
+ * The same trade where what comes in is a **use** rather than a swing — SRD
+ * Wight: "It can replace one attack with a use of Life Drain." — W7-B10.
+ *
+ * {@link withOneReplaced}'s rules, and **one swing for one use only**. SRD
+ * Young Brass Dragon's "replace two attacks with a use of Sleep Breath" is one
+ * breath in the place of two swings: a branch smaller than the other, which
+ * the Attack action's single size cannot say — so it stays the hand-over it
+ * was rather than being read as two breaths or as a branch of the wrong size.
+ */
+function withOneUsed(
+  entries: readonly MonsterMultiattackEntry[],
+  count: number,
+  line: string,
+): MonsterMultiattackEntry[] | null {
+  if (count !== 1 || entries.length !== 1) return null;
+  const only = entries[0]!;
+  if (only.count <= count) return null;
+  if (alreadyNamed(entries, line)) return null;
+  return [{ ...only, count: only.count - count }, { count: 1, uses: line }];
+}
+
+/**
  * What a Multiattack line states, or null where it states something this
  * grammar still cannot read.
  *
@@ -2950,11 +2972,19 @@ function withOneReplaced(
  * it always was. The default is the empty list, which is the reading this
  * parser gave before the argument existed: nothing binds, so every use is
  * prose. It can only ever refuse a swing, never invent one.
+ *
+ * `printedUses` is the third, and the same kind of fact — W7-B10: the headings
+ * of the Actions lines this block prints a **save** for that a creature
+ * spends. "It can replace one attack with a use of X", where X is one of
+ * them, is a branch holding a `uses` entry the door that forces the save
+ * spends out of the Attack action. Anything else a use names stays the
+ * hand-over it was.
  */
 export function parseMultiattack(
   text: string,
   printedAttacks: readonly string[] = [],
   printedBonusActions: readonly string[] = [],
+  printedUses: readonly string[] = [],
 ): MonsterMultiattack | null {
   const clean = text.replace(/[_*]/g, '').trim();
   if (!clean.endsWith('.')) return null;
@@ -3030,8 +3060,16 @@ export function parseMultiattack(
       // same swap in the book's other words.
       const use = REPLACEMENT_USE.exec(second);
       const used = use === null ? null : boundName(printedAttacks, use[2]!);
+      // And "a use of X" where X is a save line the block prints is a use the
+      // Attack action holds — W7-B10, bound to the printed heading.
+      const usedLine =
+        use === null || used !== null ? null : boundLine(printedUses, use[2]!);
       const swapped =
-        used === null ? null : withOneReplaced(branches[0]!, COUNT_WORDS[use![1]!]!, used);
+        used !== null
+          ? withOneReplaced(branches[0]!, COUNT_WORDS[use![1]!]!, used)
+          : usedLine !== null
+            ? withOneUsed(branches[0]!, COUNT_WORDS[use![1]!]!, usedLine)
+            : null;
       if (swapped !== null) {
         branches.push(swapped);
         gates.push(null);
@@ -3226,6 +3264,8 @@ function parseFeatures(
   lines: readonly string[],
   printedAttacks: readonly string[] = [],
   printedBonusActions: readonly string[] = [],
+  /** The Actions headings a sequence may name as a use — see {@link parseMultiattack}. */
+  printedUses: readonly string[] = [],
   /**
    * Whether a line under this heading is one a creature *spends* — Actions
    * and Bonus Actions. See {@link spendableSave}, which is what reads it.
@@ -3265,7 +3305,7 @@ function parseFeatures(
       // evaluate the qualification.
       const multiattack =
         current.name === 'Multiattack'
-          ? parseMultiattack(text, printedAttacks, printedBonusActions)
+          ? parseMultiattack(text, printedAttacks, printedBonusActions, printedUses)
           : null;
       // The two things read out of the *name* rather than the sentence, and
       // both ride on the **line**, which is what the book prints them on:
@@ -3578,6 +3618,17 @@ function parseEntry(
   // heading is what a gate names and what a spend records.
   const printedBonusActions = parseFeatures(sections.bonusActions).map((line) => line.name);
 
+  // **The third** — W7-B10: the Actions headings whose line is a save a
+  // creature spends, which a Multiattack's "replace one attack with a use of
+  // X" may name as a slot of the Attack action. Read as the spendable section
+  // it is; a save a moment forces, or one that moves first, is taken by a
+  // door that is not the one that spends the slot, and is left out.
+  const printedUses = parseFeatures(sections.actions, [], [], [], true).flatMap((line) =>
+    line.save === undefined || line.save.trigger !== undefined || line.save.movesThen !== undefined
+      ? []
+      : [line.name],
+  );
+
   const monster = {
     id,
     name: entry.name,
@@ -3610,13 +3661,14 @@ function parseEntry(
     proficiencyBonus,
 
     traits: parseFeatures(sections.traits, printedAttacks, printedBonusActions),
-    actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions, true),
-    bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions, true),
+    actions: parseFeatures(sections.actions, printedAttacks, printedBonusActions, printedUses, true),
+    bonusActions: parseFeatures(sections.bonusActions, printedAttacks, printedBonusActions, [], true),
     reactions: parseFeatures(sections.reactions, printedAttacks, printedBonusActions),
     legendaryActions: parseFeatures(
       sections.legendaryActions,
       printedAttacks,
       printedBonusActions,
+      [],
       false,
       true,
     ),

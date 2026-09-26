@@ -24,6 +24,7 @@ import {
   beginCombat,
   damageCreature,
   declareCreatureSide,
+  forcePrintedSave,
   placeCreatureInScene,
   resolveAttack,
   setScene,
@@ -192,5 +193,63 @@ describe("the Roper's Multiattack", () => {
     table.log.push(...unwrap(swing(table, 'Bite', SABLE, 'b2'), 'the second bite').events);
     expect(table.state.combat!.budgets[ROPER]!.attacksRemaining).toBe(0);
     expect(swing(table, 'Bite', BREN, 'b3').ok).toBe(false);
+  });
+});
+
+/**
+ * The same `uses` entry, reached by the book's other wording — SRD Wight: "The
+ * wight makes two attacks, using Necrotic Sword or Necrotic Bow in any
+ * combination. It can replace one attack with a use of Life Drain." Life
+ * Drain is a save line, and the door that forces it spends a slot of the
+ * Attack action where the sequence names it, exactly as the Reel's does.
+ */
+describe("the Wight's Multiattack", () => {
+  const WIGHT = id('wight');
+  const barrow = (): Table => {
+    const table = new Table();
+    table.did('the wight arrives', (s) => addCreature(s, SRD_CONTENT, WIGHT, 'wight'));
+    table.did('bren arrives', (s) => addCreature(s, SRD_CONTENT, BREN, 'knight'));
+    table.do('the barrow', (s) => setScene(s, { width: 100, depth: 100, height: 20 }));
+    table.do('the bier', (s) => addSceneLandmark(s, 'the bier', { x: 50, y: 50, z: 0 }));
+    table.do('the wight stands', (s) => placeCreatureInScene(s, WIGHT, { from: { landmark: 'the bier' }, feet: 0 }));
+    table.do('bren beside it', (s) => placeCreatureInScene(s, BREN, { from: { creature: WIGHT }, feet: 5, bearing: 90 }));
+    table.do("the wight's side", (s) => declareCreatureSide(s, WIGHT, 'wild'));
+    table.do("bren's side", (s) => declareCreatureSide(s, BREN, 'party'));
+    table.do('the order', (s) =>
+      beginCombat(s, [
+        { id: WIGHT, initiative: 20, speed: 30 },
+        { id: BREN, initiative: 10, speed: 30 },
+      ]),
+    );
+    return table;
+  };
+  const sword = (table: Table, commandId: string) =>
+    resolveAttack(
+      table.state,
+      WIGHT,
+      { target: BREN, weapon: null, action: 'Necrotic Sword', attackBonuses: [{ source: 'forced', flat: 40 }], commandId },
+      table.supply(),
+    );
+  const drain = (table: Table, commandId: string) =>
+    forcePrintedSave(table.state, WIGHT, { line: 'Life Drain', targets: [BREN], commandId }, table.supply());
+
+  it('spends Life Drain as one of the two, and leaves one swing beside it', () => {
+    const table = barrow();
+    const drained = unwrap(drain(table, 'drain'), 'the drain');
+    table.log.push(...drained.events);
+    expect(drained.events.some((e) => e.type === 'attack-made')).toBe(true);
+    expect(drained.events.some((e) => e.type === 'action-spent')).toBe(false);
+    expect(table.state.combat!.budgets[WIGHT]!.attacksRemaining).toBe(1);
+    table.log.push(...unwrap(sword(table, 's1'), 'the one swing left').events);
+    expect(table.state.combat!.budgets[WIGHT]!.attacksRemaining).toBe(0);
+    expect(sword(table, 's2').ok).toBe(false);
+  });
+
+  it('refuses Life Drain once both swings are made, since there is no attack left to replace', () => {
+    const table = barrow();
+    table.log.push(...unwrap(sword(table, 's1'), 'the first swing').events);
+    table.log.push(...unwrap(sword(table, 's2'), 'the second swing').events);
+    const late = drain(table, 'late');
+    expect(isErr(late) && late.code).toBe('not_in_multiattack');
   });
 });

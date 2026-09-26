@@ -1508,21 +1508,14 @@ export function forcePrintedSave(
       }
 
       // The slot the **heading** names: one Action on a turn, or the one
-      // Bonus Action, each refused by the primitive that owns its rule.
-      const spent =
-        action !== null
-          ? spendAction(state.combat, id, creature.conditions, {
-              rules: actionRulesOn(state, id),
-            })
-          : spendBonusAction(state.combat, id, creature.conditions, {
-              rules: actionRulesOn(state, id),
-            });
-      if (!spent.ok) return spent;
+      // Bonus Action, each refused by the primitive that owns its rule — or,
+      // where the block's Multiattack names this line as a use, a slot of the
+      // Attack action (SRD Wight's Life Drain; W7-B10). See {@link spendLineSlot}.
+      const slotSpent = spendLineSlot(state, state.combat, id, line, action !== null);
+      if (!slotSpent.ok) return slotSpent;
 
       const events: GameEvent[] = [
-        action !== null
-          ? { type: 'action-spent', id }
-          : { type: 'bonus-action-spent' as const, id },
+        ...slotSpent.value,
         // SRD *Monsters*: "a monster can use the stat block part once."
         ...(recharge === null
           ? []
@@ -2786,54 +2779,13 @@ export function takePrintedPull(
         }
       }
 
-      // **A use the Attack action holds** — W7-B10. SRD Roper: "makes two
-      // Tentacle attacks, uses Reel, and makes two Bite attacks." Where the
-      // block's sequence names this line as a use, taking it spends a slot of
-      // the Attack action rather than the Action itself, is held to the
-      // composition exactly as a swing is, and is written into the same ledger
-      // — so the fold spends the same slot off the same `attack-made`.
-      const sequence = multiattackOf(creature.sheet);
-      const asUse = action !== null && sequence !== null && multiattackUses(sequence, line.name);
-      let slot: string | null = null;
-      const events: GameEvent[] = [];
-      if (asUse) {
-        const budget = state.combat.budgets[id];
-        const linesUsed = statedBonusActionsUsed(budget?.featureUsedOnTurn ?? {}, state.combat.turnsTaken);
-        const made = usesMadeThisTurn(state.combat, id);
-        const next = { ...made, [line.name]: (made[line.name] ?? 0) + 1 };
-        if (budget?.attacksRemaining != null && !multiattackAllows(sequence, next, linesUsed)) {
-          return err(
-            'not_in_multiattack',
-            `${id}'s block prints ${describeMultiattack(sequence)} in one action, and a use of ${line.name} is not what is left of it`,
-          );
-        }
-        const spent = spendAttack(
-          state.combat,
-          id,
-          attacksInAction(creature.sheet, creature.heads, linesUsed),
-          creature.conditions,
-          { rules: actionRulesOn(state, id) },
-        );
-        if (!spent.ok) return spent;
-        slot = `${MULTIATTACK_LEDGER}${line.name}#${next[line.name]!}`;
-        events.push({ type: 'attack-made', id });
-      } else {
-        const spent =
-          action !== null
-            ? spendAction(state.combat, id, creature.conditions, {
-                rules: actionRulesOn(state, id),
-              })
-            : spendBonusAction(state.combat, id, creature.conditions, {
-                rules: actionRulesOn(state, id),
-              });
-        if (!spent.ok) return spent;
-        events.push(
-          action !== null ? { type: 'action-spent', id } : { type: 'bonus-action-spent' as const, id },
-        );
-      }
+      // **A use the Attack action holds**, or the slot the heading names —
+      // see {@link spendLineSlot}.
+      const slotSpent = spendLineSlot(state, state.combat, id, line, action !== null);
+      if (!slotSpent.ok) return slotSpent;
+      const events: GameEvent[] = [...slotSpent.value];
 
       events.push(
-        ...(slot === null ? [] : [{ type: 'feature-used' as const, id, feature: slot, turn: state.combat.turnsTaken }]),
         ...(recharge === null
           ? []
           : [{ type: 'printed-line-expended' as const, id, line: line.name }]),
@@ -2887,6 +2839,68 @@ export function takePrintedPull(
       return ok({ events, pulled, unverified, duplicate: false });
     },
   );
+}
+
+/**
+ * Spend what taking a printed line costs, and say so in events — W7-B10.
+ *
+ * **A use the Attack action holds.** SRD Roper: "makes two Tentacle attacks,
+ * uses Reel, and makes two Bite attacks"; SRD Wight: "It can replace one
+ * attack with a use of Life Drain." Where the block's sequence names this
+ * Actions line as a use, taking it spends a slot of the Attack action rather
+ * than the Action itself, is held to the composition exactly as a swing is
+ * (`not_in_multiattack`), and is written into the same ledger a swing is — so
+ * the fold spends the same slot off the same `attack-made`, and the swings
+ * after it are measured against a sequence that already holds the use.
+ *
+ * Otherwise the slot the **heading** names: one Action on a turn, or the one
+ * Bonus Action, each refused by the primitive that owns its rule. One body
+ * for every door that takes a line and spends it, so a pull and a save named
+ * by the same sequence cannot come to cost two different things.
+ */
+function spendLineSlot(
+  state: GameState,
+  combat: NonNullable<GameState['combat']>,
+  id: CharacterId,
+  line: StatedAction | StatedBonusAction,
+  isAction: boolean,
+): Result<readonly GameEvent[]> {
+  const creature = state.creatures[id]!;
+  const sequence = multiattackOf(creature.sheet);
+  if (isAction && sequence !== null && multiattackUses(sequence, line.name)) {
+    const budget = combat.budgets[id];
+    const linesUsed = statedBonusActionsUsed(budget?.featureUsedOnTurn ?? {}, combat.turnsTaken);
+    const made = usesMadeThisTurn(combat, id);
+    const next = { ...made, [line.name]: (made[line.name] ?? 0) + 1 };
+    if (budget?.attacksRemaining != null && !multiattackAllows(sequence, next, linesUsed)) {
+      return err(
+        'not_in_multiattack',
+        `${id}'s block prints ${describeMultiattack(sequence)} in one action, and a use of ${line.name} is not what is left of it`,
+      );
+    }
+    const spent = spendAttack(
+      combat,
+      id,
+      attacksInAction(creature.sheet, creature.heads, linesUsed),
+      creature.conditions,
+      { rules: actionRulesOn(state, id) },
+    );
+    if (!spent.ok) return spent;
+    return ok([
+      { type: 'attack-made', id },
+      {
+        type: 'feature-used',
+        id,
+        feature: `${MULTIATTACK_LEDGER}${line.name}#${next[line.name]!}`,
+        turn: combat.turnsTaken,
+      },
+    ]);
+  }
+  const spent = isAction
+    ? spendAction(combat, id, creature.conditions, { rules: actionRulesOn(state, id) })
+    : spendBonusAction(combat, id, creature.conditions, { rules: actionRulesOn(state, id) });
+  if (!spent.ok) return spent;
+  return ok([isAction ? { type: 'action-spent', id } : { type: 'bonus-action-spent', id }]);
 }
 
 /**
