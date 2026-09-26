@@ -76,6 +76,15 @@ export const CREATURE_SIZES = [
 export const CreatureSizeSchema = z.enum(CREATURE_SIZES);
 export type CreatureSize = z.infer<typeof CreatureSizeSchema>;
 
+/**
+ * The rules glossary's four special senses, as a stat block's Senses line
+ * names them. The engine's `SENSE_NAMES` is the same four; this package
+ * cannot import the engine, so the engine's `monster-senses.test.ts` holds the
+ * two lists equal. (W8-S25)
+ */
+export const MONSTER_SENSES = ['blindsight', 'darkvision', 'tremorsense', 'truesight'] as const;
+export type MonsterSense = (typeof MONSTER_SENSES)[number];
+
 /** One ability's score, derived modifier, and saving throw bonus. */
 export const AbilityBlockSchema = z.object({
   score: z.number().int().min(1).max(30),
@@ -3675,6 +3684,34 @@ export const MonsterSchema = z.object({
   gear: z.array(z.string()),
 
   senses: z.array(z.string()),
+  /**
+   * The same Senses line read: SRD Monsters, "The Senses entry specifies a
+   * monster's Passive Perception score, as well as any special senses the
+   * monster possesses." One entry per special sense, in the rules glossary's
+   * four, with the range the block prints.
+   *
+   * `unimpededByMagicalDarkness` is the book's one qualifier —
+   * "Darkvision 120 ft. (unimpeded by magical Darkness)", on the Imp, the
+   * Lemure and five devils — and it rides only on a Darkvision.
+   *
+   * Absent where the block prints none, which is also every homebrew block
+   * written before the field existed; `senses` keeps the book's strings, and a
+   * segment the parser cannot read stays there and nowhere else. (W8-S25)
+   */
+  specialSenses: z
+    .array(
+      z
+        .object({
+          sense: z.enum(MONSTER_SENSES),
+          feet: z.number().int().positive(),
+          unimpededByMagicalDarkness: z.literal(true).optional(),
+        })
+        .refine(
+          (entry) => entry.unimpededByMagicalDarkness === undefined || entry.sense === 'darkvision',
+          { message: 'only a Darkvision is printed unimpeded by magical Darkness' },
+        ),
+    )
+    .optional(),
   passivePerception: z.number().int().min(0),
   languages: z.array(z.string()),
 

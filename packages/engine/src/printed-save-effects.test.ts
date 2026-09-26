@@ -431,9 +431,16 @@ describe('a save the target repeats, a size gate, an immunity, and a carried suc
     // **And the targeting clause is measured, not handed over** — W7-B13: "one
     // creature the mummy can see within 60 feet" is a ruler between two
     // creatures the scene places, so there is no area to say the engine did
-    // not measure. What is still said is the sight, which nobody declared.
+    // not measure. **And nor is the sight any more** (W8-S25): nobody declared
+    // it, and the mummy's printed Darkvision 60 answers it, which is the whole
+    // of the reach the line prints.
     expect(out.unverified.some((line) => line.includes('measured no area'))).toBe(false);
-    expect(out.unverified.some((line) => line.includes('nobody has said whether it can see'))).toBe(true);
+    expect(out.unverified.some((line) => line.includes('nobody has said whether it can see'))).toBe(false);
+    // A block whose Senses line prints no special sense still has it said:
+    // SRD Satyr's Mockery reaches "one creature the satyr can see within 90
+    // feet", and nothing of the satyr's answers where nobody declared.
+    const mocked = forced('satyr', 'Mockery', 'a');
+    expect(mocked.out.unverified.some((line) => line.includes('nobody has said whether it can see'))).toBe(true);
   });
 });
 
@@ -1149,10 +1156,13 @@ describe('a failure graded by how far the save missed', () => {
         expect(has(state, GRISH, 'unconscious')).toBe(false);
         shallow = true;
       }
-      // Either way nothing of this line is carried but the targeting clause:
-      // the early endings the book prints are the engine's now.
+      // Either way nothing of this line is carried: the early endings the
+      // book prints are the engine's now, and so is the targeting clause's
+      // sight — "one creature the pseudodragon can see", answered by its
+      // printed Blindsight and Darkvision since the Senses line reached its
+      // sheet (W8-S25).
       expect(out.unverified.some((line) => line.includes('which ends early if'))).toBe(false);
-      expect(out.unverified).toHaveLength(1);
+      expect(out.unverified).toEqual([]);
       if (12 - one!.save!.total >= 5) {
         expect(wakeableOn(state, GRISH)).toHaveLength(1);
         // The goblin is fifteen feet from the pseudodragon, so the shake is

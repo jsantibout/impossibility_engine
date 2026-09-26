@@ -14262,9 +14262,9 @@ export const HEX: SpellDefinition = {
  * Its three doors are the bond's: the pocket dimension it can be sent to
  * (`dismissKeptSummons`, `recallKeptSummons`), the touch spell it delivers
  * (`cast_spell.deliveredBy`), and its senses lent to the caster for a Bonus
- * Action (`borrowSenses`, read by `canSee` and `sensesOf`). What is left is
- * written below: the senses its **stat block** prints, which no sheet holds
- * yet, and the rest, which is the table's.
+ * Action (`borrowSenses`, read by `canSee` and `sensesOf`) — the senses its
+ * stat block prints among them, since the block's Senses line reaches its
+ * sheet (W8-S25). What is left is written below, and it is the table's.
  */
 export const FIND_FAMILIAR: SpellDefinition = {
   id: 'find-familiar',
@@ -14320,7 +14320,6 @@ export const FIND_FAMILIAR: SpellDefinition = {
     },
   ],
   unmodelled: [
-    'the benefits of the special senses printed on the familiar’s own stat block (an Owl’s Darkvision, a Bat’s Blindsight) are not lent, because a block’s Senses line reaches no sheet: `borrowSenses` lends the eyes and every sense the engine holds for the familiar, and a printed one is not among them',
     'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
     'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
   ],

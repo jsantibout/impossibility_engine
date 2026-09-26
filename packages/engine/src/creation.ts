@@ -3560,6 +3560,12 @@ export function planCharacter(
   );
 
   const byFeatureId = new Map(features.map((feature) => [feature.id, feature]));
+  // Which of those are the species' own traits, for the one sentence that
+  // tells them apart: SRD Wild Shape keeps "class features; languages; and
+  // feats" and not a species trait. See `StandingEffect.speciesTrait`.
+  const speciesTraits = new Set(
+    cumulativeFeatures(parts.species, totalLevelOf(choices)).map((feature) => feature.id),
+  );
 
   const standing: StandingEffect[] = [];
   for (const [feature, grant] of grantsIn(features)) {
@@ -3692,6 +3698,7 @@ export function planCharacter(
           reach: grant.reach === 'self' ? { kind: 'self' } : { kind: 'aura', feet: auraFeet },
           grant: one,
           ...(grant.requires === undefined ? {} : { requires: grant.requires }),
+          ...(speciesTraits.has(feature.id) ? { speciesTrait: true as const } : {}),
         });
       }
     }
@@ -3750,6 +3757,10 @@ export function planCharacter(
         reach: { kind: 'self' },
         grant: effect,
         requires: [{ kind: 'feature-active', feature: feature.id }],
+        // SRD Stonecunning's Tremorsense is a species trait switched on, and
+        // Wild Shape's retained list does not keep it any more than it keeps
+        // the Darkvision beside it. See `StandingEffect.speciesTrait`.
+        ...(speciesTraits.has(feature.id) ? { speciesTrait: true as const } : {}),
       });
     }
   }

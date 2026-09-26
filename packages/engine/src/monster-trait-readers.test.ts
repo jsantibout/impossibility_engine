@@ -54,11 +54,11 @@ import { allowedActions } from './combat.js';
 import { createCharacter, type CharacterChoices } from './creation.js';
 import { createRng, type Rng } from './dice.js';
 import { fold, type GameEvent, type GameState } from './events.js';
-import { adaptMonster } from './monster.js';
+import { adaptMonster, printedTraitKey } from './monster.js';
 import { rowAt, slotsAt } from './progression.js';
 import { createRollIssuer } from './rolls.js';
 import { spellsForClass } from '@ie/srd';
-import { actionRulesOn, rollModesFor, speedOf } from './standing.js';
+import { actionRulesOn, rollModesFor, speedOf, type StandingEffect } from './standing.js';
 
 const id = (s: string) => asCharacterId(s);
 const SEED = 'trait-readers';
@@ -479,10 +479,14 @@ describe('a price is the one thing a heading says that a sentence does not', () 
       { ...goblin, bonusActions: [], actions: [...goblin.actions, printed] },
       id('misfiled'),
     );
-    expect(moved.sheet.standing).toBeUndefined();
+    // The block's Darkvision is on its sheet either way (W8-S25) — a block
+    // field, not a line under any heading — so it is set aside here.
+    const lines = (standing: readonly StandingEffect[] | undefined) =>
+      (standing ?? []).filter((effect) => effect.feature !== printedTraitKey('goblin-minion', 'Senses'));
+    expect(lines(moved.sheet.standing)).toEqual([]);
 
     // Not vacuous: the block as the book prints it does compile the rule.
-    expect(adaptMonster(goblin, id('as-printed')).sheet.standing).toHaveLength(2);
+    expect(lines(adaptMonster(goblin, id('as-printed')).sheet.standing)).toHaveLength(2);
   });
 });
 

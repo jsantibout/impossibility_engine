@@ -163,10 +163,10 @@ describe('Find Familiar through the door', () => {
     // And what the engine could not check reaches the caller marked as such.
     // The pocket dimension is not among them any more — `dismiss_familiar`
     // and `recall_familiar` are its two doors — and nor is seeing through the
-    // familiar's eyes, which is `borrow_senses`; what is left of that sentence
-    // is the senses the familiar's own stat block prints, which no sheet holds.
+    // familiar's eyes, which is `borrow_senses` — and nor, since W8-S25, are
+    // the senses the familiar's own stat block prints, which its sheet holds.
     expect(settled.unverified.some((line) => line.includes('familiar’s eyes'))).toBe(false);
-    expect(settled.unverified.some((line) => line.includes('familiar’s own stat block'))).toBe(true);
+    expect(settled.unverified.some((line) => line.includes('familiar’s own stat block'))).toBe(false);
     expect(settled.unverified.some((line) => line.includes('pocket dimension'))).toBe(false);
   });
 

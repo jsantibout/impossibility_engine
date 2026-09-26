@@ -313,6 +313,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'faerie-fire',
   'false-life',
   'fear',
+  // `monster-senses.test.ts` (engine): the rite cast through `resolveSpell`
+  // raises an Owl that holds its printed Darkvision 120 with no casting to
+  // give it one, the wizard borrows its eyes for a Bonus Action and sees a
+  // goblin in the dark a hundred feet past it, and a Bat's printed Blindsight
+  // reaches the wizard's own senses; `borrowed-senses.test.ts` (engine) is the
+  // lend's deadline and its refusals.
+  'find-familiar',
   // `find-steed-whole.test.ts` (engine): the Otherworldly Steed's Slam swings
   // with the Paladin's spell attack bonus for 1d8 plus the slot level of the
   // type the Paladin chose, its Bonus Actions' DC is the Paladin's, and a steed

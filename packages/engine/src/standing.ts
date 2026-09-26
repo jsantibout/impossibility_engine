@@ -2006,6 +2006,20 @@ export interface StandingEffect {
   readonly grant: StandingGrant;
   /** What must be true of the holder. Empty means the benefit is unconditional. */
   readonly requires?: readonly StandingRequirement[];
+  /**
+   * Set where the feature that grants this is one of the character's
+   * **species** traits, and absent everywhere else.
+   *
+   * One reader, and it is SRD Wild Shape's retained list — "you retain your
+   * creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and
+   * Charisma scores; class features; languages; and feats" — which names class
+   * features and feats and does not name a species trait, so
+   * `assumeStatBlock` can tell a Dwarf's Darkvision from a class feature's
+   * Blindsight. Stamped by creation, which is the one place that still knows
+   * which list a feature came from. A sheet pinned before the mark existed
+   * carries none, and keeps everything it kept. (W8-S25)
+   */
+  readonly speciesTrait?: true;
 }
 
 /**
@@ -4846,6 +4860,20 @@ export function ritualsFromBookOn(state: GameState, who: CharacterId): boolean {
  * feet" — and Goggles of Night the same way, so two sources of one sense are
  * one sense, and the answer cannot depend on which was read first. Sorted by
  * name, for the reason `conditionImmunitiesOf` is.
+ *
+ * **And a familiar's senses, while they are lent** — SRD Find Familiar's
+ * "gaining the benefits of any special senses it has" — which includes the
+ * senses its stat block prints (W8-S25). Where they apply is a reading the
+ * owner has not yet ruled, and the argument below is the whole of the switch:
+ * `true` (option A, built) lends them at the **caster's** position, so every
+ * reader of this function has them — `ownSight`, `canSeePoint`,
+ * `canSomehowSee`, `obscuredFrom` and `sensesPerceiving` among them; `false`
+ * (option B) lends nothing here, and the familiar's eyes answer only through
+ * `canSee`'s lender branch, from the familiar's position with its own senses
+ * and `sees-through`. Under B, `borrowed-senses.test.ts`'s two Darkvision
+ * readings of the wizard and its `hidden` fighter flip, and the
+ * `borrow_senses` tool description's "you have the senses it has" stops being
+ * true.
  */
 export function sensesOf(state: GameState, who: CharacterId): readonly CreatureSense[] {
   return sensesHeld(state, who, true);

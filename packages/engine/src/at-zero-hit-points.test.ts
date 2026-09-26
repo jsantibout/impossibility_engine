@@ -383,10 +383,12 @@ describe('a printed failure that branches on the target’s Hit Points', () => {
     expect(timer?.deadline).toEqual({ kind: 'elapsed', at: 3600 });
 
     // The two endings the book prints beside the hour are the engine's now —
-    // a blow, and a neighbour's action — so nothing of this line reaches the
-    // table but the clause about who it caught.
+    // a blow, and a neighbour's action — and so is the clause about who it
+    // caught: "one creature the incubus can see within 60 feet" is answered by
+    // the incubus's own printed Darkvision 60 since its Senses line reached
+    // its sheet (W8-S25). Nothing of this line reaches the table.
     expect(out.unverified.some((line) => line.includes('ends early'))).toBe(false);
-    expect(out.unverified).toHaveLength(1);
+    expect(out.unverified).toEqual([]);
     expect(out.events.some((e) => e.type === 'damage-taken')).toBe(false);
 
     // And both of them bite: a blow lifts the hour, and so does an onlooker.
