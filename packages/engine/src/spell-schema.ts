@@ -3606,6 +3606,11 @@ function checkEffect(
           }
         }
       }
+      // SRD Shining Smite's three sentences about the creature the blow landed
+      // on. The host rolls no saving throw of its own — the attack it joins has
+      // already hit — so a rider here may not repeat one, which is the same
+      // `false` an attack's own riders are judged with.
+      checkRiders(effect.riders ?? {}, level, `${path}.riders`, host(false), found);
       return;
 
     // `save` spells its **first** rider flat and `condition` nests its only

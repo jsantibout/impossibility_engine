@@ -13613,13 +13613,35 @@ export const SHINING_SMITE: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
-  effects: [{ kind: 'attack-damage', damage: { dice: '2d6', perSlotLevelAbove: '1d6' }, damageType: 'radiant' }],
-  durationSeconds: 60,
-  unmodelled: [
-    'the Advantage on attack rolls against the target is not granted: it belongs to every other creature in the fight rather than to the one this casting touched, and a spell applies its effects to the targets it reached',
-    'and "it can’t benefit from the Invisible condition" switches off a benefit the condition layer derives while leaving the condition on the creature. The rider that does that exists — Starry Wisp, Faerie Fire and Mind Spike all hang it — and what this spell cannot reach it with is the host: a smite is cast on a hit, its one effect kind is `attack-damage`, and that kind carries no riders at all',
-    'the Bright Light in a 5-foot radius is the DM’s, because light is not a state the engine holds',
+  effects: [
+    {
+      kind: 'attack-damage',
+      damage: { dice: '2d6', perSlotLevelAbove: '1d6' },
+      damageType: 'radiant',
+      // "Until the spell ends, the target sheds Bright Light in a 5-foot
+      // radius, attack rolls against it have Advantage, and it can't benefit
+      // from the Invisible condition." Three sentences about the creature the
+      // blow landed on, which is the creature this kind now hands its riders.
+      riders: {
+        // The glow, bound to the creature and gone with the casting.
+        light: { level: 'bright', radius: 5 },
+        modifiers: [
+          // "attack rolls against it have Advantage" — a grant on the target
+          // that every attacker reads, which is what `against-holder` says.
+          {
+            kind: 'mode',
+            modifier: { mode: 'advantage', selector: { roll: 'attack', relation: 'against-holder' } },
+          },
+          // "it can't benefit from the Invisible condition" — the benefit is
+          // withheld and the condition stays, which is the third thing beside
+          // ending one and refusing one. No `against`: the book narrows this
+          // to nobody, where Mind Spike narrows it to the caster.
+          { kind: 'benefit', denies: 'invisible' },
+        ],
+      },
+    },
   ],
+  durationSeconds: 60,
 };
 
 /**

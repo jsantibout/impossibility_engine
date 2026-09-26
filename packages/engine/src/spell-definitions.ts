@@ -2390,6 +2390,30 @@ export type SpellEffect =
        * nothing, for ever.
        */
       readonly repeats?: SpellRepeatSave;
+      /**
+       * What the casting leaves on the creature the **hosting blow landed on**,
+       * for as long as it runs.
+       *
+       * SRD Shining Smite: "Until the spell ends, the target sheds Bright Light
+       * in a 5-foot radius, **attack rolls against it have Advantage**, and it
+       * can't benefit from the Invisible condition."
+       *
+       * **The host was the gap, not the riders.** All three of those sentences
+       * were already sayable — `light` hangs a glow, a `mode` rider with
+       * `relation: 'against-holder'` *is* "attack rolls against it have
+       * Advantage" written as a grant on the creature every attacker reads, and
+       * `benefit` denies what a condition would otherwise give. What this kind
+       * had was no target list and no riders: a smite is cast in the window a
+       * hit opens, so the creature it is about is the one the blow landed on and
+       * nothing else in the request names them.
+       *
+       * So the target is derived rather than declared — `keptRunning` applies
+       * them to the creature the record already writes as `aimed` — and the
+       * lifetime is the casting's, which is what `checkGrantLifetimes` insists
+       * on: riders here presuppose a duration for the reason {@link repeats}
+       * does, because an Instantaneous smite has nothing to hang a grant on.
+       */
+      readonly riders?: OutcomeRiders;
     }
   /**
    * A condition the spell simply imposes, with **no saving throw**.
