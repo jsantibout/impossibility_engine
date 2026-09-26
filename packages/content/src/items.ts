@@ -2474,6 +2474,14 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * that +2 — which takes the staff's place in the hand. The 20 is a
        * benefit and is left out.
        *
+       * **One reading is the record's and is said as a note.** The staff's
+       * +2 is given only while attuned (its bracket), and the +2 Quarterstaff
+       * asks no attunement, so after a 1 anybody swings it at +2 and the
+       * wielder's attunement to the staff ends with the staff. The page says
+       * the staff "loses all other properties" and does not say whether its
+       * bracket is one of them; the alternative — a crumble — is harsher
+       * than the page in the other direction.
+       *
        * "(level 5 version)" is `level: 5` on a price of 5: five charges buy
        * the level 5 casting and nothing buys more.
        */
@@ -2503,6 +2511,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       unmodelled: [
         '"While holding it, you gain a +2 bonus to Armor Class, saving throws, and spell attack rolls": the third of the three is not granted, because no standing effect raises a spell attack roll',
         '"On a 20, the staff regains 1d8 + 2 charges": the last charge’s d20 is thrown for the 1, and a 20 on it pays nothing',
+        '"the staff retains its +2 bonus to attack rolls and damage rolls but loses all other properties": what is left is the catalogue’s +2 Quarterstaff, which asks no attunement where the staff’s +2 was given only while attuned — so a 1 frees the attunement and hands the +2 to whoever picks the stick up, and whether the staff’s bracket survives among "all other properties" is the table’s to hold the wielder to',
         '"_Retributive Strike._ You can take a Magic action to break the staff over your knee or against a solid surface": an explosion sized by the charges left in the staff, a 50 percent trip to a random plane, and damage its breaker takes with neither an attack roll nor a save',
       ],
     },

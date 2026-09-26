@@ -7,6 +7,7 @@ import {
   checkContent,
   createRng,
   createRollIssuer,
+  extendContent,
   fold,
   ongoingSpellOf,
   resolveSpell,
@@ -153,14 +154,14 @@ describe('the Potion of Animal Friendship is drunk out of the pack, and casts', 
 
   it('is refused, with nothing drunk, when the cast itself is refused', () => {
     const log = carrying();
-    // A Humanoid is not a Beast, and the spell says so before the bottle goes.
+    // The spell will not take its own caster, and says so before the bottle goes.
     const out = resolveSpell(
       fold('seed', log),
       WIELDER,
       { spellId: 'animal-friendship', targets: [WIELDER], item: POTION },
       supply('wrong'),
     );
-    expect(isErr(out)).toBe(true);
+    expect(isErr(out) && out.code).toBe('cannot_target_self');
   });
 
   it('names no charges, because a bottle has none', () => {
@@ -194,11 +195,46 @@ describe('the Potion of Animal Friendship is drunk out of the pack, and casts', 
       expect(spent).toEqual(['action-spent', 'bonus-action-spent']);
     });
 
-    it('is refused, with the bottle still full, once the Bonus Action is gone', () => {
+    it('is refused, with nothing drunk, once the Bonus Action is gone', () => {
       const log = [...fight(carrying()), { type: 'bonus-action-spent' as const, id: WIELDER }];
       const out = drink(log);
-      expect(isErr(out)).toBe(true);
-      expect(bottles(log)).toBe(1);
+      expect(isErr(out) && out.code).toBe('no_bonus_action');
+    });
+
+    /**
+     * A turn has one Bonus Action, so a bottle drunk with one cannot also
+     * cast a spell that takes one. The two spends are each asked of the state
+     * before the batch, so without this refusal they would both be paid out of
+     * the same Bonus Action.
+     */
+    it('is refused when the drink and the casting want the same Bonus Action', () => {
+      const flask: CatalogueItem = {
+        id: 'flask-of-healing-word',
+        name: 'Flask of Healing Word',
+        kind: 'potion',
+        weightLb: 0.5,
+        costCp: null,
+        armor: null,
+        weapon: null,
+        contents: [],
+        grants: [{ kind: 'casts', spell: 'healing-word', usedUp: { action: 'bonus-action' } }],
+      };
+      const content = unwrap(extendContent(SRD_CONTENT, { items: [flask] }), 'the flask');
+      const owning = run(BASE, (s) =>
+        awardItems(s, supply('hoard', content), WIELDER, [{ id: flask.id }], 'the hoard'),
+      );
+      const heal = (log: readonly GameEvent[]) =>
+        resolveSpell(
+          fold('seed', log),
+          WIELDER,
+          { spellId: 'healing-word', targets: [WIELDER], item: flask.id },
+          supply('heal', content),
+        );
+      const refused = heal(fight(owning));
+      expect(isErr(refused) && refused.code).toBe('no_bonus_action');
+      // Out of a fight there is no economy to share, and it is drunk.
+      const drunk = unwrap(heal(owning), 'the flask out of a fight');
+      expect(drunk.events.some((e) => e.type === 'items-lost')).toBe(true);
     });
   });
 

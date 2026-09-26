@@ -4893,16 +4893,14 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // where it lands.
   // Re-derived, and only one of its three blockers survived. The Blinded
   // condition its DC 15 save imposes, the minute it lasts and the repeat that
-  // ends it are all built, and a charge spent on a conferral is built too —
-  // what is left is "at one creature you can see within 60 feet of yourself"
-  // for the second command word, the 30-foot Cone for the third, and a light
-  // that lasts "until you take a Bonus Action to repeat the command word".
+  // ends it are all built, and a charge spent on a conferral is built too.
   // Re-read against `confers.reach` (treasure T-C1), and the distance has
-  // stopped being a blocker: "fire a brilliant beam of light at one creature
-  // you can see within 60 feet of yourself" is a reach of 60 with the sight
-  // asked, and the DC 15 Constitution save with its end-of-turn repeat is the
-  // Wand of Paralysis's `save` exactly. What is left is the light its first
-  // command word switches on and off and the 30-foot Cone of its third.
+  // gone with them: "fire a brilliant beam of light at one creature you can
+  // see within 60 feet of yourself" is a reach of 60 with the sight asked,
+  // and the save with its end-of-turn repeat is the Wand of Paralysis's
+  // `save` exactly. What is left is the 30-foot Cone of the third command
+  // word, and a light that lasts "until you take a Bonus Action to repeat the
+  // command word".
   'gem-of-brightness': [
     'a-benefit-an-item-switches-on-and-off',
     'an-area-an-item-creates',
@@ -4978,17 +4976,16 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   // "Once the bands are used, they can't be used again until the next dawn"
   // is a pool of one on this copy, which is what keying a pool to the
-  // instance bought. The Restrained condition is what is left.
-  // Re-read against `confers.reach` (treasure T-C1): "a Huge or smaller
-  // creature you can see within 60 feet of yourself" is a reach of 60 with the
-  // sight asked, so the distance is not what keeps the bands out. The ranged
-  // attack roll the thrower makes and the Restrained that a Bonus Action
-  // releases and a DC 20 check breaks are, and "Huge or smaller" is a size
-  // gate no conferral carries either, which the attack shape stands in front
-  // of rather than a shape of its own.
+  // instance bought. The Restrained condition is what is left, beside the
+  // ranged attack roll the thrower makes. Re-read against `confers.reach`
+  // (treasure T-C1): "a Huge or smaller creature you can see within 60 feet of
+  // yourself" is a reach of 60 with the sight asked, so the distance went;
+  // **"Huge or smaller" did not**, because a conferral has no target rule at
+  // all, and a record without it would bind a Gargantuan.
   'iron-bands': [
     'a-condition-an-item-imposes',
     'a-damage-roll-an-item-makes',
+    'a-target-rule-the-format-cannot-state',
   ],
   // The instance shape stays: "The flask can hold only one creature at a
   // time" and "A newly discovered _Iron Flask_ might already contain a
@@ -5193,17 +5190,16 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // Re-pointed off the condition shape. Its Charmed is imposed by the ring's
   // own DC 18 save, which is built; what the same sentence then says is not
   // — "you determine what it does with its move and action on its next
-  // turn" — and the sixty feet it reaches is the other half.
-  // Re-read against `confers.reach` (treasure T-C1): Elemental Compulsion's
-  // "compel an Elemental you see within 60 feet of yourself" is a reach of 60
-  // with the sight asked. What the sentence still wants is its consequence,
-  // "you determine what it does with its move and action", and a target that
-  // must be an Elemental, which no conferral filters on and which the
-  // compulsion stands in front of.
+  // turn". Re-read against `confers.reach` (treasure T-C1): "compel an
+  // Elemental you see within 60 feet of yourself" is a reach of 60 with the
+  // sight asked, so the distance went; **"an Elemental" did not**, because a
+  // conferral has no target rule at all, and a record without it would compel
+  // anything the wearer can see.
   'ring-of-elemental-command': [
     'a-version-of-an-item-the-book-leaves-to-the-gm',
     'a-language-or-a-proficiency-an-item-grants',
     'a-spell-an-item-casts-that-nothing-executes',
+    'a-target-rule-the-format-cannot-state',
     'an-action-a-spell-compels-or-forbids',
     'movement-modes',
     'a-speed-an-item-grants',
@@ -5244,13 +5240,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // "The ring produces a spectral ram's head and makes its attack roll with a
   // +7 bonus" is an attack an item rolls itself, and "for each charge you
   // spend, the target takes 2d10 Force damage" is a benefit that grows with
-  // the count spent, which is the charge shape's own surviving residue. The
-  // sixty feet is the third.
+  // the count spent, which is the charge shape's own surviving residue.
   // Re-read against `confers.reach` (treasure T-C1): "one creature you can
-  // see within 60 feet of yourself" is a reach of 60 with the sight asked.
-  // What keeps the ring out is the ram's own "+7" attack roll and the object
-  // its charges break with a Strength check, neither of which a conferral
-  // makes.
+  // see within 60 feet of yourself" is a reach of 60 with the sight asked, so
+  // the sixty feet that stood third is not a blocker any more.
   'ring-of-the-ram': [
     'a-charge-spent-on-something-other-than-a-casting',
     'a-damage-roll-an-item-makes',
@@ -5312,12 +5305,11 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   // The condition shape is kept for the second residue: the Restrained it
   // imposes has no span at all — it ends when the holder lets go — and the
   // way out is "a DC 15 Strength (Athletics) or Dexterity (Acrobatics)
-  // check", which is a `ConditionRider`'s refused `check`. Twenty feet is the
-  // third thing, and the rope's own AC 20 and 20 Hit Points the fourth.
-  // Re-read against `confers.reach` (treasure T-C1): "entangle one creature
-  // you can see within 20 feet of yourself" is a reach of 20 with the sight
-  // asked. The Restrained a DC 15 check escapes and the rope's own "AC 20, HP
-  // 20" are what is left, and both limit the rope.
+  // check", which is a `ConditionRider`'s refused `check`. The rope's own AC
+  // 20 and 20 Hit Points are the third. Re-read against `confers.reach`
+  // (treasure T-C1): "entangle one creature you can see within 20 feet of
+  // yourself" is a reach of 20 with the sight asked, so the twenty feet that
+  // stood beside them is not a blocker any more.
   'rope-of-entanglement': [
     'a-condition-an-item-imposes',
     'an-object-with-statistics-of-its-own',

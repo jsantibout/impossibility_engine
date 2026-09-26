@@ -3021,7 +3021,15 @@ function resolveOnTargets(
   // **Or the bottle is the price**, in the same place for the same reason: SRD
   // Potion of Animal Friendship is drunk as it casts, and a potion is used up.
   // See `itemUsedUp`.
-  const drunk = itemUsedUp(state, route, casterId, caster, definition, supply.content);
+  const drunk = itemUsedUp(
+    state,
+    route,
+    casterId,
+    caster,
+    definition,
+    casting.castingTime,
+    supply.content,
+  );
   if (!drunk.ok) return drunk;
   events.push(...drunk.value);
 

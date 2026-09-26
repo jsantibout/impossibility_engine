@@ -463,7 +463,7 @@ describe('the two shapes the re-derivation was sent to check', () => {
    * its ray travels — is transcribed now: `confers.reach` said the distance
    * and the pool's `onLastCharge` the crumble, so it left the map.
    *
-   * **And the field paid the shape for six more** (treasure T-D1): a gem's
+   * **And the field paid the shape for five more** (treasure T-D1): a gem's
    * beam, an iron sphere, a ram's head, a rope and a compelled Elemental each
    * aim at one creature the user can see at a printed distance, which is the
    * reach, so each was re-pointed to what else it waits on. What is left is
@@ -489,6 +489,12 @@ describe('the two shapes the re-derivation was sent to check', () => {
     ]) {
       expect(itemBlockersOf(id), id).not.toContain('a-range-an-item-names');
       expect(itemBlockersOf(id).length, id).toBeGreaterThan(0);
+    }
+    // And the two whose range clause also filters who may be aimed at keep
+    // the filter on the map: "a Huge or smaller creature", "an Elemental". A
+    // conferral has no target rule, so each is a limit rather than a note.
+    for (const id of ['iron-bands', 'ring-of-elemental-command']) {
+      expect(itemBlockersOf(id), id).toContain('a-target-rule-the-format-cannot-state');
     }
 
     // **Nothing a range field would finish.** The Necklace of Fireballs wants

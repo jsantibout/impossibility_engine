@@ -51,7 +51,7 @@ import {
   numbersRead,
   type SpellDefinition,
 } from '../spell-definitions.js';
-import type { CastingNumbers } from '../spells.js';
+import type { CastingNumbers, CastingTime } from '../spells.js';
 import { classOfRoute, statedNumbersOf, type CastingRoute } from '../spellcasting.js';
 import { standingSpellSaveDcBonus } from '../standing.js';
 import type { GameState } from '../state.js';
@@ -623,6 +623,12 @@ export function chargeSpend(
  * Action would be a potion drunk for free, which is a better potion than the
  * book's.
  *
+ * **One turn has one of each**, so a drink and a casting that want the same
+ * one are refused rather than both paid out of it: a homebrew bottle drunk
+ * with a Bonus Action that casts a Bonus Action spell needs two, and the
+ * casting's own spend and this one are each asked of the state before the
+ * batch, so neither would see the other.
+ *
  * Nothing for any other route, and nothing for an item that is not used up.
  * The grant is read off the catalogue here as `itemRoute` read it a moment
  * earlier in the same command, which is the reading the last-charge rule
@@ -634,6 +640,8 @@ export function itemUsedUp(
   casterId: CharacterId,
   caster: CreatureState,
   definition: SpellDefinition,
+  /** The time this casting takes, as the casting resolved it — a branch may print its own. */
+  castingTime: CastingTime,
   content: Content,
 ): Result<readonly GameEvent[]> {
   if (route.kind !== 'item') return ok([]);
@@ -649,6 +657,13 @@ export function itemUsedUp(
 
   const events: GameEvent[] = [];
   if (usedUp.action !== undefined && state.combat !== null) {
+    if (usedUp.action === castingTime) {
+      const which = usedUp.action === 'bonus-action' ? 'a Bonus Action' : 'an action';
+      return err(
+        usedUp.action === 'bonus-action' ? 'no_bonus_action' : 'no_action',
+        `${item.name} is used with ${which} and ${definition.name} is cast with ${which} as well, and ${casterId} has one this turn`,
+      );
+    }
     const spent = spendFor(state, casterId, usedUp.action);
     if (!spent.ok) return spent;
     events.push(spent.value);
