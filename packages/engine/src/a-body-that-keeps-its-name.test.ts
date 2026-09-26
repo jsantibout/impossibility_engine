@@ -13,11 +13,14 @@ import { declaredCasting } from './spellcasting.js';
 import { walkerOf } from './state.js';
 import {
   advanceTime,
+  beginCombat,
   eligibleTargets,
   pendingCastingsOf,
   removeCreatureEverywhere,
   resolveDeclaredCast,
   resolveSpell,
+  resolveTurn,
+  summonCreature,
 } from './commands.js';
 
 /**
@@ -380,6 +383,47 @@ describe('the body lies where its walker fell', () => {
     expect(g.state.scene!.positions[SER]).toEqual(lying);
   });
 
+  it('leaves a body the table has already put somewhere where the table put it', () => {
+    const g = new Game();
+    unwrap(g.animate(), 'the rite');
+    const zombie = g.zombie();
+    g.push([{ type: 'creature-placed', id: SER, placement: { from: { creature: CLERIC }, feet: 15, bearing: 180 } }]);
+    const put = g.state.scene!.positions[SER];
+    g.push([{ type: 'damage-taken', id: zombie, amount: 40, source: 'a greataxe' }]);
+    expect(g.state.scene!.positions[SER]).toEqual(put);
+    expect(g.state.scene!.positions[zombie]).toBeUndefined();
+  });
+
+  /**
+   * The most common way a Zombie falls: in the fight it was raised for. The
+   * dead walker keeps its seat in the order, as every dead monster does, and
+   * the turns go past it.
+   */
+  it('lets the fight go on past a walker that fell in the order', () => {
+    const g = new Game();
+    unwrap(g.animate(), 'the rite');
+    const zombie = g.zombie();
+    g.push(
+      unwrap(
+        beginCombat(g.state, [
+          { id: CLERIC, initiative: 15, speed: 30 },
+          { id: zombie, initiative: 10, speed: 20 },
+          { id: PRIEST, initiative: 5, speed: 30 },
+        ]),
+        'the fight',
+      ),
+    );
+    const where = g.state.scene!.positions[zombie];
+    g.push([{ type: 'damage-taken', id: zombie, amount: 40, source: 'a greataxe' }]);
+    for (let turn = 0; turn < 4; turn += 1) {
+      g.push(unwrap(resolveTurn(g.state, supply(`turn ${turn}`)), `turn ${turn}`).events);
+    }
+    expect(g.state.combat?.round).toBe(2);
+    expect(g.state.scene!.positions[SER]).toEqual(where);
+    expect(g.state.scene!.positions[zombie]).toBeUndefined();
+    expect(replayed(g.events)).toEqual(g.state);
+  });
+
   it('leaves her unplaced when the Zombie is taken out of the game instead', () => {
     const g = new Game();
     unwrap(g.animate(), 'the rite');
@@ -437,6 +481,58 @@ describe('the resolvers refuse a body that is not a corpse', () => {
   });
 });
 
+/**
+ * The body lies inside the space its walker leaves: at its own size where
+ * that fits, at the walker's where the body would be bigger. Written as logs,
+ * because no printed raising puts a Large body in a Medium walker — the fold
+ * reads the link whatever raised it.
+ */
+describe('the size a body lies at', () => {
+  const body = (who: CharacterId, size: 'medium' | 'large', creatureType = 'Humanoid'): GameEvent => ({
+    type: 'creature-added',
+    id: who,
+    name: who,
+    sheet: sheet(),
+    maxHp: 20,
+    diesAtZero: true,
+    creatureType,
+    size,
+  });
+
+  const fell = (bodySize: 'medium' | 'large', walkerSize: 'medium' | 'large'): GameState => {
+    const B = id('body');
+    const W = id('walker');
+    return fold('seed', [
+      ...caster(CLERIC),
+      body(B, bodySize),
+      body(W, walkerSize, 'Undead'),
+      { type: 'scene-set', extent: { width: 400, depth: 400, height: 40 } },
+      { type: 'landmark-added', name: 'the field', at: { x: 100, y: 100, z: 0 } },
+      { type: 'creature-placed', id: CLERIC, placement: { from: { landmark: 'the field' }, feet: 0 } },
+      {
+        type: 'creature-placed',
+        id: W,
+        placement: { from: { creature: CLERIC }, feet: 15, bearing: 0, size: walkerSize },
+      },
+      { type: 'creature-died', id: B, cause: 'the fixture' },
+      { type: 'creature-summoned', id: W, by: CLERIC, controlled: { spell: 'animate-dead', until: DAY }, raisedFrom: B },
+      { type: 'damage-taken', id: W, amount: 40, source: 'a greataxe' },
+    ]);
+  };
+
+  it('lies at its own size inside a larger walker’s space', () => {
+    const after = fell('medium', 'large');
+    expect(after.scene!.positions['body']).toBeDefined();
+    expect(after.scene!.sizes['body']).toBe('medium');
+  });
+
+  it('lies at the walker’s size where it would not fit the space', () => {
+    const after = fell('large', 'medium');
+    expect(after.scene!.positions['body']).toBeDefined();
+    expect(after.scene!.sizes['body']).toBe('medium');
+  });
+});
+
 describe('the fold holds the link to a body', () => {
   const raisedLog = (): { log: GameEvent[]; zombie: CharacterId } => {
     const g = new Game();
@@ -450,6 +546,13 @@ describe('the fold holds the link to a body', () => {
       event.type === 'creature-summoned' && event.id === zombie ? { ...event, raisedFrom: id('nobody') } : event,
     );
     expect(() => fold('seed', rewritten)).toThrow(CorruptLogError);
+  });
+
+  it('treats a body named for a creature bound to nothing as the caller’s error', () => {
+    const g = new Game();
+    expect(() =>
+      summonCreature(g.state, homebrew, { id: id('drifter'), monsterId: 'zombie', by: CLERIC, raisedFrom: SER }),
+    ).toThrow(/no bond/);
   });
 
   it('refuses a second living walker for one body', () => {

@@ -1485,9 +1485,10 @@ export interface TrackedAdjudication {
    * at which the owner took the general form instead of a fourth list: Speak
    * with Animals widens the Influence action, Gaseous Form forbids talking
    * and handling objects, and Haste's extra action may be spent on a Utilize
-   * — and every one of those is `an-action-the-engine-has-no-spender-for`,
-   * which `NAMED_ACTIONS` describes from the feature side because no spender
-   * could be told apart as having taken one. So the field is
+   * — and every one of those was `an-action-the-engine-has-no-spender-for`,
+   * which `NAMED_ACTIONS` described from the feature side because no spender
+   * could be told apart as having taken one. (All three have since left it,
+   * and the id left the vocabulary with the last on 2026-09-26.) So the field is
    * {@link BlockerId}, which is a shape in any of the three maps, and the
    * disjointness that makes that unambiguous is asserted rather than assumed.
    */

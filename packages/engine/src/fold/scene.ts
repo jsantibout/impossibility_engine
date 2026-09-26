@@ -283,11 +283,12 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
  * the table to place; a body the table has already put somewhere stays there.
  *
  * **The space is the walker's**, so no rule about sharing a space can be met:
- * the walker's footprint leaves and the body fills exactly it — at its own
- * size where that is the same footprint (a Small body out of a Medium
- * Zombie), and at the walker's where it is not, so the cubes never grow. Not
- * an entry into anything: a creature arriving in the scene has no outside to
- * have come from (`raiseAreaEntries`).
+ * the walker's footprint leaves and the body lies inside it, anchored at the
+ * same corner — at its own size where that fits (a Small body out of a Medium
+ * Zombie, a Medium one out of anything larger), and at the walker's where the
+ * body would be bigger than the space it is falling into, so the cubes never
+ * grow. Not an entry into anything: a creature arriving in the scene has no
+ * outside to have come from (`raiseAreaEntries`).
  */
 export function layBodiesWhereWalkersFell(before: GameState, after: GameState): GameState {
   let current = after;
@@ -309,7 +310,7 @@ export function layBodiesWhereWalkersFell(before: GameState, after: GameState): 
     }
     const filled = scene.sizes[key] ?? 'medium';
     const size =
-      corpse.size !== null && footprintOf(corpse.size) === footprintOf(filled) ? corpse.size : filled;
+      corpse.size !== null && footprintOf(corpse.size) <= footprintOf(filled) ? corpse.size : filled;
     current = {
       ...current,
       scene: {
