@@ -56,6 +56,7 @@ import {
   LEGENDARY_POOL,
   printedBoundaryDamage,
   type PrintedBoundaryDamage,
+  printedLineHolder,
   printedSaveOf,
   RECHARGE_DIE,
   rechargeMade,
@@ -1997,10 +1998,16 @@ export function resolvePendingSaves(
         // casting's record names its caster. Derived here rather than carried on
         // the debt, which is the rule the two answers above it follow. What the
         // causer *is* is the gatherer's to read; this says who.
+        //
+        // **And a stat block's own line, second** — W8-S24. SRD Quasit's
+        // Scare: "At the end of each of its turns, the target repeats the
+        // save." That repeat hangs under the line's own source, which names
+        // the creature whose line it is, and `printedLineHolder` reads it back.
         (() => {
           const from = castingIdOf(pending.source);
           const caster = from === null ? undefined : state.ongoing[from]?.caster;
-          return caster === undefined ? undefined : (caster as CharacterId);
+          if (caster !== undefined) return caster as CharacterId;
+          return printedLineHolder(state, pending.source) ?? undefined;
         })(),
       );
       // The sheet as it stands: a save the boundary repeats is a save, and an

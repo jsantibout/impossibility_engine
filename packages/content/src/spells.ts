@@ -11816,20 +11816,25 @@ const WARDED_AGAINST = [
  * unqualified would protect the target from its own party, which is the
  * confident wrong answer rather than the missing one.
  *
- * **Two of the three carry the qualification now.** `RollSelector` has an axis
- * for the **attacker's** type, read off the creature rolling exactly as SRD
- * says a spell reads a type; and a granted condition Immunity may name the
- * types it holds against, which the door that applies a condition asks about
- * whatever is causing it. A Ghoul swings at Disadvantage and a bandit swings
- * normally; the Ghoul cannot frighten the target and the bandit can.
+ * **All three carry the qualification now.** `RollSelector` has an axis for
+ * the **attacker's** type, read off the creature rolling exactly as SRD says a
+ * spell reads a type; and a granted condition Immunity may name the types it
+ * holds against, which the door that applies a condition asks about whatever
+ * is causing it — a casting's caster, or the creature whose stat-block line it
+ * is. A Ghoul swings at Disadvantage and a bandit swings normally; the Ghoul
+ * cannot frighten the target and the bandit can, and a Quasit's Scare and a
+ * Sprite's Enchanting Bow are refused as a Ghoul's Fear is.
  *
- * **The third is still a debt and says so.** "The target has Advantage on any
- * new saving throw against the relevant effect" needs a save to remember what
- * it was against, which is the gap `CLAUDE.md` has recorded since
- * Countercharm; and possession is not a state the engine holds at all. Both
- * are `unmodelled` rather than handed over, because both are rules the engine
- * would execute the day it could — a handover is for a sentence nobody will
- * ever build.
+ * **And the third reads who forced the save.** "The target has Advantage on
+ * any new saving throw against the relevant effect" is a mode on a save
+ * narrowed by the condition it is about and by the type of the creature the
+ * target is already under: a repeat save names it through its source — a
+ * casting's caster, or a printed line's creature — and a new save a stat
+ * block's line forces names it where that line already holds the target
+ * (W8-S24). Possession is not a state the engine holds at all, and stays
+ * `unmodelled` rather than handed over, because it is a rule the engine would
+ * execute the day it could — a handover is for a sentence nobody will ever
+ * build.
  */
 export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   id: 'protection-from-evil-and-good',
@@ -11885,7 +11890,6 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   durationSeconds: 600,
   unmodelled: [
     'the clause that the target can’t be possessed by such a creature is not applied: possession is not a state the engine holds, so there is nothing for the protection to refuse',
-    'the Advantage reaches a repeat save a casting raised and not one a printed line raised: a save knows what forced it where the timer names a casting and the casting’s record names its caster, and a stat block’s own save — a Fiend’s Frightful Presence — is settled by a road that carries no such name yet',
   ],
 };
 

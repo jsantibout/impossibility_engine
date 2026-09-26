@@ -476,8 +476,8 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'protection-from-energy',
   // `protection-from-evil-and-good.test.ts`: the Ghoul swinging at Disadvantage
   // and the bandit swinging normally, the Ghoul unable to frighten the cleric
-  // and the bandit able to, and the two clauses the spell still owes reported
-  // on every casting.
+  // and the bandit able to, and the possession clause reported on every casting;
+  // the printed road is `printed-save-provenance.test.ts`.
   'protection-from-evil-and-good',
   'protection-from-poison',
   // `ray-of-enfeeblement.test.ts`: the Constitution save, the Disadvantage a

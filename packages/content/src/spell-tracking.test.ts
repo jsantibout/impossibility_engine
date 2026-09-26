@@ -2003,8 +2003,8 @@ describe('every spell this batch added is cast for real', () => {
     // the target against its own party. A `RollSelector` reads the attacker's
     // creature type now and a granted condition Immunity may name the types it
     // holds against, so two of the three are executed. The third is the
-    // Advantage on "any new saving throw against the relevant effect", which
-    // still wants a save that remembers what it was against.
+    // Advantage on "any new saving throw against the relevant effect", since
+    // executed too: a save names who forced it (W8-S24).
     'protection-from-evil-and-good',
     // **Ray of Enfeeblement leaves on three shapes at once**, which is what
     // kept it tracked: a selector for a family of D20 Tests narrowed by an

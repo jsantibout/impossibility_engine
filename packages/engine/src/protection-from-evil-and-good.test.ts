@@ -431,5 +431,9 @@ describe('the catalogue says what this spell does', () => {
     // And the clause that used to sit beside it is granted now, so it is no
     // longer reported as a debt.
     expect(unverified.join(' ')).not.toContain('nothing records what a save was against');
+    // Nor is the printed road the Advantage used to miss — W8-S24, driven end
+    // to end in `printed-save-provenance.test.ts`: a Quasit's Scare repeated
+    // with Advantage, and refused outright once the ward is up.
+    expect(unverified.join(' ')).not.toContain('a printed line raised');
   });
 });

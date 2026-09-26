@@ -65,7 +65,28 @@ export function resolveConditionEffect(
         // `useItem` for a bottle, `usePoolOption` for a feature's pool use —
         // and the other three are fields `checkContent` refuses both hosts for
         // printing.
-        conditionLanding(applyConditionTo(current, target, rider.name, ctx.source))
+        //
+        // **Who is causing it is still said** — W8-S24. A stat block's hit
+        // rider arrives here as a feature's effect list (SRD Sprite's
+        // Enchanting Bow: "the target has the Charmed condition"), and SRD
+        // Protection from Evil and Good refuses that condition "from them":
+        // the creature whose line, feature or item this is.
+        conditionLanding(
+          applyConditionTo(
+            current,
+            target,
+            rider.name,
+            ctx.source,
+            [],
+            undefined,
+            undefined,
+            {},
+            undefined,
+            undefined,
+            undefined,
+            casterId,
+          ),
+        )
       : imposeCondition(
           current,
           target,

@@ -778,6 +778,11 @@ export function applyPrintedClauses(
               ...(clause.endsOnDamage === undefined ? {} : { onDamage: clause.endsOnDamage }),
               ...(clause.endsWhenWoken === undefined ? {} : { whenWoken: clause.endsWhenWoken }),
             },
+            // **And whose line it is** — W8-S24. SRD Protection from Evil and
+            // Good: the target "can't … gain the Charmed or Frightened
+            // conditions **from them**", and a Quasit's Scare is from the
+            // Quasit whether or not it ever cast a spell.
+            source,
           ),
         );
         if (!landed.ok) return landed;
@@ -1809,7 +1814,49 @@ export function forcePrintedSaveOn(
       `${target} is ${victim.creatureType} and fails ${line} automatically — no die was thrown`,
     );
   } else {
-    const support = savingSupport(current, target, victim, ability, {});
+    // **What the save is about, and whose effect it already answers** — W8-S24.
+    // SRD Dwarven Resilience: "Advantage on saving throws you make to avoid or
+    // end the Poisoned condition" — the conditions a failure here would impose
+    // are what this save avoids, read off the line as the spell road reads its
+    // riders. And SRD Protection from Evil and Good: "If the target is already
+    // … Frightened by such a creature, the target has Advantage on any new
+    // saving throw against the relevant effect" — so the line's holder is named
+    // as the one who forced it only where this very line already holds the
+    // target, and a first save names nobody, as a spell's first save does.
+    //
+    // Both failure lists, because the margin that picks between them is not
+    // known until the die is thrown; and what a clause carries with it (SRD
+    // Chuul's "While Poisoned, the target has the Paralyzed condition"), an
+    // engulf's hold and a branch's arm, because each is imposed by a failure.
+    const imposedBy = (clauses: readonly PrintedSaveEffect[]): readonly ConditionName[] =>
+      clauses.flatMap((clause): readonly ConditionName[] =>
+        clause.kind === 'condition'
+          ? [clause.condition, ...(clause.implies ?? [])]
+          : clause.kind === 'engulfs'
+            ? (clause.whileInside ?? [])
+            : clause.kind === 'branch'
+              ? imposedBy(clause.then)
+              : [],
+      );
+    const about = [
+      ...new Set(imposedBy([...(printed.onFailure ?? []), ...(printed.onFailureBy?.effects ?? [])])),
+    ];
+    // "Already … by such a creature": a condition instance this line hung,
+    // under its own source or a key beneath it.
+    const already = victim.conditions.instances.some(
+      (held) => held.source === shielded || held.source.startsWith(`${shielded}:`),
+    );
+    const support = savingSupport(
+      current,
+      target,
+      victim,
+      ability,
+      {},
+      about,
+      undefined,
+      undefined,
+      already ? by : undefined,
+    );
     // The sheet as it stands, so an item that sets the ability this save is
     // made with reaches the save rather than stopping at the page — the
     // reading a spell's save already takes.

@@ -104,10 +104,15 @@ export function applyConditionTo(
    * the record that would say who cast it is written *after* the casting's
    * effects resolve — so at the moment a condition lands there is nothing to
    * read it off. `applySpellEffect` already holds the caster and passes it,
-   * which is every condition a spell imposes.
+   * which is every condition a spell imposes; a stat block's line — a printed
+   * save's condition, a hit's rider, a grapple, an attach — passes the
+   * creature whose line it is; and an item's or a feature's conferral with no
+   * save passes the creature using it, which is the road a printed hit's
+   * condition rider takes (W8-S24).
    *
    * Absent is a cause with no creature behind it, or one nobody has named: a
-   * hazard, a DM's bare ruling, a poison in a bottle, a blow's own rider. A
+   * hazard, a DM's bare ruling, and an item's or a feature's condition that a
+   * failed save imposes (a poison in a bottle), whose resolver names nobody. A
    * narrowed Immunity does not bite on one, which is the direction every
    * unsettled fact here takes — the engine cannot show the creature is exempt,
    * and sparing it on a fact nobody has stated would be the rule quietly doing

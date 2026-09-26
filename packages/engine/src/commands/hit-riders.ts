@@ -922,6 +922,10 @@ function makeTheGrapple(
       // at the escape, at either automatic lapse and at a release — through
       // the doors those already go through.
       grapple.whileHeld,
+      undefined,
+      // And who is holding on, which a condition Immunity narrowed to its
+      // cause reads — W8-S24. See `applyConditionTo`'s `from`.
+      hit.attacker,
     ),
   );
   if (!landed.ok) return landed;
@@ -1061,7 +1065,21 @@ function makeTheAttach(
   let current = events.reduce(applyEvent, world);
   for (const condition of attach.whileHeld ?? []) {
     const landed = conditionLanding(
-      applyConditionTo(current, hit.target, condition, attachSource(hit.attacker)),
+      applyConditionTo(
+        current,
+        hit.target,
+        condition,
+        attachSource(hit.attacker),
+        [],
+        undefined,
+        undefined,
+        {},
+        undefined,
+        undefined,
+        undefined,
+        // The creature that attached is the one causing it — W8-S24.
+        hit.attacker,
+      ),
     );
     if (!landed.ok) return landed;
     if (!landed.value.landed) {
@@ -1174,6 +1192,10 @@ function onDroppingToZero(
       {},
       undefined,
       one.implies,
+      undefined,
+      // The creature whose blow this was is the one causing it — W8-S24. SRD
+      // Protection from Evil and Good reads the causer's type through this.
+      hit.attacker,
     );
     const landed = conditionLanding(applied);
     if (!landed.ok) return landed;
