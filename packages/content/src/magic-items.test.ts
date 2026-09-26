@@ -541,6 +541,28 @@ describe('what an item does not do is data, and quotes the page', () => {
       }
     }
     expect(misquoted).toEqual([]);
+
+    /**
+     * **A handover is held harder than a note**, because it *is* the
+     * quotation: a note quotes the page inside a reason, and a `dmDecides`
+     * entry is the book's own words and nothing else — what the table is
+     * handed is what the page prints. So the whole entry must be found in the
+     * item's own paragraph (an ellipsis may join two runs of it), not just
+     * whatever it puts in quotation marks.
+     */
+    const unprinted = (item: CatalogueItem): readonly string[] => {
+      const entry = entryFor(item);
+      return (item.dmDecides ?? [])
+        .filter((printed) => !contains(entry.description, printed))
+        .map((printed) => `${item.id} hands over what ${entry.name} does not print: "${printed}"`);
+    };
+    const handing = SRD_MAGIC_ITEMS.filter((item) => item.dmDecides !== undefined);
+    expect(handing.length).toBeGreaterThan(0);
+    expect(handing.flatMap(unprinted)).toEqual([]);
+
+    // And it bites: the cube's faces, reworded by one word, are not the page.
+    const cube = SRD_MAGIC_ITEMS.find((item) => item.id === 'cube-of-force')!;
+    expect(unprinted({ ...cube, dmDecides: ['Each face has a distinct rune on it.'] })).toHaveLength(1);
   });
 
   /**

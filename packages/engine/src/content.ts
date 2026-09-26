@@ -59,7 +59,7 @@ import type { ActionRule } from './combat.js';
 import { TURN_ANCHORS } from './time.js';
 import { oneShotProblem, rollSelectorProblems } from './roll-modifiers.js';
 import type { ObjectMaterial, ObjectSize } from './objects.js';
-import { CREATURE_TYPES, hasOutcomeRiders } from './spell-definitions.js';
+import { CREATURE_TYPES, DM_DECIDES, hasOutcomeRiders } from './spell-definitions.js';
 import type { OutcomeRiders, SpellDefinition } from './spell-definitions.js';
 import {
   checkActionRule,
@@ -1512,6 +1512,110 @@ function itemUnmodelledProblems(item: CatalogueItem): readonly ContentProblem[] 
         field: `${where}[${index}]`,
         code: 'empty_note',
         reason: 'an empty note declares nothing',
+      });
+    }
+  });
+  return found;
+}
+
+/**
+ * Whether what an item hands to the table can be told from what it owes.
+ *
+ * `checkSpellDefinition`'s rules for `dmDecides`, asked of the item twin: a
+ * handover that is not a list, or a sentence that says nothing, hands nothing
+ * over; and the mark `handedOver` writes is the engine's to write, so a
+ * handover spelling it would reach the table with the mark still in the text
+ * and a debt spelling it would read as a decision nobody may take.
+ *
+ * One rule the spell side does not need: **a sentence filed in both lists is
+ * refused.** `docs/design/content.md` sorts every printed sentence one way —
+ * a table fact a rule then reads is a debt, one nothing reads is a handover —
+ * and a sentence left in `unmodelled` after it moved here would keep the item
+ * partial on the strength of a debt its own record says is not one.
+ *
+ * The test is containment in **both directions**, because the two lists quote
+ * differently. A note quotes inside the reason it gives, and usually quotes a
+ * fragment — so a run a note puts in quotation marks that is found in a
+ * handover is a claim on that handover's sentence. A handover is the book's
+ * words and may elide the part of a sentence the record executes (`...`) —
+ * so a handover whose parts are all found, in order, in a note is the same
+ * sentence filed twice. Both ignore case, spacing and closing punctuation,
+ * because a quotation starts and stops mid-sentence as often as not.
+ *
+ * Whether each handover is really the table's is a reading, not a shape, and
+ * whether it quotes the item's own entry is the catalogue's question: neither
+ * is asked here.
+ */
+function itemHandoverProblems(item: CatalogueItem): readonly ContentProblem[] {
+  const found: ContentProblem[] = [];
+  const where = `items[${item.id}]`;
+  const forges = (text: unknown): boolean => isString(text) && text.includes(DM_DECIDES);
+  const plain = (text: string): string =>
+    text.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[\s.,;:!?]+$/, '');
+  /** The runs of a quotation that an elision (`...`) joins, each made plain. */
+  const partsOf = (text: string): readonly string[] =>
+    text
+      .split(/\s*(?:\.\.\.|…)\s*/)
+      .map(plain)
+      .filter((part) => part.length > 0);
+  /** Every part found in `haystack`, each after the one before it. */
+  const inOrder = (parts: readonly string[], haystack: string): boolean => {
+    let cursor = 0;
+    for (const part of parts) {
+      const at = haystack.indexOf(part, cursor);
+      if (at < 0) return false;
+      cursor = at + part.length;
+    }
+    return parts.length > 0;
+  };
+  /** What a note puts in quotation marks, straight or curly. */
+  const quotedIn = (note: string): readonly string[] =>
+    [...note.matchAll(/"([^"]+)"|“([^”]+)”/g)].map((match) => match[1] ?? match[2] ?? '');
+
+  const notes: readonly unknown[] = Array.isArray(item.unmodelled) ? item.unmodelled : [];
+  notes.forEach((note, index) => {
+    if (forges(note)) {
+      found.push({
+        field: `${where}.unmodelled[${index}]`,
+        code: 'forged_dm_mark',
+        reason: `"${DM_DECIDES}" is the mark a handed-over sentence carries; a gap the engine has not built is not one`,
+      });
+    }
+  });
+
+  if (item.dmDecides === undefined) return found;
+  if (!Array.isArray(item.dmDecides)) {
+    found.push({
+      field: `${where}.dmDecides`,
+      code: 'bad_dm_decides',
+      reason: 'the printed text an item hands to the DM is a list of sentences',
+    });
+    return found;
+  }
+  const owed = notes.filter(isString);
+  (item.dmDecides as readonly unknown[]).forEach((printed, index) => {
+    const at = `${where}.dmDecides[${index}]`;
+    if (!isString(printed) || printed.trim().length === 0) {
+      found.push({ field: at, code: 'empty_note', reason: 'an empty sentence hands nothing over' });
+      return;
+    }
+    if (forges(printed)) {
+      found.push({
+        field: at,
+        code: 'forged_dm_mark',
+        reason: `the mark is written once, by the engine; a sentence that carries "${DM_DECIDES}" of its own reaches the table with it still in the text`,
+      });
+    }
+    const handed = partsOf(printed);
+    const sentence = plain(printed);
+    const claims = (note: string): boolean =>
+      inOrder(handed, plain(note)) ||
+      quotedIn(note).some((run) => inOrder(partsOf(run), sentence));
+    if (owed.some(claims)) {
+      found.push({
+        field: at,
+        code: 'debt_and_handover',
+        reason: `${item.id} files "${printed}" as a debt and hands it to the DM at once; a table fact a rule then reads is a debt, one nothing reads is a handover, and a sentence is one of the two`,
       });
     }
   });
@@ -5658,6 +5762,7 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
       }
     }
     problems.push(...itemUnmodelledProblems(item));
+    problems.push(...itemHandoverProblems(item));
     // A catalogue with no spells at all judges nothing about which spells an
     // item casts, on the same rule `byClass` already follows above: a fixture
     // that holds only items is not a catalogue whose wands cast nothing.
@@ -6308,6 +6413,11 @@ function parseItem(value: unknown): Result<CatalogueItem> {
     ...(value['unmodelled'] === undefined
       ? {}
       : { unmodelled: value['unmodelled'] as NonNullable<CatalogueItem['unmodelled']> }),
+    // And the handover beside it, on the same rule: carried as given, judged
+    // by `checkContent`, never dropped at the untyped door.
+    ...(value['dmDecides'] === undefined
+      ? {}
+      : { dmDecides: value['dmDecides'] as NonNullable<CatalogueItem['dmDecides']> }),
   };
   const problems = s.problems();
   if (problems.length > 0) return err('bad_item', problems.join('; '));

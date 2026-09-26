@@ -155,6 +155,13 @@ export function entryFor(item: CatalogueItem): MagicItem {
  * item whose *whole* text is beyond the vocabulary is not in the catalogue at
  * all, so the only two answers here are "complete" and "partial, and it says
  * in what way".
+ *
+ * **A handover does not make an item partial**, and that is why this reads
+ * `unmodelled` and nothing else. `docs/design/content.md`: a table fact a rule
+ * then reads is a debt, and one nothing reads afterwards is a handover — so a
+ * cube whose only unexecuted text is what its faces look like carries that
+ * text in `dmDecides`, has nothing left to build, and is complete. The report
+ * counts the records that hand text over beside this split, never inside it.
  */
 export const isCompleteItem = (item: CatalogueItem): boolean =>
   (item.unmodelled ?? []).length === 0;
