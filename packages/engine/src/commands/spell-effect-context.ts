@@ -273,6 +273,18 @@ export interface EffectContext {
    */
   readonly teleportTo?: Placement;
   /**
+   * Where the piles of bones lie that a `raise` effect turns into creatures —
+   * SRD Animate Dead's "a pile of bones … within range".
+   *
+   * Stated at the casting, refused there for a spell whose raising reads no
+   * bones and counted there against the target rule with the corpses, so a
+   * resolver reaching here with more than the slot allows is the definition
+   * and the command layer disagreeing. Bones are never a creature, so the
+   * point is the caller's to state and the range is checked at the raising —
+   * see `resolveRaiseEffect`.
+   */
+  readonly bonesAt?: readonly Placement[];
+  /**
    * The weapon a `weapon-rider` effect was aimed at, by catalogue id.
    *
    * Stated at the casting and refused there when a spell that imbues none

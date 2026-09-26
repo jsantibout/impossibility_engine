@@ -25,13 +25,15 @@ import type { Monster } from '@ie/srd';
 import type { Content } from '../content.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import type { CommandStamp } from '../state.js';
-import type { KeptBond } from '../state.js';
+import type { ControlledBond, KeptBond } from '../state.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { addCombatant } from '../combat.js';
 import {
   adaptMonster,
   hasPrintedTrait,
   type PrintedSpeedMode,
+  resolveSummonerMarks,
+  type SummonerNumbers,
   withPrintedSpeeds,
 } from '../monster.js';
 import type { Placement } from '../positioning.js';
@@ -304,6 +306,13 @@ export interface Summons {
    */
   readonly kept?: KeptBond;
   /**
+   * The terms the summoner **controls** the creature on — see
+   * `SummonBond.controlled`. SRD Animate Dead's Zombie: bound for a day and
+   * then nobody's, still standing. Exclusive with both of the above for the
+   * reason they are exclusive with each other (`two_lifetimes`).
+   */
+  readonly controlled?: ControlledBond;
+  /**
    * Which side it is on, when it is not the summoner's.
    *
    * Defaults to the summoner's own, because that is what a summons is. It is
@@ -377,6 +386,20 @@ export interface Summons {
    */
   readonly forbidsAttacks?: { readonly label: string };
   /**
+   * The casting's numbers, for a block whose printed lines are the
+   * **summoner's** — SRD Otherworldly Steed's "Bonus equals your spell attack
+   * modifier", "1d8 plus the spell's level", "DC equals your spell save DC".
+   *
+   * The block is resolved through `resolveSummonerMarks` *before* it is
+   * adapted, so the sheet pinned into `creature-added` reads plain numbers
+   * and the swing opens no book — the same road `armorClass` takes, one step
+   * earlier. Nothing is computed here: the three numbers are the casting's
+   * own, pinned on its record, and the choice is the one the caster stated.
+   * Absent for a summons a DM makes by hand, and then a marked line is
+   * carried as prose with a caveat rather than swung at a bonus nobody gave.
+   */
+  readonly fromTheCasting?: SummonerNumbers;
+  /**
    * Seat the creature immediately after this combatant — SRD Find Steed's
    * "the steed takes its turn immediately after yours". Read beside
    * `initiative`; see `CombatantInput.after`.
@@ -440,7 +463,7 @@ export function summonCreature(
   summons: Summons,
   command: CommandIdentity = {},
 ): Result<AddCreatureOutcome> {
-  const { id, monsterId, by, castingId, kept, block, ...stated } = summons;
+  const { id, monsterId, by, castingId, kept, controlled, block, ...stated } = summons;
 
   // **Everything the caller stated, whole.** A retry that moved the placement
   // or changed the Initiative total is a *different* command, and
@@ -455,18 +478,33 @@ export function summonCreature(
     // The block is left out and the key stands for it: a printed block is
     // kilobytes of JSON in a fingerprint kept for as long as the game lasts,
     // which is the reason `addCreature` takes an id.
-    { ...command, ...stated, id, monsterId, by, ...(castingId === undefined ? {} : { castingId }), ...(kept === undefined ? {} : { kept }) },
+    {
+      ...command,
+      ...stated,
+      id,
+      monsterId,
+      by,
+      ...(castingId === undefined ? {} : { castingId }),
+      ...(kept === undefined ? {} : { kept }),
+      ...(controlled === undefined ? {} : { controlled }),
+    },
     () => ({ events: [], unverified: [], duplicate: true }),
     (stamp) => {
       const summoner = creatureOf(state, by);
       if (summoner === null) return unknownCreature(by);
 
-      // One lifetime. A creature both held by a casting and kept by its
-      // summoner would go at whichever ended first, and no spell prints that.
-      if (castingId !== undefined && kept !== undefined) {
+      // One lifetime. A creature held by a casting and kept by its summoner
+      // would go at whichever ended first, and a control beside either would
+      // lapse on a creature the other still bound; no spell prints any of it.
+      const lifetimes = [
+        castingId === undefined ? null : `held by ${castingId}`,
+        kept === undefined ? null : `kept by ${by}`,
+        controlled === undefined ? null : `controlled by ${by}`,
+      ].filter((named): named is string => named !== null);
+      if (lifetimes.length > 1) {
         return err(
           'two_lifetimes',
-          `${id} cannot be both held by ${castingId} and kept by ${by}; a summons has one lifetime`,
+          `${id} cannot be both ${lifetimes.join(' and ')}; a summons has one lifetime`,
         );
       }
 
@@ -496,12 +534,19 @@ export function summonCreature(
       // A block the spell printed takes the same road without opening the
       // catalogue: there is no entry to look up, and the roster check is the
       // one thing `addCreature` would have done first.
+      // **And a block whose lines are the summoner's is resolved first** —
+      // the casting's numbers written over the marks the parser left, so the
+      // adapter reads a block with plain numbers and the sheet it pins says
+      // what the steed swings at. See `Summons.fromTheCasting`.
+      const numbers = summons.fromTheCasting;
       const arrival =
-        block === undefined
-          ? addCreature(state, content, id, monsterId)
-          : creatureOf(state, id) !== null
-            ? err('already_present', `${id} is already in this game`)
-            : ok(arrivalOf(id, block.monster, null, block.untyped === true));
+        numbers !== undefined
+          ? arrivalResolved(state, content, id, monsterId, block, numbers)
+          : block === undefined
+            ? addCreature(state, content, id, monsterId)
+            : creatureOf(state, id) !== null
+              ? err('already_present', `${id} is already in this game`)
+              : ok(arrivalOf(id, block.monster, null, block.untyped === true));
       if (!arrival.ok) return arrival;
 
       // The one event this command always emits, so the stamp rides it rather
@@ -529,6 +574,10 @@ export function summonCreature(
         // record to exist first — which is the whole difference from a
         // casting's bond, written after the record by `resolveEffects`.
         events.push({ type: 'creature-summoned', id, by, kept });
+      } else if (controlled !== undefined) {
+        // Bound at the arrival for the kept bond's reason: a control is a
+        // clock reading and a summoner, and needs no record either.
+        events.push({ type: 'creature-summoned', id, by, controlled });
       }
 
       // SRD Find Familiar: "A familiar can't attack, but it can take other
@@ -596,6 +645,37 @@ export function summonCreature(
       return ok({ events, unverified: arrival.value.unverified, duplicate: false });
     },
   );
+}
+
+/**
+ * The arrival of a block whose printed lines carry the **summoner's** numbers.
+ *
+ * `addCreature`'s three steps — the roster check, the catalogue read, the
+ * adapter — with one between the last two: the casting's numbers are written
+ * over the marks the parser left (`resolveSummonerMarks`), so the block the
+ * adapter reads prints a bonus, a flat and a type where the book printed
+ * "your spell attack modifier", "the spell's level" and a choice. A block the
+ * spell printed inline takes the same step, though no inline block prints a
+ * mark today. Unstamped, for the reason the ordinary arrival is.
+ */
+function arrivalResolved(
+  state: GameState,
+  content: Content,
+  id: CharacterId,
+  monsterId: string,
+  block: Summons['block'],
+  numbers: SummonerNumbers,
+): Result<AddCreatureOutcome> {
+  if (creatureOf(state, id) !== null) {
+    return err('already_present', `${id} is already in this game`);
+  }
+  const printed = block?.monster ?? content.monsterById(monsterId);
+  if (printed === null) {
+    return err('unknown_monster', `${monsterId} is not a stat block this world holds`);
+  }
+  const resolved = resolveSummonerMarks(printed, numbers);
+  const arrival = arrivalOf(id, resolved.monster, null, block?.untyped === true);
+  return ok({ ...arrival, unverified: [...arrival.unverified, ...resolved.caveats] });
 }
 
 /**
@@ -717,6 +797,12 @@ export function strandedSummons(state: GameState): readonly CharacterId[] {
       if (bond.castingId !== null) {
         return state.ongoing[bond.castingId] === undefined ? [creature.id] : [];
       }
+      // A creature its summoner **controls** is never owed a departure. SRD
+      // Animate Dead: what runs out is the control, and a Zombie at 0 Hit
+      // Points is a corpse the book leaves lying — so the creature stays at
+      // zero, stays when its summoner dies, and stays when the day is up; the
+      // fold's `lapseExpiredControl` ends the bond and nothing ends the body.
+      if (bond.controlled !== undefined) return [];
       // A creature its summoner keeps. SRD Find Familiar: "When the familiar
       // drops to 0 Hit Points, it disappears"; SRD Find Steed: "The steed
       // disappears if it drops to 0 Hit Points or if you die." The first is

@@ -236,7 +236,7 @@ import { resolveChanceEffect, thrownAgainst } from './spell-effect-chance.js';
 import { aimsHarmAtATarget } from '../spell-definitions.js';
 import { wardAgainst } from './passive-defenses.js';
 import { resolveTeleportEffect } from './spell-effect-teleport.js';
-import { resolveSummonEffect } from './spell-effect-summon.js';
+import { resolveRaiseEffect, resolveSummonEffect } from './spell-effect-summon.js';
 import { resolveElsewhereEffect } from './elsewhere.js';
 import { bindSummonsToCasting } from './creatures.js';
 import {
@@ -253,6 +253,7 @@ import {
   namedTargets,
   placeOrigin,
   rollsAimedAt,
+  raiseAllowanceFor,
   type SpellResolution,
   type SpellTargetOutcome,
 } from './targeting.js';
@@ -503,6 +504,9 @@ export function resolveDeclaredCast(
       // The sixth, read back the same way. A Find Familiar declared as a Cat
       // settles as a Cat an hour later and as nothing else.
       ...(pending.form === undefined ? {} : { form: pending.form }),
+      // And the bones, read back the same way: a rite of a minute stated where
+      // they lie before there was a casting to raise anything at.
+      ...(pending.bonesAt === undefined ? {} : { bonesAt: pending.bonesAt }),
       ...(persists(definition)
         ? {
             becomesOngoing: {
@@ -1576,6 +1580,39 @@ export function castOrRelease(
       }
     }
 
+    // SRD Animate Dead's piles of bones — see `CastSpellRequest.bonesAt`.
+    // Refused for a spell whose raising reads none, and counted with the
+    // corpses against what the slot allows, both before anything is spent.
+    // Where each pile lies is checked against the range at the raising, where
+    // a creature stands on it for the ruler to measure.
+    const raising = definition.effects.find(
+      (effect): effect is Extract<SpellEffect, { readonly kind: 'raise' }> => effect.kind === 'raise',
+    );
+    const piles = request.bonesAt?.length ?? 0;
+    if (piles > 0 && raising?.fromBones === undefined) {
+      return err('no_bones_to_raise', `${definition.name} raises nothing from a pile of bones`);
+    }
+    if (raising !== undefined) {
+      // "Choose a pile of bones or a corpse": a casting that chooses neither
+      // is not the casting the book describes, and a slot spent raising
+      // nothing is the silent success this repository refuses.
+      if (targets.length + piles === 0) {
+        return err(
+          'nothing_to_raise',
+          `${definition.name} is cast on a corpse or a pile of bones, and neither was named`,
+        );
+      }
+      // The same two arms `namedTargets` counted the corpses against, with the
+      // bones added — see `raiseAllowanceFor`.
+      const allowed = raiseAllowanceFor(state, casterId, definition, { targets, ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }) }, castLevel);
+      if (targets.length + piles > allowed) {
+        return err(
+          'too_many_raised',
+          `${definition.name} at level ${castLevel} animates or reasserts control over ${allowed} creature(s); ${targets.length} corpse(s) and ${piles} pile(s) of bones were named`,
+        );
+      }
+    }
+
     if (needs.length > 0) {
       return needsContext(
         'needs_context',
@@ -2432,6 +2469,7 @@ function resolveOnTargets(
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
         ...(request.object === undefined ? {} : { object: request.object }),
         ...(request.form === undefined ? {} : { form: request.form }),
+        ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
         alters,
         // A released spell leaves the same thing running that a cast one does.
         // This was the one resolution path of three that wrote no record, so a
@@ -2783,6 +2821,9 @@ function resolveOnTargets(
               ...(request.object === undefined ? {} : { object: request.object }),
               // The sixth: a Find Familiar declared as a Cat settles as a Cat.
               ...(request.form === undefined ? {} : { form: request.form }),
+              // The seventh: where the bones lie, which a rite of a minute
+              // states before there is a casting to raise anything at.
+              ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
               // **And the numbers, for a casting an item made.** A class
               // casting's route is re-derived at settlement because it is a
               // fact about a sheet nothing between here and there can change.
@@ -2872,6 +2913,7 @@ function resolveOnTargets(
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
       ...(request.object === undefined ? {} : { object: request.object }),
       ...(request.form === undefined ? {} : { form: request.form }),
+      ...(request.bonesAt === undefined ? {} : { bonesAt: request.bonesAt }),
       alters,
       // The casting this Reaction answers, as an **id** rather than as the record
       // that was read. The resolver looks it up again on the state its own events
@@ -3095,6 +3137,12 @@ function resolveOneEffect(
     // second creature, so the target is read off `ctx`.
     case 'summon':
       return resolveSummonEffect(ctx, effect, world);
+    // A raising is the casting's too, and has already run: `runEffects`
+    // resolves it once before this loop, because a casting of bones alone
+    // names no target for the loop to visit, and a corpse it did visit has
+    // left the roster by now.
+    case 'raise':
+      return ok(world);
     case 'elsewhere':
       return resolveElsewhereEffect(ctx, effect, target, world);
 
@@ -3301,6 +3349,12 @@ export function resolveEffects(
      */
     readonly form?: string;
     /**
+     * Where the piles of bones lie that a `raise` effect turns into creatures
+     * — see `EffectContext.bonesAt`. Pinned on a declaration for the form's
+     * reason: a rite of a minute states them before anything is raised.
+     */
+    readonly bonesAt?: readonly Placement[];
+    /**
      * Which casting a Reaction spell answers, by id.
      *
      * Several castings may be open at once and several may belong to one
@@ -3396,6 +3450,7 @@ export function resolveEffects(
     ...(context.weapon === undefined ? {} : { weapon: context.weapon }),
     ...(context.object === undefined ? {} : { object: context.object }),
     ...(context.form === undefined ? {} : { form: context.form }),
+    ...(context.bonesAt === undefined ? {} : { bonesAt: context.bonesAt }),
     ...(context.answers === undefined ? {} : { answers: context.answers }),
     ...(context.alters === undefined ? {} : { alters: context.alters }),
   });
@@ -3616,6 +3671,7 @@ export interface EffectRun {
   readonly weapon?: string;
   readonly object?: string;
   readonly form?: string;
+  readonly bonesAt?: readonly Placement[];
   readonly answers?: string;
   /**
    * What the caster's features do to this casting's damage, and what electing
@@ -3909,8 +3965,20 @@ export function runEffects(
     ...(run.weapon === undefined ? {} : { weapon: run.weapon }),
     ...(run.object === undefined ? {} : { object: run.object }),
     ...(run.form === undefined ? {} : { form: run.form }),
+    ...(run.bonesAt === undefined ? {} : { bonesAt: run.bonesAt }),
     ...(run.answers === undefined ? {} : { answers: run.answers }),
   };
+
+  // **A raising runs once, over the whole casting.** Its subjects are the
+  // corpses named as targets *and* the bones stated as points, and a casting
+  // of bones alone names no target for the loop below to visit — so it runs
+  // here, before the loop, and the loop hands it nothing (`resolveOneEffect`).
+  for (const effect of effects) {
+    if (effect.kind !== 'raise') continue;
+    const raised = resolveRaiseEffect(ctx, effect, current);
+    if (!raised.ok) return raised;
+    current = raised.value;
+  }
 
   for (const target of targets) {
     // **The common list, and then the branch this creature was given** — SRD

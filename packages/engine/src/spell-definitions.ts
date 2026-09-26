@@ -3933,6 +3933,67 @@ export type SpellEffect =
       };
     }
   /**
+   * A body the casting turns into a creature, out of the bestiary, under the
+   * caster's control for a printed span.
+   *
+   * SRD Animate Dead: "Choose a pile of bones or a corpse of a Medium or Small
+   * Humanoid within range. The target becomes an Undead creature: a Skeleton
+   * if you chose bones or a Zombie if you chose a corpse … The creature is
+   * under your control for 24 hours, after which it stops obeying any command
+   * you've given it. To maintain control … you must cast this spell on the
+   * creature again before the current 24-hour period ends."
+   *
+   * **Not a `summon`, and the difference is the bond.** A summons is on its
+   * caster and its creature is kept or held; this is cast *on the bodies* —
+   * the target rule names them (`mustBeDead`, a type, a size or two) — and
+   * what it leaves is a creature bound by `SummonBond.controlled`: control
+   * that lapses on the clock while the creature stays, which no kept lifetime
+   * can say. A target the caster already controls through this spell is not
+   * raised again but renewed (`summons-control-renewed`), which is the
+   * sentence "reasserts your control"; `TargetRule.orControlled` is what lets
+   * the rule admit a live Undead beside the corpses.
+   *
+   * **The count is the target rule's, and the book prints two arms of it.**
+   * Corpses are named targets and bones are stated points
+   * (`CastSpellRequest.bonesAt`), and a casting that animates anything may
+   * not exceed what `targetCountFor` gives the slot — one at the spell's own
+   * level and `extraPerSlotLevelAbove` more per level up, animate or reassert
+   * in any mix. A casting that **only** reasserts — every target a creature
+   * the caster controls through this spell, and no bones — is the book's
+   * other sentence, "reasserts your control over up to four creatures … rather
+   * than animating a new creature", and its base is {@link reassertsUpTo}
+   * with the same two more per level up (`raiseAllowanceFor`). A corpse's key
+   * leaves the roster and the creature's arrives in its space; bones were
+   * never a creature and the creature stands where the caster pointed, inside
+   * the spell's range.
+   *
+   * Written for Animate Dead; SRD Create Undead's Ghouls are the same shape
+   * over another block and the same 24 hours.
+   */
+  | {
+      readonly kind: 'raise';
+      /** The stat block a corpse becomes, by its id in content — a Zombie. */
+      readonly fromCorpse: string;
+      /**
+       * The stat block a pile of bones becomes — a Skeleton. Absent for a
+       * spell that raises nothing from bones, and then `bonesAt` is refused
+       * (`no_bones_to_raise`).
+       */
+      readonly fromBones?: string;
+      /** How long the caster controls what it raised, in seconds: 24 hours is 86400. */
+      readonly controlSeconds: number;
+      /**
+       * SRD Animate Dead: "This use of the spell reasserts your control over
+       * **up to four** creatures you have animated with this spell rather than
+       * animating a new creature."
+       *
+       * The base count of a casting that only reasserts, in place of the
+       * target rule's `count`; `extraPerSlotLevelAbove` still adds to it.
+       * Absent, a reassertion is counted like an animation.
+       */
+      readonly reassertsUpTo?: number;
+    }
+  /**
    * A creature the casting puts into the world, out of the bestiary.
    *
    * SRD Find Steed: "You summon an otherworldly being that appears as a loyal
@@ -4721,8 +4782,12 @@ export interface TargetRule {
    * catch, which are the two places {@link mustBeType} is checked and for the
    * same reasons: a named target the spell cannot reach is a refusal, and a
    * creature an area simply does not catch is filtered.
+   *
+   * **One size or a list**, since SRD Animate Dead's "a corpse of a Medium or
+   * Small Humanoid": a list admits any of its members and refuses the rest,
+   * and a single size is the list of one it always was.
    */
-  readonly mustBeSize?: CreatureSize;
+  readonly mustBeSize?: CreatureSize | readonly CreatureSize[];
   /**
    * SRD *Feather Fall*: "Choose up to five **falling** creatures within range."
    *
@@ -4775,6 +4840,24 @@ export interface TargetRule {
    * A plain no rather than a question, for {@link mustBeDying}'s reason.
    */
   readonly mustBeDead?: true;
+  /**
+   * SRD Animate Dead: "This use of the spell **reasserts your control** over
+   * up to four creatures you have animated with this spell rather than
+   * animating a new creature."
+   *
+   * A second admission beside the corpse rules: a live creature the caster
+   * already controls **through this spell** (`SummonBond.controlled`, by this
+   * caster, naming this spell) is a legal target, and for it the type, the
+   * size and {@link mustBeDead} stand down — the corpse those asked about is
+   * long since a Zombie. Anybody else's creature, or one nobody controls, is
+   * the live creature the corpse rules refuse (`target_not_dead`), which is
+   * the honest answer: the spell is cast on corpses and on the caster's own
+   * undead, and a Ghoul in the crypt is neither.
+   *
+   * Only a `raise` effect reads the admission, so it is refused beside any
+   * other list (`controlled_without_a_raise`).
+   */
+  readonly orControlled?: true;
   /**
    * SRD *Mage Armor*: "You touch a **willing** creature who isn't wearing
    * armor." A good many definitions in reach print the word; `willing.test.ts`
@@ -7758,6 +7841,10 @@ export function numbersRead(definition: SpellDefinition): NumbersRead {
       // number about them decides whether it happens.
       case 'change-altitude':
       case 'summon':
+      // A body raised reads nothing of the caster: which corpses and where the
+      // bones lie are the caster's own decisions, stated at the casting, and
+      // no number about them decides whether it happens.
+      case 'raise':
       // A creature sent elsewhere reads nothing of the caster either: the die
       // Blink throws is the book's, with no modifier, and where the creature
       // comes back to is a space somebody names.

@@ -2,6 +2,7 @@
   "state.ts": [
     "SummonBond",
     "KeptBond",
+    "ControlledBond",
     "DeviceRecord",
     "WornForm",
     "AssumedShape",
@@ -155,7 +156,8 @@
     "isRosterEvent",
     "applyRoster",
     "sameBond",
-    "describeBond"
+    "describeBond",
+    "lapseExpiredControl"
   ],
   "fold/vitals.ts": [
     "VITALS_EVENTS",

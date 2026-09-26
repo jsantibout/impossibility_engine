@@ -192,7 +192,10 @@ const supply = (seed: string, bonus: number) => ({
 const logFor = (spellId: string): readonly GameEvent[] => {
   const definition = SRD_CONTENT.spell(spellId);
   const wanted = definition?.targets.mustBeType;
-  const sized = definition?.targets.mustBeSize;
+  // A size rule may be a list — SRD Animate Dead's "Medium or Small" — and the
+  // fixture's creature is one size, so it is given the first the rule admits.
+  const ruled = definition?.targets.mustBeSize;
+  const sized = Array.isArray(ruled) ? ruled[0] : (ruled as CreatureSize | undefined);
   // **And a rating, where a save of this spell's spares a creature by one.**
   // Derived from the effect rather than listed by spell id, as the corpse, the
   // Attunement and the object below are: the next definition whose own effect

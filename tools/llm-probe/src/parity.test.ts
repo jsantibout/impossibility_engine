@@ -157,14 +157,17 @@ const AUDIT: readonly {
       optionByTarget: because(
         'which branch each creature runs, for the one spell that prints "(choose for each creature)" — SRD Calm Emotions. The same decision as `option` above, made creature by creature, and not a number: the engine still rolls every save and refuses a creature left out or one the Sphere did not catch. No benchmark caster has Calm Emotions prepared, so a published field would refuse every value it could be sent today; publish it the day one does, beside the list of whom the Sphere caught, because a model cannot name a branch for a creature it has not been told is in the area',
       ),
-      leapTo: because(
-        'the creature SRD Chromatic Orb leaps to when two of its damage dice match — a decision taken after the dice are seen, answered on the pending casting the orb opens; nothing on this surface settles a pending casting, which is the reason `hold` and `answers` are excluded below',
-      ),
       fought: because(
         'SRD Charm Person: "It does so with Advantage if you or your allies are fighting it." Five spells print the clause, the engine refuses a casting of one that does not answer it, and the answer is a list because an upcast casting names several targets — so this is required rather than optional the day any of them is castable here, and no benchmark character has one prepared',
       ),
       teleportTo: because(
         'where a teleporting spell puts its target. Two spells print the clause — Misty Step and Dimension Door — and the engine refuses a casting of either that names no space, so this is required rather than optional the day one of them is castable here. Neither benchmark character has one prepared, and publishing it means publishing a `Placement`, which is the vocabulary the movement tool would have to expose first',
+      ),
+      leapTo: because(
+        'where Chromatic Orb’s orb goes if its dice pair — a list of creature ids in the caster’s order of preference, of which the engine takes the first within 30 feet of the creature just struck. One spell prints the clause and neither benchmark character has it prepared; the field landed on the request after this table was last reconciled, and is recorded here so the reconciliation is a fact rather than a red test',
+      ),
+      bonesAt: because(
+        'where the piles of bones lie that Animate Dead turns into Skeletons — one spell prints the clause, a level 3 rite neither benchmark character has prepared, and a casting over bones alone names no creature target, so the space is the only thing that says where the Skeleton stands. A list of `Placement`s, which is the vocabulary `teleportTo` above is waiting on the movement tool to expose first',
       ),
       weapon: because(
         'which weapon a spell that imbues one was aimed at. Two spells print the clause — Shillelagh and Magic Weapon — and the engine refuses a casting of either that names none, so this is required rather than optional the day one of them is castable here. Neither benchmark character has one prepared, and the answer is an item id off the sheet rather than anything this surface would have to teach',

@@ -286,10 +286,13 @@ describe('toolSchemas', () => {
     // `stand_up` is a creature's own movement and carries no number, so it is
     // the player's door and therefore the DM's too. One tool and the same
     // bytes on each.
+    // And `cast_spell.bonesAt` for the bond track — SRD Animate Dead's piles of
+    // bones as stated placements, one field on a tool both doors publish, so
+    // both lengths move by the same bytes and no tool count moves.
     expect(toolSchemas(player())).toHaveLength(92);
     expect(toolSchemas(dm())).toHaveLength(118);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(139309);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(181464);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(140697);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(182852);
   });
 });
 

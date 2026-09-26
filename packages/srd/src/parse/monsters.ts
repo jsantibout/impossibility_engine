@@ -1,5 +1,6 @@
 import {
   CreatureSizeSchema,
+  DECLARED_DAMAGE_TYPE,
   MonsterAcAddendSchema,
   MonsterAttackSchema,
   MonsterCastLineSchema,
@@ -237,7 +238,28 @@ const DAMAGE_TYPES = [
  * its worst.
  */
 const ATTACK_HEAD =
-  /^_(Melee|Ranged|Melee or Ranged) Attack Roll:_\s*([+−–-]?\d+)(?:\s+to hit)?\s*(?:\(([^)]*)\))?\s*,\s*([\s\S]*)$/;
+  /^_(Melee|Ranged|Melee or Ranged) Attack Roll:_\s*([+−–-]?\d+|Bonus equals your spell attack modifier)(?:\s+to hit)?\s*(?:\(([^)]*)\))?\s*,\s*([\s\S]*)$/;
+
+/**
+ * SRD Otherworldly Steed: "_Melee Attack Roll:_ **Bonus equals your spell
+ * attack modifier**". The one bonus in the book that is not a number, read
+ * into a mark rather than a placeholder anybody could mistake for one — see
+ * `MonsterAttackSchema.bonusFromSummoner`.
+ */
+const BONUS_IS_SUMMONERS = 'Bonus equals your spell attack modifier';
+
+/**
+ * SRD Otherworldly Steed: "_Hit:_ **1d8 plus the spell's level of** Radiant
+ * (Celestial), Psychic (Fey), or Necrotic (Fiend) damage".
+ *
+ * Dice, a flat that is the casting's slot level, and a type per creature-type
+ * choice — or a single printed type. The list is read by {@link readChoices};
+ * this only finds the sentence.
+ */
+const SLOT_LEVEL_DAMAGE = /^\s*(\d+)d(\d+) plus the spell['’]s level of (.+?) damage/;
+
+/** `Radiant (Celestial)` — a type and the choice it answers; or a bare type. */
+const TYPE_PER_CHOICE = /^([A-Za-z]+)(?: \(([A-Za-z]+)\))?$/;
 
 /**
  * `reach 5 ft.` — and `reach 5 feet`, which the Djinni's Storm Blade, the
@@ -304,7 +326,10 @@ export function parseAttackLine(text: string): MonsterAttack | null {
   if (opening === null) return null;
 
   const [, kindWord, bonusRaw, qualification, where] = opening;
-  const modifier = parseSignedNumber(bonusRaw!);
+  // The summoner's bonus is a mark and a zero that means nothing; a printed
+  // bonus is the number. See `MonsterAttackSchema.bonusFromSummoner`.
+  const summoners = bonusRaw === BONUS_IS_SUMMONERS;
+  const modifier = summoners ? 0 : parseSignedNumber(bonusRaw!);
   if (modifier === null) return null;
 
   const kind =
@@ -344,6 +369,7 @@ export function parseAttackLine(text: string): MonsterAttack | null {
   const attack = {
     kind,
     modifier,
+    ...(summoners ? { bonusFromSummoner: 'spell-attack' as const } : {}),
     reach,
     range,
     damage,
@@ -379,6 +405,35 @@ function parseDamageChain(hit: string): {
   let resume = hit;
 
   for (;;) {
+    // SRD Otherworldly Steed's "1d8 plus the spell's level of … damage": the
+    // one component in the book whose flat and type are the casting's. Read
+    // first, because the ordinary template would otherwise never match it and
+    // the line would stay prose — which is what it was until this was read.
+    const scaled = SLOT_LEVEL_DAMAGE.exec(rest);
+    if (scaled !== null) {
+      const choices = readChoices(scaled[3]!);
+      if (choices === null) break;
+      const after = rest.slice(scaled[0].length);
+      if (CONDITIONAL.test(after)) {
+        rest = resume;
+        break;
+      }
+      damage.push({
+        dice: `${scaled[1]}d${scaled[2]}`,
+        flat: 0,
+        flatFromSlotLevel: true,
+        ...choices,
+        // The book prints no average beside a flat it does not know.
+        average: 0,
+      });
+      rest = after;
+      const plus = PLUS.exec(rest);
+      if (plus === null) break;
+      resume = rest;
+      rest = rest.slice(plus[0].length);
+      continue;
+    }
+
     const rolled = ROLLED_DAMAGE.exec(rest);
     const flat = rolled === null ? FLAT_DAMAGE.exec(rest) : null;
     const match = rolled ?? flat;
@@ -421,6 +476,39 @@ function parseDamageChain(hit: string): {
     // punctuation rather than anything a reader needs.
     rest: rest.replace(/^[\s.,;—–-]+/, '').replace(/<br>/g, ' ').replace(/\s+/g, ' ').trim(),
   };
+}
+
+/**
+ * The type half of a slot-level component: one printed type, or one per
+ * creature-type choice.
+ *
+ * "Radiant (Celestial), Psychic (Fey), or Necrotic (Fiend)" is a map from the
+ * book's capitalised choice to the engine's lower-cased type, under
+ * {@link DECLARED_DAMAGE_TYPE} because no reader may deal a type nobody has
+ * chosen; "Radiant" alone is the type. A word that is not a damage type, or a
+ * list that mixes the two forms, is null and the line stays prose.
+ */
+function readChoices(
+  printed: string,
+): { readonly type: string; readonly typeFromChoice?: Record<string, string> } | null {
+  const items = printed.split(/,\s*(?:or\s+)?|\s+or\s+/).map((item) => item.trim()).filter((item) => item !== '');
+  if (items.length === 0) return null;
+  const byChoice: Record<string, string> = {};
+  let bare: string | null = null;
+  for (const item of items) {
+    const read = TYPE_PER_CHOICE.exec(item);
+    if (read === null) return null;
+    const type = read[1]!.toLowerCase();
+    if (!DAMAGE_TYPES.some((known) => known === type)) return null;
+    if (read[2] === undefined) {
+      if (items.length !== 1) return null;
+      bare = type;
+    } else {
+      byChoice[read[2]] = type;
+    }
+  }
+  if (bare !== null) return { type: bare };
+  return { type: DECLARED_DAMAGE_TYPE, typeFromChoice: byChoice };
 }
 
 /**

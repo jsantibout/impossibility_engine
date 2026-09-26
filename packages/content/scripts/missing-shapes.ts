@@ -130,7 +130,7 @@ export const MISSING_SHAPES = {
   'an-ability-score-a-spell-changes':
     'a score an effect **moves**, in any of the five ways the book moves one. `docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." One of the five is built: an item may now *set* a score — an **absolute** held while it is worn, derived on every read by `abilityScoresOf` — and the three entries that printed only that sentence are transcribed. Four have no writer. A score an effect **lowers**. A **bounded delta with a lifetime**, which SRD prints on six Ioun Stones: "Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head" is `ability-score-increase`’s arithmetic on a standing grant’s lifetime, and the member that holds the arithmetic is answered at creation while the one that holds the lifetime writes absolutes — the Belt of Dwarvenkind prints it too, and the Hammer of Thunderbolts adds 4 to whatever score a belt or a pair of gauntlets already bestowed. A set with a **deadline** rather than a garment, which a conferral would carry and `CONFERRED_EFFECT_KINDS` does not admit. And a **permanent** raise: the manuals’ and the tomes’ +2 after forty-eight hours of study, which outlives every rest and is a folded number rather than a derived one.',
   'a-stat-block-created-mid-fight':
-    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, or leaves the form to the caster out of a printed list (SRD Find Familiar’s eleven, or any Beast of Challenge Rating 0), pins every number the block prints into `creature-added`, works out the numbers a spell prints over its own block (SRD Find Steed’s "AC 10 + 1 per spell level", its Fly Speed gated on a level 4 slot, the creature type the caster states), reads the caster’s Initiative count where the spell shares it and seats the creature immediately after them, and binds the creature either to the casting **after** the ongoing record or — where the spell prints "disappears if it drops to 0 Hit Points" — to its summoner, as a creature the caster *keeps*, replaced by a second casting. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is one thing and it is not the creation. **A stat block that is in neither chapter is built**: `InlineStatBlock` on the `summon` effect carries the three numbers SRD Unseen Servant prints in a sentence, and the resolver adapts them through the road a bestiary block takes, so the servant is a creature and its fall ends the casting (`summon-drops-to-0`). What remains is **a line the block prints with the summoner’s numbers**, SRD Find Steed’s Otherworldly Slam ("Bonus equals your spell attack modifier", "1d8 plus the spell’s level") and its three Bonus Actions ("DC equals your spell save DC"), which no stat block field can name and which the transcribed block therefore omits.',
+    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, or leaves the form to the caster out of a printed list (SRD Find Familiar’s eleven, or any Beast of Challenge Rating 0), pins every number the block prints into `creature-added`, works out the numbers a spell prints over its own block (SRD Find Steed’s "AC 10 + 1 per spell level", its Fly Speed gated on a level 4 slot, the creature type the caster states), reads the caster’s Initiative count where the spell shares it and seats the creature immediately after them, and binds the creature either to the casting **after** the ongoing record or — where the spell prints "disappears if it drops to 0 Hit Points" — to its summoner, as a creature the caster *keeps*, replaced by a second casting. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is one thing and it is not the creation. **A stat block that is in neither chapter is built**: `InlineStatBlock` on the `summon` effect carries the three numbers SRD Unseen Servant prints in a sentence, and the resolver adapts them through the road a bestiary block takes, so the servant is a creature and its fall ends the casting (`summon-drops-to-0`). **And a line the block prints with the summoner’s numbers is built** (2026-09-25): SRD Find Steed’s Otherworldly Slam ("Bonus equals your spell attack modifier", "1d8 plus the spell’s level" of a type per choice) and "DC equals your spell save DC" are marks the parser reads and `resolveSummonerMarks` writes the casting’s numbers over before the block is adapted; a block reaching the game with a mark unresolved carries the line as prose with a caveat. **And a body raised under a bond that lapses while the creature stays is built too**: SRD Animate Dead’s `raise` effect turns a named corpse into a Zombie and a stated pile of bones into a Skeleton under `SummonBond.controlled`, a summoner and a clock reading, which `strandedSummons` never names and the fold ends when the day passes — the shape SRD Create Undead’s Ghouls will take. Nothing inside level-5 reach claims this name any more; what still does is a Zombie a level 7 spell leaves behind and a bag that pours out Beasts.',
   'movement-modes':
     'the Fly, Climb and Swim Speeds the engine does not distinguish, and the per-foot costs that ride with them. `docs/design/spell-definitions.md` refuses the vocabulary by name: "**Movement modes are refused outright.** Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it", and Roving’s own note says the same of its Climb and Swim Speeds. What is left of `speed-and-movement-modes` once IE-033 built the modifier half.',
   // **`a-speed-an-effect-multiplies` was here and has moved to the item
@@ -603,6 +603,18 @@ export interface Adjudication {
  * append to — the same reason `VERIFIED_SPELLS` and the catalogue are sorted.
  */
 export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
+  'animate-dead': [
+    {
+      clause: 'checks nothing about the bones',
+      why: 'table',
+      note: 'The corpse is a creature the engine holds and the target rule names — dead, Humanoid, Small or Medium — and a pile of bones is not: it is an object the scene holds no state for, so where one lies is the table’s fiction and the caster states the point. What the engine does own is measured: the Skeleton stands where the caster pointed, the ruler reads the distance from the caster, and a pile beyond the ten feet is refused before anything is spent.',
+    },
+    {
+      clause: 'nothing spends the Bonus Action or measures the sixty feet',
+      why: 'table',
+      note: 'Commanding a creature the caster controls is taking its turn, which a bonded creature’s summoner already does through the same doors as for any creature on their side — so the command itself is not a mechanism the engine lacks. The Bonus Action the order costs and the sixty feet it reaches are a price and a gate on an act the engine does not represent (an order given), and the book’s sentences about them go to the table whole under `dmDecides`.',
+    },
+  ],
   'arcane-sword': [
     {
       clause: 'to a spot you can see',
@@ -879,9 +891,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'find-steed': [
     {
-      clause: 'the block’s own lines are not on the steed',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'The block the book prints beneath the spell carries Life Bond, Otherworldly Slam and three Bonus Actions gated on the type, and every number in them is the summoner’s — the spell attack modifier, the spell’s level, the spell save DC. A stat block holds no field that names its rider, so the transcribed block carries none of them and the steed arrives with no attack. The creation, the kept lifetime, the type, the Fly Speed and the seat after the rider are all built; a printed line whose numbers are the summoner’s is what the shape still means here. The parser never sees these lines either: the spell’s parsed entry stops where the table begins.',
+      clause: 'the steed’s three Bonus Actions are carried as prose',
+      why: 'table',
+      note: 'The Otherworldly Slam is built: "Bonus equals your spell attack modifier" and "1d8 plus the spell’s level of Radiant (Celestial), Psychic (Fey), or Necrotic (Fiend)" are marks the parser reads (`bonusFromSummoner`, `flatFromSlotLevel`, `typeFromChoice`) and the casting resolves before the block is adapted, so the steed swings at the rider’s bonus for the slot’s flat of the chosen type. What stays prose is on the **stat block’s** books rather than the spell’s: Fell Glare’s DC is read the same way (`dcFromSummoner`) but its span is "until the end of **your** next turn" — the summoner’s turn, which a printed save’s span cannot name — and `UNREAD_SAVE_SEAMS` names that line with its seam; Fey Step and Healing Touch print no template, Life Bond is a trigger on the rider’s healing nothing raises, and each heading’s "(Fiend Only)" and "Recharges after a Long Rest" are read by no heading reader. Every one of those is a line the steed *has* and the table applies from the text the arrival hands over, which is the bestiary population’s debt and is counted there; the spell itself prints nothing more than it does.',
     },
     {
       clause: 'acts independently, focusing on protecting you',
@@ -3266,20 +3278,11 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'read to the end, and handed over whole rather than filed as a debt. This clause was filed under `an-effect-that-suppresses-other-magic`, and the entry itself recorded why building that state would still leave the sentence unreachable: Arcane Lock is cast on a door, a door is not in state, and nothing could name the casting Knock would suppress. Every other sentence of the spell — the lock, the bar, the chest, the knock heard 300 feet off — is about an object the engine holds no state for. So the casting is made, the slot spent, and the four printed sentences go to the table in the book’s words.',
     },
   ],
-  'animate-dead': [
-    {
-      marker: null,
-      clause: 'a corpse of a Medium or Small Humanoid within range',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: '`TargetRule` selects by creature type and by whether armour is worn. A pile of bones is neither a creature nor a type, and the size band beside it is a fact the format cannot state about a target at all — so there is nothing for the casting to be aimed at before the question of what appears even arises.',
-    },
-    {
-      marker: null,
-      clause: 'The target becomes an Undead creature',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'a Skeleton or a Zombie out of the bestiary is still a creature added to the scene in the middle of a fight, which no casting does. Everything the spell prints afterwards — the Bonus Action that commands them, the 24 hours of control, the two more per slot level — hangs on a creature that never arrived.',
-    },
-  ],
+  // Animate Dead stood here on two shapes until both were built: the corpse is
+  // a named target now (`mustBeDead`, a type, and `mustBeSize` taking the two
+  // sizes the book prints), the bones are stated points, and the `raise`
+  // effect binds what it makes by `SummonBond.controlled`. It is executed and
+  // its notes are in `ADJUDICATED`.
   nondetection: [
     {
       marker: null,

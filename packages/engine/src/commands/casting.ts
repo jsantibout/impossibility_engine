@@ -732,6 +732,14 @@ export interface CastingPlan {
    */
   readonly form?: string;
   /**
+   * Where the piles of bones lie that a `raise` effect turns into creatures.
+   * Beside the form and for its reason: SRD Animate Dead is a rite of a
+   * minute, so the points are stated before there is a casting to raise
+   * anything at, and settlement takes no fresh request. Carried verbatim; each
+   * is an ordinary `Placement` and there is nothing to normalise.
+   */
+  readonly bonesAt?: readonly Placement[];
+  /**
    * The numbers this casting was made with, for a casting an item made.
    *
    * SRD "Spells Cast from Items" makes a wand's spell an ordinary casting, and
@@ -1155,6 +1163,8 @@ function castSpellWith(
         ...(command.hold.weapon === undefined ? {} : { weapon: command.hold.weapon }),
         // And which form it was told to raise, for the same reason.
         ...(command.hold.form === undefined ? {} : { form: command.hold.form }),
+        // And where the bones lie, for the same reason.
+        ...(command.hold.bonesAt === undefined ? {} : { bonesAt: command.hold.bonesAt }),
         // And the numbers, and the ability they were worked out with, for the
         // one route a settlement cannot re-derive.
         ...(command.hold.numbers === undefined ? {} : { numbers: command.hold.numbers }),

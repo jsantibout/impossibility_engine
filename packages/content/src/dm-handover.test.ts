@@ -407,6 +407,12 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // is a mechanism the engine is missing; it is the table's, and it goes
       // out of every casting in the book's own words.
       'animal-messenger',
+      // **The forty-eighth, and the third that executes.** SRD Animate Dead's
+      // corpse and bones are raised under a controlled bond; what it hands
+      // over is the command structure the book prints over the creature —
+      // the Bonus Action, the sixty feet, the Dodge an uncommanded creature
+      // takes — which is a table's business over a creature the engine holds.
+      'animate-dead',
       'arcane-lock',
       'augury',
       'clairvoyance',
@@ -823,8 +829,17 @@ describe('each of the forty-seven is cast, and hands its own text to the table',
     // `chance` effect reports what it decided about this casting's handover,
     // which is an outcome about the caster rather than something done to
     // somebody else.
+    // Animate Dead is the second exception and the other honest kind: its
+    // `raise` is aimed at the corpse the fixture supplies, and the corpse
+    // *is* affected — it leaves the roster and a Zombie stands in its space.
+    // The text it hands over is the command structure over that creature.
+    const raises = definition.effects.some((effect) => effect.kind === 'raise');
     expect(out.settled.outcomes).toEqual(
-      definition.effects.length === 0 ? [] : [{ target: asCharacterId('cleric'), affected: false }],
+      definition.effects.length === 0
+        ? []
+        : raises
+          ? [{ target: CORPSE, affected: true }]
+          : [{ target: asCharacterId('cleric'), affected: false }],
     );
   });
 

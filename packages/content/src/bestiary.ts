@@ -60,14 +60,27 @@ import type { Monster } from '@ie/srd';
  * that appears at level 4 is a number the spell prints over the block rather
  * than one the block has: Find Steed's `speeds` prints it, gated.
  *
- * **And the block's own lines are not here**, which is the honest omission
- * rather than the claim this docstring once made that the table carries none.
- * SRD prints Life Bond, Otherworldly Slam ("_Melee Attack Roll:_ Bonus equals
- * your spell attack modifier ... 1d8 plus the spell's level") and three Bonus
- * Actions gated on the type ("DC equals your spell save DC"). Every number in
- * them is the *summoner's*, and a stat block holds no field that names its
- * rider — so they are recorded on the spell as debt rather than transcribed
- * with a number this table would have had to invent.
+ * **The block's own lines are here, as the parser reads them.** SRD prints
+ * Life Bond, Otherworldly Slam ("_Melee Attack Roll:_ Bonus equals your spell
+ * attack modifier ... 1d8 plus the spell's level of Radiant (Celestial),
+ * Psychic (Fey), or Necrotic (Fiend) damage") and three Bonus Actions gated on
+ * the type ("DC equals your spell save DC"). Every number in them is the
+ * *summoner's*, and the parser reads exactly those words into **marks**
+ * (`bonusFromSummoner`, `flatFromSlotLevel`, `typeFromChoice`,
+ * `dcFromSummoner`) beside a placeholder that means nothing: the casting that
+ * raises the steed writes its own attack modifier, slot level and stated type
+ * over them before the block is adapted (`resolveSummonerMarks`), and a steed
+ * walked in with no casting carries the Slam as prose with a caveat rather
+ * than swinging at a bonus nobody supplied. `bestiary.test.ts` holds the
+ * Slam's transcription to `parseAttackLine`'s reading of the printed sentence.
+ *
+ * The three Bonus Actions and Life Bond are prose, for reasons the same test
+ * pins: Fell Glare's span is "until the end of **your** next turn" — the
+ * summoner's turn, which the save reader's span vocabulary (the target's or
+ * the source's) cannot name — and the other three print no template at all.
+ * The "(Fiend Only)" gates in the headings are read by nothing, and the
+ * heading's "Recharges after a Long Rest" is a form the recharge reader does
+ * not print for; both are the spell's `unmodelled`.
  *
  * **The Challenge Rating is 0 and the XP is 0**, which is "None" as the schema
  * can hold it: `cr` is a number and the label is the book's word. The
@@ -117,9 +130,54 @@ export const OTHERWORLDLY_STEED: Monster = {
   crLabel: 'None',
   xp: 0,
   proficiencyBonus: 2,
-  traits: [],
-  actions: [],
-  bonusActions: [],
+  traits: [
+    {
+      name: 'Life Bond',
+      text: "When you regain Hit Points from a level 1+ spell, the steed regains the same number of Hit Points if you're within 5 feet of it.",
+    },
+  ],
+  actions: [
+    {
+      name: 'Otherworldly Slam',
+      text: "_Melee Attack Roll:_ Bonus equals your spell attack modifier, reach 5 ft. _Hit:_ 1d8 plus the spell's level of Radiant (Celestial), Psychic (Fey), or Necrotic (Fiend) damage.",
+      // Byte for byte what `parseAttackLine` reads out of the sentence above,
+      // which `bestiary.test.ts` asserts: a bonus, a flat and a type that are
+      // the casting's, held as marks over placeholders that mean nothing.
+      attack: {
+        kind: 'melee',
+        modifier: 0,
+        bonusFromSummoner: 'spell-attack',
+        reach: 5,
+        range: null,
+        damage: [
+          {
+            dice: '1d8',
+            flat: 0,
+            flatFromSlotLevel: true,
+            type: 'declared',
+            typeFromChoice: { Celestial: 'radiant', Fey: 'psychic', Fiend: 'necrotic' },
+            average: 0,
+          },
+        ],
+        qualification: null,
+        rider: null,
+      },
+    },
+  ],
+  bonusActions: [
+    {
+      name: 'Fell Glare (Fiend Only; Recharges after a Long Rest)',
+      text: '_Wisdom Saving Throw:_ DC equals your spell save DC, one creature within 60 feet the steed can see. _Failure:_ The target has the Frightened condition until the end of your next turn.',
+    },
+    {
+      name: 'Fey Step (Fey Only; Recharges after a Long Rest)',
+      text: 'The steed teleports, along with its rider, to an unoccupied space of your choice up to 60 feet away from itself.',
+    },
+    {
+      name: 'Healing Touch (Celestial Only; Recharges after a Long Rest)',
+      text: "One creature within 5 feet of the steed regains a number of Hit Points equal to 2d8 plus the spell's level.",
+    },
+  ],
   reactions: [],
   legendaryActions: [],
 };

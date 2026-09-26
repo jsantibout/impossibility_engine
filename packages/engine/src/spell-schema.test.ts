@@ -4306,6 +4306,17 @@ describe('every branch judges untyped input rather than throwing on it', () => {
       fields: { where: required(STRING_JUNK), returns: required(OBJECT_JUNK) },
     },
     {
+      kind: 'raise',
+      base: { kind: 'raise', fromCorpse: 'zombie', fromBones: 'skeleton', controlSeconds: 86400 },
+      // The corpse's block is required and the bones' is not — a spell may
+      // raise nothing from bones — and the span is a whole number of seconds.
+      fields: {
+        fromCorpse: required(STRING_JUNK),
+        fromBones: STRING_JUNK,
+        controlSeconds: required(NUMBER_JUNK),
+      },
+    },
+    {
       kind: 'summon',
       base: {
         kind: 'summon',

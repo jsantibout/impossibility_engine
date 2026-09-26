@@ -339,6 +339,7 @@ const KNOWN_EVENT_TYPES: readonly string[] = [
   'stabilised',
   'stated-action-taken',
   'stated-bonus-action-taken',
+  'summons-control-renewed',
   'temporary-hp-cleared',
   'temporary-hp-granted',
   'test-reaction-answered',

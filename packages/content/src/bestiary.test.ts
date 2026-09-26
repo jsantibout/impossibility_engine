@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { Monster } from '@ie/srd';
+import { parseAttackLine, parseSaveLine, type Monster } from '@ie/srd';
 import { OTHERWORLDLY_STEED, PHANTOM_STEED_BLOCK, SPELL_STAT_BLOCKS } from './bestiary.js';
 
 /**
@@ -115,6 +115,52 @@ describe('a stat block the book prints inside a spell', () => {
     expect(printed).toContain('**Speed** 60 ft., Fly 60 ft. (requires level 4+ spell)');
     expect(OTHERWORLDLY_STEED.speed.walk).toBe(60);
     expect(OTHERWORLDLY_STEED.speed.fly).toBeNull();
+  });
+
+  /**
+   * The lines the block prints, each carried as the parser would read it.
+   *
+   * The Otherworldly Slam's numbers are the summoner's — "Bonus equals your
+   * spell attack modifier", "1d8 plus the spell's level" of a type per choice
+   * — and the parser reads exactly those words into marks; what is asserted
+   * is that the transcription is byte for byte what `parseAttackLine` gives
+   * for the printed sentence, so no reader's memory stands between the book
+   * and the catalogue. The three Bonus Actions and Life Bond are prose: Fell
+   * Glare's span is "until the end of **your** next turn", the summoner's,
+   * which the save reader cannot name, and the other three print no template.
+   */
+  it('carries the Otherworldly Steed’s printed lines as the parser reads them', () => {
+    const slam = OTHERWORLDLY_STEED.actions.find((line) => line.name === 'Otherworldly Slam');
+    expect(slam).toBeDefined();
+    expect(slam!.text).toBe(
+      "_Melee Attack Roll:_ Bonus equals your spell attack modifier, reach 5 ft. _Hit:_ 1d8 plus the spell's level of Radiant (Celestial), Psychic (Fey), or Necrotic (Fiend) damage.",
+    );
+    expect(slam!.attack).toEqual(parseAttackLine(slam!.text));
+    expect(slam!.attack).toMatchObject({
+      bonusFromSummoner: 'spell-attack',
+      damage: [
+        {
+          flatFromSlotLevel: true,
+          typeFromChoice: { Celestial: 'radiant', Fey: 'psychic', Fiend: 'necrotic' },
+        },
+      ],
+    });
+
+    expect(OTHERWORLDLY_STEED.traits.map((line) => line.name)).toEqual(['Life Bond']);
+    expect(OTHERWORLDLY_STEED.bonusActions.map((line) => line.name)).toEqual([
+      'Fell Glare (Fiend Only; Recharges after a Long Rest)',
+      'Fey Step (Fey Only; Recharges after a Long Rest)',
+      'Healing Touch (Celestial Only; Recharges after a Long Rest)',
+    ]);
+    for (const line of [...OTHERWORLDLY_STEED.traits, ...OTHERWORLDLY_STEED.bonusActions]) {
+      expect(line.attack, line.name).toBeUndefined();
+      expect(line.save, line.name).toBeUndefined();
+      // Prose because the parser reads nothing out of the sentence, not
+      // because the transcription chose to leave it: the same reader answers
+      // the same way for the printed text.
+      expect(parseAttackLine(line.text), line.name).toBeNull();
+      expect(parseSaveLine(line.text), line.name).toBeNull();
+    }
   });
 
   /** The ability block the entry's table prints, score and modifier. */

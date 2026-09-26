@@ -11803,10 +11803,36 @@ export const SILENCE: SpellDefinition = {
  * > _Using a Higher-Level Spell Slot._ "You animate or reassert control over
  * > two additional Undead creatures for each spell slot level above 3."
  *
- * **Not one sentence of it trips a marker and every sentence of it is the
- * DM's**, which is a combination worth writing down: the spell's whole content
- * is a creature the engine cannot add to the scene and a command structure over
- * it. What is real is the rite, the ten feet and the slot.
+ * > "The creature is under your control for 24 hours, after which it stops
+ * > obeying any command you've given it. To maintain control of the creature
+ * > for another 24 hours, you must cast this spell on the creature again
+ * > before the current 24-hour period ends. This use of the spell reasserts
+ * > your control over up to four creatures you have animated with this spell
+ * > rather than animating a new creature."
+ *
+ * **A `raise`, and the third kind of bond.** The corpses are the targets —
+ * dead, Humanoid, Small or Medium, which is the one target rule in the book
+ * that takes two sizes — and the bones are points the caster states
+ * (`bonesAt`), one Skeleton each; a corpse's key leaves the roster and a
+ * Zombie arrives in its space. What each creature is bound by is
+ * `SummonBond.controlled`: a summoner and a clock reading a day on, and when
+ * the clock passes the *control* ends and the creature stays — a kept bond
+ * would have taken a Zombie at 0 Hit Points away, and the book leaves it
+ * lying. A recast on a creature the caster already controls renews the day
+ * (`orControlled` admits it; `summons-control-renewed` records it) rather
+ * than raising it twice. The count is the slot's and the book prints it in
+ * two arms: a casting that animates anything reaches one at level 3 and two
+ * more per level above, animate or reassert in any mix; a casting that only
+ * reasserts — every target already the caster's, no bones — reaches four at
+ * level 3 (`reassertsUpTo`) and the same two more per level above. The book
+ * does not say whether its "two additional" reads from one or from four on a
+ * pure reassertion; each arm is read from its own base here, which is the
+ * plain reading and a one-field change if the table rules otherwise.
+ *
+ * Commanding a creature the caster controls is taking its turn, which a bonded
+ * creature's summoner already does; the Bonus Action the book spends on the
+ * order, its sixty feet, and what an uncommanded creature does are the
+ * table's.
  */
 export const ANIMATE_DEAD: SpellDefinition = {
   id: 'animate-dead',
@@ -11817,12 +11843,44 @@ export const ANIMATE_DEAD: SpellDefinition = {
   castingSeconds: 60,
   concentration: false,
   range: { kind: 'ranged', feet: 10 },
-  targets: { count: 0 },
-  effects: [],
+  // "a corpse of a Medium or Small Humanoid" — and, on a recast, "the
+  // creature" the caster already controls through this spell. Optional,
+  // because a casting may be made over bones alone and name no corpse. "Two
+  // additional Undead creatures for each spell slot level above 3."
+  targets: {
+    count: 1,
+    extraPerSlotLevelAbove: 2,
+    optional: true,
+    mustBeDead: true,
+    mustBeType: 'Humanoid',
+    mustBeSize: ['small', 'medium'],
+    orControlled: true,
+  },
+  effects: [
+    {
+      kind: 'raise',
+      fromCorpse: 'zombie',
+      fromBones: 'skeleton',
+      // "under your control for 24 hours"
+      controlSeconds: 24 * 60 * 60,
+      // "reasserts your control over up to four creatures … rather than
+      // animating a new creature"
+      reassertsUpTo: 4,
+    },
+  ],
+  // The command, in the book's words: commanding a creature the caster
+  // controls is taking its turn, which a bonded creature's summoner already
+  // does, and the Bonus Action the order costs, its sixty feet and what an
+  // uncommanded creature does are the table's to apply from these sentences.
+  dmDecides: [
+    'On each of your turns, you can take a Bonus Action to mentally command any creature you made with this spell if the creature is within 60 feet of you (if you control multiple creatures, you can command any of them at the same time, issuing the same command to each one).',
+    'You decide what action the creature will take and where it will move on its next turn, or you can issue a general command, such as to guard a chamber or corridor.',
+    'If you issue no commands, the creature takes the Dodge action and moves only to avoid harm.',
+    'Once given an order, the creature continues to follow it until its task is complete.',
+  ],
   unmodelled: [
-    'no Skeleton and no Zombie appear: a stat block out of the monster list is still a creature added to the scene mid-fight, which no casting does',
-    'the target is "a pile of bones or a corpse of a Medium or Small Humanoid", which is an object and a size and a type on something that is not a creature — the format selects creatures by type, and nothing selects a corpse',
-    'so the Bonus Action that commands them, the 60 feet it reaches, the 24 hours of control, the recasting that reasserts it over up to four, and the two more per slot level above 3 are all the DM’s',
+    'that a pile of bones lies at the point the caster names is the table’s fiction: the engine raises a Skeleton there inside the spell’s range and checks nothing about the bones',
+    'the Bonus Action that commands the undead, and the 60 feet it reaches, are handed over: commanding is taking the creature’s turn, which the caster already may, and nothing spends the Bonus Action or measures the sixty feet',
   ],
 };
 
@@ -13788,11 +13846,16 @@ export const FIND_FAMILIAR: SpellDefinition = {
  * count and is seated immediately after them**, both read off the order
  * rather than stated.
  *
- * **The block's own lines are not on it**, and that is the debt this spell
- * still carries: Life Bond, Otherworldly Slam and the three type-gated Bonus
- * Actions each print a number that is the summoner's — the spell attack
- * modifier, the spell save DC, the spell's level — which a stat block holds no
- * field to name.
+ * **The block's own lines carry the casting's numbers.** Otherworldly Slam
+ * prints "Bonus equals your spell attack modifier" and "1d8 plus the spell's
+ * level of Radiant (Celestial), Psychic (Fey), or Necrotic (Fiend) damage";
+ * the parser reads those words into marks on the bestiary entry, and the
+ * arrival writes the casting's attack modifier, slot level and stated type
+ * over them before the block is adapted — so the steed swings at the
+ * Paladin's bonus for 1d8 plus the slot level of the type the Paladin chose,
+ * and the log replays it without a book. The three Bonus Actions stay prose:
+ * Fell Glare's span is the summoner's turn, which no save reader can name, and
+ * Fey Step and Healing Touch print no template.
  */
 export const FIND_STEED: SpellDefinition = {
   id: 'find-steed',
@@ -13817,7 +13880,7 @@ export const FIND_STEED: SpellDefinition = {
     },
   ],
   unmodelled: [
-    'the block’s own lines are not on the steed: Life Bond, Otherworldly Slam and the three Bonus Actions gated on its type each print a number that is the summoner’s — "Bonus equals your spell attack modifier", "1d8 plus the spell’s level", "DC equals your spell save DC" — and a stat block holds no field that names its rider, so the bestiary entry carries none of them and the steed arrives with no attack',
+    'the steed’s three Bonus Actions are carried as prose: Fell Glare’s Frightened lasts "until the end of **your** next turn" — the summoner’s turn, which a printed save’s span cannot name — Fey Step carries its rider, and Healing Touch heals "2d8 plus the spell’s level"; each heading’s type gate ("Fiend Only") and its "Recharges after a Long Rest" are the table’s too, and Life Bond’s echo of the rider’s healing is a trigger nothing raises',
     'and what the steed does with the turn when its rider has the Incapacitated condition — "acts independently, focusing on protecting you" — is the table’s, the same question left open for every creature in the scene',
     'the steed resembling a Large rideable animal of the caster’s choice, the mounted combat it is controlled through, the telepathy it speaks over a mile, and the gear it leaves behind when it goes are the DM’s',
   ],
