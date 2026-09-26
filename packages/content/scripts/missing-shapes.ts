@@ -2051,20 +2051,12 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // mode narrowed by the attacker's creature type, and a condition Immunity
   // narrowed by the type of whatever is causing the condition — so the spell
   // is executed-partial and what is left of it is filed in `ADJUDICATED`.
-  'dragons-breath': [
-    {
-      marker: 'saving-throw',
-      clause: 'Each creature in that area makes a Dexterity saving throw',
-      why: 'an-activation-that-resolves-an-area',
-      note: 'every registered SpellActivation resolves an attack at a named target or moves an area along a stated route, and this one evokes a fresh 15-foot Cone in a direction chosen when the action is taken.',
-    },
-    {
-      marker: 'dice',
-      clause: 'taking 3d6 damage of the chosen type on a failed save',
-      why: 'an-activation-taken-by-somebody-other-than-the-caster',
-      note: 'the dice and the halving are ordinary; who throws them is not. A spell’s later action is the caster’s and nobody else may act through a casting, and this one hands the action to the creature that was touched.',
-    },
-  ],
+  // **Dragon's Breath has left the tracked map**, and it took both of its
+  // shapes with it: `SpellActivation.by` hands the Magic action to the creature
+  // the casting is on, and `SpellActivation.area` draws the 15-foot Cone afresh
+  // at the exhaler's own space in the direction stated when the action is
+  // taken. Every printed sentence of the spell is executed, so the two entries
+  // that stood here are gone rather than re-worded.
   // **Three sentences and one entry, which was one reading short.** The
   // definition's own `unmodelled` names three clauses and this map recorded
   // the first; the other two were paid for by nobody and the shapes they claim

@@ -1171,6 +1171,13 @@ describe('a definition says where its reach is measured from, once', () => {
    * from you" turns a shape whose origin is the caster and aims at nobody, so
    * there is no target for a reach to bound and the only distance in the
    * sentence is the Line's own printed length.
+   *
+   * **And an action that draws a template is the third**, for the reason a
+   * casting's own area takes no target list: SRD Dragon's Breath's Cone catches
+   * whoever it covers, so the only distance in the sentence is the fifteen feet
+   * of the Cone itself. `checkSpellDefinition` refuses the pair outright
+   * (`activation_area_and_range`), which is why this is a statement of the same
+   * rule read from the definitions rather than a second opinion about it.
    */
   it('gives every activation that aims at somebody a range of its own', () => {
     const missing = SPELL_DEFINITIONS.filter(
@@ -1181,6 +1188,9 @@ describe('a definition says where its reach is measured from, once', () => {
         // A re-choosing action changes its caster and reaches nobody — SRD
         // Alter Self — so it takes no range, as a mover takes none.
         d.activation.reoptions !== true &&
+        // And an action that draws a template catches whoever it covers.
+        d.activation.area === undefined &&
+        d.activation.redrawsArea !== true &&
         d.origin === undefined &&
         d.activation.range === undefined,
     );

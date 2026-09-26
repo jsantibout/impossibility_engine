@@ -6149,6 +6149,90 @@ export interface SpellActivation {
   /** SRD writes "a Magic action" or "a Bonus Action"; both appear. */
   readonly action: 'action' | 'bonus-action';
   /**
+   * **Whose action it is.** Absent is the caster's, which is every other
+   * activation in the book.
+   *
+   * SRD Dragon's Breath: "You touch one willing creature ... Until the spell
+   * ends, **the target** can take a Magic action to exhale a 15-foot Cone."
+   * The one sentence in the book that hands a spell's later action to somebody
+   * else, and the reason `not_your_spell` used to be the whole rule: "a spell
+   * is not a thing lying about for anyone to pick up" is still the rule, and
+   * this says which one person may pick it up.
+   *
+   * **The creature the casting is *on*, read off `OngoingSpell.aimed` and
+   * nowhere else.** That list is what the cast declared and the world cannot
+   * say, which is exactly what "the target" means for a spell that hangs
+   * nothing on them — and it shrinks when a creature sheds the casting, so a
+   * target the spell has left behind cannot go on exhaling. The caster is
+   * refused by the same guard unless they touched themselves, because then
+   * they *are* the target and the book's sentence reaches them.
+   *
+   * **It changes whose action is spent and where the template is drawn**, and
+   * nothing else: the level, the route, the save DC and the damage type are
+   * the caster's, pinned at the cast, because the spell is still the caster's
+   * spell. A fighter who breathes fire does not roll it off their own sheet.
+   */
+  readonly by?: 'target';
+  /**
+   * A **fresh template** this action draws, from wherever the actor is
+   * standing.
+   *
+   * SRD Dragon's Breath: "the target can take a Magic action to exhale a
+   * **15-foot Cone**. Each creature in that area makes a Dexterity saving
+   * throw." SRD Call Lightning: "you can take a Magic action to call down
+   * lightning in that way again, **targeting the same point or a different
+   * one**", and the bolt is "each creature within 5 feet of that point".
+   *
+   * **Not {@link SpellDefinition.area}, which is a template the casting laid
+   * down and keeps.** That one is pinned on the record, read by the fold at
+   * every boundary, and moved only by {@link movesArea}; this one exists for
+   * the length of one action and is pinned nowhere, because the book draws it
+   * afresh each time — "the same point **or a different one**" is a sentence
+   * about a template with no memory.
+   *
+   * The direction or the point is stated on the activation's own request,
+   * through the same two words a casting states them with (`towards`, `at`),
+   * and caught through `areaCatch` — the one ruler a casting's own area is
+   * caught through — so there is no second geometry and no second filter.
+   *
+   * An area origin of `self` is the **actor's** space, which is what makes
+   * this the field Dragon's Breath needed: the Cone comes out of the creature
+   * that inhaled, not out of the wizard who touched them.
+   */
+  readonly area?: SpellArea;
+  /**
+   * Whether this action draws the **casting's own** template again, at a point
+   * stated now, and resolves the casting's own effects over it.
+   *
+   * SRD Call Lightning: "When you cast the spell, choose a point you can see
+   * under the cloud. A lightning bolt shoots from the cloud to that point.
+   * Each creature within 5 feet of that point makes a Dexterity saving
+   * throw ... Until the spell ends, you can take a Magic action to call down
+   * lightning **in that way again, targeting the same point or a different
+   * one**."
+   *
+   * **The bolt at the cast and the bolts after it are one sentence**, which is
+   * why this is a flag rather than an {@link area} beside a second effect list:
+   * the spell prints the template once and the number once, and a definition
+   * that wrote both twice would have two places for "5 feet" and "3d10" to be
+   * got wrong. So the template is {@link SpellDefinition.area}, the effects are
+   * {@link SpellDefinition.effects}, and this says the later action places the
+   * first and runs the second.
+   *
+   * **Not {@link movesArea}, and the SRD writes two different sentences.**
+   * Moonbeam's action *carries* a pinned Cylinder to a new point and every
+   * clause the spell has goes on reading the record; this draws a template that
+   * exists for the length of one action and leaves the record's own point where
+   * the cloud is. A field that meant both would have had to decide whether the
+   * pinned area moved, and Call Lightning's cloud does not.
+   *
+   * **Where the point may be is the kept origin's business.** The cloud is
+   * `CastingOrigin` with its radius as the reach, so the bolt's point is
+   * checked against it exactly as a target is — see `reachFromOrigin`, which is
+   * the same ruler asked about a place instead of a creature.
+   */
+  readonly redrawsArea?: true;
+  /**
    * How far the **caster** reaches, checked afresh each time.
    *
    * Absent when the casting holds an origin: the reach is then measured from

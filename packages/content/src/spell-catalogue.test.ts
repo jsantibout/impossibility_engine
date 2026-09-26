@@ -748,6 +748,13 @@ describe('every definition in the catalogue actually casts', () => {
       // starting its turn in them or walking into them. A casting that
       // resolves nothing here is correct; the trigger is where the spell is.
       expect(out.outcomes).toEqual([]);
+    } else if (run.length === 0 && definition.activation !== undefined) {
+      // The third case's twin, and it is a spell rather than a stub for the
+      // same reason: SRD Dragon's Breath's touch does nothing at all, and
+      // every die the spell ever throws comes from the later Magic action the
+      // creature it is on takes. A casting that resolves nothing here is
+      // correct; the activation is where the spell is.
+      expect(out.outcomes).toEqual([]);
     } else if (run.length === 0) {
       expect(out.outcomes).toEqual([]);
       expect(out.unverified.length).toBeGreaterThan(0);

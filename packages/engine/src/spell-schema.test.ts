@@ -2490,6 +2490,13 @@ describe('every member of the definition format has a user or a written exemptio
       // the spell ends."
       "SpellCheck.onSuccess='end-casting' + SpellRepeatSave.onSuccess='end-casting'",
       "SpellCheck.onSuccess='end-on-target' + SpellRepeatSave.onSuccess='end-on-target'",
+      // A casting's own template against the one a later action draws, which
+      // share a field name and nothing else: the first is pinned on the record
+      // and read by the fold at every boundary, the second exists for the
+      // length of one action. Both are written — every area spell in the book
+      // writes the first and SRD Dragon's Breath's Cone writes the second —
+      // and `checkSpellDefinition` keeps them apart on one definition.
+      'SpellDefinition.area? + SpellActivation.area?',
       'SpellDefinition.check? + ConditionRider.check?',
       // **Three names now, and the third is the `elsewhere` arm's**: a
       // definition's *nested* `returns.at` and the arm's own `at` are probed

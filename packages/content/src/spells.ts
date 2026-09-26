@@ -11726,13 +11726,32 @@ export const DRAGONS_BREATH: SpellDefinition = {
   concentration: true,
   range: { kind: 'touch' },
   targets: { count: 1, self: true, willing: true },
+  // "choose Acid, Cold, Fire, Lightning, or Poison": stated at the touch,
+  // pinned on the record, and read by the Cone every later turn.
+  damageTypeStated: ['acid', 'cold', 'fire', 'lightning', 'poison'],
+  // Nothing happens at the touch; the Cone is what the later action breathes.
   effects: [],
+  // "Until the spell ends, **the target** can take a Magic action to exhale a
+  // 15-foot Cone." The one action in the book its caster may not take.
+  activation: {
+    action: 'action',
+    by: 'target',
+    label: "Dragon's Breath (the Cone)",
+    area: { kind: 'cone', length: 15, origin: 'self' },
+    effects: [
+      {
+        kind: 'save-damage',
+        ability: 'dex',
+        // "3d6 damage of the chosen type on a failed save or half as much
+        // damage on a successful one"; "increases by 1d6 for each spell slot
+        // level above 2".
+        damage: { dice: '3d6', perSlotLevelAbove: '1d6' },
+        damageType: 'acid',
+        onSuccess: 'half',
+      },
+    ],
+  },
   durationSeconds: 60,
-  unmodelled: [
-    'nobody exhales: the Magic action that breathes the Cone is taken by the creature the caster touched, and a spell’s later action is the caster’s — nobody else may act through a casting',
-    'so the 15-foot Cone is never resolved either, and with it the Dexterity saving throw and the 3d6 of the chosen type, half as much on a success, growing by 1d6 for each slot level above 2',
-    'which of Acid, Cold, Fire, Lightning or Poison was chosen is not recorded, because there is nothing left for the choice to type',
-  ],
 };
 
 /**

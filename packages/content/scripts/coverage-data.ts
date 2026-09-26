@@ -248,6 +248,13 @@ export const VERIFIED_SPELLS: readonly string[] = [
   'dissonant-whispers',
   'divine-favor',
   'divine-smite',
+  // `dragons-breath.test.ts` (engine): the sorcerer's touch with Fire stated
+  // and pinned, the fighter's Magic action exhaling a 15-foot Cone east, both
+  // goblins asked for a Dexterity save and scorched for 3d6 Fire with the
+  // fighter named as the dealer, the sorcerer refused their own spell's action,
+  // an exhalation with no direction refused, a target list refused, and the
+  // exhaler's own Action spent rather than the caster's.
+  'dragons-breath',
   'eldritch-blast',
   'enhance-ability',
   // `enlarge-reduce.test.ts` (engine): the fighter Large to every reader and

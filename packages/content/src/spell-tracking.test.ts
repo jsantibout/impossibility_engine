@@ -1392,7 +1392,8 @@ const ADDED_SECOND: readonly string[] = [
   'create-undead',
   'creation',
   'divination',
-  'dragons-breath',
+  // **Dragon's Breath has left**: the Cone the creature it is on exhales is
+  // executed, so the spell is no longer a casting with nothing in it.
   'fire-storm',
   'forbiddance',
   'geas',

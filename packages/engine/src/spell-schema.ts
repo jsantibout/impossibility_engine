@@ -6980,13 +6980,149 @@ export function checkSpellDefinition(
       definition.origin === undefined &&
       activation.movesArea === undefined &&
       activation.redirects !== true &&
-      activation.reoptions !== true
+      activation.reoptions !== true &&
+      activation.area === undefined &&
+      activation.redrawsArea !== true
     ) {
       found.push({
         field: 'activation.range',
         code: 'activation_reaches_nothing',
         reason: 'an activation that targets a creature needs a range, from the caster or from a point',
       });
+    }
+    /*
+     * SRD Dragon's Breath's "**the target** can take a Magic action", held to
+     * the one thing the sentence needs: a creature for the casting to be on.
+     *
+     * The actor is read off `OngoingSpell.aimed`, which is what the *cast*
+     * declared — so a spell that names nobody has nothing there, and the field
+     * would hand the action to a creature that does not exist. `targets.count`
+     * is the printed answer to that, read at the definition's own level
+     * because a target a slot buys is not a target the spell has.
+     */
+    if (activation.by !== undefined) {
+      if (activation.by !== 'target') {
+        found.push({
+          field: 'activation.by',
+          code: 'malformed_field',
+          reason:
+            'a later action belongs to the caster or to the creature the casting is on; the only value is "target"',
+        });
+      } else if (definition.targets.count < 1) {
+        found.push({
+          field: 'activation.by',
+          code: 'activation_by_nobody',
+          reason:
+            'an action taken by the creature the casting is on needs the spell to be cast on a creature, and this one names none',
+        });
+      }
+    }
+    /*
+     * SRD Dragon's Breath's Cone and SRD Call Lightning's bolt: a template the
+     * action draws afresh, held to the two things that make it mean anything.
+     *
+     * It is one of the six shapes, checked by the same reader the definition's
+     * own template is checked by; and it is **not** the persistent area, which
+     * the casting pinned and the fold reads — a definition that wrote both
+     * would have two templates and one word (`towards`, `at`) to place them
+     * with, and the request could not say which it meant.
+     */
+    if (activation.area !== undefined) {
+      if (
+        readsAsObject(
+          activation.area,
+          'activation.area',
+          'a template an action draws is an object naming its shape',
+          found,
+        )
+      ) {
+        if (!AREA_KINDS.has(activation.area.kind)) {
+          found.push({
+            field: 'activation.area.kind',
+            code: 'unknown_area',
+            reason: `"${activation.area.kind}" is not one of the SRD's six areas of effect, nor the wall the caster draws`,
+          });
+        } else if (activation.area.kind === 'wall') {
+          found.push({
+            field: 'activation.area',
+            code: 'activation_draws_a_wall',
+            reason:
+              'a wall is a path the caster draws space by space, and a later action states a direction or a point rather than a path',
+          });
+        }
+      }
+      if (activation.redrawsArea === true) {
+        found.push({
+          field: 'activation.area',
+          code: 'activation_area_and_redraw',
+          reason:
+            'an action either draws a template of its own or draws the casting’s again; two templates and one point to place them with is one sentence written twice',
+        });
+      }
+      if (activation.redirects === true) {
+        found.push({
+          field: 'activation.area',
+          code: 'activation_area_and_redirects',
+          reason:
+            'both a fresh template and a re-aiming read the direction off the same request, and no printed action does both',
+        });
+      }
+      if (activation.range !== undefined) {
+        found.push({
+          field: 'activation.range',
+          code: 'activation_area_and_range',
+          reason:
+            'an action that draws a template catches whoever it covers and reaches no named creature, so it takes no range',
+        });
+      }
+    }
+    /*
+     * SRD Call Lightning: "you can take a Magic action to call down lightning
+     * in that way again, **targeting the same point or a different one**."
+     *
+     * The casting's own template, drawn again at a point stated now, running
+     * the casting's own effects — which is why the action carries no list of
+     * its own and needs the spell to have a template with a point to move.
+     */
+    if (activation.redrawsArea !== undefined) {
+      if (activation.redrawsArea !== true) {
+        found.push({
+          field: 'activation.redrawsArea',
+          code: 'malformed_field',
+          reason: 'a later action draws the casting’s template again or it does not; the only value is true',
+        });
+      } else {
+        if (definition.area === undefined) {
+          found.push({
+            field: 'activation.redrawsArea',
+            code: 'redraw_without_area',
+            reason: 'an action that draws the spell’s template again needs the spell to have one',
+          });
+        } else if (definition.area.origin !== 'point') {
+          found.push({
+            field: 'activation.redrawsArea',
+            code: 'redraw_without_a_point',
+            reason:
+              'a template that starts at its caster has no point to re-choose; only a point-origin area is drawn somewhere else',
+          });
+        }
+        if (Array.isArray(activation.effects) && activation.effects.length > 0) {
+          found.push({
+            field: 'activation.effects',
+            code: 'redraw_with_effects',
+            reason:
+              'what a re-drawing action resolves is the casting’s own effects; a list here would be a second place for one sentence to be got wrong',
+          });
+        }
+        if (activation.range !== undefined) {
+          found.push({
+            field: 'activation.range',
+            code: 'redraw_with_range',
+            reason:
+              'an action that draws a template catches whoever it covers and reaches no named creature, so it takes no range',
+          });
+        }
+      }
     }
     if (activation.movesArea !== undefined) {
       if (definition.area === undefined) {
@@ -7018,7 +7154,8 @@ export function checkSpellDefinition(
       activation.movesArea === undefined &&
       activation.redirects !== true &&
       activation.reAims !== true &&
-      activation.reoptions !== true
+      activation.reoptions !== true &&
+      activation.redrawsArea !== true
     ) {
       found.push({
         field: 'activation.effects',
