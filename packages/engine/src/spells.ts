@@ -773,7 +773,12 @@ export function originOfArea(
   at: Point | undefined,
   anchoring: PointAnchoring,
 ): AreaOrigin | null {
-  if (area.origin === 'self') return { creature: caster };
+  // SRD Speak with Plants' "immobile" Emanation is the one self-origin area
+  // that is not carried: the resolution pinned the caster's square as its
+  // point, and it is read as a point from then on — see `SpellArea.immobile`.
+  if (area.origin === 'self' && !(area.kind === 'emanation' && area.immobile === true)) {
+    return { creature: caster };
+  }
   return at === undefined ? null : areaPointAt(at, anchoring);
 }
 

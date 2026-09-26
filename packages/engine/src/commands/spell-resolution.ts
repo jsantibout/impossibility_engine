@@ -98,6 +98,7 @@ import {
   teleportOf,
   weaponRiderOf,
   optionEffects,
+  laysTerrain,
   type SpellOption,
   statedChoice,
   statedDamageType,
@@ -434,7 +435,7 @@ export function resolveDeclaredCast(
 
     /** Where the patches this settlement lays lie — see `terrainPatchOf`. */
     const settledTerrain =
-      (definition.areaTerrain === undefined &&
+      (!laysTerrain(definition) &&
         definition.areaLight === undefined &&
         definition.areaObscurement === undefined) ||
       definition.area === undefined
@@ -1056,6 +1057,35 @@ export function castOrRelease(
     } | null = null;
 
     if (definition.area !== undefined) {
+      // **An immobile Emanation pins the caster's own square.** SRD Speak with
+      // Plants' "immobile 30-foot Emanation" is Range: Self, so the caster
+      // states no point, and it does not move, so a point is what the record
+      // needs — the caster's square at this moment, which is a fact the scene
+      // holds and nobody invents. A caster nobody has placed has no square to
+      // pin, and is asked rather than guessed.
+      const pinnedAt =
+        request.at !== undefined
+          ? request.at
+          : definition.area.kind === 'emanation' && definition.area.immobile === true
+            ? (state.scene === null ? null : positionOf(state.scene, casterId))
+            : undefined;
+      if (pinnedAt === null) {
+        return needsContext(
+          'needs_context',
+          `${definition.name} is measured from where ${casterId} is standing, and nobody has placed them`,
+          [
+            {
+              kind: 'position',
+              subject: casterId,
+              need: `where ${casterId} is standing`,
+              because: `${definition.name} pins its Emanation to the caster's square`,
+              satisfyWith: `placeCreatureInScene(${casterId}, …)`,
+            },
+          ],
+        );
+      }
+      // The catch is measured from the caster as every self-origin area is;
+      // the pin is for the record and the patch, not for the request.
       const resolved = areaTargets(
         state,
         casterId,
@@ -1080,13 +1110,13 @@ export function castOrRelease(
       if (
         (definition.areaTrigger !== undefined ||
           definition.areaStanding !== undefined ||
-          definition.areaTerrain !== undefined ||
+          laysTerrain(definition) ||
           definition.areaLight !== undefined ||
           definition.areaObscurement !== undefined) &&
-        request.at !== undefined
+        pinnedAt !== undefined
       ) {
         area = {
-          at: request.at,
+          at: pinnedAt,
           ...(request.towards === undefined ? {} : { towards: request.towards }),
           // `space` *is* the absence, so a casting that names it explicitly
           // serialises exactly as one that says nothing. Two records that mean
@@ -2105,7 +2135,7 @@ function resolveOnTargets(
    * first; the fact is the area's.
    */
   const terrainRegion =
-    (definition.areaTerrain === undefined &&
+    (!laysTerrain(definition) &&
       definition.areaLight === undefined &&
       definition.areaObscurement === undefined) ||
     definition.area === undefined
@@ -3393,7 +3423,15 @@ export function resolveEffects(
   // read by people too, and the webs appearing after the casting they belong
   // to is the order they happened in.
   events.push(
-    ...terrainPatchOf(definition, castingId, context.terrainRegion ?? null, becomes !== undefined),
+    ...terrainPatchOf(
+      definition,
+      castingId,
+      context.terrainRegion ?? null,
+      becomes !== undefined,
+      // The branch the casting ran, where the ground is the branch's — SRD
+      // Speak with Plants' two directions.
+      becomes?.option,
+    ),
     ...lightPatchesOf(
       state,
       definition,

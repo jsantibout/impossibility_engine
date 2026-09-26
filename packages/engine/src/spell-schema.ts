@@ -1372,6 +1372,65 @@ function checkRepeatGate(gate: unknown, at: string, found: SpellDefinitionProble
   });
 }
 
+/**
+ * Ground an area changes, at the definition's path or a branch's.
+ *
+ * One rate or the override, never both and never neither: SRD Speak with
+ * Plants prints the override once, and every other writer prints a rate. The
+ * floor is the pure function's own — see `declareDifficultPatch`, which the
+ * fold calls on the event this definition will write.
+ */
+function checkAreaTerrain(
+  terrain: unknown,
+  path: string,
+  hasArea: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  if (!hasArea) {
+    found.push({
+      field: path,
+      code: 'terrain_without_area',
+      reason:
+        'ground a spell makes expensive is the ground under its area; a spell with no volume covers no ground',
+    });
+  }
+  if (
+    !readsAsObject(
+      terrain,
+      path,
+      'terrain an area creates is an object naming what a foot of that ground costs, or that it clears',
+      found,
+    )
+  ) {
+    return;
+  }
+  const { costPerFoot: rate, clears } = terrain as { costPerFoot?: unknown; clears?: unknown };
+  if (clears !== undefined) {
+    if (clears !== true) {
+      found.push({
+        field: `${path}.clears`,
+        code: 'malformed_field',
+        reason: 'a patch clears the ground or it does not; the only value is true',
+      });
+    }
+    if (rate !== undefined) {
+      found.push({
+        field: `${path}.costPerFoot`,
+        code: 'terrain_clears_and_charges',
+        reason: 'ground made ordinary has no rate of its own; name the rate or the clearing, not both',
+      });
+    }
+    return;
+  }
+  if (!Number.isInteger(rate) || (rate as number) < DIFFICULT_TERRAIN) {
+    found.push({
+      field: `${path}.costPerFoot`,
+      code: 'bad_terrain_cost',
+      reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
+    });
+  }
+}
+
 function checkConditionRider(
   rider: ConditionRider | undefined,
   namePath: string,
@@ -5500,35 +5559,42 @@ export function checkSpellDefinition(
   }
 
   if (definition.areaTerrain !== undefined) {
-    if (definition.area === undefined) {
-      found.push({
-        field: 'areaTerrain',
-        code: 'terrain_without_area',
-        reason:
-          'ground a spell makes expensive is the ground under its area; a spell with no volume covers no ground',
-      });
-    }
-    if (
-      readsAsObject(
-        definition.areaTerrain,
-        'areaTerrain',
-        'terrain an area creates is an object naming what a foot of that ground costs',
+    checkAreaTerrain(definition.areaTerrain, 'areaTerrain', definition.area !== undefined, found);
+  }
+  // **And a branch's ground**, held to the same rules at its own path — SRD
+  // Speak with Plants prints two directions over one Emanation and the branch
+  // says which. The definition's `area` is what both read.
+  for (const key of Object.keys(definition.options ?? {}).sort()) {
+    const branch = definition.options?.[key];
+    if (branch !== undefined && typeof branch === 'object' && branch.areaTerrain !== undefined) {
+      checkAreaTerrain(
+        branch.areaTerrain,
+        `options.${key}.areaTerrain`,
+        definition.area !== undefined,
         found,
-      )
-    ) {
-      const rate = definition.areaTerrain.costPerFoot;
-      // **The pure function's own rule, from the same constant.** A second
-      // spelling of the floor here would be a second chance to disagree with
-      // `declareDifficultPatch`, which the fold calls on the event this
-      // definition will write — and a definition it let through would throw
-      // in the reducer rather than be refused at authoring.
-      if (!Number.isInteger(rate) || rate < DIFFICULT_TERRAIN) {
-        found.push({
-          field: 'areaTerrain.costPerFoot',
-          code: 'bad_terrain_cost',
-          reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
-        });
-      }
+      );
+    }
+  }
+  // SRD Speak with Plants' "immobile": a word about an Emanation and nothing else.
+  if (
+    definition.area !== undefined &&
+    definition.area !== null &&
+    typeof definition.area === 'object' &&
+    (definition.area as { readonly immobile?: unknown }).immobile !== undefined
+  ) {
+    const immobile = (definition.area as { readonly immobile?: unknown }).immobile;
+    if (definition.area.kind !== 'emanation') {
+      found.push({
+        field: 'area.immobile',
+        code: 'immobile_without_emanation',
+        reason: 'only an Emanation is carried by its creature, so only an Emanation can be pinned still; every other area already sits where it was put',
+      });
+    } else if (immobile !== true) {
+      found.push({
+        field: 'area.immobile',
+        code: 'malformed_field',
+        reason: 'an Emanation is carried or it is pinned; the only value is true',
+      });
     }
   }
 
@@ -7032,7 +7098,12 @@ function checkOptions(
       checkEffect(effect as SpellEffect, definition.level, `options.${key}.effects[${i}]`, found),
     );
 
-    if (effects.length === 0 && handsOver.length === 0 && notes.length === 0) {
+    if (
+      effects.length === 0 &&
+      handsOver.length === 0 &&
+      notes.length === 0 &&
+      branch.areaTerrain === undefined
+    ) {
       found.push({
         field: `options.${key}`,
         code: 'option_says_nothing',

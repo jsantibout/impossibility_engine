@@ -3936,6 +3936,19 @@ export type SpellArea =
        * definition written before this field says.
        */
       readonly includesOrigin?: true;
+      /**
+       * SRD Speak with Plants: "an **immobile** 30-foot Emanation".
+       *
+       * An Emanation is stored as the creature it comes from and re-read
+       * against where that creature stands now, which is what the glossary's
+       * Emanation is — a Spirit Guardians walks with its cleric. This one
+       * does not: the caster's own square is pinned at the casting and the
+       * area is measured from it for the duration, so the ground a druid
+       * cleared stays cleared when the druid walks off. `originOfArea` is the
+       * one reader, and the resolution pins the square where a point-origin
+       * area would have taken one from the request.
+       */
+      readonly immobile?: true;
     }
   /**
    * SRD Wind Wall: "You can make the wall up to 50 feet long, 15 feet high,
@@ -3991,10 +4004,26 @@ export interface AreaTerrain {
    *
    * The floor is the glossary's own rate and the validator holds the
    * definition to it, because a spell that made the ground *cheaper* is a
-   * sentence the SRD does not print and a number below two would quietly
-   * charge less than open floor.
+   * sentence the SRD does not print — with one exception, which is
+   * {@link clears} and not a smaller number here. One of the two, never both.
    */
-  readonly costPerFoot: number;
+  readonly costPerFoot?: number;
+  /**
+   * SRD Speak with Plants: "turn Difficult Terrain caused by plant growth
+   * (such as thickets and undergrowth) into ordinary terrain that lasts for
+   * the duration."
+   *
+   * **The one sentence in the book that takes Difficult Terrain away**, and it
+   * is not a rate: the lattice takes the dearest rate lying over a space, by
+   * the book's own rule that Difficult Terrain is not cumulative, and a
+   * cheaper patch would simply lose. So this is a patch that **overrides** —
+   * `chargeAt` answers open floor for a space a clearing patch covers, whatever
+   * else lies there, the Mouther's carried ground and a declared thicket alike
+   * — and lapses with its casting as every patch does. That "caused by plant
+   * growth" is what the cleared ground was is the table's, as which ground is
+   * thicket always has been.
+   */
+  readonly clears?: true;
 }
 
 /**
@@ -4586,6 +4615,18 @@ export interface SpellOption {
    * authoring rather than dropping it at the table.
    */
   readonly effects?: readonly SpellEffect[];
+  /**
+   * What this branch does to the ground under the spell's area, in place of
+   * {@link SpellDefinition.areaTerrain}.
+   *
+   * SRD Speak with Plants prints two directions over one Emanation — "turn
+   * Difficult Terrain … into ordinary terrain … Or … turn ordinary terrain …
+   * into Difficult Terrain" — and which is the caster's word, so it is a
+   * branch's field rather than the definition's. Read where the patch is
+   * pinned, off the branch the casting ran; presupposes an `area` exactly as
+   * the definition's field does.
+   */
+  readonly areaTerrain?: AreaTerrain;
   /**
    * Printed text this branch hands to whoever is running the table — see
    * {@link SpellDefinition.dmDecides}, which is the same field one level up
@@ -6777,6 +6818,30 @@ export function optionEffects(
 ): readonly SpellEffect[] {
   if (definition.options === undefined || option === undefined) return definition.effects;
   return [...definition.effects, ...(definition.options[option]?.effects ?? [])];
+}
+
+/**
+ * The ground this casting changes, off the branch it ran or the definition.
+ *
+ * One reader for the three places that ask — whether a point must be pinned,
+ * where the region is derived and where the patch is written — so a branch's
+ * terrain reaches all three the day it is written. Null for the book's spells
+ * that leave the ground alone, which is nearly all of them.
+ */
+export function areaTerrainOf(
+  definition: SpellDefinition,
+  option: string | undefined,
+): AreaTerrain | null {
+  const branch = option === undefined ? undefined : definition.options?.[option];
+  return branch?.areaTerrain ?? definition.areaTerrain ?? null;
+}
+
+/** Whether any list this definition can run lays ground: the definition's or a branch's. */
+export function laysTerrain(definition: SpellDefinition): boolean {
+  return (
+    definition.areaTerrain !== undefined ||
+    Object.values(definition.options ?? {}).some((branch) => branch.areaTerrain !== undefined)
+  );
 }
 
 export function teleportOf(

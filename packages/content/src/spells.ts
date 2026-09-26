@@ -10271,9 +10271,14 @@ export const SLEET_STORM: SpellDefinition = {
  * > present into Difficult Terrain that lasts for the duration."
  *
  * A conversation with a hedge, and one mechanical sentence in the middle of
- * it that goes **both ways**: this is the only spell in the book that can
- * take Difficult Terrain away as well as make it. Neither direction has
- * anywhere to be written, because the ground holds no such property.
+ * it that goes **both ways**: the only spell in the book that can take
+ * Difficult Terrain away as well as make it. Both directions are written now.
+ * The Emanation is `immobile`, so the caster's square is pinned at the casting
+ * and the ground stays changed when the druid walks off; which direction is
+ * the caster's word, so each is a branch carrying its own `areaTerrain` — the
+ * glossary's rate one way, and `clears` the other, a patch that overrides
+ * whatever else lies over a space rather than a cheaper rate that would lose.
+ * The conversation is the table's, in the book's words.
  */
 export const SPEAK_WITH_PLANTS: SpellDefinition = {
   id: 'speak-with-plants',
@@ -10284,11 +10289,30 @@ export const SPEAK_WITH_PLANTS: SpellDefinition = {
   concentration: false,
   range: { kind: 'self' },
   targets: { count: 0 },
+  // "an immobile 30-foot Emanation": the caster's square, pinned.
+  area: { kind: 'emanation', distance: 30, origin: 'self', immobile: true },
   effects: [],
+  // "You can also turn Difficult Terrain caused by plant growth … into
+  // ordinary terrain … Or you can turn ordinary terrain where plants are
+  // present into Difficult Terrain": one Emanation, two directions, and the
+  // caster's word says which. Which ground is plant-grown is the table's, as
+  // which ground is thicket always has been.
+  options: {
+    clear: {
+      label: 'Turn plant-grown Difficult Terrain into ordinary terrain',
+      areaTerrain: { clears: true },
+    },
+    overgrow: {
+      label: 'Turn ordinary terrain where plants are present into Difficult Terrain',
+      areaTerrain: { costPerFoot: 2 },
+    },
+  },
   durationSeconds: 600,
-  unmodelled: [
-    'the terrain is not changed in either direction, and the two halves are blocked on different things. Turning ordinary ground into Difficult Terrain is writable — `areaTerrain` says it and four definitions write it — and two things stand between this spell and it. The definition carries no `area`, and terrain without one is refused at authoring; and the area the book prints is "an immobile 30-foot Emanation", where an Emanation is stored as the creature it comes from and re-read against where that creature is now, so a patch written on one would walk away with the druid. Turning plant-grown Difficult Terrain **back** into ordinary ground is writable nowhere: the lattice takes the dearest rate lying over a space, by the book’s own rule that Difficult Terrain is not cumulative, and nothing in it subtracts',
-    'the conversation is the DM’s: questioning plants about the past day, giving them simple commands, and talking to a Plant creature as if you shared a language are all narration',
+  dmDecides: [
+    'You imbue plants in an immobile 30-foot Emanation with limited sentience and animation, giving them the ability to communicate with you and follow your simple commands.',
+    "You can question plants about events in the spell's area within the past day, gaining information about creatures that have passed, weather, and other circumstances.",
+    "The spell doesn't enable plants to uproot themselves and move about, but they can move their branches, tendrils, and stalks for you.",
+    'If a Plant creature is in the area, you can communicate with it as if you shared a common language.',
   ],
 };
 

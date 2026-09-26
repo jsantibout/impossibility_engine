@@ -3132,6 +3132,8 @@ export type GameEvent =
       readonly patch: string;
       readonly region: TerrainRegion;
       readonly costPerFoot: number;
+      /** A patch that makes the ground ordinary — see `DifficultPatch.clears`. Additive; absent everywhere before it. */
+      readonly clears?: true;
       readonly source?: string;
       readonly command?: CommandStamp;
     }

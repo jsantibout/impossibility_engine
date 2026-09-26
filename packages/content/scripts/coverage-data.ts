@@ -473,6 +473,12 @@ export const VERIFIED_SPELLS: readonly string[] = [
   // the other two, thirty feet reached by a level 5 cleric and refused to a
   // level 4 one, and the shortlist bounded by the same band.
   'spare-the-dying',
+  // `speak-with-plants.test.ts` (engine): the mouther's carried ground
+  // ordinary inside thirty feet of the druid's square and still double beyond
+  // it, the Emanation pinned to the square rather than the druid, the ground
+  // back when the ten minutes are up, and the other branch overgrowing open
+  // ground.
+  'speak-with-plants',
   // Driven end to end by `casting-terrain.test.ts`: the Sphere conjured at a
   // point through `resolveSpell`, and the glossary's rate charged over it.
   // The move that costs twice the ground it crosses is Grease's in the same
@@ -612,7 +618,9 @@ export const isExecuted = (definition: SpellDefinition): boolean =>
   definition.conjures !== undefined ||
   definition.maxRunning !== undefined ||
   Object.values(definition.options ?? {}).some(
-    (branch) => (branch.effects ?? []).length > 0,
+    // A branch that lays ground executes as surely as one that rolls — SRD
+    // Speak with Plants' two directions carry no effects and change the map.
+    (branch) => (branch.effects ?? []).length > 0 || branch.areaTerrain !== undefined,
   );
 
 /** Every definition the engine resolves something of, by id. */

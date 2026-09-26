@@ -454,6 +454,9 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'silent-image',
       'speak-with-animals',
       'speak-with-dead',
+      // SRD Speak with Plants' conversation, beside the two directions of
+      // ground it executes.
+      'speak-with-plants',
       'tongues',
       'water-breathing',
       'water-walk',

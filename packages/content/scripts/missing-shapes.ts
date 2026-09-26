@@ -3373,14 +3373,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       note: 'Arcane Lock is a casting this engine really holds — it runs until dispelled and sits in `state.ongoing`. **Two things are missing and they are not the same thing.** The first is this shape: the state a suppressed casting sits in, a spell that does not function while its time goes on running, which is the half `spell-ended` did not build. The second is that nothing can name this particular casting anyway — Arcane Lock’s own definition records it for Dispel Magic, which ends an ongoing spell on a target where this casting is on a door. The debt is the first; the second is why building it would still leave a lock nobody can reach.',
     },
   ],
-  'speak-with-plants': [
-    {
-      marker: null,
-      clause: 'turn Difficult Terrain caused by plant growth',
-      why: 'difficult-terrain-an-area-creates',
-      note: 'the clause after it — turning ordinary ground into Difficult Terrain — is writable now, and this one is the direction that is not: **removing** it. Nothing in the lattice subtracts, because `terrainAt` takes the dearest rate lying over a space and a patch cancelling its neighbours is the one thing a rate cannot say.'
-    },
-  ],
   'tiny-hut': [
     {
       marker: null,
