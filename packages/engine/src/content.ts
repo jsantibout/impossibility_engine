@@ -1296,7 +1296,16 @@ export const REQUIREMENT_KINDS: ReadonlySet<string> = new Set([
   // execute, and the set is held equal to the union rather than curated.
   'in-dim-light-or-darkness',
   'while-bloodied',
+  // Held equal to the union, so it is here — and refused by name at both doors
+  // below: SRD Warding Bond's "within 60 feet of you" finds its other creature
+  // through the *casting* the grant names, and an item or a feature names no
+  // casting, so a benefit fenced by it would never hold rather than always.
+  // (W7-S19)
+  'within-feet-of',
 ]);
+
+/** The one requirement only a spell's grant can carry — see `StandingRequirement.within-feet-of`. */
+const SPELL_ONLY_REQUIREMENTS: ReadonlySet<string> = new Set(['within-feet-of']);
 
 /**
  * The two requirements only an item can meet.
@@ -4030,6 +4039,12 @@ function itemGrantProblems(
     (grant.requires ?? []).forEach((requirement, position) => {
       if (!REQUIREMENT_KINDS.has(requirement?.kind)) {
         say('bad_requirement', `"${String(requirement?.kind)}" is not a standing requirement`, `${at}.requires[${position}]`);
+      } else if (SPELL_ONLY_REQUIREMENTS.has(requirement.kind)) {
+        say(
+          'bad_requirement',
+          `"${requirement.kind}" measures a distance to the caster of the casting that granted it, and an item names no casting; the benefit would never hold`,
+          `${at}.requires[${position}]`,
+        );
       }
     });
   });
@@ -4210,6 +4225,16 @@ function featStandingProblems(
   if (Array.isArray(requires)) {
     requires.forEach((requirement, position) => {
       const kind = (requirement as { readonly kind?: unknown })?.kind;
+      if (isString(kind) && SPELL_ONLY_REQUIREMENTS.has(kind)) {
+        // The same refusal the item door gives: a feat names no casting for
+        // the distance to be measured to. (W7-S19)
+        problems.push({
+          field: `${where}.requires[${position}]`,
+          code: 'bad_feat_grant',
+          reason: `"${kind}" measures a distance to the caster of the casting that granted it, and ${who} names no casting; the benefit would never hold`,
+        });
+        return;
+      }
       if (!isString(kind) || !REQUIREMENT_KINDS.has(kind)) {
         // The item door's refusal, at the door beside it: a clause
         // `requirementsHold` does not know is a clause it answers `true` to,

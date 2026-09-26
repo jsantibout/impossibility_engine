@@ -7,7 +7,6 @@ import { advanceTime, createRng, createRollIssuer, declaredCasting, dmDecisionsI
 import {
   BLOCKED_ON,
   TRACKED_ADJUDICATED,
-  clausesIn,
   mechanicalMarkersIn,
   printedFieldsOf,
   printedUnitsOf,

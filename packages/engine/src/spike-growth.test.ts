@@ -1,6 +1,13 @@
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { describe, expect, it } from 'vitest';
-import { asCharacterId, expect as unwrap, isErr, isNeedsContext, type CharacterId } from '@ie/shared';
+import {
+  asCharacterId,
+  contextRequestsOf,
+  expect as unwrap,
+  isErr,
+  isNeedsContext,
+  type CharacterId,
+} from '@ie/shared';
 import type { CharacterSheet } from './character.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
@@ -250,8 +257,9 @@ describe('a walk through the spikes', () => {
       { placement: { from: { landmark: 'the edge' }, feet: 15, bearing: 270 } },
       supply('walk'),
     );
-    expect(isNeedsContext(out) && out.code).toBe('route_required');
-    expect(isNeedsContext(out) && out.requests[0]?.kind).toBe('route');
+    expect(isNeedsContext(out)).toBe(true);
+    expect(out.ok ? 'ok' : out.code).toBe('route_required');
+    expect(contextRequestsOf(out)[0]?.kind).toBe('route');
   });
 
   /**
@@ -268,7 +276,8 @@ describe('a walk through the spikes', () => {
       { placement: { from: { landmark: 'the edge' }, feet: 15, bearing: 270 } },
       supply('walk'),
     );
-    expect(isNeedsContext(out) && out.code).toBe('route_required');
+    expect(isNeedsContext(out)).toBe(true);
+    expect(out.ok ? 'ok' : out.code).toBe('route_required');
   });
 
   it('charges a shove that states its path, and says so for one that does not', () => {

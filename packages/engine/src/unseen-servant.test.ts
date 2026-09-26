@@ -139,9 +139,10 @@ describe('the definition is written to the book', () => {
     expect(codes({ ...summon, commanded: { costs: 'action', moveUpTo: 15 } })).toContain('bad_summon_command');
     expect(codes({ ...summon, commanded: { costs: 'bonus-action', moveUpTo: 0 } })).toContain('bad_summon_command');
     // A command is given to a creature a casting holds, so the casting has to run.
-    expect(
-      checkSpellDefinition({ ...servant(), durationSeconds: undefined, endsEarly: undefined }).map((p) => p.code),
-    ).toContain('bad_summon_command');
+    const { durationSeconds: _span, endsEarly: _endings, ...instant } = servant();
+    void _span;
+    void _endings;
+    expect(checkSpellDefinition(instant).map((p) => p.code)).toContain('bad_summon_command');
   });
 
   it('refuses a summons naming both a block and an inline one, or neither', () => {

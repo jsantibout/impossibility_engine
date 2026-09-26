@@ -349,14 +349,15 @@ describe('what each price buys', () => {
    * same, and casting it refuses for the honest reason.
    */
   it('declares a spell nothing defines, and refuses to cast it', () => {
-    // The Druid was this fixture until Entangle was written; the dragon's
-    // Sending is what is left of the same shape, which is the point of
-    // reaching for another block rather than deleting the guard.
-    const dragonLog = table('adult-blue-dragon', CULTIST);
+    // The Druid was this fixture until Entangle was written, and the Blue
+    // Dragon's Sending until Sending was defined (2026-09-26); the Ancient
+    // Green Dragon's Modify Memory is what is left of the same shape, which is
+    // the point of reaching for another block rather than deleting the guard.
+    const dragonLog = table('ancient-green-dragon', CULTIST);
     expect(at(dragonLog).creatures[CULTIST]!.spellcasting.granted.map((g) => g.spellId)).toContain(
-      'sending',
+      'modify-memory',
     );
-    const out = cast(at(dragonLog), CULTIST, { spellId: 'sending', targets: [] });
+    const out = cast(at(dragonLog), CULTIST, { spellId: 'modify-memory', targets: [] });
     expect(isErr(out) && out.code).toBe('no_definition');
   });
 });

@@ -170,7 +170,8 @@ describe('walking in the wind', () => {
       { placement: { from: { landmark: 'down the line' }, feet: 15, bearing: 270 } },
       supply('walk'),
     );
-    expect(isNeedsContext(out) && out.code).toBe('route_required');
+    expect(isNeedsContext(out)).toBe(true);
+    expect(out.ok ? 'ok' : out.code).toBe('route_required');
   });
 
   /**
