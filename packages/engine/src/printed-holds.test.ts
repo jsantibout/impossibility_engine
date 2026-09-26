@@ -170,7 +170,7 @@ describe("the Animated Rug of Smothering's hold", () => {
     // touched was hurt: the blow's own name, then whose hold shared it.
     expect(
       struck.events.some(
-        (e) => e.type === 'damage-taken' && e.id === BREN && e.source.includes(`${BEAST}'s hold`) && e.source.includes('Greatsword'),
+        (e) => e.type === 'damage-taken' && e.id === BREN && e.source?.includes(`${BEAST}'s hold`) === true && e.source.includes('Greatsword'),
       ),
     ).toBe(true);
   });

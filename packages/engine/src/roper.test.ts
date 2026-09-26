@@ -179,7 +179,7 @@ describe("the Roper's Multiattack", () => {
     // own: the action is already taken, and a slot of it goes.
     const reeled = unwrap(takePrintedPull(table.state, ROPER, { line: 'Reel' }), 'the reel');
     table.log.push(...reeled.events);
-    expect(reeled.pulled.sort()).toEqual([BREN, SABLE]);
+    expect([...reeled.pulled].sort()).toEqual([BREN, SABLE]);
     expect(reeled.events.some((e) => e.type === 'attack-made')).toBe(true);
     expect(reeled.events.some((e) => e.type === 'action-spent')).toBe(false);
     for (const who of [BREN, SABLE]) {

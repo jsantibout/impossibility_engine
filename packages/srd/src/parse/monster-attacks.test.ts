@@ -967,7 +967,7 @@ describe('a use that names an attack the block prints', () => {
     const text =
       'The wight makes two attacks, using Necrotic Sword or Necrotic Bow in any combination. It can replace one attack with a use of Life Drain.';
     const swings = ['Necrotic Sword', 'Necrotic Bow'];
-    expect(parseMultiattack(text, swings).handOver).toBe('It can replace one attack with a use of Life Drain.');
+    expect(parseMultiattack(text, swings)?.handOver).toBe('It can replace one attack with a use of Life Drain.');
     expect(parseMultiattack(text, swings, [], ['Life Drain'])).toEqual({
       alternatives: [
         [{ count: 2, attacks: swings }],
@@ -995,13 +995,13 @@ describe('a use that names an attack the block prints', () => {
     });
     const two =
       'The dragon makes three Rend attacks. It can replace two attacks with a use of Sleep Breath.';
-    expect(parseMultiattack(two, ['Rend'], [], ['Sleep Breath (Recharge 5–6)']).handOver).toBe(
+    expect(parseMultiattack(two, ['Rend'], [], ['Sleep Breath (Recharge 5–6)'])?.handOver).toBe(
       'It can replace two attacks with a use of Sleep Breath.',
     );
     // A use of Spellcasting is not a line with a save, and stays prose.
     const cast =
       'The mage makes three Arcane Burst attacks. It can replace one attack with a use of Spellcasting.';
-    expect(parseMultiattack(cast, ['Arcane Burst'], [], ['Life Drain']).handOver).toBe(
+    expect(parseMultiattack(cast, ['Arcane Burst'], [], ['Life Drain'])?.handOver).toBe(
       'It can replace one attack with a use of Spellcasting.',
     );
   });

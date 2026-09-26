@@ -254,7 +254,7 @@ describe("a Gelatinous Cube's Engulf", () => {
     const state = table.state;
     expect(elsewhereOf(state, ONE)?.host).toBe(CUBE);
     expect(state.creatures[ONE]!.vitals.hp).toBeLessThan(before);
-    expect(table.log.some((event) => event.type === 'damage-taken' && event.id === ONE && event.source.includes(CUBE))).toBe(true);
+    expect(table.log.some((event) => event.type === 'damage-taken' && event.id === ONE && event.source?.includes(CUBE) === true)).toBe(true);
     // The cube walks on; the commoner is still inside it and still has no position.
     expect(positionOf(state.scene!, ONE)).toBeNull();
   });
