@@ -157,6 +157,15 @@ const AUDIT: readonly {
       optionByTarget: because(
         'which branch each creature runs, for the one spell that prints "(choose for each creature)" — SRD Calm Emotions. The same decision as `option` above, made creature by creature, and not a number: the engine still rolls every save and refuses a creature left out or one the Sphere did not catch. No benchmark caster has Calm Emotions prepared, so a published field would refuse every value it could be sent today; publish it the day one does, beside the list of whom the Sphere caught, because a model cannot name a branch for a creature it has not been told is in the area',
       ),
+      deliveredBy: because(
+        'SRD Find Familiar: "when you cast a spell with a range of touch, your familiar can deliver the touch." One spell in the book grants the permission, and it grants it to a creature the caster has to have summoned first — no benchmark character has a familiar standing beside them, so a published field would refuse every value it could be sent today. `packages/tools` publishes it as `cast_spell.deliveredBy` for a table that has one',
+      ),
+      inAStorm: because(
+        'SRD Call Lightning: "If you’re outdoors in a storm when you cast this spell ... the spell’s damage increases by 1d10." A fact about the weather, which the engine holds nothing of and never guesses; one spell prints the clause and no benchmark character has it prepared, and absence is the book’s own answer rather than a fact nobody supplied — so withholding it costs a caster nothing it could have had. `packages/tools` publishes it as `cast_spell.inAStorm`',
+      ),
+      leapTo: because(
+        'where SRD Chromatic Orb\u2019s dice send it next, in the caster\u2019s order. One spell prints the clause and no benchmark character has it prepared, so a published field would have nothing to name; the order is the choice, which is the one thing a caller would have to be told about it. `packages/tools` publishes it as `cast_spell.leapTo` for a table that has one',
+      ),
       fought: because(
         'SRD Charm Person: "It does so with Advantage if you or your allies are fighting it." Five spells print the clause, the engine refuses a casting of one that does not answer it, and the answer is a list because an upcast casting names several targets — so this is required rather than optional the day any of them is castable here, and no benchmark character has one prepared',
       ),
@@ -269,6 +278,9 @@ const AUDIT: readonly {
     fates: {
       placement: expose('from_landmark'),
       forced: expose('forced'),
+      alsoMoves: because(
+        'SRD Conjure Animals: "when you move on your turn, you can also move the pack up to 30 feet to an unoccupied space you can see." A rider that carries one of the mover’s own castings along, so it needs a casting id and a space — and no benchmark character has the one spell in the book that grants it. `packages/tools` publishes it as `move.also_moves` for a druid who does',
+      ),
       usingGrant: because(
         'SRD Tactical Shift\'s "you can move up to half your Speed without provoking Opportunity Attacks", spent out of feet a feature handed the turn rather than out of the Speed. A decision rather than a number, and `packages/tools` publishes it as `using_grant`. It is not on **this** surface because this one is a benchmark held fixed: neither benchmark character has a feature that hands a move over, so a published field would be refused every value it could be sent today',
       ),

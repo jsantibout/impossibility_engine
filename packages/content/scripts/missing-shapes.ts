@@ -725,13 +725,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // thrown. What is left is the sight the clauses are gated on and the word "can".
   'conjure-animals': [
     {
-      marker: 'senses',
       clause: 'the caster\u2019s sight of whoever the pack reaches is not read at the boundary',
       why: 'table',
       note: 'SRD gates all three of the pack\u2019s clauses on "a creature you can see", and an area trigger catches whoever the geometry catches: the debt is raised in the fold, which holds no pairwise sight declaration for a creature the caster has never looked at, and a boundary that asked would be asking a question only the table can answer at a moment no command is running. The ten feet, the once-per-turn cap and the 3d10 are all executed; whether the druid saw is the DM\u2019s, who may decline the save.',
     },
     {
-      marker: 'saving-throw',
       clause: '"you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces',
       why: 'table',
       note: 'The word is a permission and the engine has no vocabulary for a trigger its caster may decline \u2014 every `AreaTrigger` in the book fires when its moment arrives. So the save is rolled, which is the reading that never quietly loses a rule, and a pack that chose not to bite is the table\u2019s to narrate over a die that was thrown.',
@@ -812,13 +810,11 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'detect-thoughts': [
     {
-      marker: 'range',
       clause: 'Sense Thoughts is the DM’s',
       why: 'table',
       note: 'SRD: "You sense the presence of thoughts within 30 feet of yourself that belong to creatures that know languages or are telepathic." The thirty feet is a distance the engine measures, and everything the sentence measures it *to* is not: which creatures know a language, which are telepathic, and whether a foot of stone, an inch of metal or a thin sheet of lead stands between. What a caster senses is information the DM supplies, and the spell holds nothing for it to be recorded on.',
     },
     {
-      marker: 'action',
       clause: 'which of the two options a Magic action turns on is the DM’s too',
       why: 'table',
       note: 'SRD: "Until the spell ends, you can activate either effect as a Magic action on your later turns." The probe is the one later action the engine resolves — it forces a save, ends on a success and pins the mind it read — and turning on Sense Thoughts or Read Thoughts buys information rather than state, so a second activation would be an action spent on a handover. `SpellActivation` carries one action for that reason and the DM narrates the other.',
