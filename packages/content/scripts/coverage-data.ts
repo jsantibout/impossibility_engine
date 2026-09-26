@@ -1545,10 +1545,12 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * | Black Pudding's Dissolving Pseudopod, Gray Ooze's Pseudopod | a spell that repairs an item. The penalty and the destruction are executed; "The penalty can be removed by casting the _Mending_ spell on the armor" is the spells side's, and no casting reaches an item's record |
  * | Roper's Tentacle | a limb that grows back. The hold, the Poisoned it carries, the tentacle as a thing with the printed Armour Class and Hit Points, and the cap of six are executed (W7-B10); "a destroyed tentacle regrows at the start of the roper's next turn" is a dead object the fold would have to forget at a turn boundary, and the cap counts the tentacles that hold somebody — so a destroyed one is treated as regrown at once and the sentence is handed over |
  *
- * **Six lines left this table in W7-B10** — the Rug's Smother, the
- * Darkmantle's Crush, the Stirge's Proboscis, the Mimic's Pseudopod, the
- * Allosaurus's Claws and the Giant Crocodile's Bite — each read to the end but
- * for the suffocation the first two print, which is a handover kind.
+ * **Four lines left this table in W7-B10** — the Stirge's Proboscis, the
+ * Mimic's Pseudopod, the Allosaurus's Claws and the Giant Crocodile's Bite,
+ * each read to the end. The Rug's Smother and the Darkmantle's Crush are read
+ * to the end as well but for one clause each, "is suffocating", which is a
+ * handover kind and keeps both on the row; the Roper's Tentacle joined it the
+ * same day, read for the first time and carrying its regrowth.
  */
 export const RIDER_HANDOVER_SHAPE = 'A hit whose line says more than the engine applies';
 export const hasHandedOverRider = (line: StatBlockLine): boolean => {
@@ -2172,10 +2174,10 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  *
  * **The Ettercap's Reel and the Roper's Tentacle left this table in W7-B10**:
  * a printed pull may say which hold it reads (`MonsterPull.of:
- * 'restrained-by-object'`, the creature a web this creature spun is holding), and a hit whose chain deals
- * no damage is read where its rider imposes a condition — the tentacle the
- * hold is made with is an object the hit raises, filed with the grapple so
- * destroying it frees the creature.
+ * 'restrained-by-object'`, the creature a web this creature spun is
+ * holding), and a hit whose chain deals no damage is read where its rider
+ * imposes a condition — the tentacle the hold is made with is an object the
+ * hit raises, filed with the grapple so destroying it frees the creature.
  *
  * Keyed `<block id>/<heading>`, because two blocks print one heading over two
  * rules and the pair is what a reader needs.
