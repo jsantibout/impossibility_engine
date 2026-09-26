@@ -2933,6 +2933,20 @@ const CAST_SPELL = tool({
       .describe(
         'Which route casts it, when more than one would serve: `class:<classId>` for one of a multiclass caster’s classes, or a granting feature’s id. Each brings its own spellcasting ability and therefore its own save DC, which is why the engine asks rather than picking.',
       ),
+    item: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        'Cast it from a magic item the caster is holding or wearing — a Wand of Fireballs’ Fireball, a Crystal Ball’s Scrying — by the id `sheet` lists: the catalogue id, or a copy’s own `instance` where the caster has more than one. The item is the route: the spell is cast at the level the item casts it at, with the save DC and attack bonus the item prints (the caster’s own where it prints none), and its price comes out of the item’s own charges — no spell slot, and it need not be a spell the caster knows. The engine refuses an item not in hand, one that asks for attunement the caster has not given, one that does not cast this spell, and one without the charges; and a `slotLevel`, `slotKind`, `payment` or `ritual` beside an item is refused, because an item pays for its own casting. Not the object a spell is aimed at, which is `object`.',
+      ),
+    charges: z
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        'How many of the item’s charges to spend, where its line lets the caster choose — the Wand of Fireballs’ "you can expend no more than 3 charges", each one past the first raising the spell a level. Leave it out to spend the price the item prints. A count outside what the item allows is refused, and so is naming any with no `item`. A choice of how much to spend, never a result: the engine turns the count into a level and rolls everything.',
+      ),
     usingFeatures: z
       .array(z.string().min(1))
       .optional()
@@ -3065,6 +3079,11 @@ const CAST_SPELL = tool({
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),
       ...(args.source === undefined ? {} : { source: args.source }),
+      // The item casting it and what it spends out of it: a route and a
+      // price the caster chooses, never a number the item prints — the DC,
+      // the level and the charge's cost are read off the item by the engine.
+      ...(args.item === undefined ? {} : { item: args.item }),
+      ...(args.charges === undefined ? {} : { charges: args.charges }),
       ...(args.usingFeatures === undefined ? {} : { usingFeatures: args.usingFeatures }),
       ...(args.usingOptions === undefined ? {} : { usingOptions: args.usingOptions }),
       ...(args.unaffected === undefined ? {} : { unaffected: args.unaffected.map(who) }),
@@ -3467,7 +3486,7 @@ const SHEET = tool({
   mutates: false,
   input: z.object({ who: creatureId }),
   run: (context, args) => {
-    const held = holdingsOf(context.campaign.state(), who(args.who));
+    const held = holdingsOf(context.campaign.state(), who(args.who), context.campaign.content);
     if (held === null) {
       // A creature nobody has created is a thin record, not a mistake: the
       // engine's own `unknownCreature` says exactly this and is not reachable
@@ -5467,14 +5486,16 @@ const END_REST = tool({
 const USE_ITEM = tool({
   name: 'use_item',
   description:
-    'Use an item a creature is carrying for the benefit it confers — a potion drunk or administered, a flask thrown back, a staff’s charge spent. The dice, the save DC and how long it lasts are the item’s own and printed on it; you name the item and, where somebody else is getting it, the target within five feet. An item that confers nothing by being used is refused rather than quietly consumed: a benefit had by wearing it is had by equipping it, and a spell it casts is cast.',
+    'Use an item a creature is carrying for the benefit it confers — a potion drunk or administered, a flask thrown back, a staff’s charge spent, a wand’s ray. The dice, the save DC, how far it reaches and how long it lasts are the item’s own and printed on it; you name the item and, where somebody else is getting it, the target — within five feet, or as far as the item’s line reaches. An item that confers nothing by being used is refused rather than quietly consumed: a benefit had by wearing it is had by equipping it, and a spell it casts is cast with `cast_spell.item`.',
   mutates: true,
   input: z.object({
     who: creatureId.describe('Whose item it is, and who is using it.'),
     item: z.string().min(1).describe('Catalogue id, e.g. potion-of-healing.'),
     target: creatureId
       .optional()
-      .describe('Who gets the benefit, within five feet. Omit for the user themselves.'),
+      .describe(
+        'Who gets the benefit. Within five feet for a potion; within the distance the item prints for one that reaches further — the Wand of Paralysis’s "a creature you can see within 60 feet", where the engine also asks whether the user can see them. Omit for the user themselves.',
+      ),
     charges: z
       .int()
       .min(1)

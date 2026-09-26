@@ -1475,6 +1475,43 @@ function itemPoolProblems(
     if (dawn !== null) say(dawn.code, dawn.reason, `${at}.regainsAtDawn`);
   }
 
+  // **What the last charge costs, stated.** SRD Wand of Fireballs: "If you
+  // expend the wand's last charge, roll 1d20. On a 1, the wand crumbles into
+  // ashes and is destroyed." The Wind Fan's `failure_costs_nothing` rule one
+  // clause along: a consequence that names no cost is a better item than the
+  // book prints, so `destroyed` is `true` beside a die or `'always'` with none.
+  const last: unknown = grant.onLastCharge;
+  if (last !== undefined) {
+    const record =
+      last !== null && typeof last === 'object' ? (last as Record<string, unknown>) : {};
+    const destroyed = record['destroyed'];
+    const face = record['onD20AtOrBelow'];
+    if (destroyed !== true && destroyed !== 'always') {
+      say(
+        'last_charge_costs_nothing',
+        `${item.id} says what its last charge does and not what it costs; the SRD's wands crumble on a d20 and its talismans are destroyed outright, so "destroyed" is true beside a die or "always" with none`,
+        `${at}.onLastCharge.destroyed`,
+      );
+    } else if (destroyed === 'always' && face !== undefined) {
+      say(
+        'bad_last_charge_die',
+        `${item.id} is destroyed by its last charge outright, so a d20 face beside it is a die nothing throws`,
+        `${at}.onLastCharge.onD20AtOrBelow`,
+      );
+    } else if (
+      destroyed === true &&
+      (typeof face !== 'number' || !Number.isInteger(face) || face < 1 || face > 19)
+    ) {
+      // A 20 would be every face, which is "always" said with a die thrown for
+      // an outcome already decided — the generator moved for nothing.
+      say(
+        'bad_last_charge_die',
+        `${item.id} rolls a d20 on its last charge and is destroyed at or below a face from 1 to 19 ("On a 1" is 1), and names ${String(face)}`,
+        `${at}.onLastCharge.onD20AtOrBelow`,
+      );
+    }
+  }
+
   return found;
 }
 
@@ -3499,6 +3536,30 @@ function itemConfersProblems(
       `${at}.saveDc`,
     );
   }
+  // **How far the use reaches**, where the line prints a distance — SRD Wand
+  // of Paralysis's "a creature you can see within 60 feet of yourself". Feet,
+  // so a whole number of at least five: the five a potion reaches across is
+  // what absent already means.
+  const reach: unknown = grant.reach;
+  if (reach !== undefined) {
+    if (typeof reach !== 'number' || !Number.isInteger(reach) || reach < 5) {
+      say(
+        'bad_conferral_reach',
+        `a reach is a whole number of feet, at least the five a potion is administered across, and ${item.id} names ${String(reach)}`,
+        `${at}.reach`,
+      );
+    }
+    // An effect that lasts only while its holder wears the item is landed on
+    // the wearer and nobody else — `useItem`'s `not_the_wearer` — so a
+    // distance to somebody else is one nothing could be measured across.
+    if (Array.isArray(grant.endsEarly) && grant.endsEarly.includes('source-item-removed')) {
+      say(
+        'conferral_reach_on_self_only',
+        `${item.id}'s effect lasts only while its wearer wears it and lands on nobody else, so a reach would never be measured`,
+        `${at}.reach`,
+      );
+    }
+  }
 
   if (!Array.isArray(grant.effects)) {
     say('bad_conferral_effects', 'an item confers a list of effects', `${at}.effects`);
@@ -3848,6 +3909,16 @@ function itemGrantProblems(
     // by casting from it has no such moment to end at. Written on one of those
     // it would be inert, which is indistinguishable from a line the transcriber
     // thought had landed.
+    // And a last charge, which is the pool's: only the spend that empties the
+    // item's one pool reads it, so written on anything else it would be a
+    // wand that never crumbles and a record that looks as if it does.
+    if (grant.kind !== 'pool' && (grant as Record<string, unknown>)['onLastCharge'] !== undefined) {
+      say(
+        'last_charge_without_a_pool',
+        `${item.id} says what its last charge does on a "${grant.kind}" grant, and a last charge is the item's charge pool running out; nothing would read it here`,
+        `${at}.onLastCharge`,
+      );
+    }
     if (
       grant.kind !== 'confers' &&
       (grant as Record<string, unknown>)['durationRolled'] !== undefined
@@ -5032,6 +5103,16 @@ export function checkContent(input: ContentInput): readonly ContentProblem[] {
             field: `${grantsAt}.uses`,
             code: 'item_sizing_on_a_feature',
             reason: `a flat number of uses is how an item's line sizes its charges, and poolSizeOf sizes a feature's pool from its class table, so ${feature.id} would be sized by a number nothing reads`,
+          });
+        }
+        // And an item's last charge, which only a charge spent out of an
+        // item's own pool reads: a feature's pool empties into a refusal and
+        // nothing that holds it can crumble.
+        if (grant.kind === 'pool' && grant.onLastCharge !== undefined) {
+          problems.push({
+            field: `${grantsAt}.onLastCharge`,
+            code: 'last_charge_on_a_feature',
+            reason: `what a last charge destroys is the item it was spent out of, and ${feature.id} is not an item; nothing would read it`,
           });
         }
         // What a use of the pool buys, where what it buys is an effect list.

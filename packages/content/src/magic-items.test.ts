@@ -456,8 +456,17 @@ describe('every transcribed item agrees with the entry it was read from', () => 
           ).toBe(true);
         }
         if (grant.upToCharges !== undefined) {
+          // Two wordings: the wands' "no more than 3 charges", and SRD Eyes of
+          // Charming's "1 or more charges", whose only ceiling is the charges
+          // the lenses hold — so the maximum it may name is the pool's size
+          // and nothing else.
+          const poolSize = (item.grants ?? []).find((one) => one.kind === 'pool');
           expect(
-            contains(entry.description, `no more than ${grant.upToCharges} charges`),
+            contains(entry.description, `no more than ${grant.upToCharges} charges`) ||
+              (contains(entry.description, `${grant.charges ?? 1} or more charges`) &&
+                poolSize !== undefined &&
+                'uses' in poolSize &&
+                poolSize.uses === grant.upToCharges),
             `${item.id} lets ${grant.upToCharges} charges go and its entry does not`,
           ).toBe(true);
         }
@@ -563,6 +572,34 @@ describe('what an item does not do is data, and quotes the page', () => {
     // And it bites: the cube's faces, reworded by one word, are not the page.
     const cube = SRD_MAGIC_ITEMS.find((item) => item.id === 'cube-of-force')!;
     expect(unprinted({ ...cube, dmDecides: ['Each face has a distinct rune on it.'] })).toHaveLength(1);
+  });
+
+  /**
+   * **A last charge is a clause of the page too**, and one that takes the
+   * item away — so a record may say it only where its own entry does: "If you
+   * expend the wand's last charge, roll 1d20. On a 1, …" for a die, and "last
+   * charge" at the least for one that always destroys. A crumble written onto
+   * an item whose page prints none would be a worse item than the book's, and
+   * one written at the wrong face a different one.
+   */
+  it('destroys an item on its last charge only where its entry says so', () => {
+    const unprinted: string[] = [];
+    let checked = 0;
+    for (const item of SRD_MAGIC_ITEMS) {
+      const pool = (item.grants ?? []).find((grant) => grant.kind === 'pool');
+      const last = pool !== undefined && 'onLastCharge' in pool ? pool.onLastCharge : undefined;
+      if (last === undefined) continue;
+      checked += 1;
+      const entry = entryFor(item);
+      const says =
+        last.destroyed === true
+          ? contains(entry.description, 'last charge, roll 1d20') &&
+            contains(entry.description, `On a ${last.onD20AtOrBelow},`)
+          : contains(entry.description, 'last charge');
+      if (!says) unprinted.push(`${item.id} is destroyed on its last charge and ${entry.name} does not say so`);
+    }
+    expect(unprinted).toEqual([]);
+    expect(checked).toBeGreaterThan(5);
   });
 
   /**

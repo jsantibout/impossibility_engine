@@ -718,6 +718,9 @@ describe('the rod and the two spells it casts', () => {
       uses: 5,
       recovers: 'dawn',
       regainsAtDawn: '1',
+      // "If you expend the last charge, roll 1d20. On a 1, the rod disappears
+      // in a harmless burst of radiance."
+      onLastCharge: { destroyed: true, onD20AtOrBelow: 1 },
     });
     // A stated number at dawn: neither a die nor a refill, and now a sentence
     // the validator takes.
@@ -1201,28 +1204,34 @@ describe('a chime with ten strikes and a rod with one charge a morning', () => {
  * blocker.
  *
  * Every wand in the family prints "If you expend the wand's last charge, roll
- * 1d20. On a 1, the wand crumbles into ashes and is destroyed", and the Wand
- * of Fireballs and the Wand of Web have carried it as an `unmodelled` note
- * since they were written — nothing removes a line from an inventory, so the
- * record is a wand that lasts *longer* than the book's rather than one that
- * does more. Four others were filed as **blocked** on the same sentence while
- * their real blocker was a missing spell; six definitions later, Polymorph,
- * Lightning Bolt, Hold Monster, Hold Person, Command and Fear all exist, and
- * each wand is the Wand of Web's record with the numbers changed.
+ * 1d20. On a 1, the wand crumbles into ashes and is destroyed". Four were
+ * filed as **blocked** on that sentence while their real blocker was a
+ * missing spell; six definitions later, Polymorph, Lightning Bolt, Hold
+ * Monster, Hold Person, Command and Fear all exist, and each wand is the Wand
+ * of Web's record with the numbers changed. The sentence itself was a note on
+ * all six while nothing removed a line from an inventory, and it is the
+ * pool's `onLastCharge` now — `last-charge.test.ts` in the engine drives it.
  */
 describe('the four wands whose remainder was a note', () => {
-  /** All four carry the crumble as a note, and none of them as a grant. */
-  it('records the crumble the way the two transcribed wands already did', () => {
+  /** All four carry the crumble on their pool, and none of them as a note. */
+  it('records the crumble on the pool, the way the two first wands do', () => {
     for (const id of [
+      'wand-of-fireballs',
+      'wand-of-web',
       'wand-of-polymorph',
       'wand-of-lightning-bolts',
       'wand-of-binding',
       'wand-of-fear',
     ]) {
+      const pool = (SRD_CONTENT.item(id)?.grants ?? []).find((grant) => grant.kind === 'pool');
+      expect(pool && 'onLastCharge' in pool ? pool.onLastCharge : undefined, id).toEqual({
+        destroyed: true,
+        onD20AtOrBelow: 1,
+      });
       expect(
         (SRD_CONTENT.item(id)?.unmodelled ?? []).join(' '),
-        `${id} says nothing about destroying itself`,
-      ).toContain('the wand crumbles into ashes and is destroyed');
+        `${id} still carries the crumble as a note`,
+      ).not.toContain('crumbles into ashes');
     }
   });
 

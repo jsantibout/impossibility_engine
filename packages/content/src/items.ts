@@ -310,6 +310,7 @@ const charges = (
   name: string,
   uses: number,
   regainsAtDawn?: string,
+  onLastCharge?: LastCharge,
 ): ItemGrant => ({
   kind: 'pool',
   key: `${id}:charges`,
@@ -317,7 +318,24 @@ const charges = (
   uses,
   recovers: 'dawn',
   ...(regainsAtDawn === undefined ? {} : { regainsAtDawn }),
+  ...(onLastCharge === undefined ? {} : { onLastCharge }),
 });
+
+/** What spending an item's last charge does to it, in the pool's words. */
+type LastCharge = NonNullable<Extract<ItemGrant, { kind: 'pool' }>['onLastCharge']>;
+
+/**
+ * SRD, under nine wands and staffs and in almost the same words each time:
+ * "If you expend the wand's last charge, roll 1d20. On a 1, the wand crumbles
+ * into ashes and is destroyed."
+ *
+ * **A clause that limits the item**, which is why it is a field and not a
+ * note: a record without it is a wand that outlasts the book's. The engine
+ * throws the d20 at the spend that empties the pool, and on a 1 the copy
+ * leaves the hand and the pack — however the entry words the leaving: ashes,
+ * cinders, "a harmless burst of radiance".
+ */
+const CRUMBLES_ON_A_1: LastCharge = { destroyed: true, onD20AtOrBelow: 1 };
 
 /**
  * A count with **no morning behind it**: "The chime can be used 10 times",
@@ -1458,9 +1476,16 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * `restoreOn` has always done.
        */
       attunement: {},
-      grants: [charges('eyes-of-charming', 'Eyes of Charming', 3)],
-      unmodelled: [
-        'what the charges buy: "you can expend 1 or more charges to cast _Charm Person_ (save DC 13) ... You increase the spell\'s level by one for each additional charge you expend" — a spell cast from an item, at a level the charges decide',
+      grants: [
+        charges('eyes-of-charming', 'Eyes of Charming', 3),
+        /**
+         * "While wearing them, you can expend 1 or more charges to cast _Charm
+         * Person_ (save DC 13). For 1 charge, you cast the level 1 version of
+         * the spell. You increase the spell's level by one for each additional
+         * charge you expend." The Wand of Fireballs' sentence, with "1 or
+         * more" bounded by the three charges the lenses hold.
+         */
+        castsSpell('charm-person', 1, { upToCharges: 3, saveDc: 13 }),
       ],
     },
   ),
@@ -1481,7 +1506,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       attunement: { bySpellcaster: true },
       grants: [
-        charges('wand-of-fireballs', 'Wand of Fireballs', 7, '1d6 + 1'),
+        charges('wand-of-fireballs', 'Wand of Fireballs', 7, '1d6 + 1', CRUMBLES_ON_A_1),
         /**
          * "you can expend no more than 3 charges to cast _Fireball_ (save DC
          * 15) from it. For 1 charge, you cast the level 3 version of the
@@ -1496,9 +1521,6 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
          */
         castsSpell('fireball', 1, { upToCharges: 3, saveDc: 15 }),
       ],
-      unmodelled: [
-        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself, which nothing removes from an inventory',
-      ],
     },
   ),
   /**
@@ -1506,13 +1528,10 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
    * sentence was already a note rather than a blocker.
    *
    * Every wand in this family prints "If you expend the wand's last charge,
-   * roll 1d20. On a 1, the wand crumbles into ashes and is destroyed", and
-   * the Wand of Fireballs and the Wand of Web above carry it in
-   * {@link CatalogueItem.unmodelled} — because nothing removes a line from an
-   * inventory, so a record without the clause is a wand that lasts *longer*
-   * than the book's rather than one that does more. That is rule 2 of this
-   * file, not rule 3: the unsayable clause takes the item away, so leaving it
-   * out cannot hand a party a better wand than the page prints.
+   * roll 1d20. On a 1, the wand crumbles into ashes and is destroyed". It was
+   * a note on all of them while nothing removed a line from an inventory, and
+   * it is {@link CRUMBLES_ON_A_1} on their pools now: the clause *limits* the
+   * wand, so a record without it was one that lasted longer than the book's.
    *
    * What kept these four out was the other half — Polymorph, Command, Fear,
    * Lightning Bolt, Hold Person and Hold Monster had no definitions — and all
@@ -1533,11 +1552,8 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       attunement: { bySpellcaster: true },
       grants: [
-        charges('wand-of-polymorph', 'Wand of Polymorph', 7, '1d6 + 1'),
+        charges('wand-of-polymorph', 'Wand of Polymorph', 7, '1d6 + 1', CRUMBLES_ON_A_1),
         castsSpell('polymorph', 1, { saveDc: 15 }),
-      ],
-      unmodelled: [
-        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
       ],
     },
   ),
@@ -1555,11 +1571,14 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       attunement: { bySpellcaster: true },
       grants: [
-        charges('wand-of-lightning-bolts', 'Wand of Lightning Bolts', 7, '1d6 + 1'),
+        charges(
+          'wand-of-lightning-bolts',
+          'Wand of Lightning Bolts',
+          7,
+          '1d6 + 1',
+          CRUMBLES_ON_A_1,
+        ),
         castsSpell('lightning-bolt', 1, { upToCharges: 3, saveDc: 15 }),
-      ],
-      unmodelled: [
-        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
       ],
     },
   ),
@@ -1577,12 +1596,9 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       attunement: {},
       grants: [
-        charges('wand-of-binding', 'Wand of Binding', 7, '1d6 + 1'),
+        charges('wand-of-binding', 'Wand of Binding', 7, '1d6 + 1', CRUMBLES_ON_A_1),
         castsSpell('hold-monster', 5, { saveDc: 17 }),
         castsSpell('hold-person', 2, { saveDc: 17 }),
-      ],
-      unmodelled: [
-        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
       ],
     },
   ),
@@ -1595,8 +1611,8 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * spells (save DC 15) on the following table from it" — Command "(flee
        * or grovel only)" for 1 charge, Fear "(60-foot Cone)" for 3.
        *
-       * **Both parentheticals are notes, and both for the same reason as the
-       * crumble: each leaves the wand weaker than the page.** Command is
+       * **Both parentheticals are notes, and both for the same reason: each
+       * leaves the wand weaker than the page.** Command is
        * tracked and resolves nothing, so there are no options for "flee or
        * grovel only" to narrow; and Fear's own area is a 30-foot Cone, so a
        * casting from this wand catches half of what the book's wand catches
@@ -1604,14 +1620,13 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       attunement: {},
       grants: [
-        charges('wand-of-fear', 'Wand of Fear', 7, '1d6 + 1'),
+        charges('wand-of-fear', 'Wand of Fear', 7, '1d6 + 1', CRUMBLES_ON_A_1),
         castsSpell('command', 1, { saveDc: 15 }),
         castsSpell('fear', 3, { saveDc: 15 }),
       ],
       unmodelled: [
         '"*Fear* (60-foot Cone)": the wand widens the spell\'s area and a `casts` grant hands the definition to the pipeline whole, so a casting from this wand fills Fear\'s own 30-foot Cone — half the page\'s wand rather than twice it',
         '"*Command* (flee or grovel only)": the narrowing has nothing to narrow, because Command is a tracked definition and the option a caster chooses is what it leaves to the table',
-        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself on a die face, which nothing removes from an inventory',
       ],
     },
   ),
@@ -1635,11 +1650,53 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       attunement: { bySpellcaster: true },
       grants: [
-        charges('wand-of-web', 'Wand of Web', 7, '1d6 + 1'),
+        charges('wand-of-web', 'Wand of Web', 7, '1d6 + 1', CRUMBLES_ON_A_1),
         castsSpell('web', 1, { saveDc: 13 }),
       ],
-      unmodelled: [
-        '"If you expend the wand\'s last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed": an item that destroys itself, which nothing removes from an inventory',
+    },
+  ),
+  wornItem(
+    { id: 'wand-of-paralysis', name: 'Wand of Paralysis', kind: 'wand' },
+    {
+      /**
+       * SRD Wand of Paralysis: "Wand, Rare (Requires Attunement by a
+       * Spellcaster). This wand has 7 charges. While holding it, you can take
+       * a Magic action to expend 1 charge to cause a thin blue ray to streak
+       * from the tip toward a creature you can see within 60 feet of
+       * yourself. The target must succeed on a DC 15 Constitution saving
+       * throw or have the Paralyzed condition for 1 minute. At the end of
+       * each of the target's turns, it repeats the save, ending the effect on
+       * itself on a success. ... The wand regains 1d6 + 1 expended charges
+       * daily at dawn. If you expend the wand's last charge, roll 1d20. On a
+       * 1, the wand crumbles into ashes and is destroyed."
+       *
+       * **A ray, not a spell**: nothing is cast, so it is a conferral paid for
+       * in charges, and "a creature you can see within 60 feet of yourself"
+       * is the conferral's `reach`. The save and its repeat are the `save`
+       * kind's, against the wand's DC; the minute is the conferral's
+       * lifetime.
+       *
+       * The whole entry, so it carries no `unmodelled` at all.
+       */
+      attunement: { bySpellcaster: true },
+      grants: [
+        charges('wand-of-paralysis', 'Wand of Paralysis', 7, '1d6 + 1', CRUMBLES_ON_A_1),
+        {
+          kind: 'confers',
+          action: 'action',
+          charges: 1,
+          reach: 60,
+          saveDc: 15,
+          durationSeconds: 60,
+          effects: [
+            {
+              kind: 'save',
+              ability: 'con',
+              condition: 'paralyzed',
+              repeats: { at: 'end-of-turn', onSuccess: 'end-on-target' },
+            },
+          ],
+        },
       ],
     },
   ),
@@ -1756,7 +1813,11 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       attunement: { byClass: ['druid', 'sorcerer', 'warlock', 'wizard'] },
       grants: [
         resistanceWhileWorn(['fire']),
-        charges('staff-of-fire', 'Staff of Fire', 10, '1d6 + 4'),
+        /**
+         * "If you expend the last charge, roll 1d20. On a 1, the staff
+         * crumbles into cinders and is destroyed."
+         */
+        charges('staff-of-fire', 'Staff of Fire', 10, '1d6 + 4', CRUMBLES_ON_A_1),
         /**
          * "you can cast one of the spells on the following table from it,
          * using your spell save DC. The table indicates how many charges you
@@ -1771,15 +1832,12 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
          * Bonus.
          *
          * A grant per row of the table, which is why the reader is a list: the
-         * book prices each spell separately and the two the catalogue can cast
-         * are priced differently.
+         * book prices each spell separately and the three rows are priced
+         * three ways.
          */
         castsSpell('burning-hands', 1),
         castsSpell('fireball', 3),
-      ],
-      unmodelled: [
-        'the third row of the staff\'s table, "_Wall of Fire_" at 4 charges: the catalogue has no definition of that spell, which is blocked on a wall — an area shape the engine does not hold — and on damage with neither an attack roll nor a save',
-        '"If you expend the last charge, roll 1d20. On a 1, the staff crumbles into cinders and is destroyed": an item that destroys itself, which nothing removes from an inventory',
+        castsSpell('wall-of-fire', 4),
       ],
     },
   ),
@@ -2376,12 +2434,15 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        */
       attunement: {},
       grants: [
-        charges('rod-of-resurrection', 'Rod of Resurrection', 5, '1'),
+        /**
+         * "If you expend the last charge, roll 1d20. On a 1, the rod
+         * disappears in a harmless burst of radiance": the wands' crumble in
+         * other words, and the same field — the copy leaves the hand and the
+         * pack either way.
+         */
+        charges('rod-of-resurrection', 'Rod of Resurrection', 5, '1', CRUMBLES_ON_A_1),
         castsSpell('heal', 1),
         castsSpell('resurrection', 5),
-      ],
-      unmodelled: [
-        '"If you expend the last charge, roll 1d20. On a 1, the rod disappears in a harmless burst of radiance": an item that destroys itself on a die face, which is neither a reader the engine has nor something that removes a line from an inventory',
       ],
     },
   ),

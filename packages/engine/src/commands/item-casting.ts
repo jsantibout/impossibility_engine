@@ -71,7 +71,7 @@ const ITEM_CASTER_LEVEL = 1;
 
 /** What a request says about casting from an item. */
 export interface ItemCastRequest {
-  /** The item's catalogue id. */
+  /** The item's catalogue id, or the id of the copy in hand. */
   readonly item: string;
   /** How many charges to spend, where the item lets the user choose. */
   readonly charges?: number;
@@ -279,7 +279,12 @@ export function itemRoute(
   definition: SpellDefinition,
   request: ItemCastRequest,
 ): Result<ItemRoute> {
-  const item = content.item(request.item);
+  // **A catalogue id or a copy's own id**, as `sheet` lists them: a wizard
+  // holding one of two labelled wands names the one in hand, and the copy's
+  // id says which kind of thing it is a copy of. Named by its copy, the item
+  // must be *that* copy in hand, since its charges are its own.
+  const copy = creature.inventory.find((line) => line.instance === request.item);
+  const item = content.item(copy?.id ?? request.item);
   if (item === null) return err('unknown_item', `${request.item} is not in the catalogue`);
 
   const grant = itemCasting(item, definition.id);
@@ -293,11 +298,15 @@ export function itemRoute(
     );
   }
 
-  const held = creature.equipped.find((worn) => worn.id === item.id);
+  const held = creature.equipped.find(
+    (worn) => worn.id === item.id && (copy === undefined || worn.instance === copy.instance),
+  );
   if (held === undefined) {
     return err(
       'not_equipped',
-      `${item.name} is used while holding it, and ${creature.id} is not`,
+      copy === undefined
+        ? `${item.name} is used while holding it, and ${creature.id} is not`
+        : `${copy.instance} is not the ${item.name} in ${creature.id}'s hand, and it is used while holding it`,
     );
   }
   if (item.attunement !== undefined && !creature.attuned.some((held) => held.id === item.id)) {

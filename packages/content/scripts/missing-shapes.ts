@@ -5538,36 +5538,14 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
   ],
   // **What `a-rider-on-the-face-the-die-showed` blocks and what it merely
   // annotates**, settled here because four wands were filed under it for a
-  // clause three transcribed items already carry as a note. "If you expend
+  // clause that was then a note on three transcribed items. "If you expend
   // the wand's last charge, roll 1d20. On a 1, the wand crumbles into ashes
-  // and is destroyed" is `unmodelled` on the Wand of Fireballs and the Wand
-  // of Web, and on the Rod of Resurrection: nothing removes a line from an
-  // inventory, so the clause is an *addition* the record leaves out and a
-  // record without it is a wand that lasts longer than the book's, not one
-  // that does more. The four whose whole remainder was that sentence are
-  // transcribed. It stays a blocker on the entries below, where the die face
-  // buys something — a Fire Opal's beams, a staff regaining charges on a 20,
-  // a sword's extra damage — and on the wands whose spell or condition
-  // blocks them anyway.
-  // **The clearest case the re-derivation turned up, and the entry the range
-  // shape finishes.** Every other clause of this wand is built: seven charges
-  // regaining 1d6 + 1 at dawn is a pool, a charge spent on a conferral is a
-  // price, and "must succeed on a DC 15 Constitution saving throw or have the
-  // Paralyzed condition for 1 minute. At the end of each of the target's
-  // turns, it repeats the save, ending the effect on itself on a success" is
-  // the `save` kind in the book's own words.
-  //
-  // **The die face came off by the rule stated above rather than by
-  // judgement.** This wand's last sentence is the crumble clause *verbatim* as
-  // the Wand of Fireballs, the Wand of Web, the Wand of Fear, the Wand of
-  // Binding, the Wand of Polymorph and the Wand of Lightning Bolts print it,
-  // and every one of those is transcribed carrying it in `unmodelled`: a
-  // record without it is a wand that lasts longer than the book's, not one
-  // that does more. It was listed here only because the condition blocked the
-  // entry anyway, and the condition no longer does. So what stands between
-  // this wand and a record is one field: "a creature you can see within 60
-  // feet of yourself".
-  'wand-of-paralysis': ['a-range-an-item-names'],
+  // and is destroyed" is the pool's `onLastCharge` now — the engine throws
+  // the d20 at the spend that empties the pool and a 1 takes the copy — so
+  // it blocks nothing whose die face only destroys. It stays a blocker on the
+  // entries below, where the die face buys something — a Fire Opal's beams,
+  // a staff regaining charges on a 20, a sword's extra damage — and on the
+  // wands whose spell or condition blocks them anyway.
   'wand-of-the-war-mage-1-2-or-3': [
     'a-bonus-to-spell-attack-rolls',
     'a-fact-only-the-table-can-declare',

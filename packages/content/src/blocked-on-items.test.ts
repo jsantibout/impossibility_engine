@@ -453,9 +453,11 @@ describe('the two shapes the re-derivation was sent to check', () => {
   });
 
   /**
-   * The blocker the reading found underneath them, and the entry that shows
-   * it cleanest: every clause of a Wand of Paralysis is writable but the
-   * sixty feet its ray travels and the die that crumbles it.
+   * The blocker the reading found underneath them. The entry that showed it
+   * cleanest — a Wand of Paralysis, every clause writable but the sixty feet
+   * its ray travels — is transcribed now: `confers.reach` said the distance
+   * and the pool's `onLastCharge` the crumble, so it left the map and the
+   * shape finishes nothing.
    */
   it('names the distance that was really in the way', () => {
     // Pinned by name rather than by size, which is what the two assertions
@@ -471,18 +473,16 @@ describe('the two shapes the re-derivation was sent to check', () => {
       'rope-of-entanglement',
       'talisman-of-pure-good',
       'talisman-of-ultimate-evil',
-      'wand-of-paralysis',
     ]);
 
-    // **The entry a range field would finish, and the reason it is only
+    // **The entry a range field finished, and the reason it was the only
     // one.** The Necklace of Fireballs wants a second field as well — "increase
     // the damage of the _Fireball_ by 1d6 for each bead after the first" is a
     // benefit that grows with the count spent — so it is blocked and not
-    // finished. The wand is finished because its own last sentence is the
-    // crumble clause every transcribed wand that prints it already carries in
-    // `unmodelled` — the entry's own comment in the map names which.
-    expect(range.finishes).toEqual(['wand-of-paralysis']);
-    expect(itemBlockersOf('wand-of-paralysis')).toEqual(['a-range-an-item-names']);
+    // finished; every other entry here has a second blocker of its own.
+    expect(range.finishes).toEqual([]);
+    expect(TRANSCRIBED.has('wand-of-paralysis')).toBe(true);
+    expect(ITEM_BLOCKED_ON['wand-of-paralysis']).toBeUndefined();
     expect(itemBlockersOf('necklace-of-fireballs')).toEqual([
       'a-charge-spent-on-something-other-than-a-casting',
       'a-range-an-item-names',

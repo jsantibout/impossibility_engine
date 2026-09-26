@@ -44,9 +44,10 @@
  * nothing at all.
  */
 
-import { type CharacterId, err, ok, type Result } from '@ie/shared';
+import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import {
   CONFERRED_LEVEL,
+  itemChargePool,
   itemConferral,
   itemSource,
   type ItemConfersGrant,
@@ -56,11 +57,15 @@ import { CONFERRAL_END_CAUSES, type EffectTarget, timerKey } from '../timers.js'
 import { grantSourcesOf, type GameEvent, type GameState } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import { rollRecorded } from '../rolls.js';
+import { remaining } from '../resources.js';
+import { canSee } from '../standing.js';
 import { type Supply } from './casting.js';
 import { creatureOf, reachedBy, spendFor, unknownCreature } from './command.js';
 import { schedule } from './conditions.js';
 import { mayAct } from './holds.js';
 import { copyNamed, expendCharges } from './inventory.js';
+import { itemHandovers } from './item-handover.js';
+import { lastChargeSpent, type LastChargeSpent } from './last-charge.js';
 import { runEffects } from './spell-resolution.js';
 import { type SpellTargetOutcome } from './targeting.js';
 
@@ -301,9 +306,36 @@ export function useItem(
     }
 
     // SRD: "administer it to another creature within 5 feet of yourself" — the
-    // rule a Paladin's touch already asks, asked from the one place.
-    const beyond = reachedBy(state, id, target, item.name);
+    // rule a Paladin's touch already asks, asked from the one place. **Or as
+    // far as the line prints**, SRD Wand of Paralysis's "a creature you can
+    // see within 60 feet of yourself" — the same measurement at the item's
+    // distance, and sight asked as a spell's range asks it.
+    const beyond = reachedBy(state, id, target, item.name, conferral.reach);
     if (beyond !== null) return beyond;
+    if (conferral.reach !== undefined && target !== id && state.scene !== null) {
+      // **The wielder's senses, because the wielder is the one aiming.** A
+      // declared no is the refusal and an unstated answer is asked about —
+      // the three-valued reading `targeting.ts` gives "a creature you can
+      // see". Outside a scene there is no distance and no sight to ask about,
+      // which is `reachedBy`'s reading of a table not using positions.
+      const seen = canSee(state, id, target);
+      if (seen === null) {
+        return needsContext(
+          'undeclared_sight',
+          `nobody has said whether ${id} can see ${target}, and ${item.name} reaches a creature its wielder can see`,
+          [
+            {
+              kind: 'visibility',
+              subject: target,
+              need: `whether ${id} can see ${target}`,
+              because: `${item.name} reaches a creature you can see`,
+              satisfyWith: `a declareSightBetween command from ${id} to ${target}`,
+            },
+          ],
+        );
+      }
+      if (!seen) return err('cannot_see_target', `${id} cannot see ${target}`);
+    }
 
     // **What this use costs, settled before anything is spent.** Both halves
     // are asked here: the count the line allows, and — through the one spender
@@ -367,7 +399,28 @@ export function useItem(
       );
     }
 
-    const unverified: string[] = [];
+    // **And what the last charge does to the item**, thrown right behind the
+    // spend that took it — SRD Wand of Paralysis: "If you expend the wand's
+    // last charge, roll 1d20. On a 1, the wand crumbles into ashes and is
+    // destroyed." The die lands here, before any die the charge bought; the
+    // copy leaves at the **end** of the batch, once the effect has landed and
+    // its timers are filed, so an effect that lasts while the item is worn
+    // sees the item come off after it began rather than never begin at all.
+    // See `lastChargeSpent`.
+    let lastCharge: LastChargeSpent = { rolled: [], destroyed: [] };
+    if (charged !== null && asked.value !== null) {
+      const held = creature.equipped.find((worn) => worn.id === item.id);
+      const pool = itemChargePool(item, held?.instance);
+      const left = pool === null ? 0 : remaining(creature.resources, pool.key);
+      const last = lastChargeSpent(id, creature, item, held?.instance, left, asked.value, supply);
+      if (!last.ok) return last;
+      lastCharge = last.value;
+      events.push(...lastCharge.rolled);
+    }
+
+    // What the item's own line hands to the table, under the mark — see
+    // `itemHandovers`.
+    const unverified: string[] = [...itemHandovers(item)];
     const resolved = runEffects(state, id, creature, {
       origin: { kind: 'item', item },
       effects: conferral.effects,
@@ -542,6 +595,7 @@ export function useItem(
       }
     }
 
+    events.push(...lastCharge.destroyed);
     return ok({ events, outcomes: resolved.value.outcomes, unverified });
   });
 }
