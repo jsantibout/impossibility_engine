@@ -151,6 +151,28 @@ export const MonsterDamageSchema = z.object({
   type: z.string().min(1),
   /** The average the block prints outside the parenthesis. */
   average: z.number().int().min(0),
+  /**
+   * SRD Otherworldly Steed: "1d8 **plus the spell's level** of … damage".
+   *
+   * The flat is the level of the slot the summoning was cast at — a number
+   * the block cannot print and the casting knows. {@link flat} stands at 0
+   * under this mark and the average at 0 beside it, because the book prints
+   * neither; `adaptMonster` resolves both from the casting that raised the
+   * creature, and a block reaching the game with the mark unresolved carries
+   * the line as prose rather than dealing a flat nobody supplied.
+   */
+  flatFromSlotLevel: z.literal(true).optional(),
+  /**
+   * SRD Otherworldly Steed: "Radiant (Celestial), Psychic (Fey), or Necrotic
+   * (Fiend) damage" — a damage type **per creature-type choice** the caster
+   * makes at the casting, keyed by the book's own capitalised word.
+   *
+   * Under this mark {@link type} is {@link DECLARED_DAMAGE_TYPE}: not a type,
+   * and the word every reader refuses to roll on until somebody has said
+   * which. The casting says which — its `creature-type` choice — and the
+   * adapter writes the matching type over the sentinel at the arrival.
+   */
+  typeFromChoice: z.record(z.string().min(1), z.string().min(1)).optional(),
 });
 export type MonsterDamage = z.infer<typeof MonsterDamageSchema>;
 
@@ -1096,8 +1118,21 @@ export type PrintedSaveTrigger = z.infer<typeof PrintedSaveTriggerSchema>;
 export const MonsterSaveSchema = z.object({
   /** Which save, by the engine's own key: `con` for "Constitution". */
   ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
-  /** The DC the block prints, used whole, exactly as a printed AC is. */
-  dc: z.number().int().min(1),
+  /**
+   * The DC the block prints, used whole, exactly as a printed AC is.
+   *
+   * At least 1, except under {@link dcFromSummoner}, where it stands at 0 and
+   * means nothing — the refinement below holds the two together.
+   */
+  dc: z.number().int().min(0),
+  /**
+   * SRD Otherworldly Steed's Bonus Actions: "**DC equals your spell save
+   * DC**". The DC is the summoner's, which no integer here could be; the
+   * adapter resolves it from the casting that raised the creature, and a
+   * block reaching the game with the mark unresolved carries the line as
+   * prose rather than forcing a save against a DC nobody supplied.
+   */
+  dcFromSummoner: z.literal('spell-save').optional(),
   /** Who the line catches, verbatim: "each creature in a 15-foot Cone". */
   targets: z.string().min(1),
   /**
@@ -1246,6 +1281,9 @@ export const MonsterSaveSchema = z.object({
    * part, and says so, rather than silently in full.
    */
   handedOver: z.array(z.string().min(1)).optional(),
+}).refine((save) => save.dc >= 1 || save.dcFromSummoner !== undefined, {
+  message: 'a printed DC is at least 1 unless the line says it is the summoner’s',
+  path: ['dc'],
 });
 export type MonsterSave = z.infer<typeof MonsterSaveSchema>;
 
@@ -1271,6 +1309,17 @@ export const MonsterAttackSchema = z.object({
   kind: z.enum(['melee', 'ranged', 'melee-or-ranged']),
   /** The printed bonus to the attack roll, used whole. */
   modifier: z.number().int(),
+  /**
+   * SRD Otherworldly Steed: "_Melee Attack Roll:_ **Bonus equals your spell
+   * attack modifier**".
+   *
+   * The bonus is the summoner's, which no integer here could be. Under this
+   * mark {@link modifier} stands at 0 and means nothing: `adaptMonster`
+   * resolves it from the casting that raised the creature, and a block that
+   * reaches the game with the mark unresolved carries the line as prose with
+   * a caveat rather than swinging at a bonus nobody supplied.
+   */
+  bonusFromSummoner: z.literal('spell-attack').optional(),
   /** Feet of reach, for the melee half. Null for a purely ranged attack. */
   reach: z.number().int().min(0).nullable(),
   /** Normal and long range in feet. Null for a purely melee attack. */

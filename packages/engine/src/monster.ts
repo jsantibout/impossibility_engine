@@ -11,7 +11,10 @@ import {
 } from '@ie/shared';
 import type {
   CreatureSize,
+  Feature,
   Monster,
+  MonsterAttack,
+  MonsterDamage,
   MonsterForm,
   MonsterMultiattack,
   MonsterMultiattackBranch,
@@ -302,6 +305,183 @@ function printedAttacks(monster: Monster): readonly StatedAttack[] {
           },
         ],
   );
+}
+
+/**
+ * The three casting facts a printed line may stand in for, and the choice
+ * that types it.
+ *
+ * SRD Otherworldly Steed: "Bonus equals your spell attack modifier", "1d8
+ * plus the spell's level", "DC equals your spell save DC", and a damage type
+ * "Radiant (Celestial), Psychic (Fey), or Necrotic (Fiend)" that follows the
+ * creature type the caster chose. Every one is the **casting's**, pinned on
+ * its record — nothing here is derived from a sheet, and the choice is the
+ * one the caster stated.
+ */
+export interface SummonerNumbers {
+  /** The casting's spell attack modifier. */
+  readonly spellAttack: number;
+  /** The casting's spell save DC. */
+  readonly spellSave: number;
+  /** The level the casting was made at — the slot's, when upcast. */
+  readonly slotLevel: number;
+  /** The creature type the caster chose, as the definition writes it: `Fey`. */
+  readonly choice?: string;
+}
+
+/** The mean of `NdM`, for the average a block would have printed had it known the flat. */
+const diceMean = (dice: string | null): number => {
+  const read = dice === null ? null : /^(\d+)d(\d+)$/.exec(dice);
+  return read === null ? 0 : (Number(read[1]) * (Number(read[2]) + 1)) / 2;
+};
+
+/** Whether a printed attack carries a mark the casting has to resolve. */
+const attackIsSummoners = (attack: MonsterAttack): boolean =>
+  attack.bonusFromSummoner !== undefined ||
+  attack.damage.some((part) => part.flatFromSlotLevel !== undefined || part.typeFromChoice !== undefined) ||
+  attack.riderSave?.dcFromSummoner !== undefined;
+
+/**
+ * One damage component with the casting's numbers written over its marks.
+ *
+ * The flat is the slot level; the type is the one the caster's choice names,
+ * matched on the book's capitalised word without regard to case; the average
+ * is the book's own convention — the dice's mean plus the flat, rounded down,
+ * which is how "5 (1d6 + 2)" is printed everywhere. A choice the map does not
+ * name leaves the sentinel standing, so a reader still asks rather than deals
+ * a type nobody chose, and the caveat says why.
+ */
+function resolveDamagePart(
+  part: MonsterDamage,
+  numbers: SummonerNumbers,
+  line: string,
+  caveats: string[],
+): MonsterDamage {
+  const { flatFromSlotLevel, typeFromChoice, ...plain } = part;
+  const flat = flatFromSlotLevel === true ? numbers.slotLevel : plain.flat;
+  let type = plain.type;
+  if (typeFromChoice !== undefined) {
+    const chosen =
+      numbers.choice === undefined
+        ? undefined
+        : Object.entries(typeFromChoice).find(([word]) => word.toLowerCase() === numbers.choice!.toLowerCase());
+    if (chosen === undefined) {
+      caveats.push(
+        `${line} deals a type that follows the creature type chosen at the casting (${Object.keys(typeFromChoice).join(', ')}), and ${
+          numbers.choice === undefined ? 'none was chosen' : `${numbers.choice} is not one of them`
+        }; the type is left for the table to declare`,
+      );
+    } else {
+      type = chosen[1];
+    }
+  }
+  const average =
+    flatFromSlotLevel === true || typeFromChoice !== undefined
+      ? Math.floor(diceMean(plain.dice) + flat)
+      : plain.average;
+  return { ...plain, flat, type, average };
+}
+
+/**
+ * A stat block with the **casting's** numbers written over the lines that
+ * carry a summoner's mark — see `MonsterAttackSchema.bonusFromSummoner`,
+ * `MonsterDamageSchema.flatFromSlotLevel`, `MonsterDamageSchema.typeFromChoice`
+ * and `MonsterSaveSchema.dcFromSummoner`.
+ *
+ * Run **before** the block is adapted, so what the adapter reads and pins is
+ * a block with plain numbers: the swing that spends the Otherworldly Slam and
+ * the door that forces its Bonus Action's save read a modifier, a flat, a type
+ * and a DC exactly as they read a Goblin's, and the log needs no catalogue to
+ * replay them. The marks are stripped as they are resolved, so nothing
+ * downstream can mistake a resolved line for an unresolved one. A block that
+ * prints no mark comes back as it went in.
+ */
+export function resolveSummonerMarks(
+  monster: Monster,
+  numbers: SummonerNumbers,
+): { readonly monster: Monster; readonly caveats: readonly string[] } {
+  const caveats: string[] = [];
+  const save = (printed: MonsterSave | undefined): MonsterSave | undefined => {
+    if (printed === undefined || printed.dcFromSummoner === undefined) return printed;
+    const { dcFromSummoner: _mark, ...plain } = printed;
+    void _mark;
+    return { ...plain, dc: numbers.spellSave };
+  };
+  const resolveLine = (line: Feature): Feature => {
+    const attack =
+      line.attack === undefined || !attackIsSummoners(line.attack)
+        ? line.attack
+        : (() => {
+            const { bonusFromSummoner, ...plain } = line.attack;
+            const riderSave = save(plain.riderSave);
+            return {
+              ...plain,
+              modifier: bonusFromSummoner === undefined ? plain.modifier : numbers.spellAttack,
+              damage: plain.damage.map((part) => resolveDamagePart(part, numbers, line.name, caveats)),
+              ...(riderSave === undefined ? {} : { riderSave }),
+            };
+          })();
+    const resolvedSave = save(line.save);
+    if (attack === line.attack && resolvedSave === line.save) return line;
+    return {
+      ...line,
+      ...(attack === undefined ? {} : { attack }),
+      ...(resolvedSave === undefined ? {} : { save: resolvedSave }),
+    };
+  };
+  const sections = ['traits', 'actions', 'bonusActions', 'reactions', 'legendaryActions'] as const;
+  let resolved: Monster = monster;
+  for (const section of sections) {
+    const lines = monster[section].map(resolveLine);
+    if (lines.some((line, at) => line !== monster[section][at])) {
+      resolved = { ...resolved, [section]: lines };
+    }
+  }
+  return { monster: resolved, caveats };
+}
+
+/**
+ * A stat block with every line whose numbers are a summoner's, and were never
+ * supplied, carried as **prose**.
+ *
+ * SRD Otherworldly Steed walked in by hand — `addCreature` with no casting —
+ * prints a Slam whose bonus is "your spell attack modifier" and nobody is
+ * "you". The zero the parser left under the mark is not a number anybody
+ * gave, and swinging at it would be the engine inventing exactly the fact the
+ * mark exists to withhold. So the attack and the save come off the line, the
+ * line joins the ones the parser read nothing out of, and the caveat says
+ * what a casting would have supplied.
+ */
+function withoutUnresolvedMarks(monster: Monster): {
+  readonly monster: Monster;
+  readonly caveats: readonly string[];
+} {
+  const caveats: string[] = [];
+  const demote = (line: Feature): Feature => {
+    const attack = line.attack !== undefined && attackIsSummoners(line.attack);
+    const save = line.save?.dcFromSummoner !== undefined;
+    if (!attack && !save) return line;
+    caveats.push(
+      `${line.name}'s ${attack ? 'attack bonus, damage and type' : 'save DC'} ${
+        attack ? 'are' : 'is'
+      } its summoner's — ${
+        attack ? 'a spell attack modifier, a slot level and a chosen type' : 'a spell save DC'
+      } — and no casting supplied ${attack ? 'them' : 'it'}; the line is carried as prose`,
+    );
+    const { attack: _attack, save: _save, ...prose } = line;
+    void _attack;
+    void _save;
+    return prose;
+  };
+  const sections = ['traits', 'actions', 'bonusActions', 'reactions', 'legendaryActions'] as const;
+  let demoted: Monster = monster;
+  for (const section of sections) {
+    const lines = monster[section].map(demote);
+    if (lines.some((line, at) => line !== monster[section][at])) {
+      demoted = { ...demoted, [section]: lines };
+    }
+  }
+  return { monster: demoted, caveats };
 }
 
 /** The trait shapes the parser read, in printed order. */
@@ -2212,7 +2392,11 @@ function printedCastLines(
   return { granted, caveats };
 }
 
-export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster {
+export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster {
+  // A line whose numbers are a summoner's, and were not supplied by a
+  // casting, is prose from here on — see `withoutUnresolvedMarks`. A block a
+  // casting raised had its marks resolved before it reached this door.
+  const { monster, caveats: unresolved } = withoutUnresolvedMarks(printed);
   const { defenses, caveats } = buildDefenses(monster);
 
   const saves: Partial<Record<Ability, number>> = {};
@@ -2455,7 +2639,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // them: an ability the block never stated, or a spell it already casts by
     // another route. Reported rather than guessed at, which is the same
     // channel a qualified defence already comes back through.
-    caveats: [...caveats, ...castLines.caveats],
+    caveats: [...unresolved, ...caveats, ...castLines.caveats],
   };
 }
 

@@ -263,7 +263,14 @@ const SIZES: Readonly<Record<string, NonNullable<ConditionEffect['ifNoLargerThan
  * is empty for every line the reader took before this.
  */
 const OPENING =
-  /^(.*?)_([A-Za-z]+) Saving Throw:_ DC (\d+), (.+?)\. (_(?:First )?Failure:_ .*)$/;
+  /^(.*?)_([A-Za-z]+) Saving Throw:_ DC (\d+|equals your spell save DC), (.+?)\. (_(?:First )?Failure:_ .*)$/;
+
+/**
+ * SRD Otherworldly Steed's Bonus Actions: "DC **equals your spell save DC**".
+ * The one DC in the book that is not a number, read into a mark and a zero
+ * that means nothing — see `MonsterSaveSchema.dcFromSummoner`.
+ */
+const DC_IS_SUMMONERS = 'equals your spell save DC';
 
 /**
  * SRD Magmin: "The magmin explodes when it dies."
@@ -2291,7 +2298,9 @@ export function parsePrintedSave(text: string): MonsterSave | null {
 
   return {
     ability,
-    dc: Number(opening[3]),
+    ...(opening[3] === DC_IS_SUMMONERS
+      ? { dc: 0, dcFromSummoner: 'spell-save' as const }
+      : { dc: Number(opening[3]) }),
     targets: head.targets,
     ...(trigger === null ? {} : { trigger }),
     ...(aura === null || aura.types.length === 0 ? {} : { onlyIfTargetType: [...aura.types] }),
