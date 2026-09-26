@@ -34,6 +34,7 @@ export const ROSTER_EVENTS = [
   'creature-added',
   'creature-summoned',
   'creature-removed',
+  'summons-control-renewed',
   'character-created',
   'character-advanced',
   'creature-side-declared',
@@ -181,23 +182,31 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
 
     case 'creature-summoned': {
       const creature = creatureOf(state, event, event.id);
-      // A creature is held by a casting or kept by its summoner — one of the
-      // two, never both and never neither. Two lifetimes would take it away
-      // at whichever ended first, and no lifetime is a link saying nothing.
-      if ((event.castingId === undefined) === (event.kept === undefined)) {
+      // A creature is held by a casting, kept by its summoner or controlled by
+      // them — one of the three, never two and never none. Two lifetimes would
+      // end it at whichever ran out first, and no lifetime is a link saying
+      // nothing.
+      const lifetimes = [
+        event.castingId !== undefined ? 'a casting' : null,
+        event.kept !== undefined ? 'the terms it is kept on' : null,
+        event.controlled !== undefined ? 'the terms it is controlled on' : null,
+      ].filter((named): named is string => named !== null);
+      if (lifetimes.length !== 1) {
         throw new CorruptLogError(
           event,
           `${event.id} is summoned by ${event.by} naming ${
-            event.castingId === undefined
-              ? 'neither a casting nor the terms it is kept on'
-              : 'both a casting and the terms it is kept on'
+            lifetimes.length === 0
+              ? 'neither a casting nor any terms it is bound on'
+              : `both ${lifetimes.join(' and ')}`
           }`,
         );
       }
       const bond: SummonBond =
         event.castingId !== undefined
           ? { by: event.by, castingId: event.castingId }
-          : { by: event.by, castingId: null, kept: event.kept! };
+          : event.kept !== undefined
+            ? { by: event.by, castingId: null, kept: event.kept }
+            : { by: event.by, castingId: null, controlled: event.controlled! };
       // A casting that is not running cannot be what is holding a creature
       // here: the link would be born already broken, and `strandedSummons`
       // would report a departure that was owed from the creature's first
@@ -225,6 +234,32 @@ export function applyRoster({ state, next }: Applying, event: RosterEvent): Game
         );
       }
       return withCreature(next, event.id, { summonedBy: bond }, creature);
+    }
+
+    case 'summons-control-renewed': {
+      const creature = creatureOf(state, event, event.id);
+      // A renewal moves the clock on a control somebody holds. One nobody
+      // holds, or somebody else holds, is not a later fact about the same bond
+      // but a bond written from nowhere — the command reads the bond first and
+      // refuses (`target_not_dead`, since a creature the caster does not
+      // control is a live one the spell is not cast on), so one in the log
+      // means it was bypassed: the corrupt-log case.
+      const held = creature.summonedBy;
+      if (held === null || held.controlled === undefined) {
+        throw new CorruptLogError(event, `${event.id} is under nobody's control; there is nothing to renew`);
+      }
+      if (held.by !== event.by) {
+        throw new CorruptLogError(
+          event,
+          `${event.id} is controlled by ${held.by}; ${event.by} cannot renew a control they do not hold`,
+        );
+      }
+      return withCreature(
+        next,
+        event.id,
+        { summonedBy: { ...held, controlled: { ...held.controlled, until: event.until } } },
+        creature,
+      );
     }
 
     case 'creature-removed': {
@@ -350,10 +385,44 @@ const sameBond = (a: SummonBond, b: SummonBond): boolean =>
   a.by === b.by &&
   a.castingId === b.castingId &&
   a.kept?.spell === b.kept?.spell &&
-  a.kept?.untilSummonerDies === b.kept?.untilSummonerDies;
+  a.kept?.untilSummonerDies === b.kept?.untilSummonerDies &&
+  a.controlled?.spell === b.controlled?.spell &&
+  a.controlled?.until === b.controlled?.until;
 
-/** How a refusal names a bond: by the casting that holds it, or the spell it is kept through. */
+/** How a refusal names a bond: by the casting that holds it, or the spell it is kept or controlled through. */
 const describeBond = (bond: SummonBond): string =>
   bond.castingId !== null
     ? `held by ${bond.castingId}`
-    : `kept by ${bond.by} through ${bond.kept?.spell ?? 'an unnamed spell'}`;
+    : bond.controlled !== undefined
+      ? `controlled by ${bond.by} through ${bond.controlled.spell}`
+      : `kept by ${bond.by} through ${bond.kept?.spell ?? 'an unnamed spell'}`;
+
+/**
+ * SRD Animate Dead: "The creature is under your control for 24 hours, after
+ * which it stops obeying any command you've given it."
+ *
+ * A control whose `until` the clock has passed is over, and the creature is
+ * nobody's — still in the scene, still on the map, no longer bound. Derived
+ * rather than written, for the reason `expireEffects` is: a deadline arriving
+ * is not a decision anybody makes, and the two commands that move the clock
+ * are not this seam's to teach. What differs from a timer is only what runs
+ * out — a bond on the creature rather than a line the fold can delete — and a
+ * bond ending takes nothing else with it, which is exactly why it needs no
+ * batch and can live here.
+ *
+ * By reference where nothing changed, which is what keeps every other pass
+ * from marking the world moved.
+ */
+export function lapseExpiredControl(state: GameState): GameState {
+  let current = state;
+  for (const key of Object.keys(state.creatures).sort()) {
+    const creature = state.creatures[key];
+    const until = creature?.summonedBy?.controlled?.until;
+    if (creature === undefined || until === undefined || state.elapsed < until) continue;
+    current = {
+      ...current,
+      creatures: { ...current.creatures, [key]: { ...creature, summonedBy: null } },
+    };
+  }
+  return current;
+}

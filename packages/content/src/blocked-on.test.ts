@@ -1237,10 +1237,14 @@ describe('reading four families found blockers the bare lists had missed', () =>
     ['wall-of-stone', 'tracked', 'a-stat-block-created-mid-fight'],
     ['wall-of-stone', 'tracked', 'an-action-a-spell-compels-or-forbids'],
     ['mislead', 'unmodelled', 'seeing through its eyes or hearing through its ears'],
-    // Both corpse rules were found by the same reading and both spells are
-    // tracked now; the sentence trips no mechanical marker, so each survives
-    // in the definition's own notes rather than in the tracked map.
-    ['animate-dead', 'unmodelled', 'a size and a type on something that is not a creature'],
+    // Both corpse rules were found by the same reading. Create Undead is
+    // tracked and the sentence trips no mechanical marker, so it survives in
+    // the definition's own notes. **Animate Dead's row was spent a second
+    // time by being built**: the corpse is a named target (`mustBeDead`, a
+    // type, and the one two-size rule in the book), the bones are stated
+    // points, and what survives in its notes is the half no reading could
+    // build — that a pile of bones lies where the caster points.
+    ['animate-dead', 'unmodelled', 'checks nothing about the bones'],
     ['create-undead', 'unmodelled', 'selects corpses rather than creatures'],
     ['secret-chest', 'unmodelled', 'the Ethereal Plane they go to is a second place'],
     ['secret-chest', 'unmodelled', 'nor does it end on a recasting'],
@@ -2421,7 +2425,15 @@ describe('a consumer count is a query', () => {
       expect(statBlock.tracked, id).toContain(id);
     }
     expect(statBlock.undefined).toEqual([]);
-    expect(statBlock.executed).toContain('find-steed');
+    // Find Steed claimed the shape from the executed column until the last of
+    // its block's lines was read: the Otherworldly Slam's "Bonus equals your
+    // spell attack modifier" and "1d8 plus the spell's level" are marks the
+    // parser reads and the casting resolves, so the steed swings and the spell
+    // claims the shape from nowhere. Animate Dead left with it, on the
+    // controlled bond, and the shape has no claimant inside level-5 reach.
+    expect(statBlock.executed).not.toContain('find-steed');
+    expect(statBlock.tracked).not.toContain('animate-dead');
+    expect(SRD_CONTENT.spell('animate-dead')?.effects.map((e) => e.kind)).toEqual(['raise']);
     // Unseen Servant was the fourth, tracked on this shape until its block
     // was printed inline on the summons; it is executed now and claims the
     // shape from nowhere.
@@ -2662,10 +2674,15 @@ describe('a consumer count is a query', () => {
       // `elsewhere` effect. `an-effect-that-suppresses-other-magic` fell out
       // when Tiny Hut's ward and Magic Circle's teleport save were executed
       // and Knock's filed claim was handed over.
-      // What the band below the leaders holds now is the one shape that fell
-      // out of the leading band's old size when Unseen Servant was written on
-      // the inline block and has lost nothing since.
-      'a-stat-block-created-mid-fight',
+      // `a-stat-block-created-mid-fight` held this band alone after Unseen
+      // Servant was written on the inline block — and then lost its last two
+      // level-5 claimants in one track: Find Steed's Otherworldly Slam is a
+      // line whose numbers the casting resolves, and Animate Dead's corpses
+      // and bones are raised under a controlled bond. It fell below this band
+      // and the two shapes it had stood above are the band now, asserted as a
+      // set for the reason the leaders are.
+      'a-choice-made-at-the-casting',
+      'a-second-place-to-put-a-creature',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named

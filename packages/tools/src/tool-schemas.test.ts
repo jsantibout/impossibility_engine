@@ -272,8 +272,8 @@ describe('toolSchemas', () => {
     // stride, the Ghost's Etherealness, out and back by one line).
     expect(toolSchemas(player())).toHaveLength(91);
     expect(toolSchemas(dm())).toHaveLength(116);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(137443);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(178761);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(138670);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(179988);
   });
 });
 

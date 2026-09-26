@@ -78,7 +78,10 @@ import {
  * should have to say so here.
  */
 const FILED: Readonly<Record<string, readonly string[]>> = {
-  'animate-dead': ['a-stat-block-created-mid-fight', 'a-target-rule-the-format-cannot-state'],
+  // Animate Dead stood here on two shapes — a stat block created mid-fight and
+  // a target rule the format could not state — until both were built: a
+  // `raise` effect over a corpse the target rule names (dead, Humanoid, Small
+  // or Medium) under a controlled bond. It is in {@link EXECUTES} now.
   // Knock waits on nothing now: its one entry records the reading that its
   // Arcane Lock clause could never be reached — the lock is on a door and a
   // door is not in state — and the four printed sentences are handed over.
@@ -208,6 +211,11 @@ const LIGHT_EXECUTED: readonly string[] = [
 // counted — its debt was owed and is now paid, which is the outcome this list
 // was always going to have to hold more of.
 const EXECUTES: readonly string[] = [
+  // The day a bond could lapse while its creature stayed: Animate Dead's
+  // Zombie and Skeleton are raised under `SummonBond.controlled` and the two
+  // shapes it was filed against — the stat block and the two-size target rule
+  // — are both built.
+  'animate-dead',
   // The day a sourced grant could put a creature type over another creature's
   // own, and `typeMagicSees` could say which readers believe it.
   'arcanists-magic-aura',

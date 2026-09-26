@@ -1965,6 +1965,8 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
  * puts at the table.
  */
 export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
+  'otherworldly-steed/Fell Glare (Fiend Only; Recharges after a Long Rest)':
+    'a span anchored on a **third** creature\'s turn — "The target has the Frightened condition until the end of **your** next turn", the summoner\'s, where `PrintedSpan` names the target\'s turn or the source\'s and no other. The DC is read ("DC equals your spell save DC" is `dcFromSummoner`, resolved from the casting that raised the steed); the span is what keeps the line prose, and the heading\'s type gate and its rest recharge wait on the same reading.',
   'bulette/Deadly Leap':
     'a move **through** other creatures\' spaces with a save per creature entered, and a movement spent before the save — "The bulette spends 5 feet of movement to jump to a space within 15 feet that contains one or more Large or smaller creatures." The lattice holds one occupant per space, so the space entered is a position nothing can be put in; the same seam Amorphous, Compression and Ooze Cube wait on.',
   'centaur-trooper/Trampling Charge (Recharge 5–6)':

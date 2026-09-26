@@ -914,6 +914,15 @@ const UNCOVERED_EVENT_TYPES: readonly string[] = [
   // engine applies none of it, and the Multiattack branch a golem's block
   // gates on having taken one.
   'stated-bonus-action-taken',
+  // A summoner's control over a creature renewed to a later clock reading —
+  // SRD Animate Dead's recast. Neither log was written when a creature could
+  // be controlled at all: `SummonBond.controlled` did not exist, so both
+  // fixtures fold to exactly the states they always folded to with the bond
+  // absent on every creature. `animate-dead.test.ts` folds it and drives it
+  // end to end: the corpse raised under a day's control, the control renewed
+  // by a recast with no second creature, the control lapsing with the creature
+  // still standing, and a renewal of a control nobody holds refused.
+  'summons-control-renewed',
   // Room a feature bought in a turn's own budget. Neither log was written
   // when a turn could hold more than one action or an attack outside an
   // Attack action — the budget had no field for either — and both fixtures

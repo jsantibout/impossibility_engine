@@ -48,7 +48,7 @@ import {
   endTriggeredEffects,
 } from './endings.js';
 
-import { applyRoster, isRosterEvent } from './roster.js';
+import { applyRoster, isRosterEvent, lapseExpiredControl } from './roster.js';
 import { applyVitals, isVitalsEvent, raiseDeathBursts } from './vitals.js';
 import { applyUpkeep, isUpkeepEvent } from './upkeep.js';
 import { applyCasting, isCastingEvent } from './casting.js';
@@ -302,6 +302,11 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
     // activation prints is settled after the shape for the same reason.
     settleSizes(
     settleShapes(
+    // A control the clock has outrun ends here, and the creature stays: SRD
+    // Animate Dead's day. Beside the shapes rather than among the drops,
+    // because nothing downstream reads the bond and nothing about the
+    // creature but the bond moves — see `lapseExpiredControl`.
+    lapseExpiredControl(
     // After the drops rather than before them: what ends an attunement is a
     // death or an item gone, and both are facts the event itself left behind.
     endLostAttunements(
@@ -378,6 +383,7 @@ function applyEventUnder(state: GameState, event: GameEvent, legacy: Content | n
       ),
       ),
       ),
+    ),
     ),
     ),
     ),

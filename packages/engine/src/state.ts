@@ -209,10 +209,37 @@ export interface SummonBond {
    * such creature per spell — a second casting replaces the first — and the
    * resolver has to find the one this caster keeps from *this* spell.
    *
-   * Present exactly when `castingId` is null. The fold refuses a bond naming
-   * both or neither.
+   * Present exactly when `castingId` is null and {@link controlled} is absent.
+   * The fold refuses a bond naming two lifetimes or none.
    */
   readonly kept?: KeptBond;
+  /**
+   * The terms a creature is **controlled** on — the third lifetime, and the
+   * only one that ends without the creature going.
+   *
+   * SRD Animate Dead: "The creature is under your control for 24 hours, after
+   * which it stops obeying any command you've given it." A kept bond is the
+   * wrong shape for that: a kept creature is owed a departure at 0 Hit Points,
+   * and a Zombie at 0 is a corpse the book leaves lying. So what runs out here
+   * is the *control*: `strandedSummons` never names a controlled creature,
+   * the fold's `lapseExpiredControl` sets the bond to null when
+   * {@link ControlledBond.until} passes, and the creature is the table's,
+   * still in the scene. A recast on a creature the caster controls renews
+   * `until` (`summons-control-renewed`) rather than binding it twice.
+   *
+   * Present exactly when `castingId` is null and {@link kept} is absent.
+   * Written for SRD Animate Dead; SRD Create Undead's "under your control for
+   * 24 hours" is the same bond over a different block.
+   */
+  readonly controlled?: ControlledBond;
+}
+
+/** The terms of a controlled summons, as the log carries them — see {@link SummonBond.controlled}. */
+export interface ControlledBond {
+  /** The spell whose recasting renews the control, so the resolver finds this caster's own. */
+  readonly spell: string;
+  /** The clock reading the control lapses at: `state.elapsed` at the binding plus the printed span. */
+  readonly until: number;
 }
 
 /** The terms of a kept summons, as the log carries them — see {@link SummonBond.kept}. */
@@ -1776,6 +1803,16 @@ export interface PendingCasting {
    * folds to exactly the state it always did.
    */
   readonly form?: string;
+  /**
+   * Where the piles of bones lie that a `raise` effect turns into creatures.
+   *
+   * SRD Animate Dead is a rite of a minute, so the points are stated before
+   * there is a casting to raise anything at, and settlement takes no fresh
+   * request to ask again. Absent for every spell that raises nothing from
+   * bones, so a declaration written before this folds to exactly the state it
+   * always did.
+   */
+  readonly bonesAt?: readonly Placement[];
   /**
    * The numbers the casting was made with, for a casting an item made.
    *

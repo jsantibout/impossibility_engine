@@ -2578,6 +2578,12 @@ const CAST_SPELL = tool({
       .describe(
         'Which stat block a summoning spell that leaves the form to its caster raises, by its id in the bestiary — Find Familiar’s "Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that has a Challenge Rating of 0". The engine refuses a block the spell does not admit and will not pick one. Leaving it out for such a spell is refused, and so is naming one for a spell that names its own block.',
       ),
+    bonesAt: z
+      .array(placementSchema)
+      .optional()
+      .describe(
+        'Where the piles of bones lie that Animate Dead turns into Skeletons, one placement per pile, measured from a landmark or a creature like every other space and never as a raw coordinate. A corpse is a creature and goes in `targets` instead; bones were never one, so you point at the space. The engine checks that each pile is inside the spell’s range and that corpses and piles together do not exceed what the slot allows — one at level 3, two more per level above — and raises a Skeleton at each; whether bones really lie there is yours. Naming any on a spell that raises nothing from bones is refused, and so is a casting that names neither a corpse nor a pile.',
+      ),
     slotKind: z
       .enum(['spell', 'pact'])
       .optional()
@@ -2694,6 +2700,7 @@ const CAST_SPELL = tool({
       ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
       ...(args.object === undefined ? {} : { object: args.object }),
       ...(args.form === undefined ? {} : { form: args.form }),
+      ...(args.bonesAt === undefined ? {} : { bonesAt: args.bonesAt.map((pile) => placementOf(pile)) }),
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),
       ...(args.source === undefined ? {} : { source: args.source }),

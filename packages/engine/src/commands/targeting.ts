@@ -13,6 +13,7 @@
  */
 
 import { type Content } from '../content.js';
+import type { CreatureSize } from '@ie/srd';
 import {
   type CharacterId,
   type ConditionName,
@@ -623,6 +624,20 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly form?: string;
   /**
+   * Where the piles of bones lie that a `raise` effect turns into creatures.
+   *
+   * SRD Animate Dead: "Choose a pile of bones or a corpse … within range." A
+   * corpse is a creature and is named in {@link targets}; bones were never a
+   * creature, so each pile is a **point** the caster states, measured from a
+   * landmark or a creature like every other placement and never typed as a
+   * coordinate. The engine refuses nothing about the bones themselves — that
+   * a pile lies there is the table's fiction — and refuses a pile beyond the
+   * spell's range, one on a spell whose raising reads no bones
+   * (`no_bones_to_raise`), and a count that, with the corpses, exceeds what
+   * the slot allows (`too_many_raised`).
+   */
+  readonly bonesAt?: readonly Placement[];
+  /**
    * Which of this casting's targets consent to it.
    *
    * SRD Mage Armor: "You touch a **willing** creature who isn't wearing
@@ -936,6 +951,35 @@ export interface HeldCasting {
  * `ACTION_TITLES` in `combat.ts` is the same courtesy for the same reason.
  */
 const titleSize = (size: string): string => `${size.slice(0, 1).toUpperCase()}${size.slice(1)}`;
+
+/** Whether a size rule — one size or a list — admits what the creature is; a creature with no size is never admitted. */
+const admitsSize = (
+  rule: CreatureSize | readonly CreatureSize[],
+  actual: CreatureSize | null,
+): boolean =>
+  actual !== null && (typeof rule === 'string' ? actual === rule : rule.includes(actual));
+
+/** "Medium" or "Small or Medium" — the rule as a refusal names it. */
+const describeSizes = (rule: CreatureSize | readonly CreatureSize[]): string =>
+  typeof rule === 'string' ? titleSize(rule) : rule.map(titleSize).join(' or ');
+
+/**
+ * Whether `target` is a creature `casterId` controls **through `spellId`** —
+ * SRD Animate Dead's "creatures you have animated with this spell". Read off
+ * the bond the raising wrote (`SummonBond.controlled`); a creature the fold's
+ * `lapseExpiredControl` has released answers no, because its bond is gone.
+ */
+const controlsThrough = (
+  state: GameState,
+  casterId: CharacterId,
+  target: CharacterId,
+  spellId: string,
+): boolean => {
+  const bond = state.creatures[target]?.summonedBy;
+  return (
+    bond != null && bond.by === casterId && bond.controlled !== undefined && bond.controlled.spell === spellId
+  );
+};
 
 export const anchoringFor = (
   source: { readonly anchoring?: PointAnchoring },
@@ -2301,9 +2345,17 @@ export function namedTargets(
       return err('cannot_target_self', `${definition.name} is not cast on yourself`);
     }
 
+    // SRD Animate Dead's "reasserts your control": a creature this caster
+    // already controls through this spell is admitted as itself, and the
+    // corpse rules below — type, size, dead — stand down for it, because the
+    // body they ask about is long since the Zombie standing here. See
+    // `TargetRule.orControlled`.
+    const reasserting =
+      definition.targets.orControlled === true && controlsThrough(state, casterId, target, definition.id);
+
     // A type the spell demands is checked; a type nobody has stated is asked
     // for rather than waved through.
-    const wanted = definition.targets.mustBeType;
+    const wanted = reasserting ? undefined : definition.targets.mustBeType;
     if (wanted !== undefined) {
       // The mask where one is standing — see `typeMagicSees`, and the area
       // filter above, which asks the same question of the same reader.
@@ -2385,13 +2437,13 @@ export function namedTargets(
     // question, for `mustBeUnarmored`'s reason and `mustBeFalling`'s: the fact
     // is the engine's to read, and asking here would tell a caller which
     // declaration to invent in order to widen the spell.
-    const sized = definition.targets.mustBeSize;
+    const sized = reasserting ? undefined : definition.targets.mustBeSize;
     if (sized !== undefined) {
       const actual = effectiveSizeOf(state, target);
-      if (actual !== sized) {
+      if (!admitsSize(sized, actual)) {
         return err(
           'wrong_creature_size',
-          `${definition.name} is cast on a ${titleSize(sized)} creature; ${target} is ${
+          `${definition.name} is cast on a ${describeSizes(sized)} creature; ${target} is ${
             actual === null
               ? 'a creature nothing has given a size — a stat block, a species or a placement would'
               : titleSize(actual)
@@ -2428,10 +2480,18 @@ export function namedTargets(
     // the only target clause in the book that wants the creature every other
     // one walks past. A plain no, for the reason the three above are: whether
     // a creature is dead is the engine's own to read.
-    if (definition.targets.mustBeDead === true && state.creatures[target]?.vitals.dead !== true) {
+    if (
+      !reasserting &&
+      definition.targets.mustBeDead === true &&
+      state.creatures[target]?.vitals.dead !== true
+    ) {
       return err(
         'target_not_dead',
-        `${definition.name} is cast on a corpse, and ${target} is alive`,
+        `${definition.name} is cast on a corpse${
+          definition.targets.orControlled === true ? ` or on a creature ${casterId} controls through it` : ''
+        }, and ${target} is alive${
+          definition.targets.orControlled === true ? ` and not ${casterId}'s` : ''
+        }`,
       );
     }
 
@@ -2742,6 +2802,10 @@ export function eligibleTargets(
     const target = state.creatures[key];
     if (target === undefined) continue;
     if (target.id === casterId && definition.targets.self !== true) continue;
+    // The same admission the cast makes — see `TargetRule.orControlled` — so
+    // the shortlist offers the caster's own undead beside the corpses.
+    const reasserting =
+      definition.targets.orControlled === true && controlsThrough(state, casterId, target.id, definition.id);
     // **Unless the spell is about a body**, which is the reason `mustBeDead`
     // exists: a spell cast on a corpse and on nobody else would be offered an
     // empty shortlist for every legal casting. `namedTargets` has never
@@ -2753,7 +2817,7 @@ export function eligibleTargets(
       excluded.push({ target: target.id, reason: `${target.name} is dead` });
       continue;
     }
-    if (definition.targets.mustBeDead === true && !target.vitals.dead) {
+    if (!reasserting && definition.targets.mustBeDead === true && !target.vitals.dead) {
       excluded.push({ target: target.id, reason: `${target.name} is alive` });
       continue;
     }
@@ -2767,7 +2831,7 @@ export function eligibleTargets(
       continue;
     }
 
-    const wanted = definition.targets.mustBeType;
+    const wanted = reasserting ? undefined : definition.targets.mustBeType;
     if (wanted !== undefined) {
       // The mask, so the shortlist and the cast agree about who a spell could
       // be aimed at — see `typeMagicSees`.
@@ -2791,13 +2855,13 @@ export function eligibleTargets(
     // The same size rule the named-target path applies, so the shortlist and
     // the cast agree about who this spell could ever be aimed at. An excluded
     // creature rather than a refusal, because that is what this query answers.
-    const sized = definition.targets.mustBeSize;
+    const sized = reasserting ? undefined : definition.targets.mustBeSize;
     if (sized !== undefined) {
       const actual = effectiveSizeOf(state, target.id);
-      if (actual !== sized) {
+      if (!admitsSize(sized, actual)) {
         excluded.push({
           target: target.id,
-          reason: `${target.name} is ${actual === null ? 'a creature nothing has given a size' : titleSize(actual)}, not ${titleSize(sized)}`,
+          reason: `${target.name} is ${actual === null ? 'a creature nothing has given a size' : titleSize(actual)}, not ${describeSizes(sized)}`,
         });
         continue;
       }

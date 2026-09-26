@@ -22,16 +22,20 @@
  * `summonCreature` enforces for a DM doing it by hand.
  */
 
-import { asCharacterId, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
+import { asCharacterId, err, ok, type Ability, type CharacterId, type Result } from '@ie/shared';
 import type { Monster } from '@ie/srd';
-import { applyEvent, type GameState } from '../events.js';
-import type {
-  InlineStatBlock,
-  PrintedSummonSpeeds,
-  SummonedNumber,
+import { applyEvent, type GameEvent, type GameState } from '../events.js';
+import {
+  type InlineStatBlock,
+  type PrintedSummonSpeeds,
+  rangeFeetAt,
+  type SummonedNumber,
 } from '../spell-definitions.js';
 import type { PrintedSpeedMode } from '../monster.js';
+import { distanceBetween } from '../positioning.js';
 import { castingSource } from '../spells.js';
+import type { ControlledBond } from '../state.js';
+import { sceneFor, unknownCreature } from './command.js';
 import { applyConditionTo } from './conditions.js';
 import { removeCreatureEverywhere, summonCreature } from './creatures.js';
 import { type EffectContext, type EffectOfKind } from './spell-effect-context.js';
@@ -167,6 +171,17 @@ export function resolveSummonEffect(
           },
         }),
     ...(speeds === undefined ? {} : { speeds }),
+    // **The casting's numbers, for a block whose lines are the summoner's** —
+    // SRD Otherworldly Steed's Slam and Bonus Actions. Three numbers the
+    // record already pins and the choice the caster stated, handed to the
+    // door so the block is resolved before it is adapted; a block that prints
+    // no mark is untouched by them. See `Summons.fromTheCasting`.
+    fromTheCasting: {
+      spellAttack: ctx.attackModifier,
+      spellSave: ctx.saveDc,
+      slotLevel: ctx.castLevel,
+      ...(effect.creatureType === undefined ? {} : { choice: effect.creatureType }),
+    },
     ...(effect.cannotAttack === true ? { forbidsAttacks: { label: definition.name } } : {}),
     ...(effect.inline === undefined
       ? {}
@@ -209,6 +224,140 @@ export function resolveSummonEffect(
   // kept on, and waits for no record.
   if (effect.kept === undefined) ctx.summoned.push(id);
   outcomes.push({ target: casterId, affected: true });
+  return ok(current);
+}
+
+/**
+ * What a raising calls the creatures it makes: the casting, the block and a
+ * count, since one casting may raise several of one block — SRD Animate Dead
+ * at level 4 raises three. Derived for `summonedId`'s three reasons.
+ */
+const raisedId = (castingId: string, monsterId: string, ordinal: number): CharacterId =>
+  asCharacterId(`${castingId}:${monsterId}:${ordinal}`);
+
+/**
+ * Bodies become creatures under the caster's control — SRD Animate Dead.
+ *
+ * **Runs once over the casting**, from `runEffects` rather than from the
+ * per-target loop, because its subjects are two lists: the corpses named as
+ * targets and the piles of bones stated as points (`EffectContext.bonesAt`),
+ * and a casting of bones alone names no target for a loop to visit. The count
+ * was held against the slot in the pre-flight (`too_many_raised`).
+ *
+ * **A corpse leaves and the creature arrives in its space.** "The target
+ * becomes an Undead creature": the body's key goes through the ordinary
+ * departure, so nothing dangles, and the block arrives through
+ * `summonCreature` at the point the body lay — a raised corpse cannot be
+ * raised again, which is the book's "each of the creatures must come from a
+ * different corpse". A body nobody placed raises a creature nobody placed.
+ *
+ * **A creature the caster already controls through this spell is renewed,
+ * not raised.** "This use of the spell reasserts your control": the bond
+ * stands and only its clock moves, which is `summons-control-renewed` — a
+ * second `creature-summoned` is a log the fold refuses, because a creature
+ * bound twice would end at whichever bond ran out first. The pre-flight
+ * admitted it as a target (`TargetRule.orControlled`).
+ *
+ * **Bones are a stated point inside the spell's range.** Nothing checks that
+ * bones lie there — that is the table's fiction — but the creature is placed
+ * where the caster pointed and the ruler measures it from the caster, so a
+ * pile beyond the range is refused (`out_of_range`) before anything is
+ * spent, the whole batch being one `Result`.
+ *
+ * Every creature this raises is bound `controlled` for the printed span from
+ * the clock as it stands at the raising: for a rite of a minute, the minute
+ * has passed.
+ */
+export function resolveRaiseEffect(
+  ctx: EffectContext,
+  effect: EffectOfKind<'raise'>,
+  world: GameState,
+): Result<GameState> {
+  const { name, events, outcomes, unverified, casterId } = ctx;
+  const { definition, castingId } = ctx.casting();
+  let current = world;
+  const controlled: ControlledBond = { spell: definition.id, until: current.elapsed + effect.controlSeconds };
+  let ordinal = 0;
+
+  for (const target of ctx.targets) {
+    const body = current.creatures[target];
+    if (body === undefined) return unknownCreature(target);
+
+    const bond = body.summonedBy;
+    if (bond != null && bond.by === casterId && bond.controlled?.spell === definition.id) {
+      const renewed: GameEvent = { type: 'summons-control-renewed', id: target, by: casterId, until: controlled.until };
+      events.push(renewed);
+      current = applyEvent(current, renewed);
+      outcomes.push({ target, affected: true });
+      continue;
+    }
+    if (!body.vitals.dead) {
+      // Programmer error rather than a refusal: the pre-flight refuses a live
+      // target the caster does not control before anything is spent, so a
+      // run that meets one is a caller that bypassed it.
+      throw new Error(`${name}: ${target} is alive and not ${casterId}'s; the target rule should have refused it`);
+    }
+
+    const where = current.scene?.positions[target];
+    const gone = removeCreatureEverywhere(current, target);
+    if (!gone.ok) return gone;
+    events.push(...gone.value);
+    current = gone.value.reduce(applyEvent, current);
+
+    const arrived = summonCreature(current, ctx.supply.content, {
+      id: raisedId(castingId, effect.fromCorpse, ordinal++),
+      monsterId: effect.fromCorpse,
+      by: casterId,
+      controlled,
+      ...(where === undefined ? {} : { placement: { from: { point: where }, feet: 0 } }),
+    });
+    if (!arrived.ok) return arrived;
+    events.push(...arrived.value.events);
+    unverified.push(...arrived.value.unverified.map((gap) => `${name}: ${gap}`));
+    current = arrived.value.events.reduce(applyEvent, current);
+    outcomes.push({ target, affected: true });
+  }
+
+  const piles = ctx.bonesAt ?? [];
+  if (piles.length === 0) return ok(current);
+  if (effect.fromBones === undefined) {
+    throw new Error(`${name}: bones were stated and the pre-flight should have refused them`);
+  }
+  // A point means nothing without a scene to hold it, and the fold would
+  // refuse the placement; asked here, before anything is raised, and asked the
+  // way every command that needs a scene asks.
+  const scene = sceneFor(current, casterId, `${name} to raise a creature from a pile of bones at a stated point`);
+  if (!scene.ok) return scene;
+  const reach = rangeFeetAt(definition, ctx.casterSheet().sheet.level);
+  for (const pile of piles) {
+    // The size is the block's and is not the caller's to state.
+    const { size: _stated, ...placement } = pile;
+    void _stated;
+    const id = raisedId(castingId, effect.fromBones, ordinal++);
+    const arrived = summonCreature(current, ctx.supply.content, {
+      id,
+      monsterId: effect.fromBones,
+      by: casterId,
+      controlled,
+      placement,
+    });
+    if (!arrived.ok) return arrived;
+    const after = arrived.value.events.reduce(applyEvent, current);
+    if (reach !== null && after.scene !== null) {
+      const apart = distanceBetween(after.scene, casterId, id);
+      if (!apart.ok) return apart;
+      if (apart.value > reach) {
+        return err(
+          'out_of_range',
+          `${name} reaches ${reach} feet, and the bones are ${apart.value} feet from ${casterId}`,
+        );
+      }
+    }
+    events.push(...arrived.value.events);
+    unverified.push(...arrived.value.unverified.map((gap) => `${name}: ${gap}`));
+    current = after;
+    outcomes.push({ target: casterId, affected: true });
+  }
   return ok(current);
 }
 

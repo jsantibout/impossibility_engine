@@ -788,6 +788,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
    * exemptions are safe.
    */
   const CLEAN_AND_EXECUTED: readonly string[] = [
+    // Animate Dead's paragraph is a creature type, a range and a Bonus Action
+    // — the markers see a corpse chosen and a command given, not a die, a
+    // condition or a bonus. What the spell does is a `raise` under a
+    // controlled bond, and `spell-honesty.test.ts` holds its notes.
+    'animate-dead',
     // The Mask, whose paragraph names no mechanic any marker knows: a creature
     // type is a fact rather than a die, a condition or a bonus, and the word
     // the sentence turns on is "treat".
@@ -1782,6 +1787,14 @@ describe('every spell this batch added is cast for real', () => {
     // narration from the first word to the last and goes out under the
     // handover mark rather than as a debt.
     'animal-messenger',
+    // **Animate Dead leaves on the third kind of bond.** Its corpse is a named
+    // target — dead, Humanoid, the one two-size rule in the book — its bones
+    // are stated points, and what the `raise` effect binds the Zombie and the
+    // Skeleton by is `SummonBond.controlled`: a summoner and a clock reading a
+    // day on, which ends while the creature stays. A recast on a creature the
+    // caster controls renews the day; the count is the slot's, corpses and
+    // bones together. What is left is the command itself, handed over.
+    'animate-dead',
     // **Arcanist's Magic Aura leaves by the one spell in the book that lies to
     // another spell.** A creature's type is a fact the engine holds
     // authoritatively and refuses to contradict, so the Mask does not write

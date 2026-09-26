@@ -101,6 +101,7 @@ import type {
   PendingTest,
   ReadiedAction,
   KeptBond,
+  ControlledBond,
   DeviceRecord,
 } from './state.js';
 
@@ -164,6 +165,7 @@ export type {
   ReadiedAction,
   ReadiedResponse,
   KeptBond,
+  ControlledBond,
   SummonBond,
   DeviceRecord,
 } from './state.js';
@@ -1111,11 +1113,38 @@ export type GameEvent =
        * casting's, bound to their summoner because no record could hold them.
        */
       readonly kept?: KeptBond;
+      /**
+       * The terms a controlled creature stands on — see `SummonBond.controlled`.
+       * SRD Animate Dead's Zombie: an Instantaneous casting's, bound to its
+       * summoner for a day and then nobody's, still standing. A log naming
+       * this beside `castingId` or `kept` is refused by the fold.
+       */
+      readonly controlled?: ControlledBond;
       readonly command?: CommandStamp;
     }
   | {
       readonly type: 'creature-removed';
       readonly id: CharacterId;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * A summoner's control over a creature they already control, renewed to a
+   * later clock reading.
+   *
+   * SRD Animate Dead: "To maintain control of the creature for another 24
+   * hours, you must cast this spell on the creature again before the current
+   * 24-hour period ends." Its own event rather than a second
+   * `creature-summoned`, because the fold refuses a creature bound twice — a
+   * second binding would be a rewrite of a bond whose ending was already on
+   * the clock — and a renewal is a new fact about the *same* bond: the
+   * summoner and the spell stand, and only `until` moves. The fold refuses a
+   * renewal by anybody but the controller, and one of a control nobody holds.
+   */
+  | {
+      readonly type: 'summons-control-renewed';
+      readonly id: CharacterId;
+      readonly by: CharacterId;
+      readonly until: number;
       readonly command?: CommandStamp;
     }
 

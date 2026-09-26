@@ -4062,6 +4062,40 @@ function checkEffect(
     }
 
     /**
+     * SRD Animate Dead — see `SpellEffect`'s `raise` arm. Two block ids and a
+     * span, checked as untyped input because a homebrew definition arrives as
+     * JSON. Whether the world holds the blocks is the world's question, asked
+     * at the cast (`unknown_monster`), which is the reading `summon` takes.
+     */
+    case 'raise': {
+      const corpse = (effect as { readonly fromCorpse?: unknown }).fromCorpse;
+      if (typeof corpse !== 'string' || corpse.trim().length === 0) {
+        found.push({
+          field: `${path}.fromCorpse`,
+          code: 'unknown_monster',
+          reason: 'a raising names the stat block a corpse becomes, by its id in content',
+        });
+      }
+      const bones = (effect as { readonly fromBones?: unknown }).fromBones;
+      if (bones !== undefined && (typeof bones !== 'string' || bones.trim().length === 0)) {
+        found.push({
+          field: `${path}.fromBones`,
+          code: 'unknown_monster',
+          reason: 'a raising that reads bones names the stat block they become, by its id in content',
+        });
+      }
+      const span = (effect as { readonly controlSeconds?: unknown }).controlSeconds;
+      if (!Number.isInteger(span) || (span as number) < 1) {
+        found.push({
+          field: `${path}.controlSeconds`,
+          code: 'bad_control_span',
+          reason: 'a raised creature is controlled for a whole number of seconds, at least one; SRD Animate Dead prints 24 hours',
+        });
+      }
+      return;
+    }
+
+    /**
      * A stat block by its id, and the two numbers a spell may print over it.
      *
      * The id is checked for *shape* here and for *existence* nowhere: this
@@ -5700,12 +5734,22 @@ export function checkSpellDefinition(
    * rather than a word, so "itsy" would silently select nothing at all.
    */
   const mustBeSize = definition.targets.mustBeSize;
-  if (mustBeSize !== undefined && !(CREATURE_SIZES as readonly unknown[]).includes(mustBeSize)) {
-    found.push({
-      field: 'targets.mustBeSize',
-      code: 'unknown_size',
-      reason: `"${String(mustBeSize)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
-    });
+  if (mustBeSize !== undefined) {
+    // One size or a list of them — SRD Animate Dead's "Medium or Small" — each
+    // held to the six, and a list held to at least one, because an empty list
+    // would admit nobody and say nothing.
+    const sizes: readonly unknown[] = Array.isArray(mustBeSize) ? mustBeSize : [mustBeSize];
+    const outside = sizes.filter((size) => !(CREATURE_SIZES as readonly unknown[]).includes(size));
+    if (sizes.length === 0 || outside.length > 0) {
+      found.push({
+        field: 'targets.mustBeSize',
+        code: 'unknown_size',
+        reason:
+          sizes.length === 0
+            ? `an empty list of sizes admits nobody; the engine has ${CREATURE_SIZES.join(', ')}`
+            : `"${outside.map(String).join('", "')}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
+      });
+    }
   }
 
   /*
@@ -6661,6 +6705,7 @@ export function checkSpellDefinition(
   );
 
   checkSummonTargets(definition, found);
+  checkControlledAdmission(definition, found);
   checkKeptBesideADuration(definition, found);
   checkChanceTargets(definition, found);
   checkWeaponAttack(definition, found);
@@ -7155,6 +7200,7 @@ function checkShape(value: unknown): readonly SpellDefinitionProblem[] {
       checkAltitudePlacement(entry.kind, where, at, found);
       checkObjectPlacement(effect as object, entry.kind, where, at, found);
       checkSummonPlacement(entry.kind, where, at, found);
+      checkRaisePlacement(entry.kind, where, at, found);
       checkElsewherePlacement(entry.kind, where, at, found);
       checkPreservesPlacement(entry.kind, where, at, found);
       checkChancePlacement(entry.kind, where, at, found);
@@ -8746,6 +8792,46 @@ function checkSummonPlacement(
 }
 
 /**
+ * A `raise` is the casting's own, for the summon's reason with one more: its
+ * count is the target rule's, which a trigger's list and an activation's have
+ * no slot to read, and the bones it reads are stated on the casting's request.
+ */
+function checkRaisePlacement(
+  kind: unknown,
+  where: string,
+  path: string,
+  found: SpellDefinitionProblem[],
+): void {
+  if (kind !== 'raise' || where === 'effects') return;
+  found.push({
+    field: `${path}.kind`,
+    code: 'raise_outside_the_casting',
+    reason:
+      'a body raised is counted against the casting’s own target rule and placed where the casting’s request says, which only the casting’s own effect list is resolved with',
+  });
+}
+
+/**
+ * `TargetRule.orControlled` admits a creature the caster controls **through
+ * this spell**, and only a `raise` writes such a bond — so a definition that
+ * prints the admission and raises nothing has written an admission nobody can
+ * ever meet.
+ */
+function checkControlledAdmission(
+  definition: SpellDefinition,
+  found: SpellDefinitionProblem[],
+): void {
+  if (definition.targets.orControlled !== true) return;
+  if (definition.effects.some((effect) => effect.kind === 'raise')) return;
+  found.push({
+    field: 'targets.orControlled',
+    code: 'controlled_without_a_raise',
+    reason:
+      'a spell may admit a creature its caster controls through it only where it raises one; nothing else writes the bond the admission reads',
+  });
+}
+
+/**
  * Every effect list a definition carries, as one enumeration.
  *
  * **`checkEffect` is one function reached from three lists**, so the guarantee
@@ -9028,6 +9114,7 @@ export const EFFECT_KINDS: ReadonlySet<string> = new Set([
   'weapon-attack',
   'teleport',
   'summon',
+  'raise',
   'elsewhere',
   'turn-payout',
   'action-rule',

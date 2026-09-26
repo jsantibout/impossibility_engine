@@ -160,6 +160,12 @@ const AUDIT: readonly {
       teleportTo: because(
         'where a teleporting spell puts its target. Two spells print the clause — Misty Step and Dimension Door — and the engine refuses a casting of either that names no space, so this is required rather than optional the day one of them is castable here. Neither benchmark character has one prepared, and publishing it means publishing a `Placement`, which is the vocabulary the movement tool would have to expose first',
       ),
+      leapTo: because(
+        'where Chromatic Orb’s orb goes if its dice pair — a list of creature ids in the caster’s order of preference, of which the engine takes the first within 30 feet of the creature just struck. One spell prints the clause and neither benchmark character has it prepared; the field landed on the request after this table was last reconciled, and is recorded here so the reconciliation is a fact rather than a red test',
+      ),
+      bonesAt: because(
+        'where the piles of bones lie that Animate Dead turns into Skeletons — one spell prints the clause, a level 3 rite neither benchmark character has prepared, and a casting over bones alone names no creature target, so the space is the only thing that says where the Skeleton stands. A list of `Placement`s, which is the vocabulary `teleportTo` above is waiting on the movement tool to expose first',
+      ),
       weapon: because(
         'which weapon a spell that imbues one was aimed at. Two spells print the clause — Shillelagh and Magic Weapon — and the engine refuses a casting of either that names none, so this is required rather than optional the day one of them is castable here. Neither benchmark character has one prepared, and the answer is an item id off the sheet rather than anything this surface would have to teach',
       ),
