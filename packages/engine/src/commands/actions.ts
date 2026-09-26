@@ -1212,9 +1212,11 @@ export interface PrintedSaveCommand extends CommandIdentity {
    * takes `towards`; a Sphere takes `at`, a point within the line's printed
    * feet. The engine lays the spells' own template there and rolls for exactly
    * whom `printedLineCatch` says it catches; the tools resolve a creature or a
-   * landmark into the point. An Emanation, a space and a hold take an empty
-   * aim or none. A point on a line whose catch takes none is refused
-   * `not_directional`.
+   * landmark into the point. An Emanation, and "each creature" in a space or
+   * a hold, take an empty aim or none; a line that reaches **one** creature is
+   * given it in {@link targets}, and an empty aim that finds more than one is
+   * refused `too_many_targets`. A point on a line whose catch takes none is
+   * refused `not_directional`.
    */
   readonly aim?: { readonly towards?: Point; readonly at?: Point };
   /**
@@ -1479,19 +1481,22 @@ export function forcePrintedSave(
       // is refused before anything is spent — measured by the same function
       // the aim road measures with.
       const heldOrHere = printed.catches?.kind === 'own-space' || printed.catches?.kind === 'held';
+      // "**one** Medium or smaller creature in the elemental's space", on
+      // either road: a hold or a space measured with an empty aim can hold
+      // more than the line reaches, and the clause's count is the engine's.
+      const count =
+        printed.catches?.kind === 'own-space' || printed.catches?.kind === 'held'
+          ? printed.catches.count
+          : undefined;
+      if (count !== undefined && targets.length > count) {
+        return err(
+          'too_many_targets',
+          `${line.name} reaches "${printed.targets}", and ${targets.length} creatures ${reached === null ? 'were named' : 'stand where it reaches — name the one in `targets`'}`,
+        );
+      }
       /** Whether the head count was held against a space or a hold the engine measured. */
       let checkedHere = false;
       if (reached === null && heldOrHere) {
-        const count =
-          printed.catches?.kind === 'own-space' || printed.catches?.kind === 'held'
-            ? printed.catches.count
-            : undefined;
-        if (count !== undefined && targets.length > count) {
-          return err(
-            'too_many_targets',
-            `${line.name} reaches "${printed.targets}", and ${targets.length} creatures were named`,
-          );
-        }
         const shortlist = printedLineReached(state, id, found.value);
         if (shortlist.ok && shortlist.value.measured) {
           checkedHere = true;

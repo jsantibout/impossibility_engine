@@ -353,11 +353,11 @@ describe('toolSchemas', () => {
     // a printed line would catch, aimed so — free and read-only), and
     // `force_printed_save` gains the same five aim fields and a description
     // saying a caller gives the aim or the head count, never both. 123 → 124
-    // tools; +3,928 bytes. The player's surface is unchanged.
+    // tools; +3,774 bytes. The player's surface is unchanged.
     expect(toolSchemas(player())).toHaveLength(96);
     expect(toolSchemas(dm())).toHaveLength(124);
     expect(JSON.stringify(toolSchemas(player())).length).toBe(157375);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(209997);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(209843);
   });
 });
 

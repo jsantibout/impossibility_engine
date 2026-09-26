@@ -254,8 +254,12 @@ function narrowed(
   for (const target of candidates) {
     const creature = state.creatures[target];
     if (creature === undefined) continue;
-    // The source is never caught by its own line — the glossary's origin
-    // exclusion, which a Sphere laid over its own maker would otherwise miss.
+    // The source is never caught by its own line — the I-E9 brief's ruling.
+    // For a Cone, a Line and an Emanation that is also the geometry, which
+    // leaves the creature an area starts at out of it; for a Sphere centred on
+    // a point it is the ruling alone, and SRD's glossary would have a Sphere's
+    // point of origin inside the Sphere — a Fireball catches its caster. Said
+    // here rather than silently, because the two readings differ.
     if (target === who) {
       excluded.push({ target, reason: `${who} is the source of ${lineName} and is not caught by it` });
       continue;

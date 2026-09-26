@@ -366,5 +366,67 @@ describe('the door rolls for exactly whom the query caught', () => {
     expect(isErr(refused) && refused.code).toBe('target_not_eligible');
     // Nothing was spent being refused.
     expect(state.combat!.budgets[FOE]!.action).toBe(true);
+
+    // "each creature in the elemental's space": one beside it is not in it.
+    let whelm = room('water-elemental', [
+      { id: G1, monster: 'goblin-warrior', feet: 15, bearing: 0 },
+      { id: G2, monster: 'goblin-warrior', feet: 15, bearing: 180 },
+    ]);
+    whelm = applyEvent(whelm, {
+      type: 'creature-moved',
+      id: G1,
+      placement: { from: { creature: FOE }, feet: 0 },
+      intoOccupied: true,
+    });
+    const outside = forcePrintedSave(whelm, FOE, { line: 'Whelm (Recharge 4–6)', targets: [G2], commandId: 'w' }, supply('w'));
+    expect(isErr(outside) && outside.code).toBe('target_not_eligible');
+    if (isErr(outside)) expect(outside.reason).toContain(`in ${FOE}'s space`);
+    expect(
+      unwrap(forcePrintedSave(whelm, FOE, { line: 'Whelm (Recharge 4–6)', targets: [G1], commandId: 'w' }, supply('w')), 'in it')
+        .outcomes.map((one) => one.target),
+    ).toEqual([G1]);
+  });
+
+  it("holds a one-creature space to one, named or measured", () => {
+    // SRD Air Elemental's Whirlwind: "one Medium or smaller creature in the
+    // elemental's space" — two goblins in the Large elemental's ten feet.
+    let state = room('air-elemental', [
+      { id: G1, monster: 'goblin-warrior', feet: 15, bearing: 0 },
+      { id: G2, monster: 'goblin-warrior', feet: 15, bearing: 180 },
+    ]);
+    for (const [who, bearing] of [[G1, 0], [G2, 90]] as const) {
+      state = applyEvent(state, {
+        type: 'creature-moved',
+        id: who,
+        placement: { from: { creature: FOE }, feet: 5, bearing },
+        intoOccupied: true,
+      });
+    }
+    const code = (result: Result<unknown>) => (isErr(result) ? result.code : 'ok');
+    const LINE = 'Whirlwind (Recharge 4–6)';
+    expect(code(forcePrintedSave(state, FOE, { line: LINE, targets: [G1, G2], commandId: 'a' }, supply('a')))).toBe(
+      'too_many_targets',
+    );
+    // An empty aim measures the space, finds two, and is held to the clause's one.
+    expect(code(forcePrintedSave(state, FOE, { line: LINE, aim: {}, commandId: 'b' }, supply('b')))).toBe(
+      'too_many_targets',
+    );
+    expect(catchOf(state, LINE).caught).toEqual([G1, G2]);
+  });
+
+  it("refuses a head count bigger than the line's printed size cap", () => {
+    const giant = id('giant');
+    const state = room('ettercap', [
+      { id: G1, monster: 'goblin-warrior', feet: 25, bearing: 0 },
+      { id: giant, monster: 'hill-giant', feet: 20, bearing: 90 },
+    ]);
+    const LINE = 'Web Strand (Recharge 5–6)';
+    const refused = forcePrintedSave(state, FOE, { line: LINE, targets: [giant], commandId: 'web' }, supply('web'));
+    expect(isErr(refused) && refused.code).toBe('target_not_eligible');
+    if (isErr(refused)) expect(refused.reason).toContain('huge');
+    expect(
+      unwrap(forcePrintedSave(state, FOE, { line: LINE, targets: [G1], commandId: 'web' }, supply('web')), 'the goblin')
+        .outcomes.map((one) => one.target),
+    ).toEqual([G1]);
   });
 });

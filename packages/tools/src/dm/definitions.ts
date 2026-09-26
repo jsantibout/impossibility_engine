@@ -1297,7 +1297,18 @@ const printedAimFields = {
   at: pointSchema.optional().describe('Centre a Sphere on this exact spot.'),
 };
 
-type PrintedAimArgs = { readonly [K in keyof typeof printedAimFields]?: z.infer<(typeof printedAimFields)[K]> };
+/**
+ * The same five fields as `force_printed_save` publishes them. The door rolls
+ * over an area and takes a line that reaches one creature by its `targets`, so
+ * the two creature spellings say only what they do there.
+ */
+const forcedAimFields = {
+  ...printedAimFields,
+  towardsCreature: printedAimFields.towardsCreature.describe('Point a Cone or a Line at this creature.'),
+  atCreature: printedAimFields.atCreature.describe('Centre a Sphere on this creature’s space.'),
+};
+
+type PrintedAimArgs ={ readonly [K in keyof typeof printedAimFields]?: z.infer<(typeof printedAimFields)[K]> };
 
 const AIM_KEYS = Object.keys(printedAimFields) as readonly (keyof typeof printedAimFields)[];
 
@@ -1482,7 +1493,7 @@ const FORCE_PRINTED_SAVE = tool({
       .describe(
         'The head count: the creatures the line caught, as you state them. Leave it out and give the aim instead for a line the engine measures, or be asked for one or the other, with the line’s own targeting clause quoted back. Refused beside an aim.',
       ),
-    ...printedAimFields,
+    ...forcedAimFields,
     willing: z
       .array(creatureId)
       .min(1)

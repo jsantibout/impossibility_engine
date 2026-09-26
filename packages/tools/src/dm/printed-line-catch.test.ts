@@ -223,7 +223,9 @@ describe('the door and the query name the same creatures', () => {
       expectOk(t.call('add_creature', { id: monster.id, monsterId: monster.id }));
       for (const line of measured) lines.push({ who: monster.id, line: line.name });
     }
-    expect(lines.length).toBeGreaterThan(55);
+    // 35 caught by a template, a space or a hold and 25 by a ruler: the srd
+    // corpus tally, `monster-saves.test.ts`.
+    expect(lines.length).toBe(60);
     for (const { who, line } of lines) {
       const answer = t.call('printed_line_catch', { who, line });
       expect(answer.status, `${who}/${line}: ${JSON.stringify(answer).slice(0, 300)}`).toBe('ok');
