@@ -122,9 +122,10 @@ type EndingFact =
    * The creature a blow landed on, whoever swung and whether anybody did.
    *
    * `to` rather than `who` deliberately: `who` is the discriminant
-   * {@link endTriggeredEffects} narrows on to prove that only
-   * {@link EffectEndCause} can reach a timer, and a second field of that name
-   * would quietly widen what an item's conferral could be ended by.
+   * {@link timerFactsOf} narrows on to hand a timer the four deeds, and a
+   * second field of that name would quietly widen what an item's conferral
+   * could be ended by. The drop to 0 reaches a timer by name there instead,
+   * and `target-takes-damage` does not reach one at all.
    */
   | {
       readonly cause: 'target-takes-damage' | 'target-drops-to-0';
@@ -139,9 +140,9 @@ type EndingFact =
    * The sleeper a neighbour has just spent an action shaking.
    *
    * `woken` rather than `who` for the reason `to` is not `who`: the `who`
-   * field is the discriminant {@link endTriggeredEffects} narrows on to prove
-   * that only {@link EffectEndCause} can reach a timer, and a second field of
-   * that name would quietly widen what a potion's conferral could be ended by.
+   * field is the discriminant {@link timerFactsOf} narrows on to hand a timer
+   * the four deeds, and a second field of that name would quietly widen what
+   * a potion's conferral could be ended by.
    */
   | {
       readonly cause: 'shaken-awake';
@@ -152,7 +153,7 @@ type EndingFact =
    * teleport, which write the same `creature-moved`.
    *
    * `mover` rather than `who`, for the reason `to` and `woken` are not: the
-   * `who` field is the discriminant {@link endTriggeredEffects} narrows on,
+   * `who` field is the discriminant {@link timerFactsOf} narrows on,
    * and a timer has no area for anybody to leave. Whether the mover is the
    * casting's caster, and whether they are now outside its area, is
    * {@link subjectOf}'s question — the fact says only that somebody moved.
