@@ -23,6 +23,8 @@ import {
   HANDOVER_TRAIT_KINDS,
   LINE_RESIDUE_SEAMS,
   TRAIT_KINDS_WITH_A_READER,
+  UNREAD_SAVE_SEAMS,
+  isUnreadSave,
 } from '../scripts/coverage-data.js';
 import { TRACKED_ADJUDICATED } from '../scripts/missing-shapes.js';
 import { entryFor, isCompleteItem, magicItemEntries } from '../scripts/magic-items.js';
@@ -575,6 +577,10 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
       // — read off the **name** like `recharge` and `perDay` beside it, and
       // changing what "read" counts for exactly as little.
       'forms',
+      // What a legendary action does — SRD Unicorn's Charging Horn and
+      // Shimmering Shield — read out of the sentence under that heading alone,
+      // for the Multiattack's reason.
+      'legendary',
       'multiattack',
       'name',
       'onlyInForms',
@@ -777,6 +783,27 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     }
     expect(missing).toEqual([]);
     expect(built).toEqual([]);
+  });
+
+  /**
+   * The saves the reader got nothing out of, named with the seam each waits
+   * on — `UNREAD_SAVE_SEAMS`, held to the catalogue **in both directions**:
+   * every key is a CR ≤ 5 line that prints the template and is still unread,
+   * and every such line has a key. So a save somebody builds fails here until
+   * its entry comes out, and a save the reader loses fails here until one goes
+   * in — which is what stopped the table in `MONSTER_LINE_SHAPES`' docblock
+   * from being a list of things that used to be true.
+   */
+  it('names every unread CR ≤ 5 save with its seam, and no save that has been built', () => {
+    const printed = new Set<string>();
+    for (const block of SRD_CONTENT.monsters) {
+      if (block.cr > 5) continue;
+      for (const line of statBlockLines(block)) {
+        if (isUnreadSave(line)) printed.add(`${block.id}/${line.name}`);
+      }
+    }
+    for (const seam of Object.values(UNREAD_SAVE_SEAMS)) expect(seam.length).toBeGreaterThan(80);
+    expect([...printed].sort()).toEqual(Object.keys(UNREAD_SAVE_SEAMS).sort());
   });
 
   /**

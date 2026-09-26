@@ -43,6 +43,8 @@ export const GRANTS_EVENTS = [
   'sense-granted',
   'damage-reduction-granted',
   'damage-penalty-granted',
+  'ability-score-lowered',
+  'ability-score-restored',
   'fall-ward-granted',
   'creature-lifted',
   'jump-allowance-granted',
@@ -245,6 +247,35 @@ export function applyGrants({ state, next }: Applying, event: GrantsEvent): Game
         event.penalty,
       ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
       return withCreature(next, event.id, { damagePenalties }, creature);
+    }
+
+    // SRD Shadow's Draining Swipe: "the target's Strength score decreases by
+    // 1d4." The source alone is the identity, as it is for the penalty above:
+    // the swing sources each use by its roll position, so two swipes are two
+    // entries and a replay of one is one.
+    case 'ability-score-lowered': {
+      const creature = creatureOf(state, event, event.id);
+      const abilityLowerings = [
+        ...creature.abilityLowerings.filter((held) => held.source !== event.lowering.source),
+        event.lowering,
+      ].sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+      return withCreature(next, event.id, { abilityLowerings }, creature);
+    }
+
+    // The rest's half of the same sentence. A source that is not there is a
+    // log this engine did not write: `endRest` names only what the creature
+    // holds.
+    case 'ability-score-restored': {
+      const creature = creatureOf(state, event, event.id);
+      if (!creature.abilityLowerings.some((held) => held.source === event.source)) {
+        throw new CorruptLogError(event, `${event.id} holds no lowering from ${event.source}`);
+      }
+      return withCreature(
+        next,
+        event.id,
+        { abilityLowerings: creature.abilityLowerings.filter((held) => held.source !== event.source) },
+        creature,
+      );
     }
 
     // SRD *Feather Fall*: "the creature takes no damage from the fall." The

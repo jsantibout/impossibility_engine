@@ -79,6 +79,50 @@ export interface PrintedClausesLanded {
   readonly pushedFeet: number | null;
   /** Whether the line killed the target outright — SRD Will-o'-Wisp's is the one that does. */
   readonly died: boolean;
+  /** The object the line wore down, where it wore one — SRD Rust Monster's Antennae. */
+  readonly object: WornDownObject | null;
+  /** What the line revealed about the target, where it revealed anything — SRD Sprite's Heart Sight. */
+  readonly revealed: RevealedFacts | null;
+}
+
+/**
+ * What one creature came to **know** about another off a printed save.
+ *
+ * SRD Sprite's Heart Sight: "knows the target's emotions and alignment". The
+ * engine holds one of the two — the alignment the block or the character's
+ * choices pinned — and names the other as the table's rather than pretending
+ * to hold it.
+ */
+export interface RevealedFacts {
+  /** The alignment on the creature, or null where nobody has said one. */
+  readonly alignment?: string | null;
+  /** The facts the sentence names that only the table can answer — an emotion. */
+  readonly toTheTable: readonly string[];
+}
+
+/**
+ * What a printed save did to a **thing** its target was wearing or holding.
+ *
+ * SRD Rust Monster's Antennae. `penalty` is the copy's total after this use,
+ * so a caller narrates "the mail is at −3" rather than "another point"; and
+ * `destroyed` says the point that took it to the ceiling took the object with
+ * it, through the door every lost item leaves by.
+ */
+export interface WornDownObject {
+  /** The catalogue id of the object, as the caller named it. */
+  readonly item: string;
+  readonly penalty: number;
+  readonly destroyed: boolean;
+}
+
+/** What the caller stated beside the line, where a line wants a fact only a table has. */
+export interface PrintedSaveFacts {
+  /**
+   * The worn or held object the line targets — SRD Rust Monster's Antennae:
+   * "one nonmagical metal object—armor or a weapon—worn or carried by a
+   * creature". The door asks for it where the line wants one.
+   */
+  readonly object?: string;
 }
 
 
@@ -92,12 +136,18 @@ export interface PrintedClausesLanded {
  * are families of this engine's rather than members of the book's list, so
  * they are not here — the cost that file records, unchanged.
  */
-const PRINTED_ROLL: Readonly<Record<'ability-check' | 'attack-roll' | 'saving-throw', RollFamily>> =
-  {
-    'ability-check': 'ability-check',
-    'attack-roll': 'attack',
-    'saving-throw': 'saving-throw',
-  };
+const PRINTED_ROLL: Readonly<
+  Record<'ability-check' | 'attack-roll' | 'saving-throw' | 'd20-test', RollFamily>
+> = {
+  'ability-check': 'ability-check',
+  'attack-roll': 'attack',
+  'saving-throw': 'saving-throw',
+  // The glossary's union of the three, which both vocabularies spell the same
+  // way because both read it off the same sentence. Narrowed by an ability on
+  // both sides: the reader insists on one and `rollSelectorProblems` refuses a
+  // selector without one.
+  'd20-test': 'd20-test',
+};
 
 /** How a condition reads in a sentence handed to a table: the book's own word. */
 const conditionTitle = (condition: ConditionName): string =>
@@ -184,6 +234,25 @@ function durationOf(
 /** Every clause that carries a lifetime of either kind — see {@link hangTo}. */
 type LastingClause = Extract<PrintedSaveEffect, { kind: 'action-rule' | 'speed-halved' }>;
 
+/**
+ * The two clauses a save may hang on the target's **own rolls**, and the third
+ * lifetime they may carry — see {@link hangRepeatable}.
+ */
+type RepeatableClause = Extract<PrintedSaveEffect, { kind: 'roll-mode' | 'damage-penalty' }>;
+
+/**
+ * The one source every clause a printed line's **repeat save** ends is filed
+ * under.
+ *
+ * SRD Gold Dragon Wyrmling's Weakening Breath hangs a mode and a penalty and
+ * prints one save that ends "the effect" — so both go under one source, one
+ * `grants` timer carries the repeat, and a success releases both at once. Two
+ * sources would be two timers and two saves a turn, which is a rule nobody
+ * printed. The suffix keeps it apart from `line-immunity`, which files under
+ * the bare line source on the same creature with a deadline of its own.
+ */
+const repeatSource = (lineSource: string): string => `${lineSource}:lasting`;
+
 /** Where a clause's grant is filed, and how a refusal finishes its sentence. */
 interface Hung {
   /** A condition instance's id, or a key of the line's own that a timer ends. */
@@ -248,6 +317,51 @@ function hangTo(
   return { source: `${lineSource}:${clause.kind}`, deadline: clause.lasts, until: spanWords(clause.lasts) };
 }
 
+/**
+ * Where a mode's or a penalty's grant goes, and what timer it needs.
+ *
+ * **Three lifetimes and the corpus prints all three.** SRD Swarm of Ravens'
+ * mode lives on the Deafened the same failure imposed (`whileCondition`,
+ * {@link hangTo}'s first arm); a homebrew line may print a span
+ * (`lasts`, its second); and SRD Gold Dragon Wyrmling's Weakening Breath
+ * prints a **repeat save** — so the grant goes under {@link repeatSource} and
+ * the timer over it carries the repeat, with the minute's cap as its deadline
+ * and no deadline at all where the line prints none. The fold's
+ * `effect-save-resolved` releases the source when the save is made, exactly as
+ * the `grants` deadline releases it when the clock runs out.
+ *
+ * Null where the clause found nothing to hang on: a host condition that did
+ * not land, or no lifetime at all.
+ */
+function hangRepeatable(
+  clause: RepeatableClause,
+  lineSource: string,
+  landed: ReadonlyMap<ConditionName, string>,
+  repeat: RepeatSave,
+): { readonly source: string; readonly timer?: { readonly duration: Duration; readonly repeat?: RepeatSave } } | null {
+  if (clause.whileCondition !== undefined) {
+    const instance = landed.get(clause.whileCondition);
+    return instance === undefined ? null : { source: instance };
+  }
+  if (clause.repeats !== undefined) {
+    const cap = clause.repeats.capSeconds;
+    return {
+      source: repeatSource(lineSource),
+      timer: {
+        duration: cap === undefined ? { kind: 'indefinite' } : { kind: 'seconds', seconds: cap },
+        repeat,
+      },
+    };
+  }
+  if (clause.lasts !== undefined) {
+    return {
+      source: `${lineSource}:${clause.kind}`,
+      timer: { duration: durationOf(clause.lasts, undefined, repeat.of, repeat.of)! },
+    };
+  }
+  return null;
+}
+
 /** What the caller is told about a clause that found nothing to hang on. */
 function describeUnhung(clause: LastingClause, line: string, target: CharacterId): string {
   const what =
@@ -300,6 +414,7 @@ export function applyPrintedClauses(
   dealt: PrintedDamageDealt,
   useTag: number,
   supply: Supply,
+  facts: PrintedSaveFacts = {},
 ): Result<PrintedClausesLanded> {
   let current = state;
   const events: GameEvent[] = [];
@@ -307,6 +422,8 @@ export function applyPrintedClauses(
   const conditions: ConditionName[] = [];
   const immuneTo: ConditionName[] = [];
   let pushedFeet: number | null = null;
+  let object: WornDownObject | null = null;
+  let revealed: RevealedFacts | null = null;
   const died: CharacterId[] = [];
   const lineSource = printedLineSource(source, line);
   /**
@@ -541,41 +658,105 @@ export function applyPrintedClauses(
         break;
       }
 
-      case 'roll-mode': {
+      case 'roll-mode':
+      case 'damage-penalty': {
         // SRD Swarm of Ravens: "While Deafened, the target also has
-        // Disadvantage on ability checks and attack rolls." The mode is the
-        // same grant every other door hangs; what is new is the **lifetime**,
-        // and the sentence names no span at all. It names a condition — the
-        // one *this failure* just imposed — so the grant is sourced to that
-        // instance's id, and the instance lifting is the whole of its ending:
-        // the printed span running out, a cure, a repeat save succeeded.
+        // Disadvantage on ability checks and attack rolls." SRD Gold Dragon
+        // Wyrmling: "The target has Disadvantage on Strength-based D20 Tests
+        // and subtracts 2 (1d4) from its damage rolls. It repeats the save at
+        // the end of each of its turns, ending the effect on itself on a
+        // success. After 1 minute, it succeeds automatically."
         //
-        // **And therefore no `grants` timer beside it.** The instance is the
-        // deadline, and a second one could only come to disagree with it — see
-        // `releaseInstanceGrants` in `fold/release.ts`, where the release is.
-        const instance = landedInstances.get(clause.whileCondition);
-        if (instance === undefined) {
-          // The condition is not there, so there is nothing for the mode to
+        // The grants are the ones every other door hangs — a mode, and the
+        // penalty SRD Ray of Enfeeblement hangs on whoever swings — and what
+        // is the line's own is the **lifetime**. The Ravens' names a condition
+        // *this failure* just imposed, so the grant is sourced to that
+        // instance's id and needs no timer: the instance is the deadline, and
+        // a second one could only disagree with it (see `releaseInstanceGrants`
+        // in `fold/release.ts`). The Wyrmling's names a repeat save and a cap,
+        // and imposes no condition to carry them — so its clauses share one
+        // source under one `grants` timer that carries the repeat, and a made
+        // save releases both at once, which is what "ending the effect" says.
+        const hung = hangRepeatable(
+          clause,
+          lineSource,
+          landedInstances,
+          // The host's own ability and DC, ending what the source hung on the
+          // target: the same record a condition's repeat carries, and the one
+          // pair the reader produces.
+          {
+            at: 'end-of-turn',
+            of: target,
+            ability: save.ability,
+            dc: save.dc,
+            onSuccess: 'end-on-target',
+            label: `${ABILITY_NAMES[save.ability]} save vs ${line}`,
+          },
+        );
+        if (hung === null) {
+          // The condition is not there, so there is nothing for the clause to
           // live on — an immune target, which is the one way a clause the
-          // reader gated can still find no host. A grant sourced to an
+          // reader gated can still find no host — or it reached here with no
+          // lifetime at all, which `parsePrintedSave` refuses and a pinned
+          // record from some other door might not. A grant sourced to an
           // instance nobody created would be a Disadvantage nothing could ever
           // lift, so it is not written and the caller is told, exactly as
           // `immuneTo` tells them about the condition itself.
+          const what =
+            clause.kind === 'roll-mode' ? `${clause.mode}` : `a ${clause.dice} off its damage rolls`;
           unverified.push(
-            `${line} gives ${target} ${clause.mode} while ${conditionTitle(clause.whileCondition)}, and the ${conditionTitle(clause.whileCondition)} condition did not land on them — nothing was hung`,
+            clause.whileCondition === undefined
+              ? `${line} gives ${target} ${what} and says no span, no repeat save and no condition to end it — nothing was hung`
+              : `${line} gives ${target} ${what} while ${conditionTitle(clause.whileCondition)}, and the ${conditionTitle(clause.whileCondition)} condition did not land on them — nothing was hung`,
           );
           break;
         }
+        if (hung.timer !== undefined && !scheduled.has(hung.source)) {
+          const timer = schedule(
+            current,
+            { kind: 'grants', on: target, source: hung.source },
+            hung.timer.duration,
+            hung.timer.repeat,
+          );
+          if (!timer.ok) return timer;
+          scheduled.add(hung.source);
+          land([timer.value]);
+        }
+        if (clause.kind === 'damage-penalty') {
+          land([
+            {
+              type: 'damage-penalty-granted',
+              id: target,
+              penalty: {
+                source: hung.source,
+                // What the log calls the die when the blow throws it.
+                label: line,
+                dice: clause.dice,
+                ...(clause.flat === 0 ? {} : { flat: clause.flat }),
+              },
+            },
+          ]);
+          break;
+        }
         // One grant per roll the sentence names, because a `RollModifier`
-        // carries one selector — `printedSunlight` reads the same two nouns
-        // the same way. They share a source, so one ending takes both.
+        // carries one selector — `printedSunlight` reads the same nouns the
+        // same way. They share a source, so one ending takes them all; and a
+        // `d20-test` carries the ability the sentence narrowed it by, which
+        // the engine's own validator would refuse it without.
         land(
           clause.rolls.map((roll) => ({
             type: 'roll-modifier-granted',
             id: target,
             modifier: {
-              source: instance,
-              modifier: { mode: clause.mode, selector: { roll: PRINTED_ROLL[roll], relation: 'roller' } },
+              source: hung.source,
+              modifier: {
+                mode: clause.mode,
+                selector: {
+                  roll: PRINTED_ROLL[roll],
+                  relation: 'roller',
+                  ...(clause.ability === undefined ? {} : { ability: clause.ability }),
+                },
+              },
             },
           })),
         );
@@ -776,6 +957,108 @@ export function applyPrintedClauses(
         break;
       }
 
+      case 'object-penalty': {
+        // SRD Rust Monster's Antennae: "The object takes a −1 penalty to the
+        // AC it offers (armor) or to its attack rolls (weapon). Armor is
+        // destroyed if the penalty reduces its AC to 10, and a weapon is
+        // destroyed if its penalty reaches −5."
+        //
+        // **The same record the pudding's hit lands on**, read the same way:
+        // the copy in hand or on the back, a number moved, and the ceiling the
+        // object's own printed number rather than the creature's Armour Class.
+        // Which object is the caller's fact, asked for at the door; a clause
+        // reaching here without one — the triggered road, or a pinned record
+        // from some other door — is reported rather than guessed at.
+        const named = facts.object;
+        const victim = current.creatures[target];
+        if (named === undefined || victim === undefined) {
+          unverified.push(
+            `${line} wears down an object ${target} is wearing or holding, and nobody has said which — nothing was worn down`,
+          );
+          break;
+        }
+        const record = victim.equipped.find((held) => held.id === named);
+        if (record === undefined) {
+          unverified.push(
+            `${target} is not wearing or holding ${named}, so ${line} found nothing to wear down`,
+          );
+          break;
+        }
+        const eaten = (record.penalty ?? 0) + clause.points;
+        // Armour is what the record pinned as armour; a weapon is what the
+        // catalogue says the copy is. A held thing that is neither — a shield
+        // is armour with no number of its own, a torch is nothing — has no
+        // "AC it offers" and no attack roll, and the sentence names only the
+        // two, so it is handed back.
+        const armour = record.armor;
+        const weapon = armour === null ? (supply.content.item(record.id)?.weapon ?? null) : null;
+        const offers = armour?.baseAc ?? null;
+        const survives =
+          armour !== null ? offers !== null && offers - eaten > 10 : weapon !== null && eaten < 5;
+        if (armour === null && weapon === null) {
+          unverified.push(
+            `${named} is neither armour nor a weapon, and ${line} reaches "armor or a weapon" — nothing was worn down`,
+          );
+          break;
+        }
+        if (survives) {
+          land([
+            armour !== null
+              ? { type: 'armor-penalised', id: target, item: record.id, points: clause.points }
+              : { type: 'weapon-penalised', id: target, item: record.id, points: clause.points },
+          ]);
+          object = { item: record.id, penalty: eaten, destroyed: false };
+          break;
+        }
+        // The point that reaches the ceiling takes the object with it, through
+        // the door every lost item leaves by — unequipped, then out of the pack.
+        land([
+          { type: 'item-unequipped', id: target, item: record.id },
+          {
+            type: 'items-lost',
+            id: target,
+            items: [
+              {
+                id: record.id,
+                quantity: 1,
+                ...(record.instance === undefined ? {} : { instance: record.instance }),
+              },
+            ],
+            source: line,
+          },
+        ]);
+        object = { item: record.id, penalty: eaten, destroyed: true };
+        break;
+      }
+
+      case 'reveals': {
+        // SRD Sprite's Heart Sight: "The sprite knows the target's emotions
+        // and alignment." Nothing lands on the target and nothing is written:
+        // what changes is what the caller now knows, which is the reading
+        // `knownDefencesOf` takes of SRD Hunter's Lore. The alignment is the
+        // one fact the engine holds — pinned off the block, or a creation
+        // choice on the record — and an emotion is fiction, named as the
+        // table's rather than invented.
+        const victim = current.creatures[target];
+        const alignment = victim?.alignment ?? victim?.character?.choices.alignment ?? null;
+        const toTheTable = clause.facts.filter((fact) => fact !== 'alignment');
+        revealed = {
+          ...(clause.facts.includes('alignment') ? { alignment } : {}),
+          toTheTable,
+        };
+        if (clause.facts.includes('alignment') && alignment === null) {
+          unverified.push(
+            `${line} reveals ${target}'s alignment, and nobody has said what it is`,
+          );
+        }
+        for (const fact of toTheTable) {
+          unverified.push(
+            `${line} reveals ${target}'s ${fact} to ${source}, and what those are is the table's`,
+          );
+        }
+        break;
+      }
+
       case 'line-immunity': {
         // SRD Ghost: "_Success:_ The target is immune to this ghost's Horrific
         // Visage for 24 hours." An immunity to **one printed line** and not to
@@ -814,13 +1097,33 @@ export function applyPrintedClauses(
     }
   }
 
-  return ok({ events, unverified, conditions, immuneTo, pushedFeet, died: died.length > 0 });
+  return ok({
+    events,
+    unverified,
+    conditions,
+    immuneTo,
+    pushedFeet,
+    died: died.length > 0,
+    object,
+    revealed,
+  });
 }
 
 /** What the line did to one creature standing in it. */
 export interface PrintedSaveOnACreature {
   readonly target: CharacterId;
-  readonly save: D20TestResult;
+  /**
+   * The save, or **null where the book threw no die**.
+   *
+   * SRD Sprite's Heart Sight: "(Celestials, Fiends, and Undead automatically
+   * fail the save)". A creature of one of those types takes the failure
+   * outright, and an outcome carrying a fabricated roll would be a number the
+   * engine produced for a die nobody rolled — so it carries none, and
+   * {@link autoFailed} says why.
+   */
+  readonly save: D20TestResult | null;
+  /** Whether the failure was automatic, by the target's type — see {@link save}. */
+  readonly autoFailed?: true;
   /** What landed, after the target's own Resistance and the rest. */
   readonly damage: number;
   readonly concentration: ConcentrationConsequence;
@@ -838,6 +1141,10 @@ export interface PrintedSaveOnACreature {
    * `damage` alone would see a nought and narrate a miss.
    */
   readonly died?: true;
+  /** The object the line wore down or broke — SRD Rust Monster's Antennae. */
+  readonly object?: WornDownObject;
+  /** What the line revealed about the target — SRD Sprite's Heart Sight. */
+  readonly revealed?: RevealedFacts;
 }
 
 /** One creature's whole answer to a printed line: the events, the outcome, the debts. */
@@ -877,6 +1184,7 @@ export function forcePrintedSaveOn(
   line: string,
   printed: MonsterSave,
   supply: Supply,
+  facts: PrintedSaveFacts = {},
 ): Result<PrintedSaveLanding> {
   const source = state.creatures[by];
   if (source === undefined) return unknownCreature(by, 'has no record here yet; add it first');
@@ -888,27 +1196,49 @@ export function forcePrintedSaveOn(
   const unverified: string[] = [];
   const ability = printed.ability;
 
-  const support = savingSupport(current, target, victim, ability, {});
-  // The sheet as it stands, so an item that sets the ability this save is made
-  // with reaches the save rather than stopping at the page — the reading a
-  // spell's save already takes.
-  const sheet = sheetAsItStands(current, target) ?? victim.sheet;
-  const save = rollSavingThrow(supply.issuer, supply.rng, sheet, ability, {
-    dc: printed.dc,
-    conditions: support.conditions,
-    modes: support.modes,
-    bonuses: support.bonuses,
-  });
-  if (!save.ok) return save;
+  // **No die at all, where the book throws none.** SRD Sprite's Heart Sight:
+  // "(Celestials, Fiends, and Undead automatically fail the save)". The type
+  // is the engine's own record, so the answer is derived rather than asked;
+  // a creature nobody has typed is rolled for, and the caller is told.
+  const autoFails =
+    printed.autoFailTypes !== undefined &&
+    victim.creatureType !== null &&
+    printed.autoFailTypes.includes(victim.creatureType);
+  if (printed.autoFailTypes !== undefined && victim.creatureType === null) {
+    unverified.push(
+      `${line} is failed automatically by ${printed.autoFailTypes.join(', ')}, and nobody has said what ${target} is — the save was rolled, and declareCreatureType settles it`,
+    );
+  }
 
-  events.push(
-    recordD20Test(
-      target,
-      `${ABILITY_NAMES[ability]} save vs ${line}`,
-      save.value,
-      save.value.success ? 'resisted' : 'affected',
-    ),
-  );
+  let save: D20TestResult | null = null;
+  if (autoFails) {
+    unverified.push(
+      `${target} is ${victim.creatureType} and fails ${line} automatically — no die was thrown`,
+    );
+  } else {
+    const support = savingSupport(current, target, victim, ability, {});
+    // The sheet as it stands, so an item that sets the ability this save is
+    // made with reaches the save rather than stopping at the page — the
+    // reading a spell's save already takes.
+    const sheet = sheetAsItStands(current, target) ?? victim.sheet;
+    const rolled = rollSavingThrow(supply.issuer, supply.rng, sheet, ability, {
+      dc: printed.dc,
+      conditions: support.conditions,
+      modes: support.modes,
+      bonuses: support.bonuses,
+    });
+    if (!rolled.ok) return rolled;
+    save = rolled.value;
+    events.push(
+      recordD20Test(
+        target,
+        `${ABILITY_NAMES[ability]} save vs ${line}`,
+        save,
+        save.success ? 'resisted' : 'affected',
+      ),
+    );
+  }
+  const success = save?.success ?? false;
 
   // SRD Evasion, read off the creature standing in it and off the *line's* own
   // sentence: it triggers on an effect that offers half on a made Dexterity
@@ -922,7 +1252,8 @@ export function forcePrintedSaveOn(
   // deeper list is chosen here and nothing is asked of a caller. It *replaces*
   // the failure's list rather than adding to it, which is what the reader
   // wrote: a rung is the whole failure said again with one more thing in it.
-  const missedBy = printed.dc - save.value.total;
+  // An automatic failure has no margin, and takes the plain failure.
+  const missedBy = save === null ? 0 : printed.dc - save.total;
   const failure =
     printed.onFailureBy !== undefined && missedBy >= printed.onFailureBy.by
       ? printed.onFailureBy.effects
@@ -940,7 +1271,7 @@ export function forcePrintedSaveOn(
     // Horrific Visage for 24 hours." It goes through the same executor the
     // failure's clauses do and in the same list, because it is the same kind of
     // thing — a clause about one creature.
-    ...(save.value.success ? (printed.onSuccessEffects ?? []) : failure),
+    ...(success ? (printed.onSuccessEffects ?? []) : failure),
     ...(printed.either ?? []),
   ]);
 
@@ -953,7 +1284,7 @@ export function forcePrintedSaveOn(
   // so the clause below is unchanged.
   const damage = taken.damage ?? printed.damage;
   const plus = taken.damage === null ? printed.plus : (taken.plus ?? undefined);
-  if (damage !== undefined && !(save.value.success && (printed.onSuccess === 'none' || evading))) {
+  if (damage !== undefined && !(success && (printed.onSuccess === 'none' || evading))) {
     const rolled = rollSpellDice(supply, source.sheet, line, damage.type, damage.dice ?? undefined);
     if (!rolled.ok) return rolled;
     // The addend the book prints inside the parenthesis — "16 (2d10 + 5)" —
@@ -971,7 +1302,7 @@ export function forcePrintedSaveOn(
     // on a failed save" — half of what the line deals, and therefore *before*
     // the target's own Resistance, which then halves again. With Evasion it is
     // the failure that is halved; the success took nothing above.
-    const halve = evading ? !save.value.success : save.value.success;
+    const halve = evading ? !success : success;
     const components = halve
       ? parts.map((component) => ({ ...component, total: Math.floor(component.total / 2) }))
       : parts;
@@ -1006,6 +1337,7 @@ export function forcePrintedSaveOn(
     dealt,
     supply.issuer.count,
     supply,
+    facts,
   );
   if (!landed.ok) return landed;
   events.push(...landed.value.events);
@@ -1016,13 +1348,16 @@ export function forcePrintedSaveOn(
     unverified,
     outcome: {
       target,
-      save: save.value,
+      save,
+      ...(autoFails ? { autoFailed: true as const } : {}),
       damage: dealt.total,
       concentration,
       ...(landed.value.conditions.length === 0 ? {} : { conditions: landed.value.conditions }),
       ...(landed.value.immuneTo.length === 0 ? {} : { immuneTo: landed.value.immuneTo }),
       ...(landed.value.pushedFeet === null ? {} : { pushedFeet: landed.value.pushedFeet }),
       ...(landed.value.died ? { died: true as const } : {}),
+      ...(landed.value.object === null ? {} : { object: landed.value.object }),
+      ...(landed.value.revealed === null ? {} : { revealed: landed.value.revealed }),
     },
   });
 }

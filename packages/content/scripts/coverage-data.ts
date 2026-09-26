@@ -1249,6 +1249,8 @@ export interface StatBlockLine {
   readonly addsToAc?: unknown;
   /** The printed line a Reaction's whole response performs, by its heading. */
   readonly usesLine?: string | undefined;
+  /** What a legendary action line does — SRD Unicorn's Charging Horn and Shimmering Shield. */
+  readonly legendary?: unknown;
 }
 
 /** Every line of every section of one block, which is what the shapes count over. */
@@ -1280,7 +1282,8 @@ export const isReadLine = (line: StatBlockLine): boolean =>
   line.pulls !== undefined ||
   line.addsToRoll !== undefined ||
   line.addsToAc !== undefined ||
-  line.usesLine !== undefined;
+  line.usesLine !== undefined ||
+  line.legendary !== undefined;
 
 /**
  * A read attack line whose printed rider nothing applies.
@@ -1340,7 +1343,7 @@ export const hasUnappliedRider = (line: StatBlockLine): boolean => {
  * |---|---|
  * | Bearded Devil's Infernal Glaive | a check a **neighbour** may attempt. `availableChecks` and `resolveEffectCheck` are self-only twins, and the wound's DC 12 Wisdom (Medicine) is rolled by the target *or a creature within 5 feet of it*. The start-of-turn 1d10 is `ScheduledDamage`, which the boundary already settles, and the minute is an ordinary deadline; what is missing is the reach on the check and the once-per-target gate ("doesn't already have an infernal wound") |
  * | Death Dog's Bite, Mummy's Rotting Fist, Otyugh's Bite, Incubus's Restless Touch | a clock that runs for days. Three mechanisms under one sentence each: a Hit Point maximum that does **not** come back at a Long Rest (a mark that withholds `hit-point-maximum-restored`), a deadline that re-arms every 24 hours, and a rest whose benefit is denied to the creature that finished it. `a-clock-that-runs-for-days` |
- * | Shadow's Draining Swipe | an ability score an effect lowers. The sheet holds the six authoritatively and nothing in the engine moves one, so "the target's Strength score decreases by 1d4. The target dies if this reduces that score to 0" has no record to write to: `an-ability-score-an-effect-lowers` |
+ * | Shadow's Draining Swipe | **the drain and the death are executed** — `ability-score-lowered` is the record the sheet's scores are derived through, either rest gives it back, and a score at 0 is a `creature-died`. What is left is "If a Humanoid is slain by this attack, a Shadow rises from the corpse 1d4 hours later": a stat block created from a corpse hours after the fight, which the doctrine puts at the table |
  * | Werebear, Wereboar, Wererat, Weretiger, Werewolf | `a-creature-somebody-else-is-playing`. "If the cursed target drops to 0 Hit Points, it instead becomes a **Werewolf** under the GM's control" is one stat block swapped for another *and* a player's character handed to the DM, and the second half is the one nothing here can do |
  * | Salamander's Flame Spear | fiction. "The spear magically returns to the salamander's hand" — nothing tracks where a thrown weapon went, and nothing would read the answer |
  * | Barbed Devil's Hurl Flame | a flammable object. The creature half of the glossary's Burning is executed on the two lines that print one; this line catches **only** "a flammable object that isn't being worn or carried", and a declared object is a substance and a size with nothing on it that takes light |
@@ -1712,6 +1715,10 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
   // **A line that casts is spent** — `castPrintedLine` hands one of its spells
   // to the casting pipeline at the heading's price.
   line.casts !== undefined ||
+  // **A legendary line is spent** — `takeLegendaryAction` spends a use out of
+  // the block's pool at the moment the book names and performs the line: the
+  // Horn's swing through the attack command, the Shield's points and bonus.
+  line.legendary !== undefined ||
   // **The addend, narrowed the way the adapter narrows it.** `test-rolled` is
   // the instant a check or a save has landed and an attack roll is not one of
   // them, so `triggeringTests` in `monster.ts` compiles nothing for a trigger
@@ -1750,9 +1757,12 @@ export const isExecutedLine = (line: StatBlockLine): boolean =>
  * sheet — and it is not **paid**, because the engine performs no printed line
  * as a Reaction's response. What it does instead is offer the Reaction and
  * hand the response to the table by name, which is a handover with a debt
- * behind it rather than a finished sentence: the rust monster's Antennae is a
- * save line nothing has read, and eating the weapon that hit it is a rule
- * somebody will build.
+ * behind it rather than a finished sentence. **The response is a line the
+ * engine spends now**: the rust monster's Antennae is read — the object the
+ * prelude names, the penalty, the two ceilings — and `force_printed_save`
+ * rolls it with the weapon that hit named as the object. What is left is the
+ * Reaction's own road performing it in place of handing the name over, which
+ * is a seam in `commands/reactions.ts` and not in the line.
  *
  * It retires when a response is performed rather than named — the same way the
  * Multiattack and Spellcasting rows shrank when their sentences became
@@ -1799,11 +1809,28 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
    * | Bulette's Deadly Leap, Centaur Trooper's Trampling Charge | a move **through** other creatures' spaces with a save per creature entered — the same seam Amorphous, Compression and Ooze Cube wait on, which is a creature's space entered and stopped in |
    * | Gelatinous Cube's Engulf, Shambling Mound's Engulf | `a-second-place-to-put-a-creature`: a creature inside another one, which is a position the lattice has no word for |
    * | Ghost's Possession, Harpy's Luring Song | `a-creature-somebody-else-is-playing`. A body somebody else drives and a compulsion that walks a creature toward a cliff are the same want, and the doctrine puts both at the table |
-   * | Gold Dragon Wyrmling's Weakening Breath | **neither half is missing any more**, and that is worth writing down: "Disadvantage on Strength-based D20 Tests" is the `d20-test` roll family with an ability on it and "subtracts 2 (1d4) from its damage rolls" is `damagePenaltyOf`, both built for SRD Ray of Enfeeblement. What this waits on is the printed-save reader growing an arm that writes them, not a shape |
-   * | Rust Monster's Antennae | the same sentence Black Pudding's Pseudopod prints, on a **save** rather than on a hit. `EquippedItem.penalty` is the record and the hit side executes it; the save reader has no arm for it, and the line's "armor or a weapon" half needs a penalty a weapon can hold as well |
-   * | Sprite's Heart Sight | a reveal: what one creature comes to **know** about another. The knowledge vocabulary exists for Hunter's Lore; an emotion and an alignment are not among the facts it holds |
+   *
+   * The table is pinned to the catalogue by {@link UNREAD_SAVE_SEAMS}, so a
+   * row that has been built comes out in the same commit.
+   *
+   * **Three rows left this table on one night**, and are written down rather
+   * than deleted because a row that leaves a report is a claim somebody may
+   * want to check. The Sprite's Heart Sight is read: a `reveals` clause whose
+   * alignment the engine holds — pinned on the creature from the block or the
+   * character's choices — and whose emotions are named as the table's, with
+   * the types that fail automatically read off the targeting clause and no die
+   * thrown for them. The Gold Dragon Wyrmling's Weakening Breath is read whole:
+   * the reader grew the two arms the row said it lacked — a mode over the
+   * `d20-test` family narrowed by an ability, and a penalty on the target's
+   * own damage rolls — and a third lifetime for them, the repeat save the
+   * failure prints where it imposes no condition to carry one. The Rust
+   * Monster's Antennae is read too: the prelude that names an object, the
+   * penalty, and the two ceilings the executor keeps; it sits on
+   * {@link SAVE_HANDOVER_SHAPE} now rather than here, because the Mending
+   * sentence is the spells side's and is still handed over.
    */
   ['A save a line forces', (line) => line.attack === undefined && /Saving Throw:_/.test(line.text)],
+  // The rows above are held to the catalogue by {@link UNREAD_SAVE_SEAMS}.
   [SAVE_HANDOVER_SHAPE, hasHandedOverSave],
   [REACTION_USE_SHAPE, hasHandedOverResponse],
   [RIDER_SHAPE, hasUnappliedRider],
@@ -1891,12 +1918,44 @@ export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {
     'a second **plane**, which the scene has no address for. The Nightmare\'s Ethereal Stride and the Phase Spider\'s Ethereal Jaunt are the same sentence, and the Dryad\'s Tree Stride is its cousin with a tree in place of a plane. Filed together under `a-second-place-to-put-a-creature` because what they need is one thing: somewhere a creature can be that is not a space on this map.',
   'sea-hag/Illusory Appearance':
     'fiction. "The hag covers herself and anything she is wearing or carrying with a magical illusion" — what somebody looks like is the table\'s, and the Investigation check to see through it is one a DM calls for.',
-  'unicorn/Shimmering Shield':
-    'the legendary economy, which is its own row on both reports and belongs to the *block* rather than to any line. The Charging Horn beside it is the same debt.',
 };
 
-/** The economy a legendary block owes, which is the block's rather than a line's. */
-export const LEGENDARY_ECONOMY = 'A legendary action’s own economy';
+/**
+ * The CR ≤ 5 lines that force a save and that the reader got nothing out of,
+ * each with the one seam it waits on.
+ *
+ * {@link LINE_RESIDUE_SEAMS}' twin for the saves, and pinned the same way by
+ * `coverage.test.ts`: every key names a line some CR ≤ 5 block really prints
+ * with `Saving Throw:_` in it, and every one of them is really still unread —
+ * so a line somebody builds fails the guard and the entry comes out in the
+ * same commit. Written down because a line with no note beside it looks like
+ * a line nobody read, and because the table in the docblock above was prose
+ * and rotted twice on one night.
+ *
+ * **None of these is one field.** Each was checked against the code before it
+ * was filed here: a move through other creatures' spaces is a position the
+ * lattice has no word for, a creature inside another is the same, and a
+ * compulsion is a creature somebody else is playing — the seam the doctrine
+ * puts at the table.
+ */
+export const UNREAD_SAVE_SEAMS: Readonly<Record<string, string>> = {
+  'bulette/Deadly Leap':
+    'a move **through** other creatures\' spaces with a save per creature entered, and a movement spent before the save — "The bulette spends 5 feet of movement to jump to a space within 15 feet that contains one or more Large or smaller creatures." The lattice holds one occupant per space, so the space entered is a position nothing can be put in; the same seam Amorphous, Compression and Ooze Cube wait on.',
+  'centaur-trooper/Trampling Charge (Recharge 5–6)':
+    'the same move through Medium or smaller creatures\' spaces, with a save for each whose space was entered — "can move through the spaces of Medium or smaller creatures. Each creature whose space the centaur enters…". The movement half is the world\'s, and a save read without it would be a Trample a creature forces standing still.',
+  'gelatinous-cube/Engulf':
+    '`a-second-place-to-put-a-creature`: a creature inside another one, with its own escape, its own damage at the swallower\'s boundary and a way out when the cube dies. The Shambling Mound\'s Engulf, the Giant Frog\'s Swallow and the Giant Toad\'s are the same want.',
+  'shambling-mound/Engulf':
+    'the same second place — a creature inside the mound, Blinded and Restrained there, damaged at the mound\'s turn boundary and free when the mound dies. One seam for the four lines that print it.',
+  'ghost/Possession (Recharge 6)':
+    '`a-creature-somebody-else-is-playing`: "the ghost disappears, and the target is possessed by the ghost" — a body one creature drives and another owns, which the doctrine puts at the table rather than in a record the engine would have to invent a driver for.',
+  'harpy/Luring Song':
+    'a compulsion: "the target has the Charmed condition until the song ends … it must move on its turn toward the harpy by the most direct route". Which way a creature walks is a decision the engine takes as an input, and a rule that made it for a player is the same seam as Possession.',
+};
+
+/** Whether this line prints the save template and the reader got nothing out of it. */
+export const isUnreadSave = (line: StatBlockLine): boolean =>
+  line.attack === undefined && line.save === undefined && /Saving Throw:_/.test(line.text);
 
 export function auditBestiary(): BestiaryCoverage {
   const parsed = JSON.parse(
@@ -1939,13 +1998,12 @@ export function auditBestiary(): BestiaryCoverage {
     return { shape, blocks, lines };
   });
 
-  // The legendary economy is a property of the block rather than of any one
-  // line, so it is counted as the block it belongs to.
-  shapes.push({
-    shape: LEGENDARY_ECONOMY,
-    blocks: SRD_CONTENT.monsters.filter((monster) => monster.legendaryActions.length > 0).length,
-    lines: SRD_CONTENT.monsters.reduce((sum, monster) => sum + monster.legendaryActions.length, 0),
-  });
+  // **The legendary economy's row is gone**, and this is where it was. It
+  // counted every legendary block as owing an action economy nothing spent;
+  // `takeLegendaryAction` spends one now — a pool of uses regained at the
+  // start of the holder's turn, spent immediately after another creature's
+  // turn — so what a legendary *line* still owes is the line's own, and the
+  // line predicates above count it exactly as they count any other line.
   shapes.sort((a, b) => b.blocks - a.blocks || a.shape.localeCompare(b.shape));
 
   let defences = 0;

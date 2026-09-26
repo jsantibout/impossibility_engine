@@ -569,6 +569,12 @@ export function endRest(
 
       case 'short': {
         events.push({ type: 'resources-restored', id, recovers: 'short-rest' });
+        // SRD Shadow's Draining Swipe, in the glossary's words: "The reduction
+        // lasts until the target finishes a Short or Long Rest." Either rest,
+        // so both arms write it; one event per lowering, naming its source.
+        for (const held of creature.abilityLowerings) {
+          events.push({ type: 'ability-score-restored', id, source: held.source });
+        }
 
         if (requested.length > 0 && supply !== undefined) {
           // The sheet as it stands, not the one the character was built with:
@@ -626,6 +632,12 @@ export function endRest(
         const released = loweringsALongRestEnds(state, id, creature);
         for (const held of released) {
           events.push({ type: 'hit-point-maximum-restored', id, source: held.source });
+        }
+        // And the drained scores, which a Short Rest gives back too — see the
+        // arm above. Before the refill for the ceiling's reason: a Hit Die
+        // spent later reads the Constitution as it then stands.
+        for (const held of creature.abilityLowerings) {
+          events.push({ type: 'ability-score-restored', id, source: held.source });
         }
 
         // What the release leaves, worked out by **the same function the

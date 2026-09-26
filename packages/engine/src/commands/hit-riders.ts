@@ -44,6 +44,7 @@ import { effectiveSizeOf } from '../size.js';
 import { attachSource } from '../state.js';
 import { remaining } from '../resources.js';
 import {
+  abilityScoresOf,
   attackDamageDiceOf,
   sheetAsItStands,
   speedOf,
@@ -62,6 +63,7 @@ import { runEffects } from './spell-resolution.js';
 import { pullToward, shoveAwayFrom } from './spell-effect-movement.js';
 import { ABILITY_NAMES } from '@ie/shared';
 import { rollSavingThrow } from '../checks.js';
+import { rollRecorded } from '../rolls.js';
 import { recordD20Test, savingSupport } from './rolls.js';
 import { escapeCheck, grappleSource } from './unarmed.js';
 import { type SpellTargetOutcome } from './targeting.js';
@@ -547,6 +549,14 @@ export function applyHitRider(
   // this rider has to read after everything before it has had its say.
   events.push(...corrodeArmor(resolved.value.state, hit, option, unverified));
 
+  // **The score the blow drains**, after the armour and before the hold: SRD
+  // Shadow's Draining Swipe prints no hold and no armour, so the order is the
+  // engine's to fix, and a drain that kills has to be read before anything is
+  // hung on a creature that is then dead.
+  const drained = drainAbility(resolved.value.state, hit, option, supply);
+  if (!drained.ok) return drained;
+  events.push(...drained.value);
+
   // **The grapple, after the effect list and before the deadlines**, because
   // it is neither: it hangs no condition the option's own span is about — SRD
   // ends a grapple on facts about the grappler and never on the clock — and it
@@ -728,6 +738,80 @@ function corrodeArmor(
       source: option.featureName,
     },
   ];
+}
+
+/**
+ * SRD Shadow's Draining Swipe: "the target's Strength score decreases by 1d4.
+ * The target dies if this reduces that score to 0."
+ *
+ * **The die is thrown here and the score is read back derived.** The lowering
+ * is a sourced grant, tagged with the roll issuer's position so a second swipe
+ * lowers the score again rather than restating the first — the reading the
+ * Wight's lowered maximum takes one clause up. What the score then *is* is
+ * `abilityScoresOf`'s answer and not this function's arithmetic: a Belt of
+ * Giant Strength sets a Strength over whatever the shadow has eaten, and a
+ * fighter wearing one is not killed by a drain the belt is holding off.
+ *
+ * **A death and not damage**, which is the engine's own distinction and the
+ * book's: no Resistance halves it, no Temporary Hit Points stand in front of
+ * it, and a creature at 0 Strength is not Unconscious and dying but dead. A
+ * creature already dead is not made deader, and nothing is written.
+ */
+function drainAbility(
+  world: GameState,
+  hit: { readonly attacker: CharacterId; readonly target: CharacterId },
+  option: HitOption,
+  supply: Supply,
+): Result<readonly GameEvent[]> {
+  const drain = option.lowersAbility;
+  if (drain === undefined) return ok([]);
+  const victim = creatureOf(world, hit.target);
+  if (victim === null || victim.vitals.dead) return ok([]);
+
+  const issuedBefore = supply.issuer.count;
+  const rolled = rollRecorded(supply.issuer, supply.rng, drain.dice);
+  if (!rolled.ok) return rolled;
+  const amount = rolled.value.total;
+  const name = ABILITY_NAMES[drain.ability];
+
+  const events: GameEvent[] = [
+    {
+      type: 'roll-recorded',
+      who: hit.target,
+      label: `${option.featureName} drains ${name}`,
+      natural: amount,
+      total: amount,
+      contributions: [],
+      outcome: `${name} score decreases by ${amount}`,
+    },
+    {
+      type: 'ability-score-lowered',
+      id: hit.target,
+      lowering: {
+        source: `${featureSource(option.feature)}:${supply.issuer.count}`,
+        ability: drain.ability,
+        amount,
+        label: option.featureName,
+      },
+    },
+    {
+      type: 'rolls-issued',
+      count: supply.issuer.count - issuedBefore,
+      rng: supply.rng.snapshot(),
+    },
+  ];
+
+  // The score as it now stands, read through the one derivation every roller
+  // reads it through — so a set that holds it up holds off the death too.
+  const after = events.reduce(applyEvent, world);
+  if (abilityScoresOf(after, hit.target)[drain.ability] <= 0) {
+    events.push({
+      type: 'creature-died',
+      id: hit.target,
+      cause: `${option.featureName}: ${name} reduced to 0`,
+    });
+  }
+  return ok(events);
 }
 
 /**

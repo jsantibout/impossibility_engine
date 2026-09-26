@@ -86,6 +86,7 @@ import {
 // `{@link}`, and the barrel below re-exports it, so the link resolves in this
 // module without an import that ESLint reads as unused and `tsc` does not.
 import type {
+  AbilityLowering,
   Attachment,
   CommandStamp,
   GrantedFallWard,
@@ -260,6 +261,14 @@ export type GameEvent =
       readonly diesAtZero?: boolean;
       /** Humanoid, Fey, Dragon. Absent means nobody has said. */
       readonly creatureType?: string;
+      /**
+       * "Neutral Good", "Lawful Evil" — the block's own words, pinned for the
+       * one line that reads it: SRD Sprite's Heart Sight reveals "the
+       * target's emotions and alignment". Absent means nobody has said, which
+       * is what every log written before this field existed says — so both
+       * frozen fixtures fold unchanged. A character's is on its record.
+       */
+      readonly alignment?: string;
       /** What this creature resists, is immune to, or is vulnerable to. */
       readonly defenses?: Readonly<Record<string, DamageDefenses>>;
       /**
@@ -560,6 +569,38 @@ export type GameEvent =
       readonly type: 'damage-penalty-granted';
       readonly id: CharacterId;
       readonly penalty: GrantedDamagePenalty;
+    }
+  /**
+   * An effect takes points off one of a creature's ability scores — SRD
+   * Shadow's Draining Swipe: "the target's Strength score decreases by 1d4."
+   *
+   * **A grant and not an edit to the sheet.** The sheet says what the creature
+   * is; this says what has been done to it and by what, so the rest that gives
+   * the points back — "The reduction lasts until the target finishes a Short
+   * or Long Rest" — names the source rather than remembering a number. Read
+   * where the scores are derived, so every roller sees the lowered score.
+   *
+   * Sourced per use, so two swipes stack rather than the second restating the
+   * first; re-granting from one source replaces, as every family does. The
+   * death the sentence carries — "dies if this reduces that score to 0" — is
+   * not here: the swing reads the derived score after this lands and writes
+   * `creature-died`, through the road a death takes.
+   */
+  | {
+      readonly type: 'ability-score-lowered';
+      readonly id: CharacterId;
+      readonly lowering: AbilityLowering;
+    }
+  /**
+   * A lowering given back — the rest's half of the same sentence, and the one
+   * removal in this family that is not a source ending for some other reason.
+   * `endRest` writes one per lowering the creature holds, on a Short Rest and
+   * a Long one alike.
+   */
+  | {
+      readonly type: 'ability-score-restored';
+      readonly id: CharacterId;
+      readonly source: string;
     }
   /**
    * A running effect takes a **fall's** cost away from a creature entirely —
@@ -1612,6 +1653,26 @@ export type GameEvent =
       /** The catalogue id of the suit being worn. */
       readonly item: string;
       /** How many points of Armour Class this event eats. SRD prints 1. */
+      readonly points: number;
+      readonly command?: CommandStamp;
+    }
+  /**
+   * Rust eating into a weapon somebody is holding — SRD Rust Monster's
+   * Antennae: "The object takes a −1 penalty … to its attack rolls (weapon)."
+   *
+   * The event above it, on the other kind of object the sentence names, and
+   * it lands on the same record for the same reason: `EquippedItem.penalty`
+   * is a fact about **one copy**, and the swing reads it off the weapon in
+   * hand. Cumulative as the armour's is. **The destruction is not here**
+   * either: "a weapon is destroyed if its penalty reaches −5" is the ending
+   * any lost item has, written as an `item-unequipped` and an `items-lost`.
+   */
+  | {
+      readonly type: 'weapon-penalised';
+      readonly id: CharacterId;
+      /** The catalogue id of the weapon being held. */
+      readonly item: string;
+      /** How many points this event eats off its attack rolls. SRD prints 1. */
       readonly points: number;
       readonly command?: CommandStamp;
     }

@@ -62,6 +62,124 @@ const lineOf = (id: string, startsWith: string) => {
   return line;
 };
 
+describe('a failure hung on the target’s own rolls', () => {
+  /**
+   * SRD Gold Dragon Wyrmling's Weakening Breath: a mode over a family narrowed
+   * by an ability, a penalty on the target's own damage rolls, and a repeat
+   * save with a cap that both clauses share — the failure imposes no
+   * condition, so the repeat is about the two clauses themselves. Nothing is
+   * handed over, and the targeting clause's "isn't currently affected" is read
+   * as the fact it is.
+   */
+  it('reads the Weakening Breath whole: the family, the ability, the penalty, one shared repeat and its cap', () => {
+    const breath = lineOf('gold-dragon-wyrmling', 'Weakening Breath').save;
+    const repeats = { at: 'end', of: 'target', capSeconds: 60 };
+    expect(breath).toEqual({
+      ability: 'str',
+      dc: 13,
+      targets: "each creature that isn't currently affected by this breath in a 15-foot Cone",
+      onlyIfNotAffected: true,
+      onSuccess: 'none',
+      onFailure: [
+        { kind: 'roll-mode', mode: 'disadvantage', rolls: ['d20-test'], ability: 'str', repeats },
+        { kind: 'damage-penalty', dice: '1d4', flat: 0, average: 2, repeats },
+      ],
+    });
+  });
+
+  it('refuses a mode over a family with no ending printed under it', () => {
+    // The same sentence with the repeat and the cap taken off is a
+    // Disadvantage nothing ever lifts, which is the refusal every lasting
+    // clause has always made.
+    expect(
+      parseSaveLine(
+        '_Strength Saving Throw:_ DC 13, each creature in a 15-foot Cone. _Failure:_ The target has Disadvantage on Strength-based D20 Tests and subtracts 2 (1d4) from its damage rolls.',
+      ),
+    ).toBeNull();
+  });
+
+  it('caps a repeat only where one was printed, and hands the cap over otherwise', () => {
+    // "After 1 minute" with no repeat above it caps nothing; the mode itself
+    // then has no lifetime, and the whole line stays prose.
+    expect(
+      parseSaveLine(
+        '_Strength Saving Throw:_ DC 13, one creature. _Failure:_ The target has Disadvantage on Strength-based D20 Tests. After 1 minute, it succeeds automatically.',
+      ),
+    ).toBeNull();
+    // A span printed under the mode is the second lifetime, and reads.
+    const spanned = parseSaveLine(
+      '_Strength Saving Throw:_ DC 13, one creature. _Failure:_ The target has Disadvantage on Dexterity-based D20 Tests. This effect lasts until the end of its next turn.',
+    );
+    expect(spanned?.onFailure).toEqual([
+      {
+        kind: 'roll-mode',
+        mode: 'disadvantage',
+        rolls: ['d20-test'],
+        ability: 'dex',
+        lasts: { kind: 'turn', moment: 'end', of: 'target' },
+      },
+    ]);
+  });
+});
+
+describe('a save whose failure is knowledge', () => {
+  /**
+   * SRD Sprite's Heart Sight: nothing lands on the target; what changes is
+   * what the sprite knows. The types that fail automatically are read off the
+   * parenthesis on the targeting clause, singular, in the vocabulary a
+   * creature's type is printed in.
+   */
+  it('reads Heart Sight: the two facts, and the types that fail without a die', () => {
+    expect(lineOf('sprite', 'Heart Sight').save).toEqual({
+      ability: 'cha',
+      dc: 10,
+      targets:
+        'one creature within 5 feet the sprite can see (Celestials, Fiends, and Undead automatically fail the save)',
+      autoFailTypes: ['Celestial', 'Fiend', 'Undead'],
+      onSuccess: 'none',
+      onFailure: [{ kind: 'reveals', facts: ['emotions', 'alignment'] }],
+    });
+  });
+
+  it('refuses the same fact named twice', () => {
+    expect(
+      parseSaveLine(
+        "_Charisma Saving Throw:_ DC 10, one creature. _Failure:_ The sprite knows the target's alignment and alignment.",
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('a save aimed at an object somebody is wearing or holding', () => {
+  /**
+   * SRD Rust Monster's Antennae: the prelude names the object, the failure
+   * wears it down, the second sentence states the two ceilings the executor
+   * keeps and is consumed, and the Mending sentence is carried — the spells
+   * side's, not this reader's.
+   */
+  it('reads the Antennae: the object the prelude names, the penalty, the ceilings, and hands the Mending over', () => {
+    expect(lineOf('rust-monster', 'Antennae').save).toEqual({
+      ability: 'dex',
+      dc: 11,
+      targets: 'the creature with the object',
+      targetsObject: true,
+      onSuccess: 'none',
+      onFailure: [{ kind: 'object-penalty', points: 1 }],
+      handedOver: ['The penalty can be removed by casting the _Mending_ spell on the armor or weapon.'],
+    });
+  });
+
+  it('hands the ceilings back where no penalty stands in front of them', () => {
+    // The rule sentence alone is a rule about nothing, and a failure the
+    // grammar reads nothing out of refuses the line whole.
+    expect(
+      parseSaveLine(
+        '_Dexterity Saving Throw:_ DC 11, the creature with the object. _Failure:_ Armor is destroyed if the penalty reduces its AC to 10, and a weapon is destroyed if its penalty reaches −5.',
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('a line whose sentence is the save template', () => {
   it('reads the Winter Wolf’s breath as an ability, a DC, dice and what a success buys', () => {
     expect(lineOf('winter-wolf', 'Cold Breath').save).toEqual({

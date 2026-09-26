@@ -21,6 +21,7 @@ import type {
   MonsterSave,
   MonsterTrait,
 } from '@ie/srd';
+import type { StatedLegendaryAction } from './character.js';
 // The two readers of the branch shape, from the subpath that is schemas and no
 // data: a value imported from the barrel loads the whole parsed SRD into every
 // process that imports the engine, which `srd-barrel.test.ts` is the guard for.
@@ -32,6 +33,7 @@ import {
 } from '@ie/srd/schemas';
 import { STATED_BONUS_ACTION_LEDGER } from './combat.js';
 import { saveModifier, skillModifier } from './character.js';
+import type { GameState } from './state.js';
 import type { ShapeShiftRow } from './progression.js';
 import { isCreatureType } from './spell-definitions.js';
 import type { HazardName } from './hazards.js';
@@ -131,6 +133,8 @@ export interface AdaptedMonster {
   readonly creatureType: string;
   /** The parenthesised tag — `Goblinoid`. Narrative; no rule reads it yet. */
   readonly subtype: string | null;
+  /** "Lawful Evil" — what the block prints beside the type; SRD Heart Sight reads it. */
+  readonly alignment: string;
   readonly size: CreatureSize;
   readonly speed: Monster['speed'];
   /** The stat block's Initiative modifier, for rolling or for a passive score. */
@@ -708,6 +712,39 @@ export function statedActionOf(sheet: CharacterSheet, name: string): StatedActio
 export const printedLineSource = (who: CharacterId, line: string): string =>
   `printed:${who}:${line}`;
 
+/**
+ * Whether one printed line is **still holding something** on a creature.
+ *
+ * SRD Gold Dragon Wyrmling's Weakening Breath: "each creature that isn't
+ * currently affected by this breath". A fact the engine holds rather than a
+ * question for the table, because everything a line hangs is filed under its
+ * own source: a condition's instance carries it, and every grant the line hung
+ * under a span or a repeat save has a `grants` timer over it whose source is
+ * the line's own or a key beneath it (`…:lasting`, `…:speed`). So the question
+ * is answered off the two records the fold already keeps, and opens no family
+ * list of its own — the grants are found through the timer that will end
+ * them, which is the one thing every lasting grant of a line has.
+ *
+ * A line whose only effect was damage, a push or a death holds nothing
+ * afterwards and reads as not affecting anybody, which is the book's reading:
+ * a creature the breath merely hurt may be breathed on again.
+ */
+export function affectedByPrintedLine(
+  state: GameState,
+  who: CharacterId,
+  lineSource: string,
+): boolean {
+  const creature = state.creatures[who];
+  if (creature === undefined) return false;
+  const ofTheLine = (source: string): boolean =>
+    source === lineSource || source.startsWith(`${lineSource}:`);
+  if (creature.conditions.instances.some((instance) => ofTheLine(instance.source))) return true;
+  return Object.values(state.timers).some(
+    (timer) =>
+      timer.target.kind === 'grants' && timer.target.on === who && ofTheLine(timer.target.source),
+  );
+}
+
 /** One printed line that forces a save, under the heading the block prints. */
 export interface PrintedSaveLine {
   readonly line: string;
@@ -866,6 +903,10 @@ export function rechargeOfLine(sheet: CharacterSheet, line: string): MonsterRech
   if (attack !== undefined) return attack.recharge ?? null;
   const bonus = sheet.stated?.bonusActions?.find((one) => one.name.toLowerCase() === wanted);
   if (bonus !== undefined) return bonus.recharge ?? null;
+  // And a legendary line, whose recharge is the sentence's own rather than a
+  // heading's — SRD Unicorn's Shimmering Shield.
+  const legendary = sheet.stated?.legendaryActions?.find((one) => one.name.toLowerCase() === wanted);
+  if (legendary !== undefined) return legendary.recharge ?? null;
   return statedActionOf(sheet, line)?.recharge ?? null;
 }
 
@@ -928,7 +969,65 @@ export const describeRecharge = (recharge: MonsterRecharge): string =>
     ? `a ${RECHARGE_DIE} at the start of its turn brings it back on a ${recharge.low}${
         recharge.low === 6 ? '' : `–6`
       }, and so does finishing a Short or Long Rest`
-    : 'finishing a Short or Long Rest brings it back';
+    : recharge.kind === 'turn'
+      ? 'the start of its next turn brings it back'
+      : 'finishing a Short or Long Rest brings it back';
+
+/**
+ * The pool a block's legendary action uses come out of.
+ *
+ * SRD *Monsters*: "Legendary Action Uses: 3 … regains all expended uses at the
+ * start of each of its turns." One key for every legendary block, because a
+ * creature holds one such pool: the block prints one number, and
+ * `settleStartOfTurnLegendary` refills it whole at the holder's own turn.
+ */
+export const LEGENDARY_POOL = 'legendary-actions';
+
+/**
+ * The key a legendary use is written down against in the holder's own turn
+ * ledger, so the moment it was spent at is consumed.
+ *
+ * SRD *Monsters*: "Only one of these actions can be taken at a time and only
+ * after another creature's turn ends." A use is spent at a boundary the holder
+ * does not own, so the holder's budget is the record that outlives it — every
+ * combatant holds one from the fight's start — and `feature-used` keyed here
+ * against `turnsTaken` says "this boundary has had its one", which the next
+ * boundary's count makes false again.
+ */
+export const LEGENDARY_MOMENT = 'legendary-action';
+
+/** One legendary line by its heading, off the sheet the block was pinned to. */
+export function legendaryLineOf(sheet: CharacterSheet, name: string): StatedLegendaryAction | null {
+  const wanted = name.trim().toLowerCase();
+  return sheet.stated?.legendaryActions?.find((line) => line.name.toLowerCase() === wanted) ?? null;
+}
+
+/**
+ * The legendary actions the block prints that the parser read, compiled for
+ * `takeLegendaryAction`.
+ *
+ * **The recharge is set here and not read off a heading**, because the book
+ * prints it in the sentence: SRD Unicorn's Shimmering Shield ends "The
+ * unicorn can't take this action again until the start of its next turn", and
+ * the parser reads that as `oncePerRound`. The economy the line is spent from
+ * is the block's pool, declared beside it in `adaptMonster`.
+ */
+function printedLegendaryActions(monster: Monster): readonly StatedLegendaryAction[] {
+  return monster.legendaryActions.flatMap((line) =>
+    line.legendary === undefined
+      ? []
+      : [
+          {
+            name: line.name,
+            text: line.text,
+            legendary: line.legendary,
+            ...(line.legendary.kind === 'shield' && line.legendary.oncePerRound === true
+              ? { recharge: { kind: 'turn' as const } }
+              : {}),
+          },
+        ],
+  );
+}
 
 /**
  * The same, in words, for the refusal a per-day limit raises.
@@ -2141,6 +2240,23 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
         : { ...declared, granted: [...declared.granted, ...castLines.granted] };
   const { reactions, pools: reactionPools } = printedReactions(monster);
   const attacks = printedAttacks(monster);
+  // **The legendary economy**, where the block prints one: the lines the
+  // parser read, and the pool their uses come out of — sized off the block's
+  // own number and recovering on nothing a rest or a dawn names, because the
+  // book gives it back at the start of the holder's turn and
+  // `settleStartOfTurnLegendary` is what does.
+  const legendaryActions = printedLegendaryActions(monster);
+  const legendaryPools: readonly PoolDeclaration[] =
+    monster.legendaryActionUses === undefined
+      ? []
+      : [
+          {
+            key: LEGENDARY_POOL,
+            label: 'Legendary Action Uses',
+            max: monster.legendaryActionUses,
+            recovers: 'special',
+          },
+        ];
   const traits = printedTraits(monster);
   const traitSaves = printedTraitSaves(monster);
   const multiattack = printedMultiattack(monster, attacks);
@@ -2251,6 +2367,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     // read, so a creature that does nothing the engine can roll carries no
     // field saying so — the reading every optional field on the sheet takes.
     ...(attacks.length === 0 ? {} : { attacks }),
+    ...(legendaryActions.length === 0 ? {} : { legendaryActions }),
     ...(traits.length === 0 ? {} : { traits }),
     ...(traitSaves.length === 0 ? {} : { traitSaves }),
     ...(bonusActions.length === 0 ? {} : { bonusActions }),
@@ -2313,6 +2430,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     defenses,
     creatureType: monster.type,
     subtype: monster.subtype,
+    alignment: monster.alignment,
     size: monster.size,
     speed: monster.speed,
     initiativeModifier: monster.initiative,
@@ -2321,7 +2439,7 @@ export function adaptMonster(monster: Monster, id: CharacterId): AdaptedMonster 
     spellcasting,
     // Both kinds of per-day use in one list, sorted by key so two readers of
     // one block agree about the order and a log compares byte for byte.
-    pools: [...spellPools, ...reactionPools].sort((a, b) =>
+    pools: [...spellPools, ...reactionPools, ...legendaryPools].sort((a, b) =>
       a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
     ),
     // And the cast lines the adapter refused whole, for the reason it refused
@@ -2533,7 +2651,8 @@ export type PrintedRider =
   | PrintedDroppedToZeroRider
   | PrintedAttachRider
   | PrintedHazardRider
-  | PrintedArmorPenaltyRider;
+  | PrintedArmorPenaltyRider
+  | PrintedAbilityDrainRider;
 
 /**
  * A clause about the **damage roll** rather than about an effect the hit buys.
@@ -2801,6 +2920,29 @@ export interface PrintedArmorPenaltyRider {
   readonly kind: 'armor-penalty';
   /** SRD's "a −1 penalty", as a positive number of points eaten. */
   readonly points: number;
+}
+
+/**
+ * An ability score the hit **drains** — SRD Shadow's Draining Swipe: "the
+ * target's Strength score decreases by 1d4. The target dies if this reduces
+ * that score to 0."
+ *
+ * The die is the sentence's own and is thrown at the settlement, never here;
+ * the death is not a field, because "dies if this reduces that score to 0" is
+ * arithmetic over the score as it then stands and `applyHitRider` does it —
+ * the reading {@link PrintedArmorPenaltyRider}'s destruction sentence already
+ * gets. A line printing some other floor would not match and would go back to
+ * the table.
+ *
+ * What the sentence after it says — "If a Humanoid is slain by this attack, a
+ * Shadow rises from the corpse 1d4 hours later" — is a stat block created
+ * hours later from a corpse, which is the table's, and is carried.
+ */
+export interface PrintedAbilityDrainRider {
+  readonly kind: 'ability-score-decrease';
+  readonly ability: Ability;
+  /** SRD's "1d4". */
+  readonly dice: string;
 }
 
 /**
@@ -3268,6 +3410,29 @@ const PRINTED_ARMOR_PENALTY =
  */
 const ARMOR_DESTROYED_AT_TEN = /^The armor is destroyed if the penalty reduces its AC to 10\.$/;
 
+/**
+ * SRD Shadow's Draining Swipe: "and the target's Strength score decreases by
+ * 1d4."
+ *
+ * The book's ability word, because `abilityWord` keys it; the notation whole,
+ * because the die is thrown where the blow settles.
+ */
+const PRINTED_ABILITY_DRAIN = new RegExp(
+  `^and the target${APOSTROPHE}s (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) score decreases by (\\d+d\\d+)\\.$`,
+);
+
+/**
+ * SRD's second sentence: "The target dies if this reduces that score to 0."
+ *
+ * **Read and consumed rather than stored**, for {@link ARMOR_DESTROYED_AT_TEN}'s
+ * reason: it states the rule the swing applies to every drain — a score at 0
+ * is a death — so a field for it would be a second copy of one number free to
+ * disagree. The floor is the engine's, and a homebrew line that printed a
+ * different one would have this sentence handed back while its drain went on
+ * killing at 0, which is the same wrong rule the armour sentence records.
+ */
+const DIES_AT_ZERO_SCORE = /^The target dies if this reduces that score to 0\.$/;
+
 /** SRD Ettin: a mode on the roll the creature that was hit makes next. */
 const PRINTED_MODE_ON_TARGET = new RegExp(
   `^and the target has (Advantage|Disadvantage) on the next attack roll it makes before ${NEXT_TURN_MOMENT}\\.$`,
@@ -3708,6 +3873,12 @@ type ClauseRead =
    * swallowed it anywhere would consume it off a line that never wrote one.
    */
   | { readonly kind: 'armor-detail' }
+  /**
+   * "The target dies if this reduces that score to 0" — a sentence about the
+   * drain before it, stating the rule the swing keeps, and stored nowhere for
+   * the reason `armor-detail` is not: see {@link DIES_AT_ZERO_SCORE}.
+   */
+  | { readonly kind: 'drain-detail' }
   | { readonly kind: 'no-healing' };
 
 /** One rider and no residue, which is what most clauses read to. */
@@ -3838,6 +4009,16 @@ function readClause(text: string): ClauseRead | null {
   if (corroded !== null) return one({ kind: 'armor-penalty', points: Number(corroded[1]) });
 
   if (ARMOR_DESTROYED_AT_TEN.test(text)) return { kind: 'armor-detail' };
+
+  // SRD Shadow: the drain, and the sentence about it that states the rule the
+  // swing keeps.
+  const drained = PRINTED_ABILITY_DRAIN.exec(text);
+  if (drained !== null) {
+    const ability = abilityWord(drained[1]!);
+    if (ability === null) return null;
+    return one({ kind: 'ability-score-decrease', ability, dice: drained[2]! });
+  }
+  if (DIES_AT_ZERO_SCORE.test(text)) return { kind: 'drain-detail' };
 
   const ownRoll = PRINTED_MODE_ON_TARGET.exec(text);
   if (ownRoll !== null) {
@@ -4177,6 +4358,14 @@ export function readPrintedRiders(text: string): PrintedRidersRead {
       // keeps it. Nothing is stored; a clause with no penalty in front of it
       // names a rule about nothing, and it goes back to the table.
       if (host === undefined || host.kind !== 'armor-penalty') handedOver.push(clause);
+      continue;
+    }
+
+    if (read.kind === 'drain-detail') {
+      const host = riders.at(-1);
+      // The death belongs to the drain before it, and the swing already keeps
+      // it — the same reading the armour's ceiling gets one clause up.
+      if (host === undefined || host.kind !== 'ability-score-decrease') handedOver.push(clause);
       continue;
     }
 

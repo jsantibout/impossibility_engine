@@ -46,6 +46,7 @@ import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { HAZARD_RULES, hazardSource } from '../hazards.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
+  LEGENDARY_POOL,
   printedBoundaryDamage,
   type PrintedBoundaryDamage,
   printedSaveOf,
@@ -745,11 +746,20 @@ export function settleStartOfTurnRecharges(
   const creature = state.creatures[begun];
   if (creature === undefined || creature.vitals.dead) return ok([]);
 
+  // **The third kind first, and with no die.** SRD Unicorn's Shimmering
+  // Shield: "can't take this action again until the start of its next turn" —
+  // the turn's start is the whole of the recharge, so the line comes back
+  // whatever the generator is doing, and a boundary with no generator still
+  // gives it back.
+  const events: GameEvent[] = creature.expendedLines
+    .filter((line) => rechargeOfLine(creature.sheet, line)?.kind === 'turn')
+    .map((line) => ({ type: 'printed-line-recharged' as const, id: begun, line }));
+
   const due = creature.expendedLines.filter((line) => {
     const recharge = rechargeOfLine(creature.sheet, line);
     return recharge !== null && recharge.kind === 'die';
   });
-  if (due.length === 0) return ok([]);
+  if (due.length === 0) return ok(events);
 
   if (supply === undefined) {
     return err(
@@ -758,7 +768,6 @@ export function settleStartOfTurnRecharges(
     );
   }
 
-  const events: GameEvent[] = [];
   for (const line of due) {
     const recharge = rechargeOfLine(creature.sheet, line);
     if (recharge === null) continue;
@@ -790,6 +799,28 @@ export function settleStartOfTurnRecharges(
   }
 
   return ok(events);
+}
+
+/**
+ * The legendary action uses the start of a creature's turn gives back.
+ *
+ * SRD *Monsters*: "The unicorn regains all expended uses at the start of each
+ * of its turns." The pool is the block's, declared when the creature arrived
+ * and recovering on nothing a rest names, so the boundary is the one thing
+ * that refills it — whole, which is what "all expended uses" says. Nothing is
+ * rolled and nothing can refuse, on `settleStartOfTurnGrants`' rule; a
+ * creature with no such pool, or one still full, writes nothing.
+ */
+export function settleStartOfTurnLegendary(
+  state: GameState,
+  begun: CharacterId | undefined,
+): readonly GameEvent[] {
+  if (begun === undefined) return [];
+  const creature = state.creatures[begun];
+  if (creature === undefined || creature.vitals.dead) return [];
+  const pool = creature.resources.pools[LEGENDARY_POOL];
+  if (pool === undefined || pool.spent <= 0) return [];
+  return [{ type: 'resource-regained', id: begun, key: LEGENDARY_POOL, amount: pool.spent }];
 }
 
 /**
@@ -1608,7 +1639,9 @@ function settlePrintedSave(
         type: 'effect-save-resolved' as const,
         effectKey: pending.effectKey,
         turn: pending.turn,
-        success: landed.value.outcome.save.success,
+        // A save the book threw no die for — a type that fails automatically —
+        // is a failure, which is what the fold reads as "clear the debt".
+        success: landed.value.outcome.save?.success ?? false,
       },
     ],
     unverified: [
@@ -1629,15 +1662,20 @@ function settlePrintedSave(
           `${debt.line}: "${sentence}" — the engine applied the rest of the line; this sentence is the table's`,
       ),
     ],
-    save: {
-      effectKey: pending.effectKey,
-      target: pending.target,
-      ability: pending.ability,
-      dc: pending.dc,
-      label: pending.label,
-      save: landed.value.outcome.save,
-      success: landed.value.outcome.save.success,
-    },
+    // A failure the book threw no die for reports no roll: the list is of saves
+    // rolled, and the outcome's own `autoFailed` says what happened instead.
+    save:
+      landed.value.outcome.save === null
+        ? null
+        : {
+            effectKey: pending.effectKey,
+            target: pending.target,
+            ability: pending.ability,
+            dc: pending.dc,
+            label: pending.label,
+            save: landed.value.outcome.save,
+            success: landed.value.outcome.save.success,
+          },
   });
 }
 
@@ -2187,6 +2225,14 @@ export function resolveTurn(
     const granted = settleStartOfTurnGrants(after, beginning);
     advanced.push(...granted);
     after = granted.reduce(applyEvent, after);
+
+    // SRD *Monsters*: "regains all expended uses at the start of each of its
+    // turns." Beside the recharge, because it is the same half of the boundary
+    // and the same kind of thing — what the creature whose turn begins gets
+    // back — and throws nothing.
+    const regained = settleStartOfTurnLegendary(after, beginning);
+    advanced.push(...regained);
+    after = regained.reduce(applyEvent, after);
 
     // SRD: "Whenever you start your turn with 0 Hit Points, you must make a
     // Death Saving Throw." Whenever — nobody decides it, so the turn owes it the

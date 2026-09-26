@@ -280,7 +280,7 @@ function onAFailure(
 ) {
   for (const seed of SEEDS) {
     const run = force(monster, line, hitPoints, seed, options);
-    if (!run.out.outcomes[0]!.save.success) return run;
+    if (!run.out.outcomes[0]!.save!.success) return run;
   }
   throw new Error(`no seed failed ${monster}'s ${line}`);
 }
@@ -361,7 +361,7 @@ describe('a printed failure that branches on the target’s Hit Points', () => {
   it('does not roll the "Otherwise" dice on a save that was made', () => {
     for (const seed of SEEDS) {
       const run = force('sea-hag', GLARE, 21, seed);
-      if (!run.out.outcomes[0]!.save.success) continue;
+      if (!run.out.outcomes[0]!.save!.success) continue;
       expect(run.out.events.some((e) => e.type === 'damage-dice-recorded')).toBe(false);
       expect(run.out.events.some((e) => e.type === 'hit-points-dropped-to-zero')).toBe(false);
       expect(run.out.outcomes[0]!.damage).toBe(0);
@@ -555,7 +555,7 @@ function glare(before: GameState, target: CharacterId) {
       ),
       'the glare',
     );
-    if (out.outcomes[0]!.save.success) continue;
+    if (out.outcomes[0]!.save!.success) continue;
     return { out, state: after(state, out.events) };
   }
   throw new Error(`no seed failed the glare at ${target}`);

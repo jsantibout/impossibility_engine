@@ -29,6 +29,7 @@ import type {
   MonsterForms,
   MonsterMultiattack,
   MonsterPull,
+  MonsterLegendaryLine,
   MonsterRecharge,
   MonsterSave,
   MonsterTeleport,
@@ -222,6 +223,23 @@ export interface StatedBonusAction {
    * time is an Action is the whole reason a route may state a casting time.
    */
   readonly casts?: MonsterCastLine;
+}
+
+/**
+ * One legendary action the block prints, compiled for the door that spends
+ * one — `takeLegendaryAction`.
+ *
+ * SRD Unicorn's Charging Horn and Shimmering Shield. The line's own sentence
+ * is `legendary`, read by the parser under the Legendary Actions heading and
+ * nowhere else; the recharge is the adapter's — "can't take this action again
+ * until the start of its next turn" is the third recharge kind, set where the
+ * line prints the sentence.
+ */
+export interface StatedLegendaryAction {
+  readonly name: string;
+  readonly text: string;
+  readonly legendary: MonsterLegendaryLine;
+  readonly recharge?: MonsterRecharge;
 }
 
 /**
@@ -491,6 +509,13 @@ export interface StatedValues {
    * can roll on its own, and a caller who wants one names a weapon.
    */
   readonly attacks?: readonly StatedAttack[];
+  /**
+   * The legendary actions the block prints, where it prints any — see
+   * {@link StatedLegendaryAction}. The uses they come out of are a pool
+   * `addCreature` declares off `legendaryActionUses`, regained whole at the
+   * start of the holder's turn.
+   */
+  readonly legendaryActions?: readonly StatedLegendaryAction[];
   /**
    * The mechanics the block's traits state, where the parser recognised one.
    *

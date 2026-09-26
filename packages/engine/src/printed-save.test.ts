@@ -293,7 +293,7 @@ describe('a printed save, forced', () => {
         ),
         'the wolf breathes',
       );
-      const success = out.outcomes[0]!.save.success;
+      const success = out.outcomes[0]!.save!.success;
       seen.add(success);
       const faces = dieFaces(out.events, BREN)!;
       // SRD: "The halved damage is equal to half the damage that would be
@@ -319,7 +319,7 @@ describe('a printed save, forced', () => {
         ),
         'the satyr mocks',
       );
-      if (!out.outcomes[0]!.save.success) continue;
+      if (!out.outcomes[0]!.save!.success) continue;
       sawASuccess = true;
       expect(out.outcomes[0]!.damage).toBe(0);
       // Nothing was rolled for damage either: a line that deals nothing does
@@ -418,7 +418,7 @@ describe('a printed save, forced', () => {
     expect(component?.dice).toHaveLength(2);
     expect(component?.flat).toBe(5);
     const thrown = (component?.dice ?? []).reduce((sum, die) => sum + die.value, 0);
-    const success = out.outcomes[0]!.save.success;
+    const success = out.outcomes[0]!.save!.success;
     expect(component?.total).toBe(success ? Math.floor((thrown + 5) / 2) : thrown + 5);
   });
 
@@ -463,7 +463,7 @@ describe('a printed save, forced', () => {
         'the ankheg sprays',
       );
       const outcome = out.outcomes[0]!;
-      if (outcome.save.success) {
+      if (outcome.save!.success) {
         sawSuccess = true;
         expect(outcome.damage).toBe(0);
       } else {

@@ -178,6 +178,16 @@ export type MonsterDamage = z.infer<typeof MonsterDamageSchema>;
 export const MonsterRechargeSchema = z.union([
   z.object({ kind: z.literal('die'), low: z.number().int().min(1).max(6) }),
   z.object({ kind: z.literal('rest') }),
+  /**
+   * SRD Unicorn's Shimmering Shield: "The unicorn can't take this action again
+   * until the start of its next turn."
+   *
+   * The third kind, and the only one the book prints in a sentence rather
+   * than in a heading: the line comes back at the start of the holder's turn
+   * with no die thrown. Not read off a name — the adapter sets it where a
+   * legendary line prints the sentence.
+   */
+  z.object({ kind: z.literal('turn') }),
 ]);
 export type MonsterRecharge = z.infer<typeof MonsterRechargeSchema>;
 
@@ -651,6 +661,44 @@ const PRINTED_SAVE_CLAUSES = [
       .optional(),
   }),
   z.object({ kind: z.literal('push'), feet: z.number().int().min(5) }),
+  /**
+   * SRD Rust Monster's Antennae: "_Failure:_ The object takes a −1 penalty to
+   * the AC it offers (armor) or to its attack rolls (weapon). Armor is
+   * destroyed if the penalty reduces its AC to 10, and a weapon is destroyed
+   * if its penalty reaches −5."
+   *
+   * **A failure that wears down a thing rather than a creature.** The same
+   * sentence SRD Black Pudding's Pseudopod prints on a hit, on a save, with
+   * the weapon half beside it — and the two ceilings are the engine's rule
+   * rather than fields, read and consumed as the pudding's is: a line printing
+   * some other ceiling would not match and would go back to the table.
+   *
+   * Which object is the caller's to say, and {@link MonsterSaveSchema.targetsObject}
+   * is what says the line wants one: "the creature with the object" names a
+   * creature, and a creature may be wearing mail and holding a sword.
+   */
+  z.object({
+    kind: z.literal('object-penalty'),
+    /** SRD's "a −1 penalty", as a positive number of points eaten. */
+    points: z.number().int().min(1),
+  }),
+  /**
+   * SRD Sprite's Heart Sight: "_Failure:_ The sprite knows the target's
+   * emotions and alignment."
+   *
+   * **A failure that is knowledge.** Nothing lands on the target; what changes
+   * is what the creature that forced the save *knows*, which the engine holds
+   * only where it can derive the fact — an alignment is pinned on the creature
+   * from the block or the character's choices — and hands to the table where
+   * it cannot: an emotion is fiction. The executor reports both, each under
+   * its own name, so a caller narrates what was learned rather than that
+   * something was.
+   */
+  z.object({
+    kind: z.literal('reveals'),
+    /** What the sentence names, in the order it prints them. */
+    facts: z.array(z.enum(['alignment', 'emotions'])).min(1),
+  }),
   z.object({
     kind: z.literal('speed-decrease'),
     feet: z.number().int().min(5),
@@ -701,13 +749,17 @@ const PRINTED_SAVE_CLAUSES = [
    * lifting takes it, whether the printed span ran out or a cure lifted it
    * early.
    *
-   * **No `lasts` beside it**, and the absence is the rule rather than a field
-   * nobody needed yet. A mode with a span of its own and a mode with a host
-   * are two different sentences, and the corpus prints only the second in this
-   * position: the other lines that put Disadvantage on a save's failure narrow
-   * it to something no selector holds — SRD Gold Dragon Wyrmling's
-   * "Strength-based D20 Tests", the Adult Green Dragon's saves "to maintain
-   * Concentration" — and stay prose whole.
+   * **And now a lifetime of its own, where the line prints one.** SRD Gold
+   * Dragon Wyrmling's Weakening Breath: "The target has Disadvantage on
+   * Strength-based D20 Tests and subtracts 2 (1d4) from its damage rolls. It
+   * repeats the save at the end of each of its turns, ending the effect on
+   * itself on a success. After 1 minute, it succeeds automatically." The
+   * failure imposes no condition, so there is no instance for the mode to
+   * live on; what it prints instead is a repeat save and a cap, which is the
+   * same pair a `condition` clause carries in {@link repeats}. So a mode may
+   * carry {@link whileCondition}, {@link lasts} or {@link repeats}, and the
+   * reader insists on exactly one — a mode with none would be a Disadvantage
+   * nothing ever lifts, which is the refusal it has always made.
    */
   z.object({
     kind: z.literal('roll-mode'),
@@ -733,18 +785,71 @@ const PRINTED_SAVE_CLAUSES = [
      * corpus prints here says what the *target* has Disadvantage on; a line
      * that gave attackers Advantage against it would be the other relation and
      * would need a field to say so.
+     *
+     * **`d20-test` is the glossary's own union of the other three** — "D20
+     * Tests encompass the three main d20 rolls of the game" — and it arrives
+     * with the sentence that needs it: SRD Gold Dragon Wyrmling's
+     * "Disadvantage on Strength-based D20 Tests". It is one word in the book
+     * and one member here, and the engine's `RollFamily` has the same member
+     * for the same reason. A `d20-test` must be narrowed by {@link ability},
+     * which the reader enforces: a bare one would reach every roll its holder
+     * ever made, and the engine's own selector validator refuses exactly that.
      */
-    rolls: z.array(z.enum(['ability-check', 'attack-roll', 'saving-throw'])).min(1),
+    rolls: z.array(z.enum(['ability-check', 'attack-roll', 'saving-throw', 'd20-test'])).min(1),
+    /**
+     * The ability the family is narrowed by — SRD's "**Strength**-based D20
+     * Tests". Present exactly where `rolls` names `d20-test`, and the reader is
+     * what insists on the pairing.
+     */
+    ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']).optional(),
     /**
      * The condition in the **same failure** whose instance this lives on.
      *
-     * Required, because it is the whole of the lifetime: a mode with no host
-     * and no span would be a Disadvantage nothing ever lifts. The reader
-     * refuses the sentence where the clause names a condition this failure did
-     * not impose, and so does the executor where the condition did not land —
-     * an immune target has no instance to hang it on.
+     * One of the three lifetimes, and the one every line before the Weakening
+     * Breath printed. The reader refuses the sentence where the clause names a
+     * condition this failure did not impose, and so does the executor where
+     * the condition did not land — an immune target has no instance to hang it
+     * on.
      */
-    whileCondition: PrintedConditionSchema,
+    whileCondition: PrintedConditionSchema.optional(),
+    /** The span the line prints, where it prints one — the second lifetime. */
+    lasts: PrintedSpanSchema.optional(),
+    /**
+     * The save the target repeats to end the effect, with its cap — the third
+     * lifetime, and the Weakening Breath's. The same record a `condition`
+     * clause carries, because it is the same sentence: "It repeats the save at
+     * the end of each of its turns, ending the effect on itself on a success.
+     * After 1 minute, it succeeds automatically."
+     */
+    repeats: z.object(PRINTED_REPEAT).optional(),
+  }),
+  /**
+   * SRD Gold Dragon Wyrmling's Weakening Breath: "subtracts 2 (1d4) from its
+   * damage rolls."
+   *
+   * **A penalty on the target's own damage rolls**, which is the engine's
+   * `damage-penalty` grant — the mirror of a damage reduction, standing on
+   * whoever *swung* rather than on whoever was hit, built for SRD Ray of
+   * Enfeeblement's "subtracts 1d8 from all its damage rolls". The dice are the
+   * block's and are thrown where the damage is rolled, never here.
+   *
+   * Its lifetime reads exactly as `roll-mode`'s: one of the three, and the
+   * reader is what insists on it. The Weakening Breath prints the mode and
+   * the penalty under one repeat save, so the executor files both under one
+   * source and one timer — one save ends both, which is what "ending the
+   * effect on itself" says.
+   */
+  z.object({
+    kind: z.literal('damage-penalty'),
+    /** The notation the book prints inside the parenthesis — "1d4". */
+    dice: z.string().regex(/^\d+d\d+$/),
+    /** A flat addend beside the dice, where the book prints one; 0 otherwise. */
+    flat: z.number().int(),
+    /** The average the book prints beside the dice, for narration. */
+    average: z.number().int().min(1),
+    whileCondition: PrintedConditionSchema.optional(),
+    lasts: PrintedSpanSchema.optional(),
+    repeats: z.object(PRINTED_REPEAT).optional(),
   }),
   /**
    * SRD Dretch: "While Poisoned, the creature can take either an action or a
@@ -1019,6 +1124,41 @@ export const MonsterSaveSchema = z.object({
    * about rather than spared.
    */
   onlyIfTargetType: z.array(z.string().min(1)).min(1).optional(),
+  /**
+   * SRD Gold Dragon Wyrmling's Weakening Breath: "each creature **that isn't
+   * currently affected by this breath** in a 15-foot Cone."
+   *
+   * A third fact a targeting clause gives up, beside the Hit Point ceiling
+   * and the conditions, and for the same reason: it is about **who the line
+   * may be forced on** and the engine already holds the answer — whether this
+   * line's own source is still hung on the creature. A creature under the
+   * breath is not asked to save again; it is named to the caller as one the
+   * line did not reach, exactly as an immune target is.
+   */
+  onlyIfNotAffected: z.literal(true).optional(),
+  /**
+   * SRD Rust Monster's Antennae: "The rust monster targets one nonmagical
+   * metal object—armor or a weapon—worn or carried by a creature within 5
+   * feet of itself. _Dexterity Saving Throw:_ DC 11, the creature with the
+   * object."
+   *
+   * The line is aimed at a **thing** somebody is wearing or holding, and the
+   * save is the holder's. Which thing is the one fact the table supplies —
+   * exactly as the head count is for a Cone — so the door that spends the
+   * line asks for it and refuses one the target is not wearing or holding.
+   */
+  targetsObject: z.literal(true).optional(),
+  /**
+   * SRD Sprite's Heart Sight: "(Celestials, Fiends, and Undead automatically
+   * fail the save)".
+   *
+   * The creature **types** for which no die is thrown: a target of one of
+   * them takes the failure outright, and its outcome carries no save because
+   * the book rolled none. The book's own capitalised words, singular, which is
+   * the vocabulary `creature-type-declared` writes — the same reason
+   * {@link onlyIfTargetType} is spelled that way.
+   */
+  autoFailTypes: z.array(z.string().min(1)).min(1).optional(),
   /**
    * What a failure costs in damage, where the line prints damage at all. The
    * same four fields a printed attack's damage has. Absent on a line whose
@@ -2328,6 +2468,49 @@ export const MONSTER_TRAIT_KINDS: readonly string[] = MonsterTraitMechanicSchema
 );
 
 /**
+ * What a **legendary action** line does, where the parser knows it.
+ *
+ * SRD Unicorn, the one legendary block at CR ≤ 5, prints two: Charging Horn —
+ * "moves up to half its Speed without provoking Opportunity Attacks, and it
+ * makes one Radiant Horn attack" — and Shimmering Shield — "targets itself or
+ * one creature it can see within 60 feet of itself. The target gains 10 (3d6)
+ * Temporary Hit Points, and its AC increases by 2 until the end of the
+ * unicorn's next turn. The unicorn can't take this action again until the
+ * start of its next turn."
+ *
+ * **Read only under the Legendary Actions heading**, for `Multiattack`'s
+ * reason: three legendary actions elsewhere in the book write "makes one
+ * Tentacle attack" about the legendary economy, and a reader that took the
+ * sentence off any heading would hand a block a swing the book printed under a
+ * different price.
+ */
+export const MonsterLegendaryLineSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('attack'),
+    /** The printed attack the line makes — one the block prints under Actions. */
+    attack: z.string().min(1),
+    /** "moves up to half its Speed without provoking Opportunity Attacks" — the table's move. */
+    movesHalfSpeed: z.literal(true).optional(),
+  }),
+  z.object({
+    kind: z.literal('shield'),
+    /** "one creature it can see within 60 feet of itself". */
+    rangeFeet: z.number().int().min(5),
+    /** "gains 10 (3d6) Temporary Hit Points". */
+    temporaryHitPoints: z.object({
+      dice: z.string().regex(/^\d+d\d+$/),
+      flat: z.number().int(),
+      average: z.number().int().min(1),
+    }),
+    /** "its AC increases by 2 until the end of the unicorn's next turn". */
+    armorClass: z.number().int().min(1),
+    /** "can't take this action again until the start of its next turn". */
+    oncePerRound: z.literal(true).optional(),
+  }),
+]);
+export type MonsterLegendaryLine = z.infer<typeof MonsterLegendaryLineSchema>;
+
+/**
  * A named trait, action, bonus action, reaction, or legendary action.
  *
  * The name and the book's sentence are the whole of what this was, and they
@@ -2403,6 +2586,12 @@ export const FeatureSchema = z.object({
   save: MonsterSaveSchema.optional(),
   /** The sequence this line's sentence states, where it states one. */
   multiattack: MonsterMultiattackSchema.optional(),
+  /**
+   * What this legendary action does, where the parser knows the sentence —
+   * see {@link MonsterLegendaryLineSchema}. Present only on a line printed
+   * under Legendary Actions.
+   */
+  legendary: MonsterLegendaryLineSchema.optional(),
   /**
    * The spells this line declares, where its sentence is the Spellcasting
    * template — see {@link MonsterSpellcastingSchema}.
@@ -2555,6 +2744,14 @@ export const MonsterSchema = z.object({
   bonusActions: z.array(FeatureSchema),
   reactions: z.array(FeatureSchema),
   legendaryActions: z.array(FeatureSchema),
+  /**
+   * SRD's "_Legendary Action Uses: 3._" — how many uses the block regains at
+   * the start of each of its turns. Absent where the block prints no legendary
+   * actions, which is every block a homebrew author wrote before the field
+   * existed. The lair number ("3 (4 in Lair)") is not carried, for the reason
+   * `perDay` gives: the engine has no lair.
+   */
+  legendaryActionUses: z.number().int().min(1).optional(),
 });
 export type Monster = z.infer<typeof MonsterSchema>;
 

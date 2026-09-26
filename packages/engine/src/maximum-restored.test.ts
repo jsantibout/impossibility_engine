@@ -262,7 +262,7 @@ describe('a Hit Point maximum a Long Rest gives back', () => {
         ),
         'the wight drains him',
       );
-      if (out.outcomes[0]!.save.success) continue;
+      if (out.outcomes[0]!.save!.success) continue;
       table.raw(...out.events);
       expect(hpMax(table.state, BREN)).toBeLessThan(whole);
 

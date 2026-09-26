@@ -1205,7 +1205,20 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Restrained whose lifetime is a **thing** — an object the line creates,
       // with its own Armour Class, Hit Points and defences, read whole out of
       // the parenthesis the book prints them in.
-      actions: { printed: 811, read: 763 },
+      // And four more with a failure hung on the target's **own rolls**: the
+      // four Gold Dragons' Weakening Breath, a Disadvantage on Strength-based
+      // D20 Tests and a die off the target's damage rolls under one repeat
+      // save and a minute's cap — a lifetime that is neither a span nor a
+      // condition, and the first such the reader has held. Nothing of the
+      // four is handed over.
+      // And one more with a save aimed at a **thing**: the Rust Monster's
+      // Antennae, whose prelude names an object worn or carried and whose
+      // failure wears it down — the pudding's sentence on a save, with the
+      // weapon half beside it. The Mending sentence is carried.
+      // And one more with a failure that is **knowledge**: the Sprite's Heart
+      // Sight, whose failure reveals the target's alignment and emotions and
+      // whose targeting clause names the types that fail it without a die.
+      actions: { printed: 811, read: 769 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
