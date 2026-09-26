@@ -28,7 +28,7 @@ than to the table.
 
 | Parsed | Tracked | Executed | of which partial | Verified |
 |---|---|---|---|---|
-| 339 | 143 (42.2%) | 192 (56.6%) | 27 | 158 (46.6%) |
+| 339 | 143 (42.2%) | 192 (56.6%) | 26 | 159 (46.9%) |
 
 A **tracked** spell is not a half-finished executed one. Disguise Self will
 never be executed, because what the caster looks like is not arithmetic;
@@ -106,7 +106,7 @@ a plain statement of what the table decides.
 - **False Life** (level 1) — verified
 - **Fear** (level 3) — verified
 - **Feather Fall** (level 1) — untested
-- **Find Familiar** (level 1) — untested, partial — a clause the engine owns is still unbuilt
+- **Find Familiar** (level 1) — verified
 - **Find Steed** (level 2) — verified
 - **Finger of Death** (level 7) — verified, partial — a clause the engine owns is still unbuilt
 - **Fire Bolt** (cantrip) — verified
@@ -472,7 +472,6 @@ of *Tracked* and is never added to it.
 | `an-activation-that-resolves-an-area` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
 | `an-effect-that-fires-when-the-casting-ends` | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
 | `movement-modes` | 2 | 0 | 0 | 1 | 1 | 0 | 0 |
-| `senses-beyond-declared-sight` | 2 | 0 | 0 | 1 | 1 | 1 | 0 |
 | `a-cap-on-how-many-castings-run-at-once` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `a-casting-that-casts-another-spell` | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | `a-check-another-creature-may-attempt` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
@@ -497,6 +496,7 @@ of *Tracked* and is never added to it.
 | `forced-movement-a-spell-causes` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `healing-modified-by-an-effect` | 1 | 0 | 0 | 0 | 1 | 0 | 0 |
 | `light-and-obscurement-the-scene-holds` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `senses-beyond-declared-sight` | 1 | 0 | 0 | 0 | 1 | 1 | 0 |
 | `targeting-rules-that-differ-within-one-casting` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `what-a-creature-is-holding` | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 

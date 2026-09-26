@@ -3144,3 +3144,20 @@ Appended 2026-09-26, wave seven on Opus:
   swing settle differently by road). **Left:** the Lance's "Two-Handed
   (unless mounted)" is read as always two-handed, as `handsFor` already
   counts it. Opus review: PASS.
+- **A stat block sees** (W8-S25). The Senses line, parsed on 252 of 330
+  blocks and read by nothing, is `specialSenses` on the parse and `sense`
+  grants on the sheet (`printedSenses`, beside `printedToggledLight`), with
+  "unimpeded by magical Darkness" a `sees-through` grant; no event, state or
+  fold change, both frozen logs fold unchanged. A Goblin's Darkvision sees in
+  the dark and not inside a Darkness casting; an Imp sees through it; a Wild
+  Shape form carries the beast's senses and — SRD "you retain your creature
+  type; Hit Points; … class features; languages; and feats" — drops the
+  druid's species senses (`StandingEffect.speciesTrait`, stamped in
+  `planCharacter`), keeping a class sense; a familiar lends its own
+  Darkvision. **Spells in reach 2 → 1** (Find Familiar verified). Borrowed
+  senses stay at the caster's position (option A; B is one argument of
+  `sensesOf`, with the owner). **Open, for the owner:** read strictly, the
+  same sentence drops *every* species trait in a form (Dwarven Resilience's
+  Poison resistance), not only senses — one condition in `assumeStatBlock`'s
+  filter. **Left:** `classes/druid.ts:175`'s Wild Shape note still says the
+  block's senses are not carried. Opus review, two defects, fixed.

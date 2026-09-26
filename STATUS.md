@@ -61,7 +61,7 @@ homebrew.
 - **Spells needing a mechanic the engine lacks are *tracked*** — cast, costed, timed, the effect the table's; `LEDGER.md` names each.
 - **No feature in a level 5 character's reach is `manual`**; the Champion's
   second Fighting Style at level 7 still is. Every pool buys something.
-- **A Druid's known forms are the ones it was made with**; no rest replaces one; the block's senses are not carried.
+- **A Druid's known forms are the ones it was made with**; no rest replaces one.
 
 - **Jumping is half**; Slow Fall is elected at the landing.
 - **A printed hit is read clause by clause**, what nothing read handed back. A repeat save may deepen its condition and stop asking; Resistance's d4 comes off before defences.

@@ -25,8 +25,12 @@ questions; a change to any of them is a change to this note first.
 
 Sight is a pairwise declared fact (`sight-declared`, three-valued: seen,
 unseen, nobody has said). A creature may hold a sense — the glossary's four,
-as `{ sense, feet }` — and `sightBetween` consults it only where nobody has
-declared anything: self → declaration → declared Total Cover silences →
+as `{ sense, feet }`, off a feature, a casting, or **a stat block's printed
+Senses line** (W8-S25: parsed into `specialSenses` and compiled onto the sheet
+by `printedSenses`; "unimpeded by magical Darkness" is a `sees-through`
+darkness grant beside it; a Wild Shape form carries the block's senses and
+drops the druid's species ones, keeping class ones) — and `sightBetween`
+consults it only where nobody has declared anything: self → declaration → declared Total Cover silences →
 a sight-sense in range → `null`. **Three** questions sit on it: `canSee`
 (every "a creature you can see"); `canSomehowSee` (Invisible's clause;
 Truesight and Blindsight answer it, Darkvision does not — owner, 2026-09-20);
