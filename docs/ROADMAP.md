@@ -3271,3 +3271,14 @@ Appended 2026-09-26, wave seven on Opus:
   `confers.reach`: five entries re-pointed to their real blockers, three stay
   (Necklace of Fireballs, the two talismans). Magic items transcribed
   108 → 109, complete records 224 → 225. Opus review, five defects, fixed.
+- **Three small doors** (W8-T3). `order_summons_attack` hands its `attack` to
+  `reactionSwing` as `action` (the field was never read, so a familiar always
+  swung its default line; a name the block does not print is refused
+  `unknown_action` — the Pseudodragon's Sting is a save, not an attack);
+  `take_damage_response` takes W8-T2's three asks (`weapon` passed only when
+  sent, `null` for an Unarmed Strike, `action` published); `reactionSwing`'s
+  docstring says what it does. **The death-save tally reaches the doors:**
+  `ObservedCreature.deathSaves` and `Holdings.deathSaves` — `{ outcome:
+  'dying', successes, failures }`, `{ outcome: 'stable' }` or `{ outcome:
+  'dead' }`, null above 0 — read from `Vitals`, for the app's plaque. Pins:
+  player 96 / 158726, DM 124 / 211194. Opus review: PASS.
