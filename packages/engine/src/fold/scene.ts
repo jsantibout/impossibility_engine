@@ -75,7 +75,11 @@ export function applyScene({ state, next }: Applying, event: SceneEvent): GameSt
           sceneOf(state, event),
           event.id,
           event.placement,
-          event.forced === undefined ? {} : { forced: event.forced },
+          // A shove, or a printed line that lands the mover among others (W7-B9):
+          // the one rule either relaxes is ending in an occupied space.
+          event.forced === undefined && event.intoOccupied === undefined
+            ? {}
+            : { forced: event.forced === true || event.intoOccupied === true },
         ),
       );
       // **The authoritative transition, and the only one that is entry.** A

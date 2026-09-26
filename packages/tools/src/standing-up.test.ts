@@ -132,7 +132,10 @@ describe('a creature gets up off the floor', () => {
 
   it('is refused once the turn has too few feet left in it', () => {
     const t = floored('up-2');
-    expectOk(t.call('move', { who: 'bren', fromLandmark: 'the ditch', feet: 20, bearing: 270 }));
+    // A Prone creature crawls, and SRD Crawling costs one extra foot per foot —
+    // so ten feet of ditch cost twenty of Bren's thirty, leaving ten, and
+    // standing wants fifteen.
+    expectOk(t.call('move', { who: 'bren', fromLandmark: 'the ditch', feet: 10, bearing: 270 }));
     const refused = expectRefused(t.call('stand_up', { who: 'bren' }));
     expect(refused.code).toBe('not_enough_movement');
     expect(seen(t, 'bren').conditions).toContain('prone');

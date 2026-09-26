@@ -217,6 +217,8 @@ export type {
 export { standingCost, standUp } from './commands/stand.js';
 export { relocateCreature } from './commands/teleport.js';
 export type { RelocateCommand, RelocateOutcome } from './commands/teleport.js';
+export { takePrintedMove } from './commands/printed-move.js';
+export type { PrintedMoveCommand, PrintedMoveOutcome } from './commands/printed-move.js';
 export {
   dismissKeptSummons,
   enterElsewhere,

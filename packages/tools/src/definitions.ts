@@ -2261,6 +2261,13 @@ const MOVE = tool({
         .describe(
           'Spend feet a feature handed this turn instead of the creature\u2019s own Speed \u2014 SRD Tactical Shift is "whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks". `sheet` reports what a creature holds and the feature that handed the feet over is the name to send here. The move spends none of the turn\u2019s own movement and provokes nobody, and it may still not end in a space somebody is standing in: that part is what `forced` allows and this is not forced. A grant nothing handed this creature is refused rather than quietly charged to their Speed.',
         ),
+      using_line: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Make this move on a printed line taken this turn that grants one \u2014 the Giant Seahorse\u2019s Bubble Dash, the Weretiger\u2019s Prowl, the Troll\u2019s Charge \u2014 naming the heading as the block prints it. The line was taken with `take_printed_action` or `take_printed_bonus_action`, which handed the turn the printed fraction of the printed Speed; this spends that and none of the creature\u2019s own movement. Say which Speed with `mode` where the line names a Swim or Burrow Speed; a move made with a Speed the line does not name is refused, and so is one longer than the printed fraction. The move provokes Opportunity Attacks only where the line does not say otherwise: a dash "without provoking" offers nobody a swing, and a Charge provokes exactly as walking does. What the line leaves to you \u2014 the water, the bearing \u2014 comes back under `unverified`.',
+        ),
     })
     .and(placementSchema),
   run: (context, args) =>
@@ -2273,6 +2280,7 @@ const MOVE = tool({
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
+          ...(args.using_line === undefined ? {} : { usingLine: args.using_line }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
           ...(args.jump === undefined
             ? {}

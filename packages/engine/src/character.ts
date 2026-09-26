@@ -28,7 +28,10 @@ import type {
   MonsterCastLine,
   MonsterForms,
   MonsterMultiattack,
+  MonsterDash,
+  MonsterJump,
   MonsterPlaneShift,
+  MonsterTreeStride,
   MonsterPull,
   MonsterLegendaryLine,
   MonsterRecharge,
@@ -222,6 +225,23 @@ export interface StatedBonusAction {
    */
   readonly shiftsPlane?: MonsterPlaneShift;
   /**
+   * The jump this line buys — see {@link StatedAction.jumps}, the same field.
+   * SRD prints all five Leaps under this heading, which is where the
+   * lifetime comes from: a Bonus Action buys the jump for the turn it was
+   * spent on.
+   */
+  readonly jumps?: MonsterJump;
+  /**
+   * The move this line grants — see {@link StatedAction.dashes}, the same
+   * field. SRD prints five of the six under this heading.
+   */
+  readonly dashes?: MonsterDash;
+  /**
+   * The step between two trees this line makes — see
+   * {@link StatedAction.treeStride}. SRD Dryad prints it under this heading.
+   */
+  readonly treeStride?: MonsterTreeStride;
+  /**
    * The spells this line casts — see {@link StatedAction.casts}, which this is
    * the same field as and for the same reason.
    *
@@ -392,6 +412,33 @@ export interface StatedAction {
    * to the spot left, by the same line. `takePrintedPlaneShift` is the door.
    */
   readonly shiftsPlane?: MonsterPlaneShift;
+  /**
+   * The jump this line buys its creature, where its sentence is SRD *Jump*'s
+   * — see `MonsterJumpSchema`.
+   *
+   * SRD Bulette, Leap: "The bulette jumps up to 30 feet by spending 10 feet
+   * of movement." `GrantedJump` already carries both numbers for the spell;
+   * the spender hangs the same grant with a deadline at the end of the turn
+   * it was bought on, and `checkJump` reads it on the next move.
+   */
+  readonly jumps?: MonsterJump;
+  /**
+   * The move this line grants its creature, where its sentence is one of the
+   * book's four — see `MonsterDashSchema`.
+   *
+   * SRD Giant Seahorse's Bubble Dash, SRD Weretiger's Prowl, the Troll's,
+   * the Sahuagin's and the Xorn's Charge. The spender hands the turn the
+   * printed fraction of the printed Speed as a `GrantedMove`; a move naming
+   * the line (`MoveCommand.usingLine`) spends it, measured against a Speed the
+   * line names and provoking nothing where the line says so.
+   */
+  readonly dashes?: MonsterDash;
+  /**
+   * The step between two trees this line makes — see
+   * `MonsterTreeStrideSchema`. SRD Dryad's Tree Stride; `takePrintedTeleport`
+   * with `via` is the door.
+   */
+  readonly treeStride?: MonsterTreeStride;
 }
 
 /**
@@ -1473,8 +1520,26 @@ export function fliesWithoutFalling(sheet: CharacterSheet): boolean {
  * everything else is and the book prints no half-foot anywhere.
  */
 export function longJumpDistance(sheet: CharacterSheet, running: boolean): number {
-  const full = Math.max(0, sheet.abilities.str);
+  const full = Math.max(0, sheet.abilities[jumpingAbilityOf(sheet)]);
   return running ? full : Math.floor(full / 2);
+}
+
+/**
+ * Which ability score the two glossary jumps read off this sheet.
+ *
+ * Strength, for everybody the book does not say otherwise about — and SRD
+ * Jumper, on the Cat, is the one sentence that does: "The cat's jump distance
+ * is determined using its Dexterity rather than its Strength." A swap and
+ * nothing else, so both jumps take the other column and the arithmetic in
+ * {@link longJumpDistance} and {@link highJumpHeight} is untouched.
+ *
+ * Read off the sheet's own stated traits rather than through `monster.ts`,
+ * because that module reads this one.
+ */
+function jumpingAbilityOf(sheet: CharacterSheet): 'str' | 'dex' {
+  return sheet.stated?.traits?.some((trait) => trait.kind === 'jumps-by-dexterity') === true
+    ? 'dex'
+    : 'str';
 }
 
 /**
@@ -1490,7 +1555,7 @@ export function longJumpDistance(sheet: CharacterSheet, running: boolean): numbe
  * hole in the floor.
  */
 export function highJumpHeight(sheet: CharacterSheet, running: boolean): number {
-  const full = Math.max(0, 3 + abilityModifier(sheet.abilities.str));
+  const full = Math.max(0, 3 + abilityModifier(sheet.abilities[jumpingAbilityOf(sheet)]));
   return running ? full : Math.floor(full / 2);
 }
 

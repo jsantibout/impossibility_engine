@@ -108,6 +108,7 @@ import {
   takeLegendaryAction,
   takeSearch,
   takePrintedForm,
+  takePrintedMove,
   takePrintedPlaneShift,
   takePrintedPull,
   takePrintedSwallow,
@@ -142,6 +143,7 @@ import {
   pointSchema,
   printedLineName,
   rollElectionSchema,
+  routeSchema,
   sensesFields,
   sizeSchema,
   skillSchema,
@@ -1638,15 +1640,22 @@ const RESOLVE_FALL = tool({
 const TELEPORT_PRINTED_LINE = tool({
   name: 'teleport_printed_line',
   description:
-    'Have the engine take the teleport a creature’s stat block prints — the Blink Dog’s Teleport, the Marilith’s. Name the heading as the block prints it and say which space it lands in, measured from a landmark or a creature the way every other placement is. The engine reads the distance and the "space it can see" clause off the block, refuses a space too far, one somebody is standing in, one outside the scene or one measured from something the creature cannot see, and spends whichever slot the heading names along with any recharge or daily limit it prints. You state no distance. Only some printed lines can be taken this way: `look` says which, under `engineTeleports` on `printed.actions[]` and `printed.bonusActions[]` alike — the Blink Dog’s is a Bonus Action and the Nalfeshnee’s an Action, because a heading says what a line costs. For a line that teleports and says more besides, and for this one if you would rather move the creature yourself, use `take_printed_action` or `take_printed_bonus_action`.',
+    'Have the engine take the teleport a creature’s stat block prints — the Blink Dog’s Teleport, the Marilith’s, the Dryad’s Tree Stride. Name the heading as the block prints it and say which space it lands in, measured from a landmark or a creature the way every other placement is. The engine reads the distance and the "space it can see" clause off the block, refuses a space too far, one somebody is standing in, one outside the scene or one measured from something the creature cannot see, and spends whichever slot the heading names along with any recharge or daily limit it prints. You state no distance. For a stride between two trees, name the trees under `viaFrom` and `viaTo`: a tree is an object you declared with `declare_object` (Large or bigger, placed) and named as one, and the engine checks both sizes, that the creature stands within the printed feet of the first, that the second is within the printed feet of the first, and that the landing is within the printed feet of the second. Only some printed lines can be taken this way: `look` says which, under `engineTeleports` and `engineTreeStrides` on `printed.actions[]` and `printed.bonusActions[]` alike — the Blink Dog’s is a Bonus Action and the Nalfeshnee’s an Action, because a heading says what a line costs. For a line that teleports and says more besides, and for this one if you would rather move the creature yourself, use `take_printed_action` or `take_printed_bonus_action`.',
   mutates: true,
   // Where it lands is answered by re-sending *this* call with the destination
-  // filled in, so the door the refusal names is this tool.
-  selfAnswers: ['position'],
+  // filled in, so the door the refusal names is this tool — and so are the
+  // two trees, which are creatures on the wire.
+  selfAnswers: ['position', 'creature'],
   input: z
     .strictObject({
       who: creatureId.describe('Which creature is taking the line.'),
       line: printedLineName,
+      viaFrom: creatureId
+        .optional()
+        .describe('For a stride between two trees: the declared object the creature stands beside.'),
+      viaTo: creatureId
+        .optional()
+        .describe('For a stride between two trees: the declared object it steps to.'),
     })
     .and(placementSchema),
   run: (context, args) =>
@@ -1663,6 +1672,9 @@ const TELEPORT_PRINTED_LINE = tool({
           ...(args.bearing === undefined ? {} : { bearing: args.bearing }),
           ...(args.elevation === undefined ? {} : { elevation: args.elevation }),
         },
+        ...(args.viaFrom === undefined || args.viaTo === undefined
+          ? {}
+          : { via: { from: who(args.viaFrom), to: who(args.viaTo) } }),
         ...identity(context),
       }),
       (value) => value.events,
@@ -2092,6 +2104,96 @@ const SHIFT_PLANE_PRINTED_LINE = tool({
 });
 
 /**
+ * SRD Bulette's Deadly Leap and SRD Centaur Trooper's Trampling Charge — the
+ * moves a line makes before its save — W7-B9.
+ *
+ * At the DM's door for `force_printed_save`'s reason turned inside out: that
+ * door takes a head count because an area is measured from an origin and a
+ * facing nobody declared, and this one takes **no head count at all**, because
+ * who the save catches is whoever's space the mover entered and the lattice
+ * knows that better than any caller. What the DM states is the move — the
+ * space the bulette lands in, the spaces the centaur runs through — which is
+ * the monster's decision and therefore the DM's. Every number is the block's:
+ * the reach, the feet spent, the size the destination may hold, the Speed the
+ * charge is capped at, the DC and the dice.
+ */
+const MOVE_PRINTED_LINE = tool({
+  name: 'move_printed_line',
+  description:
+    'Have the engine take a printed line that moves the creature and then rolls a saving throw for everybody whose space it entered — the Bulette’s Deadly Leap, the Centaur Trooper’s Trampling Charge. Name the heading as the block prints it. For a leap, say where it lands with the placement fields: the engine checks the space is within the printed reach and holds one or more creatures no bigger than the line allows, spends the printed feet of movement, lands the creature among them, and rolls each one save. For a charge, give the `route` — the 5-foot spaces crossed, in order, ending in an empty space: the engine checks every creature in the way is no bigger than the line allows, caps the run at the creature’s Speed, moves it without offering anybody an Opportunity Attack, and rolls one save per creature crossed, however many of its spaces the route touched. You name no targets and state no number. Only some printed lines can be taken this way: `look` says which, under `engineMovesThenSaves`.',
+  mutates: true,
+  // The destination and the route are answered by re-sending *this* call.
+  selfAnswers: ['position', 'route'],
+  input: z
+    .strictObject({
+      who: creatureId.describe('Which creature is taking the line.'),
+      line: printedLineName,
+      route: routeSchema
+        .optional()
+        .describe('For a charge: the 5-foot spaces crossed, in order, ending where the run ends. Leave the placement fields out.'),
+      // The placement fields, each optional here because a charge states a
+      // route instead and a caller asked `undeclared_destination` sends
+      // neither the first time. Their own rule — exactly one anchor — holds
+      // below where any of them is sent.
+      fromLandmark: z.string().min(1).optional().describe('For a leap: the landmark the landing is measured from.'),
+      fromCreature: creatureId.optional().describe('For a leap: the creature the landing is measured from.'),
+      feet: z.number().finite().nonnegative().optional().describe('For a leap: how far from it the landing is.'),
+      bearing: z
+        .number()
+        .finite()
+        .optional()
+        .describe('Degrees clockwise from north. 0 is north, 90 is east. Swept for if omitted.'),
+      elevation: z.number().finite().optional().describe('Feet above the anchor.'),
+    })
+    .refine(
+      (value) =>
+        value.feet === undefined ||
+        (value.fromLandmark === undefined) !== (value.fromCreature === undefined),
+      { error: 'a landing needs exactly one of fromLandmark or fromCreature' },
+    ),
+  run: (context, args) =>
+    settle(
+      context,
+      takePrintedMove(
+        context.campaign.state(),
+        who(args.who),
+        {
+          line: args.line,
+          ...(args.route === undefined ? {} : { route: args.route.map(aPoint) }),
+          ...(args.feet === undefined || (args.fromLandmark === undefined && args.fromCreature === undefined)
+            ? {}
+            : {
+                to: {
+                  from:
+                    args.fromLandmark !== undefined
+                      ? { landmark: args.fromLandmark }
+                      : { creature: who(args.fromCreature!) },
+                  feet: args.feet,
+                  ...(args.bearing === undefined ? {} : { bearing: args.bearing }),
+                  ...(args.elevation === undefined ? {} : { elevation: args.elevation }),
+                },
+              }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        ...lineTaken(context, ['stated-action-taken', 'stated-bonus-action-taken'], value.duplicate, args.who),
+        feet: value.feet,
+        outcomes: value.outcomes.map((outcome) => ({
+          target: outcome.target,
+          saved: outcome.save === null ? null : outcome.save.success,
+          damage: outcome.damage,
+          ...(outcome.conditions === undefined ? {} : { conditions: outcome.conditions }),
+          ...(outcome.pushedFeet === undefined ? {} : { pushedFeet: outcome.pushedFeet }),
+        })),
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
  * Set off a glyph.
  *
  * SRD Glyph of Warding: "You decide what triggers the glyph when you cast the
@@ -2143,6 +2245,7 @@ export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
   FORCE_PRINTED_SAVE,
   IMPROVISED_DAMAGE,
   LOSE_ITEMS,
+  MOVE_PRINTED_LINE,
   PULL_PRINTED_LINE,
   RESOLVE_FALL,
   ROLL_IMPROVISED_DAMAGE,

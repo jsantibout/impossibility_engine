@@ -1166,7 +1166,11 @@ describe('what a stat block’s sections print, and what is read', () => {
       // `handedOver`. Before that field the heading had only two answers —
       // claim the lattice or refuse the whole of it — and the second is the
       // one it had been given.
-      traits: { printed: 337, read: 242 },
+      // And three more with the two traits about moving — W7-B9: the Cat's
+      // Jumper, which swaps the ability the glossary jumps read, and both
+      // bugbears' Abduct, the exemption from a drag surcharge the movement
+      // command charges now and did not before.
+      traits: { printed: 337, read: 245 },
       // Fifty-three more than before the save template was read, and the
       // Clay Golem's Multiattack before them. Forty-seven more again with the
       // Spellcasting line, which is the book's third opening and is read
@@ -1218,7 +1222,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // And one more with a failure that is **knowledge**: the Sprite's Heart
       // Sight, whose failure reveals the target's alignment and emotions and
       // whose targeting clause names the types that fail it without a die.
-      actions: { printed: 811, read: 769 },
+      // And one more with a save a **move** precedes — W7-B9: the Bulette's
+      // Deadly Leap, whose prelude is a jump into other creatures' spaces and
+      // whose success is half damage *and* a push, both read.
+      actions: { printed: 811, read: 770 },
       // **Not one prints an attack roll**, which is what the zero here used
       // to say. Three print the save template — the Trample of the Gorgon,
       // the Elephant and the Mammoth, the last of which is CR 6 — and those
@@ -1242,7 +1249,10 @@ describe('what a stat block’s sections print, and what is read', () => {
       // Consume Life, a Bonus Action too. And one more with the branch: the
       // Incubus' Nightmare, whose ceiling holds an Unconscious for the hour
       // the book prints, with its two early endings carried.
-      bonusActions: { printed: 75, read: 21 },
+      // And one more with the save a **move** precedes — W7-B9: the Centaur
+      // Trooper's Trampling Charge, whose template prints no targeting clause
+      // of its own and takes the prelude's.
+      bonusActions: { printed: 75, read: 22 },
       // **Four, and every one of them a `trait`,** which is what this census
       // counts: the Reactions section's own three templates — the Sphinx's
       // addend, the seven Parry lines and the Rust Monster's response — are

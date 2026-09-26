@@ -9,7 +9,7 @@
 import { type CharacterId, err, needsContext, ok, type Result } from '@ie/shared';
 import { reachOf } from '../attack.js';
 import { spendMovement, spendReaction } from '../combat.js';
-import { deprivedOfFlight, isIncapacitated } from '../conditions.js';
+import { deprivedOfFlight, hasCondition, isIncapacitated } from '../conditions.js';
 import { applyEvent, type GameEvent, type GameState, type GrantedJump } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
 import {
@@ -34,12 +34,19 @@ import {
   bestPrintedMeleeAttack,
   hasPrintedTrait,
   printedLeap,
+  printedLineSource,
   printedRunningLeap,
+  statedActionOf,
+  statedBonusActionOf,
 } from '../monster.js';
+import { effectiveSizeOf } from '../size.js';
 import { castingIdOf } from '../spells.js';
+import { grapplesOn } from './unarmed.js';
 import {
   altitudeOf,
   canPassThrough,
+  shiftSize,
+  sizeAtMost,
   checkRoute,
   costOfRoute,
   crossingsAlong,
@@ -148,6 +155,28 @@ export interface MoveCommand extends CommandIdentity {
    * than falling back on their Speed.
    */
   readonly usingGrant?: string;
+  /**
+   * The printed line this move is made on, by the heading the block prints
+   * it under — W7-B9.
+   *
+   * SRD Giant Seahorse, Bubble Dash: "moves up to half its Swim Speed without
+   * provoking Opportunity Attacks." SRD Troll, Charge: "moves up to half its
+   * Speed straight toward an enemy it can see." The spender handed the turn
+   * the printed fraction of the printed Speed as a grant under the line's own
+   * source; this names the line, and the engine does the rest: it spends
+   * that grant and no Speed of the creature's own, insists the move is made
+   * with a Speed the line names (`wrong_speed_for_line`), caps it at the
+   * fraction of *that* Speed, and offers nobody a swing only where the line
+   * says so — a charge provokes exactly as walking does, which is what
+   * separates it from `usingGrant` alone, whose one printing is SRD Tactical
+   * Shift's "without provoking".
+   *
+   * A line the block does not print, or one that grants no move, is refused
+   * `line_grants_no_move`; a line taken on no turn this creature holds is
+   * `no_such_grant`. The clauses the line hands over — the water, the
+   * bearing — come back in `unverified` at the moment of the move.
+   */
+  readonly usingLine?: string;
   /**
    * Which of the mover's Speeds this move is made with.
    *
@@ -365,6 +394,20 @@ export function moveWithin(
     const way = wayOf(state, id, mode);
     if (!way.ok) return way;
 
+    // — the printed line this move is made on (W7-B9) ————————————————————
+    //
+    // Resolved here, beside the Speed, because it is a fact about the same
+    // question: which Speed this move is measured against, and what the line
+    // that granted it says about the walk. A line that cannot be moved on is
+    // refused before any cost, so a seahorse asked to walk on its Bubble Dash
+    // is told which Speed the line means rather than charged for the feet.
+    const onLine =
+      command.usingLine === undefined ? null : lineMoveOf(state, id, sheet, command.usingLine, mode);
+    if (onLine !== null && !onLine.ok) return onLine;
+    const lineMove = onLine === null ? null : onLine.value;
+    // The grant this move spends: the one the caller named, or the line's.
+    const grantNamed = command.usingGrant ?? lineMove?.source;
+
     const rise = to.z - from.z;
     const jumped = checkJump(state, id, sheet, command, feet, rise);
     if (!jumped.ok) return jumped;
@@ -448,8 +491,16 @@ export function moveWithin(
     // declared patches, which is the glossary's own arithmetic: "1 extra foot
     // (2 extra feet in Difficult Terrain)" is a foot of expensive ground
     // costing two and an unaided climb over it costing four.
+    //
+    // **And the drag**, one extra foot per foot of the move where the mover is
+    // holding somebody it must pay to move — the creature's own movement,
+    // which a shove is not. See {@link dragSurchargeFor}. Charged on `feet`,
+    // which is the same number of feet the ground charged: `checkRoute`
+    // refuses any stated route longer than the distance, so a walk that
+    // doubled back would be `bad_route` above rather than undercharged here.
     const ordinary =
-      ground.value.cost + (charging === 'none' ? 0 : difficult * way.value.surcharge);
+      ground.value.cost +
+      (charging === 'none' ? 0 : difficult * way.value.surcharge + feet * way.value.dragging);
 
     // SRD *Jump*: "can jump up to 30 feet **by spending 10 feet of
     // movement**." A price the spell fixes, and it replaces the arithmetic
@@ -461,6 +512,19 @@ export function moveWithin(
     const bought = jumped.value.bought;
     const cost = bought === null ? ordinary : bought.costsMovement;
 
+    // **The line's own cap**, which is the fraction of the Speed this move was
+    // made with and not the grant's remainder: SRD Xorn's "its Speed or Burrow
+    // Speed" hands over one grant and the move names which, so the cap is
+    // read here against the mode rather than pinned at the spend.
+    if (lineMove !== null && cost > lineMove.cap) {
+      return err(
+        'not_enough_movement',
+        `${lineMove.name} moves ${id} up to ${lineMove.capNamed} feet this way${
+          lineMove.spentSoFar === 0 ? '' : `, ${lineMove.spentSoFar} of them already moved on the line`
+        }, and this move costs ${cost}`,
+      );
+    }
+
     // — the grant this move says it is spending —————————————————————————
     //
     // **Refused before anything is spent, and never ignored.** The branch
@@ -470,7 +534,7 @@ export function moveWithin(
     // because the suppression read the *field* rather than the spend —
     // provoked nobody while doing it. So a grant that cannot be charged is a
     // refusal, which is what {@link MoveCommand.usingGrant} promises.
-    if (command.usingGrant !== undefined) {
+    if (grantNamed !== undefined) {
       if (command.forced === true) {
         return err(
           'no_such_grant',
@@ -486,7 +550,7 @@ export function moveWithin(
       if (state.combat === null || state.combat.budgets[id] === undefined) {
         return err(
           'no_such_grant',
-          `nothing has handed ${id} a move under ${command.usingGrant}; feet a feature hands over belong to a turn, and there are none here`,
+          `nothing has handed ${id} a move under ${grantNamed}; feet a feature hands over belong to a turn, and there are none here`,
         );
       }
     }
@@ -512,7 +576,7 @@ export function moveWithin(
         );
       }
     } else if (
-      command.usingGrant !== undefined &&
+      grantNamed !== undefined &&
       state.combat !== null &&
       state.combat.budgets[id] !== undefined &&
       command.forced !== true
@@ -527,7 +591,7 @@ export function moveWithin(
         cost,
         way.value.allowance,
         { rules: actionRulesOn(state, id) },
-        command.usingGrant,
+        grantNamed,
       );
       if (!spent.ok) {
         return spent.code === 'not_enough_movement' && terrain.length > 0
@@ -542,7 +606,7 @@ export function moveWithin(
         type: 'movement-spent',
         id,
         feet: cost,
-        grant: command.usingGrant,
+        grant: grantNamed,
         // The shape of the move, for the sentence that reads it: SRD Boar's
         // "moved 20+ feet straight toward it immediately before the hit". Feet
         // a feature handed over are still the creature's own movement.
@@ -610,10 +674,21 @@ export function moveWithin(
     // *this* move rather than about the rest of the turn, which is what
     // separates it from a Disengage. A creature that spends its grant and then
     // walks provokes on the walking.
+    //
+    // **And a printed line says which it is** — W7-B9. Every feature that
+    // hands feet over prints "without provoking", so a grant spent had always
+    // meant a swing withheld; a printed Charge hands feet over and prints no
+    // such clause, so the exemption is read off the line where a line was
+    // named, and a troll running at the fighter is swung at on the way.
+    const exempt = spentFromGrant && (lineMove === null || lineMove.noOpportunityAttacks);
     const opportunity =
-      command.forced === true || disengaged || spentFromGrant
+      command.forced === true || disengaged || exempt
         ? { provoked: [], unverified: [] }
         : provokedBy(state, supply.content, id, from, to, mode, sheet);
+    // What the line hands to the table, said at the moment of the move.
+    const lineNotes = (lineMove?.handedOver ?? []).map(
+      (clause) => `${lineMove!.name}: "${clause}" is the table's to judge, and the move was made on the line as stated`,
+    );
 
     if (opportunity.provoked.length === 0) {
       // Nobody is owed a swing, so this is the whole move and the stamp belongs
@@ -639,6 +714,7 @@ export function moveWithin(
           ...barred.value.unverified,
           ...jumped.value.unverified,
           ...climbing,
+          ...lineNotes,
         ],
         duplicate: false,
       });
@@ -667,6 +743,7 @@ export function moveWithin(
         ...barred.value.unverified,
         ...jumped.value.unverified,
         ...climbing,
+        ...lineNotes,
       ],
       duplicate: false,
     });
@@ -818,7 +895,23 @@ type Charging = 'spend' | 'report' | 'none';
  */
 interface WayOfMoving {
   readonly allowance: number;
-  readonly surcharge: 1 | 2;
+  /**
+   * What each foot of ground is multiplied by: one, or one more for each of
+   * the two sentences the glossary prints in the same words — an unaided
+   * climb or swim, and a crawl. See {@link wayOf}.
+   */
+  readonly surcharge: number;
+  /**
+   * The extra feet each foot costs for dragging a grappled creature — one, or
+   * none. See {@link dragSurchargeFor}, which is where the sentence is read.
+   *
+   * **Additive rather than a multiplier**, and the difference is the book's
+   * own arithmetic: the climb's rule prints "1 extra foot (2 extra feet in
+   * Difficult Terrain)", which is one number doubled, and the drag's prints
+   * "every foot of movement costs it 1 extra foot" with no parenthesis — so a
+   * foot of expensive ground dragged over costs three and not four.
+   */
+  readonly dragging: 0 | 1;
 }
 
 function wayOf(
@@ -826,12 +919,22 @@ function wayOf(
   id: CharacterId,
   mode: MovementMode,
 ): Result<WayOfMoving> {
+  const dragging = dragSurchargeFor(state, id);
+  // **SRD Crawling**, which is the climb's sentence word for word — "each foot
+  // of movement costs 1 extra foot (2 extra feet in Difficult Terrain)" — and
+  // had never been asked of the one creature the book makes crawl: SRD Prone,
+  // "your only movement option is to crawl." One more step of the same
+  // multiplier, so a Prone creature swimming without a Swim Speed pays both,
+  // which is what two sentences that each say "1 extra foot" come to.
+  const conditions = state.creatures[id]?.conditions;
+  const crawling = conditions !== undefined && hasCondition(conditions, 'prone') ? 1 : 0;
+
   if (hasSpeedInModeOn(state, id, mode)) {
-    return ok({ allowance: speedOf(state, id, mode), surcharge: 1 });
+    return ok({ allowance: speedOf(state, id, mode), surcharge: 1 + crawling, dragging });
   }
 
   if (mode === 'climb' || mode === 'swim') {
-    return ok({ allowance: speedOf(state, id, 'walk'), surcharge: 2 });
+    return ok({ allowance: speedOf(state, id, 'walk'), surcharge: 2 + crawling, dragging });
   }
 
   return err(
@@ -839,6 +942,124 @@ function wayOf(
     `${id} has no ${mode === 'fly' ? 'Fly' : 'Burrow'} Speed, and the rules print no way to ${mode} without one`,
   );
 }
+
+/**
+ * SRD Grappled, "Movable": "The grappler can drag or carry you when it moves,
+ * but every foot of movement costs it 1 extra foot unless you are Tiny or two
+ * or more sizes smaller than it." — W7-B9.
+ *
+ * **The cost the engine had never charged.** A grappler walked away at full
+ * rate with its prisoner, and the one trait in the bestiary that waives the
+ * cost — SRD Abduct, "needn't spend extra movement to move a creature it is
+ * grappling" — was true for free. So the surcharge lands first and the trait
+ * is its exemption, read here as `drags-for-free`, because a sentence that
+ * waives a cost nobody pays is a sentence read for nothing.
+ *
+ * One extra foot however many creatures are held: the sentence is written
+ * from the *held* creature's side and prints no sum, and a grappler holding
+ * two is a case the SRD does not price. The sizes are the ones every rule
+ * reads (`effectiveSizeOf`), so an enlarged prisoner costs what it weighs
+ * now. **Where the held creature ends up is still the table's**: nothing here
+ * moves the prisoner, exactly as nothing did before — the DM moves it with a
+ * forced move, and this is only what the grappler pays.
+ */
+function dragSurchargeFor(state: GameState, id: CharacterId): 0 | 1 {
+  const sheet = sheetAsItStands(state, id) ?? state.creatures[id]?.sheet;
+  if (sheet !== undefined && hasPrintedTrait(sheet, 'drags-for-free')) return 0;
+  const mover = effectiveSizeOf(state, id) ?? 'medium';
+  const cheap = shiftSize(mover, -2);
+  for (const key of Object.keys(state.creatures).sort()) {
+    const held = key as CharacterId;
+    if (!grapplesOn(state, held).some((grapple) => grapple.grappler === id)) continue;
+    const size = effectiveSizeOf(state, held) ?? 'medium';
+    if (size === 'tiny' || sizeAtMost(size, cheap)) continue;
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * What a move made *on a printed line* is measured against — W7-B9.
+ *
+ * The line's grant, the cap the line's fraction puts on the Speed the move
+ * names, whether the line exempts the move from Opportunity Attacks, and the
+ * clauses it hands over. See {@link MoveCommand.usingLine}.
+ */
+interface LineMove {
+  readonly name: string;
+  /** The grant the spender wrote, by the source the log filed it under. */
+  readonly source: string;
+  /**
+   * What is left of the printed fraction of the Speed this move is made with.
+   *
+   * SRD: "If you have more than one Speed, you can switch between them during
+   * your move, **deducting the distance already moved from the new speed**."
+   * The grant was pinned at the largest of the line's Speeds and the feet
+   * already spent from it come off *this* Speed's fraction, so a creature
+   * that swam twenty on a line naming both its Speeds has twenty fewer feet
+   * of walking left under it — and two moves in the slower mode cannot add
+   * up to the faster one's allowance.
+   */
+  readonly cap: number;
+  /** The printed fraction of this Speed, whole, for the refusal that quotes it. */
+  readonly capNamed: number;
+  /** Feet already spent from this line's grant on this turn. */
+  readonly spentSoFar: number;
+  readonly noOpportunityAttacks: boolean;
+  readonly handedOver: readonly string[];
+}
+
+function lineMoveOf(
+  state: GameState,
+  id: CharacterId,
+  sheet: CharacterSheet,
+  name: string,
+  mode: MovementMode,
+): Result<LineMove> {
+  const line = statedActionOf(sheet, name) ?? statedBonusActionOf(sheet, name);
+  const dashes = line?.dashes;
+  if (line === null || dashes === undefined) {
+    return err(
+      'line_grants_no_move',
+      line === null
+        ? `no line called ${name} is printed under ${id}'s Actions or Bonus Actions`
+        : `${line.name} grants no move this engine could read; a move on it is an ordinary move`,
+    );
+  }
+  if (!dashes.modes.includes(mode)) {
+    return err(
+      'wrong_speed_for_line',
+      `${line.name} moves ${id} with its ${dashes.modes.map(speedTitle).join(' or ')}, and this move is made ${mode === 'walk' ? 'on foot' : `by ${mode}ing`}`,
+    );
+  }
+  const source = printedLineSource(id, line.name);
+  const held = state.combat?.budgets[id]?.grantedMoves.find((grant) => grant.source === source);
+  if (held === undefined) {
+    return err(
+      'no_such_grant',
+      `${line.name} has not been taken on this turn of ${id}'s, so it has handed over no move to make`,
+    );
+  }
+  const fraction = (whole: number): number => (dashes.fraction === 'half' ? Math.floor(whole / 2) : whole);
+  const capNamed = fraction(speedOf(state, id, mode));
+  // The grant was pinned at the largest of the line's Speeds, so what has come
+  // off it is what this creature has already moved on the line this turn.
+  const pinned = Math.max(...dashes.modes.map((one) => fraction(speedOf(state, id, one))));
+  const spentSoFar = Math.max(0, pinned - held.feet);
+  return ok({
+    name: line.name,
+    source,
+    cap: Math.max(0, capNamed - spentSoFar),
+    capNamed,
+    spentSoFar,
+    noOpportunityAttacks: dashes.noOpportunityAttacks,
+    handedOver: dashes.handedOver,
+  });
+}
+
+/** The book's name for a Speed, for a refusal that quotes the line. */
+const speedTitle = (mode: MovementMode): string =>
+  mode === 'walk' ? 'Speed' : `${mode.charAt(0).toUpperCase()}${mode.slice(1)} Speed`;
 
 /**
  * SRD: a creature ends a move higher than it began only if something took it
@@ -1172,7 +1393,7 @@ function chargeTerrain(
   feet: number,
   charging: Charging,
   route: readonly Point[] | undefined,
-  surcharge: 1 | 2,
+  surcharge: number,
 ): Result<TerrainChargeOutcome> {
   // **Difficult Terrain costs movement, and a shove is not the creature's
   // movement.** SRD offers an Opportunity Attack only against a creature

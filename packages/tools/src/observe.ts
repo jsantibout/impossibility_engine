@@ -171,9 +171,37 @@ export interface ObservedPrintedLine {
   /**
    * Whether the engine will step this creature onto the Ethereal Plane and
    * back on this line. SRD Phase Spider's Ethereal Jaunt reads `true`; SRD
-   * Dryad's Tree Stride reads `false`, because its two ends are trees.
+   * Dryad's Tree Stride reads `false`, because its two ends are trees — see
+   * {@link engineTreeStrides}, which is its own door.
    */
   readonly engineShiftsPlane: boolean;
+  /**
+   * Whether `move_printed_line` will take this line: a move the creature
+   * makes, then a save for everybody whose space it entered — SRD Bulette's
+   * Deadly Leap, SRD Centaur Trooper's Trampling Charge. Such a line reads
+   * `false` under `engineRollsTheSave`, because the head count is the
+   * lattice's and not the caller's.
+   */
+  readonly engineMovesThenSaves: boolean;
+  /**
+   * Whether taking this line with `take_printed_action` or
+   * `take_printed_bonus_action` hands the turn a jump — SRD Bulette's Leap,
+   * "jumps up to 30 feet by spending 10 feet of movement" — good until the end
+   * of the turn, and read by `move` with `jump`.
+   */
+  readonly engineGrantsJump: boolean;
+  /**
+   * Whether taking this line hands the turn a move — SRD Giant Seahorse's
+   * Bubble Dash, SRD Weretiger's Prowl, SRD Troll's Charge — which `move`
+   * spends by naming the line under `using_line`.
+   */
+  readonly engineGrantsMove: boolean;
+  /**
+   * Whether `teleport_printed_line` will take this line as a stride between
+   * two declared trees named under `viaFrom` and `viaTo` — SRD Dryad's Tree
+   * Stride.
+   */
+  readonly engineTreeStrides: boolean;
 }
 
 /**
@@ -557,6 +585,9 @@ function printedBlock(
     readonly pulls?: StatedAction['pulls'];
     readonly swallows?: StatedAction['swallows'];
     readonly shiftsPlane?: StatedAction['shiftsPlane'];
+    readonly jumps?: StatedAction['jumps'];
+    readonly dashes?: StatedAction['dashes'];
+    readonly treeStride?: StatedAction['treeStride'];
   }): ObservedPrintedLine => ({
     name: one.name,
     text: one.text,
@@ -565,8 +596,11 @@ function printedBlock(
     // The pinned record and nothing read out of the sentence: a line the
     // parser structured a save out of carries one, and `forcePrintedSave`
     // reads the same field to decide whether it will roll. One source, so the
-    // report and the refusal cannot disagree.
-    engineRollsTheSave: one.save !== undefined,
+    // report and the refusal cannot disagree. A save a move precedes is the
+    // other door's, and `forcePrintedSave` refuses it — so it reads false
+    // here and true one field down.
+    engineRollsTheSave: one.save !== undefined && one.save.movesThen === undefined,
+    engineMovesThenSaves: one.save?.movesThen !== undefined,
     // The same, one door along: the pinned record that `takePrintedTeleport`
     // itself reads, so the report and the refusal cannot disagree.
     engineTeleports: one.teleports !== undefined,
@@ -580,6 +614,11 @@ function printedBlock(
     // `swallow_printed_line` and `shift_plane_printed_line` read.
     engineSwallows: one.swallows !== undefined,
     engineShiftsPlane: one.shiftsPlane !== undefined,
+    // And the moves a line makes — W7-B9 — off the same pinned records the
+    // spenders and `move` read.
+    engineGrantsJump: one.jumps !== undefined,
+    engineGrantsMove: one.dashes !== undefined,
+    engineTreeStrides: one.treeStride !== undefined,
   });
 
   return {

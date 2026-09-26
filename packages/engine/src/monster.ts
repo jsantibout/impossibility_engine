@@ -2526,6 +2526,13 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
       // Ghost's Etherealness. Each arrives with the door that spends it.
       ...(line.swallows === undefined ? {} : { swallows: line.swallows }),
       ...(line.shiftsPlane === undefined ? {} : { shiftsPlane: line.shiftsPlane }),
+      // And the moves a line makes — W7-B9: a jump bought, a move granted, a
+      // step between two trees. Each arrives with the spender that reads it:
+      // the two stated-line doors hang the grant, and `takePrintedTeleport`
+      // takes the stride.
+      ...(line.jumps === undefined ? {} : { jumps: line.jumps }),
+      ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
+      ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
       // And the forms the heading gates the line to, where it names any.
       ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),
     }));
@@ -2568,6 +2575,12 @@ export function adaptMonster(printed: Monster, id: CharacterId): AdaptedMonster 
     // reason: SRD Phase Spider prints Ethereal Jaunt under this heading.
     ...(line.swallows === undefined ? {} : { swallows: line.swallows }),
     ...(line.shiftsPlane === undefined ? {} : { shiftsPlane: line.shiftsPlane }),
+    // And the moves a line makes — W7-B9 — on both sections because a heading
+    // says what a use costs: all five Leaps, five of the six dashes and the
+    // Dryad's Tree Stride are printed here.
+    ...(line.jumps === undefined ? {} : { jumps: line.jumps }),
+    ...(line.dashes === undefined ? {} : { dashes: line.dashes }),
+    ...(line.treeStride === undefined ? {} : { treeStride: line.treeStride }),
     // And the forms the heading gates it to: SRD Weretiger's Prowl is the one
     // Bonus Action in the book that prints the clause.
     ...(line.onlyInForms === undefined ? {} : { onlyInForms: [...line.onlyInForms] }),

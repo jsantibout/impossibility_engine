@@ -170,8 +170,10 @@ describe('toolSchemas', () => {
     // alone — see the pin below.
     // And one more on the DM's alone for the compulsions track, `trigger_glyph`.
     // And one on each for the standing-up track, `stand_up`.
+    // And one more on the DM's alone for the moves-a-line-makes track (W7-B9),
+    // `move_printed_line`; `teleport_printed_line` and `move` grew fields.
     expect(toolSchemas(player())).toHaveLength(92);
-    expect(toolSchemas(dm())).toHaveLength(118);
+    expect(toolSchemas(dm())).toHaveLength(119);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -289,10 +291,14 @@ describe('toolSchemas', () => {
     // And `cast_spell.bonesAt` for the bond track — SRD Animate Dead's piles of
     // bones as stated placements, one field on a tool both doors publish, so
     // both lengths move by the same bytes and no tool count moves.
+    // Re-pinned for the moves-a-line-makes track: `move_printed_line` on the
+    // DM's alone (a move through other creatures' spaces with a save per
+    // space entered — whose route is the monster's decision), `viaFrom` /
+    // `viaTo` on `teleport_printed_line`, and `using_line` on `move` for both.
     expect(toolSchemas(player())).toHaveLength(92);
-    expect(toolSchemas(dm())).toHaveLength(118);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(140697);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(182852);
+    expect(toolSchemas(dm())).toHaveLength(119);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(141595);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(186768);
   });
 });
 

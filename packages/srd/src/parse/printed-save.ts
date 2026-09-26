@@ -121,6 +121,7 @@
 import { DECLARED_DAMAGE_TYPE } from '../schemas.js';
 import type {
   MonsterDamage,
+  MonsterPrintedMove,
   MonsterSave,
   PrintedAuraCondition,
   PrintedSaveClause,
@@ -261,9 +262,17 @@ const SIZES: Readonly<Record<string, NonNullable<ConditionEffect['ifNoLargerThan
  * question rather than the anchor's. The capture is lazy, so it takes the
  * shortest run up to the first `_<Ability> Saving Throw:_` in the line, and it
  * is empty for every line the reader took before this.
+ *
+ * **And the targeting clause is optional**, for one printing: SRD Centaur
+ * Trooper's Trampling Charge writes "_Strength Saving Throw:_ DC 14." with
+ * nothing after the DC, because the sentence before it already said who —
+ * "Each creature whose space the centaur enters is targeted once by the
+ * following effect." A template with no targets and no prelude to supply
+ * them is refused where the record is assembled, so nothing this loosens
+ * reaches the catalogue without a targeting clause from somewhere.
  */
 const OPENING =
-  /^(.*?)_([A-Za-z]+) Saving Throw:_ DC (\d+|equals your spell save DC), (.+?)\. (_(?:First )?Failure:_ .*)$/;
+  /^(.*?)_([A-Za-z]+) Saving Throw:_ DC (\d+|equals your spell save DC)(?:, (.+?))?\. (_(?:First )?Failure:_ .*)$/;
 
 /**
  * SRD Otherworldly Steed's Bonus Actions: "DC **equals your spell save DC**".
@@ -595,8 +604,11 @@ const UNTIL_CURSE_ENDS =
   /^Until the curse ends, the target has the ([A-Z][a-z]+)(?: and (?:the )?([A-Z][a-z]+))? conditions?\.?$/;
 const SIZE_GATED =
   /^If the target is a (Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller creature, (.+)$/;
+// "up to" is optional for one printing: SRD Bulette's Deadly Leap writes "the
+// target is pushed 5 feet straight away from the bulette" on its success, and
+// a push of exactly five is the same primitive capped at the same number.
 const PUSHED = new RegExp(
-  `^${SUBJECT}is pushed up to (\\d+) feet straight away from the [a-z' -]+?(?: and (.+))?$`,
+  `^${SUBJECT}is pushed (?:up to )?(\\d+) feet straight away from the [a-z' -]+?(?: and (.+))?$`,
 );
 const SPEED_CUT = /^[Tt]he target's Speed decreases by (\d+) feet (until .+)$/;
 /**
@@ -1948,7 +1960,40 @@ type Prelude =
   /** SRD Gibbering Mouther's definition of what it is to be babbling. */
   | { readonly kind: 'babbling' }
   /** SRD Rust Monster's "targets one nonmagical metal object … worn or carried by a creature". */
-  | { readonly kind: 'names-an-object' };
+  | { readonly kind: 'names-an-object' }
+  /**
+   * SRD Bulette's jump and SRD Centaur Trooper's charge: a move the creature
+   * makes first, and the save is per creature whose space it entered — see
+   * {@link JUMPS_TO} and {@link MOVES_THROUGH}. `targets` is the centaur's,
+   * whose template prints none of its own.
+   */
+  | { readonly kind: 'moves-then'; readonly move: MonsterPrintedMove; readonly targets?: string };
+
+/**
+ * SRD Bulette's Deadly Leap: "The bulette spends 5 feet of movement to jump to
+ * a space within 15 feet that contains one or more Large or smaller
+ * creatures."
+ *
+ * The fourth prelude — W7-B9 — and the first that is a rule the world's half
+ * of: a movement spent, a reach, and a destination that must hold somebody no
+ * bigger than the printed size. Every number is captured, because the line is
+ * the sentence and a homebrew bulette may leap further.
+ */
+const JUMPS_TO =
+  /^The [a-z' -]+ spends (\d+) feet of movement to jump to a space within (\d+) feet that contains one or more (Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller creatures\.$/;
+
+/**
+ * SRD Centaur Trooper's Trampling Charge: "The centaur moves up to its Speed
+ * without provoking Opportunity Attacks and can move through the spaces of
+ * Medium or smaller creatures. Each creature whose space the centaur enters is
+ * targeted once by the following effect."
+ *
+ * Two sentences, and both are read or neither is: the first is the move and
+ * the second is the targeting clause the template beneath it leaves out. The
+ * noun is back-referenced so the two sentences are about one creature.
+ */
+const MOVES_THROUGH =
+  /^The ([a-z' -]+) moves up to its Speed without provoking Opportunity Attacks and can move through the spaces of (Tiny|Small|Medium|Large|Huge|Gargantuan) or smaller creatures\. Each creature whose space the \1 enters is targeted once by the following effect\.$/;
 
 function readPrelude(before: string): Prelude | null {
   const text = before.trim();
@@ -1956,6 +2001,33 @@ function readPrelude(before: string): Prelude | null {
   if (EXPLODES_ON_DEATH.test(text)) return { kind: 'dies' };
   if (BABBLES_WHILE_NOT_INCAPACITATED.test(text)) return { kind: 'babbling' };
   if (TARGETS_AN_OBJECT.test(text)) return { kind: 'names-an-object' };
+  const jump = JUMPS_TO.exec(text);
+  if (jump !== null) {
+    return {
+      kind: 'moves-then',
+      move: {
+        kind: 'jump-to',
+        within: Number(jump[2]),
+        feetSpent: Number(jump[1]),
+        intoOccupiedBy: SIZES[jump[3]!]!,
+      },
+    };
+  }
+  const charge = MOVES_THROUGH.exec(text);
+  if (charge !== null) {
+    return {
+      kind: 'moves-then',
+      move: {
+        kind: 'move-through',
+        upToSpeed: true,
+        noOpportunityAttacks: true,
+        throughSpacesOf: SIZES[charge[2]!]!,
+      },
+      // The book's own words, lower-cased at the head as every targeting
+      // clause the template prints already is.
+      targets: `each creature whose space the ${charge[1]!} enters`,
+    };
+  }
   return null;
 }
 
@@ -2202,7 +2274,16 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     sections.some((section) => section.kind === 'second-failure');
   const read = readSection(failure.text, { graded });
 
-  const head = headOf(opening[4]!);
+  // **The targeting clause, from the template or from the prelude, and from
+  // nowhere else.** SRD Centaur Trooper's template prints none and its
+  // prelude does; a line with neither is a save over nobody and stays prose.
+  const printedTargets = opening[4];
+  if (printedTargets === undefined && !(prelude.kind === 'moves-then' && prelude.targets !== undefined)) {
+    return null;
+  }
+  const head = headOf(
+    printedTargets ?? (prelude.kind === 'moves-then' ? (prelude.targets ?? '') : ''),
+  );
 
   // **The moment, where a moment forces the save rather than a use.** The
   // trigger is a fact about *when* — the sentence before the opening, or the
@@ -2259,7 +2340,15 @@ export function parsePrintedSave(text: string): MonsterSave | null {
         // under this heading is "Half damage" or a rule this cannot hold, and
         // a section read in part is carried whole, which is the rule every
         // section in this file is read under.
-        const bought = readSection(section.text);
+        //
+        // **Or half *and* something** — W7-B9: SRD Bulette's Deadly Leap
+        // prints "_Success:_ Half damage, and the target is pushed 5 feet
+        // straight away from the bulette." The half is the half, and the
+        // clause after the "and" goes through the failure's own grammar; a
+        // clause it cannot read carries the section whole, half included,
+        // because a half applied without its push is a sentence read in part.
+        const halfThen = /^Half damage, and (.+)$/.exec(section.text);
+        const bought = readSection(halfThen === null ? section.text : halfThen[1]!);
         if (
           bought.readSomething &&
           bought.damage === null &&
@@ -2267,6 +2356,7 @@ export function parsePrintedSave(text: string): MonsterSave | null {
           bought.effects.length > 0
         ) {
           onSuccessEffects = bought.effects;
+          if (halfThen !== null) onSuccess = 'half';
         } else handedOver.push(`_Success:_ ${section.text}`);
       }
     } else if (section.kind === 'either') {
@@ -2405,6 +2495,9 @@ export function parsePrintedSave(text: string): MonsterSave | null {
     ...(aura === null || aura.types.length === 0 ? {} : { onlyIfTargetType: [...aura.types] }),
     ...(NOT_ALREADY_AFFECTED.test(head.targets) ? { onlyIfNotAffected: true as const } : {}),
     ...(prelude.kind === 'names-an-object' ? { targetsObject: true as const } : {}),
+    // The move the line makes first — W7-B9. Carried whole so the door that
+    // spends the line moves the creature before it rolls anybody's save.
+    ...(prelude.kind === 'moves-then' ? { movesThen: prelude.move } : {}),
     ...(autoFail === null ? {} : { autoFailTypes: [...autoFail] }),
     ...(read.damage === null ? {} : { damage: read.damage }),
     ...(read.plus === null ? {} : { plus: read.plus }),
