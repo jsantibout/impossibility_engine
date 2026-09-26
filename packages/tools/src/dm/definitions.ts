@@ -102,6 +102,9 @@ import {
   printedLineCatch,
   printedSaveOf,
   resolveDamage,
+  settleBlockDeadlines,
+  takeDamageResponse,
+  takeRestForm,
   resolveFall,
   resolveTest,
   rollImprovisedDamage,
@@ -145,6 +148,7 @@ import {
   damageTypeSchema,
   electionOf,
   placementSchema,
+  type PlacementInput,
   pointSchema,
   printedLineName,
   rollElectionSchema,
@@ -1915,7 +1919,7 @@ const aPoint = (input: z.infer<typeof pointSchema>) => ({
 const CAST_PRINTED_LINE = tool({
   name: 'cast_printed_line',
   description:
-    'Have the engine cast one of the spells a creature’s stat block prints on a line — the Priest’s Divine Aid, the Dust Mephit’s Sleep, the Imp’s Invisibility. Name the heading as the block prints it and which spell off its menu; the engine reads the ability and any printed save DC off the block, spends whichever slot the heading names along with its recharge or daily limit, and runs the casting through the ordinary pipeline, so the record, the Concentration, the save DC and the durations are all the engine’s. You state no number and no DC. Which spell is yours because the line offers a menu and the engine chooses none of it; a line that casts "on itself" needs no target. Only some printed lines can be taken this way: `look` says which, under `grantedSpells[].throughLine`. For a line that casts and says more besides, use `take_printed_action` or `take_printed_bonus_action`; a line this door takes is refused there.',
+    'Have the engine cast one of the spells a creature’s stat block prints on a line — the Priest’s Divine Aid, the Dust Mephit’s Sleep, the Imp’s Invisibility. Name the heading as the block prints it and which spell off its menu; the engine reads the ability and any printed save DC off the block, spends whichever slot the heading names along with its recharge or daily limit, and runs the casting through the ordinary pipeline, so the record, the Concentration, the save DC and the durations are all the engine’s. You state no number and no DC. Which spell is yours because the line offers a menu and the engine chooses none of it; a line that casts "on itself" needs no target. Only some printed lines can be taken this way: `look` says which, under `grantedSpells[].throughLine`. A trait that casts — the hags’ Coven Magic — is taken here too: no heading prices it, so it costs the spell’s own casting time, in a fight or out of one, each spell once between Long Rests, and only among the allies of its kind its sentence names. For a line that casts and says more besides, use `take_printed_action` or `take_printed_bonus_action`; a line this door takes is refused there.',
   mutates: true,
   // Which spell is answered by re-sending *this* call with it filled in, so
   // the door the refusal names is this tool.
@@ -2448,7 +2452,163 @@ const TRIGGER_GLYPH = tool({
     ),
 });
 
+/** A caller's placement, read into the engine's — the conversion every placing door makes. */
+const placementFrom = (input: PlacementInput): Omit<Placement, 'size'> => ({
+  from:
+    input.fromLandmark !== undefined
+      ? { landmark: input.fromLandmark }
+      : { creature: who(input.fromCreature!) },
+  feet: input.feet,
+  ...(input.bearing === undefined ? {} : { bearing: input.bearing }),
+  ...(input.elevation === undefined ? {} : { elevation: input.elevation }),
+});
+
+/**
+ * Take the form a creature's own stat block offers at the end of a Long Rest —
+ * W7-B12.
+ *
+ * SRD Incubus, Succubus Form: "When the incubus finishes a Long Rest, it can
+ * shape-shift into a **Succubus**, using that stat block instead of this one.
+ * Any equipment it is wearing or carrying isn't transformed."
+ *
+ * **It is here and not on the model's surface**, by
+ * {@link SHAPE_SHIFT_PRINTED_LINE}'s rule: "it **can**" is a choice the book
+ * hands to whoever is running the creature, and a model choosing a monster's
+ * body is a model playing the monster. **It states no number**: every
+ * statistic the change brings is the other block's, read out of content and
+ * pinned, and the moment is the engine's — the instant the creature's Long
+ * Rest ended.
+ */
+const TAKE_REST_FORM = tool({
+  name: 'take_rest_form',
+  description:
+    'Have a creature take the form its own stat block offers when it finishes a Long Rest — the Incubus becoming a Succubus, and the Succubus an Incubus. Call it straight after `end_rest` for that creature; the engine refuses once time has passed since, and allows one change per rest. The creature becomes the other stat block whole — its statistics, its lines, its magic, its Hit Points at full — and keeps its place, its side and everything it wears or carries, as the book says. You state no number. `block` names the form by its stat-block id where the line offers more than one; omit it otherwise.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('Which creature is changing.'),
+    block: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The stat-block id of the form, where the line offers more than one. Omit it otherwise.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeRestForm(context.campaign.state(), context.campaign.content, who(args.who), {
+        ...(args.block === undefined ? {} : { block: args.block }),
+        ...identity(context),
+      }),
+      (events) => events,
+      (events) => {
+        const changed = events.find((event) => event.type === 'stat-block-replaced');
+        return {
+          who: args.who,
+          became: changed?.type === 'stat-block-replaced' ? changed.name : null,
+          duplicate: events.length === 0,
+        };
+      },
+    ),
+});
+
+/**
+ * Throw the die a stat block's own line owes when its day runs out — W7-B12.
+ *
+ * SRD Troll Limb, Troll Spawn: "If the limb isn't destroyed within 24 hours,
+ * roll 1d12. On a 12, the limb turns into a **Troll**. Otherwise, the limb
+ * withers away."
+ *
+ * **A settlement, and on the DM's door because nothing else runs the clock
+ * outside a fight.** The engine hangs the day at the limb's arrival, owes the
+ * die once the clock has passed it, and refuses to advance a fight's turn
+ * while one is owed; this is the call that throws it. It takes nothing: the
+ * die, the face and the block are the line's, and the engine throws.
+ */
+const SETTLE_BLOCK_DEADLINES = tool({
+  name: 'settle_block_deadlines',
+  description:
+    'Throw the die a creature’s own stat block owes when its countdown runs out — the Troll Limb that is not destroyed within 24 hours rolls 1d12, becoming a Troll on a 12 and withering away otherwise. The engine hangs the countdown when the creature arrives and owes the die once the clock has passed it; `end_turn` refuses while one is owed, and this call throws every die that is due. You state nothing: the dice, the face and the block are the line’s. Nothing due is not a refusal — the call simply does nothing.',
+  mutates: true,
+  input: z.strictObject({}),
+  run: (context) =>
+    settle(
+      context,
+      settleBlockDeadlines(context.campaign.state(), context.campaign.supply(), identity(context)),
+      (value) => value.events,
+      (value) => ({
+        thrown: value.events.filter((event) => event.type === 'roll-recorded').length,
+        duplicate: value.duplicate,
+      }),
+    ),
+});
+
+/**
+ * Split a creature whose printed Reaction splits it — W7-B12.
+ *
+ * SRD Black Pudding and SRD Ochre Jelly, Split: "_Trigger:_ While the pudding
+ * is Large or Medium and has 10+ Hit Points, it becomes Bloodied or is
+ * subjected to Lightning or Slashing damage. _Response:_ The pudding splits
+ * into two new **Black Puddings**. Each new pudding is one size smaller than
+ * the original pudding and acts on its Initiative."
+ *
+ * **Here and not on the model's surface**, by {@link TAKE_REST_FORM}'s rule:
+ * whether a creature spends its Reaction is the choice of whoever is running
+ * it. What the call carries is two names and a space, which the book leaves
+ * open; the size, the Hit Points and the seat in the order are the engine's.
+ */
+const SPLIT_PRINTED_LINE = tool({
+  name: 'split_printed_line',
+  description:
+    'Have a creature take the Reaction its stat block prints to split in two — the Black Pudding’s and the Ochre Jelly’s Split. `options` lists it, under the feature id, right after a blow that set it off: Lightning or Slashing damage, or a blow that made the creature Bloodied, while it is Large or Medium with 10 or more Hit Points. You name the two new creatures and where the second stands; the engine spends the Reaction, raises two of the creature’s own stat block one size smaller with half its Hit Points each (rounded down), seats both on its Initiative, puts the first where the original stood, and takes the original away. You state no number.',
+  mutates: true,
+  selfAnswers: ['creature'],
+  input: z.strictObject({
+    who: creatureId.describe('The creature that splits.'),
+    feature: z.string().min(1).describe('The feature id, from `options`, e.g. black-pudding:split.'),
+    into: z
+      .tuple([creatureId, creatureId])
+      .optional()
+      .describe('What to call the two new creatures. The engine asks where it is missing.'),
+    placement: placementSchema
+      .optional()
+      .describe('Where the second new creature stands. The first takes the original’s space.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      takeDamageResponse(
+        context.campaign.state(),
+        who(args.who),
+        {
+          feature: args.feature,
+          ...(args.into === undefined
+            ? {}
+            : { into: [who(args.into[0]), who(args.into[1])] as const }),
+          ...(args.placement === undefined ? {} : { placement: placementFrom(args.placement) }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        split: args.who,
+        into:
+          args.into === undefined
+            ? []
+            : args.into.filter((name) =>
+                value.events.some((event) => event.type === 'creature-added' && event.id === name),
+              ),
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
 export const DM_ONLY_TOOLS: readonly ToolDefinition[] = [
+  SETTLE_BLOCK_DEADLINES,
+  SPLIT_PRINTED_LINE,
+  TAKE_REST_FORM,
   SHIFT_PLANE_PRINTED_LINE,
   SWALLOW_PRINTED_LINE,
   ABILITY_CHECK,
