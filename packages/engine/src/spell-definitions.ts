@@ -528,10 +528,11 @@ export interface SpellRepeatSave {
   };
   /**
    * What a success does — see `RepeatSave.onSuccess`, which is where the
-   * difference between ending the casting and ending it on one target is
-   * argued and where the three doors that refuse the first are named.
+   * difference between ending the casting, ending it on one target and ending
+   * nothing at all is argued and where the three doors that refuse the first
+   * are named.
    */
-  readonly onSuccess: 'end-on-target' | 'end-casting';
+  readonly onSuccess: 'end-on-target' | 'end-casting' | 'nothing';
   /**
    * A second moment the save is raised at, and what that moment does to it —
    * see `RepeatSave.alsoWhenDamaged`, where the shape and its reader are
@@ -607,8 +608,32 @@ export interface SpellRepeatSave {
    * the DC a record pins. A definition that needs one is a change to that
    * spread as well as to this type.
    */
-  readonly onFailure?: {
+  readonly onFailure?:
+    | {
+        /**
+         * The rule the failure hangs on the creature for the turn it happened
+         * on — see `RepeatSave.onFailure`'s second arm, where the sentence and
+         * the span are argued.
+         *
+         * SRD Bestow Curse: "In combat, the target must succeed on a Wisdom
+         * saving throw at the start of each of its turns **or be forced to take
+         * the Dodge action on that turn**." Written as the legality it is, which
+         * is the compulsion ruling: the engine refuses everything else and walks
+         * nobody through a Dodge.
+         *
+         * **This arm is assignable to the engine's**, which is the rule this
+         * whole object is kept by — see the paragraph above about the spread in
+         * `castOnHit`. The span is the one word `'this-turn'` for the reason the
+         * deepening's is a number of seconds: a rule is hung at a boundary that
+         * has already arrived, so the turn it governs is the one running.
+         */
+        readonly rule: ActionRule;
+        readonly lasts: 'this-turn';
+        readonly condition?: undefined;
+      }
+    | {
     readonly condition: ConditionName;
+    readonly rule?: undefined;
     /**
      * How long the deeper condition lasts, where the sentence says.
      *
@@ -628,7 +653,7 @@ export interface SpellRepeatSave {
      * what the paragraph above refuses.
      */
     readonly lasts?: { readonly seconds: number };
-  };
+      };
 }
 
 /**

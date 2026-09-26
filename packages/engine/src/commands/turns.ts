@@ -31,7 +31,14 @@ import { conditionInstanceId, isIncapacitated, type CheckContext } from '../cond
 // SRD Fire Aura's emanation, measured the way every other reach in the engine
 // is. A type-only edge would not do: the distance is read at the boundary.
 import { distanceBetween } from '../positioning.js';
-import { forSeconds, isDue, timeView, type TurnMoment } from '../time.js';
+import {
+  endOfCurrentTurn,
+  forSeconds,
+  isDue,
+  resolveDuration,
+  timeView,
+  type TurnMoment,
+} from '../time.js';
 import {
   mayAttempt,
   pendingSaveKey,
@@ -1433,9 +1440,47 @@ export function conditionEndedBy(state: GameState, effectKey: string): readonly 
 function deepenedBy(state: GameState, pending: PendingSave): Result<readonly GameEvent[]> {
   const timer = state.timers[pending.effectKey];
   const deeper = timer?.repeatSave?.onFailure;
-  if (timer === undefined || deeper === undefined || timer.target.kind !== 'condition') {
-    return ok([]);
+  if (timer === undefined || deeper === undefined) return ok([]);
+
+  // **The other arm, which deepens nothing.** SRD Bestow Curse: "at the start of
+  // each of its turns or **be forced to take the Dodge action on that turn**."
+  // There is no condition to replace — the curse imposed none — so what the
+  // failure leaves is a rule over the turn it happened on, written as the
+  // legality it is: `permits-only` on the Action slot, failing closed, refusing
+  // everything else and walking nobody through a Dodge.
+  //
+  // **Hung on a `grants` timer keyed by the source and the creature**, which is
+  // free for exactly this because a hook whose success ends nothing rides on the
+  // casting's own timer rather than on a per-creature key. So the rule's deadline
+  // is its own, the casting's ending still lifts it through `releaseOnTarget`,
+  // and a second failure next turn replaces it rather than stacking.
+  if (deeper.rule !== undefined) {
+    const lifted = resolveDuration(timeView(state), endOfCurrentTurn);
+    // No turn to govern, so no rule: the clause opens "**In combat**", and
+    // outside one there is no turn for a Dodge to be the only thing in. The
+    // boundary that raised this save is inside a fight by construction, so this
+    // is the fold and the command disagreeing rather than a rules dispute.
+    if (!lifted.ok) return lifted;
+    return ok([
+      {
+        type: 'action-rule-granted',
+        id: pending.target,
+        rule: {
+          source: pending.source,
+          rule: deeper.rule,
+          label: spellOfSource(pending.source),
+          until: 'the end of this turn',
+        },
+      },
+      {
+        type: 'effect-scheduled',
+        target: { kind: 'grants', on: pending.target, source: pending.source },
+        deadline: lifted.value,
+      },
+    ]);
   }
+
+  if (timer.target.kind !== 'condition') return ok([]);
 
   // What is being deepened, read the way `conditionEndedBy` reads it: the
   // instance the timer names, on the creature it names. An instance already

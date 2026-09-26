@@ -1555,12 +1555,16 @@ function checkSaveCastingRepeat(
   // casting because neither failure imposed a condition to file a hook on —
   // see `castingHostedRepeat`, where `end-on-target` files the hook on the
   // casting's grants on that one creature.
-  if (repeats.onSuccess !== 'end-casting' && repeats.onSuccess !== 'end-on-target') {
+  if (
+    repeats.onSuccess !== 'end-casting' &&
+    repeats.onSuccess !== 'end-on-target' &&
+    repeats.onSuccess !== 'nothing'
+  ) {
     found.push({
       field: `${at}.onSuccess`,
       code: 'repeat_without_condition',
       reason:
-        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so the hook rides on the casting instead, and a success either ends the casting ("end-casting") or releases what the casting hung on that one creature ("end-on-target")',
+        'a repeat save is filed on the condition instance the failure created, and this failure creates none — so the hook rides on the casting instead, and a success either ends the casting ("end-casting"), releases what the casting hung on that one creature ("end-on-target"), or ends nothing at all ("nothing"), which is SRD Bestow Curse’s Dodge',
     });
   }
 
@@ -1585,12 +1589,27 @@ function checkSaveCastingRepeat(
     });
   }
 
-  if (repeats.onFailure !== undefined) {
+  // **The deepening is still refused and the rule arm is not**, which is the
+  // whole of the distinction: a deepening replaces a condition and this failure
+  // imposed none, where a rule imposes nothing and narrows the turn the failure
+  // happened on. SRD Bestow Curse's Dodge is the second, and the reason the
+  // failure branch is a union rather than one object.
+  if (repeats.onFailure?.rule !== undefined) {
+    checkActionRule(repeats.onFailure.rule, `${at}.onFailure.rule`, found);
+    if (repeats.onFailure.lasts !== 'this-turn') {
+      found.push({
+        field: `${at}.onFailure.lasts`,
+        code: 'bad_repeat_rule_span',
+        reason:
+          'a rule a failed repeat hangs governs the turn the failure happened on and no other, which is the one span it may name: write `lasts: "this-turn"`',
+      });
+    }
+  } else if (repeats.onFailure !== undefined) {
     found.push({
       field: `${at}.onFailure`,
       code: 'deepening_without_a_condition',
       reason:
-        'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch',
+        'a failure deepens the condition the first save imposed, and this failure imposes none; SRD writes "on a failed save, the spell continues", which is a repeat with no failure branch — or hangs a rule over the turn instead, which is the other arm of this field',
     });
   }
 }
@@ -1997,7 +2016,13 @@ function checkSaveWithoutCondition(
     // second sentence imposes no condition and hangs nothing unless the thing
     // cannot be dropped, and a die that empties a hand is not a die thrown for
     // nothing.
-    effect.drops !== undefined;
+    effect.drops !== undefined ||
+    // **A repeat whose failure acts is content too**, and SRD Bestow Curse's
+    // Dodge face is the sentence that says so: the save imposes nothing at the
+    // casting and puts the creature under an obligation it must save against at
+    // the start of every turn, whose own failure narrows its whole action. A die
+    // that does that is not a die thrown for nothing.
+    (effect.repeats !== undefined && effect.repeats.onFailure !== undefined);
 
   // **The fourth way out, and it is the only one that needs no record.** SRD
   // Animal Messenger's failure imposes nothing and there is nowhere to keep

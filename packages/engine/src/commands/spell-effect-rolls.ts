@@ -1284,6 +1284,12 @@ function castingHostedRepeat(
 
   // The casting's deadline either way; whose turns raise it and what a success
   // ends are the two things the spelling decides.
+  // **`end-on-target` is the one spelling that needs a key per creature**, and
+  // the other two share the casting's own timer: `end-casting` ends the spell
+  // outright, and `nothing` ends nothing at all, so neither has anything standing
+  // on one target for a success to lift. That also leaves the per-creature key
+  // free for a failure that hangs a rule there — SRD Bestow Curse's Dodge — which
+  // is what `deepenedBy` schedules it under.
   const on: EffectTarget =
     repeats.onSuccess === 'end-on-target'
       ? { kind: 'grants', on: target, source: ctx.source }
@@ -1299,6 +1305,11 @@ function castingHostedRepeat(
       ability: effect.ability,
       dc: saveDc,
       onSuccess: repeats.onSuccess,
+      // **What a failure leaves**, where the sentence writes one. SRD Bestow
+      // Curse's Dodge is the arm a casting-hosted repeat may carry: a rule over
+      // the turn the failure happened on rather than a condition to deepen,
+      // because this failure imposed no condition to deepen.
+      ...(repeats.onFailure === undefined ? {} : { onFailure: repeats.onFailure }),
       ...(repeats.onlyIf === undefined ? {} : { onlyIf: repeats.onlyIf }),
       label: `${ctx.name} (${ABILITY_NAMES[effect.ability]} save)`,
     },

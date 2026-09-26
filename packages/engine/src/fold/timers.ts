@@ -186,6 +186,15 @@ export function applyTimers({ state, next }: Applying, event: TimersEvent): Game
       // is finished with it.
       if (pending.printed !== undefined) return cleared;
 
+      // **And a hook whose success ends nothing has nothing for a success to
+      // end.** SRD Bestow Curse: "the target must succeed on a Wisdom saving
+      // throw at the start of each of its turns or be forced to take the Dodge
+      // action on that turn." Making it buys the creature that turn and nothing
+      // more — the curse runs on and asks again at the next one — so the debt is
+      // discharged and the fold is finished with it, exactly as it is with a
+      // printed line's.
+      if (pending.onSuccess === 'nothing') return cleared;
+
       // **A source that is not a casting ends on its own timer.** A potion's
       // Poisoned is filed under `item:<id>` and there is no casting to release
       // on a target, no Concentration to drop and nothing in `ongoing`; what

@@ -645,14 +645,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'bestow-curse': [
     {
-      clause: 'the opening Wisdom save the other three roll',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the same debt seen from the branch rather than from the clause. Each of this spell’s four faces carries the save that gates it, because a save in the common list would be one roll no branch could read — so a branch that can resolve nothing rolls nothing, and the third face resolves nothing because the sentence after its save is the shape below. The two entries are one gap and are filed apart because the honesty guard reads a clause at a time.',
-    },
-    {
-      clause: 'at the start of each of the target’s turns is not raised',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'the third of the four faces, and the one branch of the spell that is still a debt. A repeat save hung on a casting ends the casting on a success and this one ends nothing — a third value the vocabulary does not carry — and its failure compels the Dodge action for that turn, where a failure branch applies a condition. Both halves are the shape’s own sentence.',
+      clause: 'the sentence opens "In combat"',
+      why: 'table',
+      note: 'SRD: "In combat, the target must succeed on a Wisdom saving throw at the start of each of its turns or be forced to take the Dodge action on that turn." The save is raised and the failure narrows the turn — a repeat whose success ends nothing, and a failure that hangs `permits-only` on the Action slot with the Dodge the only member. What the two words in front of it mean is the residue: the engine reads them as the turn order it needs, because a turn is the only thing a start-of-turn boundary can be raised at, and whether a scuffle in a corridor is *combat* while nobody has rolled Initiative is the table’s to say. Nothing is silently skipped — outside a fight there are no turns at all — and the ruling is recorded rather than inferred.',
     },
   ],
   'black-tentacles': [

@@ -14062,9 +14062,38 @@ export const BESTOW_CURSE: SpellDefinition = {
     },
     dodge: {
       label: 'A Wisdom save at the start of each of its turns or Dodge',
+      effects: [
+        {
+          kind: 'save',
+          ability: 'wis',
+          // "must succeed on a Wisdom saving throw or become cursed" — the same
+          // opening roll the other three branches make. What this one's failure
+          // imposes is the obligation below and nothing else, which is why the
+          // repeat *is* the content of the save.
+          repeats: {
+            // "In combat, the target must succeed on a Wisdom saving throw at
+            // the start of each of its turns."
+            at: 'start-of-turn',
+            // "or be forced to take the Dodge action on that turn": a success
+            // buys the creature that turn and nothing more. The curse runs on
+            // and asks again at the next one, which is the third value
+            // `onSuccess` carries and the only sentence in reach that needs it.
+            onSuccess: 'nothing',
+            onFailure: {
+              // The legality form of the compulsion, which is the owner's
+              // ruling: the Action slot narrowed to the Dodge and failing
+              // closed, so everything else is refused and nobody is walked
+              // through a Dodge.
+              rule: { kind: 'permits-only', slot: 'action', actions: ['dodge'] },
+              // "on that turn" — the turn the failed save was raised at the
+              // start of, and no other.
+              lasts: 'this-turn',
+            },
+          },
+        },
+      ],
       unmodelled: [
-        'this branch resolves nothing at all, so the opening Wisdom save the other three roll — "must succeed on a Wisdom saving throw or become cursed" — is not raised for it either, and nobody is cursed',
-        'the Wisdom save at the start of each of the target’s turns is not raised, and a failure does not compel the Dodge action: a repeat save hung on a casting ends the spell on a success and this one ends nothing, and its failure spends an action rather than deepening a condition',
+        'the sentence opens "In combat" and the engine reads that as the turn order it needs rather than as a fact about the fiction: outside a fight there are no turns for the save to be raised at the start of, so a cursed creature walking down a corridor is asked nothing',
       ],
     },
     'extra-damage': {
