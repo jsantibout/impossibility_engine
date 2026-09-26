@@ -2,6 +2,7 @@ import { type Ability, ok, type Result, type RollMode, type Skill } from '@ie/sh
 import type { Rng } from './dice.js';
 import { parseNotation } from './dice.js';
 import { rollRecorded, type RecordedRoll, type RollIssuer } from './rolls.js';
+import type { StandingRequirement } from './standing.js';
 
 /**
  * Named modifiers shared by every D20 Test.
@@ -162,6 +163,15 @@ export interface ActiveBonus {
    * of them: Bless reaches every attack roll and every save its target makes.
    */
   readonly only?: BonusNarrowing;
+  /**
+   * What must hold for the bonus to apply at all — SRD Warding Bond's "while
+   * the target is within 60 feet of you". Pinned from the effect and asked by
+   * the readers of the two families it may reach (`armorClassOf`,
+   * `savingSupport`) at every read, exactly as a feature's `StandingEffect`
+   * asks its own. Absent is unconditional, which is every bonus written before
+   * the field existed. (W7-S19)
+   */
+  readonly requires?: readonly StandingRequirement[];
 }
 
 /**

@@ -234,7 +234,17 @@ export function expireEffects(state: GameState): GameState {
       const caster = Object.values(current.creatures).find(
         (c) => c.concentration?.castingId === castingId,
       );
-      current = releaseCasting(current, caster?.id ?? null, castingId);
+      // **With the moment the deadline fell**, where it fell on the clock: a
+      // `time-advanced` may carry the fold a year past a ten-day casting in one
+      // step, and what the casting ran is ten days — see `releaseCasting`'s
+      // `endedAt`. A turn-anchored deadline names no clock and passes none.
+      // (W7-S19)
+      current = releaseCasting(
+        current,
+        caster?.id ?? null,
+        castingId,
+        timer.deadline.kind === 'elapsed' ? timer.deadline.at : undefined,
+      );
     }
   }
 }

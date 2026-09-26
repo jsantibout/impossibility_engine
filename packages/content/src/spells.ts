@@ -4496,12 +4496,12 @@ export const GENTLE_REPOSE: SpellDefinition = {
   // `revive.within` is subtraction over `Vitals.diedAt`, so a rule the engine
   // runs really does read the time limit this spell extends — and now the
   // `preserves` mark takes the repose's own running span back out of it.
+  // And "days **spent**": a repose that has ended keeps the span it ran, which
+  // the fold accrues onto the body when the casting goes (`Vitals.preservedSeconds`)
+  // and `preservedSpan` reads beside the castings still running.
   dmDecides: [
     'You touch a corpse or other remains.',
     "For the duration, the target is protected from decay and can't become Undead.",
-  ],
-  unmodelled: [
-    'the days are taken back only while this casting is still running: `preservedSpan` reads the castings on the body **now**, so a repose that has ended — its ten days run out, a Dispel Magic, the caster dead — gives the window back and a corpse the book would still raise is refused. SRD says "days **spent** under the influence of this spell", which is a fact about days elapsed rather than about the casting standing, and nothing accumulates a span on a creature',
   ],
 };
 
@@ -4721,18 +4721,13 @@ export const NONDETECTION: SpellDefinition = {
   range: { kind: 'touch' },
   targets: { count: 1, self: true, willing: true },
   effects: [],
+  // "The target can't be targeted by any Divination spell": a ward the
+  // casting's record holds for its target, read at every casting's pre-flight
+  // — a Mind Spike or a Hunter's Mark aimed at the target is refused `warded`
+  // before anything is spent, with this spell named.
+  wardsTargets: { school: 'divination' },
   durationSeconds: 28_800,
-  // **Tracked, not handed over, and the reason is a correction.** This note
-  // used to say the refusal had no reachable case because every Divination
-  // spell the engine defines is cast at Self or at no creature. That was
-  // wrong: SRD Mind Spike and SRD Hunter's Mark are Divinations aimed at one
-  // creature, both executed and both inside level-5 reach, so a Nondetection
-  // on a quarry is a casting a table reaches. What is missing is the state a
-  // creature holds that refuses a school of casting, and its reader at the one
-  // seam a casting checks its targets — `an-effect-that-suppresses-other-magic`
-  // from the target's side, which `missing-shapes.ts` files.
   unmodelled: [
-    'the refusal is not applied: "The target can’t be targeted by any Divination spell" would stop a Mind Spike or a Hunter’s Mark aimed at the target, and no state on a creature refuses a casting by its school',
     'scrying sensors are not modelled, and a place or an object as the target is not a creature in state',
   ],
 };
@@ -7289,8 +7284,14 @@ export const LEVITATE: SpellDefinition = {
     effects: [{ kind: 'change-altitude', upTo: 20 }],
   },
   durationSeconds: 600,
+  // "The target can move only by pushing or pulling against a fixed object or
+  // surface within reach … which allows it to move as if it were climbing" and
+  // "If you are the target, you can move up or down as part of your move" are
+  // the move command's: a held-up creature moves only as a climb along a
+  // surface the move states (`alongSurface`), and a caster holding themself up
+  // spends their own vertical feet against the twenty the activation prints,
+  // which the hold pins (`GrantedLift.altitudePerTurn`).
   unmodelled: [
-    'what the levitating creature may do with its own Speed is the DM’s, and it is a gap this spell opens: "The target can move only by pushing or pulling against a fixed object or surface within reach" is the whole of SRD’s answer, and the engine refuses only a **rise** — a creature holding station twenty feet up may still walk its thirty feet sideways through the air and come down for nothing, because gravity is not a Speed and no rule asks what is under a creature that is already off the ground. The **half of the altitude sentence a creature spends on its own movement** is the same absence: "If you are the target, you can move up or down as part of your move" would have to count the feet this creature has already risen under the lift **this turn**, and a `GrantedLift` holds only whose magic it is — so `checkRise` goes on refusing a rise nothing else granted rather than allowing one it could not cap. The Magic action that moves somebody else is built; the climbing along a wall is fiction',
     'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
   ],
 };
@@ -8773,6 +8774,12 @@ export const GUST_OF_WIND: SpellDefinition = {
   range: { kind: 'self' },
   targets: { count: 0 },
   area: { kind: 'line', length: 60, width: 10, origin: 'self' },
+  // "Any creature in the Line must spend 2 feet of movement for every 1 foot
+  // it moves when moving closer to you." Difficult Terrain by another name,
+  // narrowed to the step: the patch lies on the Line the caster blows and
+  // charges a step of a stated route only when it ends nearer the caster than
+  // it began, read against where the caster stands now.
+  areaTerrain: { costPerFoot: 2, onlyTowards: 'caster' },
   effects: [
     {
       kind: 'save',
@@ -8813,7 +8820,6 @@ export const GUST_OF_WIND: SpellDefinition = {
   },
   durationSeconds: 60,
   unmodelled: [
-    'the doubled cost of walking into the wind — "must spend 2 feet of movement for every 1 foot it moves when moving closer to you" — is not charged: a casting may make ground expensive now, and a patch is a property of the **square**, charging whoever crosses it at the rate it holds. Nothing on one can say "only while moving closer to you", which is a fact about the mover rather than about the ground, so `areaTerrain` cannot carry it',
     'the gas dispersed, the unprotected candles snuffed and the protected flames dancing are the DM’s, and so is the "50 percent chance to extinguish them", which is a random outcome that is not a d20',
   ],
 };
@@ -10073,15 +10079,18 @@ export const SPIKE_GROWTH: SpellDefinition = {
   range: { kind: 'ranged', feet: 150 },
   targets: { count: 0 },
   area: { kind: 'sphere', radius: 20, origin: 'point' },
-  // "The area becomes Difficult Terrain for the duration." The whole of what
-  // the casting itself does: the spikes' damage is the sentence after it and
-  // is still blocked on the distance a move does not record.
-  areaTerrain: { costPerFoot: 2 },
+  // "The area becomes Difficult Terrain for the duration. When a creature
+  // moves into or within the area, it takes 2d4 Piercing damage for every 5
+  // feet it travels." Both sentences on the one patch the casting lays: the
+  // rate is charged by the ruler, and the dice are owed for every five feet of
+  // a stated route that lie inside the Sphere — a move that could have crossed
+  // it with no route stated is asked for one, and a shove that states none is
+  // reported rather than rolled for.
+  areaTerrain: { costPerFoot: 2, damagePerFeet: { feet: 5, dice: '2d4', damageType: 'piercing' } },
   effects: [],
   durationSeconds: 600,
   unmodelled: [
-    'the spikes deal nothing: "it takes 2d4 Piercing damage for every 5 feet it travels" multiplies the dice by a distance travelled **inside** the area, and a move is charged by the foot without anybody asking which feet were where',
-    'the Wisdom (Perception or Survival) check that spots the hazard is not offered: it belongs to a creature that is about to walk in rather than to one the casting caught, and who may attempt a check is derived from what its timer sits on',
+    'the Wisdom (Perception or Survival) check that spots the hazard is not offered off the casting: `SpellCheck` names one skill and the command that attempts a check (`resolveEffectCheck`) states none, so "Perception or Survival" — the attempter’s choice — has no field to be said in; the table calls it as a Search action with either skill against the casting’s DC, and "any creature that can’t see the area when the spell is cast" is the table’s to know',
   ],
 };
 
@@ -10101,9 +10110,11 @@ export const SPIKE_GROWTH: SpellDefinition = {
  * Every benefit the spell grants is one the engine applies on its own — a
  * bonus to Armour Class, a bonus to saves, Resistance to all damage — and
  * every one of them is fenced by **"while the target is within 60 feet of
- * you"**. A distance between two creatures changes on every move and nothing
- * re-reads a grant when it does, which is the same absence that makes the
- * spell's own ending unwritable.
+ * you"**: a `within-feet-of` requirement the three grants carry and the
+ * readers ask at every read. The shared damage is dealt where every blow
+ * settles, as a second blow on the caster with this casting as its source; the
+ * two endings are causes on the casting's record, and the recast on either
+ * connected creature is `replacesPriorCasting` read over both ends.
  */
 export const WARDING_BOND: SpellDefinition = {
   id: 'warding-bond',
@@ -10116,13 +10127,53 @@ export const WARDING_BOND: SpellDefinition = {
   // "another creature", so not the caster: the whole spell is a bond between
   // two of them.
   targets: { count: 1, willing: true },
-  effects: [],
-  durationSeconds: 3600,
-  unmodelled: [
-    'none of the three benefits is granted: the +1 to AC, the +1 to saving throws and the Resistance to all damage are each ordinary, and all three hold only "While the target is within 60 feet of you" — a standing effect derived from where two creatures are standing, which nothing re-reads when either of them moves',
-    'the shared damage is not dealt: "each time it takes damage, you take the same amount of damage" is a consequence of somebody else’s damage landing, and no effect answers one',
-    'the two endings are not written: dropping to 0 Hit Points and drifting more than 60 feet apart are causes no `CastingEndTrigger` expresses, and neither is the recast on either of the connected creatures',
+  effects: [
+    // "it gains a +1 bonus to AC and saving throws" — one grant reaching both
+    // families, fenced by the sixty feet.
+    {
+      kind: 'buff',
+      bonus: { source: 'Warding Bond', flat: 1 },
+      applies: ['ac', 'save'],
+      direction: 'add',
+      requires: [{ kind: 'within-feet-of', creature: 'caster', feet: 60 }],
+    },
+    // "and it has Resistance to all damage" — every type the glossary prints,
+    // under the same fence.
+    {
+      kind: 'damage-defense',
+      damageTypes: [
+        'acid',
+        'bludgeoning',
+        'cold',
+        'fire',
+        'force',
+        'lightning',
+        'necrotic',
+        'piercing',
+        'poison',
+        'psychic',
+        'radiant',
+        'slashing',
+        'thunder',
+      ],
+      defense: 'resistant',
+      requires: [{ kind: 'within-feet-of', creature: 'caster', feet: 60 }],
+    },
   ],
+  // "Also, each time it takes damage, you take the same amount of damage" —
+  // inside the paragraph the sixty feet fence, so the sharing holds within them.
+  sharesDamage: { with: 'caster', withinFeet: 60 },
+  durationSeconds: 3600,
+  // "The spell ends if you drop to 0 Hit Points or if you and the target
+  // become separated by more than 60 feet."
+  endsEarly: [
+    { on: 'caster-drops-to-0', ends: 'casting' },
+    { on: 'separated-beyond', feet: 60, ends: 'casting' },
+  ],
+  // "It also ends if the spell is cast again on either of the connected
+  // creatures."
+  replacesPriorCasting: true,
+  replacesPriorCastingOn: 'either',
 };
 
 /**
@@ -11179,6 +11230,62 @@ export const REVERSE_GRAVITY: SpellDefinition = {
 };
 
 /**
+ * SRD Sending:
+ *
+ * > _Level 3 Divination (Bard, Cleric, Wizard)._ **Casting Time:** Action.
+ * > **Range:** Unlimited. **Duration:** Instantaneous.
+ * > "You send a short message of 25 words or fewer to a creature you have met
+ * > or a creature described to you by someone who has met it. … You can send
+ * > the message across any distance and even to other planes of existence,
+ * > but if the target is on a different plane than you, there is a 5 percent
+ * > chance that the message doesn't arrive. You know if the delivery fails.
+ * > Upon receiving your message, a creature can block your ability to reach
+ * > it again with this spell for 8 hours. If you try to send another message
+ * > during that time, you learn that you are blocked, and the spell fails."
+ *
+ * The owner's ruling (2026-09-25): define it. The one die in it is the
+ * `chance` effect Augury is written on, gated on a fact only the table can
+ * declare — `cast_spell.otherPlane`, that the recipient is on another plane —
+ * because a model deciding whether a message arrived would be a number the
+ * model produced. The recipient is nowhere in the scene, so the casting is on
+ * its caster as Augury's is, and its printed Range is the fourth kind the
+ * vocabulary carries: Unlimited, which measures nothing and asks nothing. The
+ * message, the reply and the eight-hour block are the table's; "the spell
+ * fails" on a blocked sending is narrated over a slot already spent, a fact
+ * nothing reads afterwards.
+ */
+export const SENDING: SpellDefinition = {
+  id: 'sending',
+  name: 'Sending',
+  level: 3,
+  school: 'divination',
+  castingTime: 'action',
+  concentration: false,
+  range: { kind: 'unlimited' },
+  // On the caster, as SRD Augury is: the recipient is not a creature in the
+  // scene, and the one thing the engine resolves is the caster's own die.
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'chance',
+      // "there is a 5 percent chance that the message doesn't arrive" — thrown
+      // only when the caster states the recipient is on another plane.
+      percent: 5,
+      onlyIf: 'other-plane',
+      // "You know if the delivery fails": the casting happened and the slot is
+      // gone, and what the caster does not get is the message through.
+      onFailure: 'no-answer',
+    },
+  ],
+  dmDecides: [
+    'You send a short message of 25 words or fewer to a creature you have met or a creature described to you by someone who has met it.',
+    'The target hears the message in its mind, recognizes you as the sender if it knows you, and can answer in a like manner immediately.',
+    'Upon receiving your message, a creature can block your ability to reach it again with this spell for 8 hours.',
+    'If you try to send another message during that time, you learn that you are blocked, and the spell fails.',
+  ],
+};
+
+/**
  * SRD Sequester:
  *
  * > _Level 7 Transmutation (Wizard)._ **Casting Time:** Action.
@@ -11533,15 +11640,23 @@ export const UNSEEN_SERVANT: SpellDefinition = {
         conditions: ['invisible'],
       },
       cannotAttack: true,
+      // "Once on each of your turns as a Bonus Action, you can mentally
+      // command the servant to move up to 15 feet and interact with an
+      // object." The price is the caster's and the feet are the servant's;
+      // `commandSummons` is the door, and the object is the table's.
+      commanded: { costs: 'bonus-action', moveUpTo: 15 },
     },
   ],
   durationSeconds: 3600,
   // "If it drops to 0 Hit Points, the spell ends" — the whole casting, which is
-  // what then takes the fallen servant away.
-  endsEarly: [{ on: 'summon-drops-to-0', ends: 'casting' }],
+  // what then takes the fallen servant away. And "If you command the servant
+  // to perform a task that would move it more than 60 feet away from you, the
+  // spell ends" — a distance the fold reads off the servant's arrival.
+  endsEarly: [
+    { on: 'summon-drops-to-0', ends: 'casting' },
+    { on: 'separated-beyond', feet: 60, ends: 'casting' },
+  ],
   unmodelled: [
-    'the spell does not end when a command would take the servant more than 60 feet from the caster: that is a distance the engine can measure after the servant’s move and does not yet read at the move command, which another track owns',
-    'the Bonus Action the command costs its caster is not spent: the servant is moved by the DM’s move command on the servant itself, and the caster’s own economy is not charged for issuing the order',
     'what the servant fetches, cleans, mends, folds, lights, serves or pours is the DM’s and always will be',
   ],
 };
@@ -16072,6 +16187,7 @@ export const SPELL_DEFINITIONS: readonly SpellDefinition[] = [
   SECRET_CHEST,
   SEE_INVISIBILITY,
   SEEMING,
+  SENDING,
   SEQUESTER,
   SHAPECHANGE,
   SHATTER,

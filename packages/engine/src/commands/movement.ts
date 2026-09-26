@@ -40,8 +40,9 @@ import {
   statedBonusActionOf,
 } from '../monster.js';
 import { effectiveSizeOf } from '../size.js';
-import { castingIdOf } from '../spells.js';
+import { castingIdOf, castingSource } from '../spells.js';
 import { grapplesOn } from './unarmed.js';
+import { parseNotation } from '../dice.js';
 import {
   altitudeOf,
   canPassThrough,
@@ -50,6 +51,9 @@ import {
   checkRoute,
   costOfRoute,
   crossingsAlong,
+  CUBE,
+  damagingPatchesAt,
+  damagingTerrainBetween,
   dismount,
   distanceBetweenPoints,
   distanceToPoint,
@@ -67,11 +71,13 @@ import {
   liveTerrainNames,
   positionOf,
   sizeOf,
+  terrainDamageAlong,
+  type TerrainDamageCharge,
   uniformTerrainBetween,
 } from '../positioning.js';
 import { type AttackResolution, resolveAttack } from './attacks.js';
 import { applyConditionTo } from './conditions.js';
-import { dealSpellDamage } from './damage.js';
+import { dealSpellDamage, rollsIssuedSince } from './damage.js';
 import { rollSpellDice } from './rolls.js';
 import { type Content } from '../content.js';
 import { type ConcentrationConsequence, type Supply } from './casting.js';
@@ -130,6 +136,21 @@ export interface MoveCommand extends CommandIdentity {
    * creature's own movement either, so it costs no Speed and provokes nobody.
    */
   readonly forced?: boolean;
+  /**
+   * SRD Levitate: "The target can move only by pushing or pulling against a
+   * fixed object or surface within reach (such as a wall or a ceiling), which
+   * allows it to move as if it were climbing."
+   *
+   * That there is a wall within reach is a fact about the room, which the
+   * engine holds nothing of — so a creature something is holding off the
+   * ground moves only as a climb (`mode: 'climb'`) and only when the move
+   * states the surface it pulls along, here. Absent, the move is asked for it
+   * (`surface_required`); stated, the climb goes through at the unaided
+   * climb's own doubled cost and the surface is reported in `unverified` as
+   * the table's. Ignored for a creature nothing is holding up, which is what
+   * every move written before the field existed says by saying nothing.
+   */
+  readonly alongSurface?: true;
   /**
    * Feet a feature handed this turn, spent instead of the mover's own Speed.
    *
@@ -415,9 +436,19 @@ export function moveWithin(
     const ascent = checkRise(id, mode, command, rise);
     if (!ascent.ok) return ascent;
 
+    // — a creature something is holding up (W7-S19) —————————————————————————
+    //
+    // SRD Levitate's own half of the movement sentence: a held-up creature
+    // moves only as a climb, only along a surface the table has said is
+    // there, and — where it is holding *itself* up — only so many vertical
+    // feet a turn as the spell prints. Asked after the mode and the rise,
+    // because a walk it cannot make at all is refused before a climb it can.
+    const levitating = checkLevitating(state, id, command, mode, rise);
+    if (!levitating.ok) return levitating;
+
     // The one decision a climb leaves to the table, and the printed sentence
     // that answers it for the creatures whose blocks carry one.
-    const climbing = climbCheck(id, mode, command, sheet);
+    const climbing = [...climbCheck(id, mode, command, sheet), ...levitating.value];
 
     // **A carried area sweeps, and a move of more than one space does not say
     // what it swept.** Checked before any cost, any budget and any Opportunity
@@ -473,6 +504,17 @@ export function moveWithin(
     // about.
     const barred = checkBarriers(state, scene.value, id, from, to, command.route, mode, charging);
     if (!barred.ok) return barred;
+
+    // — the ground that cuts (W7-S19) ————————————————————————————————————————
+    //
+    // **And the ground that deals damage for the distance travelled across
+    // it**, which is the fourth thing a route says. SRD Spike Growth: "it takes
+    // 2d4 Piercing damage for every 5 feet it travels" — a number no budget
+    // answers and no endpoints can, so it is the one question about a route
+    // that is asked whether or not anything is being spent. Asked here, after
+    // the barriers, so a step a dome stops is never cut for.
+    const cutting = checkTerrainDamage(state, scene.value, id, from, to, command.route, charging);
+    if (!cutting.ok) return cutting;
 
     const difficult = command.difficultFeet ?? 0;
     if (!Number.isInteger(difficult) || difficult < 0 || difficult > feet) {
@@ -702,6 +744,11 @@ export function moveWithin(
         ...(command.forced === true ? { forced: true } : {}),
         ...(stamp === null ? {} : { command: stamp }),
       });
+      // **What the ground cut for, after the arrival it cut during** — the
+      // chronology of the moment, and the reading the events are written in.
+      const cut = cutByTheGround(events.reduce(applyEvent, state), id, cutting.value.charges, supply);
+      if (!cut.ok) return cut;
+      events.push(...cut.value.events);
       return ok({
         events,
         feet,
@@ -712,6 +759,8 @@ export function moveWithin(
           ...ground.value.unverified,
           ...passage.value.unverified,
           ...barred.value.unverified,
+          ...cutting.value.unverified,
+          ...cut.value.unverified,
           ...jumped.value.unverified,
           ...climbing,
           ...lineNotes,
@@ -731,6 +780,16 @@ export function moveWithin(
       ...(stamp === null ? {} : { command: stamp }),
     });
 
+    // **And on the held road too**, dealt at the declaration rather than at
+    // the completion: the spikes are taken as the creature travels and the
+    // Opportunity Attack "right before the creature leaves your reach" is
+    // taken during the same walk, and SRD orders neither against the other.
+    // Dealt now so that a hold answered three commands later does not have to
+    // remember a route it was never handed.
+    const cut = cutByTheGround(events.reduce(applyEvent, state), id, cutting.value.charges, supply);
+    if (!cut.ok) return cut;
+    events.push(...cut.value.events);
+
     return ok({
       events,
       feet,
@@ -741,6 +800,8 @@ export function moveWithin(
         ...ground.value.unverified,
         ...passage.value.unverified,
         ...barred.value.unverified,
+        ...cutting.value.unverified,
+        ...cut.value.unverified,
         ...jumped.value.unverified,
         ...climbing,
         ...lineNotes,
@@ -748,6 +809,152 @@ export function moveWithin(
       duplicate: false,
     });
   });
+}
+
+// — the ground that cuts (W7-S19) ——————————————————————————————————————————————
+
+interface TerrainDamageOutcome {
+  readonly charges: readonly TerrainDamageCharge[];
+  /** What the engine could not settle and did not stop the table to ask about. */
+  readonly unverified: readonly string[];
+}
+
+/**
+ * What the ground cuts this move for, and whether it can be worked out at all.
+ *
+ * SRD Spike Growth: "When a creature moves into or within the area, it takes
+ * 2d4 Piercing damage **for every 5 feet it travels**." The dice are owed for
+ * a distance travelled *inside* the area, and a move records where it began
+ * and where it ended — so the only thing that can answer is the route the
+ * mover states, read space by space against the patches that cut. Three
+ * cases, on {@link chargeTerrain}'s pattern and with one difference from it:
+ *
+ * - **a route was stated** — every space it enters is read, and each inside a
+ *   cutting patch is five feet travelled inside it;
+ * - **no route, and no shortest way there could have crossed the spikes** —
+ *   nothing is owed and nothing is asked;
+ * - **no route, and some shortest way could have** — refused `route_required`,
+ *   **whether or not a budget is being spent**. That is the difference: the
+ *   terrain's own question is about a number of feet and is reported where
+ *   there is no budget to charge, but a die cannot be reported. A goblin
+ *   walking through the spikes between fights is still cut.
+ *
+ * **A shove is charged the same where it states its path and reported where
+ * it does not.** Forced movement is exempt from the creature's own costs —
+ * Speed, Difficult Terrain, Opportunity Attacks — because those are costs of
+ * *its* movement, and the spikes are not: SRD says "moves into or within"
+ * and a creature thrown into them has. But a rider on a settled outcome never
+ * refuses, so a shove with no path stated lands and says in `unverified` that
+ * it was not rolled for, which is where a shove into a wall already goes.
+ */
+function checkTerrainDamage(
+  state: GameState,
+  scene: PositionState,
+  id: CharacterId,
+  from: Point,
+  to: Point,
+  route: readonly Point[] | undefined,
+  charging: Charging,
+): Result<TerrainDamageOutcome> {
+  if (route !== undefined) {
+    // Already checked by `chargeTerrain` for a walk; a shove states one only
+    // for this, so it is checked here for the first time.
+    const checked = checkRoute(scene, from, to, route);
+    if (!checked.ok) return checked;
+    return ok({ charges: terrainDamageAlong(state, checked.value), unverified: [] });
+  }
+
+  if (!damagingTerrainBetween(state, from, to)) return ok({ charges: [], unverified: [] });
+
+  if (charging === 'none') {
+    const landedIn = damagingPatchesAt(state, to);
+    return ok({
+      charges: [],
+      unverified: [
+        `${id} was moved from (${from.x}, ${from.y}, ${from.z}) to (${to.x}, ${to.y}, ${to.z}) across ground that deals damage for every five feet travelled inside it${landedIn.length === 0 ? '' : `, and came to rest in ${landedIn.join(' and ')}`}; a forced move states no route, so no dice were thrown for it — send the move again with its route filled in to have them thrown`,
+      ],
+    });
+  }
+
+  return needsContext(
+    ROUTE_REQUIRED,
+    `the ground between (${from.x}, ${from.y}, ${from.z}) and (${to.x}, ${to.y}, ${to.z}) deals damage for every five feet travelled inside it, so which spaces ${id} crossed decides the dice`,
+    [
+      {
+        kind: 'route',
+        subject: id,
+        need: `the ${distanceBetweenPoints(from, to) / CUBE} spaces ${id} passed through, in order, ending where the move ends`,
+        because:
+          'the dice are owed for the distance travelled inside the area, and which feet those were is not something the engine may decide',
+        satisfyWith: `the same resolveMove command with route filled in, as ${distanceBetweenPoints(from, to) / CUBE} points of 5 feet each`,
+      },
+    ],
+  );
+}
+
+/**
+ * Deal what the ground cut for, one roll of the summed dice per patch.
+ *
+ * SRD Spike Growth's "2d4 … for every 5 feet" over fifteen feet is 6d4, thrown
+ * once: the dice are summed before the throw rather than thrown three times,
+ * because the sentence names one damage roll and a creature Resistant to
+ * Piercing halves one total rather than three. Through the ordinary damage
+ * pipeline with the casting as source and its caster as dealer — so the
+ * Concentration save, the defences and SRD's "you or your allies damage it"
+ * all read it as the spell's — and with the caster's sheet under the dice,
+ * because the dice are the spell's. A patch no casting laid names no dealer
+ * and rolls under the mover's own sheet, which adds nothing to a bare die.
+ *
+ * The generator's movement is counted here, because this is the first die a
+ * move has ever thrown and `moveWithin` writes no `rolls-issued` of its own.
+ */
+function cutByTheGround(
+  state: GameState,
+  id: CharacterId,
+  charges: readonly TerrainDamageCharge[],
+  supply: Supply,
+): Result<{ readonly events: readonly GameEvent[]; readonly unverified: readonly string[] }> {
+  if (charges.length === 0) return ok({ events: [], unverified: [] });
+  const mover = state.creatures[id];
+  if (mover === undefined) return ok({ events: [], unverified: [] });
+
+  const events: GameEvent[] = [];
+  const unverified: string[] = [];
+  const issuedBefore = supply.issuer.count;
+  let current = state;
+  for (const charge of charges) {
+    const record = charge.source === undefined ? undefined : current.ongoing[charge.source];
+    const source =
+      record === undefined ? charge.patch : castingSource(record.spell, record.castingId);
+    const dealer = record === undefined ? undefined : (record.caster as CharacterId);
+    const sheet = (dealer === undefined ? undefined : current.creatures[dealer]?.sheet) ?? mover.sheet;
+
+    // Fifteen feet inside is three helpings of the printed dice, summed into
+    // one notation: the validator held the feet to whole spaces and the dice
+    // to notation, so a helping that does not divide is a programmer's error.
+    const helpings = Math.floor((charge.spaces * CUBE) / charge.damagePerFeet.feet);
+    if (helpings === 0) continue;
+    const printed = parseNotation(charge.damagePerFeet.dice);
+    if (!printed.ok) return printed;
+    const summed = `${printed.value.count * helpings}d${printed.value.sides}${
+      printed.value.modifier === 0
+        ? ''
+        : `${printed.value.modifier * helpings > 0 ? '+' : ''}${printed.value.modifier * helpings}`
+    }`;
+
+    const rolled = rollSpellDice(supply, sheet, source, charge.damagePerFeet.damageType, summed);
+    if (!rolled.ok) return rolled;
+    const dealt = dealSpellDamage(current, id, rolled.value, source, supply, {
+      ...(dealer === undefined ? {} : { by: dealer }),
+      fromSpell: true,
+    });
+    if (!dealt.ok) return dealt;
+    events.push(...dealt.value.events);
+    unverified.push(...dealt.value.unverified);
+    current = dealt.value.events.reduce(applyEvent, current);
+  }
+  events.push(...rollsIssuedSince(supply, issuedBefore));
+  return ok({ events, unverified });
 }
 
 /**
@@ -1096,6 +1303,94 @@ function checkRise(
 }
 
 /**
+ * What a creature something is holding off the ground may do with its own
+ * Speed — SRD Levitate's sentence, read off `CreatureState.lifts`.
+ *
+ * > "The target can move only by pushing or pulling against a fixed object or
+ * > surface within reach (such as a wall or a ceiling), which allows it to
+ * > move as if it were climbing. You can change the target's altitude by up
+ * > to 20 feet in either direction on your turn. If you are the target, you
+ * > can move up or down as part of your move."
+ *
+ * Three rules and three answers, in the order the sentence prints them:
+ *
+ * - **only as a climb** — every other mode is refused
+ *   (`levitating_cannot_walk`); the climb's surcharge is `wayOf`'s ordinary one,
+ *   because "as if it were climbing" is exactly the unaided climb;
+ * - **only along a surface within reach** — a fact about the room the engine
+ *   cannot see, so the move states it (`MoveCommand.alongSurface`) and is asked
+ *   for it otherwise (`surface_required`), and having stated it the surface is
+ *   reported as the table's;
+ * - **so many vertical feet a turn** — for a caster holding *themself* up, the
+ *   feet this move rises or falls plus the feet already altered this turn
+ *   (`GrantedLift.altered`, stamped by the fold off every altitude change) may
+ *   not pass the twenty the hold pinned (`altitude_spent`). A creature held up
+ *   by somebody else's casting is capped by nothing here: the twenty is the
+ *   caster's, and the caster spends it through the activation.
+ *
+ * A shove is exempt, for the reason it is exempt from everything else here:
+ * it is not the creature's movement. A creature nothing is holding up is not
+ * this rule's business at all.
+ */
+function checkLevitating(
+  state: GameState,
+  id: CharacterId,
+  command: MoveCommand,
+  mode: MovementMode,
+  rise: number,
+): Result<readonly string[]> {
+  if (command.forced === true) return ok([]);
+  const held = state.creatures[id]?.lifts ?? [];
+  if (held.length === 0) return ok([]);
+
+  if (mode !== 'climb') {
+    return err(
+      'levitating_cannot_walk',
+      `${id} is being held off the ground and can move only by pushing or pulling against a fixed object or surface within reach, as if climbing; send the move with mode: 'climb'`,
+    );
+  }
+  if (command.alongSurface !== true) {
+    return needsContext(
+      'surface_required',
+      `${id} is being held off the ground and can move only along a fixed object or surface within reach, and nobody has said there is one`,
+      [
+        {
+          kind: 'route',
+          subject: id,
+          need: `that a wall, a ceiling or another fixed surface is within ${id}'s reach to pull along`,
+          because:
+            'SRD Levitate lets a held-up creature move only by pushing or pulling against a fixed object or surface within reach, and whether one is there is a fact about the room only the table can declare',
+          satisfyWith: `the same resolveMove command with alongSurface: true`,
+        },
+      ],
+    );
+  }
+
+  // The twenty, for a caster holding themself up: the hold pinned it, the
+  // fold stamped what this turn has already spent of it, and the mover is the
+  // caster of the casting the hold names.
+  const turn = state.combat?.turnsTaken ?? null;
+  for (const lift of held) {
+    if (lift.altitudePerTurn === undefined) continue;
+    const castingId = castingIdOf(lift.source);
+    if (castingId === null || state.ongoing[castingId]?.caster !== id) continue;
+    const already = turn !== null && lift.altered?.turn === turn ? lift.altered.feet : 0;
+    const asked = Math.abs(rise);
+    if (asked === 0) continue;
+    if (already + asked > lift.altitudePerTurn) {
+      return err(
+        'altitude_spent',
+        `${id} may change their own altitude by up to ${lift.altitudePerTurn} feet a turn under ${lift.source}, has moved ${already} of them, and this move would move ${asked} more`,
+      );
+    }
+  }
+
+  return ok([
+    `${id} is being held off the ground and moved by pulling along a fixed object or surface the caller says is within reach; that it is there is the table's`,
+  ]);
+}
+
+/**
  * The bound a declared jump puts on the move that is the jump.
  *
  * SRD "Jump", both entries, and the whole of what the engine adds to them: the
@@ -1406,7 +1701,10 @@ function chargeTerrain(
   if (route !== undefined) {
     const checked = checkRoute(scene, from, to, route);
     if (!checked.ok) return checked;
-    const walked = costOfRoute(state, checked.value);
+    // From the space being left, so a rate that reads the direction of each
+    // step — SRD Gust of Wind's "when moving closer to you" — has a first step
+    // to read.
+    const walked = costOfRoute(state, checked.value, from);
     return ok({ ...walked, cost: walked.cost * surcharge, unverified: [] });
   }
 

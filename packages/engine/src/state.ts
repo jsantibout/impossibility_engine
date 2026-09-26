@@ -1334,6 +1334,28 @@ export interface GrantedFallWard {
 export interface GrantedLift {
   /** The casting (`Levitate#cast:3`) that is holding them there. */
   readonly source: string;
+  /**
+   * SRD Levitate: "You can change the target's altitude by up to 20 feet in
+   * either direction on your turn. If you are the target, you can move up or
+   * down as part of your move."
+   *
+   * The twenty, pinned from the definition's `change-altitude` activation at
+   * the lift, so the move command that caps a self-lifted caster's own
+   * vertical feet opens no book. Absent for a hold written before the field
+   * existed, and for a definition that prints no activation — which is a hold
+   * whose caster may not move the creature at all, and so caps nothing.
+   */
+  readonly altitudePerTurn?: number;
+  /**
+   * The vertical feet this hold's creature has been moved on the current
+   * turn, stamped by the fold off every `creature-moved` that changed its
+   * altitude — its own climb and the caster's Magic action alike, because the
+   * book counts both against one twenty. `turn` is `CombatState.turnsTaken`,
+   * the counter that never collides, so a stamp from an earlier turn reads as
+   * nothing spent; outside combat there is no turn and nothing is written,
+   * which is the reading every once-per-turn cap in this engine takes.
+   */
+  readonly altered?: { readonly turn: number; readonly feet: number };
 }
 
 /**
@@ -1816,6 +1838,16 @@ export interface PendingCasting {
    * folds to exactly the state it always did.
    */
   readonly form?: string;
+  /**
+   * That a message spell's recipient is on another plane — SRD Sending's
+   * "if the target is on a different plane than you". The twelfth stated
+   * fact, beside the form and for the same reason: a declaration made across
+   * the planes must settle with the die the book gives it, and settlement
+   * takes no fresh request. Absent for every spell that prints no plane
+   * clause, so a declaration written before this folds to exactly the state
+   * it always did. (W7-S19)
+   */
+  readonly otherPlane?: true;
   /**
    * Where the piles of bones lie that a `raise` effect turns into creatures.
    *

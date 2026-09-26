@@ -81,6 +81,7 @@ import {
   type Placement,
   type SceneExtent,
   type Point,
+  type TerrainDamage,
   type TerrainRegion,
 } from './positioning.js';
 
@@ -3328,6 +3329,10 @@ export type GameEvent =
       readonly costPerFoot: number;
       /** A patch that makes the ground ordinary — see `DifficultPatch.clears`. Additive; absent everywhere before it. */
       readonly clears?: true;
+      /** What the ground deals per distance travelled across it — see `TerrainDamage`. Additive; absent everywhere before it. */
+      readonly damagePerFeet?: TerrainDamage;
+      /** A rate charged only for a step towards the caster — see `DifficultPatch.onlyTowards`. Additive; absent everywhere before it. */
+      readonly onlyTowards?: 'caster';
       readonly source?: string;
       readonly command?: CommandStamp;
     }

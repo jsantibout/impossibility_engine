@@ -130,6 +130,7 @@
     "endingFactsOf",
     "subjectOf",
     "casterOutsideArea",
+    "separatedBeyond",
     "Ending",
     "nextEnding",
     "endingKey",
@@ -208,6 +209,7 @@
     "SCENE_EVENTS",
     "SceneEvent",
     "isSceneEvent",
+    "stampAltitudeAltered",
     "applyScene"
   ],
   "fold/elsewhere.ts": [

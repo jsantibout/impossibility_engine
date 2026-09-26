@@ -731,8 +731,12 @@ const project = (from: Point, feet: number, bearing: number, elevation: number):
  *
  * The lattice is an internal representation, not a battlemap: nothing is
  * rendered, and Maestro still speaks in feet from landmarks.
+ *
+ * Exported for the one reader outside this file that counts travel in spaces
+ * — the validator's check that a distance the ground cuts for is one a route
+ * can measure (`TerrainDamage.feet`).
  */
-const CUBE = 5;
+export const CUBE = 5;
 
 /** Snap a measurement in feet onto the lattice. */
 const snap = (feet: number): number => Math.round(feet / CUBE) * CUBE;
@@ -2245,10 +2249,52 @@ export interface LatticePatch {
   readonly source?: string;
 }
 
+/**
+ * Damage the ground deals for the distance travelled across it.
+ *
+ * SRD Spike Growth: "When a creature moves into or within the area, it takes
+ * 2d4 Piercing damage **for every 5 feet it travels**." The dice are multiplied
+ * by a distance travelled *inside* the region, so the record holds the three
+ * things the sentence prints and nothing derived: the feet one helping of dice
+ * is owed for, the dice, and their type. Declared here beside the patch that
+ * carries it, so the content-facing `AreaTerrain` and the lattice's own record
+ * write the same three fields.
+ */
+export interface TerrainDamage {
+  /** SRD's "for every 5 feet": the distance one helping of the dice is owed for. */
+  readonly feet: number;
+  /** The dice owed for that distance: Spike Growth's `2d4`. */
+  readonly dice: string;
+  /** Their type, lower-cased as every damage type in the engine is. */
+  readonly damageType: string;
+}
+
 /** A patch of expensive ground, as the table or a casting declared it. */
 export interface DifficultPatch extends LatticePatch {
   /** Feet of movement spent per foot of ground. At least {@link DIFFICULT_TERRAIN}, unless it clears. */
   readonly costPerFoot: number;
+  /**
+   * What crossing this ground costs in hit points, per distance travelled
+   * inside it — see {@link TerrainDamage}. Absent for every patch that merely
+   * slows, which is all of them but SRD Spike Growth's.
+   */
+  readonly damagePerFeet?: TerrainDamage;
+  /**
+   * SRD Gust of Wind: "Any creature in the Line must spend 2 feet of movement
+   * for every 1 foot it moves **when moving closer to you**."
+   *
+   * A rate that applies to a *step* rather than to a space: the patch charges
+   * only a step of a stated route that ends nearer the region's origin
+   * creature — the caster the Line blows from — than it began, read against
+   * where that creature stands at the moment of the step. A patch whose region
+   * is anchored to a point reads the caster of the casting it names instead.
+   * Because the number depends on which way each step went, a move with no
+   * route stated that could have entered such a patch is asked for one
+   * (`uniformTerrainBetween` answers null), and a single-space read
+   * (`terrainAt`) reports the patch as lying there without judging a step it
+   * was not given.
+   */
+  readonly onlyTowards?: 'caster';
   /**
    * This patch makes the ground under it **ordinary**, whatever else lies there.
    *
@@ -2277,7 +2323,10 @@ export function declareDifficultPatch(
   costPerFoot: number,
   source?: string,
   clears?: true,
+  /** The two narrowings a casting's ground may carry — see {@link DifficultPatch}. */
+  extras: { readonly damagePerFeet?: TerrainDamage; readonly onlyTowards?: 'caster' } = {},
 ): Result<PositionState> {
+  const { damagePerFeet, onlyTowards } = extras;
   if (patch.trim().length === 0) {
     return err('bad_patch', 'a patch of ground needs a name, so a refusal can say what it was');
   }
@@ -2308,7 +2357,13 @@ export function declareDifficultPatch(
     ...state,
     terrain: {
       ...state.terrain,
-      [patch]: { region, costPerFoot, ...(source === undefined ? {} : { source }) },
+      [patch]: {
+        region,
+        costPerFoot,
+        ...(source === undefined ? {} : { source }),
+        ...(damagePerFeet === undefined ? {} : { damagePerFeet }),
+        ...(onlyTowards === undefined ? {} : { onlyTowards }),
+      },
     },
   });
 }
@@ -3203,18 +3258,72 @@ export interface RouteCharge {
  * left, and SRD charges the extra foot for movement **in** a space, which a
  * creature entering the next one is no longer doing in the last.
  */
-export function costOfRoute(state: GameState, spaces: readonly Point[]): RouteCharge {
+export function costOfRoute(
+  state: GameState,
+  spaces: readonly Point[],
+  /**
+   * The space the route is walked from, for a patch whose rate reads the
+   * direction of each step — see {@link DifficultPatch.onlyTowards}. Absent,
+   * the first step has no direction and such a patch does not charge it.
+   */
+  from?: Point,
+): RouteCharge {
   const scene = state.scene;
   const live = scene === null ? [] : livePatches(state);
 
   let cost = 0;
   const patches = new Set<string>();
+  let previous = from === undefined ? null : snapPoint(from);
   for (const space of spaces) {
-    const here = scene === null ? OPEN_FLOOR : chargeAt(scene, live, space);
+    const here =
+      scene === null
+        ? OPEN_FLOOR
+        : chargeAt(
+            scene,
+            live.filter(([, patch]) => appliesToStep(state, scene, patch, previous, space)),
+            space,
+          );
     cost += CUBE * here.costPerFoot;
     for (const name of here.patches) patches.add(name);
+    previous = snapPoint(space);
   }
   return { cost, patches: [...patches].sort() };
+}
+
+/**
+ * Whether a patch charges this step of a route.
+ *
+ * Every patch charges every space it covers but one kind: a patch narrowed to
+ * steps "closer to you" ({@link DifficultPatch.onlyTowards}) charges a step
+ * only when the space entered is nearer the caster than the space left. The
+ * caster is the region's origin creature where the region is carried — SRD
+ * Gust of Wind's Line blows from its caster — and the caster of the casting
+ * the patch names otherwise; a caster nobody has placed, or a step with no
+ * space left (the first of a route walked from nowhere), is a direction nobody
+ * can read, and the patch withholds rather than charges.
+ */
+function appliesToStep(
+  state: GameState,
+  scene: PositionState,
+  patch: DifficultPatch,
+  previous: Point | null,
+  space: Point,
+): boolean {
+  if (patch.onlyTowards === undefined) return true;
+  if (previous === null) return false;
+  const caster = casterOfPatch(state, patch);
+  if (caster === null) return false;
+  const at = positionOf(scene, caster);
+  if (at === null) return false;
+  return distanceBetweenPoints(snapPoint(space), at) < distanceBetweenPoints(previous, at);
+}
+
+/** The creature a directional patch measures "closer to you" against, or null. */
+function casterOfPatch(state: GameState, patch: DifficultPatch): CharacterId | null {
+  if ('creature' in patch.region.origin) return patch.region.origin.creature;
+  if (patch.source === undefined) return null;
+  const record = state.ongoing[patch.source];
+  return record === undefined ? null : (record.caster as CharacterId);
 }
 
 /**
@@ -3257,6 +3366,39 @@ export function uniformTerrainBetween(
   const live = livePatches(state);
   if (live.length === 0) return OPEN_FLOOR;
 
+  // A patch whose rate reads the direction of each step makes the rate depend
+  // on the path by construction — see {@link DifficultPatch.onlyTowards} — so
+  // a walk that could enter one is asked for its route rather than charged.
+  const directional = new Set(
+    live.filter(([, patch]) => patch.onlyTowards !== undefined).map(([name]) => name),
+  );
+
+  let agreed: TerrainCharge | null = null;
+  const patches = new Set<string>();
+  for (const space of shortestRouteSpaces(scene, from, to)) {
+    const here = chargeAt(scene, live, space);
+    if (here.patches.some((name) => directional.has(name))) return null;
+    if (agreed === null) agreed = here;
+    else if (agreed.costPerFoot !== here.costPerFoot) return null;
+    for (const name of here.patches) patches.add(name);
+  }
+
+  return agreed === null
+    ? OPEN_FLOOR
+    : { costPerFoot: agreed.costPerFoot, patches: [...patches].sort() };
+}
+
+/**
+ * Every space some shortest route from `from` to `to` could enter.
+ *
+ * The region {@link uniformTerrainBetween} scans, factored out so the two
+ * questions asked of a move with no route stated — *does the ground agree on
+ * a rate*, and *could the walk have crossed ground that cuts* — read one
+ * geometry. The starting space is excluded, because it is the one space a move
+ * does not enter; see that function for why the region is wider than the box
+ * between the endpoints.
+ */
+function* shortestRouteSpaces(scene: PositionState, from: Point, to: Point): Generator<Point> {
   const start = snapPoint(from);
   const end = snapPoint(to);
   const reach = distanceBetweenPoints(start, end);
@@ -3270,8 +3412,6 @@ export function uniformTerrainBetween(
     return out;
   };
 
-  let agreed: TerrainCharge | null = null;
-  const patches = new Set<string>();
   for (const x of span(start.x, end.x, scene.extent.width)) {
     for (const y of span(start.y, end.y, scene.extent.depth)) {
       for (const z of span(start.z, end.z, scene.extent.height)) {
@@ -3281,17 +3421,104 @@ export function uniformTerrainBetween(
         if (distanceBetweenPoints(start, space) + distanceBetweenPoints(space, end) > reach) {
           continue;
         }
-        const here = chargeAt(scene, live, space);
-        if (agreed === null) agreed = here;
-        else if (agreed.costPerFoot !== here.costPerFoot) return null;
-        for (const name of here.patches) patches.add(name);
+        yield space;
       }
     }
   }
+}
 
-  return agreed === null
-    ? OPEN_FLOOR
-    : { costPerFoot: agreed.costPerFoot, patches: [...patches].sort() };
+/** The live patches that cut whoever crosses them — see {@link TerrainDamage}. */
+function damagingPatches(
+  state: GameState,
+): readonly (readonly [string, DifficultPatch & { readonly damagePerFeet: TerrainDamage }])[] {
+  return livePatches(state).flatMap(([name, patch]) =>
+    patch.damagePerFeet === undefined ? [] : [[name, { ...patch, damagePerFeet: patch.damagePerFeet }] as const],
+  );
+}
+
+/**
+ * The names of the patches over one space that cut whoever crosses it.
+ *
+ * For a report about a move nothing rolled for: a shove whose path nobody
+ * stated lands *somewhere*, and where it lands is the one space the engine
+ * knows about. Read through the same live view every charge reads, so a patch
+ * whose casting has ended names nothing.
+ */
+export function damagingPatchesAt(state: GameState, space: Point): readonly string[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+  return damagingPatches(state)
+    .filter(([, patch]) => spaceInRegion(scene, patch.region, space))
+    .map(([name]) => name);
+}
+
+/**
+ * Whether some shortest route between the endpoints could enter ground that
+ * cuts — the question that decides whether a move with no route stated has to
+ * be asked for one.
+ *
+ * {@link uniformTerrainBetween}'s twin with a different answer: that one asks
+ * whether the *rate* depends on the path, and this asks whether the *dice*
+ * do. A budget can be reported when there is none to spend; SRD Spike Growth's
+ * "for every 5 feet it travels" cannot be rolled at all without knowing which
+ * feet were inside, so a caller asking this gets a yes wherever the walk
+ * *could* have crossed the spikes, whether or not it did.
+ */
+export function damagingTerrainBetween(state: GameState, from: Point, to: Point): boolean {
+  const scene = state.scene;
+  if (scene === null) return false;
+  const cutting = damagingPatches(state);
+  if (cutting.length === 0) return false;
+  for (const space of shortestRouteSpaces(scene, from, to)) {
+    if (cutting.some(([, patch]) => spaceInRegion(scene, patch.region, space))) return true;
+  }
+  return false;
+}
+
+/** How many spaces of a route one cutting patch covers, and what it deals for them. */
+export interface TerrainDamageCharge {
+  /** The table's or the casting's name for the patch, as a report quotes it. */
+  readonly patch: string;
+  /** The casting that laid it, where one did — see `LatticePatch.source`. */
+  readonly source?: string;
+  readonly damagePerFeet: TerrainDamage;
+  /** The spaces of the route inside the patch, each {@link CUBE} feet of travel. */
+  readonly spaces: number;
+}
+
+/**
+ * What the ground cuts a stated route for, patch by patch.
+ *
+ * SRD Spike Growth: "it takes 2d4 Piercing damage for every 5 feet it
+ * travels." The spaces are counted the way {@link costOfRoute} charges them —
+ * the space being left is not among them, every space entered is — and each
+ * space entered inside the region is five feet travelled inside it. Two
+ * overlapping cutting patches each cut, because unlike a rate the book gives
+ * no rule that they do not: nothing in the SRD lays one over another, and
+ * inventing a non-stacking rule for damage would be a sentence the glossary
+ * prints for Difficult Terrain and not for this.
+ *
+ * Sorted by patch name, so the dice are thrown in one order whatever order
+ * the castings happened to be laid in.
+ */
+export function terrainDamageAlong(
+  state: GameState,
+  spaces: readonly Point[],
+): readonly TerrainDamageCharge[] {
+  const scene = state.scene;
+  if (scene === null) return [];
+  const charges: TerrainDamageCharge[] = [];
+  for (const [name, patch] of damagingPatches(state)) {
+    const inside = spaces.filter((space) => spaceInRegion(scene, patch.region, space)).length;
+    if (inside === 0) continue;
+    charges.push({
+      patch: name,
+      ...(patch.source === undefined ? {} : { source: patch.source }),
+      damagePerFeet: patch.damagePerFeet,
+      spaces: inside,
+    });
+  }
+  return charges;
 }
 
 /**

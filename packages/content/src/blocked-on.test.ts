@@ -169,7 +169,9 @@ describe('the blocked-on map covers the undefined population', () => {
    * directory produces.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(5);
+    // Lowered by one again when Sending was defined (2026-09-26): what it still
+    // catches is an empty map, and the map is not empty.
+    expect(Object.keys(BLOCKED_ON).length).toBeGreaterThan(4);
   });
 
   it('names only shapes the vocabulary has', () => {
@@ -917,7 +919,9 @@ describe('the four highest-leverage families are read sentence by sentence', () 
     // moved into the adjudicated population rather than going away, exactly
     // as the wall family's did.
     ['an-action-a-spell-compels-or-forbids', [], []],
-    ['a-second-place-to-put-a-creature', ['maze', 'sending'], []],
+    // Sending left this family by being defined: the other plane is a fact
+    // the caster states, and the one die in the spell is thrown on it.
+    ['a-second-place-to-put-a-creature', ['maze'], []],
     ['a-wall-or-several-templates-in-one-area', [], []],
   ];
 
@@ -1185,11 +1189,9 @@ describe('reading four families found blockers the bare lists had missed', () =>
   const FOUND: readonly (readonly [string, string, ShapeId])[] = [
     // Find Familiar's three rows were spent on 2026-09-22 — see `SPENT` below.
     ['maze', 'If it succeeds, it escapes, and the spell ends', 'a-casting-ended-by-a-trigger'],
-    [
-      'sending',
-      'a creature can block your ability to reach it again with this spell for 8 hours',
-      'an-effect-that-suppresses-other-magic',
-    ],
+    // Sending's row — the eight-hour block, filed under
+    // `an-effect-that-suppresses-other-magic` — was spent on 2026-09-26 when the
+    // spell was defined; see `SPENT` below for where the reading went.
   ];
 
   it.each(FOUND)('records %s: "%s"', (spellId, phrase, shape) => {
@@ -1221,13 +1223,14 @@ describe('reading four families found blockers the bare lists had missed', () =>
    * adjudication anywhere. Filing it in this table under a shape it was never
    * filed under would have been a tidier list saying something false.
    */
-  const SPENT: readonly (readonly [string, 'tracked' | 'unmodelled', ShapeId | string])[] = [
-    // Unseen Servant's row was spent twice over: tracked on
-    // `a-casting-ended-by-a-trigger` when it was written, and then **built** —
-    // the fall of the creature a casting sustains is `summon-drops-to-0` now,
-    // so the reading survives as a member of the vocabulary rather than as an
-    // adjudication, and what is left in its notes is the sixty feet.
-    ['unseen-servant', 'unmodelled', 'more than 60 feet from the caster'],
+  const SPENT: readonly (readonly [string, 'tracked' | 'unmodelled' | 'handed-over', ShapeId | string])[] = [
+    // Unseen Servant's row was spent three times over: tracked on
+    // `a-casting-ended-by-a-trigger` when it was written, then **built** — the
+    // fall of the creature a casting sustains is `summon-drops-to-0` — and then
+    // built again: the sixty feet that survived in its notes are
+    // `separated-beyond` now, read off the servant's arrival as Warding Bond's
+    // are, so nothing of the reading is left anywhere but the vocabulary and
+    // its row is gone rather than kept.
     ['irresistible-dance', 'tracked', 'a-repeat-save-raised-by-a-trigger'],
     ['wall-of-ice', 'tracked', 'a-stat-block-created-mid-fight'],
     ['wall-of-stone', 'tracked', 'a-stat-block-created-mid-fight'],
@@ -1282,6 +1285,14 @@ describe('reading four families found blockers the bare lists had missed', () =>
     // rather than kept.
     ['find-familiar', 'unmodelled', 'your familiar can deliver the touch'],
     ['find-familiar', 'unmodelled', 'seeing through the familiar’s eyes'],
+    // Sending, defined on the owner's ruling of 2026-09-25. Three of its four
+    // rows were spent by being built or by being a fact the caster states —
+    // the die is the `chance` effect, the other plane is `otherPlane` on the
+    // request — and the fourth, the eight-hour block, survives as a sentence
+    // **handed over**: it is the recipient's decision and its consequence,
+    // "the spell fails", is narrated over a slot already spent. `dmDecides` is
+    // where the book's own words go, so that is where the reading is met.
+    ['sending', 'handed-over', 'a creature can block your ability to reach it again with this spell for 8 hours'],
   ];
 
   it.each(SPENT)('kept %s’s reading after the definition landed (%s)', (spellId, where, what) => {
@@ -1292,6 +1303,11 @@ describe('reading four families found blockers the bare lists had missed', () =>
         (TRACKED_ADJUDICATED[spellId] ?? []).map((entry) => entry.why),
         spellId,
       ).toContain(what);
+    } else if (where === 'handed-over') {
+      expect(
+        (SRD_CONTENT.spell(spellId)?.dmDecides ?? []).filter((printed) => printed.includes(what)),
+        `${spellId}: ${what}`,
+      ).toHaveLength(1);
     } else {
       expect(
         (SRD_CONTENT.spell(spellId)?.unmodelled ?? []).filter((note) => note.includes(what)),
@@ -2498,7 +2514,14 @@ describe('a consumer count is a query', () => {
     // can hover" is one `SpeedChange` now — `only`, which replaces every
     // other Speed rather than adding a mode beside them — so the shape has
     // one fewer executed claimant and still spans two populations.
-    expect(modes.executed).toEqual(['levitate', 'wind-walk']);
+    //
+    // **And Levitate has left it the same way.** "Move as if it were
+    // climbing" is `MoveCommand.mode: 'climb'` along a surface the move
+    // states, and the self-lifted caster's "up or down as part of your move"
+    // is counted against the twenty the hold pins — so the lifted creature's
+    // own Speed is a rule the move command reads, and the shape has one
+    // executed claimant left.
+    expect(modes.executed).toEqual(['wind-walk']);
     // **Fly and Spider Climb left the shape rather than moving column**,
     // which is what building a writer looks like from here: the two are
     // executed definitions now, and neither has a clause this shape still
@@ -2681,7 +2704,19 @@ describe('a consumer count is a query', () => {
       // claimants in one track — Find Steed's Otherworldly Slam is a line whose
       // numbers the casting resolves, Animate Dead's corpses and bones are
       // raised under a controlled bond — and fell below this band.
+      //
+      // **And the band widened to four by the leader's own runner-up falling
+      // to meet it** (W7-S19, 2026-09-26): Warding Bond's caster-at-0 and
+      // separation and Unseen Servant's sixty feet were built —
+      // `caster-drops-to-0`, `separated-beyond` — so
+      // `a-casting-ended-by-a-trigger` lost two consumers to a build and now
+      // stands level with the three below it. Sending's definition took one
+      // off `a-second-place-to-put-a-creature` and one off the leader in the
+      // same track, which is why the leader still leads alone.
       'a-casting-ended-by-a-trigger',
+      'a-choice-made-at-the-casting',
+      'a-second-place-to-put-a-creature',
+      'a-stat-block-created-mid-fight',
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -2697,7 +2732,10 @@ describe('a consumer count is a query', () => {
     // the top of it was a bundle, and reading it apart took thirteen of its
     // twenty spells off it in one batch. The floor still sits below the
     // leader rather than on it, for the reason this paragraph records.
-    expect(ranked[0]!.blocks.length).toBeGreaterThan(12);
+    // Lowered from twelve to ten when Sending was defined (W7-S19): the leader
+    // lost a consumer to a build — its 5 percent is the `chance` effect gated on
+    // a stated plane — and the floor stays below the population, not on it.
+    expect(ranked[0]!.blocks.length).toBeGreaterThan(10);
   });
 });
 
@@ -3400,7 +3438,11 @@ describe('a trigger that ends a casting is a partial build, and the map says whi
   /** And the shape is still claimed, so the unclaimed-shape guard keeps it. */
   it('keeps the shape, because most of what it names is still missing', () => {
     expect(claimedShapes().has('a-casting-ended-by-a-trigger')).toBe(true);
-    expect(consumersOf('a-casting-ended-by-a-trigger').blocks.length).toBeGreaterThan(10);
+    // Lowered from ten to eight when Warding Bond and Unseen Servant left the
+    // shape by a build — the caster's fall and the pair's separation are
+    // `caster-drops-to-0` and `separated-beyond` now — and the floor stays
+    // below the population rather than on it.
+    expect(consumersOf('a-casting-ended-by-a-trigger').blocks.length).toBeGreaterThan(8);
   });
 });
 

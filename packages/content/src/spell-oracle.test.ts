@@ -328,6 +328,15 @@ describe('every definition agrees with the range the book prints', () => {
     // the printed word over. Two spells write it, and a definition that quietly
     // invented a distance for one of them still fails here.
     if (book.kind === 'unbounded') {
+      // **One of the three is not a question**, and it has its own kind now
+      // (2026-09-26): SRD Sending's `Unlimited` measures nothing and asks the
+      // table nothing, so the definition says `unlimited` and hands no Range
+      // over — there is nothing about it for a DM to decide. `Sight` and
+      // `Special` are still the DM's, and still say so.
+      if (printed(id).range === 'Unlimited') {
+        expect(definition.range.kind, id).toBe('unlimited');
+        return;
+      }
       expect(definition.range.kind, id).toBe('dm');
       expect(definition.dmDecides ?? [], id).toContain(`Range: ${printed(id).range}`);
       return;
@@ -407,7 +416,9 @@ describe('a deliberate disagreement is written down, and stays true', () => {
       // disagreement somebody has to excuse. The oracle keeps its own word for
       // it because it is reading the book, and the definition keeps its own
       // because it is telling a casting what to do.
-      if (book.kind === 'unbounded') return definition.range.kind !== 'dm';
+      if (book.kind === 'unbounded') {
+        return definition.range.kind !== 'dm' && definition.range.kind !== 'unlimited';
+      }
       if (book.kind !== definition.range.kind) return true;
       return (
         book.kind === 'ranged' &&

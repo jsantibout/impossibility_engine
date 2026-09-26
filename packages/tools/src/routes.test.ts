@@ -541,6 +541,9 @@ describe('a carried area is answered by several `move` calls, one space each', (
  */
 const ROUTE_FIELDS: Readonly<Record<string, string>> = {
   activate_spell: 'via',
+  // The servant's move is a move, and the ground asks it the same question —
+  // SRD Unseen Servant's command. (W7-S19)
+  command_summons: 'route',
   move: 'route',
 };
 

@@ -44,6 +44,7 @@ import {
   type CastingDamageFeature,
   effectiveConditions,
   electableCastingDamage,
+  requirementsHold,
   rollModesFor,
   sensesPerceiving,
   areaAttackModesAgainst,
@@ -747,7 +748,13 @@ export function savingSupport(
   // ability's saves reaches those and no others: Slow's "a −2 penalty to AC
   // and **Dexterity** saving throws" would otherwise land on the Wisdom save
   // the spell itself calls for at the end of every turn.
-  for (const bonus of bonusesFor(victim.bonuses, 'save', { ability })) {
+  // A bonus a spell fenced — SRD Warding Bond's "while the target is within
+  // 60 feet of you" — is asked its requirement at every read, exactly as the
+  // standing grants two lines down are. (W7-S19)
+  const holding = victim.bonuses.filter((active) =>
+    requirementsHold(state, who, active.requires, active.source),
+  );
+  for (const bonus of bonusesFor(holding, 'save', { ability })) {
     merged.set(bonus.source, bonus);
   }
   for (const bonus of standingSaveBonuses(state, who, ability)) merged.set(bonus.source, bonus);

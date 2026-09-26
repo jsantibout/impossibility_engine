@@ -7,7 +7,6 @@ import { advanceTime, createRng, createRollIssuer, declaredCasting, dmDecisionsI
 import {
   BLOCKED_ON,
   TRACKED_ADJUDICATED,
-  clausesIn,
   mechanicalMarkersIn,
   printedFieldsOf,
   printedUnitsOf,
@@ -478,6 +477,11 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // the isolation and the drop are executed, and the rope and the portal
       // are the definition's own `unmodelled` rather than a whole handover.
       'see-invisibility',
+      // **Sending, defined on the owner's ruling of 2026-09-25.** The one die
+      // in it — the 5 percent across the planes — is the engine's, thrown only
+      // when the caster states the recipient is elsewhere; the message, the
+      // reply and the eight-hour block are the table's, handed over whole.
+      'sending',
       // **The forty-sixth, and the first that is not a spell the engine merely
       // records.** SRD Silence's three mechanical sentences are executed —
       // an Immunity and a condition derived from the spaces a creature
@@ -502,18 +506,15 @@ describe('the catalogue hands over exactly the text it means to', () => {
     ]);
     // And the Range half did not grow, because it was already complete: three
     // SRD spells print a Range that is not Self, Touch or a number of feet, and
-    // the third is Sending — whose `Unlimited` the `dm` arm would carry and
-    // whose blockers are three mechanisms it would not. It stays undefined and
-    // stays in the map, which is the counter-example that keeps `range: 'dm'`
-    // from becoming the arm every awkward Range goes into.
+    // the third is Sending — whose `Unlimited` is **not** the `dm` arm's. It
+    // was undefined and in the map as the counter-example that kept
+    // `range: 'dm'` from becoming the arm every awkward Range goes into, and it
+    // is defined now (the owner, 2026-09-25) on a fourth kind of its own:
+    // `unlimited` measures nothing and asks the table nothing, so the `dm`
+    // arm still carries exactly the two Ranges that are a question.
     expect([...DM_RANGED].sort()).toEqual(['dream', 'mirage-arcane']);
-    expect(SRD_CONTENT.spell('sending')).toBeNull();
-    expect(clausesIn(BLOCKED_ON['sending'] ?? []).map((entry) => entry.why)).toEqual([
-      'table',
-      'a-second-place-to-put-a-creature',
-      'a-random-outcome-that-is-not-a-d20',
-      'an-effect-that-suppresses-other-magic',
-    ]);
+    expect(SRD_CONTENT.spell('sending')?.range).toEqual({ kind: 'unlimited' });
+    expect(BLOCKED_ON['sending']).toBeUndefined();
   });
 
   /**

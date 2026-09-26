@@ -172,8 +172,10 @@ describe('toolSchemas', () => {
     // And one on each for the standing-up track, `stand_up`.
     // And one more on the DM's alone for the moves-a-line-makes track (W7-B9),
     // `move_printed_line`; `teleport_printed_line` and `move` grew fields.
-    expect(toolSchemas(player())).toHaveLength(92);
-    expect(toolSchemas(dm())).toHaveLength(119);
+    // And one on each for the ground-move-and-bond track, `command_summons`
+    // — SRD Unseen Servant's Bonus Action, a placement and never a number.
+    expect(toolSchemas(player())).toHaveLength(93);
+    expect(toolSchemas(dm())).toHaveLength(120);
     // Re-pinned 2026-09-24 for the printed-lines track, which opened one door
     // on the DM's surface alone: `teleport_printed_line` takes the teleport a
     // stat block prints, at the distance the block prints, to a space the DM
@@ -295,10 +297,19 @@ describe('toolSchemas', () => {
     // DM's alone (a move through other creatures' spaces with a save per
     // space entered — whose route is the monster's decision), `viaFrom` /
     // `viaTo` on `teleport_printed_line`, and `using_line` on `move` for both.
-    expect(toolSchemas(player())).toHaveLength(92);
-    expect(toolSchemas(dm())).toHaveLength(119);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(141595);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(186768);
+    // Re-pinned 2026-09-26 for the ground-move-and-bond track (W7-S19), on
+    // both doors at once: `command_summons` — SRD Unseen Servant's Bonus
+    // Action, a placement and at most the caller's words for an object, so the
+    // player's door and therefore the DM's — plus two fields on tools both
+    // already publish: `move.alongSurface` (SRD Levitate's surface within
+    // reach, a fact about the room) and `cast_spell.otherPlane` (SRD Sending's
+    // recipient elsewhere, a fact and never a number). One tool and the same
+    // bytes on each; the lengths sum with whatever the other tracks of this
+    // wave moved.
+    expect(toolSchemas(player())).toHaveLength(93);
+    expect(toolSchemas(dm())).toHaveLength(120);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(144812);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(189985);
   });
 });
 

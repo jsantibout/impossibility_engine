@@ -22,7 +22,7 @@ import {
   ok,
   type Result,
 } from '@ie/shared';
-import { allyOfCaster, isOn, type GameEvent, type GameState } from '../events.js';
+import { allyOfCaster, isOn, spellOn, type GameEvent, type GameState } from '../events.js';
 import {
   distanceBetween,
   distanceBetweenPoints,
@@ -173,12 +173,37 @@ export function replacedCastings(
   state: GameState,
   casterId: CharacterId,
   definition: SpellDefinition,
+  /** The creatures the new casting names, for a recast rule that reads either end. */
+  targets: readonly CharacterId[] = [],
 ): readonly GameEvent[] {
   // **One rule with two numbers.** `replacesPriorCasting` is a cap of one and
   // `maxRunning` is a cap of *n*; the validator refuses a definition that
   // writes both, so at most one of these two lines is ever about anything.
   const cap = definition.replacesPriorCasting === true ? 1 : definition.maxRunning;
   if (cap === undefined) return [];
+
+  // SRD Warding Bond: "It also ends if the spell is cast again on **either of
+  // the connected creatures**." The same cap of one read over a wider
+  // population: every running casting of this spell, by anybody, whose caster
+  // or whose target is the caster or a target of the casting being made. A
+  // bond the same cleric lays on somebody else ends the first; a second
+  // cleric's bond on the same fighter ends it too. (W7-S19)
+  if (definition.replacesPriorCastingOn === 'either') {
+    const connected = new Set<string>([casterId, ...targets]);
+    return byCastingOrder(state)
+      .filter(
+        (record) =>
+          record.spellId === definition.id &&
+          (connected.has(record.caster) ||
+            spellOn(state, record).some((who) => connected.has(who))),
+      )
+      .map((record) => ({
+        type: 'spell-ended' as const,
+        castingId: record.castingId,
+        on: null,
+        reason: 'recast' as const,
+      }));
+  }
 
   // Oldest first, which `ongoingSpellsBy` already guarantees numerically —
   // `cast:2` before `cast:10`, never the string order.

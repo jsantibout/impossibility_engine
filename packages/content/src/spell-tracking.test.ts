@@ -848,6 +848,11 @@ describe('a tracked spell may not hide a rule the engine owns', () => {
     'gentle-repose',
     'light',
     'magic-weapon',
+    // And the eighth kind: SRD Nondetection's paragraph is a school of magic,
+    // a scrying sensor, a place and an object, and the marker list knows none
+    // of those words — yet "can't be targeted by any Divination spell" is a
+    // refusal the casting pre-flight executes off the record.
+    'nondetection',
     // And the sixth kind of clean paragraph: SRD Pass without Trace's says
     // "+10 bonus" and "Dexterity (Stealth) checks", and the marker list knows
     // neither: the word-bounded check pattern does not match "checks", and a
@@ -2041,9 +2046,18 @@ describe('every spell this batch added is cast for real', () => {
     // `summon` effect takes the block `inline` — AC 10, 1 Hit Point, Strength
     // 2, Medium, Invisible, no attack — and adapts it through the road a
     // bestiary block takes; "If it drops to 0 Hit Points, the spell ends" is
-    // `summon-drops-to-0` on the casting's record. The sixty feet and the
-    // caster's Bonus Action are said in its notes rather than modelled.
+    // `summon-drops-to-0` on the casting's record. The sixty feet are
+    // `separated-beyond` on the same record and the caster's Bonus Action is
+    // `commandSummons`, the door that spends it and moves the servant.
     'unseen-servant',
+    // **Warding Bond leaves on a distance two creatures are apart.** The +1 to
+    // AC and saves and the Resistance to all damage were always ordinary
+    // grants; what they had nowhere to say was "while the target is within 60
+    // feet of you" — a `within-feet-of` requirement the grants carry and the
+    // readers ask at every read. The shared damage is dealt where every blow
+    // settles, the caster falling and the pair drifting apart are causes on
+    // the record, and a recast on either end is the recast rule read wider.
+    'warding-bond',
     'wind-walk',
     // **Wind Wall leaves on the seventh template**, and it is the only one in
     // the book the caster draws: a path of 5-foot spaces along the ground,
@@ -2336,7 +2350,12 @@ describe('every spell this batch added is cast for real', () => {
    * thin scene rather than a debt of the spell. So the claim made here is the
    * precise one: nothing under the definition's own mark.
    */
-  const FINISHED_BUT_THE_SCENE_IS_THIN: readonly string[] = ['ice-knife'];
+  //
+  // **Warding Bond owes the table nothing either**, and nothing about the scene
+  // is thin for it: the three grants, the shared damage and the three endings
+  // are all the engine's, so the definition carries neither a debt nor a
+  // handover, and the casting reports nothing under the spell's own mark.
+  const FINISHED_BUT_THE_SCENE_IS_THIN: readonly string[] = ['ice-knife', 'warding-bond'];
 
   it.each(FINISHED_BUT_THE_SCENE_IS_THIN.map((s) => [s] as const))(
     'leaves the table no debt of %s, whatever the scene cannot say',

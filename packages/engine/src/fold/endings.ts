@@ -33,7 +33,8 @@ import {
   type OngoingSpell,
 } from '../spells.js';
 import { isWoundSource } from '../monster.js';
-import { positionOf } from '../positioning.js';
+import { apartFrom, positionOf } from '../positioning.js';
+import type { CastingEndTrigger } from '../spell-definitions.js';
 
 import type { GameEvent } from '../events.js';
 import type { GameState } from '../state.js';
@@ -44,6 +45,7 @@ import {
   releaseCasting,
   releaseGrants,
   releaseOnTarget,
+  spellOn,
 } from './release.js';
 
 /**
@@ -151,6 +153,27 @@ type EndingFact =
   | {
       readonly cause: 'caster-leaves-the-area';
       readonly mover: CharacterId;
+    }
+  /**
+   * A creature a blow has just left at 0, read as a possible **caster** — SRD
+   * Warding Bond's "if you drop to 0 Hit Points". `fallen` rather than `who`
+   * for the reason `to` is not `who`, and rather than `to` because
+   * {@link subjectOf} reads it against `record.caster` and not `isOn`. (W7-S19)
+   */
+  | {
+      readonly cause: 'caster-drops-to-0';
+      readonly fallen: CharacterId;
+    }
+  /**
+   * A creature whose authoritative position just changed, read against the
+   * distance a casting keeps between its caster and what it is on or sustains
+   * — SRD Warding Bond's and Unseen Servant's sixty feet. The same event
+   * `caster-leaves-the-area` reads, under its own name so the two questions are
+   * asked apart. (W7-S19)
+   */
+  | {
+      readonly cause: 'separated-beyond';
+      readonly mover: CharacterId;
     };
 
 /**
@@ -195,7 +218,12 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
     // casting it is the caster of, and whether they are now outside, is asked
     // per record below.
     case 'creature-moved':
-      return [{ cause: 'caster-leaves-the-area', mover: event.id }];
+      return [
+        { cause: 'caster-leaves-the-area', mover: event.id },
+        // And the distance a casting keeps between its two ends — SRD Warding
+        // Bond's, SRD Unseen Servant's — asked per record below of whoever moved.
+        { cause: 'separated-beyond', mover: event.id },
+      ];
     case 'damage-taken':
       return [
         // **The three that read the creature the blow landed on**, so a trap
@@ -228,6 +256,11 @@ function endingFactsOf(state: GameState, event: GameEvent): readonly EndingFact[
                 ? [
                     { cause: 'target-drops-to-0', to: event.id } as const,
                     { cause: 'summon-drops-to-0', summon: event.id } as const,
+                    // And the same drop read of a casting's **caster** — SRD
+                    // Warding Bond's "if you drop to 0 Hit Points" — found
+                    // through `record.caster`, since the caster holds nothing
+                    // of a bond laid on somebody else.
+                    { cause: 'caster-drops-to-0', fallen: event.id } as const,
                   ]
                 : []),
             ]
@@ -278,6 +311,7 @@ function subjectOf(
   state: GameState,
   record: OngoingSpell,
   fact: EndingFact,
+  trigger: CastingEndTrigger,
 ): CharacterId | null {
   switch (fact.cause) {
     case 'summon-takes-damage':
@@ -285,6 +319,17 @@ function subjectOf(
       return state.creatures[fact.summon]?.summonedBy?.castingId === record.castingId
         ? fact.summon
         : null;
+
+    // SRD Warding Bond: "The spell ends if you drop to 0 Hit Points." The
+    // casting's own caster and nobody else, whatever the casting is on.
+    case 'caster-drops-to-0':
+      return fact.fallen === record.caster ? fact.fallen : null;
+
+    // "…or if you and the target become separated by more than 60 feet." The
+    // mover has to be one end of the bond, and then the pair is measured — see
+    // {@link separatedBeyond}.
+    case 'separated-beyond':
+      return separatedBeyond(state, record, fact.mover, trigger.feet);
 
     case 'caster-or-ally-damages-target':
       // Withheld rather than invented: only a verdict that says yes ends
@@ -327,6 +372,40 @@ function casterOutsideArea(state: GameState, record: OngoingSpell): boolean {
   return inside !== null && !inside.has(record.caster as CharacterId);
 }
 
+/**
+ * The creature a casting has been separated from past its feet, or null.
+ *
+ * SRD Warding Bond: "if you and the target become separated by more than 60
+ * feet"; SRD Unseen Servant: "a task that would move it more than 60 feet away
+ * from you". **The other end is whatever the casting is on or sustains** —
+ * `spellOn` for the bond's target, `summonedBy` for the servant — measured
+ * from the caster through the same ruler every distance in the engine uses. A
+ * move by anybody else changes no distance in the bond and is not read; a pair
+ * nobody can measure, because one of them is unplaced or away in another
+ * place, has not been separated, which is the withholding direction. A
+ * trigger that prints no feet is one the validator refused, and fires on
+ * nothing. (W7-S19)
+ */
+function separatedBeyond(
+  state: GameState,
+  record: OngoingSpell,
+  mover: CharacterId,
+  feet: number | undefined,
+): CharacterId | null {
+  if (feet === undefined) return null;
+  const caster = record.caster as CharacterId;
+  const others = new Set<string>(spellOn(state, record).filter((who) => who !== caster));
+  for (const creature of Object.values(state.creatures)) {
+    if (creature.summonedBy?.castingId === record.castingId) others.add(creature.id);
+  }
+  if (mover !== caster && !others.has(mover)) return null;
+  for (const other of [...others].sort()) {
+    const apart = apartFrom(state, caster, other as CharacterId);
+    if (apart !== null && apart > feet) return other as CharacterId;
+  }
+  return null;
+}
+
 /** One casting to end, and whether it ends outright or on one creature. */
 interface Ending {
   readonly castingId: string;
@@ -365,7 +444,7 @@ function nextEnding(
       for (const fact of facts) {
         if (fact.cause !== trigger.on) continue;
 
-        const subject = subjectOf(state, record, fact);
+        const subject = subjectOf(state, record, fact, trigger);
         if (subject === null) continue;
         if (settled.has(endingKey(castingId, subject))) continue;
         return { castingId, on: trigger.ends === 'target' ? subject : null, subject };

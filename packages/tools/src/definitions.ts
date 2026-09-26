@@ -176,6 +176,7 @@ import {
   declineDamageReaction,
   declineOpportunity,
   declineTestReaction,
+  commandSummons,
   dismissKeptSummons,
   dismissStrandedSummons,
   dismountRider,
@@ -1221,6 +1222,63 @@ const DISMISS_FAMILIAR = tool({
 });
 
 /**
+ * SRD Unseen Servant: "Once on each of your turns as a Bonus Action, you can
+ * mentally command the servant to move up to 15 feet and interact with an
+ * object."
+ *
+ * The third door on a summons and the first on one a casting holds: the price
+ * is the caster's, the feet are the spell's, and both are read off the
+ * casting's own record. On the player's door and so on the DM's, because it
+ * carries no number the caller produced — a placement and, at most, the
+ * caller's words for what the servant does with an object. (W7-S19)
+ */
+const COMMAND_SUMMONS = tool({
+  name: 'command_summons',
+  description:
+    'Command a creature a casting of yours holds — SRD Unseen Servant’s servant — to move up to the feet its spell prints and, if you like, to do something with an object. Spends **your** Bonus Action in a fight, so once a turn; the creature spends nothing of its own. Say where it goes, measured from a landmark or a creature, and the engine refuses a move past the feet the spell prints, into a space somebody stands in, or across ground that asks for its route; leave the destination out to have it act where it stands. What it does with the object is yours to say and the engine reports it back as such. Refused for a creature you do not hold through a running casting and for one whose spell prints no command. If the move would take it more than the distance its spell allows from you, the spell ends and the creature is owed its departure.',
+  mutates: true,
+  establishes: ['route'],
+  input: z.object({
+    caster: creatureId.describe('The caster, whose Bonus Action this is.'),
+    who: creatureId.describe('The creature the casting holds.'),
+    to: placementSchema.optional().describe('Where it goes. Omit it to have the creature act where it stands.'),
+    route: routeSchema
+      .optional()
+      .describe(
+        'The 5-foot spaces the move passes through, in order, when a move came back `route_required`.',
+      ),
+    interact: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('What it does with an object, in your words: "open the door", "pour the wine". Reported back as the table’s.'),
+  }),
+  run: (context, args) =>
+    settle(
+      context,
+      commandSummons(
+        context.campaign.state(),
+        who(args.caster),
+        {
+          who: who(args.who),
+          ...(args.to === undefined ? {} : { to: placementOf(args.to) }),
+          ...(args.route === undefined ? {} : { route: args.route.map(point) }),
+          ...(args.interact === undefined ? {} : { interact: args.interact }),
+          ...identity(context),
+        },
+        context.campaign.supply(),
+      ),
+      (value) => value.events,
+      (value) => ({
+        commanded: args.who,
+        ...(value.moved === null ? {} : { feetMoved: value.moved.feet }),
+        duplicate: value.duplicate,
+      }),
+      (value) => value.unverified,
+    ),
+});
+
+/**
  * SRD Find Familiar: "As a Magic action while it is temporarily dismissed, you
  * can cause it to reappear in an unoccupied space within 30 feet of you."
  */
@@ -2227,6 +2285,12 @@ const MOVE = tool({
         .describe(
           'Which Speed this move uses. Leave it out for walking. Climbing and swimming cost double for a creature without the matching Speed, and Difficult Terrain doubles again; flying or burrowing without one is refused, because there is no unaided version. Going up at all needs a flight, a climb or a High Jump.',
         ),
+      alongSurface: z
+        .boolean()
+        .optional()
+        .describe(
+          'True when a creature something is holding off the ground — Levitate’s target — is pulling itself along a wall, a ceiling or another fixed surface within its reach. Such a creature can move only that way, as a climb, so send `mode: "climb"` with it; whether the surface is there is yours to say, and the engine reports that it took your word. Left out for a levitating creature, the move comes back `surface_required`.',
+        ),
       jump: z
         .object({
           kind: z
@@ -2279,6 +2343,7 @@ const MOVE = tool({
         {
           placement: placementOf(args),
           ...(args.forced === true ? { forced: true } : {}),
+          ...(args.alongSurface === true ? { alongSurface: true as const } : {}),
           ...(args.using_grant === undefined ? {} : { usingGrant: args.using_grant }),
           ...(args.using_line === undefined ? {} : { usingLine: args.using_line }),
           ...(args.mode === undefined ? {} : { mode: args.mode }),
@@ -2627,6 +2692,12 @@ const CAST_SPELL = tool({
       .describe(
         'Which stat block a summoning spell that leaves the form to its caster raises, by its id in the bestiary — Find Familiar’s "Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that has a Challenge Rating of 0". The engine refuses a block the spell does not admit and will not pick one. Leaving it out for such a spell is refused, and so is naming one for a spell that names its own block.',
       ),
+    otherPlane: z
+      .boolean()
+      .optional()
+      .describe(
+        'True when the creature a message spell reaches is on another plane of existence — Sending’s "if the target is on a different plane than you, there is a 5 percent chance that the message doesn’t arrive". Only you can say where the recipient is; say so and the engine throws the die, leave it out and the message simply arrives. Refused on a spell that prints no such clause.',
+      ),
     bonesAt: z
       .array(placementSchema)
       .optional()
@@ -2759,6 +2830,8 @@ const CAST_SPELL = tool({
       ...(args.weapon === undefined ? {} : { weapon: args.weapon }),
       ...(args.object === undefined ? {} : { object: args.object }),
       ...(args.form === undefined ? {} : { form: args.form }),
+      // A stated fact and never a number: the die it gates is the engine's.
+      ...(args.otherPlane === true ? { otherPlane: true as const } : {}),
       ...(args.bonesAt === undefined ? {} : { bonesAt: args.bonesAt.map((pile) => placementOf(pile)) }),
       ...(args.slotKind === undefined ? {} : { slotKind: args.slotKind }),
       ...(args.payment === undefined ? {} : { payment: args.payment }),
@@ -5759,6 +5832,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   DECLINE_OPPORTUNITY,
   DECLINE_TEST_REACTION,
   CLIMB_INTO_SPACE,
+  COMMAND_SUMMONS,
   DISMISS_FAMILIAR,
   DISMISS_STRANDED_SUMMONS,
   DRAW_ON_HEALING_POOL,

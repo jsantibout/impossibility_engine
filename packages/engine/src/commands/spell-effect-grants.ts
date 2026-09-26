@@ -93,6 +93,9 @@ export function resolveBuffEffect(
       // here is the one the *casting* ended up with, which for a spell that
       // chose a skill at the cast is not the one the definition prints.
       ...(effect.only === undefined ? {} : { only: effect.only }),
+      // And the fence — SRD Warding Bond's sixty feet — pinned so the readers
+      // ask the grant and not the book. (W7-S19)
+      ...(effect.requires === undefined ? {} : { requires: effect.requires }),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);
@@ -299,6 +302,9 @@ export function resolveDamageDefenseEffect(
       source,
       damageTypes: effect.damageTypes,
       defense: effect.defense,
+      // The fence, pinned — SRD Warding Bond's "while the target is within 60
+      // feet of you" on its Resistance. (W7-S19)
+      ...(effect.requires === undefined ? {} : { requires: effect.requires }),
     },
   });
   current = events.slice(-1).reduce(applyEvent, current);

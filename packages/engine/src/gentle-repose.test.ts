@@ -8,7 +8,8 @@ import { applyEvent, fold, type GameEvent, type GameState } from './events.js';
 import { spellSlotKey } from './resources.js';
 import { declaredCasting } from './spellcasting.js';
 import { checkSpellDefinitionValue } from './spell-schema.js';
-import { advanceTime, resolveSpell } from './commands.js';
+import { advanceTime, endOngoingSpell, resolveSpell } from './commands.js';
+import { preservedSpan } from './commands/spell-effect-creatures.js';
 
 /**
  * A window another casting widens.
@@ -154,6 +155,89 @@ describe('Gentle Repose widens the window Revivify reaches through', () => {
     const record = after.ongoing[out.castingId!];
     expect(record?.aimed).toEqual([FALLEN]);
     expect(record?.preserving).toBe(10);
+  });
+});
+
+/**
+ * > "…since days **spent** under the influence of this spell don't count
+ * > against the time limit…"
+ *
+ * Spent, not running: the span is a fact about days elapsed and not about the
+ * casting standing, so a repose that has ended hands nothing back. When a
+ * `preserves` casting ends, the fold accrues the span it ran onto the body —
+ * `Vitals.preservedSeconds`, derived from the record's start and the ending
+ * clock, no event — and `preservedSpan` reads the accrued seconds beside the
+ * running castings'. The fixture's arithmetic: dead at 0, the repose laid at
+ * 10 and let go at 610, so ten minutes are spent; forty seconds later the
+ * corpse has lain fifty uncovered seconds and is still within Revivify's
+ * minute, and a hundred later it is not.
+ */
+describe('a repose that has ended keeps the days it was spent', () => {
+  /** The repose laid at ten seconds, run for `ran` seconds and then let go. */
+  const spent = (ran: number): GameState => {
+    const opened = wait(fold('seed', SETUP), 10);
+    const cast = unwrap(cast_(opened), 'the repose');
+    const running = cast.events.reduce(applyEvent, opened);
+    const later = wait(running, ran);
+    const ended = unwrap(endOngoingSpell(later, CLERIC, cast.castingId!, null), 'letting go');
+    return ended.reduce(applyEvent, later);
+  };
+  const cast_ = (world: GameState) => cast(world, 'gentle-repose', FALLEN, 2);
+
+  it('accrues the span the casting ran onto the body when it ends', () => {
+    const after = spent(600);
+    expect(after.elapsed).toBe(610);
+    expect(Object.keys(after.ongoing)).toEqual([]);
+    expect(after.creatures[FALLEN]?.vitals.preservedSeconds).toBe(600);
+    expect(preservedSpan(after, FALLEN, 0)).toBe(600);
+    // The living cleric accrued nothing: the span is the body's.
+    expect(after.creatures[CLERIC]?.vitals.preservedSeconds).toBeUndefined();
+  });
+
+  it('lets Revivify reach a corpse whose repose ran ten minutes and ended forty seconds ago', () => {
+    const before = wait(spent(600), 40);
+    expect(before.elapsed).toBe(650);
+    const out = unwrap(cast(before, 'revivify', FALLEN, 3), 'the revival');
+    const after = out.events.reduce(applyEvent, before);
+    expect(after.creatures[FALLEN]?.vitals.dead).toBe(false);
+    // And the accrued span goes with the death it was accrued against.
+    expect(after.creatures[FALLEN]?.vitals.preservedSeconds).toBeUndefined();
+  });
+
+  it('still refuses the corpse once the uncovered seconds pass the minute', () => {
+    const out = cast(wait(spent(600), 100), 'revivify', FALLEN, 3);
+    expect(isErr(out) && out.code).toBe('died_too_long_ago');
+  });
+
+  /**
+   * A second repose over the same body adds its own span when it ends, and a
+   * repose still running is read beside the accrued seconds rather than twice.
+   */
+  it('adds a second repose’s span to the first’s, and reads a running one beside them', () => {
+    const once = spent(600);
+    const relaid = unwrap(cast_(once), 'the second repose');
+    const running = relaid.events.reduce(applyEvent, once);
+    const later = wait(running, 100);
+    // 600 accrued and 100 running: seven hundred of the 710 since death.
+    expect(preservedSpan(later, FALLEN, 0)).toBe(700);
+    const ended = unwrap(endOngoingSpell(later, CLERIC, relaid.castingId!, null), 'letting go again');
+    const after = ended.reduce(applyEvent, later);
+    expect(after.creatures[FALLEN]?.vitals.preservedSeconds).toBe(700);
+  });
+
+  /**
+   * The casting's own deadline arriving ends it too, and the span accrued is
+   * the span to the deadline — not to whatever clock the fold was moved to.
+   * The repose's ten days, run out in one long wait.
+   */
+  it('accrues the span to the deadline when the casting runs out, not to the clock it was noticed at', () => {
+    const opened = wait(fold('seed', SETUP), 10);
+    const out = unwrap(cast_(opened), 'the repose');
+    const running = out.events.reduce(applyEvent, opened);
+    // Ten days and an hour more, in one step.
+    const after = wait(running, 864_000 + 3600);
+    expect(after.ongoing[out.castingId!]).toBeUndefined();
+    expect(after.creatures[FALLEN]?.vitals.preservedSeconds).toBe(864_000);
   });
 });
 

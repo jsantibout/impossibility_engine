@@ -63,7 +63,7 @@ import {
 } from './combat.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
-import { DIFFICULT_TERRAIN, LIGHT_LEVELS, OBSCUREMENT_DEGREES } from './positioning.js';
+import { CUBE, DIFFICULT_TERRAIN, LIGHT_LEVELS, OBSCUREMENT_DEGREES } from './positioning.js';
 
 /**
  * Whether a spell definition is *coherent*, asked of a value rather than of a
@@ -1644,7 +1644,26 @@ function checkAreaTerrain(
   ) {
     return;
   }
-  const { costPerFoot: rate, clears } = terrain as { costPerFoot?: unknown; clears?: unknown };
+  const {
+    costPerFoot: rate,
+    clears,
+    damagePerFeet,
+    onlyTowards,
+  } = terrain as {
+    costPerFoot?: unknown;
+    clears?: unknown;
+    damagePerFeet?: unknown;
+    onlyTowards?: unknown;
+  };
+  // SRD Gust of Wind's "when moving closer to you" is the one narrowing a rate
+  // takes, and the caster is the only creature the sentence can name.
+  if (onlyTowards !== undefined && onlyTowards !== 'caster') {
+    found.push({
+      field: `${path}.onlyTowards`,
+      code: 'malformed_field',
+      reason: `a rate is narrowed to steps towards the caster or not at all; the only value is 'caster', not ${String(onlyTowards)}`,
+    });
+  }
   if (clears !== undefined) {
     if (clears !== true) {
       found.push({
@@ -1660,6 +1679,22 @@ function checkAreaTerrain(
         reason: 'ground made ordinary has no rate of its own; name the rate or the clearing, not both',
       });
     }
+    // Ground made ordinary deals nothing either: the same field's two answers.
+    if (damagePerFeet !== undefined) {
+      found.push({
+        field: `${path}.damagePerFeet`,
+        code: 'terrain_clears_and_charges',
+        reason: 'ground made ordinary cuts nobody; name the damage or the clearing, not both',
+      });
+    }
+    // And has no rate to narrow.
+    if (onlyTowards !== undefined) {
+      found.push({
+        field: `${path}.onlyTowards`,
+        code: 'terrain_clears_and_charges',
+        reason: 'ground made ordinary has no rate to narrow to a direction; name the rate or the clearing, not both',
+      });
+    }
     return;
   }
   if (!Number.isInteger(rate) || (rate as number) < DIFFICULT_TERRAIN) {
@@ -1667,6 +1702,52 @@ function checkAreaTerrain(
       field: `${path}.costPerFoot`,
       code: 'bad_terrain_cost',
       reason: `${String(rate)} feet per foot is not Difficult Terrain; the glossary's rate is ${DIFFICULT_TERRAIN} and a spell that prints its own prints a larger whole number`,
+    });
+  }
+  if (damagePerFeet !== undefined) checkTerrainDamage(damagePerFeet, `${path}.damagePerFeet`, found);
+}
+
+/**
+ * SRD Spike Growth's "2d4 Piercing damage for every 5 feet it travels", as a
+ * definition writes it — see `TerrainDamage`.
+ *
+ * Three fields and three refusals under one code: the distance is a whole
+ * number of feet the lattice can count to, the dice parse, and the type is one
+ * of the book's. A move is charged by whole spaces, so a distance that is not
+ * a multiple of the lattice's five feet would be a helping of dice owed for a
+ * span no route can measure.
+ */
+function checkTerrainDamage(damage: unknown, path: string, found: SpellDefinitionProblem[]): void {
+  if (
+    !readsAsObject(
+      damage,
+      path,
+      'damage the ground deals is an object naming the feet, the dice and their type',
+      found,
+    )
+  ) {
+    return;
+  }
+  const { feet, dice, damageType } = damage as { feet?: unknown; dice?: unknown; damageType?: unknown };
+  if (!Number.isInteger(feet) || (feet as number) <= 0 || (feet as number) % CUBE !== 0) {
+    found.push({
+      field: `${path}.feet`,
+      code: 'bad_terrain_damage',
+      reason: `${String(feet)} is not a distance the dice can be owed for; the lattice counts travel in spaces of ${CUBE} feet`,
+    });
+  }
+  if (typeof dice !== 'string' || !parseNotation(dice).ok) {
+    found.push({
+      field: `${path}.dice`,
+      code: 'bad_terrain_damage',
+      reason: `${String(dice)} is not dice notation the engine can throw`,
+    });
+  }
+  if (typeof damageType !== 'string' || !DAMAGE.has(damageType)) {
+    found.push({
+      field: `${path}.damageType`,
+      code: 'bad_terrain_damage',
+      reason: `${String(damageType)} is not a damage type the book prints`,
     });
   }
 }
@@ -4055,6 +4136,7 @@ function checkEffect(
 
     case 'buff':
       checkBonusGrant(effect.bonus, effect.applies, path, found, effect.only);
+      checkGrantRequirements(effect.requires, `${path}.requires`, found, effect.applies);
       return;
 
     case 'roll-mode':
@@ -4342,6 +4424,27 @@ function checkEffect(
           reason: 'a spell either prints "can\'t attack" or does not; the only value is true',
         });
       }
+      // SRD Unseen Servant's command: the one price the book prints for it and
+      // a whole number of feet. That the casting runs is checked at the
+      // definition, where the duration is — see `checkSummonCommand`. (W7-S19)
+      const commanded = (effect as { commanded?: unknown }).commanded;
+      if (commanded !== undefined) {
+        const { costs, moveUpTo } = (commanded ?? {}) as { costs?: unknown; moveUpTo?: unknown };
+        if (
+          typeof commanded !== 'object' ||
+          commanded === null ||
+          costs !== 'bonus-action' ||
+          !Number.isInteger(moveUpTo) ||
+          (moveUpTo as number) <= 0
+        ) {
+          found.push({
+            field: `${path}.commanded`,
+            code: 'bad_summon_command',
+            reason:
+              'a command a caster gives a summons costs a Bonus Action — the one price the book prints — and moves it a positive whole number of feet',
+          });
+        }
+      }
       for (const field of ['armorClass', 'hitPoints'] as const) {
         const scaled = effect[field];
         if (scaled === undefined) continue;
@@ -4456,6 +4559,7 @@ function checkEffect(
           reason: `"${String(effect.defense)}" is not Resistance, Immunity or Vulnerability`,
         });
       }
+      checkGrantRequirements(effect.requires, `${path}.requires`, found);
       return;
     }
 
@@ -4886,6 +4990,16 @@ function checkEffect(
     // at a hundred, and that is a different rule from a printed number the
     // author got wrong.
     case 'chance': {
+      // SRD Sending's "if the target is on a different plane than you": the one
+      // fact a chance may be gated on, and the only value. (W7-S19)
+      const gate = (effect as { onlyIf?: unknown }).onlyIf;
+      if (gate !== undefined && gate !== 'other-plane') {
+        found.push({
+          field: `${path}.onlyIf`,
+          code: 'malformed_field',
+          reason: `a chance is thrown on a stated plane or unconditionally; the only gate is 'other-plane', not ${String(gate)}`,
+        });
+      }
       const printed = effect.percent;
       if (typeof printed === 'number') {
         if (!Number.isFinite(printed) || printed <= 0 || printed > 100) {
@@ -5177,6 +5291,9 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   'summon-drops-to-0',
   'shaken-awake',
   'caster-leaves-the-area',
+  // SRD Warding Bond's two, and Unseen Servant's sixty feet. (W7-S19)
+  'caster-drops-to-0',
+  'separated-beyond',
 ]);
 
 /** What a trigger may end: the casting, or the casting on one creature. */
@@ -5198,6 +5315,10 @@ const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set([
   // them and a place, and `ends: 'target'` would find nothing to release.
   'caster-leaves-the-area',
   'summon-drops-to-0',
+  // And nothing of their own Warding Bond: both are about the caster, and a
+  // separation is about the pair. (W7-S19)
+  'caster-drops-to-0',
+  'separated-beyond',
 ]);
 
 /**
@@ -5369,7 +5490,222 @@ function checkEndsEarly(
         reason: `"${on}" names a creature the casting is not on, so releasing the casting on it would lift nothing and leave the spell running; this sentence ends the casting`,
       });
     }
+
+    // SRD Warding Bond's "separated by more than 60 feet" is the one cause
+    // that prints a number, and the number is the sentence: a distance ending
+    // with none could never fire, and any other cause carrying one would be a
+    // field nothing reads. (W7-S19)
+    const { feet } = trigger as { feet?: unknown };
+    if (on === 'separated-beyond') {
+      if (!Number.isInteger(feet) || (feet as number) <= 0) {
+        found.push({
+          field: `${path}.feet`,
+          code: 'bad_end_trigger_feet',
+          reason: `a casting ended by separation names the feet it ends past, a positive whole number; got ${String(feet)}`,
+        });
+      }
+    } else if (feet !== undefined) {
+      found.push({
+        field: `${path}.feet`,
+        code: 'bad_end_trigger_feet',
+        reason: `"${String(on)}" prints no distance; only a separation carries feet`,
+      });
+    }
   });
+}
+
+/**
+ * SRD Warding Bond: "It also ends if the spell is cast again on either of the
+ * connected creatures." A widening of `replacesPriorCasting` and not a rule of
+ * its own, so it needs the rule it widens — see
+ * `SpellDefinition.replacesPriorCastingOn`. (W7-S19)
+ */
+function checkRecastOnEither(definition: SpellDefinition, found: SpellDefinitionProblem[]): void {
+  const on = (definition as { replacesPriorCastingOn?: unknown }).replacesPriorCastingOn;
+  if (on === undefined) return;
+  if (on !== 'either') {
+    found.push({
+      field: 'replacesPriorCastingOn',
+      code: 'malformed_field',
+      reason: `a recast ends a running casting touching either connected creature or it does not; the only value is 'either', not ${String(on)}`,
+    });
+  }
+  if (definition.replacesPriorCasting !== true) {
+    found.push({
+      field: 'replacesPriorCastingOn',
+      code: 'recast_on_either_without_recast',
+      reason:
+        '"cast again on either of the connected creatures" widens the recast rule, so it needs `replacesPriorCasting` to widen',
+    });
+  }
+}
+
+/**
+ * SRD Warding Bond: "each time it takes damage, you take the same amount of
+ * damage." Shared from a creature the casting is on to its caster, so the
+ * casting has to be on somebody and has to be running when the blow lands —
+ * see `SpellDefinition.sharesDamage`. (W7-S19)
+ */
+function checkSharesDamage(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const shares = (definition as { sharesDamage?: unknown }).sharesDamage;
+  if (shares === undefined) return;
+  if (
+    !readsAsObject(
+      shares,
+      'sharesDamage',
+      'damage a casting shares is an object naming whom it is shared with',
+      found,
+    )
+  ) {
+    return;
+  }
+  const { with: recipient, withinFeet } = shares as { with?: unknown; withinFeet?: unknown };
+  if (recipient !== 'caster') {
+    found.push({
+      field: 'sharesDamage.with',
+      code: 'malformed_field',
+      reason: `the book shares a target's damage with its caster and nobody else; the only value is 'caster', not ${String(recipient)}`,
+    });
+  }
+  if (withinFeet !== undefined && (!Number.isInteger(withinFeet) || (withinFeet as number) <= 0)) {
+    found.push({
+      field: 'sharesDamage.withinFeet',
+      code: 'malformed_field',
+      reason: `a distance the sharing holds within is a positive whole number of feet; got ${String(withinFeet)}`,
+    });
+  }
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (definition.targets.count === 0 || !persists) {
+    found.push({
+      field: 'sharesDamage',
+      code: 'shared_damage_with_nobody',
+      reason:
+        'damage is shared from a creature the casting is on while the casting runs; a spell with no target or no duration has nobody’s damage to share',
+    });
+  }
+}
+
+/**
+ * SRD Nondetection's "can't be targeted by any Divination spell": a ward held
+ * by a creature for a span, against one of the eight schools — see
+ * `SpellDefinition.wardsTargets`. A ward on nobody, or one that ends the moment
+ * it is laid, refuses nothing. (W7-S19)
+ */
+function checkWardsTargets(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const wards = (definition as { wardsTargets?: unknown }).wardsTargets;
+  if (wards === undefined) return;
+  if (
+    !readsAsObject(wards, 'wardsTargets', 'a ward a creature holds names the school it refuses', found)
+  ) {
+    return;
+  }
+  const { school } = wards as { school?: unknown };
+  if (typeof school !== 'string' || !SCHOOLS.has(school)) {
+    found.push({
+      field: 'wardsTargets.school',
+      code: 'bad_ward',
+      reason: `"${String(school)}" is not one of the eight schools of magic a ward can refuse`,
+    });
+  }
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (definition.targets.count === 0 || !persists) {
+    found.push({
+      field: 'wardsTargets',
+      code: 'bad_ward',
+      reason:
+        'a ward is held by a creature the casting is on for as long as it runs; a spell with no target or no duration wards nobody',
+    });
+  }
+}
+
+/**
+ * SRD Unseen Servant's command reaches the creature through the casting's
+ * record, so the casting has to be running to be commanded through — see
+ * `SpellEffect.summon.commanded`. The shape of the field is checked with the
+ * effect; this is the half that needs the duration. (W7-S19)
+ */
+function checkSummonCommand(
+  definition: SpellDefinition,
+  lasts: boolean,
+  found: SpellDefinitionProblem[],
+): void {
+  const summon = definition.effects.find((effect) => effect.kind === 'summon');
+  if (summon?.kind !== 'summon' || summon.commanded === undefined) return;
+  const persists = lasts || definition.untilDispelled === true || definition.concentration;
+  if (!persists) {
+    found.push({
+      field: 'effects.commanded',
+      code: 'bad_summon_command',
+      reason:
+        'a command reaches the creature through the casting that holds it, and an Instantaneous casting leaves no record to command through',
+    });
+  }
+}
+
+/**
+ * The one requirement a **spell's** grant may carry, and the two families it
+ * may carry it on — see `StandingRequirement.within-feet-of`.
+ *
+ * A requirement is only a rule where a reader asks it: `armorClassOf`,
+ * `savingSupport` and `defensesOf` do, and an attack roll or an ability check
+ * would take the bonus whole. So a fenced bonus reaching either of those is
+ * refused rather than granted whole under a field that says otherwise. (W7-S19)
+ */
+function checkGrantRequirements(
+  requires: unknown,
+  path: string,
+  found: SpellDefinitionProblem[],
+  applies?: readonly BonusApplies[],
+): void {
+  if (requires === undefined) return;
+  if (!readsAsList(requires, path, 'what must hold for a grant to apply is a list', found)) return;
+  if (requires.length === 0) {
+    found.push({
+      field: path,
+      code: 'bad_grant_requirement',
+      reason: 'a grant with nothing required of it omits the field rather than writing an empty list',
+    });
+  }
+  requires.forEach((requirement, i) => {
+    const at = `${path}[${i}]`;
+    const { kind, creature, feet } = (requirement ?? {}) as {
+      kind?: unknown;
+      creature?: unknown;
+      feet?: unknown;
+    };
+    if (kind !== 'within-feet-of' || creature !== 'caster') {
+      found.push({
+        field: at,
+        code: 'bad_grant_requirement',
+        reason:
+          'a spell’s grant may be fenced by one thing, the distance to its caster (`within-feet-of` the `caster`); every other requirement is a feature’s and reads a fact a casting does not hold',
+      });
+      return;
+    }
+    if (!Number.isInteger(feet) || (feet as number) <= 0) {
+      found.push({
+        field: `${at}.feet`,
+        code: 'bad_grant_requirement',
+        reason: `a distance is a positive whole number of feet; got ${String(feet)}`,
+      });
+    }
+  });
+  if (applies !== undefined && applies.some((family) => family !== 'ac' && family !== 'save')) {
+    found.push({
+      field: path,
+      code: 'unreadable_grant_requirement',
+      reason:
+        'a fenced bonus is read by the Armour Class and the saving throw, and by nothing else; an attack roll or an ability check would take the bonus whole under a field that says otherwise',
+    });
+  }
 }
 
 /**
@@ -7287,6 +7623,10 @@ export function checkSpellDefinition(
 
   checkEndsEarly(definition, lasts, found);
   checkOnEnd(definition, lasts, found);
+  checkRecastOnEither(definition, found);
+  checkSharesDamage(definition, lasts, found);
+  checkSummonCommand(definition, lasts, found);
+  checkWardsTargets(definition, lasts, found);
 
   // — a grant with nothing to hang on ——————————————————————————————————————
   //

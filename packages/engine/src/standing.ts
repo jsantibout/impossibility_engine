@@ -49,6 +49,7 @@ import {
   type MovementMode,
 } from './character.js';
 import {
+  apartFrom,
   canBeTargeted,
   coverBetween,
   distanceBetween,
@@ -74,6 +75,7 @@ import type { CreatureState, GameState } from './events.js';
 import { typeMagicSees } from './creature-type.js';
 import type { EquippedItem } from './state.js';
 import {
+  castingIdOf,
   creaturesStandingInCastingArea,
   regionOfCastingArea,
   spellOfSource,
@@ -1901,7 +1903,28 @@ export type StandingRequirement =
    * creature whose maximum an Aid is holding up is Bloodied at half of the
    * number the rules currently say, not half of the one its class table does.
    */
-  | { readonly kind: 'while-bloodied' };
+  | { readonly kind: 'while-bloodied' }
+  /**
+   * SRD Warding Bond: "**While the target is within 60 feet of you**, it gains
+   * a +1 bonus to AC and saving throws, and it has Resistance to all damage."
+   *
+   * A distance between two creatures, read at the moment of the question
+   * through `apartFrom`, so the benefit arrives when the pair close and goes
+   * when they part with nothing to remember and nothing to sweep — the reading
+   * `in-sunlight` takes of a space. **The other creature is the caster of the
+   * casting the grant names**, read off `source` (`Warding Bond#cast:3`) and
+   * `state.ongoing`, which is the whole reason the member names `'caster'`
+   * rather than an id: a grant hung by a spell is the one kind whose other end
+   * a source can find. A casting that has ended, a caster nobody has placed, or
+   * a source that names no casting fences nothing in, which is the withholding
+   * direction every unmeasurable fact here takes. (W7-S19)
+   *
+   * The one member a **spell's** grant may carry, and the only place it may:
+   * `spell-schema.ts` refuses it on anything but a `buff` reaching AC or saves
+   * and a `damage-defense`, because those are the three readers that ask it,
+   * and a requirement a reader never asks is a benefit quietly granted whole.
+   */
+  | { readonly kind: 'within-feet-of'; readonly creature: 'caster'; readonly feet: number };
 
 /** One benefit a feature grants, with its reach already resolved to feet. */
 export interface StandingEffect {
@@ -3483,6 +3506,17 @@ export function requirementsHold(
     if (requirement.kind === 'while-bloodied' && !isBloodied(creature)) {
       return false;
     }
+    // SRD Warding Bond's "while the target is within 60 feet of you": the
+    // caster is found through the source's casting, and the distance is read
+    // now. Withheld where the casting is over, the caster is gone or nobody
+    // has placed one of the pair — see the member's own note. (W7-S19)
+    if (requirement.kind === 'within-feet-of') {
+      const castingId = castingIdOf(source);
+      const record = castingId === null ? undefined : state.ongoing[castingId];
+      if (record === undefined) return false;
+      const apart = apartFrom(state, who, record.caster as CharacterId);
+      if (apart === null || apart > requirement.feet) return false;
+    }
   }
   return true;
 }
@@ -4382,7 +4416,12 @@ export function defensesOf(
 ): Readonly<Record<string, DamageDefenses>> {
   const own = state.creatures[who]?.defenses ?? {};
   const standing = standingDefenses(state, who);
-  const hung = state.creatures[who]?.grantedDefenses ?? [];
+  // A defence a spell fenced — SRD Warding Bond's Resistance "while the target
+  // is within 60 feet of you" — is asked its requirement at every read, as a
+  // feature's standing grant is. (W7-S19)
+  const hung = (state.creatures[who]?.grantedDefenses ?? []).filter((granted) =>
+    requirementsHold(state, who, granted.requires, granted.source),
+  );
   // And the fourth input: what an area the creature is standing in grants it
   // for standing there. Derived on every read like the second, and stored on
   // nobody — see {@link AreaDefenseStanding}.
@@ -5518,6 +5557,10 @@ export function armorClassOf(state: GameState, who: CharacterId): number {
   let total = armorClass(sheetAsItStands(state, who) ?? creature.sheet, creature.armorClasses);
   for (const active of creature.bonuses) {
     if (!active.applies.includes('ac')) continue;
+    // A bonus a spell fenced — SRD Warding Bond's "while the target is within
+    // 60 feet of you" — is asked its requirement at every read, exactly as a
+    // feature's standing grant is. (W7-S19)
+    if (!requirementsHold(state, who, active.requires, active.source)) continue;
     const flat = active.bonus.flat ?? 0;
     total += active.direction === 'subtract' ? -flat : flat;
   }

@@ -163,6 +163,16 @@ export function resolveChanceEffect(
   const { casterId, name, supply, events, unverified, outcomes } = ctx;
   const { definition } = ctx.casting();
 
+  // SRD Sending's "if the target is on a different plane than you": a die the
+  // sentence gates on a fact only the table can declare, stated on the request
+  // and refused at the pre-flight for a spell that prints no such clause. Not
+  // stated, no die and no count — the generator does not move for an outcome
+  // the sentence has already decided. (W7-S19)
+  if (effect.onlyIf === 'other-plane' && ctx.otherPlane !== true) {
+    outcomes.push({ target: casterId, affected: false });
+    return ok(world);
+  }
+
   let current = world;
   const { chance, counted } = chanceOf(effect, current, casterId);
   if (counted !== null) {

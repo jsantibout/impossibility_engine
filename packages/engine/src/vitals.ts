@@ -69,6 +69,20 @@ export interface Vitals {
    */
   readonly diedAt: number | null;
   /**
+   * SRD Gentle Repose: "days **spent** under the influence of this spell don't
+   * count against the time limit of spells such as _Raise Dead_."
+   *
+   * The seconds of this death a `preserves` casting that has since ended kept
+   * the body for, accrued by the fold when the casting goes — derived from the
+   * record's start and the ending clock, with no event, exactly as
+   * {@link diedAt} is stamped — and read by `preservedSpan` beside the castings
+   * still running. Absent is nothing spent, which is every creature written
+   * before the field existed; cleared on the way back with {@link diedAt}, so a
+   * creature raised and killed again starts its next death with nothing kept.
+   * (W7-S19)
+   */
+  readonly preservedSeconds?: number;
+  /**
    * SRD: "A monster dies the instant it drops to 0 Hit Points, although a Game
    * Master can ignore this rule for an individual monster and treat it like a
    * character." So this is per-creature rather than a type check.
@@ -536,8 +550,13 @@ export function revive(v: Vitals, hitPoints: number): Vitals {
   if (!Number.isInteger(hitPoints) || hitPoints < 1) {
     throw new Error(`a revival restores a whole number of hit points, at least one, got ${hitPoints}`);
   }
+  // The days a repose kept this body go with the death they were kept
+  // against — see {@link Vitals.preservedSeconds}. Dropped rather than zeroed,
+  // so a revived creature's record is the record it always was.
+  const { preservedSeconds: _spent, ...rest } = v;
+  void _spent;
   return {
-    ...v,
+    ...rest,
     hp: Math.min(v.hpMax, hitPoints),
     dead: false,
     diedAt: null,

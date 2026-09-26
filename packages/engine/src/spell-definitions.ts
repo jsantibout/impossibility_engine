@@ -13,10 +13,16 @@ import type { DefenseKind } from './attack.js';
 import type { Bonus, BonusApplies, BonusNarrowing } from './bonuses.js';
 import type { RollModifier } from './roll-modifiers.js';
 import type { PassiveDefense } from './passive-defenses.js';
-import type { AreaStanding, SpeedChange } from './standing.js';
+import type { AreaStanding, SpeedChange, StandingRequirement } from './standing.js';
 import type { MovementMode } from './character.js';
 import type { ActionRule, ActionSlot } from './combat.js';
-import type { LightLevel, ObscurementDegree, PointAnchoring, SenseName } from './positioning.js';
+import type {
+  LightLevel,
+  ObscurementDegree,
+  PointAnchoring,
+  SenseName,
+  TerrainDamage,
+} from './positioning.js';
 import type { CastingTime } from './spells.js';
 import type { SpellReactionWindow } from './reactions.js';
 import type { HealingRule } from './vitals.js';
@@ -48,6 +54,19 @@ export type SpellRange =
   | { readonly kind: 'self' }
   | { readonly kind: 'touch' }
   | { readonly kind: 'ranged'; readonly feet: number }
+  /**
+   * SRD Sending: "**Range:** Unlimited" — "You can send the message across
+   * any distance and even to other planes of existence."
+   *
+   * A Range the book prints as a word rather than a number, and unlike the
+   * three the `dm` arm carries it is not a question: nothing is measured, and
+   * nothing about the distance is the table's to decide. {@link ranged}
+   * answers null for it, as it does for `self` and `dm`, so a casting refuses
+   * nothing on grounds of how far away anything is — which is the whole of
+   * the engine's opinion. Kept apart from `dm` so that arm stays the one for
+   * a Range that asks the table something. (W7-S19)
+   */
+  | { readonly kind: 'unlimited' }
   /**
    * The book printed something here that only the DM can answer.
    *
@@ -2017,6 +2036,17 @@ export type SpellEffect =
        * sentence, which is most of them.
        */
       readonly only?: BonusNarrowing;
+      /**
+       * SRD Warding Bond: "**While the target is within 60 feet of you**, it
+       * gains a +1 bonus to AC and saving throws."
+       *
+       * What must hold for the bonus to apply, pinned onto the grant and asked
+       * at every read — see `StandingRequirement.within-feet-of`, the one
+       * member a spell's grant may carry. Only on a bonus reaching AC or saves,
+       * because those are the readers that ask it; the validator refuses the
+       * field anywhere a roll would take the bonus whole. (W7-S19)
+       */
+      readonly requires?: readonly StandingRequirement[];
     }
   /**
    * Advantage or Disadvantage on a kind of roll, for as long as the spell runs.
@@ -3125,6 +3155,13 @@ export type SpellEffect =
        */
       readonly damageTypes: readonly string[];
       readonly defense: DefenseKind;
+      /**
+       * SRD Warding Bond: "While the target is within 60 feet of you … it has
+       * Resistance to all damage." What must hold for the defence to apply,
+       * pinned onto the grant and asked by `defensesOf` at every read — see
+       * `StandingRequirement.within-feet-of`. (W7-S19)
+       */
+      readonly requires?: readonly StandingRequirement[];
     }
   /**
    * Condition Immunities the spell hands its target.
@@ -3819,6 +3856,21 @@ export type SpellEffect =
             };
           };
       readonly onFailure: 'no-answer';
+      /**
+       * SRD Sending: "**if the target is on a different plane than you**,
+       * there is a 5 percent chance that the message doesn't arrive."
+       *
+       * The die is thrown only when the caster states the fact the sentence
+       * gates on — `CastSpellRequest.otherPlane`, a fact about a recipient
+       * who is nowhere in the scene and which only the table can declare, the
+       * shape `fought` and `willing` have. Stated on a spell whose chance
+       * prints no such clause it is refused (`no_plane_clause`); absent, no
+       * die is thrown and the generator does not move, which is the rule the
+       * zero chance already keeps. The die is the engine's because a model
+       * deciding whether a message arrived would be a number the model
+       * produced. (W7-S19)
+       */
+      readonly onlyIf?: 'other-plane';
     }
   /**
    * The target is somewhere else, and nothing was spent getting there.
@@ -4118,6 +4170,21 @@ export type SpellEffect =
        * record of, for as long as it stands. The only value is `true`.
        */
       readonly cannotAttack?: true;
+      /**
+       * SRD Unseen Servant: "Once on each of your turns as a Bonus Action, you
+       * can mentally command the servant to move up to 15 feet and interact
+       * with an object."
+       *
+       * The price a **caster** pays to decide what the creature does, and how
+       * far it goes for it — a charge on one creature's economy for another's
+       * move, which no ordinary spender is told apart by. `commandSummons` is
+       * the door: it spends the caster's slot, moves the creature up to the
+       * feet out of no budget of its own, and the object is the table's.
+       * Pinned onto the ongoing record, so the door opens no book; only on a
+       * summons a casting holds, because the command reaches the creature
+       * through the record. (W7-S19)
+       */
+      readonly commanded?: { readonly costs: 'bonus-action'; readonly moveUpTo: number };
     };
 
 /**
@@ -4411,6 +4478,32 @@ export interface AreaTerrain {
    * thicket always has been.
    */
   readonly clears?: true;
+  /**
+   * SRD Spike Growth: "When a creature moves into or within the area, it
+   * takes 2d4 Piercing damage **for every 5 feet it travels**."
+   *
+   * The dice are multiplied by a distance travelled *inside* the area, and
+   * the only thing that says which feet of a move were where is the route the
+   * mover states — so a move that could have crossed this ground with no
+   * route stated is asked for one (`route_required`), whether or not a budget
+   * is being spent, and a forced move that states none is reported rather
+   * than rolled for. Pinned onto the patch with the rate, so the fold and the
+   * ruler open no book. Beside `costPerFoot` and never beside {@link clears}:
+   * ground made ordinary deals nothing.
+   */
+  readonly damagePerFeet?: TerrainDamage;
+  /**
+   * SRD Gust of Wind: "Any creature in the Line must spend 2 feet of movement
+   * for every 1 foot it moves **when moving closer to you**."
+   *
+   * The rate above, narrowed to a step of the stated route that ends nearer
+   * the caster than it began — read per step against where the caster stands
+   * now, which for a Line that blows from the caster is the region's own
+   * origin creature. A move inside such ground with no route stated is asked
+   * for one, because the number depends on which way each step went. Only
+   * beside `costPerFoot`, and never beside {@link clears}.
+   */
+  readonly onlyTowards?: 'caster';
 }
 
 /**
@@ -5988,6 +6081,49 @@ export interface SpellDefinition {
    */
   readonly maxRunning?: number;
   /**
+   * SRD Warding Bond: "It also ends if the spell is cast again on **either of
+   * the connected creatures**."
+   *
+   * {@link replacesPriorCasting} widened from *the same caster casting the
+   * same spell* to *the same spell cast again touching either end of a running
+   * one*: a new casting whose caster or target is the caster or a target of a
+   * running casting of this spell ends that casting, whoever made it. Only
+   * beside `replacesPriorCasting`, because it is that rule's population read
+   * wider and not a rule of its own; `replacedCastings` is the one reader.
+   * (W7-S19)
+   */
+  readonly replacesPriorCastingOn?: 'either';
+  /**
+   * SRD Warding Bond: "Also, each time it takes damage, you take the same
+   * amount of damage."
+   *
+   * Damage the caster takes because a creature the casting is on did: the
+   * amount the target actually took, of the type it took, through the caster's
+   * own defences, dealt where every blow settles (`resolveDamage`) as a second
+   * `damage-taken` with the casting as source — and never the other way round,
+   * nor along a chain of bonds. `withinFeet` is the sentence's own fence,
+   * "while the target is within 60 feet of you", read at the blow. Pinned onto
+   * the ongoing record, so the funnel opens no book; only on a spell with a
+   * target and a duration, because a casting on nobody has nobody's damage to
+   * share. (W7-S19)
+   */
+  readonly sharesDamage?: { readonly with: 'caster'; readonly withinFeet?: number };
+  /**
+   * SRD Nondetection: "The target **can't be targeted by any Divination
+   * spell** or perceived through magical scrying sensors."
+   *
+   * A creature that refuses a casting rather than an area that does —
+   * `AreaWardStanding`'s `wards-magic` read from the target's side. The school
+   * is pinned onto the ongoing record and read by `resolveSpell`'s pre-flight
+   * over every named target: a casting of that school naming a creature the
+   * record is on is refused `warded` before anything is spent, with the ward
+   * named. Scrying sensors and a place or an object as the target stay the
+   * table's, which the definition says in its own notes. Only on a spell with
+   * a target and a duration, because a ward is held by somebody for a span.
+   * (W7-S19)
+   */
+  readonly wardsTargets?: { readonly school: string };
+  /**
    * What stops this casting before its time is up.
    *
    * A casting has always ended four ways — its deadline, a broken
@@ -6191,7 +6327,33 @@ export type CastingEndCause =
    * the same shape everything else in it is: a fact the log already holds,
    * naming one creature.
    */
-  | 'shaken-awake';
+  | 'shaken-awake'
+  /**
+   * SRD Warding Bond: "The spell ends **if you drop to 0 Hit Points**."
+   *
+   * `target-drops-to-0` read of the **caster**: a `damage-taken` that leaves
+   * the casting's own caster at 0, found through `record.caster` rather than
+   * through `isOn`, because the caster holds nothing of a bond laid on
+   * somebody else. The same residue as its sibling — the total and not the
+   * transition — and `ends: 'casting'` is the only scope that means anything
+   * for it. (W7-S19)
+   */
+  | 'caster-drops-to-0'
+  /**
+   * SRD Warding Bond: "or if you and the target become separated by more than
+   * 60 feet." SRD Unseen Servant: "If you command the servant to perform a
+   * task that would move it more than 60 feet away from you, the spell ends."
+   *
+   * The one cause in the list that carries a number — `CastingEndTrigger.feet`
+   * — and the second about a place: read off `creature-moved`, a walk or a
+   * teleport, for the casting's caster, a creature the casting is on, or a
+   * creature it is sustaining, and fired when the caster and one of the
+   * others stand further apart than the feet. A pair nobody can measure — one
+   * of them unplaced, or away in another place — has not been separated,
+   * which is the withholding direction. `ends: 'casting'` only: the caster
+   * holds nothing to release. (W7-S19)
+   */
+  | 'separated-beyond';
 
 /**
  * One printed sentence: what happens, and what it ends.
@@ -6220,6 +6382,13 @@ export interface CastingEndTrigger {
    * validator says so instead.
    */
   readonly ends: 'casting' | 'target';
+  /**
+   * The distance a `separated-beyond` trigger fires past — SRD Warding Bond's
+   * and Unseen Servant's sixty feet. Required on that cause and refused on
+   * every other, because it is the one sentence in the list that prints a
+   * number. (W7-S19)
+   */
+  readonly feet?: number;
 }
 
 /**
@@ -7412,6 +7581,19 @@ export function teleportOf(
   definition: SpellDefinition,
 ): Extract<SpellEffect, { kind: 'teleport' }> | null {
   return definition.effects.find((effect) => effect.kind === 'teleport') ?? null;
+}
+
+/**
+ * The command a spell's caster may give the creature it summons, or undefined
+ * — SRD Unseen Servant's Bonus Action and fifteen feet. {@link teleportOf}'s
+ * discipline: one reader for the record-writer that pins it and the validator
+ * that holds it to a running casting. (W7-S19)
+ */
+export function summonCommandOf(
+  definition: SpellDefinition,
+): { readonly costs: 'bonus-action'; readonly moveUpTo: number } | undefined {
+  const summon = definition.effects.find((effect) => effect.kind === 'summon');
+  return summon?.kind === 'summon' ? summon.commanded : undefined;
 }
 
 /**
