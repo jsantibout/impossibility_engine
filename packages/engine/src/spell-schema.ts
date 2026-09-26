@@ -1133,11 +1133,27 @@ function checkSpellCheck(
     });
   }
 
-  if (check.onSuccess !== 'none' && check.onSuccess !== 'end-on-target') {
+  if (
+    check.onSuccess !== 'none' &&
+    check.onSuccess !== 'end-on-target' &&
+    check.onSuccess !== 'end-casting'
+  ) {
     found.push({
       field: `${path}.onSuccess`,
       code: 'bad_check_outcome',
-      reason: `"${String(check.onSuccess)}" is not something succeeding at a check does; a check changes nothing or ends the effect on its own attempter`,
+      reason: `"${String(check.onSuccess)}" is not something succeeding at a check does; a check changes nothing, ends the effect on the creature it is on, or ends the casting`,
+    });
+  }
+
+  // SRD Ensnaring Strike's "or a creature within reach of it": a spell either
+  // prints the clause or does not, and `false` would be a second way to say
+  // the default — the rule every other clause of this shape follows.
+  const another = (check as { readonly byAnotherWithinReach?: unknown }).byAnotherWithinReach;
+  if (another !== undefined && another !== true) {
+    found.push({
+      field: `${path}.byAnotherWithinReach`,
+      code: 'malformed_field',
+      reason: 'a check is either open to a creature within reach or it is not; the only value is true',
     });
   }
 }
@@ -1628,6 +1644,21 @@ function checkConditionRider(
   }
 
   checkDamageTrigger(rider?.repeats?.alsoWhenDamaged, `${riderPath}.repeats`, found);
+
+  // **A check that ends the casting needs one the rider has not disowned**
+  // (SRD Ensnaring Strike's "On a success, the spell ends"). `outlivesCasting`
+  // records the condition under the spell's bare name, so the fold would meet
+  // the success with nothing to release and throw; the pair is refused here,
+  // where a definition's defects belong, and again at `applyConditionTo`'s
+  // door. The repeat's twin rule is the paragraph below.
+  if (rider?.check?.onSuccess === 'end-casting' && rider.outlivesCasting === true) {
+    found.push({
+      field: `${riderPath}.check.onSuccess`,
+      code: 'check_ends_no_casting',
+      reason:
+        'outlivesCasting records the condition under the spell’s name with no casting in it, so a check that ends the casting on a success has none to end; such a check ends on its target',
+    });
+  }
 
   // **And a repeat that ends the casting needs one the rider has not
   // disowned.** `outlivesCasting` is exactly the field that records the
@@ -2296,6 +2327,7 @@ function checkDamagePenalty(
 
 function checkModifierRider(
   rider: ModifierRider | undefined,
+  level: number,
   path: string,
   found: SpellDefinitionProblem[],
 ): void {
@@ -2347,6 +2379,29 @@ function checkModifierRider(
         if (wrong !== null) found.push({ field: `${path}.counterpart`, ...wrong });
       }
     }
+    return;
+  }
+  if (rider?.kind === 'payout') {
+    // SRD Ensnaring Strike's "1d6 Piercing damage at the start of each of its
+    // turns": the moment and the kind are the payout record's own vocabulary,
+    // read off the same two sets the standalone `turn-payout` kind is held to,
+    // and the amount is a `DiceScaling` because the slot grows it.
+    if (!TURN_MOMENT_NAMES.has(rider.at)) {
+      found.push({
+        field: `${path}.at`,
+        code: 'bad_payout_moment',
+        reason: `"${String(rider.at)}" is not the start or the end of a turn, and the two are a round apart`,
+      });
+    }
+    if (rider.payout !== 'damage') {
+      found.push({
+        field: `${path}.payout`,
+        code: 'unknown_payout',
+        reason: `"${String(rider.payout)}" is not damage; a payout hung off a settled outcome deals damage, and the book prints no other`,
+      });
+    }
+    checkScaling(rider.damage, level, `${path}.damage`, found);
+    checkDamageType(rider.damageType, `${path}.damageType`, found);
     return;
   }
   if (rider?.kind === 'speed-change') {
@@ -2650,7 +2705,7 @@ function checkRiders(
   if (riders.modifiers !== undefined) {
     if (readsAsList(riders.modifiers, `${path}.modifiers`, RIDER_LIST, found)) {
       riders.modifiers.forEach((rider, i) =>
-        checkModifierRider(rider as ModifierRider | undefined, `${path}.modifiers[${i}]`, found),
+        checkModifierRider(rider as ModifierRider | undefined, level, `${path}.modifiers[${i}]`, found),
       );
     }
   }
@@ -2773,7 +2828,7 @@ function checkRiders(
       const instead = riders.drops.orElse;
       if (instead !== undefined && readsAsList(instead, `${path}.drops.orElse`, RIDER_LIST, found)) {
         instead.forEach((rider, i) =>
-          checkModifierRider(rider as ModifierRider | undefined, `${path}.drops.orElse[${i}]`, found),
+          checkModifierRider(rider as ModifierRider | undefined, level, `${path}.drops.orElse[${i}]`, found),
         );
       }
     }
@@ -3186,6 +3241,48 @@ function checkEffect(
           });
         }
       }
+      // SRD Chromatic Orb's leap: a trigger that is the one the book prints,
+      // a reach in whole feet of at least one space, and a cap that is a
+      // derivation from the casting rather than a number the catalogue states.
+      if (effect.leaps !== undefined) {
+        const at = `${path}.leaps`;
+        if (
+          readsAsObject(
+            effect.leaps,
+            at,
+            'a leap is an object naming its trigger, its reach and its cap',
+            found,
+          )
+        ) {
+          const leaps = effect.leaps as {
+            readonly onPair?: unknown;
+            readonly withinFeet?: unknown;
+            readonly maximum?: unknown;
+          };
+          if (leaps.onPair !== true) {
+            found.push({
+              field: `${at}.onPair`,
+              code: 'bad_leap',
+              reason:
+                'the orb leaps when two of its dice show one face, and the book prints no other trigger; the only value is true',
+            });
+          }
+          if (!Number.isInteger(leaps.withinFeet) || (leaps.withinFeet as number) < 5) {
+            found.push({
+              field: `${at}.withinFeet`,
+              code: 'bad_leap',
+              reason: `a leap reaches a whole number of feet, at least one space, not ${String(leaps.withinFeet)}`,
+            });
+          }
+          if (leaps.maximum !== 'slot-level') {
+            found.push({
+              field: `${at}.maximum`,
+              code: 'bad_leap',
+              reason: `"${String(leaps.maximum)}" is not a cap the engine derives; the book counts leaps against the slot's level`,
+            });
+          }
+        }
+      }
       // An attack rolls an attack, so nothing it hangs has a save to repeat.
       checkRiders(effect, level, path, host(false), found);
       // **And the second roll, where the spell prints one.** The child
@@ -3296,6 +3393,21 @@ function checkEffect(
     case 'save': {
       const extra = (effect as { readonly conditions?: unknown }).conditions;
       if (extra !== undefined) readsAsList(extra, `${path}.conditions`, RIDER_LIST, found);
+      checkSizedSaveMode(effect, path, found);
+      // SRD Ensnaring Strike's two marks on a save cast on a hit. Their
+      // *values* are checked here; where they may stand is a fact about the
+      // whole definition — its casting time, its Range, its target rule —
+      // and `checkSaveOnTheHit` reads that.
+      for (const mark of ['onTheHit', 'endsCastingOnSuccess'] as const) {
+        const stated = (effect as Record<string, unknown>)[mark];
+        if (stated !== undefined && stated !== true) {
+          found.push({
+            field: `${path}.${mark}`,
+            code: 'malformed_field',
+            reason: 'a spell either prints the clause or does not; the only value is true',
+          });
+        }
+      }
       // SRD Sleep's "Immunity to the Exhaustion condition": one condition the
       // glossary names, read off the target rather than stated by the caster.
       // **Or SRD Animal Messenger's Challenge Rating**, which is the other
@@ -3873,7 +3985,22 @@ function checkEffect(
      * catalogue check lives in `checkContent`, where both halves are present.
      */
     case 'summon': {
-      checkSummonedForm(effect.monster, `${path}.monster`, found);
+      // A summons names its block one way or the other: by its id in content
+      // (or the printed forms), or printed inline in the spell's own sentence.
+      // Both is two answers to one question; neither is a creature nobody
+      // described.
+      if (effect.monster !== undefined && effect.inline !== undefined) {
+        found.push({
+          field: `${path}.inline`,
+          code: 'two_stat_blocks',
+          reason:
+            'a summons raises one stat block, named in content or printed inline in the spell; this names both',
+        });
+      } else if (effect.inline !== undefined) {
+        checkInlineStatBlock(effect.inline, `${path}.inline`, found);
+      } else {
+        checkSummonedForm(effect.monster, `${path}.monster`, found);
+      }
       if (
         effect.creatureType !== undefined &&
         !CREATURE_TYPES.includes(effect.creatureType as string)
@@ -4692,6 +4819,7 @@ export const END_TRIGGER_CAUSES: ReadonlySet<string> = new Set([
   'target-takes-damage',
   'target-drops-to-0',
   'summon-takes-damage',
+  'summon-drops-to-0',
   'shaken-awake',
   'caster-leaves-the-area',
 ]);
@@ -4714,6 +4842,7 @@ const CAUSES_OUTSIDE_THE_CASTING: ReadonlySet<string> = new Set([
   // The caster holds nothing of their own Tiny Hut either: the cause is about
   // them and a place, and `ends: 'target'` would find nothing to release.
   'caster-leaves-the-area',
+  'summon-drops-to-0',
 ]);
 
 /**
@@ -6443,6 +6572,7 @@ export function checkSpellDefinition(
   checkChanceTargets(definition, found);
   checkWeaponAttack(definition, found);
   checkCastingRepeatLifetime(definition, found);
+  checkSaveOnTheHit(definition, found);
 
   const activation = definition.activation;
   if (
@@ -7868,6 +7998,85 @@ function checkSummonTargets(
  * `SummonedForm`. The list and the clause are checked for shape; whether the
  * world holds a block is the world's question, asked at the cast.
  */
+/**
+ * The three numbers and the few facts a spell may print inside itself — see
+ * `InlineStatBlock`. Every number is checked as untyped input, because a
+ * homebrew definition arrives as JSON, and the absences the type documents
+ * are accepted as absences.
+ */
+function checkInlineStatBlock(block: unknown, path: string, found: SpellDefinitionProblem[]): void {
+  if (
+    !readsAsObject(
+      block,
+      path,
+      'a stat block printed in a spell is an object naming the creature, its Armour Class, its Hit Points, its abilities and its size',
+      found,
+    )
+  ) {
+    return;
+  }
+  const inline = block as {
+    readonly name?: unknown;
+    readonly armorClass?: unknown;
+    readonly hitPoints?: unknown;
+    readonly abilities?: unknown;
+    readonly size?: unknown;
+    readonly type?: unknown;
+    readonly walkingSpeed?: unknown;
+    readonly conditions?: unknown;
+  };
+  const bad = (field: string, reason: string): void => {
+    found.push({ field: `${path}.${field}`, code: 'bad_inline_block', reason });
+  };
+  if (typeof inline.name !== 'string' || inline.name.trim().length === 0) {
+    bad('name', 'a creature the spell prints has a name the log can call it by');
+  }
+  if (!Number.isInteger(inline.armorClass) || (inline.armorClass as number) < 1) {
+    bad('armorClass', `an Armour Class is a whole number of at least 1, not ${String(inline.armorClass)}`);
+  }
+  if (!Number.isInteger(inline.hitPoints) || (inline.hitPoints as number) < 1) {
+    bad('hitPoints', `a Hit Point total is a whole number of at least 1, not ${String(inline.hitPoints)}`);
+  }
+  if (typeof inline.abilities !== 'object' || inline.abilities === null) {
+    bad('abilities', 'the abilities the sentence prints are an object of scores; an empty one prints none');
+  } else {
+    for (const [ability, score] of Object.entries(inline.abilities)) {
+      if (!ABILITY_NAMES_SET.has(ability as Ability)) {
+        bad(`abilities.${ability}`, `"${ability}" is not an ability`);
+      } else if (!Number.isInteger(score) || (score as number) < 1 || (score as number) > 30) {
+        bad(`abilities.${ability}`, `an ability score is a whole number from 1 to 30, not ${String(score)}`);
+      }
+    }
+  }
+  if (!(CREATURE_SIZES as readonly unknown[]).includes(inline.size)) {
+    bad('size', `"${String(inline.size)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`);
+  }
+  if (inline.type !== undefined && !CREATURE_TYPES.includes(inline.type as string)) {
+    found.push({
+      field: `${path}.type`,
+      code: 'unknown_creature_type',
+      reason: `"${String(inline.type)}" is not one of the SRD's fourteen creature types`,
+    });
+  }
+  const walks = inline.walkingSpeed;
+  if (walks !== undefined && (!Number.isInteger(walks) || (walks as number) < 0 || (walks as number) % 5 !== 0)) {
+    bad('walkingSpeed', `a Speed is a whole number of 5-foot spaces, not ${String(walks)}`);
+  }
+  if (inline.conditions !== undefined) {
+    if (readsAsList(inline.conditions, `${path}.conditions`, 'the conditions the sentence gives the creature are a list', found)) {
+      (inline.conditions as readonly unknown[]).forEach((name, i) => {
+        if (typeof name !== 'string' || !CONDITION_NAMES.has(name)) {
+          found.push({
+            field: `${path}.conditions[${i}]`,
+            code: 'unknown_condition',
+            reason: `"${String(name)}" is not a condition the rules glossary names`,
+          });
+        }
+      });
+    }
+  }
+}
+
 function checkSummonedForm(monster: unknown, path: string, found: SpellDefinitionProblem[]): void {
   if (typeof monster === 'string') {
     if (monster.trim().length === 0) {
@@ -8121,6 +8330,103 @@ function checkWeaponAttack(
  * `durationSecondsAt`, so a definition writing the other one would be writing
  * a duration the command that casts it cannot read.
  */
+/**
+ * A mode the target's size gives a save — SRD Ensnaring Strike's "A Large or
+ * larger creature has Advantage on this save".
+ *
+ * The floor is one of the six sizes the engine ranks, the mode is one of the
+ * two a roll can take, and both are checked as untyped input because a
+ * homebrew definition arrives as JSON. Only a `save` reads it: the other two
+ * hosts that roll a saving throw could carry it tomorrow, and the day one does
+ * the resolver moves first.
+ */
+function checkSizedSaveMode(effect: object, path: string, found: SpellDefinitionProblem[]): void {
+  const stated = (effect as { readonly saveModeIf?: unknown }).saveModeIf;
+  if (stated === undefined) return;
+  if (
+    !readsAsObject(
+      stated,
+      `${path}.saveModeIf`,
+      'a mode a size gives a save is an object naming the floor and the mode',
+      found,
+    )
+  ) {
+    return;
+  }
+  const floor = (stated as { readonly sizeAtLeast?: unknown }).sizeAtLeast;
+  if (!(CREATURE_SIZES as readonly unknown[]).includes(floor)) {
+    found.push({
+      field: `${path}.saveModeIf.sizeAtLeast`,
+      code: 'bad_size',
+      reason: `"${String(floor)}" is not a creature size; the engine has ${CREATURE_SIZES.join(', ')}`,
+    });
+  }
+  const mode = (stated as { readonly mode?: unknown }).mode;
+  if (mode !== 'advantage' && mode !== 'disadvantage') {
+    found.push({
+      field: `${path}.saveModeIf.mode`,
+      code: 'bad_mode',
+      reason: `"${String(mode)}" is not a mode a saving throw takes; a size gives Advantage or Disadvantage`,
+    });
+  }
+}
+
+/**
+ * Where a save **cast on a hit** may be written, and what may stand beside it.
+ *
+ * SRD Ensnaring Strike prints the smites' casting time — "Bonus Action, which
+ * you take immediately after hitting a creature with a weapon", Range Self, no
+ * target of its own — over a saving throw. `save.onTheHit` is the mark, and
+ * it is held to exactly that shape: a spell that names its own targets, or
+ * fills an area, has a creature of its own for the save to reach and does not
+ * need the blow's. The mark sends the spell to `resolveAttackDamage`'s door,
+ * so a definition wearing it anywhere else would be a spell nobody could cast.
+ *
+ * And `endsCastingOnSuccess` needs both the mark and a span: the ending is
+ * read by the cast-on-hit road alone, because that is the one road that
+ * writes the record before it resolves the save, and a spell with no duration
+ * leaves no casting to end.
+ */
+function checkSaveOnTheHit(definition: SpellDefinition, found: SpellDefinitionProblem[]): void {
+  definition.effects.forEach((effect, index) => {
+    if (effect.kind !== 'save') return;
+    const path = `effects[${index}]`;
+    if (effect.onTheHit === true) {
+      if (
+        definition.castingTime !== 'bonus-action' ||
+        definition.range.kind !== 'self' ||
+        definition.targets.count !== 0 ||
+        definition.targets.unlimited === true ||
+        definition.area !== undefined
+      ) {
+        found.push({
+          field: `${path}.onTheHit`,
+          code: 'on_the_hit_outside_a_smite',
+          reason:
+            'a save made by the creature the weapon just hit belongs to a Bonus Action spell with a Range of Self and no target of its own, which is the shape the smites print; a spell that names or catches its own creatures has them to save',
+        });
+      }
+    }
+    if (effect.endsCastingOnSuccess === true) {
+      if (effect.onTheHit !== true) {
+        found.push({
+          field: `${path}.endsCastingOnSuccess`,
+          code: 'ends_casting_without_a_hit',
+          reason:
+            'a success ends the casting only where the record is written before the save is rolled, which is the road a spell cast on a hit takes; a casting’s own list ends itself through repeats',
+        });
+      }
+      if (definition.durationSeconds === undefined && definition.durationAtSlot === undefined) {
+        found.push({
+          field: `${path}.endsCastingOnSuccess`,
+          code: 'ends_casting_without_a_duration',
+          reason: 'an Instantaneous casting is over already, so a success has nothing to end',
+        });
+      }
+    }
+  });
+}
+
 function checkCastingRepeatLifetime(
   definition: SpellDefinition,
   found: SpellDefinitionProblem[],

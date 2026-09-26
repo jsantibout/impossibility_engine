@@ -93,6 +93,7 @@ import {
 } from '../positioning.js';
 import { type ReactionOffer } from '../reactions.js';
 import {
+  castOnAHit,
   durationSecondsAt,
   isCreatureType,
   scaledDiceFor,
@@ -101,6 +102,7 @@ import {
   type SpellDefinition,
   type SpellEffect,
 } from '../spell-definitions.js';
+import { resolveEffects } from './spell-resolution.js';
 import type { RepeatSave } from '../timers.js';
 import { ONGOING_RECORD_VERSION } from '../ongoing-compatibility.js';
 import { schedule } from './conditions.js';
@@ -3429,11 +3431,18 @@ export function resolveAttackDamage(
     const heldPrice = riderDicePrice(pending.rider ?? null);
 
     // — the spell cast on the blow ——————————————————————————————————————————
+    //
+    // A smite may throw — SRD Ensnaring Strike's saving throw is rolled inside
+    // the casting the hit makes — and the pipeline that rolls it writes its
+    // own `rolls-issued`, so the bracket this command opens below stays where
+    // it was: around the blow's dice and nothing else.
+    const smiteUnverified: string[] = [];
     if (command.smite !== undefined) {
-      const smite = castOnHit(state, supply.content, id, attacker, pending.target, command.smite);
+      const smite = castOnHit(state, supply, id, attacker, pending.target, command.smite);
       if (!smite.ok) return smite;
       events.push(...smite.value.events);
       extra.push(...smite.value.damage);
+      smiteUnverified.push(...smite.value.unverified);
     }
 
     const current = events.reduce(applyEvent, state);
@@ -3632,7 +3641,11 @@ export function resolveAttackDamage(
     const bought: GameEvent[] = [];
     // The charge's own sentence, on the half of a held swing that rolls the
     // damage — see the unheld path's copy of this line.
-    const unverified: string[] = [...printedDamage.unverified, ...priced.unverified];
+    const unverified: string[] = [
+      ...smiteUnverified,
+      ...printedDamage.unverified,
+      ...priced.unverified,
+    ];
     if (charged !== null && hurt.value.offers.length === 0) {
       const paid = applyHitRider(
         [...landed, ...rider.value.events].reduce(applyEvent, state),
@@ -3703,7 +3716,8 @@ function keptRunning(
   id: CharacterId,
   casting: {
     readonly definition: SpellDefinition;
-    readonly effect: Extract<SpellEffect, { kind: 'attack-damage' }>;
+    /** The dice on the blow, where the spell prints any; a snare prints none. */
+    readonly effect: Extract<SpellEffect, { kind: 'attack-damage' }> | undefined;
     readonly route: CastingRoute;
     readonly target: CharacterId;
     readonly castLevel: number;
@@ -3732,7 +3746,7 @@ function keptRunning(
   const sheet = sheetAsItStands(state, id) ?? state.creatures[id]?.sheet;
   if (sheet === undefined) return unknownCreature(id);
 
-  const repeats = effect.repeats;
+  const repeats = effect?.repeats;
   const numbers = numbersFor(state, id, sheet, casting.route);
 
   // What the boundary burns for, at the slot this casting paid — the same two
@@ -3820,7 +3834,7 @@ function keptRunning(
  */
 function castOnHit(
   state: GameState,
-  content: Content,
+  supply: Supply,
   id: CharacterId,
   attacker: CreatureState,
   target: CharacterId,
@@ -3829,19 +3843,33 @@ function castOnHit(
     readonly slotLevel?: number;
     readonly payment?: 'free-casting';
   },
-): Result<{ readonly events: readonly GameEvent[]; readonly damage: readonly ExtraDamage[] }> {
+): Result<{
+  readonly events: readonly GameEvent[];
+  readonly damage: readonly ExtraDamage[];
+  readonly unverified: readonly string[];
+}> {
+  const { content } = supply;
   const definition = content.spell(smite.spellId);
   if (definition === null) {
     return err('no_definition', `${smite.spellId} has no executable definition`);
   }
 
-  const effect = definition.effects.find((e) => e.kind === 'attack-damage');
-  if (effect === undefined || effect.kind !== 'attack-damage') {
+  // **Two spellings of "cast on a hit", and a spell may print one.** SRD Divine
+  // Smite's dice ride the blow (`attack-damage`); SRD Ensnaring Strike's
+  // saving throw is made by the creature the blow landed on (`save.onTheHit`),
+  // and is resolved below once the casting has a record for its vines to hang
+  // on. `castOnAHit` is the one reader, shared with the door that refuses
+  // these spells at a casting's own entrance.
+  if (!castOnAHit(definition)) {
     return err(
       'not_cast_on_a_hit',
       `${definition.name} is not a spell cast on an attack that hits`,
     );
   }
+  const found = definition.effects.find((e) => e.kind === 'attack-damage');
+  const effect = found?.kind === 'attack-damage' ? found : undefined;
+  const snaring = definition.effects.find((e) => e.kind === 'save' && e.onTheHit === true);
+  const snare = snaring?.kind === 'save' ? snaring : undefined;
 
   // The route decides nothing here — Divine Smite rolls no save and makes no
   // attack — but casting a spell the caster does not have is still a refusal.
@@ -3886,7 +3914,7 @@ function castOnHit(
   // thin record rather than one that is neither a Fiend nor an Undead, so the
   // engine asks; taking the smaller branch quietly would be a wrong number no
   // later assertion could see.
-  const varies = effect.againstType;
+  const varies = effect?.againstType;
   const victim = state.creatures[target];
   if (varies !== undefined && victim !== undefined && victim.creatureType === null) {
     return needsContext(
@@ -3946,13 +3974,11 @@ function castOnHit(
       isCreatureType(victim === undefined ? null : typeMagicSees(victim), named),
     );
 
-  const dice = scaledDiceFor(
-    effect.damage,
-    definition.level,
-    attacker.sheet.level,
-    castLevel,
-  );
-  const flat = scaledFlatFor(effect.damage, definition.level, castLevel);
+  const dice =
+    effect === undefined
+      ? undefined
+      : scaledDiceFor(effect.damage, definition.level, attacker.sheet.level, castLevel);
+  const flat = effect === undefined ? 0 : scaledFlatFor(effect.damage, definition.level, castLevel);
 
   // **And what a spell with a duration leaves standing.** The record and the
   // deadline are written here rather than by the casting beneath, because the
@@ -3971,38 +3997,88 @@ function castOnHit(
   });
   if (!keeps.ok) return keeps;
 
+  // The use, where the free casting is the price: inside the settlement's own
+  // batch, after every refusal and before the dice, as a slot's is.
+  const events: GameEvent[] = [
+    ...(freePool === null ? [] : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
+    ...cast.value,
+    ...keeps.value,
+  ];
+  const unverified: string[] = [];
+
+  // **The saving throw the blow's creature makes**, where the spell prints one
+  // — SRD Ensnaring Strike's "As you hit the target, grasping vines appear on
+  // it, and it makes a Strength saving throw." Resolved through the ordinary
+  // pipeline, against the one creature the hit landed on, in the world the
+  // record and its deadline have just been written into: the vines are the
+  // casting's, so the condition, the payout and the escape check it hangs are
+  // all filed under a casting that exists to be ended. The DC is derived by
+  // the same reader `keptRunning` used for its hook, so the two cannot differ.
+  if (snare !== undefined) {
+    const cast = events.find((event) => event.type === 'spell-cast');
+    if (cast?.type !== 'spell-cast') {
+      return err(
+        'no_casting',
+        `${definition.name} raises a saving throw on the hit and the casting wrote nothing for it to hang on`,
+      );
+    }
+    const world = events.reduce(applyEvent, state);
+    const snared: GameEvent[] = [];
+    const resolved = resolveEffects(world, id, world.creatures[id] ?? attacker, definition, {
+      castLevel,
+      ...(freePool === null ? { slotLevel: castLevel } : {}),
+      route,
+      targets: [target],
+      unverified,
+      supply,
+      castingId: cast.castingId,
+      events: snared,
+      effects: [snare],
+    });
+    if (!resolved.ok) return resolved;
+    events.push(...snared);
+
+    // "On a successful save, the vines shrivel away, and the spell ends." The
+    // record above was written so there would be a spell to end; a target that
+    // resisted leaves it with nothing to run, and the book says so.
+    const resisted = resolved.value.outcomes.every(
+      (outcome) => outcome.target !== target || !outcome.affected,
+    );
+    if (snare.endsCastingOnSuccess === true && resisted && keeps.value.length > 0) {
+      events.push({ type: 'spell-ended', castingId: cast.castingId, on: null, reason: 'resisted' });
+    }
+  }
+
   return ok({
-    // The use, where the free casting is the price: inside the settlement's
-    // own batch, after every refusal and before the dice, as a slot's is.
-    events: [
-      ...(freePool === null ? [] : [{ type: 'resource-spent' as const, id, key: freePool, amount: 1 }]),
-      ...cast.value,
-      ...keeps.value,
-    ],
-    damage: [
-      {
-        source: definition.name,
-        type: effect.damageType,
-        // **Both halves of the amount, and either may be absent.**
-        // `ExtraDamage` has carried a `flat` beside its dice since it was
-        // written and this path read only the dice, so a printed number
-        // beside a smite's notation was dropped — no SRD smite prints one, so
-        // nothing changes today. A dice-free amount makes the pair load-
-        // bearing: `rollAttackDamage` throws no die for one and hands over the
-        // flat alone.
-        ...(dice === undefined ? {} : { dice }),
-        ...(flat === 0 ? {} : { flat }),
-      },
-      ...(singled
-        ? [
+    events,
+    unverified,
+    damage:
+      effect === undefined
+        ? []
+        : [
             {
-              source: `${definition.name} (${victim!.creatureType})`,
+              source: definition.name,
               type: effect.damageType,
-              dice: varies!.extraDice,
+              // **Both halves of the amount, and either may be absent.**
+              // `ExtraDamage` has carried a `flat` beside its dice since it was
+              // written and this path read only the dice, so a printed number
+              // beside a smite's notation was dropped — no SRD smite prints
+              // one, so nothing changes today. A dice-free amount makes the
+              // pair load-bearing: `rollAttackDamage` throws no die for one
+              // and hands over the flat alone.
+              ...(dice === undefined ? {} : { dice }),
+              ...(flat === 0 ? {} : { flat }),
             },
-          ]
-        : []),
-    ],
+            ...(singled
+              ? [
+                  {
+                    source: `${definition.name} (${victim!.creatureType})`,
+                    type: effect.damageType,
+                    dice: varies!.extraDice,
+                  },
+                ]
+              : []),
+          ],
   });
 }
 

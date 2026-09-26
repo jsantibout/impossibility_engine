@@ -514,6 +514,27 @@ export interface CastSpellRequest extends CommandIdentity {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Where the orb goes when its dice pair, **in order** — SRD Chromatic Orb's
+   * "the orb leaps to a different target of your choice within 30 feet of the
+   * target".
+   *
+   * An election rather than a window: the caster says now, before a die is
+   * thrown, which creatures the orb should leap to and in what order, and the
+   * resolver takes the first stated creature the book allows at each leap —
+   * within reach of the one just struck and not yet targeted by this casting
+   * — and skips the rest. Nothing here is a number and nothing here is an
+   * outcome; a creature named out of reach is simply never leapt to, and a
+   * list left out means the orb does not leap. **Order is meaning**, so the
+   * list is not sorted — which is the one way it differs from
+   * {@link fought}.
+   *
+   * Refused on a spell that prints no leap (`no_leap_clause`), for a creature
+   * the casting already names (`leap_to_a_target`), and for a creature named
+   * twice (`duplicate_leap_target`); pinned on a held casting so a
+   * Counterspell's window does not lose it.
+   */
+  readonly leapTo?: readonly CharacterId[];
+  /**
    * Where a teleporting spell puts its target.
    *
    * SRD Misty Step: "you teleport up to 30 feet to an unoccupied space you can
@@ -1183,6 +1204,42 @@ export function declaredFacts(
       'no_fought_clause',
       `${definition.name} does not change its save for a creature you are fighting; which of them you are fighting is not a fact it asks for`,
     );
+  }
+
+  // — where the orb leaps ———————————————————————————————————————————————————
+  //
+  // SRD Chromatic Orb's "a different target of your choice within 30 feet of
+  // the target": a list the caller names and the engine validates, in the
+  // caller's order because the order is the choice. Refused where the spell
+  // prints no leap, never required where it does — a caster who names nobody
+  // has an orb that does not leap, which is a legal reading of "of your
+  // choice" and not a missing fact. The distance is measured at each leap
+  // rather than here, because it is measured from the creature the orb has
+  // just struck, and the first of those is the only one known now.
+  if (request.leapTo !== undefined) {
+    if (
+      !definition.effects.some((effect) => effect.kind === 'attack' && effect.leaps !== undefined)
+    ) {
+      return err(
+        'no_leap_clause',
+        `${definition.name} does not leap from one creature to another; where it would go next is not a fact it asks for`,
+      );
+    }
+    for (const who of request.leapTo) {
+      if (creatureOf(state, who) === null) return unknownCreature(who);
+      if (request.targets.includes(who)) {
+        return err(
+          'leap_to_a_target',
+          `${definition.name} leaps to a different creature, and ${who} is one it is already aimed at`,
+        );
+      }
+    }
+    if (new Set(request.leapTo).size !== request.leapTo.length) {
+      return err(
+        'duplicate_leap_target',
+        `${definition.name} may target a creature only once per casting, so it may not be told to leap to the same creature twice`,
+      );
+    }
   }
 
   // — who among them consents ——————————————————————————————————————————————

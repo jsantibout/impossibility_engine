@@ -1588,6 +1588,13 @@ export interface PendingCasting {
    */
   readonly fought?: readonly CharacterId[];
   /**
+   * Where the orb leaps, in the caster's order — SRD Chromatic Orb, held open
+   * for a Counterspell and settled with the list its caster stated. Absent for
+   * every spell that does not leap, which is every spell but one, and for
+   * every declaration written before the field existed.
+   */
+  readonly leapTo?: readonly CharacterId[];
+  /**
    * Which of this casting's targets consent to it.
    *
    * SRD Mage Armor's "a **willing** creature" and SRD Levitate's save for one

@@ -702,7 +702,7 @@ describe('the shape stops where the SRD stops being expressible', () => {
   });
 
   /** No definition claims an outcome the engine cannot carry out. */
-  it('offers only the two outcomes it can perform', () => {
+  it('offers only the three outcomes it can perform', () => {
     const outcomes = new Set<string>();
     for (const definition of SPELL_DEFINITIONS) {
       if (definition.check !== undefined) outcomes.add(definition.check.onSuccess);
@@ -716,7 +716,9 @@ describe('the shape stops where the SRD stops being expressible', () => {
         }
       }
     }
-    expect([...outcomes].sort()).toEqual(['end-on-target', 'none']);
+    // `end-casting` arrived with SRD Ensnaring Strike: "On a success, the
+    // spell ends."
+    expect([...outcomes].sort()).toEqual(['end-casting', 'end-on-target', 'none']);
   });
 
   /**

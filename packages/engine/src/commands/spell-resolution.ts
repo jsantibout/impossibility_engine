@@ -80,6 +80,7 @@ import {
 import { remaining, tallied } from '../resources.js';
 import {
   breaksAttunement,
+  castOnAHit,
   concentrationAt,
   dropsAnObject,
   outcomeRidersOf,
@@ -481,6 +482,8 @@ export function resolveDeclaredCast(
       // fresh request there is none of. A held Charm Person settles with the
       // Advantage its caster said it had.
       ...(pending.fought === undefined ? {} : { fought: pending.fought }),
+      // And where the orb leaps, read back off the record for the same reason.
+      ...(pending.leapTo === undefined ? {} : { leapTo: pending.leapTo }),
       // And the ninth, read back the same way: a Levitate declared over a
       // willing ally settles with the ally still willing, because a settlement
       // takes no fresh request to ask again.
@@ -757,8 +760,10 @@ export function castOrRelease(
     }
 
     // SRD Divine Smite is cast "immediately after hitting a target", so the
-    // attack is the thing it needs and this command has none to give it.
-    if (definition.effects.some((effect) => effect.kind === 'attack-damage')) {
+    // attack is the thing it needs and this command has none to give it. SRD
+    // Ensnaring Strike prints the same casting time over a saving throw
+    // rather than dice, and `castOnAHit` reads both spellings.
+    if (castOnAHit(definition)) {
       return err(
         'cast_on_a_hit',
         `${definition.name} is cast on an attack that has hit; settle the attack's damage with it instead`,
@@ -2369,6 +2374,7 @@ function resolveOnTargets(
         effects: running,
         ...(origin === null ? {} : { from: origin }),
         ...(fought === undefined ? {} : { fought }),
+        ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
         ...(willing === undefined ? {} : { willing }),
         ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
         ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
@@ -2685,6 +2691,9 @@ function resolveOnTargets(
               // `statedFacts` — see where it is bound above.
               ...stated,
               ...(fought === undefined ? {} : { fought }),
+              // And where the orb leaps, in the order stated — never sorted,
+              // because the order is the choice.
+              ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
               ...(willing === undefined ? {} : { willing }),
               // And the two marks an elected option leaves on the record
               // itself: the mode it hung on one target's saves, and whether
@@ -2791,6 +2800,7 @@ function resolveOnTargets(
       effects: running,
       ...(origin === null ? {} : { from: origin }),
       ...(fought === undefined ? {} : { fought }),
+      ...(request.leapTo === undefined ? {} : { leapTo: request.leapTo }),
       ...(willing === undefined ? {} : { willing }),
       ...(request.teleportTo === undefined ? {} : { teleportTo: request.teleportTo }),
       ...(request.weapon === undefined ? {} : { weapon: request.weapon }),
@@ -3122,6 +3132,8 @@ export function resolveEffects(
      * cancels rather than stacks.
      */
     readonly fought?: readonly CharacterId[];
+    /** Where the orb leaps, in the caster's order — see `CastSpellRequest.leapTo`. */
+    readonly leapTo?: readonly CharacterId[];
     /**
      * Which of this casting's targets consent to it.
      *
@@ -3256,6 +3268,7 @@ export function resolveEffects(
     ...(context.label === undefined ? {} : { label: context.label }),
     ...(context.from === undefined ? {} : { from: context.from }),
     ...(context.fought === undefined ? {} : { fought: context.fought }),
+    ...(context.leapTo === undefined ? {} : { leapTo: context.leapTo }),
     ...(context.willing === undefined ? {} : { willing: context.willing }),
     ...(context.altitude === undefined ? {} : { altitude: context.altitude }),
     ...(context.teleportTo === undefined ? {} : { teleportTo: context.teleportTo }),
@@ -3445,6 +3458,7 @@ export interface EffectRun {
   readonly label?: string;
   readonly from?: Point;
   readonly fought?: readonly CharacterId[];
+  readonly leapTo?: readonly CharacterId[];
   readonly willing?: readonly CharacterId[];
   readonly altitude?: number;
   readonly teleportTo?: Placement;
@@ -3733,9 +3747,11 @@ export function runEffects(
     outcomes,
     held,
     summoned,
+    leapt: [],
     alters: run.alters ?? NO_ALTERATIONS(),
     ...(run.from === undefined ? {} : { from: run.from }),
     ...(run.fought === undefined ? {} : { fought: run.fought }),
+    ...(run.leapTo === undefined ? {} : { leapTo: run.leapTo }),
     ...(run.willing === undefined ? {} : { willing: run.willing }),
     ...(run.altitude === undefined ? {} : { altitude: run.altitude }),
     ...(run.teleportTo === undefined ? {} : { teleportTo: run.teleportTo }),

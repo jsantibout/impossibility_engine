@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
-import { declaredCasting } from '@ie/engine';
+import { castOnAHit, declaredCasting } from '@ie/engine';
 import { asCharacterId, isErr, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
@@ -644,11 +644,12 @@ const castFully = (spellId: string, bonus = -40, seed = 'cast') => {
  * all — SRD Divine Smite's casting time is "immediately after hitting a
  * target", and `resolveSpell` has no attack to hand it. They are driven by
  * `smite.test.ts` instead, and the refusal here is asserted rather than the
- * spell being quietly left out of the sweep.
+ * spell being quietly left out of the sweep. `castOnAHit` is the engine's own
+ * reading of the shape — dice on the blow, or SRD Ensnaring Strike's saving
+ * throw made by the creature the blow landed on — so the sweep and the door
+ * that refuses these spells cannot disagree about which they are.
  */
-const ON_HIT = SPELL_DEFINITIONS.filter((d) =>
-  d.effects.some((effect) => effect.kind === 'attack-damage'),
-);
+const ON_HIT = SPELL_DEFINITIONS.filter((d) => castOnAHit(d));
 
 /**
  * And a spell cast **as** a weapon attack, refused by the same command a line

@@ -247,8 +247,8 @@ describe('toolSchemas', () => {
     // gained a tool.
     expect(toolSchemas(player())).toHaveLength(87);
     expect(toolSchemas(dm())).toHaveLength(109);
-    expect(JSON.stringify(toolSchemas(player())).length).toBe(131224);
-    expect(JSON.stringify(toolSchemas(dm())).length).toBe(166734);
+    expect(JSON.stringify(toolSchemas(player())).length).toBe(132070);
+    expect(JSON.stringify(toolSchemas(dm())).length).toBe(167580);
   });
 });
 

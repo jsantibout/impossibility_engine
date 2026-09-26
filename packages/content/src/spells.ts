@@ -9141,11 +9141,18 @@ export const TRUE_STRIKE: SpellDefinition = {
  * > equal to the level of the slot expended, and a creature can be targeted
  * > only once by each casting of this spell."
  *
- * **Executed rather than tracked, and Scorching Ray is the reason the two
- * spells part company here.** One of three rays is a third of that spell's
- * damage, so resolving one would be resolving a third of it; this spell's
- * whole printed payload is the first orb, and the leap is a bonus that fires
- * on a coincidence. So the 3d8 lands, scales by slot, and the leap is quoted.
+ * **The orb leaps now, and it leaps where the caster said.** The trigger is a
+ * predicate over the whole roll — a pair among the spell's own d8s, which
+ * `DieRule` could not ask because it judges one die at a time — and the
+ * consequence is an attack roll at a creature the casting never named, which
+ * the format could not aim. Both are `leaps` on the attack: the request states
+ * `leapTo` in the caster's order, and when a pair shows the orb goes to the
+ * first stated creature within thirty feet of the one just struck that this
+ * casting has not yet targeted, with a new attack roll and a new damage roll
+ * through the same resolver. The cap is the slot's level — one leap at level
+ * 1, which is what "can't leap **again** unless" means — and a creature is
+ * targeted once per casting. A caster who names nobody has an orb that does
+ * not leap, which is what "of your choice" means for silence.
  */
 export const CHROMATIC_ORB: SpellDefinition = {
   id: 'chromatic-orb',
@@ -9163,12 +9170,11 @@ export const CHROMATIC_ORB: SpellDefinition = {
       attack: 'ranged',
       damage: { dice: '3d8', perSlotLevelAbove: '1d8' },
       damageType: 'acid',
+      // "If you roll the same number on two or more of the d8s, the orb leaps
+      // to a different target of your choice within 30 feet of the target …
+      // a maximum number of times equal to the level of the slot expended".
+      leaps: { onPair: true, withinFeet: 30, maximum: 'slot-level' },
     },
-  ],
-  unmodelled: [
-    'the orb does not leap, because the trigger reads the individual dice of a damage roll two at a time: "If you roll the same number on two or more of the d8s" asks whether a pair matched, and a `DieRule` — which Sorcerous Burst writes — judges one die at a time and is never handed the roll it is part of',
-    'nor is the leap resolved: hurling the orb at a second creature is a second attack roll and a second damage roll out of one casting, and an effect rolls one attack per target',
-    'the bounds on the leaping are not applied either: a maximum number of times equal to the level of the slot expended, and a creature targeted only once by each casting, both count something that never happens',
   ],
 };
 
@@ -11358,9 +11364,30 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
  * > It has AC 10, 1 Hit Point, and a Strength of 2, and it can't attack. If it
  * > drops to 0 Hit Points, the spell ends."
  *
- * A stat block in one sentence — an Armour Class, a Hit Point total and an
- * ability score — for a thing no casting can put in the scene. What the engine
- * owes it is the Ritual, the hour and the slot.
+ * > "Once on each of your turns as a Bonus Action, you can mentally command
+ * > the servant to move up to 15 feet and interact with an object. … If you
+ * > command the servant to perform a task that would move it more than 60
+ * > feet away from you, the spell ends."
+ *
+ * **A stat block in one sentence, and the sentence is the block.** The owner's
+ * ruling files a spell-internal block in the bestiary, and this is the one the
+ * bestiary could not take without inventing an ability table, a Speed and a
+ * type the book never printed — so the `summon` effect carries it `inline`,
+ * exactly as printed, and the resolver adapts it through the same road a
+ * bestiary block takes. The servant is a creature: AC 10 to hit, 1 Hit Point to
+ * lose, a Strength of 2 to save with, Medium on the map, Invisible from the
+ * condition vocabulary under the casting's own source, forbidden the Attack
+ * action by the same rule Find Familiar's familiar is, held by the casting for
+ * its hour and taken away when the hour ends. "If it drops to 0 Hit Points, the
+ * spell ends" is `summon-drops-to-0`, the fifth cause a casting's own record
+ * can end on — read of the creature the casting is sustaining, the way Phantom
+ * Steed's blow is.
+ *
+ * **What is moved is the servant, and the DM moves it.** The Bonus Action
+ * command is the DM's move command on the servant plus an object interaction
+ * the table narrates; what the engine does not yet do is charge the caster's
+ * Bonus Action for it or end the spell at sixty feet, both of which are said
+ * below rather than assumed.
  */
 export const UNSEEN_SERVANT: SpellDefinition = {
   id: 'unseen-servant',
@@ -11371,13 +11398,34 @@ export const UNSEEN_SERVANT: SpellDefinition = {
   ritual: true,
   concentration: false,
   range: { kind: 'ranged', feet: 60 },
-  targets: { count: 0 },
-  effects: [],
+  // The spell is on its caster and what it makes is a second creature, which
+  // is the shape every summons takes: the printed Range is the reach the
+  // servant springs into rather than a reach to a target.
+  targets: { count: 1, self: true },
+  effects: [
+    {
+      kind: 'summon',
+      // "an Invisible, mindless, shapeless, Medium force … It has AC 10, 1
+      // Hit Point, and a Strength of 2, and it can't attack." Every field the
+      // sentence does not print is left unprinted — see `InlineStatBlock`.
+      inline: {
+        name: 'Unseen Servant',
+        armorClass: 10,
+        hitPoints: 1,
+        abilities: { str: 2 },
+        size: 'medium',
+        conditions: ['invisible'],
+      },
+      cannotAttack: true,
+    },
+  ],
   durationSeconds: 3600,
+  // "If it drops to 0 Hit Points, the spell ends" — the whole casting, which is
+  // what then takes the fallen servant away.
+  endsEarly: [{ on: 'summon-drops-to-0', ends: 'casting' }],
   unmodelled: [
-    'no servant appears: "AC 10, 1 Hit Point, and a Strength of 2" is a stat block printed inside a spell, and nothing a casting does adds a creature to the scene — so the unoccupied space it springs into is the DM’s too',
-    'and the two endings that hang off it are not watched: the spell ending when the servant drops to 0 Hit Points, and ending when a command would take it more than 60 feet from the caster',
-    'the Bonus Action that moves it 15 feet and has it handle an object is not offered; the economy is built and the thing being moved is not',
+    'the spell does not end when a command would take the servant more than 60 feet from the caster: that is a distance the engine can measure after the servant’s move and does not yet read at the move command, which another track owns',
+    'the Bonus Action the command costs its caster is not spent: the servant is moved by the DM’s move command on the servant itself, and the caster’s own economy is not charged for issuing the order',
     'what the servant fetches, cleans, mends, folds, lights, serves or pours is the DM’s and always will be',
   ],
 };
@@ -13288,18 +13336,30 @@ export const SHINING_SMITE: SpellDefinition = {
  * > "As you hit the target, grasping vines appear on it, and it makes a
  * > Strength saving throw. A Large or larger creature has Advantage on this
  * > save. On a failed save, the target has the Restrained condition until the
- * > spell ends. ... While Restrained, the target takes 1d6 Piercing damage at
- * > the start of each of its turns. The target or a creature within reach of
- * > it can take an action to make a Strength (Athletics) check against your
- * > spell save DC."
+ * > spell ends. On a successful save, the vines shrivel away, and the spell
+ * > ends. While Restrained, the target takes 1d6 Piercing damage at the start
+ * > of each of its turns. The target or a creature within reach of it can take
+ * > an action to make a Strength (Athletics) check against your spell save DC.
+ * > On a success, the spell ends."
  * > _Using a Higher-Level Spell Slot._ "The damage increases by 1d6 for each
  * > spell slot level above 1."
  *
- * The fourth spell to print the smites' casting time and the first that cannot
- * follow them: Searing Smite hangs dice on the attack that triggered it, and
- * this one raises a saving throw against a target the format has no way to
- * name — "the target" is the creature the weapon just hit, which is not a
- * creature type and not a list the caller chose.
+ * The fourth spell to print the smites' casting time and the first whose
+ * payload is a saving throw rather than dice on the blow. It takes the smites'
+ * road — settled by `resolveAttackDamage` on the hit that triggered it — and
+ * what it hangs is the ordinary `save` effect, aimed at the creature the weapon
+ * just hit (`onTheHit`): "the target" is not a creature type and not a list
+ * the caller chose, so the target rule says nobody and the effect says who.
+ *
+ * **Every clause is the engine's now.** The Strength save is rolled with the
+ * mode the target's *size* gives it (`saveModeIf`, read off `effectiveSizeOf`);
+ * a failure hangs the Restrained under the casting, so what ends the casting
+ * ends it; the die at the start of each of the target's turns is a `payout`
+ * rider — the arrangement Heroism hangs, dealing damage, scaled at the slot —
+ * that goes with the casting; the Athletics check is open to the target **or a
+ * creature within reach of it** (`byAnotherWithinReach`, measured off the map)
+ * and a success ends the spell, as does the target's own successful save
+ * (`endsCastingOnSuccess`). The DC is the Ranger's, off the sheet at the cast.
  */
 export const ENSNARING_STRIKE: SpellDefinition = {
   id: 'ensnaring-strike',
@@ -13312,15 +13372,43 @@ export const ENSNARING_STRIKE: SpellDefinition = {
   concentration: true,
   range: { kind: 'self' },
   targets: { count: 0 },
-  effects: [],
-  durationSeconds: 60,
-  unmodelled: [
-    'the spell reaches nobody: "the target" is the creature the weapon just hit, and a Range of Self with no target list has no way to say so — the smites solve it by riding the attack’s own damage, and a saving throw is not damage',
-    'so the Strength save is not raised and the Restrained condition is not applied on a failure',
-    'the Advantage a Large or larger creature has on that save is not granted either: an outcome shaped by the target’s size is a fact the engine holds and no effect reads',
-    'the 1d6 Piercing at the start of each of the target’s turns is not dealt, and neither is the extra die a slot above 1 buys — damage on a turn boundary hangs on a repeat save whose failure branch acts, and a repeat save releases an effect on a success and does nothing on a failure',
-    'and the Strength (Athletics) check that ends it is not offered: it may be made by the target *or by a creature within reach of it*, which is a check by somebody the casting never touched',
+  effects: [
+    {
+      kind: 'save',
+      ability: 'str',
+      // "As you hit the target … it makes a Strength saving throw."
+      onTheHit: true,
+      // "A Large or larger creature has Advantage on this save."
+      saveModeIf: { sizeAtLeast: 'large', mode: 'advantage' },
+      // "On a failed save, the target has the Restrained condition until the
+      // spell ends." No `lasts`: the casting's own minute is the lifetime.
+      condition: 'restrained',
+      // "On a successful save, the vines shrivel away, and the spell ends."
+      endsCastingOnSuccess: true,
+      // "While Restrained, the target takes 1d6 Piercing damage at the start
+      // of each of its turns." Hung off the failure, so a creature that saved
+      // takes nothing; scaled with the slot, as the book scales it.
+      modifiers: [
+        {
+          kind: 'payout',
+          at: 'start-of-turn',
+          payout: 'damage',
+          damage: { dice: '1d6', perSlotLevelAbove: '1d6' },
+          damageType: 'piercing',
+        },
+      ],
+      // "The target or a creature within reach of it can take an action to
+      // make a Strength (Athletics) check against your spell save DC. On a
+      // success, the spell ends."
+      check: {
+        ability: 'str',
+        skill: 'athletics',
+        onSuccess: 'end-casting',
+        byAnotherWithinReach: true,
+      },
+    },
   ],
+  durationSeconds: 60,
 };
 
 /**

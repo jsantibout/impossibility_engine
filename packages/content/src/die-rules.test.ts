@@ -155,63 +155,31 @@ describe('SRD Sorcerous Burst rolls the die its own sentence asks for', () => {
 });
 
 /**
- * **SRD Chromatic Orb is refused, and the reason is not the die.**
+ * **SRD Chromatic Orb is not a `DieRule`, and it is written all the same.**
  *
  * The owner named it beside Sorcerous Burst because both react to the faces of
- * their damage dice, and reading the faces is exactly what this batch built. It
- * is still not writable, and the half that blocks it is the *consequence*:
- *
- * > "If you roll the same number on two or more of the d8s, the orb leaps to a
- * > different target of your choice within 30 feet of the target. **Make an
- * > attack roll against the new target, and make a new damage roll.**"
- *
- * That is a second attack roll and a second damage roll, at a creature the
- * casting never named, out of one casting — `several-attack-rolls-from-one-
- * casting`, the shape Scorching Ray and Eldritch Blast are both blocked on, and
- * `spell-definitions.ts` names this spell in the field that refuses it: "a
- * chained attack on a dice-face trigger ... A child that rolls is a parent."
- *
- * The trigger half would also need a fourth kind of `DieEffect` and a different
- * one from the three that exist: `DieEffect` judges **one die at a time** —
- * `substitute` and `bonusOn` are both `(rolled, sides)` — and "the same number
- * on two or more of the d8s" is a predicate over the whole roll. That is a real
- * shape and it is not built here, because a leap is not a die behaviour: the
- * effect would fire and have nowhere to send the orb.
+ * their damage dice. What separates them is the *scope* of the question: a
+ * `DieRule` judges one die at a time — `substitute` and `bonusOn` are both
+ * `(rolled, sides)` — and "the same number on two or more of the d8s" is a
+ * predicate over the whole roll. So the orb declares no die rule; its trigger
+ * is `OrbLeaps.onPair` on the attack, asked of the spell's own counted dice
+ * once they have all been thrown, and its consequence — an attack roll at a
+ * creature the casting never named — is the elected leap beside it. Driven by
+ * `chromatic-orb.test.ts`; what is pinned here is the boundary between the two
+ * vocabularies, so nobody widens `DieEffect` to ask about a pair.
  */
-describe('SRD Chromatic Orb is not this shape, and says so', () => {
-  it('declares no die rule, and keeps the two blockers that are really its own', () => {
+describe('SRD Chromatic Orb is not this shape, and is written on its own', () => {
+  it('declares no die rule, and carries the leap on the attack instead', () => {
     expect(CHROMATIC_ORB.dieRule).toBeUndefined();
-
-    const blockers = (ADJUDICATED['chromatic-orb'] ?? []).map((entry) => entry.why);
-    // The leap is the blocker, and it is the one the catalogue already ranks.
-    expect(blockers).toContain('several-attack-rolls-from-one-casting');
-    // And the trigger is still filed under the die shape, because the reading
-    // it wants — a predicate over a whole roll — is not one of the three.
-    expect(blockers).toContain('a-die-behaviour-a-spell-asks-for');
-    expect(CHROMATIC_ORB.unmodelled?.length).toBe(3);
+    expect(CHROMATIC_ORB.effects[0]).toMatchObject({
+      kind: 'attack',
+      leaps: { onPair: true, withinFeet: 30, maximum: 'slot-level' },
+    });
+    expect(ADJUDICATED['chromatic-orb']).toBeUndefined();
+    expect(CHROMATIC_ORB.unmodelled).toBeUndefined();
   });
 
-  /**
-   * **And the written reason says the true one.**
-   *
-   * The note this entry carried said "a damage roll comes back as a total, and
-   * no effect kind asks the generator about the dice inside one" — which is the
-   * sentence Sorcerous Burst's own debt was deleted for being. A map that
-   * states and denies the same fact is worse than one that is merely behind,
-   * because the coverage report publishes the note and nothing read it. So the
-   * note is asserted rather than the id alone: the trigger's blocker is that a
-   * rule is handed one die at a time, not that faces are unreadable.
-   */
-  it('says why the trigger cannot be written, in the map the report prints', () => {
-    const note = (ADJUDICATED['chromatic-orb'] ?? []).find(
-      (entry) => entry.why === 'a-die-behaviour-a-spell-asks-for',
-    )?.note;
-    expect(note).toBeDefined();
-    expect(note).toContain('one die at a time');
-    expect(note).not.toContain('comes back as a total');
-  });
-
-  /** The engine's own vocabulary is what says the trigger cannot be written. */
+  /** The engine's die vocabulary still has no way to ask about two dice at once, and need not. */
   it('has no way to ask a question about two dice at once', () => {
     const dice = readFileSync(
       fileURLToPath(new URL('../../engine/src/dice.ts', import.meta.url)),
@@ -243,9 +211,10 @@ describe('SRD Chromatic Orb is not this shape, and says so', () => {
  * 3. **The supply.** `AttackOptions.damageEffects` is the attack-wide scope a
  *    fighting style wants, and `standingDamageEffects` is what fills it.
  *
- * What is left under `a-die-behaviour-a-spell-asks-for` is therefore two
- * things rather than three: a predicate over a whole roll, and a reroll the
- * roller chooses. The attack's scope has a writer.
+ * `a-die-behaviour-a-spell-asks-for` is retired: the attack's scope has a
+ * writer, the predicate over a whole roll is `OrbLeaps.onPair`, and the
+ * reroll the roller chooses was settled by ruling — Empowered Spell throws
+ * the lowest dice.
  *
  * The end-to-end behaviour is `fighting-styles.test.ts`'s; what this asserts
  * is that the catalogue declares it rather than describing it.

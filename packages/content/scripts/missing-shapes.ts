@@ -134,7 +134,7 @@ export const MISSING_SHAPES = {
   'an-ability-score-a-spell-changes':
     'a score an effect **moves**, in any of the five ways the book moves one. `docs/design/time-and-turns.md`, on what a rest does not restore: "**Reduced ability scores and a reduced hit point maximum are not restored**, because neither is modelled in the first place." One of the five is built: an item may now *set* a score — an **absolute** held while it is worn, derived on every read by `abilityScoresOf` — and the three entries that printed only that sentence are transcribed. Four have no writer. A score an effect **lowers**. A **bounded delta with a lifetime**, which SRD prints on six Ioun Stones: "Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head" is `ability-score-increase`’s arithmetic on a standing grant’s lifetime, and the member that holds the arithmetic is answered at creation while the one that holds the lifetime writes absolutes — the Belt of Dwarvenkind prints it too, and the Hammer of Thunderbolts adds 4 to whatever score a belt or a pair of gauntlets already bestowed. A set with a **deadline** rather than a garment, which a conferral would carry and `CONFERRED_EFFECT_KINDS` does not admit. And a **permanent** raise: the manuals’ and the tomes’ +2 after forty-eight hours of study, which outlives every rest and is a folded number rather than a derived one.',
   'a-stat-block-created-mid-fight':
-    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, or leaves the form to the caster out of a printed list (SRD Find Familiar’s eleven, or any Beast of Challenge Rating 0), pins every number the block prints into `creature-added`, works out the numbers a spell prints over its own block (SRD Find Steed’s "AC 10 + 1 per spell level", its Fly Speed gated on a level 4 slot, the creature type the caster states), reads the caster’s Initiative count where the spell shares it and seats the creature immediately after them, and binds the creature either to the casting **after** the ongoing record or — where the spell prints "disappears if it drops to 0 Hit Points" — to its summoner, as a creature the caster *keeps*, replaced by a second casting. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is two things and neither is the creation: **a stat block that is in neither chapter** — Unseen Servant’s servant, which the book prints nowhere as a block — and **a line the block prints with the summoner’s numbers**, SRD Find Steed’s Otherworldly Slam ("Bonus equals your spell attack modifier", "1d8 plus the spell’s level") and its three Bonus Actions ("DC equals your spell save DC"), which no stat block field can name and which the transcribed block therefore omits.',
+    'summons. `docs/design/casting.md`, "Which spells this reaches": "A stat block created mid-fight | Unseen Servant, Arcane Hand, Phantom Steed, Summon Dragon, Giant Insect ...". That row lost three entries to this reading — "the four Conjures", Guardian of Faith and Faithful Hound — because SRD 5.2.1 rewrote the Conjure family as spirits and none of the eight prints an Armour Class, Hit Points or a turn. **The creation half is built.** `summonCreature` and `dismissStrandedSummons` were the door; P2-T11 added the level above them — a `summon` effect kind, so a casting derives its creature from the spell instead of a caller reading the casting id back and summoning by hand. It names a stat block by its id in content, or leaves the form to the caster out of a printed list (SRD Find Familiar’s eleven, or any Beast of Challenge Rating 0), pins every number the block prints into `creature-added`, works out the numbers a spell prints over its own block (SRD Find Steed’s "AC 10 + 1 per spell level", its Fly Speed gated on a level 4 slot, the creature type the caster states), reads the caster’s Initiative count where the spell shares it and seats the creature immediately after them, and binds the creature either to the casting **after** the ongoing record or — where the spell prints "disappears if it drops to 0 Hit Points" — to its summoner, as a creature the caster *keeps*, replaced by a second casting. The owner’s ruling of 2026-09-21 settled where a spell-internal block goes: into the bestiary, transcribed in `packages/content/src/bestiary.ts`, not into a second kind of content. What is left under this name is one thing and it is not the creation. **A stat block that is in neither chapter is built**: `InlineStatBlock` on the `summon` effect carries the three numbers SRD Unseen Servant prints in a sentence, and the resolver adapts them through the road a bestiary block takes, so the servant is a creature and its fall ends the casting (`summon-drops-to-0`). What remains is **a line the block prints with the summoner’s numbers**, SRD Find Steed’s Otherworldly Slam ("Bonus equals your spell attack modifier", "1d8 plus the spell’s level") and its three Bonus Actions ("DC equals your spell save DC"), which no stat block field can name and which the transcribed block therefore omits.',
   'movement-modes':
     'the Fly, Climb and Swim Speeds the engine does not distinguish, and the per-foot costs that ride with them. `docs/design/spell-definitions.md` refuses the vocabulary by name: "**Movement modes are refused outright.** Fly, Climb and Swim have no reader — no rule in the engine asks about one — so a vocabulary for them would be shape built ahead of every mechanic that could use it", and Roving’s own note says the same of its Climb and Swim Speeds. What is left of `speed-and-movement-modes` once IE-033 built the modifier half.',
   // **`a-speed-an-effect-multiplies` was here and has moved to the item
@@ -168,8 +168,6 @@ export const MISSING_SHAPES = {
     '**Built.** `docs/design/rolls-and-damage.md` says it now: "A selector may name a family of D20 Tests, and it must then name the ability behind them". `RollFamily` gained the glossary’s own union of the other three, and `rollSelectorProblems` refuses it with no ability on it, because every consumer in reach prints the narrowing and a bare selector would reach every roll its holder ever made. SRD Ray of Enfeeblement is executed off it. **Three claimants are left**: Enlarge/Reduce, which prints the phrase as two families and waits on the choice made at the casting; and Foresight and Resurrection, which print it **bare** at levels this engine does not reach. The id stays because the bare phrase is still a widening nobody has asked for, and it arrives with the spell that writes it exactly as this member did.',
   'a-roll-result-an-effect-replaces':
     'a die whose result an effect overrides or throws again. `docs/design/rolls-and-damage.md` has both halves for damage dice — "Substitute a value | Great Weapon Fighting: 1 or 2 counts as 3 | `treatLowRollsAs`" — and for a D20 Test it had only `rerollTest`, which is a Reaction a feature takes. **The half that is retired is the pipeline reroll**: a `reroll-test-die` grant names a face, `sheetAsItStands` derives it onto the sheet every roller already asks for, and `rollD20Recorded` throws the counted die again and keeps the first throw on `roll-recorded.supersedes` — which reaches every ability check, saving throw, attack roll, Initiative and death save without a roll site having to know, and is SRD Luck whole. What is left under this name is a **spell effect** reaching either half: nothing a definition can write replaces a die or a result, so the reroll above is a feature’s sentence and only a feature’s.',
-  'a-die-behaviour-a-spell-asks-for':
-    '`docs/design/rolls-and-damage.md`’s "Dice Are Individually Addressable" table: `treatLowRollsAs`, `explodeOnMax` and `rerollDice` are built and tested, and the claim this description used to make — that no definition passes any of them — is **half retired**. `SpellDefinition.dieRule` is the door a spell asks through, `explodeOnMax` is behind its one arm, and Sorcerous Burst is the SRD sentence that walks through it, capped at a modifier the engine derives rather than one the catalogue states. What is left under this id is two different things, and neither of them is the plumbing. **A predicate over a whole roll**: `DieEffect` judges one die at a time — `substitute` and `bonusOn` both take `(rolled, sides)` — and Chromatic Orb’s "If you roll the same number on two or more of the d8s" asks about a pair, which no signature here can be handed; its consequence is a second attack out of one casting in any case, so the trigger alone would fire at nothing. **A reroll the roller chooses**: `rerollDice` takes indices because SRD Empowered Spell lets a player pick which damage dice to throw again, and nothing in the command layer asks a caller which, so the one feature that prints it stays filed here. Savage Attacker used to be filed beside it and never belonged there — it throws the **whole** weapon component a second time and keeps one of two totals rather than naming dice — and it is retired: `RollRule` and `rollUnder` are the roll-level scope `DieEffect` could not be handed, an `attack-roll-rule` grant is how a feature asks for one, and `standingWeaponRollRule` supplies `AttackOptions.weaponRollRule` once a turn. **An attack’s scope rather than a spell’s** is the third thing that used to be filed here, and it is retired: `AttackOptions.damageEffects` is supplied now, by `standingDamageEffects`, off an `attack-die-rule` grant a feat may carry and a `WeaponNarrowing` that says "a Melee weapon that you are holding with two hands". SRD Great Weapon Fighting is the sentence that walks through it. Defense was filed beside it under the same weapon clause and never belonged there — its own is about **armour** — and is blocked on a `StandingRequirement` instead.',
   'a-damage-penalty-a-spell-grants':
     '**Built.** `docs/design/rolls-and-damage.md` says it now: "A creature may be made to subtract from its own damage rolls". The twentieth sourced grant, and the mirror of the granted reduction on the other side of a blow: that one stands on whoever is hit and this one on whoever swung, and `damagePenaltyOf` is the one reader, shared by the road a defender is holding open and the one nobody may answer. `BonusApplies` is untouched and still names no damage, for the reason its own docstring gives. SRD Ray of Enfeeblement is executed off it. **One claimant is left**, Enlarge/Reduce, whose 1d4 is this grant with the floor it already carries and whose blocker is the choice made at the casting.',
   'an-action-a-spell-compels-or-forbids':
@@ -195,8 +193,6 @@ export const MISSING_SHAPES = {
     '`docs/design/time-and-turns.md`: "**In combat the clock is derived.** A round ends when the Initiative order wraps, and six seconds have passed; nobody decides that." A spell that hands its caster several turns in a row has no way to say so without a decision somebody makes, which is the one thing the derived clock refuses. **The second member this id used to carry is built**: a turn placed at a named *position* rather than at a number — SRD Find Steed’s "the steed takes its turn immediately after yours" — is `Combatant.after`, a seat straight after its anchor at the anchor’s own count and tiebreak, with no tiebreak invented. What remains is Time Stop’s: the order is "a list of creatures rather than something a spell adds to", and several turns in a row for one creature is an insertion the derived clock has no member for.',
   'a-choice-made-at-the-casting':
     '**The field exists now, and the id is narrower than it was — kept because an id is a key two branches append to.** `SpellDefinition.choiceStated` is `damageTypeStated` generalised along the axis that field’s own docstring predicted: a printed list, one value named at the casting, anything off the list refused, the answer pinned onto the events and the ongoing record. It carries a **condition**, an **ability** or a **skill**, and `statedChoice` substitutes the caster’s answer into the effect that holds one — which finished Blindness/Deafness’ "(your choice)", Lesser Restoration’s "end **one** condition", Enhance Ability’s five abilities and Guidance’s "choose a skill". **The second arm is built too, and what is left under the id is one spell.** `SpellDefinition.options` is a choice of **which effects run** instead of which value one of them carries: a record of named branches, of which a casting runs exactly one, named on the request as the tenth stated fact, refused off the list and pinned onto the events and the ongoing record beside `choice`. The common `effects` list runs for every branch and the branch’s list runs after it — and where the shared thing is a *saving throw that gates the branch*, the save belongs to the branch, because an effect appended after a save does not know how the save went. SRD Command left by that door (three of its five words run, hung as riders on their own Wisdom save) and so did Thaumaturgy (six branches, one handed over per casting, and `maxRunning` for the three the book lets run at once); Enlarge/Reduce has the shell, with each half’s three clauses filed under shapes of their own. **Glyph of Warding is what is left**, and it is a different mechanism again: its two glyphs are a *stored casting* — a spell held in a rune until somebody steps on it — rather than a branch of this one, and it stays filed until that shape exists. **Hex is the fourth entry and is none of that**: its sentence is Enhance Ability’s with the mode reversed and is writable today, and it stays counted here because `TrackedAdjudication.why` has no value for "nothing blocks this and nobody has written the definition" — see the note on the entry itself. The original description follows: `docs/design/rolls-and-damage.md` names it for the roll-modifier vocabulary — "An ability **chosen at the casting** | Hex, Enhance Ability, Bestow Curse" — and a damage type was always the one choice that was not here.',
-  'several-attack-rolls-from-one-casting':
-    '**The count and the split are both written now, and what is left of this id is one spell.** `spell-definitions.ts` gives the `attack` member an `AttackRollCount`, scaled by slot level or by Cantrip Upgrade exactly as its dice are, and the resolver throws each roll on its own — its own attack, its own line in the log, its own Critical Hit, its own damage. Scorching Ray hurls three rays and Eldritch Blast throws its beams, and **both have left**. The thing that finished them was the second half the description before this one was still owed: *where* the rolls go when the caster wants them uneven. `CastSpellRequest.rollsAt` states a count beside each creature named, `rollsAimedAt` checks it against the rolls the casting actually makes, and a declaration pins it — so four rays at two creatures go three and one when the caster says so, and two and two when they say nothing. **A count beside the list rather than a repeat inside it**, because a spell has one effect list applied to every target and a duplicate in that list would be a creature every other effect kind ran on twice. What is left is the harder thing and is the whole of Chromatic Orb: a roll aimed at **a creature the casting never named**, chained off a face the dice showed, with a cap counting the leaps and a rule that no creature may be hit twice. That is still the spell-side twin of the class-feature gap `docs/design/characters-and-equipment.md` names: "Extra attacks inside the Attack action. The economy counts one Attack action, not the attacks in it".',
 
   'a-success-branch-that-does-something':
     '**Built.** spell-definitions.ts says it now: "A success has its own slot and not a member here". `save.onSuccessRiders` is a second `OutcomeRiders` written under a name that says which branch it rides, so the invariant the rider design rests on stands — a settled outcome’s riders are handed over and never asked which one. The validator narrows the slot to the four a printed success writes, a mode, a condition, a movement and a spend, and refuses damage on the book’s authority: no saving throw in it rewards a success with a hit. SRD Ray of Enfeeblement is executed off it. **Two claimants are left** and neither is blocked on this: Flesh to Stone waits on an automatic success, a repeat counted to three and a Petrified that outlives the count; Irresistible Dance waits on a creature somebody else is playing.',
@@ -272,7 +268,7 @@ export const MISSING_SHAPES = {
   'an-outcome-that-breaks-concentration':
     '**Built, and what is left of the id is two readings rather than a gap.** `PROGRESS.md` named it among the mechanics the drained shapes left behind: "an outcome-scoped child effect (Ice Knife’s explosion, Hideous Laughter’s two conditions, **Sleet Storm’s broken Concentration**)" — `OutcomeRiders` landed with conditions, modifiers and delayed damage, and ending the target’s Concentration was the one consequence in that sentence that got no slot. `OutcomeRiders.breaksConcentration` is that slot now: read off the creature at the moment the outcome settles, landed as the `concentration-ended` every other ending writes, and silent where the target was holding nothing. Sleet Storm is executed off it. The two claimants left are each blocked on something else — SRD Earthquake is level 8 and nobody has re-read its paragraph since, and the Thunderous Greatclub’s tremor waits on an item being able to force a save at all.',
   'a-check-another-creature-may-attempt':
-    '`docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." An ally reaching in to cut somebody free, or shaking a sleeper awake, is neither, and the derivation has no third branch.',
+    '**Built, for the one spell that printed it.** `docs/design/spell-definitions.md`, on the check a spell offers: "**Who may attempt it is derived from what the timer sits on** — an effect on a creature is that creature’s to shake off, a casting with no victim is anybody’s to see through." The derivation has its third branch now: `SpellCheck.byAnotherWithinReach` is the clause, `EffectCheck` pins it, and `availableChecks` / `resolveEffectCheck` admit a creature within five feet of the condition’s holder, measured off the map. SRD Ensnaring Strike — "The target or a creature within reach of it can take an action to make a Strength (Athletics) check" — is executed off it, with `onSuccess: end-casting` beside it because that sentence ends the spell. What is left under this name is the *other* attempter the note imagined: shaking a sleeper awake is `shaken-awake`, an ending a creature performs rather than a check it rolls, and no SRD spell offers a check to somebody who is neither the holder nor within reach.',
   'an-area-trigger-measured-from-a-point':
     '`docs/design/casting.md` names it spell by spell: "Ending a turn within 5 feet of a point, and a point rolled into a creature’s space | Flaming Sphere". `AreaTrigger` hangs off a template, and a reach measured from the casting’s own origin is what `CastingOrigin.reach` answers for an attack and for nothing that fires on its own.',
   'a-distance-a-creature-travels-inside-an-area':
@@ -669,23 +665,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'only the first target must be seen',
       why: 'targeting-rules-that-differ-within-one-casting',
       note: 'SRD requires sight of the first target only. One sight requirement is checked against every target named, so this casting demands four declared sight lines where the book demands one.',
-    },
-  ],
-  'chromatic-orb': [
-    {
-      clause: 'reads the individual dice of a damage roll',
-      why: 'a-die-behaviour-a-spell-asks-for',
-      note: 'the leap fires on "If you roll the same number on two or more of the d8s", which asks about a **pair** of faces. A definition can ask about a face now — `dieRule`, which Sorcerous Burst writes — and this is the reading it cannot make: a `DieEffect` judges one die at a time, `substitute` and `bonusOn` are both `(rolled, sides)`, and neither is handed the roll its die is part of. A predicate over a whole roll is a fourth kind, and it would fire at nothing on its own — the leap beneath it is the blocker below.',
-    },
-    {
-      clause: 'a second attack roll and a second damage roll out of one casting',
-      why: 'several-attack-rolls-from-one-casting',
-      note: 'an effect rolls one attack per target, and the leap is a further attack at a creature the casting never named — the shape Scorching Ray and Eldritch Blast are both blocked on, arriving here on a spell whose first orb is executed.',
-    },
-    {
-      clause: 'a maximum number of times equal to the level of the slot expended',
-      why: 'several-attack-rolls-from-one-casting',
-      note: 'the cap counts leaps, and so does the rule that a creature may be targeted only once by a casting; both are bookkeeping over a sequence of attacks that is not produced, so they come with the shape rather than before it.',
     },
   ],
   cloudkill: [
@@ -1343,6 +1322,18 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       clause: 'the Advantage on Charisma (Intimidation) checks is not granted',
       why: 'a-target-rule-the-format-cannot-state',
       note: 'The mode itself is ordinary — a `RollModifier` naming a Charisma ability check narrowed to the Intimidation skill, which is the pair `RollSelector` already carries. What it has nowhere to land is a creature: Thaumaturgy prints Range 30 feet and `targets: { count: 0 }`, because the wonder happens within range rather than on somebody, so the per-target loop runs no times at all. The target rule that would hand the mode its creature is "the caster and nobody else", and `TargetRule` cannot state it — `notTheCaster` is the only sentence of that family it has, and it is the other one. Writing `{ count: 1, self: true }` instead would let a caster boom an ally’s voice, which is a rule the book does not grant.',
+    },
+  ],
+  'unseen-servant': [
+    {
+      clause: 'more than 60 feet from the caster',
+      why: 'a-casting-ended-by-a-trigger',
+      note: 'a distance two creatures drift apart, which that shape’s own description names for Faithful Hound, Warding Bond and Antilife Shell: the servant is a creature on the map and the sixty feet are measurable after its move, but the move command reads no casting’s ending and another track owns it, so the spell runs on past the distance the book ends it at.',
+    },
+    {
+      clause: 'the Bonus Action the command costs its caster is not spent',
+      why: 'a-creature-somebody-else-is-playing',
+      note: 'the servant moves when the DM moves it and does what the table says it does, and the caster’s own Bonus Action — the price the book puts on issuing the order — is a charge on one creature’s economy for deciding what another does, which no spender is told apart by.',
     },
   ],
   web: [
@@ -2126,20 +2117,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
   // mode narrowed by the attacker's creature type, and a condition Immunity
   // narrowed by the type of whatever is causing the condition — so the spell
   // is executed-partial and what is left of it is filed in `ADJUDICATED`.
-  'unseen-servant': [
-    {
-      marker: 'armor-class',
-      clause: 'It has AC 10, 1 Hit Point, and a Strength of 2',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'an Armour Class, a Hit Point total and an ability score — a stat block in one sentence, and the inability to attack that closes it is that same stat block printing no attack rather than a rider on the action economy.',
-    },
-    {
-      marker: 'hit-points',
-      clause: 'If it drops to 0 Hit Points, the spell ends',
-      why: 'a-casting-ended-by-a-trigger',
-      note: 'dropping to 0 Hit Points is named in that shape’s own description as a cause with no member, and here it ends the casting rather than merely removing the creature — which is what the two summons that print the same sentence do not say.',
-    },
-  ],
   'alter-self': [
     {
       marker: 'dice',
@@ -2653,38 +2630,6 @@ export const TRACKED_ADJUDICATED: Readonly<Record<string, readonly TrackedAdjudi
       clause: 'The creature is revived with all its Hit Points',
       why: 'healing-that-raises-the-dead',
       note: 'healCreature refuses a corpse and the refusal costs no slot; and the amount is derived from the target’s own maximum besides, which is the other residue this spell names.',
-    },
-  ],
-  'ensnaring-strike': [
-    {
-      marker: 'saving-throw',
-      clause: 'grasping vines appear on it, and it makes a Strength saving throw',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'the save is raised against "the target", which is the creature the weapon just hit — a Range of Self with no target list, and the smites reach the same creature only by riding the attack damage rather than by naming it.',
-    },
-    {
-      marker: 'roll-mode',
-      clause: 'A Large or larger creature has Advantage on this save',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'an outcome shaped by the target size, which is the second of the three facts that shape names: size is held authoritatively and no effect reads it, so the Advantage a Large creature has cannot be granted.',
-    },
-    {
-      marker: 'condition',
-      clause: 'the target has the Restrained condition until the spell ends',
-      why: 'a-target-rule-the-format-cannot-state',
-      note: 'the condition and its lifetime are both ordinary and land on nobody, because the casting never reached the creature the weapon hit; the blocker is who rather than what.',
-    },
-    {
-      marker: 'dice',
-      clause: '1d6 Piercing damage at the start of each of its turns',
-      why: 'a-repeat-save-that-does-something-on-a-failure',
-      note: 'damage on a turn boundary for as long as a condition holds, which is the shape PROGRESS.md names this very spell for: a repeat save releases an effect on a success and its failure branch does nothing at all.',
-    },
-    {
-      marker: 'ability-check',
-      clause: 'Strength (Athletics) check against your spell save DC',
-      why: 'a-check-another-creature-may-attempt',
-      note: 'the check may be made by the target "or a creature within reach of it", and a casting check is rolled by somebody the casting touched — so the second half of that list has no one to be.',
     },
   ],
   'call-lightning': [

@@ -1226,7 +1226,12 @@ describe('reading four families found blockers the bare lists had missed', () =>
    * filed under would have been a tidier list saying something false.
    */
   const SPENT: readonly (readonly [string, 'tracked' | 'unmodelled', ShapeId | string])[] = [
-    ['unseen-servant', 'tracked', 'a-casting-ended-by-a-trigger'],
+    // Unseen Servant's row was spent twice over: tracked on
+    // `a-casting-ended-by-a-trigger` when it was written, and then **built** —
+    // the fall of the creature a casting sustains is `summon-drops-to-0` now,
+    // so the reading survives as a member of the vocabulary rather than as an
+    // adjudication, and what is left in its notes is the sixty feet.
+    ['unseen-servant', 'unmodelled', 'more than 60 feet from the caster'],
     ['irresistible-dance', 'tracked', 'a-repeat-save-raised-by-a-trigger'],
     ['wall-of-ice', 'tracked', 'a-stat-block-created-mid-fight'],
     ['wall-of-stone', 'tracked', 'a-stat-block-created-mid-fight'],
@@ -2415,9 +2420,11 @@ describe('a consumer count is a query', () => {
     }
     expect(statBlock.undefined).toEqual([]);
     expect(statBlock.executed).toContain('find-steed');
-    // Unseen Servant was the fourth and is tracked too, which is the third
-    // population claiming the shape rather than the shape losing a consumer.
-    expect(statBlock.tracked).toContain('unseen-servant');
+    // Unseen Servant was the fourth, tracked on this shape until its block
+    // was printed inline on the summons; it is executed now and claims the
+    // shape from nowhere.
+    expect(statBlock.tracked).not.toContain('unseen-servant');
+    expect(SRD_CONTENT.spell('unseen-servant')?.effects.map((e) => e.kind)).toEqual(['summon']);
     // Guardian of Faith and Faithful Hound are the pair that proves the row was
     // read rather than copied: both are invulnerable spectral things, and only
     // one of the two is a creature — neither, as it turns out.
@@ -2649,7 +2656,9 @@ describe('a consumer count is a query', () => {
       // filed claim was read to the end and handed over.
       'a-casting-ended-by-a-trigger',
       'a-second-place-to-put-a-creature',
-      'a-stat-block-created-mid-fight',
+      // `a-stat-block-created-mid-fight` stood here too until Unseen Servant
+      // was written on the inline block: the shape lost its tracked claim
+      // and fell out of this band.
     ]);
     // **Moved from 20 to 15 by the third catalogue pass, and the total fell
     // further than the tracked column rose.** Twelve undefined spells named
@@ -2779,12 +2788,20 @@ describe('a spell with one blocker is the leverage the map is for', () => {
     // which is the whole of the path this row records: blocked, written,
     // half-built, built.
     //
-    // **And the shape does not retire with it.** Chromatic Orb still waits on
-    // the part nobody has built — a roll aimed at a creature the casting never
-    // named — so the id keeps a claimant, and what left is two spells rather
-    // than the debt.
+    // **And the shape has retired with it now.** Chromatic Orb was its last
+    // claimant — a roll aimed at a creature the casting never named, chained
+    // off a face the dice showed — and `OrbLeaps` is that: the caster states
+    // `leapTo`, a pair among the spell's own dice sends the orb on, and the
+    // resolver calls itself for the new roll. A shape nothing is blocked on is
+    // one the guard deletes, so what this pins is that the id is gone from the
+    // vocabulary rather than sitting in it unclaimed — and the same for the
+    // die shape the trigger was filed under, whose last spell claimant this
+    // was too.
     expect(BLOCKED_ON['scorching-ray']).toBeUndefined();
-    expect(claimedShapes().has('several-attack-rolls-from-one-casting')).toBe(true);
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('several-attack-rolls-from-one-casting');
+    expect(Object.keys(MISSING_SHAPES)).not.toContain('a-die-behaviour-a-spell-asks-for');
+    expect(ADJUDICATED['chromatic-orb']).toBeUndefined();
+    expect(SRD_CONTENT.spell('chromatic-orb')?.unmodelled ?? []).toEqual([]);
     expect(SRD_CONTENT.spell('scorching-ray')?.effects).not.toEqual([]);
     expect(ADJUDICATED['scorching-ray']).toBeUndefined();
     expect(SRD_CONTENT.spell('scorching-ray')?.unmodelled ?? []).toEqual([]);

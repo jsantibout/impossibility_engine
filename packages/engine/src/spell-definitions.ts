@@ -418,11 +418,46 @@ export interface SpellCheck {
    * `end-on-target` is Black Tentacles' "ending the condition on itself on a
    * success", which is the release the repeat save already performs.
    *
-   * There is deliberately no `end-casting`. SRD writes it — Maze, Phantasmal
-   * Force, Detect Thoughts — and every one of those spells is blocked on
-   * something else, so it would be a value nothing could be written with.
+   * `end-casting` is SRD Ensnaring Strike's: "The target or a creature within
+   * reach of it can take an action to make a Strength (Athletics) check
+   * against your spell save DC. **On a success, the spell ends.**" The whole
+   * casting goes — the vines, the Concentration, the die at the boundary —
+   * which is the release a repeat save's `end-casting` already performs. It
+   * stood refused while Maze, Phantasmal Force and Detect Thoughts were each
+   * blocked on something else and nothing could be written with it.
    */
-  readonly onSuccess: 'none' | 'end-on-target';
+  readonly onSuccess: 'none' | 'end-on-target' | 'end-casting';
+  /**
+   * SRD Ensnaring Strike: "The target **or a creature within reach of it** can
+   * take an action to make a Strength (Athletics) check".
+   *
+   * Who may attempt a check is derived from what the timer sits on — a
+   * condition is its holder's to shake off — and this is the one clause in the
+   * book that widens the derivation: an ally standing beside the snared
+   * creature may spend its own action on the same check. Read by
+   * `availableChecks` and `resolveEffectCheck`, which measure the reach off
+   * the map. The only value is `true`; absent is every other check, which the
+   * affected creature alone may attempt.
+   */
+  readonly byAnotherWithinReach?: true;
+}
+
+/**
+ * A mode a saving throw takes because of the **size** of the creature making
+ * it.
+ *
+ * SRD Ensnaring Strike: "A Large or larger creature has Advantage on this
+ * save." An outcome shaped by a fact the engine holds — `effectiveSizeOf`
+ * reads the size a feature prints, then the stated one, then the map's — and
+ * no effect read it until this. `sizeAtLeast` is the floor the sentence names
+ * and `mode` is what a creature at or above it rolls with; it reaches the roll
+ * as a named `ModeSource` and never as a number, because Advantage cancels
+ * rather than stacks — a Large creature that is also Restrained rolls a
+ * normal save, and the log still says both were in play.
+ */
+export interface SizedSaveMode {
+  readonly sizeAtLeast: CreatureSize;
+  readonly mode: 'advantage' | 'disadvantage';
 }
 
 /**
@@ -1147,6 +1182,37 @@ export type ModifierRider =
       readonly against?: 'caster';
       /** A deadline of the rider's own, shorter than the casting's. */
       readonly lasts?: RiderDuration;
+    }
+  /**
+   * Damage the same outcome makes the creature take at **every one of its own
+   * turn boundaries**, for as long as the casting holds it.
+   *
+   * SRD Ensnaring Strike: "While Restrained, the target takes 1d6 Piercing
+   * damage at the start of each of its turns." A `GrantedPayout` of damage —
+   * the same standing arrangement SRD Heroism hangs for Temporary Hit Points
+   * and the glossary's Burning derives — hung off a settled outcome rather
+   * than off the casting's own list, because the book gates it on the failure:
+   * a creature that saved takes nothing at its next turn. The boundary throws
+   * the die (`settleBoundaryPayouts`), the damage meets the creature's own
+   * defences, and the arrangement goes when the casting does or when the
+   * casting is released on that creature — which is what "while Restrained"
+   * means for a condition that is the casting's.
+   *
+   * **Scaled like the blow**, at the slot the casting paid: "The damage
+   * increases by 1d6 for each spell slot level above 1" is one sentence about
+   * both the die and its growth, so the notation the payout pins is worked out
+   * once at the cast and the boundary reads a notation rather than a catalogue.
+   *
+   * `damage` only, because that is the sentence the book prints on an outcome;
+   * a payout of healing or Temporary Hit Points off a failed save is a spell
+   * nobody has written.
+   */
+  | {
+      readonly kind: 'payout';
+      readonly at: TurnMoment;
+      readonly payout: 'damage';
+      readonly damage: DiceScaling;
+      readonly damageType: string;
     };
 
 /**
@@ -1668,6 +1734,11 @@ export type SpellEffect =
        * what buys a second creature.
        */
       readonly rolls?: AttackRollCount;
+      /**
+       * SRD Chromatic Orb: the orb **leaps** off its own dice — see
+       * {@link OrbLeaps}. Absent is every other attack in the book.
+       */
+      readonly leaps?: OrbLeaps;
     } & OutcomeRiders)
   /**
    * A saving throw that deals damage, with what a success buys stated.
@@ -2597,6 +2668,49 @@ export type SpellEffect =
        * beside it — which is the only reason it was not here already.
        */
       readonly check?: SpellCheck;
+      /**
+       * The save is made by **the creature the weapon just hit**.
+       *
+       * SRD Ensnaring Strike: "Casting Time: Bonus Action, which you take
+       * immediately after hitting a creature with a weapon … As you hit the
+       * target, grasping vines appear on it, and it makes a Strength saving
+       * throw." The fourth spell to print the smites' casting time and the
+       * first whose payload is a saving throw rather than dice on the blow:
+       * "the target" is not a creature type and not a list the caller chose,
+       * so the target rule says nobody (`count: 0`, Range Self) and this says
+       * who — the creature `resolveAttackDamage` is settling a hit on.
+       *
+       * Read by `castOnHit` in `commands/attacks.ts`, which resolves the save
+       * against that creature once the casting's record is written, and by
+       * `castOnAHit`, which is how `resolveSpell` knows to refuse the spell
+       * at its own door exactly as it refuses an `attack-damage`. The only
+       * value is `true`; the validator holds it to the smite's shape.
+       */
+      readonly onTheHit?: true;
+      /**
+       * A mode the target's **size** gives the save — see {@link SizedSaveMode}.
+       *
+       * SRD Ensnaring Strike: "A Large or larger creature has Advantage on this
+       * save." Absent is every other save in the book.
+       */
+      readonly saveModeIf?: SizedSaveMode;
+      /**
+       * A success **ends the casting**, where the sentence says so.
+       *
+       * SRD Ensnaring Strike: "On a successful save, the vines shrivel away,
+       * and the spell ends." A casting whose one creature resisted it has
+       * nothing left to run, and the book says so in as many words — so the
+       * record and the Concentration go in the same batch as the save, and
+       * the Ranger's Concentration is free for the next spell.
+       *
+       * **Only beside {@link save.onTheHit}**, and the reason is the record: a
+       * spell cast on a hit writes its record *before* the save it resolves,
+       * so there is a casting to end; a casting's own effect list writes its
+       * record after its effects, and a success there is `repeats` on a later
+       * boundary or a spell that never becomes ongoing. The only value is
+       * `true`.
+       */
+      readonly endsCastingOnSuccess?: true;
       /**
        * The condition outlives the casting that caused it.
        *
@@ -3602,8 +3716,17 @@ export type SpellEffect =
       /**
        * Which stat block — by its id in content, as `addCreature` takes one,
        * or chosen at the casting out of a printed set. See {@link SummonedForm}.
+       *
+       * Optional since {@link inline}: a summons names a block one way or the
+       * other, and `checkSpellDefinition` refuses both and neither.
        */
-      readonly monster: SummonedForm;
+      readonly monster?: SummonedForm;
+      /**
+       * A stat block the spell prints **inside itself**, in a sentence rather
+       * than in a chapter — see {@link InlineStatBlock}. SRD Unseen Servant is
+       * the one spell in the book that does.
+       */
+      readonly inline?: InlineStatBlock;
       /**
        * The creature type the summons arrives with, where the spell prints
        * one over the block's own.
@@ -3714,6 +3837,48 @@ export type SummonedForm =
        */
       readonly orAny?: { readonly type: string; readonly cr: number };
     };
+
+/**
+ * A stat block the spell prints in a sentence, for a creature that is in
+ * neither chapter of the book.
+ *
+ * SRD Unseen Servant: "an Invisible, mindless, shapeless, Medium force … It
+ * has AC 10, 1 Hit Point, and a Strength of 2, and it can't attack." The
+ * owner's ruling of 2026-09-21 files a spell-internal block as a catalogue
+ * entry, and the two the book prints as *blocks* — Find Steed's, Phantom
+ * Steed's — are in the bestiary. This is the third case and the ruling's
+ * limit: three numbers in one sentence, with no ability table, no Speed, no
+ * senses and no type, which a bestiary entry could not transcribe without
+ * inventing the rest. So the definition prints exactly what the book prints
+ * and the resolver adapts it through the same road a block takes, so the
+ * servant is a creature to every rule that asks — an Armour Class to hit, a
+ * Hit Point to lose, a Strength to save with.
+ *
+ * **What is absent is absent.** An ability the sentence does not print is 10
+ * (the modifier a rule reads is then 0, which is what a "mindless" force
+ * ought to add to an Intelligence save); a Speed the sentence does not print
+ * is 0 — the servant moves when commanded, through the DM's move command, and
+ * the spell prints the allowance in the command rather than on the creature;
+ * a creature type the sentence does not print is **none**, pinned as the
+ * absence it is rather than as a guess, so a type-gated spell asks rather
+ * than assumes. `conditions` are the ones the sentence gives the creature
+ * itself — Unseen Servant's "Invisible" — applied at the arrival under the
+ * casting's own source, so what ends the casting ends them.
+ */
+export interface InlineStatBlock {
+  readonly name: string;
+  readonly armorClass: number;
+  readonly hitPoints: number;
+  /** The scores the sentence prints; an ability it does not print is 10. */
+  readonly abilities: Partial<Record<Ability, number>>;
+  readonly size: CreatureSize;
+  /** The creature type, where the sentence prints one. Absent is no type. */
+  readonly type?: string;
+  /** A walking Speed, where the sentence prints one. Absent is 0. */
+  readonly walkingSpeed?: number;
+  /** Conditions the sentence gives the creature itself, for as long as it stands. */
+  readonly conditions?: readonly ConditionName[];
+}
 
 /**
  * A creature the caster keeps: bound to its summoner rather than to a casting.
@@ -5566,6 +5731,18 @@ export type CastingEndCause =
    */
   | 'summon-takes-damage'
   /**
+   * SRD Unseen Servant: "If it drops to 0 Hit Points, the spell ends."
+   *
+   * The creature the casting is sustaining, read the way `target-drops-to-0`
+   * reads its target — the **drop**, not the damage — and found the way
+   * `summon-takes-damage` finds its steed, through `summonedBy`. Its own member
+   * because the two sentences differ on a servant with more than one Hit
+   * Point: a Phantom Steed's spell ends on any blow, and a servant's only when
+   * it falls. The same residue as `target-drops-to-0`: the total and not the
+   * transition, so a creature already at 0 taking another blow pulls it too.
+   */
+  | 'summon-drops-to-0'
+  /**
    * SRD Sleep: "The spell ends on a target if it takes damage or **someone
    * within 5 feet of it takes an action to shake it out of the spell's
    * effect**." SRD Hypnotic Pattern writes the same clause as "if someone else
@@ -5812,7 +5989,9 @@ export function statedFormOf(
   definition: SpellDefinition,
 ): Exclude<SummonedForm, string> | null {
   for (const effect of definition.effects) {
-    if (effect.kind === 'summon' && typeof effect.monster !== 'string') return effect.monster;
+    if (effect.kind === 'summon' && effect.monster !== undefined && typeof effect.monster !== 'string') {
+      return effect.monster;
+    }
   }
   return null;
 }
@@ -6858,6 +7037,68 @@ export function modifierRidersOf(effect: SpellEffect): readonly ModifierRider[] 
     default:
       return [];
   }
+}
+
+/**
+ * An attack that **leaps** to a further creature off the faces its own damage
+ * dice showed.
+ *
+ * SRD Chromatic Orb: "If you roll the same number on two or more of the d8s,
+ * the orb leaps to a different target of your choice within 30 feet of the
+ * target. Make an attack roll against the new target, and make a new damage
+ * roll. The orb can't leap again unless you cast the spell with a level 2+
+ * spell slot … The orb can leap a maximum number of times equal to the level
+ * of the slot expended, and a creature can be targeted only once by each
+ * casting of this spell."
+ *
+ * Two readings the format could not make until this. **A predicate over the
+ * whole roll**: {@link DieRule} judges one die at a time — `substitute` and
+ * `bonusOn` are both `(rolled, sides)` — and a pair is a question about two
+ * faces together, so `onPair` is asked of the spell's own counted dice once
+ * they have all been thrown and every reroll has settled. **A roll aimed at a
+ * creature the casting never named**: the leap is *elected* rather than
+ * offered — the request states `leapTo` in order (`CastSpellRequest.leapTo`,
+ * checked before anything is spent and pinned on a held casting), and when a
+ * pair shows the orb goes to the next stated creature within `withinFeet` of
+ * the one it just struck that this casting has not yet targeted, with a new
+ * attack roll and a new damage roll, through the same resolver the first orb
+ * went through. No window opens, and a leap with nobody stated does not
+ * happen — which is what "of your choice" means for a caller who has said
+ * nothing.
+ *
+ * `maximum` is named as a derivation rather than written as a number, for
+ * {@link DieRuleCap}'s reason: "equal to the level of the slot expended" is a
+ * fact about the casting, so the cap is read off `castLevel` — one leap at
+ * level 1, which is what "can't leap **again** unless" means, and one more per
+ * slot level above it. One member, because the book prints one sentence.
+ *
+ * A miss rolls no damage and so shows no pair; the orb stops there.
+ */
+export interface OrbLeaps {
+  /** The trigger: two or more of the spell's own dice showing one face. */
+  readonly onPair: true;
+  /** How far from the creature just struck the next may stand. */
+  readonly withinFeet: number;
+  /** How many leaps one casting may make, as a derivation from the casting. */
+  readonly maximum: 'slot-level';
+}
+
+/**
+ * Whether this spell is cast **on a hit** — in the window a weapon attack that
+ * has landed opens, rather than at the casting's own door.
+ *
+ * Two spellings and one answer. SRD Divine Smite and its siblings ride the
+ * blow's own damage (`attack-damage`); SRD Ensnaring Strike raises a saving
+ * throw against the creature the blow landed on (`save.onTheHit`). Either way
+ * the attack is the thing the spell needs, so `resolveSpell` refuses the spell
+ * (`cast_on_a_hit`) and `resolveAttackDamage` settles it — and both doors ask
+ * this one question rather than each remembering half of it.
+ */
+export function castOnAHit(definition: SpellDefinition): boolean {
+  return definition.effects.some(
+    (effect) =>
+      effect.kind === 'attack-damage' || (effect.kind === 'save' && effect.onTheHit === true),
+  );
 }
 
 /**

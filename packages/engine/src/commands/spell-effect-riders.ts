@@ -35,6 +35,7 @@ import {
   riderDuration,
   riderDurationPhrase,
   scaledDiceFor,
+  scaledFlatFor,
   type SpellDefinition,
 } from '../spell-definitions.js';
 import { type ActionSlot, canSpendSlot } from '../combat.js';
@@ -531,6 +532,33 @@ export function applyRiders(
                     source,
                     condition: modifier.denies,
                     ...(modifier.against === undefined ? {} : { against: casterId }),
+                  },
+                }
+            : modifier.kind === 'payout'
+              ? {
+                  // SRD Ensnaring Strike: "While Restrained, the target takes
+                  // 1d6 Piercing damage at the start of each of its turns." The
+                  // arrangement Heroism hangs, hung off a settled outcome — the
+                  // notation is pinned here at the slot the casting paid and
+                  // the boundary throws it, exactly as the standalone kind
+                  // does. Sourced to the casting, so it goes when the casting
+                  // does or when the casting is released on this creature.
+                  type: 'turn-payout-granted',
+                  id: target,
+                  payout: {
+                    source,
+                    at: modifier.at,
+                    payout: modifier.payout,
+                    flat: scaledFlatFor(modifier.damage, definition.level, context.castLevel),
+                    ...((dice) => (dice === undefined ? {} : { dice }))(
+                      scaledDiceFor(
+                        modifier.damage,
+                        definition.level,
+                        context.casterLevel,
+                        context.castLevel,
+                      ),
+                    ),
+                    damageType: modifier.damageType,
                   },
                 }
             : {
