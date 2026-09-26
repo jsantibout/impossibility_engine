@@ -2204,8 +2204,13 @@ function printedAcAddendReaction(monster: Monster, line: MonsterLine): ReactionF
  * monster uses Antennae." The trigger is the window above and the response is
  * the **name** of another line of this same block — carried as a name for
  * `AttackCommand.action`'s reason, so what the response is stays that line's
- * business and a line nothing reads is handed to the table rather than half
- * performed.
+ * business.
+ *
+ * **The name is what the Reaction's own road looks up and rolls** (W7-B11):
+ * `takeAttackReaction` finds the heading on this very sheet and, where the
+ * printed-save reader got a saving throw out of it, performs it. A heading the
+ * reader read nothing out of is still handed to the table rather than half
+ * performed, which is what a name rather than a compiled effect keeps possible.
  */
 function printedLineUseReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
   if (line.usesLine === undefined) return null;
@@ -2272,6 +2277,15 @@ function printedSucceedInsteadReaction(
  * Attack — and the others are each a different sentence, from an octopus's ink
  * to the Stone Giant's deflection. Those stay prose and stay on the ledger,
  * named there rather than argued about here.
+ *
+ * **And a fourth shape that is not printed under that heading at all** — SRD
+ * Legendary Resistance, printed under **Traits**, which answers the
+ * `test-rolled` window and spends no Reaction. Where a line is printed says
+ * what it *costs* and nothing else this adapter can see, which is the reading
+ * `forcePrintedSave` already takes of a save printed under two headings; a
+ * sentence that costs nothing is the case that makes the reading plainest. So
+ * the walk is over the Traits section as well, and `costsReaction: false` is
+ * what keeps it from granting anything the sentence withheld. (W7-B11)
  */
 function printedReactions(monster: Monster): {
   readonly reactions: readonly ReactionFeature[];

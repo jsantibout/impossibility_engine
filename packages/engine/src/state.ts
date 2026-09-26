@@ -147,10 +147,18 @@ export interface EquippedItem {
    * Absent is no wear at all, which is what every log written before acid
    * could bite says — so both frozen fixtures fold unchanged.
    *
-   * Read by `armorClassOf` alone. The armour is *destroyed* rather than
-   * penalised once the penalty would take what it offers to 10, and that is
-   * the command's arithmetic rather than a state this can hold: a destroyed
-   * suit leaves the inventory through the door every lost item leaves by.
+   * **Three readers**, and the docstring said one until W7-B11 counted them:
+   * `armorClassOf` subtracts it from what a suit offers, `heldWeaponPenalty`
+   * turns it into the named subtraction a swing carries, and
+   * `clearPrintedPenalty` takes it off again — SRD Mending, the one sentence in
+   * the book that undoes acid or rust.
+   *
+   * The armour is *destroyed* rather than penalised once the penalty would take
+   * what it offers to 10, and that is the command's arithmetic rather than a
+   * state this can hold: a destroyed suit leaves the inventory through the door
+   * every lost item leaves by. A **mended** copy is this field gone entirely
+   * rather than a zero in it, so a copy nothing ever ate and a copy somebody
+   * mended are the same record again.
    */
   readonly penalty?: number;
 }

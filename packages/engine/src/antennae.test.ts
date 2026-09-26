@@ -17,9 +17,12 @@
  * item leaves by. Which object the antennae touch is the one fact the table
  * supplies — "the creature with the object" names a creature, and a creature
  * may be wearing mail and holding a sword — so the DM's door states it and a
- * call that does not is asked. The Mending sentence is the spells side's and
- * is handed over, so the line stays on the ledger's over-read row until a
- * casting can reach an item's record.
+ * call that does not is asked. **The Mending sentence is the engine's now too**
+ * (W7-B11): SRD Mending carries a `repairs` effect that clears the recorded
+ * penalty from the copy the caster names, so the sentence states a rule the
+ * engine keeps rather than a promise it cannot honour, and the reader consumes
+ * it beside the two ceilings. `mending.test.ts` drives that half; nothing of
+ * this line goes to the table but the reach.
  */
 
 import { SRD_CONTENT } from '@ie/content';

@@ -362,11 +362,14 @@ export type ReactionEffect =
    * a clause about where the teleport may land, so the parser refuses that
    * line whole. One shape, two sentences, one of them readable today.
    *
-   * **Nothing performs it yet, and the command says so.** The Reaction is
-   * offered and spent and the response is handed to the table by name, which
-   * is the honest half: the rust monster's Antennae is a save nothing has
-   * read, and a response half-performed would be a creature doing something
-   * nobody printed.
+   * **The command performs it where it can, and says so where it cannot**
+   * (W7-B11). `takeAttackReaction` looks the heading up on the reactor's own
+   * sheet and, where the printed-save reader got a saving throw out of it,
+   * rolls the response through the same body the Action-priced door goes
+   * through — which is what the rust monster's Antennae is. A heading the
+   * reader read nothing out of is still handed to the table by name, because a
+   * response half-performed would be a creature doing something nobody
+   * printed; so is one whose line wants an object the trigger holds none of.
    */
   | { readonly kind: 'use-printed-line'; readonly line: string }
   /**

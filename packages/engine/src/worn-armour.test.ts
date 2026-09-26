@@ -26,8 +26,10 @@ import { createRollIssuer } from './rolls.js';
  * be removed by casting the _Mending_ spell on the armor."
  *
  * The equipped record is where it lands — it is already pinned and already
- * carries the copy — and `armorClassOf` is the one reader. The Mending half is
- * the spells side's and is handed to the table.
+ * carries the copy — and `armorClassOf` is the reader that spends it. **The
+ * Mending half is the engine's now** (W7-B11): SRD Mending carries a `repairs`
+ * effect that clears the recorded penalty, so the sentence is consumed beside
+ * the ceiling above it rather than handed over, and `mending.test.ts` drives it.
  */
 
 const id = (s: string) => asCharacterId(s);
