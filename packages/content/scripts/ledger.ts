@@ -30,10 +30,13 @@
  * `ledger.test.ts` asserts the agreement class by class.
  *
  * **Nothing here decides what counts as executed.** A spell is executed when
- * `EXECUTED_SPELL_IDS` says so, partial when `PARTIAL_SPELLS` says so, in the
+ * `EXECUTED_SPELL_IDS` says so, partial when the blocker map files one of its
+ * clauses against a blocker — `PARTIAL_SPELLS`' own filter — **or when one of
+ * its clauses is filed nowhere at all** (W8-S26, {@link readExecuted}), in the
  * map's population when `ledgerFeatureIds` says so, and read when the parser
- * got structure out of the sentence. Every one of those is somebody else's
- * derivation and is imported rather than re-spelled.
+ * got structure out of the sentence. The one addition is a reading of the
+ * same map rather than a second opinion about the engine: a clause nobody has
+ * sorted is not evidence that the spell is finished.
  *
  * This module has one writer and it runs only when Node was asked to run this
  * file, exactly as `coverage.ts` does and for the same reason: a test imports
@@ -54,9 +57,11 @@ import {
   blockersOf,
   itemBlockersIn,
   trackedAdjudicationGaps,
+  type Adjudication,
   type ItemEntry,
   type TrackedDefinition,
 } from './missing-shapes.js';
+import type { SpellDefinition } from '@ie/engine';
 import {
   featureBlockersOf,
   ledgerFeatureIds,
@@ -65,7 +70,6 @@ import { GLOSSARY_RULES, type GlossaryRule } from './glossary-rules.js';
 import {
   EXECUTED_SPELL_IDS,
   MONSTER_LINE_SHAPES,
-  PARTIAL_SPELLS,
   RIDER_HANDOVER_SHAPE,
   hasHandedOverResponse,
   RIDER_SHAPE,
@@ -293,15 +297,72 @@ export interface LedgerRow {
 
 const sorted = (ids: Iterable<string>): readonly string[] => [...new Set(ids)].sort();
 
+/**
+ * Every clause an executed definition prints as owed: its own `unmodelled`
+ * list and each branch's, in key order.
+ *
+ * A branch's debts are the spell's — `spell-honesty.test.ts` reads them the
+ * same way, because a spell that printed its whole debt one level down would
+ * otherwise read as finished.
+ */
+export const owedClausesOf = (
+  definition: Pick<SpellDefinition, 'unmodelled' | 'options'>,
+): readonly string[] => [
+  ...(definition.unmodelled ?? []),
+  ...Object.keys(definition.options ?? {})
+    .sort()
+    .flatMap((key) => definition.options![key]!.unmodelled ?? []),
+];
+
+/** What the blocker map says of one executed definition's clauses. */
+export interface ExecutedReading {
+  readonly status: 'executed' | 'executed-partial';
+  /** The clauses no entry reads against a blocker or as a definition owed. */
+  readonly unsorted: readonly string[];
+}
+
+/**
+ * How an executed spell stands, read off its clauses and its entries — W8-S26.
+ *
+ * **A clause is sorted only by an entry that names a blocker or says
+ * `'expressible'`.** No entry at all is a paragraph nobody read; a `'table'`
+ * entry over a clause still in `unmodelled` is a handover filed in the list
+ * of debts, which `docs/design/content.md` calls the wrong list — the table's
+ * text goes in `dmDecides`, and the `'table'` entries that remain in the map
+ * are anchored to the handed-over sentence instead (the marker escape
+ * `dm-handover.test.ts` reads). Either way the clause is work, so the spell is
+ * not `executed`: it is partial, and {@link spellWaitOf} puts it under *waits
+ * on a definition*.
+ *
+ * The partial half is `PARTIAL_SPELLS`' filter — any entry that is not the
+ * table's — and the unsorted half is what that filter could not see: before
+ * this, a spell with a clause nobody had read was counted as executed and left
+ * the report altogether.
+ */
+export const readExecuted = (
+  clauses: readonly string[],
+  entries: readonly Adjudication[],
+): ExecutedReading => {
+  const unsorted = clauses.filter(
+    (clause) => !entries.some((entry) => entry.why !== 'table' && clause.includes(entry.clause)),
+  );
+  const partial = entries.some((entry) => entry.why !== 'table') || unsorted.length > 0;
+  return { status: partial ? 'executed-partial' : 'executed', unsorted };
+};
+
+/** The catalogue's reading of one executed spell. */
+const readingOf = (id: string): ExecutedReading => {
+  const definition = SRD_CONTENT.spell(id);
+  return readExecuted(definition ? owedClausesOf(definition) : [], ADJUDICATED[id] ?? []);
+};
+
 /** Which of the four states a spell is in, read off the report's own sets. */
 export const spellStatusOf = (id: string, defined: ReadonlySet<string>): SpellStatus => {
   if (!defined.has(id)) return 'no-definition';
-  if (EXECUTED_SPELL_IDS.has(id)) return PARTIAL.has(id) ? 'executed-partial' : 'executed';
+  if (EXECUTED_SPELL_IDS.has(id)) return readingOf(id).status;
   if (TRACKED_IDS.has(id)) return 'tracked';
   return 'no-definition';
 };
-
-const PARTIAL = new Set(PARTIAL_SPELLS);
 
 /** The clauses somebody wrote about this spell, whichever map holds them. */
 const clausesOf = (
@@ -346,14 +407,23 @@ export const spellShapesOf = (id: string, status: SpellStatus): readonly string[
  * that the catalogue holds the spell. Otherwise the reading decides — no entry
  * is **unread**, an `'expressible'` clause is a definition nobody wrote, and
  * anything else left is the table's or the engine's and is finished business.
+ *
+ * **And an executed spell's unsorted clause is unread too** (W8-S26): the
+ * spell has entries, but not for that clause, so the entries saying the rest
+ * is sorted say nothing about it. {@link readExecuted} finds them; the
+ * parameter is there so the classifier can be driven with a synthetic one.
  */
 export const spellWaitOf = (
   id: string,
   status: SpellStatus,
   shapes: readonly string[],
+  unsorted: readonly string[] = status === 'executed' || status === 'executed-partial'
+    ? readingOf(id).unsorted
+    : [],
 ): LedgerWait => {
   if (shapes.length > 0) return 'shape';
   if (status === 'no-definition') return 'definition';
+  if (unsorted.length > 0) return 'definition';
   const clauses = clausesOf(id, status);
   if (clauses === undefined) return 'definition';
   return clauses.some((clause) => clause.why === 'expressible') ? 'definition' : 'none';
@@ -384,6 +454,74 @@ export const trackedInReach = (level: number = LEDGER_LEVEL): readonly TrackedDe
  */
 export const unreadTracked = (level: number = LEDGER_LEVEL): readonly string[] =>
   trackedAdjudicationGaps(trackedInReach(level)).unrecorded;
+
+/**
+ * The spells population of the report: every spell in reach that is not
+ * executed whole, with its state, its shapes and what it waits on.
+ */
+function spellsOwed(level: number): readonly LedgerSpell[] {
+  const defined = new Set(
+    // The definitions the catalogue holds, which is what tells a tracked
+    // spell from one nothing has written at all.
+    [...EXECUTED_SPELL_IDS, ...TRACKED_IDS],
+  );
+
+  const spells: LedgerSpell[] = [];
+  for (const one of spellsInReach(SRD_CONTENT.classes, parsedSpells(), level)) {
+    const status = spellStatusOf(one.id, defined);
+    if (status === 'executed') continue;
+    const shapes = spellShapesOf(one.id, status);
+    spells.push({
+      id: one.id,
+      name: one.name,
+      level: one.level,
+      status,
+      shapes,
+      wait: spellWaitOf(one.id, status, shapes),
+    });
+  }
+  return spells;
+}
+
+/**
+ * Executed spells in reach with a clause the blocker map has not sorted, and
+ * the clauses — W8-S26's guard, as a query.
+ *
+ * Empty is the claim: every clause an executed spell in reach prints in
+ * `unmodelled` is filed against a blocker or as a definition owed, so the
+ * spell's place in this report is somebody's reading. A clause that lands
+ * here lands in *waits on a definition* too, by name.
+ */
+export const unsortedInReach = (
+  level: number = LEDGER_LEVEL,
+): Readonly<Record<string, readonly string[]>> =>
+  Object.fromEntries(
+    spellsInReach(SRD_CONTENT.classes, parsedSpells(), level)
+      .filter((one) => EXECUTED_SPELL_IDS.has(one.id))
+      .map((one) => [one.id, readingOf(one.id).unsorted] as const)
+      .filter(([, unsorted]) => unsorted.length > 0),
+  );
+
+/**
+ * The clauses this report counts as owed for one spell: its own and the cast
+ * branch's `unmodelled` lines, where the spell is in the owed population, and
+ * nothing where it is not — executed whole, handed over whole, or out of
+ * reach.
+ *
+ * This is the count `level-five-session.test.ts` holds its census to. A
+ * casting reports every one of these lines as an unmarked `unverified` line,
+ * which that file reads as a debt; the two reports agree when the lines a
+ * session met and the clauses counted here are the same set.
+ */
+export function clausesCounted(spellId: string, option?: string): readonly string[] {
+  const one = spellsOwed(LEDGER_LEVEL).find((spell) => spell.id === spellId);
+  if (one === undefined || one.wait === 'none') return [];
+  const definition = SRD_CONTENT.spell(spellId);
+  return [
+    ...(definition?.unmodelled ?? []),
+    ...(option === undefined ? [] : (definition?.options?.[option]?.unmodelled ?? [])),
+  ];
+}
 
 /**
  * Every feature a character of level 1–5 holds, with where it is printed.
@@ -648,33 +786,9 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
 
 /** The three populations, measured against the catalogue as it stands. */
 export function auditLedger(level: number = LEDGER_LEVEL): Ledger {
-  const parsed = JSON.parse(
-    readFileSync('packages/srd/src/generated/spells.json', 'utf8'),
-  ) as ParsedSpell[];
-  const defined = new Set(
-    // The definitions the catalogue holds, which is what tells a tracked
-    // spell from one nothing has written at all.
-    [...EXECUTED_SPELL_IDS, ...TRACKED_IDS],
-  );
-
-  const spells: LedgerSpell[] = [];
-  for (const one of spellsInReach(SRD_CONTENT.classes, parsed, level)) {
-    const status = spellStatusOf(one.id, defined);
-    if (status === 'executed') continue;
-    const shapes = spellShapesOf(one.id, status);
-    spells.push({
-      id: one.id,
-      name: one.name,
-      level: one.level,
-      status,
-      shapes,
-      wait: spellWaitOf(one.id, status, shapes),
-    });
-  }
-
   return {
     level,
-    spells,
+    spells: spellsOwed(level),
     features: featuresHeld(level),
     items: itemsInReach(),
     rules: GLOSSARY_RULES,

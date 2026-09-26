@@ -334,6 +334,16 @@ export const COUNTERSPELL: SpellDefinition = {
   requiresSight: true,
   targets: { count: 1 },
   effects: [{ kind: 'interrupt-casting', ability: 'con' }],
+  // **Left unsorted on purpose** (W8-S26). Every SRD 5.2.1 spell prints one of
+  // the three components and no SRD stat block casts with none, so the
+  // qualifier excludes nothing this catalogue can cast: the line is neither a
+  // debt — nothing in reach is owed — nor the table's, since nothing about it
+  // is the DM's to decide. `counterspell.test.ts` (engine) pins it here as the
+  // place the definition says so, and the ledger has no column for a sentence
+  // that is safe to leave unchecked; so it counts as work until somebody
+  // decides which it is, and `ledger.test.ts` names it. A homebrew spell
+  // printing no component is what would make it bite, and the components are
+  // on the entry now for the window to read on that day.
   unmodelled: [
     'the trigger reads "casting a spell with Verbal, Somatic, or Material components"; every SRD 5.2.1 spell has one of the three, so the qualifier is not checked and excludes nothing',
   ],
@@ -939,7 +949,10 @@ export const CHILL_TOUCH = attackCantrip({
  *
  * **Two consequences of one hit, and only one of them is a condition** — which
  * is neither half of what this sentence says. The first half is light the
- * target sheds, which the engine has no model of at all; the second is the
+ * target sheds, and the glow a settled outcome hangs (Faerie Fire's) lasts as
+ * long as the casting, which an Instantaneous cantrip does not — so it is a
+ * debt on the light shape rather than a line this definition could write
+ * (W8-S26); the second is the
  * *loss* of a benefit it would otherwise have, which is the `benefit` rider:
  * the creature stays Invisible and stops getting anything for it, and the
  * deadline is the rider's own because a cantrip's casting is over the instant
@@ -1250,8 +1263,15 @@ export const MIND_SPIKE: SpellDefinition = {
     },
   ],
   durationSeconds: 3600,
-  unmodelled: [
-    'knowing the target’s location for the duration is the DM’s, and so is "the target can’t become hidden from you": the engine holds no knowledge model and sight is a declaration, so a DM who declares the sight has said the whole of both',
+  // Knowing where the target is, in the book's words (W8-S26): the engine
+  // holds no knowledge — state is omniscient and sight is a declaration — so
+  // the knowing is the table's. "Can't become hidden from you" is not left
+  // over with it: hiding confers the Invisible condition (`takeHide`), and the
+  // `benefit` rider above already strips that condition's every benefit
+  // against the caster. The SRD's own line break splits the first sentence.
+  dmDecides: [
+    "On a failed save, you also always know the target's location until the spell ends, but only while the two of you are on the same plane",
+    'of existence.',
   ],
 };
 
@@ -1901,8 +1921,8 @@ export const MOONBEAM: SpellDefinition = {
     effects: [],
   },
   unmodelled: [
-    'the Dim Light that fills the Cylinder for the duration; light is not modelled',
-    'a shape-shifted creature reverting to its true form on a failed save, and being unable to shape-shift until it leaves the Cylinder: shape-shifting is not modelled',
+    'the Dim Light that fills the Cylinder for the duration is not laid: an area that sheds light is a kind the engine has — Flaming Sphere writes it and its activation lays it again where it rolls — and this definition does not write one',
+    'a shape-shifted creature reverting to its true form on a failed save, and being unable to shape-shift until it leaves the Cylinder, are not applied: a creature holds a shape now, and no outcome ends one and no area forbids taking one',
   ],
 };
 
@@ -2218,8 +2238,14 @@ export const HIDEOUS_LAUGHTER: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'laughing uncontrollably, and whether the creature is capable of laughter at all',
+  // The laughter, in the book's words (W8-S26): whether a creature is capable
+  // of laughter decides nothing the engine holds — the Prone, the Incapacitated
+  // and the refusal to stand land either way — so the sentence goes to the
+  // table whole, and the self-cure it also prints is `forbidsStandingUp` above
+  // whatever the table reads. It trips the condition marker on that half, and
+  // `ADJUDICATED` anchors the reading to it.
+  dmDecides: [
+    "During that time, it laughs uncontrollably if it's capable of laughter, and it can't end the Prone condition on itself.",
   ],
 };
 
@@ -2276,9 +2302,9 @@ export const HEROISM: SpellDefinition = {
       addSpellcastingModifier: true,
     },
   ],
-  unmodelled: [
-    'being imbued with bravery is narration',
-  ],
+  // The bravery is narration nothing reads (W8-S26); the willing touch in the
+  // same sentence is the target rule above.
+  dmDecides: ['A willing creature you touch is imbued with bravery.'],
 };
 
 /**
@@ -2775,9 +2801,21 @@ export const SUGGESTION: SpellDefinition = {
   // and the paragraph's last sentence says which scope the book means: "the
   // spell ends for the target upon completing it".
   endsEarly: [{ on: 'caster-or-ally-damages-target', ends: 'target' }],
+  // The suggestion itself, in the book's words (W8-S26): what is suggested,
+  // whether it sounds achievable and how the Charmed target goes about it are
+  // a compulsion the table adjudicates — the owner's ruling of 2026-09-24 — and
+  // nothing the engine holds reads any of it. What does read the table's fact
+  // is the ending: completing the activity ends the spell on the target, and
+  // the Charmed condition with it.
+  dmDecides: [
+    'The suggestion must sound achievable and not involve anything that would obviously deal damage to the target or its allies.',
+    'For example, you could say, "Fetch the key to the cult\'s treasure vault, and give the key to me."',
+    'Or you could say, "Stop fighting, leave this library peacefully, and don\'t return."',
+    'The Charmed target pursues the suggestion to the best of its ability.',
+  ],
   unmodelled: [
-    'the course of activity you suggest, whether it sounds achievable, and whether the target pursues or completes it — the other half of the sentence that ends this spell on that target',
-    'the target must be able to hear and understand you',
+    'the spell ending for the target upon completing the suggested activity is not applied: whether the activity is complete is the table’s, and the Charmed condition it would lift is state every roll against the target reads',
+    'the target must be able to hear and understand you: neither a Deafened target nor one that shares no language with the caster is refused',
   ],
 };
 
@@ -3736,7 +3774,7 @@ export const FLY: SpellDefinition = {
   effects: [{ kind: 'speed', change: 'at-least', feet: 60, mode: 'fly', hover: true }],
   durationSeconds: 600,
   unmodelled: [
-    'the fall when the spell ends on a creature still aloft is the DM’s',
+    'the fall when the spell ends on a creature still aloft is not raised: the creature has no Fly Speed left for `flightLost` to find stopped, so it hangs where it was until the table declares the fall',
   ],
 };
 
@@ -3821,8 +3859,13 @@ export const SPIDER_CLIMB: SpellDefinition = {
   // it.
   effects: [{ kind: 'speed', change: 'match-walk', mode: 'climb' }],
   durationSeconds: 3600,
-  unmodelled: [
-    'moving up, down and across vertical surfaces and along ceilings is not applied; the lattice holds elevation and no surfaces',
+  // The walls and the ceiling, in the book's words (W8-S26). The lattice
+  // holds elevation and no surfaces, so which wall is there to walk up is a
+  // fact about the room the caller states on the move, as it is for any
+  // climber; the Climb Speed that prices the climb is the effect above, and
+  // nothing the engine holds reads whose hands are free.
+  dmDecides: [
+    'Until the spell ends, one willing creature you touch gains the ability to move up, down, and across vertical surfaces and along ceilings, while leaving its hands free.',
   ],
 };
 
@@ -4071,8 +4114,16 @@ export const WEB: SpellDefinition = {
     ],
   },
   durationSeconds: 3600,
+  // **Both debts, and both are the table's fact read by a rule** (W8-S26).
+  // Whether the webs are anchored is a fact about the room, and what follows
+  // from it — the spell ending at the start of the caster's next turn — takes
+  // the Difficult Terrain, the obscurement and every Restrained off the
+  // lattice. Whether a Cube of web meets fire is the table's too, and what
+  // follows is 2d4 Fire the engine must throw and a Cube that stops holding
+  // anybody. The engine's fire is the Burning hazard, which lights a creature
+  // or an object; a web is neither, so nothing the engine holds reads it.
   unmodelled: [
-    'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room',
+    'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room — and the spell ending at the start of your next turn when they do, which nothing raises',
     'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
   ],
 };
@@ -4156,6 +4207,13 @@ export const STINKING_CLOUD: SpellDefinition = {
     'the cloud is Heavily Obscured, and obscurement is not modelled',
     'a strong wind dispersing the cloud, which is a fact about the weather rather than a consequence the engine records',
   ],
+  // W8-S26 read both lines and left their words alone, because
+  // `action-rules-in-the-catalogue.test.ts` pins them; what the reading says
+  // is in `ADJUDICATED`. The first is stale — obscurement is modelled, and
+  // `areaObscurement` is what Fog Cloud, Web and Sleet Storm write, so it is a
+  // definition nobody wrote. The second is a debt: the wind is the table's,
+  // and the cloud it would end is a Poisoned every turn and obscurement every
+  // sight question reads.
 };
 
 export const WATER_BREATHING: SpellDefinition = {
@@ -4297,9 +4355,24 @@ export const PRESTIDIGITATION: SpellDefinition = {
   effects: [],
   durationSeconds: 3600,
   maxRunning: 3,
-  unmodelled: [
-    'every one of the listed effects — a sensory effect, lighting or snuffing a flame, cleaning or soiling an object, chilling or warming, a mark, a trinket — is the DM’s',
-    'which of the six a casting made is the DM’s, so the cap of three counts castings rather than the non-instantaneous effects the sentence names',
+  // **Read to the end and handed over (W8-S26).** Every wonder is fiction
+  // nothing reads afterwards — a flame it lights or snuffs is nonmagical light,
+  // which the table declares and takes away with `declare_light` as it does any
+  // torch — and so is which of them a casting made. The cap sentence goes with
+  // them: the engine's `maxRunning` counts castings, and since no wonder is
+  // anything the engine holds, which three are still going is the table's to
+  // say over the ones it narrated.
+  dmDecides: [
+    'Choose the effect from the options below.',
+    'If you cast this spell multiple times, you can have up to three of its non-instantaneous effects active at a time.',
+    '_Sensory Effect._ You create an instantaneous, harmless sensory effect, such as a shower of sparks, a puff of wind, faint musical notes, or an odd odor.',
+    '_Fire Play._ You instantaneously light or snuff out a candle, a torch, or a small campfire.',
+    '_Clean or Soil._ You instantaneously clean or soil an object no larger than 1 cubic foot.',
+    '_Minor Sensation._ You chill, warm, or flavor up to 1 cubic foot of nonliving material for 1 hour.',
+    '_Magic Mark._ You make a color, a small mark, or a symbol appear on an object or a surface for 1 hour.',
+    '_Minor Creation._ You create a nonmagical trinket or an illusory image that can fit in your hand.',
+    'It lasts until the end of your next turn.',
+    'A trinket can deal no damage and has no monetary worth.',
   ],
 };
 
@@ -4849,6 +4922,14 @@ export const NONDETECTION: SpellDefinition = {
   // before anything is spent, with this spell named.
   wardsTargets: { school: 'divination' },
   durationSeconds: 28_800,
+  // **The table's, and left here by a pin rather than a reading** (W8-S26).
+  // A place or an object warded against Divination spells the engine hands to
+  // the table whole — Locate Object and its kind read nothing — and a sensor
+  // that is Clairvoyance's, handed over whole too, are read by nothing, so the
+  // sentences belong in `dmDecides`. `nondetection.test.ts` (engine) pins this
+  // list at one line, and this track may not open an engine file; so the line
+  // is left unsorted on purpose, the ledger counts it as work, and
+  // `ledger.test.ts` names it.
   unmodelled: [
     'scrying sensors are not modelled, and a place or an object as the target is not a creature in state',
   ],
@@ -4933,9 +5014,11 @@ export const PLANE_SHIFT: SpellDefinition = {
  * off its owner: SRD says it "can be removed or discarded", which is a
  * permission and two commands somebody may take afterwards.
  *
- * The first sentence is fiction and stays so: nothing the engine applies is a
- * curse — Bestow Curse is tracked and applies nothing — so there is no curse
- * for the touch to end.
+ * **The first sentence is a debt now, and this paragraph used to call it
+ * fiction** (W8-S26). It read "nothing the engine applies is a curse — Bestow
+ * Curse is tracked and applies nothing"; Bestow Curse is executed since, and a
+ * lycanthrope's curse is on the record, so there are curses in state for the
+ * touch to end and the touch ends none of them.
  */
 export const REMOVE_CURSE: SpellDefinition = {
   id: 'remove-curse',
@@ -4948,7 +5031,7 @@ export const REMOVE_CURSE: SpellDefinition = {
   targets: { count: 1, self: true },
   effects: [{ kind: 'end-attunement' }],
   unmodelled: [
-    'a curse is not a thing in state — nothing the engine applies is one — so which curses end is the DM’s, and whether the object the Attunement is broken to was a cursed one is the same decision',
+    'the curses the touch ends are not ended: a Bestow Curse on the target and a curse on its record go on, because nothing tells the engine which of the castings and marks it holds is a curse — and the Attunement is broken to any item the caster names, where the book breaks it only to a cursed one',
   ],
 };
 
@@ -4990,10 +5073,19 @@ export const ROPE_TRICK: SpellDefinition = {
     },
   ],
   durationSeconds: 3600,
+  // The rope's hanging and what those inside see go to the table in the
+  // book's words (W8-S26): the engine holds the space as a place creatures
+  // are, not a thing on the lattice, and a creature elsewhere declares nothing
+  // about anybody in the scene. The rope pulled up is not the table's alone —
+  // it is the way in, and `enterElsewhere` goes on letting creatures climb it —
+  // and neither is the climb, which is movement a creature spends.
+  dmDecides: [
+    'One end of it hovers upward until the rope hangs perpendicular to the ground or the rope reaches a ceiling.',
+    "Attacks, spells, and other effects can't pass into or out of the space, but creatures inside it can see through the portal.",
+  ],
   unmodelled: [
-    'the rope hovering upward until it hangs perpendicular or meets a ceiling, the 3-foot-by-5-foot portal at its upper end, and the rope being pulled into or dropped out of the space are the table’s: the engine holds the space as a place creatures are, not a thing on the lattice',
-    'what those inside make out through the portal is the table’s: a creature elsewhere is measured by nothing and declares nothing about anybody in the scene',
-    'what the climb costs the climber is the table’s: the rope is nothing the lattice holds, so the engine charges nothing for going up it',
+    'the rope being pulled into or dropped out of the space is not applied: a rope pulled up is a way in that is gone, and the climb into the space is offered whether it hangs or not',
+    'what the climb costs the climber is not charged: the rope is nothing the lattice holds, so the engine charges nothing for going up it',
   ],
 };
 
@@ -5259,8 +5351,11 @@ export const SPIRITUAL_WEAPON: SpellDefinition = {
       },
     ],
   },
-  unmodelled: [
-    'what the force looks like — "a weapon of your choice" — is narration, and nothing mechanical reads it',
+  // What the force looks like — "a weapon of your choice" — is narration
+  // nothing reads (W8-S26); the force's place and its duration in the same
+  // sentence are `origin` and the casting's own.
+  dmDecides: [
+    'You create a floating, spectral force that resembles a weapon of your choice and lasts for the duration.',
   ],
 };
 
@@ -5945,7 +6040,7 @@ export const FLAME_BLADE: SpellDefinition = {
     ],
   },
   unmodelled: [
-    'the Bright Light in a 10-foot radius and the Dim Light beyond it are the DM\u2019s; light is not modelled',
+    'the Bright Light in a 10-foot radius and the Dim Light beyond it are not shed: a `light` its wielder carries is a kind the engine has, and this definition does not write one',
   ],
 };
 
@@ -6016,8 +6111,13 @@ export const PRODUCE_FLAME: SpellDefinition = {
       },
     ],
   },
+  // W8-S26 read this line and left its words alone, because
+  // `ongoing-spells.test.ts` (engine) pins them. What the reading says is in
+  // `ADJUDICATED`: light has been modelled since P3-S, a `light` the caster
+  // carries is what SRD Light is written with, and this is a definition
+  // nobody wrote rather than a gap in the engine.
   unmodelled: [
-    'the Bright Light in a 20-foot radius and the Dim Light beyond it are the DM\u2019s; light is not modelled',
+    'the Bright Light in a 20-foot radius and the Dim Light beyond it are the DM’s; light is not modelled',
   ],
 };
 
@@ -7399,6 +7499,13 @@ export const GASEOUS_FORM: SpellDefinition = {
   dmDecides: [
     "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
   ],
+  // **The first line is the table's and stays here, and that is a pin rather
+  // than a reading** (W8-S26). What the cloud looks like, the narrow openings
+  // and the liquids are facts about a room the engine holds none of, and the
+  // sentences belong in `dmDecides`; `gaseous-form-objects.test.ts` (engine)
+  // pins the handover list to the one sentence above, and this track may not
+  // open an engine file. So the line is left unsorted on purpose, the ledger
+  // counts it as work, and `ledger.test.ts` names it.
   unmodelled: [
     'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
@@ -7493,9 +7600,13 @@ export const LEVITATE: SpellDefinition = {
   // clause to the table and this is nothing a DM adjudicates: the action's own
   // feet are not added, because the move it makes is forced exactly as a shove
   // is and nothing on the event tells the two apart. (W7-S19R)
-  unmodelled: [
-    'the object the spell may target instead, and its 500-pound limit, are the DM’s: objects are not modelled',
-  ],
+  // The object the spell may lift instead, in the book's words (W8-S26): a
+  // loose object's height is read by nothing the engine holds, so its weight
+  // limit and whether it rises are the table's.
+  dmDecides: ['The spell can levitate an object that weighs up to 500 pounds.'],
+  // Nothing is owed. The list is kept, empty, because `levitate.test.ts`
+  // (engine) asks it whether the clause about the target's own Speed is gone.
+  unmodelled: [],
 };
 
 /**
@@ -7642,11 +7753,17 @@ export const DETECT_THOUGHTS: SpellDefinition = {
   durationSeconds: 60,
   dmDecides: [
     "On a failed save, you discern the target's reasoning, emotions, and something that looms large in its mind (such as a worry, love, or hate).",
+    // Sense Thoughts and Read Thoughts, read to the end (W8-S26): which
+    // thinking creatures are near, what blocks the sensing and what is on a
+    // mind are knowledge, and the engine holds none — nothing reads them.
+    '_Sense Thoughts._ You sense the presence of thoughts within 30 feet of yourself that belong to creatures that know languages or are telepathic.',
+    "You don't read the thoughts, but you know that a thinking creature is present.",
+    'The spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.',
+    "You learn what is most on the target's mind right now.",
+    "If the target doesn't know any languages and isn't telepathic, you learn nothing.",
   ],
   unmodelled: [
-    'Sense Thoughts is the DM’s: which thinking creatures are within 30 feet, and the blocking rule — 1 foot of stone, dirt or wood, 1 inch of metal, a thin sheet of lead — are facts about a room',
-    'Read Thoughts is the DM’s: "You learn what is most on the target’s mind right now" is information rather than state',
-    'and which of the two options a Magic action turns on is the DM’s too: the probe is the one of them the engine resolves, and the spell prints "you can activate either effect as a Magic action on your later turns"',
+    'the Magic action a later Sense Thoughts or Read Thoughts costs is not spent: the spell prints "you can activate either effect as a Magic action on your later turns", and the probe is the one later step the engine takes and charges',
   ],
 };
 
@@ -8493,7 +8610,7 @@ export const FOG_CLOUD: SpellDefinition = {
   effects: [],
   durationSeconds: 3600,
   unmodelled: [
-    '"until a strong wind (such as one created by Gust of Wind) disperses it" is the DM’s: the wind is fiction here, and a casting the engine ends is one it can see ending',
+    '"until a strong wind (such as one created by Gust of Wind) disperses it" is not applied: whether a wind blows is the table’s, and the fog it would end is obscurement every sight question reads, so the ending is owed and nothing raises it',
   ],
 };
 
@@ -8598,9 +8715,13 @@ export const ZONE_OF_TRUTH: SpellDefinition = {
     ],
   },
   durationSeconds: 600,
-  unmodelled: [
-    'what a failed save buys — "a creature can’t speak a deliberate lie while in the radius" — is not imposed: the engine holds no speech, so the verdict is recorded and whether a given sentence was a deliberate lie is the DM’s',
-    'a creature being aware of the spell, and its being evasive yet truthful, are the DM’s',
+  // What a failed save buys, in the book's words (W8-S26): the engine holds no
+  // speech, so the verdict is recorded and every sentence about lying,
+  // answering and evading is the table's — nothing reads it afterwards.
+  dmDecides: [
+    "On a failed save, a creature can't speak a deliberate lie while in the radius.",
+    'An affected creature is aware of the spell and can avoid answering questions to which it would normally respond with a lie.',
+    'Such a creature can be evasive yet must be truthful.',
   ],
 };
 
@@ -9084,8 +9205,14 @@ export const GUST_OF_WIND: SpellDefinition = {
     effects: [],
   },
   durationSeconds: 60,
+  // Two debts, not one handover (W8-S26). The gas the gust disperses is not
+  // only the table's: a Fog Cloud or a Stinking Cloud is a casting whose
+  // obscurement every sight question reads. And the 50 percent is a die the
+  // engine should throw; the lantern it would put out is light the table
+  // declares, which is the object the light shape has left.
   unmodelled: [
-    'the gas dispersed, the unprotected candles snuffed and the protected flames dancing are the DM’s, and so is the "50 percent chance to extinguish them", which is a random outcome that is not a d20',
+    'the gas and vapor the gust disperses are not dispersed: a Fog Cloud or a Stinking Cloud in the Line goes on standing, because nothing ends another casting on an area’s say-so — the candles the same sentence snuffs are light the table declares and takes away',
+    'the protected flames’ "50 percent chance to extinguish them" is not thrown: a lantern is light the table declares on a thing the engine does not hold, so the die has nothing to land on',
   ],
 };
 
@@ -9629,7 +9756,11 @@ export const EXPEDITIOUS_RETREAT: SpellDefinition = {
  * take them away, because a conjured line lives exactly as long as its
  * casting.
  *
- * What is left is the day's nourishment, and the engine tracks no hunger.
+ * What is left is the day's nourishment, and the engine tracks no hunger:
+ * Malnutrition is a glossary hazard nothing here reads, which is the reading
+ * Create Food and Water was handed over whole on. So the sentence goes to the
+ * table (W8-S26) — the hit point in it is the berry's conferral whatever the
+ * table reads, and `ADJUDICATED` anchors the reading to the marker it trips.
  */
 export const GOODBERRY: SpellDefinition = {
   id: 'goodberry',
@@ -9643,8 +9774,8 @@ export const GOODBERRY: SpellDefinition = {
   effects: [],
   durationSeconds: 86_400,
   conjures: { item: 'goodberry', count: 10, hands: 1 },
-  unmodelled: [
-    'the day’s nourishment one berry provides is the DM’s; the engine tracks no hunger',
+  dmDecides: [
+    'Eating a berry restores 1 Hit Point, and the berry provides enough nourishment to sustain a creature for one day.',
   ],
 };
 
@@ -9789,9 +9920,12 @@ export const SANCTUARY: SpellDefinition = {
     { on: 'target-casts', ends: 'casting' },
     { on: 'target-deals-damage', ends: 'casting' },
   ],
+  // One save per ward per turn is the owner's ruling of 2026-09-22 and the
+  // engine's rule, stated in the docstring above; it is not a debt and it is
+  // not the table's, so it left `unmodelled` (W8-S26). What is still owed is
+  // the price of the failure.
   unmodelled: [
-    'the branch the save buys is offered as two commands rather than one: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf, and "lose the attack" is declining to make one',
-    'an attacker gets one save per ward per turn rather than one each time they target, which is a limit the book does not print — owner’s ruling, 2026-09-22, in exchange for a failure that costs nothing not being re-rollable until it passes',
+    'the branch the save buys spends nothing: "choose a new target" is a second swing at a creature nobody warded, because the engine aims nothing on a caller’s behalf — but "lose the attack or spell" is a cost, and an attacker who takes neither branch keeps the attack, the action and the slot the book says are lost',
   ],
 };
 
@@ -10036,9 +10170,15 @@ export const ARCANISTS_MAGIC_AURA: SpellDefinition = {
   effects: [{ kind: 'creature-type-override', creatureType: 'Humanoid' }],
   choiceStated: { of: 'creature-type', options: [...CREATURE_TYPES] },
   durationSeconds: 86_400,
+  // The False Aura, in the book's words (W8-S26): what an object's aura looks
+  // like to a Detect Magic that itself resolves nothing is narration twice
+  // over, and nothing reads it.
+  dmDecides: [
+    '_False Aura (Object)._ You change the way the target appears to spells and magical effects that detect magical auras, such as _Detect Magic_.',
+    "You can make a nonmagical object appear magical, make a magic item appear nonmagical, or change the object's aura so that it appears to belong to a school of magic you choose.",
+  ],
   unmodelled: [
-    'the False Aura is the DM’s: objects are not modelled, and what an aura looks like to a Detect Magic that itself resolves nothing is narration twice over',
-    'the thirty consecutive castings that make the illusion permanent are the DM’s; the engine holds no such history',
+    'the thirty consecutive daily castings that make the illusion last until dispelled are not counted: the Mask ends on its day whatever went before, and a creature type an effect reads every casting is what that permanence would keep',
   ],
 };
 
@@ -10073,8 +10213,12 @@ export const BARKSKIN: SpellDefinition = {
   // to write down.
   effects: [{ kind: 'armor-class', minimum: 17 }],
   durationSeconds: 3600,
-  unmodelled: [
-    'the bark-like appearance is narration',
+  // The bark-like appearance is narration nothing reads, and it is printed in
+  // the one sentence the floor above executes — so the sentence goes over
+  // whole (W8-S26), and `ADJUDICATED` anchors the reading to the Armor Class
+  // it names, which is the one way past the marker rule.
+  dmDecides: [
+    "Until the spell ends, the target's skin assumes a bark-like appearance, and the target has an Armor Class of 17 if its AC is lower than that.",
   ],
 };
 
@@ -10162,9 +10306,11 @@ export const ENHANCE_ABILITY: SpellDefinition = {
  * the highest key at or below the slot, and `bonus` for a slot below every
  * band. A level 5 slot falls in the band that opened at 3.
  *
- * "You touch a **nonmagical** weapon" is the one clause left. A weapon's
- * magicality is not a fact the engine holds — nothing reads one, so nothing
- * could refuse a second casting on an already-magic Longsword.
+ * "You touch a **nonmagical** weapon" is the one clause left, and it is a debt
+ * rather than the table's (W8-S26): which weapon a casting may name is a
+ * target rule, the catalogue holds a +1 Longsword apart from a Longsword, and
+ * the weapon this spell makes magic is the one a second caster's Magic Weapon
+ * would be refused on. Nothing asks either question yet.
  */
 export const MAGIC_WEAPON: SpellDefinition = {
   id: 'magic-weapon',
@@ -10188,7 +10334,7 @@ export const MAGIC_WEAPON: SpellDefinition = {
   // "The spell ends early if you cast it again."
   replacesPriorCasting: true,
   unmodelled: [
-    'the weapon is not refused for being magic already, and does not become magic: "You touch a nonmagical weapon" and "that weapon becomes a magic weapon" are both about a property of the object that nothing in the engine holds or reads',
+    'the weapon is not refused for being magic already, and does not become magic: "You touch a nonmagical weapon" is a rule about which weapon the casting may name, the catalogue holds a +1 Longsword apart from a Longsword, and nothing asks — and "that weapon becomes a magic weapon" is what a second caster’s Magic Weapon would be refused on',
   ],
 };
 
@@ -10256,9 +10402,14 @@ export const MIRROR_IMAGE: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'the duplicates are not in the world: three of them appearing in the caster’s space, moving with them and shifting position are the DM’s — what the engine holds is how many are left, which is the whole of what the deflection reads',
-    '"The duplicates otherwise ignore all other damage and effects" is a rule about a thing nothing can aim at: no command targets a duplicate, so nothing has to bounce off one',
+  // The duplicates as things in the world, in the book's words (W8-S26): what
+  // the engine holds is how many are left, which is the whole of what the
+  // deflection reads, and no command aims at a duplicate — so where they
+  // stand, how they move and what they ignore are narration nothing reads.
+  dmDecides: [
+    'Three illusory duplicates of yourself appear in your space.',
+    "Until the spell ends, the duplicates move with you and mimic your actions, shifting position so it's impossible to track which image is real.",
+    'The duplicates otherwise ignore all other damage and effects.',
   ],
 };
 
@@ -10305,13 +10456,17 @@ export const PASS_WITHOUT_TRACE: SpellDefinition = {
     { kind: 'bonus', applies: 'ability-check', flat: 10, only: { skill: 'stealth' } },
   ],
   durationSeconds: 3600,
-  // **Nothing is handed over, and the leaving of no tracks stays a gap.** The
-  // ruling hands over *printed text*, word for word, and the book prints no
-  // unit that says only this: "you and each creature you choose have a +10
-  // bonus to Dexterity (Stealth) checks **and leave no tracks**" is one
-  // sentence whose first half the engine now executes, so handing the sentence
-  // over would disown the bonus in the same breath as granting it.
-  unmodelled: ['leaving no tracks is the DM’s: the engine holds no trail to leave or not leave'],
+  // **The tracks are handed over, and this comment used to say they could not
+  // be.** The book prints no unit that says only "leave no tracks" — it is the
+  // second half of the sentence whose +10 the engine executes — and the
+  // reading here was that handing the sentence over would disown the bonus.
+  // The owner's ruling of 2026-09-26 on Gaseous Form settled that the other
+  // way: a sentence goes to the table whole, and the half the engine executes
+  // is executed whatever the table reads. The engine holds no trail to leave
+  // or not leave, so nothing reads the rest (W8-S26).
+  dmDecides: [
+    'While in the aura, you and each creature you choose have a +10 bonus to Dexterity (Stealth) checks and leave no tracks.',
+  ],
 };
 
 /**
@@ -10363,11 +10518,15 @@ export const SPIKE_GROWTH: SpellDefinition = {
   durationSeconds: 600,
   // The check is the engine's; *who has to make it* — a creature that could not
   // see the casting — is a fact about the scene at a moment gone by, and the
-  // table's. Not `dmDecides`: the printed sentence names the check the engine
-  // rolls, and a handover may name no mechanic, so the gate is filed here with
-  // a `'table'` adjudication — Glyph of Warding's check to notice, the same way.
-  unmodelled: [
-    'who has to make the Wisdom (Perception or Survival) check is not decided by the engine: "any creature that can’t see the area when the spell is cast" is a fact about the scene at a moment gone by, which the table holds and the engine does not — the check itself is offered off the casting to anybody who takes the Search action',
+  // table's, and what the check buys is knowing, which changes nothing the
+  // engine holds. This used to stay in `unmodelled` because the printed
+  // sentence names the check and a handover may name no mechanic; W8-S26
+  // hands both sentences over and records the reading in `ADJUDICATED`,
+  // anchored to the check the marker sees — the one way past that rule, as
+  // `docs/design/content.md` draws it for the tracked map.
+  dmDecides: [
+    'The transformation of the ground is camouflaged to look natural.',
+    'Any creature that can\'t see the area when the spell is cast must take a Search action and succeed on a Wisdom (Perception or Survival) check against your spell save DC to recognize the terrain as hazardous before entering it.',
   ],
 };
 
@@ -10628,9 +10787,11 @@ export const SLEET_STORM: SpellDefinition = {
     ],
   },
   durationSeconds: 60,
-  unmodelled: [
-    'the exposed flames the sleet douses are the DM’s: a flame in the open is not a thing the engine holds',
-  ],
+  // The flames, in the book's words (W8-S26): a flame in the open is not a
+  // thing the engine holds, and the light it sheds is light the table
+  // declares and takes away. The Heavily Obscured half of the sentence is
+  // `areaObscurement` above.
+  dmDecides: ['The area is Heavily Obscured, and exposed flames in the area are doused.'],
 };
 
 /**
@@ -11018,8 +11179,8 @@ export const HEAT_METAL: SpellDefinition = {
   },
   durationSeconds: 60,
   unmodelled: [
-    'an object nobody is wearing or wielding is the DM’s: "any creature in physical contact with the object" is a touching the engine keeps no record of, and what it does keep is what a creature has equipped',
-    'whether the thing chosen is manufactured, metal, and a weapon or a suit of Heavy or Medium armour is the DM’s; the catalogue records what an item is made of nowhere',
+    'an object nobody is wearing or wielding is not heated: "any creature in physical contact with the object" is a touching the engine keeps no record of, and what it does keep is what a creature has equipped — the 2d8 Fire such a touch deals is not thrown',
+    'whether the thing chosen is manufactured, metal, and a weapon or a suit of Heavy or Medium armour is not asked: the catalogue records what an item is made of nowhere, so a casting at a creature’s wooden club is not refused',
   ],
 };
 
@@ -11096,8 +11257,16 @@ export const FLAMING_SPHERE: SpellDefinition = {
     effects: [],
   },
   durationSeconds: 60,
+  // The room, in the book's words (W8-S26): the barriers and pits it is rolled
+  // over and the loose flammable things it sets alight are facts about a room
+  // the engine holds none of — a route the caster states crosses them as any
+  // mover's does — and the light in the same sentence is `areaLight` above.
+  dmDecides: [
+    'When you move the sphere, you can direct it over barriers up to 5 feet tall and jump it across pits up to 10 feet wide.',
+    "Flammable objects that aren't being worn or carried start burning if touched by the sphere, and it sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet.",
+  ],
   unmodelled: [
-    'the ground it is conjured on, the unoccupied space it needs, the barriers up to 5 feet tall it is directed over, the pits up to 10 feet wide it jumps and the flammable objects it sets alight are the DM’s',
+    'the unoccupied space on the ground the sphere must be conjured in is not asked for: the point is measured against the Range and nothing else, so a sphere may appear in a creature’s space or in the air',
   ],
 };
 
@@ -11831,10 +12000,16 @@ const WARDED_AGAINST = [
  * target is already under: a repeat save names it through its source — a
  * casting's caster, or a printed line's creature — and a new save a stat
  * block's line forces names it where that line already holds the target
- * (W8-S24). Possession is not a state the engine holds at all, and stays
- * `unmodelled` rather than handed over, because it is a rule the engine would
- * execute the day it could — a handover is for a sentence nobody will ever
- * build.
+ * (W8-S24).
+ *
+ * **Possession is handed over, and that reverses what this paragraph used to
+ * say** (W8-S26). It read "can't be possessed" as a rule the engine would
+ * execute the day it could; the owner ruled on 2026-09-24 that a possession is
+ * a compulsion the table adjudicates for good — SRD Ghost's Possession files
+ * who drives the body for the table, and only its saving throw is the
+ * engine's — so the protection against one reads nothing the engine will ever
+ * hold. The sentence goes over whole: its Charmed and Frightened halves are
+ * the Immunity above whatever the table reads.
  */
 export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
   id: 'protection-from-evil-and-good',
@@ -11888,8 +12063,8 @@ export const PROTECTION_FROM_EVIL_AND_GOOD: SpellDefinition = {
     })),
   ],
   durationSeconds: 600,
-  unmodelled: [
-    'the clause that the target can’t be possessed by such a creature is not applied: possession is not a state the engine holds, so there is nothing for the protection to refuse',
+  dmDecides: [
+    "The target also can't be possessed by or gain the Charmed or Frightened conditions from them.",
   ],
 };
 
@@ -11974,8 +12149,13 @@ export const UNSEEN_SERVANT: SpellDefinition = {
     { on: 'summon-drops-to-0', ends: 'casting' },
     { on: 'separated-beyond', feet: 60, ends: 'casting' },
   ],
-  unmodelled: [
-    'what the servant fetches, cleans, mends, folds, lights, serves or pours is the DM’s and always will be',
+  // The tasks, in the book's words (W8-S26): what the servant fetches, cleans,
+  // mends, folds, lights, serves or pours is the table's and always will be —
+  // the command that sets it going is `commandSummons` above, and the task is
+  // what it narrates.
+  dmDecides: [
+    'The servant can perform simple tasks that a human could do, such as fetching things, cleaning, mending, folding clothes, lighting fires, serving food, and pouring drinks.',
+    'Once you give the command, the servant performs the task to the best of its ability until it completes the task, then waits for your next command.',
   ],
 };
 
@@ -12025,9 +12205,13 @@ export const ALTER_SELF: SpellDefinition = {
       label: 'Aquatic Adaptation',
       // "gain a Swim Speed equal to your Speed".
       effects: [{ kind: 'speed', change: 'match-walk', mode: 'swim' }],
-      handsOver: ['You sprout gills and grow webs between your fingers.'],
-      unmodelled: [
-        'breathing underwater is the table’s: the engine holds no water and nothing drowns in it',
+      // And the breathing, in the book's words (W8-S26): the engine holds no
+      // water and nothing drowns in it, so breathing underwater is a fact
+      // nothing reads — Water Breathing's reading, which is handed over whole.
+      // The Swim Speed in the same sentence is the effect above.
+      handsOver: [
+        'You sprout gills and grow webs between your fingers.',
+        'You can breathe underwater and gain a Swim Speed equal to your Speed.',
       ],
     },
     'change-appearance': {
@@ -12338,8 +12522,8 @@ export const ANIMATE_DEAD: SpellDefinition = {
     'Once given an order, the creature continues to follow it until its task is complete.',
   ],
   unmodelled: [
-    'that a pile of bones lies at the point the caster names is the table’s fiction: the engine raises a Skeleton there inside the spell’s range and checks nothing about the bones',
-    'the Bonus Action that commands the undead, and the 60 feet it reaches, are handed over: commanding is taking the creature’s turn, which the caster already may, and nothing spends the Bonus Action or measures the sixty feet',
+    'that a pile of bones lies at the point the caster names is not asked: the engine raises a Skeleton there inside the spell’s range on the caster’s word, and whether any bones lie there is the table’s fact nobody states',
+    'the Bonus Action that commands the undead, and the 60 feet it reaches, are not charged: commanding is taking the creature’s turn, which the caster already may, and nothing spends the Bonus Action or measures the sixty feet',
   ],
 };
 
@@ -12389,8 +12573,16 @@ export const BLINK: SpellDefinition = {
     },
   ],
   durationSeconds: 60,
-  unmodelled: [
-    'what the caster can perceive of the plane they left, and who can perceive them, are the DM’s: "cast in shades of gray", and the Ethereal Plane’s own sights and sounds, describe a place the engine holds nothing of',
+  // What the caster perceives of the plane they left and who perceives them,
+  // in the book's words (W8-S26): "cast in shades of gray" and the Ethereal
+  // Plane's own sights describe a place the engine holds nothing of, and a
+  // creature on the Ethereal Plane affects and is affected by nobody in the
+  // scene whatever it sees — so the seeing reads nothing. The SRD's own line
+  // break splits the second sentence in two.
+  dmDecides: [
+    'While on the Ethereal Plane, you can',
+    "perceive the plane you left, which is cast in shades of gray, but you can't see anything there more than 60 feet away.",
+    "You can affect and be affected only by other creatures on the Ethereal Plane, and creatures on the other plane can't perceive you unless they have a special ability that lets them perceive things on the Ethereal Plane.",
   ],
 };
 
@@ -12414,8 +12606,10 @@ export const BLINK: SpellDefinition = {
  * **The hour holds it here.** The casting leaves an ongoing record, the steed
  * is bound to it, and when the hour is up `strandedSummons` says the steed is
  * owed a departure and `dismissStrandedSummons` performs it. That is the whole
- * of "when the spell ends, the steed gradually fades"; the minute the rider
- * has to dismount is narration over it.
+ * of "when the spell ends, the steed gradually fades". The minute the rider
+ * has to dismount was read as narration over it, and W8-S26 files it as the
+ * debt it is: for that minute the steed is still under its rider at a Speed of
+ * 100 feet, and the departure takes it away at once.
  */
 export const PHANTOM_STEED: SpellDefinition = {
   id: 'phantom-steed',
@@ -12437,9 +12631,19 @@ export const PHANTOM_STEED: SpellDefinition = {
   // release on the steed: there is nothing hung on the steed to release, and
   // the hour ending is what sends it away.
   endsEarly: [{ on: 'summon-takes-damage', ends: 'casting' }],
+  // The tack, its puff of smoke and the thirteen miles in an hour, in the
+  // book's words (W8-S26): equipment the steed's block does not carry and an
+  // overland pace nothing in the engine travels at. The Speed of 100 feet in
+  // the same sentence is the bestiary entry's, and `ADJUDICATED` anchors the
+  // reading to the marker it trips.
+  dmDecides: [
+    "You decide the creature's appearance, and it is equipped with a saddle, bit, and bridle.",
+    'Any of the equipment created by the spell vanishes in a puff of smoke if it is carried more than 10 feet away from the steed.',
+    'The steed uses the Riding Horse stat block (see "Monsters"), except it has a Speed of 100 feet and can travel 13 miles in an hour.',
+  ],
   unmodelled: [
-    'the saddle, bit and bridle, their puff of smoke ten feet from the steed, the thirteen miles in an hour and the minute the rider has to dismount are the DM’s',
-    'who sits on it — "you or a creature you choose can ride the steed" — is the table’s; the engine seats nobody on a mount',
+    'the minute the rider has to dismount is not given: the steed departs when the spell ends, with its rider still up, where the book has it fade over a minute',
+    'who may ride it — "you or a creature you choose can ride the steed" — is not asked: the mount command seats anybody willing, and the caster’s choice of rider is nowhere for it to read',
   ],
 };
 
@@ -12501,8 +12705,13 @@ export const PLANT_GROWTH: SpellDefinition = {
       ],
     },
   },
+  // Two debts where one line said the table's (W8-S26): the ground the caster
+  // excludes and the ground with no plants on it are both ground the terrain
+  // patch is laid over anyway, and the ruler charges four feet a foot for
+  // every space of it.
   unmodelled: [
-    'the areas the caster excludes from the Sphere are the DM’s, and so is every word about what the plants look like',
+    'the areas the caster excludes from the Sphere are not excluded: the patch covers the whole Sphere, and a creature crossing an excluded space still pays four feet a foot',
+    'the overgrowth covers the whole Sphere whether or not normal plants grow there: where the plants are is a fact about the room nobody states, and the terrain the ruler charges for is laid regardless',
   ],
 };
 
@@ -12527,8 +12736,10 @@ export const PLANT_GROWTH: SpellDefinition = {
  * the slot is spent, and so is a creature who is standing up.
  *
  * What is left is what the spell says it leaves: a creature that died of old
- * age, and the body parts it does not restore. Neither is a fact the engine
- * holds, and holding one would not settle either.
+ * age, and the body parts it does not restore. They are one sentence and one
+ * debt (W8-S26): the body parts are fiction nothing reads, but old age is a
+ * table fact the revival reads — the book refuses the spell on it — and a
+ * corpse the table says died of age is revived here all the same.
  */
 export const REVIVIFY: SpellDefinition = {
   id: 'revivify',
@@ -12541,8 +12752,7 @@ export const REVIVIFY: SpellDefinition = {
   targets: { count: 1 },
   effects: [{ kind: 'revive', within: 60, hitPoints: 1 }],
   unmodelled: [
-    'whether the creature died of old age is the DM’s, and the engine holds no such cause: a corpse the table says died of age is one the table declines to let this spell touch',
-    'the body parts the spell does not restore are the DM’s; the engine holds no anatomy for one to be missing from',
+    'a creature that died of old age is not refused: how a creature died is the table’s fact, nobody states it and the revival reads none — the missing body parts the same sentence says it does not restore are narration the engine holds no anatomy for',
   ],
 };
 
@@ -12609,8 +12819,11 @@ export const WIND_WALL: SpellDefinition = {
   durationSeconds: 60,
   unmodelled: [
     'objects are not in the scene: a Small flying object turned back, and a hurled boulder let through, are the DM’s — a stat block’s printed line does not say whether it looses an arrow or a boulder, so that shot is made and the wall reported beside it rather than deflecting it',
-    'fog, smoke and gases kept at bay, and loose lightweight material flying upward, are the DM’s',
+    'fog, smoke and other gases are not kept at bay: a Fog Cloud or a Stinking Cloud laid across the wall goes on obscuring and poisoning in its spaces, because nothing lets one area suspend another',
   ],
+  // The loose material, in the book's words (W8-S26): what flies upward in
+  // the wind is a thing the engine holds none of, and nothing reads it.
+  dmDecides: ['Loose, lightweight materials brought into the wall fly upward.'],
 };
 
 /**
@@ -14004,7 +14217,7 @@ export const PRAYER_OF_HEALING: SpellDefinition = {
   unmodelled: [
     'the benefits of a Short Rest are not conferred: a rest is a span the engine measures and its payout is the rest command’s, so no effect hands one over without the hour',
     '"A creature can’t be affected by this spell again until that creature finishes a Long Rest" is not enforced: a deadline is a span of seconds or a moment in the turn order, and a rest is neither',
-    'that the five must "remain within range for the spell’s entire casting" is not checked — range is measured when the rite settles, and nobody records where they stood for the ten minutes before',
+    'that the five must "remain within range for the spell’s entire casting" is not checked — range is measured when the rite settles, and a creature that walked out of range during the ten minutes is not dropped from it',
   ],
 };
 
@@ -14393,9 +14606,20 @@ export const FIND_STEED: SpellDefinition = {
     },
   ],
   unmodelled: [
-    'the steed’s three Bonus Actions are carried as prose: Fell Glare’s Frightened lasts "until the end of **your** next turn" — the summoner’s turn, which a printed save’s span cannot name — Fey Step carries its rider, and Healing Touch heals "2d8 plus the spell’s level"; each heading’s type gate ("Fiend Only") and its "Recharges after a Long Rest" are the table’s too, and Life Bond’s echo of the rider’s healing is a trigger nothing raises',
-    'and what the steed does with the turn when its rider has the Incapacitated condition — "acts independently, focusing on protecting you" — is the table’s, the same question left open for every creature in the scene',
-    'the steed resembling a Large rideable animal of the caster’s choice, the mounted combat it is controlled through, the telepathy it speaks over a mile, and the gear it leaves behind when it goes are the DM’s',
+    'the steed’s three Bonus Actions are carried as prose and not taken: Fell Glare’s Frightened lasts "until the end of **your** next turn" — the summoner’s turn, which a printed save’s span cannot name — Fey Step carries its rider, and Healing Touch heals "2d8 plus the spell’s level"; each heading’s type gate ("Fiend Only") and its "Recharges after a Long Rest" go unread with them, and Life Bond’s echo of the rider’s healing is a trigger nothing raises',
+    'the controlled-mount rules the steed is ridden under are not applied: while its rider is up, the book lets it take only the Dash, Disengage and Dodge actions and move as the rider directs, and nothing narrows a mount’s turn',
+    'the gear the steed leaves behind when it disappears is not left: nothing puts what it was wearing or carrying onto the floor the engine keeps when it goes',
+  ],
+  // What the steed looks like, what it says and what it does with a turn its
+  // rider cannot direct are the table's (W8-S26). The last is the question
+  // left open for every creature in the scene, and the turn itself — taken
+  // immediately after the rider's — is the seating above; the sentence trips
+  // the condition marker on the Incapacitated it names, and `ADJUDICATED`
+  // anchors the reading to it.
+  dmDecides: [
+    'The steed resembles a Large, rideable animal of your choice, such as a horse, a camel, a dire wolf, or an elk.',
+    'If you have the Incapacitated condition, the steed takes its turn immediately after yours and acts independently, focusing on protecting you.',
+    '**Languages** Telepathy 1 mile (works only with you)',
   ],
 };
 
@@ -14704,7 +14928,7 @@ export const CONJURE_ANIMALS: SpellDefinition = {
   ],
   unmodelled: [
     'the caster’s sight of whoever the pack reaches is not read at the boundary: "a creature you can see" gates each of the three clauses, and an area trigger catches whoever the geometry catches',
-    'and "you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces: a trigger the caster may decline has no word, so the save is rolled and a pack that held back is the table’s to narrate',
+    'and "you **can** force that creature to make a Dexterity saving throw" is read as a save the pack forces: a trigger the caster may decline has no word, so the save is rolled and the 3d10 dealt where the caster would have held the pack back',
   ],
 };
 
@@ -14921,7 +15145,10 @@ export const GIANT_INSECT: SpellDefinition = {
  * it off and it takes effect on them, or centred on them for an area. The
  * **creature-type refinement** stays filed — a predicate an area does not read,
  * so the rune catches whoever stands in the Sphere when the DM says it went
- * off. The check to notice the glyph is the table's to call for.
+ * off. The check to notice the glyph is filed as a debt rather than the
+ * table's (W8-S26): Spike Growth's check is the same sentence written on a
+ * definition, and what keeps it off this one is that a glyph lasting until
+ * dispelled has no timer for a check to ride on.
  */
 export const GLYPH_OF_WARDING: SpellDefinition = {
   id: 'glyph-of-warding',
@@ -14968,8 +15195,8 @@ export const GLYPH_OF_WARDING: SpellDefinition = {
   ],
   unmodelled: [
     'refining the trigger so that only creatures of certain types set it off is not applied: the rune catches whoever stands in the Sphere when the DM says it went off, and a predicate over a creature type is a filter an area does not read',
-    'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: the DM calls for it when somebody searches, and the DC is the sheet’s',
-    'the ten feet the surface or object may be moved before the glyph breaks is the DM’s to watch, who ends the casting when it does',
+    'the Wisdom (Perception) check against your spell save DC to notice the glyph is not offered by the casting: a check a casting offers rides on its timer, and a glyph that lasts until dispelled has none, so the DM calls for it and states a DC the rules fix',
+    'the glyph breaking when the surface or object it is on is moved more than 10 feet is not applied: how far a thing moved is the table’s to watch, and no door lets it end the casting, so the rune stays armed',
   ],
 };
 
@@ -15068,11 +15295,17 @@ export const MAGIC_CIRCLE: SpellDefinition = {
   // rather than increments, because the SRD prints a different table for every
   // spell that has one and no arithmetic produces them all.
   durationAtSlot: { 4: 7200, 5: 10800, 6: 14400, 7: 18000, 8: 21600, 9: 25200 },
+  // The possession, handed over with the sentence it is printed in (W8-S26):
+  // a possession is a compulsion the table adjudicates for good — the owner,
+  // 2026-09-24 — so protection against one reads nothing the engine will ever
+  // hold. The Charmed and Frightened halves are refused by the Immunity above
+  // whatever the table reads, and the sentence trips the condition marker on
+  // them; `ADJUDICATED` anchors the reading to it.
   dmDecides: [
     'Glowing runes appear wherever the Cylinder intersects with the floor or other surface.',
+    "• Targets within the Cylinder can't be possessed by or gain the Charmed or Frightened condition from the creature.",
   ],
   unmodelled: [
-    'possession is not a state the engine holds, so "can’t be possessed by … the creature" is the DM’s; the Charmed and Frightened halves of the sentence are refused',
     'interplanar travel is not modelled — there is one scene — so the save is raised for a teleport and for nothing else',
   ],
 };

@@ -110,7 +110,10 @@ describe('a spell may name a shape in any book', () => {
     expect(filed(ADJUDICATED, 'gaseous-form')).not.toContain(
       'an-action-the-engine-has-no-spender-for',
     );
-    expect(filed(ADJUDICATED, 'gaseous-form')).toEqual([]);
+    // What it files now is the one line W8-S26 found nobody had read — the
+    // cloud entering another creature's space, which occupancy refuses — and
+    // it is filed against a spell shape, not against any action.
+    expect(filed(ADJUDICATED, 'gaseous-form')).toEqual(['a-creature-fact-an-effect-overrides']);
     // **And Haste has left too, on the same reading and by the same door.**
     // It was filed here because the note said Utilize was an action no
     // spender could be told apart as having taken. `takeUtilize` is one and

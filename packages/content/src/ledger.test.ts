@@ -43,12 +43,17 @@ import { FEATS_ANSWERED_FOR } from '../scripts/missing-feature-shapes.js';
 import {
   LEDGER_LEVEL,
   auditLedger,
+  clausesCounted,
   itemsInReach,
   ledgerTotals,
+  owedClausesOf,
+  readExecuted,
   renderLedger,
   spellWaitOf,
+  unsortedInReach,
   type Ledger,
 } from '../scripts/ledger.js';
+import { ADJUDICATED } from '../scripts/missing-shapes.js';
 
 const spell = (id: string, level: number, classes: readonly string[] = ['oracle']): ParsedSpell =>
   ({ id, name: id, level, classes }) as unknown as ParsedSpell;
@@ -672,6 +677,175 @@ describe('everything is grouped by the shape it waits on', () => {
    */
   it('leaves the other population’s heading alone', () => {
     expect(report).toContain('#### Waiting on no shape —');
+  });
+});
+
+/**
+ * **An executed spell that still prints a clause nobody sorted is not
+ * executed** — W8-S26.
+ *
+ * A spell used to be `executed-partial` only when `ADJUDICATED` filed one of
+ * its `unmodelled` clauses against a blocker, so a clause nobody had read left
+ * the spell counted as `executed` and out of this report altogether: finished,
+ * by the report's own words, on the strength of a paragraph nobody opened.
+ * Fifty-nine clauses on forty-eight spells in reach were in that state, and
+ * the session census in `level-five-session.test.ts` was counting the same
+ * lines as debts — the two reports disagreed about which spells were done.
+ *
+ * So a clause of an executed definition is **sorted** only when an entry reads
+ * it against a blocker (a shape, or `'expressible'` for a definition nobody
+ * wrote). A clause with no entry is unread, and a clause whose only entry says
+ * `'table'` is a handover filed in the list of debts — both are work, and both
+ * land in *waits on a definition*, which is the column `LEDGER.md`'s preamble
+ * describes for exactly this.
+ */
+describe('an executed spell with a clause nobody sorted is not executed', () => {
+  const note = 'a note long enough to be one, since the map asks every entry for a real sentence';
+
+  /** The synthetic half: the classifier is believed only after it is driven. */
+  it('reads an unsorted clause as a definition owed, not as finished', () => {
+    const clause = 'the webs catching fire, which is a fact about the room';
+    const reading = readExecuted([clause], []);
+    expect(reading.status).toBe('executed-partial');
+    expect(reading.unsorted).toEqual([clause]);
+    expect(spellWaitOf('a-synthetic-spell', reading.status, [], reading.unsorted)).toBe('definition');
+
+    const [spells] = ledgerTotals({
+      ...auditLedger(),
+      spells: [
+        {
+          id: 'a-synthetic-spell',
+          name: 'A Synthetic Spell',
+          level: 2,
+          status: reading.status,
+          shapes: [],
+          wait: spellWaitOf('a-synthetic-spell', reading.status, [], reading.unsorted),
+        },
+      ],
+    });
+    expect(spells?.pending).toBe(1);
+    expect(spells?.size).toBe(1);
+    expect(spells?.handedOver).toBe(0);
+  });
+
+  /**
+   * A `'table'` entry does not sort a clause that is still in `unmodelled`:
+   * the reading says the clause is the table's, and the table's text belongs
+   * in `dmDecides`. A blocker does sort it, and so does `'expressible'`.
+   */
+  it('sorts a clause by a blocker or a definition owed, and not by the table', () => {
+    const clause = 'the webs catching fire, which is a fact about the room';
+    expect(
+      readExecuted([clause], [{ clause: 'catching fire', why: 'table', note }]).unsorted,
+    ).toEqual([clause]);
+    expect(
+      readExecuted([clause], [{ clause: 'catching fire', why: 'a-casting-ended-by-a-trigger', note }]),
+    ).toEqual({ status: 'executed-partial', unsorted: [] });
+    expect(
+      readExecuted([clause], [{ clause: 'catching fire', why: 'expressible', note }]),
+    ).toEqual({ status: 'executed-partial', unsorted: [] });
+    // And a spell with nothing left to say is executed whole.
+    expect(readExecuted([], [])).toEqual({ status: 'executed', unsorted: [] });
+  });
+
+  /**
+   * A branch's clauses are the spell's: SRD Alter Self's Aquatic Adaptation
+   * printed its debt one level down, and a reading of the definition's own
+   * list alone would have called the spell finished.
+   */
+  it('reads the branches as well as the definition', () => {
+    expect(
+      owedClausesOf({
+        unmodelled: ['one'],
+        options: { b: { label: 'B', unmodelled: ['three'] }, a: { label: 'A', unmodelled: ['two'] } },
+      }),
+    ).toEqual(['one', 'two', 'three']);
+  });
+
+  /**
+   * **The catalogue, sorted.** Every clause an executed spell in reach prints
+   * is read against a blocker or `'expressible'`, and a new one that is not
+   * lands here by name.
+   *
+   * **Four are not sorted, each for a reason outside the reading**, and they
+   * are named rather than exempted: an unsorted clause is counted by the
+   * ledger as work, which is what they are.
+   *
+   * | | |
+   * |---|---|
+   * | Find Familiar | its record is W8-S25's while that track runs |
+   * | Gaseous Form | its cloud line is the table's, and `gaseous-form-objects.test.ts` (engine) pins the handover list to the one sentence about talking |
+   * | Nondetection | its line is the table's, and `nondetection.test.ts` (engine) pins `unmodelled` at one line |
+   * | Counterspell | its line is neither a debt nor the table's — the qualifier excludes nothing the catalogue can cast — and `counterspell.test.ts` (engine) pins it where it is |
+   *
+   * The last three need an engine test opened, which W8-S26 may not do; the
+   * list may only shrink.
+   */
+  const NOT_SORTED_HERE: readonly string[] = [
+    'counterspell',
+    'find-familiar',
+    'gaseous-form',
+    'nondetection',
+  ];
+
+  it('leaves no clause unsorted on an executed spell in reach', () => {
+    const unsorted = unsortedInReach();
+    expect(
+      Object.keys(unsorted).filter((id) => !NOT_SORTED_HERE.includes(id)),
+      JSON.stringify(unsorted, null, 2),
+    ).toEqual([]);
+    // And each of the four is really unsorted, so the list cannot go stale by
+    // one of them being sorted and staying named.
+    for (const id of NOT_SORTED_HERE) expect(unsorted[id]?.length ?? 0, id).toBeGreaterThan(0);
+  });
+
+  /**
+   * And the column this guard feeds holds exactly two kinds of thing, written
+   * out so a spell joining it says so here: a definition nobody wrote — a
+   * clause the existing kinds already say, filed `'expressible'` because no
+   * shape is missing — and a clause left unsorted by name above, whose spell
+   * owes no shape it could wait on instead.
+   */
+  it('waits on a definition only where the reading found one expressible, or left one unsorted', () => {
+    const ledger = auditLedger();
+    const pending = ledger.spells
+      .filter((one) => one.wait === 'definition')
+      .map((one) => one.id)
+      .sort();
+    expect(pending).toEqual(['counterspell', 'flame-blade', 'nondetection', 'produce-flame']);
+    const expressible = pending.filter((id) => !['counterspell', 'nondetection'].includes(id));
+    for (const id of expressible) {
+      expect(unsortedInReach()[id], id).toBeUndefined();
+      expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
+    }
+    // The other two are the unsorted pair named above, whose only reading
+    // the ledger can see is that nobody sorted them — which is the column's
+    // other half, and the reason it is a column.
+    for (const id of ['counterspell', 'nondetection']) {
+      expect(unsortedInReach()[id]?.length ?? 0, id).toBeGreaterThan(0);
+    }
+    // Two more carry an expressible clause beside a real blocker, and a shape
+    // outranks a definition owed — so they wait on the shape, and are still
+    // in the size.
+    for (const id of ['moonbeam', 'stinking-cloud']) {
+      expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
+      expect(ledger.spells.find((one) => one.id === id)?.wait, id).toBe('shape');
+    }
+  });
+
+  /**
+   * The ledger counts what a casting reports as a debt: every clause of a
+   * spell in the owed population, its cast branch's included. The session
+   * census holds itself against this from the other side.
+   */
+  it('counts every owed clause of a spell it holds, and none of one it does not', () => {
+    expect(clausesCounted('web')).toEqual(SRD_CONTENT.spell('web')!.unmodelled);
+    expect(clausesCounted('web').length).toBeGreaterThan(0);
+    // Spirit Guardians is executed whole and prints no debt.
+    expect(clausesCounted('spirit-guardians')).toEqual([]);
+    // Nor does a spell out of reach reach this count, whatever it prints.
+    expect(SRD_CONTENT.spell('cone-of-cold')!.unmodelled?.length).toBeGreaterThan(0);
+    expect(clausesCounted('cone-of-cold')).toEqual([]);
   });
 });
 

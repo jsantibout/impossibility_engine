@@ -7,6 +7,7 @@ import {
   ITEM_SHAPES,
   MISSING_SHAPES,
   markersIn,
+  mechanicalMarkersIn,
   sentencesOf,
   type Adjudication,
 } from '../scripts/missing-shapes.js';
@@ -96,6 +97,16 @@ const clausesOf = (spellId: string): readonly string[] => {
 const mechanicalClausesOf = (spellId: string): readonly string[] =>
   clausesOf(spellId).filter((clause) => markersIn(clause).length > 0);
 
+/**
+ * The sentences this spell hands the table that a mechanical marker sees —
+ * the book's own words, read by the marker list `dm-handover.test.ts` holds a
+ * handover to, which is the tracked bucket's.
+ */
+const markedHandoversOf = (spellId: string): readonly string[] =>
+  (SPELL_DEFINITIONS.find((d) => d.id === spellId)?.dmDecides ?? []).filter(
+    (sentence) => mechanicalMarkersIn(sentence).length > 0,
+  );
+
 const entriesFor = (spellId: string): readonly Adjudication[] => ADJUDICATED[spellId] ?? [];
 
 const matching = (entry: Adjudication, clauses: readonly string[]): readonly string[] =>
@@ -157,16 +168,51 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
   /**
    * A stale exemption is the same failure wearing the other face: a clause
    * that once said something mechanical, no longer does, and keeps a licence
-   * for it. An entry must match exactly one clause, and that clause must still
-   * be one that names a mechanic.
+   * for it. A `'table'` entry is a licence, so it must match exactly one
+   * clause that still names a mechanic.
+   *
+   * **A debt is not a licence, and W8-S26 is why the rule splits.** An entry
+   * naming a blocker — or `'expressible'` — records that a clause is owed, and
+   * the ledger reads the entry to count it; a clause the markers cannot see is
+   * owed all the same (Feather Fall's rate of descent names no mechanic this
+   * list knows). Refusing such an entry left the clause unsorted, which the
+   * ledger now reads as unread. So a debt entry must match exactly one clause,
+   * mechanical or not.
+   *
+   * **And a `'table'` entry may anchor a handed-over sentence instead.** Where
+   * a sentence the table is given trips a mechanical marker — SRD Barkskin's
+   * Armor Class, beside the bark-like appearance — the reading that lets it
+   * past `dm-handover.test.ts`'s marker rule is a `'table'` entry anchored to a
+   * phrase of that sentence, the escape `docs/design/content.md` describes for
+   * the tracked map. Such an entry matches no clause, and must match exactly
+   * one handed-over sentence, which must still trip a marker.
    */
   it('carries no adjudication for a clause that is gone or is no longer mechanical', () => {
     for (const [spellId, entries] of Object.entries(ADJUDICATED)) {
       for (const entry of entries) {
+        if (entry.why !== 'table') {
+          const hit = matching(entry, clausesOf(spellId));
+          expect(hit.length, `${spellId}: "${entry.clause}" matches ${hit.length} clauses`).toBe(1);
+          continue;
+        }
         const hit = matching(entry, mechanicalClausesOf(spellId));
-        expect(hit.length, `${spellId}: "${entry.clause}" matches ${hit.length} clauses`).toBe(1);
+        const handed = matching(entry, markedHandoversOf(spellId));
+        expect(
+          [hit.length, handed.length],
+          `${spellId}: "${entry.clause}" matches ${hit.length} clauses and ${handed.length} handed-over sentences`,
+        ).toEqual(hit.length === 1 ? [1, 0] : [0, 1]);
       }
     }
+  });
+
+  /** And the escape is used, or the paragraph above describes nothing. */
+  it('anchors some readings to a handed-over sentence a marker sees', () => {
+    const anchored = Object.entries(ADJUDICATED).flatMap(([spellId, entries]) =>
+      entries.filter(
+        (entry) => entry.why === 'table' && matching(entry, markedHandoversOf(spellId)).length === 1,
+      ),
+    );
+    expect(anchored.length).toBeGreaterThan(0);
   });
 
   /** And every adjudicated spell is one the catalogue actually executes. */
@@ -201,7 +247,7 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
     ];
     for (const [spellId, entries] of Object.entries(ADJUDICATED)) {
       for (const entry of entries) {
-        if (entry.why === 'table') continue;
+        if (entry.why === 'table' || entry.why === 'expressible') continue;
         expect(known, `${spellId}/${entry.clause}`).toContain(entry.why);
       }
     }
@@ -231,7 +277,7 @@ describe('an executed spell may not file a rule the engine owns as fiction', () 
     ]);
     for (const [spellId, entries] of Object.entries(ADJUDICATED)) {
       for (const entry of entries) {
-        if (entry.why === 'table') continue;
+        if (entry.why === 'table' || entry.why === 'expressible') continue;
         expect(known.has(entry.why), `${spellId}/${entry.clause}`).toBe(true);
       }
     }
