@@ -15,12 +15,11 @@ homebrew.
 
 - **Dice and rolls** — seeded and replayable, every roll with provenance; the
   D20 pipeline with named modifiers and attributed advantage; typed damage
-  against per-type defences; criticals; reaction windows held open; every face
-  a blow was made of, in the log.
-- **Creatures** — derived character sheets, stated monster sheets, all fifteen
-  conditions with their sources, hit points, temporary hit points with a
-  lifetime, death saves, exhaustion. Every ability a roll reads comes off
-  `sheetAsItStands`.
+  against per-type defences; criticals; reaction windows held open.
+- **Creatures** — derived character sheets, stated monster sheets, all
+  fifteen conditions with their sources, hit points, temporary hit points
+  with a lifetime, death saves, exhaustion; every ability a roll reads comes
+  off `sheetAsItStands`, lowered scores included.
 - **Space and sight** — a cube lattice, distance between volumes, declared
   sight and cover, seven area shapes, persistent and carried areas that may impose a Speed, a bonus, a
   condition, a defence or a silence on whoever stands inside, bar passage,
@@ -77,8 +76,10 @@ homebrew.
   its own running copies, ward a fall, or lift a creature a save did not spare;
   a spell may print branches and run the one named, hang a rider on a made
   save, make a creature subtract from its own damage rolls, or pick out D20
-  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its Concentration, a save may be nothing but its verdict, a casting may leave something behind when it ends or be dismissed by its
-  target at the book's price, a slot may change what kind of ending a casting
+  Tests by ability; Shield answers both its triggers; a spell may re-aim what it granted on a later turn, a slot may drop its Concentration, a save may be nothing but its verdict or be cast on a hit and fought off by
+  a neighbour's check, a spell's attack may leap to creatures the caster names,
+  a spell may print its own stat block, a casting may leave something behind
+  when it ends or be dismissed by its target, a slot may change what kind of ending a casting
   has, a Speed may be replaced, and a repeat save may be raised by a blow; a tracked spell read to
   the end carries its text in `dmDecides` and the ledger counts it apart.
 - **Characters** — twelve SRD classes with their subclass, nine species,
@@ -94,9 +95,9 @@ homebrew.
   while its casting or activation runs.
 - **Content** — `createContent` / `loadContent` validate a catalogue from
   JSON text; homebrew goes through the same door the SRD does.
-- **Two doors above the engine** (`@ie/tools`) — the player's and, under `dm/`,
-  the DM's, partitioned by **authority** rather than by species of caller: a
-  DM's door takes a decision the rules leave open, and neither takes a die face.
+- **Two doors above the engine** (`@ie/tools`) — the player's and, under
+  `dm/`, the DM's, partitioned by **authority**: a DM's door takes a decision
+  the rules leave open, and neither takes a die face.
 - **Measurement, as tests rather than claims** — `COVERAGE.md` and
   `LEDGER.md` are generated and go stale loudly; `reachability.test.ts` fails
   on an engine feature no door reaches; `level-five-session.test.ts` plays a

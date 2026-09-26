@@ -42,7 +42,7 @@ for exactly this reason.
 
 | Ledger | Size | Waits on an engine shape | Waits on a definition | Waits on none | Read to the end, handed over whole |
 |---|---|---|---|---|---|
-| Spells in reach, not executed | 41 spells | 41 | 0 | 0 | 35 |
+| Spells in reach, not executed | 39 spells | 39 | 0 | 0 | 35 |
 | Features manual, or a pool with nothing to buy | 0 features | 0 | 0 | 0 | 0 |
 | Items a level 1–5 party can buy | 157 items | 0 | 0 | 157 | 0 |
 | Glossary general rules nothing executes | 23 rules | 0 | 0 | 23 | 0 |
@@ -73,22 +73,21 @@ exactly the silently-missing entry this report’s header refuses.
 | `an-action-a-spell-compels-or-forbids` | 2 | 2 |
 | `difficult-terrain-an-area-creates` | 2 | 2 |
 | `a-casting-ended-by-a-trigger` | 4 | 1 |
-| `a-stat-block-created-mid-fight` | 3 | 1 |
-| `a-target-rule-the-format-cannot-state` | 3 | 1 |
 | `a-choice-made-at-the-casting` | 2 | 1 |
+| `a-creature-somebody-else-is-playing` | 2 | 1 |
 | `a-duration-the-slot-changes` | 2 | 1 |
+| `a-stat-block-created-mid-fight` | 2 | 1 |
+| `a-target-rule-the-format-cannot-state` | 2 | 1 |
 | `an-effect-that-suppresses-other-magic` | 2 | 1 |
 | `movement-modes` | 2 | 1 |
-| `a-creature-somebody-else-is-playing` | 1 | 1 |
 | `a-mode-on-the-save-a-spell-forces` | 1 | 1 |
 | `a-self-cure-a-spell-forbids` | 1 | 1 |
 | `an-action-the-engine-has-no-spender-for` | 1 | 1 |
 | `an-object-with-statistics-of-its-own` | 1 | 1 |
 | `healing-that-raises-the-dead` | 1 | 1 |
-| `a-check-another-creature-may-attempt` | 3 | 0 |
 | `a-second-place-to-put-a-creature` | 3 | 0 |
+| `a-check-another-creature-may-attempt` | 2 | 0 |
 | `a-random-outcome-that-is-not-a-d20` | 2 | 0 |
-| `a-repeat-save-that-does-something-on-a-failure` | 2 | 0 |
 | `a-rider-on-a-later-weapon-attack` | 2 | 0 |
 | `a-spells-effects-applied-to-different-targets` | 2 | 0 |
 | `a-standing-effect-derived-from-where-a-creature-stands` | 2 | 0 |
@@ -100,16 +99,15 @@ exactly the silently-missing entry this report’s header refuses.
 | `a-creature-fact-an-effect-overrides` | 1 | 0 |
 | `a-creature-type-predicate-an-area-reads` | 1 | 0 |
 | `a-damage-penalty-a-spell-grants` | 1 | 0 |
-| `a-die-behaviour-a-spell-asks-for` | 1 | 0 |
 | `a-distance-a-creature-travels-inside-an-area` | 1 | 0 |
 | `a-repeat-save-raised-by-a-trigger` | 1 | 0 |
+| `a-repeat-save-that-does-something-on-a-failure` | 1 | 0 |
 | `a-selector-for-every-d20-test` | 1 | 0 |
 | `an-activation-that-forces-a-saving-throw` | 1 | 0 |
 | `an-area-moved-by-the-casters-own-movement` | 1 | 0 |
 | `an-area-trigger-measured-from-a-point` | 1 | 0 |
 | `an-area-trigger-on-the-casters-turn` | 1 | 0 |
 | `senses-beyond-declared-sight` | 1 | 0 |
-| `several-attack-rolls-from-one-casting` | 1 | 0 |
 | `what-a-creature-is-holding` | 1 | 0 |
 
 **Blocks** is every spell of this population the shape touches;
@@ -136,32 +134,35 @@ sums to the population.
 
 #### `a-casting-ended-by-a-trigger` — blocks 4, finishes 1
 
-- **Unseen Servant** (level 1) — tracked — also waits on 1
+- **Unseen Servant** (level 1) — executed-partial — also waits on 1
 - **Invisibility** (level 2) — executed-partial
 - **Phantasmal Force** (level 2) — no-definition — also waits on 2
 - **Warding Bond** (level 2) — tracked — also waits on 1
-
-#### `a-stat-block-created-mid-fight` — blocks 3, finishes 1
-
-- **Unseen Servant** (level 1) — tracked — also waits on 1
-- **Find Steed** (level 2) — executed-partial
-- **Animate Dead** (level 3) — tracked — also waits on 1
-
-#### `a-target-rule-the-format-cannot-state` — blocks 3, finishes 1
-
-- **Thaumaturgy** (level 0) — executed-partial
-- **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Animate Dead** (level 3) — tracked — also waits on 1
 
 #### `a-choice-made-at-the-casting` — blocks 2, finishes 1
 
 - **Glyph of Warding** (level 3) — tracked — also waits on 1
 - **Plant Growth** (level 3) — executed-partial
 
+#### `a-creature-somebody-else-is-playing` — blocks 2, finishes 1
+
+- **Command** (level 1) — executed-partial
+- **Unseen Servant** (level 1) — executed-partial — also waits on 1
+
 #### `a-duration-the-slot-changes` — blocks 2, finishes 1
 
 - **Bestow Curse** (level 3) — executed-partial — also waits on 1
 - **Magic Circle** (level 3) — executed-partial
+
+#### `a-stat-block-created-mid-fight` — blocks 2, finishes 1
+
+- **Find Steed** (level 2) — executed-partial
+- **Animate Dead** (level 3) — tracked — also waits on 1
+
+#### `a-target-rule-the-format-cannot-state` — blocks 2, finishes 1
+
+- **Thaumaturgy** (level 0) — executed-partial
+- **Animate Dead** (level 3) — tracked — also waits on 1
 
 #### `an-effect-that-suppresses-other-magic` — blocks 2, finishes 1
 
@@ -172,10 +173,6 @@ sums to the population.
 
 - **Alter Self** (level 2) — tracked — also waits on 1
 - **Levitate** (level 2) — executed-partial
-
-#### `a-creature-somebody-else-is-playing` — blocks 1, finishes 1
-
-- **Command** (level 1) — executed-partial
 
 #### `a-mode-on-the-save-a-spell-forces` — blocks 1, finishes 1
 
@@ -197,27 +194,21 @@ sums to the population.
 
 - **Gentle Repose** (level 2) — executed-partial
 
-#### `a-check-another-creature-may-attempt` — blocks 3, finishes 0
-
-- **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Detect Thoughts** (level 2) — tracked — also waits on 1
-- **Spike Growth** (level 2) — executed-partial — also waits on 1
-
 #### `a-second-place-to-put-a-creature` — blocks 3, finishes 0
 
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
 
+#### `a-check-another-creature-may-attempt` — blocks 2, finishes 0
+
+- **Detect Thoughts** (level 2) — tracked — also waits on 1
+- **Spike Growth** (level 2) — executed-partial — also waits on 1
+
 #### `a-random-outcome-that-is-not-a-d20` — blocks 2, finishes 0
 
 - **Blink** (level 3) — tracked — also waits on 1
 - **Sending** (level 3) — no-definition — also waits on 2
-
-#### `a-repeat-save-that-does-something-on-a-failure` — blocks 2, finishes 0
-
-- **Ensnaring Strike** (level 1) — tracked — also waits on 2
-- **Bestow Curse** (level 3) — executed-partial — also waits on 1
 
 #### `a-rider-on-a-later-weapon-attack` — blocks 2, finishes 0
 
@@ -268,10 +259,6 @@ sums to the population.
 
 - **Enlarge/Reduce** (level 2) — tracked — also waits on 3
 
-#### `a-die-behaviour-a-spell-asks-for` — blocks 1, finishes 0
-
-- **Chromatic Orb** (level 1) — executed-partial — also waits on 1
-
 #### `a-distance-a-creature-travels-inside-an-area` — blocks 1, finishes 0
 
 - **Spike Growth** (level 2) — executed-partial — also waits on 1
@@ -279,6 +266,10 @@ sums to the population.
 #### `a-repeat-save-raised-by-a-trigger` — blocks 1, finishes 0
 
 - **Fear** (level 3) — executed-partial — also waits on 1
+
+#### `a-repeat-save-that-does-something-on-a-failure` — blocks 1, finishes 0
+
+- **Bestow Curse** (level 3) — executed-partial — also waits on 1
 
 #### `a-selector-for-every-d20-test` — blocks 1, finishes 0
 
@@ -303,10 +294,6 @@ sums to the population.
 #### `senses-beyond-declared-sight` — blocks 1, finishes 0
 
 - **Find Familiar** (level 1) — executed-partial — also waits on 2
-
-#### `several-attack-rolls-from-one-casting` — blocks 1, finishes 0
-
-- **Chromatic Orb** (level 1) — executed-partial — also waits on 1
 
 #### `what-a-creature-is-holding` — blocks 1, finishes 0
 

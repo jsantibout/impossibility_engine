@@ -2525,3 +2525,56 @@ Appended after wave seven's first spells track (2026-09-24):
   scene, so Wind Wall stays partial. The track's review ran on Fable before
   the model-balancing rule arrived; the fix commit is small and was not
   re-reviewed.
+- **A strike that snares, an orb that leaps, a stat block printed in a
+  sentence.** A save may be cast on a hit (`save.onTheHit`, the smites' road,
+  resolving against the creature the blow landed on after the record is
+  written) with a mode shaped by the target's size (`saveModeIf`, off
+  `effectiveSizeOf`), an ending on the target's success (`endsCastingOnSuccess`,
+  `resisted`), a payout at the target's own turn boundary hung off the failed
+  save, and **the first check another creature may attempt**
+  (`byAnotherWithinReach`, measured off the map; a check may end the casting)
+  — Ensnaring Strike executes. Chromatic Orb **elects** its leaps in the
+  Resourceful ruling's shape (`leapTo`, an ordered list on the request; a pair
+  among the spell's own counted dice sends the orb to the next stated creature
+  within thirty feet not yet struck, bounded by the slot level) — one leap at a
+  level 1 slot, because the book says "can't leap *again*" — and two shapes
+  retire with it. A `summon` may carry an **inline stat block** (Unseen
+  Servant: AC 10, one hit point, Strength 2, no type pinned so type-gated
+  spells ask), through the same adapter road a bestiary block takes, with a
+  casting end cause `summon-drops-to-0`. **Two stopping points, each a
+  decision the brief did not make and the coordinator now takes:** Animate
+  Dead needs a **third bond kind** — control that lapses while the creature
+  stays (a zombie at 0 hit points is a corpse the book leaves lying, not a
+  departure) — with renewal by recast, a target rule admitting a live undead
+  the caster controls, a two-size rule and a stated placement for bones; and
+  Find Steed's Otherworldly Slam prints a damage flat that is the **slot
+  level** and a type that is the **caster's stated choice**, so the parser's
+  damage entry must carry both (`flatFromSlotLevel`, `typeFromChoice`) pinned
+  at the arrival. Both go into one follow-up brief. The track's reviewer ran
+  on Opus.
+- **The saves nothing read, a Strength drained, and the legendary economy.**
+  The printed-save vocabulary's `roll-mode` takes the `d20-test` family
+  narrowed by ability and a `damage-penalty` clause joins it, both with a
+  third lifetime — a repeat save with a cap — for a failure that imposes no
+  condition to carry one (Weakening Breath, every Gold Dragon's, read whole;
+  "isn't currently affected" is `onlyIfNotAffected` off the line's own
+  sources). `ability-score-lowered` / `-restored` are the fourteenth grant
+  family, read in `abilityScoresOf` before sets so every roller sees the
+  lowered score and a Belt still holds it up, restored by either rest, and a
+  score at 0 dies through the road a death takes (Shadow's Draining Swipe).
+  A printed save may target an **object** a creature carries (`targetsObject`,
+  `force_printed_save.object`, asked for rather than assumed) and wear it down
+  — a weapon's penalty is read at the swing and breaks it at −5, the armour's
+  at 10 (Antennae; Reflexive Antennae's response is now a line the engine
+  spends, the Reaction road still handing it over by name). A save may
+  **reveal** a fact (Heart Sight: alignment, pinned at the arrival; emotions
+  the table's) and auto-fail by type with no die (`autoFailTypes` — the brief's
+  "existing arm" did not exist). **Legendary actions** are a pool refilled at
+  the holder's own turn and spent one per turn boundary, the moment read off
+  the current combatant's untouched budget rather than a new `TurnMoment`;
+  the Unicorn's two lines perform (the Horn's half-Speed move handed back in
+  `unverified`, which the ledger should name — recorded here). `UNREAD_SAVE_SEAMS`
+  pins the six unread saves at CR ≤ 5 with their seams (Deadly Leap, Trampling
+  Charge, both Engulfs, Possession, Luring Song). **Owed:** `look` does not
+  yet publish a block's legendary lines or uses. The reviewer ran on Opus.
+  Main re-ingested.
