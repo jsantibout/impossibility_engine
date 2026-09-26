@@ -1193,7 +1193,10 @@ against three.
   nothing under `src/ui/**` or `src/application/**` imports
   `src/domain/encounter.ts` or names a die, a DC, an AC or hit-point
   arithmetic.
-- `[ ]` **I-A12 Monster turns.** *Owner, 2026-09-26: app code chooses.* The engine has no monster AI. Decide once
+- `[ ]` **I-A12 Monster turns.** *Owner, 2026-09-26: app code chooses, and a
+  monster with a unique ability should generally prioritise using it — a
+  breath weapon, an Engulf, a Life Drain — over a plain attack, whenever
+  `options` offers it and it is legal; the plain attack is the fallback.* The engine has no monster AI. Decide once
   whether the model takes each monster's turn through the same door (cost
   per beat) or app code chooses from `options` and the printed lines. The
   mock's tactics code is the fallback and is not the engine's business.
