@@ -963,11 +963,6 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'find-steed': [
     {
-      clause: 'three Bonus Actions are carried as prose and not taken',
-      why: 'a-stat-block-created-mid-fight',
-      note: 'W8-S26 re-read this as a debt. Fell Glare’s save and Frightened, Fey Step’s teleport with its rider, Healing Touch’s 2d8 plus the spell’s level and Life Bond’s echo are all mechanics the engine owns, and the steed takes none of them: its block is raised with its Otherworldly Slam typed and these three left as prose, because the span, the passenger and the healing formula are the summoner’s and no printed line can name them. The closest id — a stat block created mid-fight, built for this steed and not for these lines.',
-    },
-    {
       clause: 'the controlled-mount rules the steed is ridden under are not applied',
       why: 'a-creature-somebody-else-is-playing',
       note: 'W8-S26 read this line for the first time. SRD: "In combat, it shares your Initiative count, and it functions as a controlled mount while you ride it (as defined in the rules on mounted combat)." Mounting is built; what a controlled mount may do with its turn — move as its rider directs and take only the Dash, Disengage or Dodge action — is a turn directed by somebody else and narrowed to what such a turn may contain, which is this id.',
@@ -1052,7 +1047,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'to notice the glyph is not offered by the casting',
       why: 'a-check-another-creature-may-attempt',
-      note: 'W8-S26 re-read this as a debt. SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." Spike Growth writes the same sentence as a check the casting offers, and `checkSpellDefinition` refuses one here because a check rides on the casting’s timer and a glyph that lasts until dispelled has none — so the DM states a DC the rules fix. The closest id, which built the checks a casting offers to others.',
+      note: 'W8-S26 re-read this as a debt. SRD: "The glyph is nearly imperceptible and requires a successful Wisdom (Perception) check against your spell save DC to notice." Spike Growth writes the same sentence as a check the casting offers, and `checkSpellDefinition` refuses one here because a check rides on the casting’s timer and a glyph that lasts until dispelled has none — so the DM states a DC the rules fix. **No id names that gap**, a check on a casting with no deadline: this one built the checks a casting offers and its residue is a different attempter, so it is named as the closest rather than a shape being minted by a reading.',
     },
     {
       clause: 'the glyph breaking when the surface or object it is on is moved',
@@ -1125,7 +1120,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // `ConditionRider.forbidsStandingUp`, a mark on the condition instance the
   // failure creates, so it lifts when the Laughter does and `standUp` refuses
   // `cannot_stand` while it stands. What is left of the paragraph is the
-  // laughing itself, which is narration.
+  // laughing itself, which is narration — handed over since W8-S26, with the
+  // `hideous-laughter` entry above the reading that lets its sentence past the
+  // marker it trips.
   // **Hypnotic Pattern is off this map entirely**, and both of the clauses it
   // used to carry left by different doors. "Only a creature that can see the
   // pattern" is `mustSeeTheOrigin`: the pattern is at the casting's origin and
@@ -1339,15 +1336,16 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
       note: 'W8-S26 split this from the rope’s hanging, which is handed over. SRD: "That space can be reached by climbing the rope, which can be pulled into or dropped out of it." The rope is the way in, and `enterElsewhere` offers the climb whether it hangs or not; a door that can be shut is the part of the extradimensional space this id’s description does not yet hold.',
     },
     {
-      clause: 'what the climb costs the climber is not charged',
-      why: 'movement-modes',
-      note: 'W8-S26 re-read this as a debt. Climbing is movement a creature spends, and a creature with no Climb Speed pays extra for it; the rope is nothing the lattice holds, so going up it costs nothing. The per-foot costs that ride with a mode of movement are this id.',
+      clause: 'the climb up the rope is not a move on the lattice',
+      why: 'a-second-place-to-put-a-creature',
+      note: 'W8-S26 read this as a debt, and filed it here on review rather than on the movement shape: climbing is charged on the lattice, and what is missing is that entering this space is not a move on the lattice at all — `enterElsewhere` takes a creature in within five feet of the rope for no movement, where the book has it climb the rope and pay for the climb. The way into a place off the scene is the part of this id the extradimensional space does not yet hold, which is the rope pulled up above for the same reason.',
     },
   ],
-  // Blink and Rope Trick left the tracked map on the second place and carry
-  // no entry here: the sentences they leave to the table — the shades of
-  // gray, the rope and the portal as things — name no mechanic, and are in
-  // each definition's own notes.
+  // Blink and Rope Trick left the tracked map on the second place. Blink
+  // carries no entry here: the shades of gray are in its `dmDecides` since
+  // W8-S26. Rope Trick's hanging rope and its portal went the same way, and
+  // its entries above are the two lines that are not the table's — the rope
+  // pulled up, and the climb that is no move.
   sanctuary: [
     {
       clause: 'the branch the save buys spends nothing',
@@ -1364,6 +1362,13 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     // owner's ruling of 2026-09-22 and the engine's rule, not a gap and not
     // the table's, and the definition's docstring carries it.
   ],
+  'sleet-storm': [
+    {
+      clause: 'the exposed flames the sleet douses are not doused',
+      why: 'a-standing-effect-derived-from-where-a-creature-stands',
+      note: 'W8-S26 filed this on review, after first handing it over. SRD: "The area is Heavily Obscured, and exposed flames in the area are doused." A torch in the open is light the table declares and takes away, but a creature on fire is not: the Burning hazard sits on the creature and deals 1d4 at the start of each of its turns, and `extinguishFire`’s own note names doused as the gap. Standing in the Cylinder is what should put it out, which is a standing effect derived from where a creature stands — the closest id.',
+    },
+  ],
   // **The shaking has left this map**, and it left by being built: "someone
   // within 5 feet of it takes an action to shake it out of the spell's effect"
   // is `wakeCreature`, a command that spends the onlooker's Action, measures
@@ -1379,9 +1384,8 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   // claimed — a standing effect derived from where a creature stands, a
   // condition that ends when its holder leaves an area, and a bonus narrowed
   // to a skill — go with them, because the vocabulary now says all three.
-  // Pass without Trace is the other and carries no entry at all: what is left
-  // of it prints no mechanic, so its `unmodelled` line names nothing for an
-  // adjudication to be written about.
+  // Pass without Trace is the other and carries no entry at all: what was
+  // left of it, the tracks, is handed over in its `dmDecides` since W8-S26.
   // **Two of Slow's four are gone and both were built.** The −2 on Dexterity
   // saving throws is a `bonus` rider carrying a `BonusNarrowing`, which is the
   // half of `a-bonus-narrowed-to-a-skill` the ongoing side had already grown —
@@ -1408,7 +1412,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'the target emits Dim Light in a 10-foot radius',
       why: 'light-and-obscurement-the-scene-holds',
-      note: 'W8-S26 read this line for the first time. A glow hung off a settled outcome is built — Faerie Fire’s `light` rider — and it lasts as long as the casting; `checkSpellDefinition` refuses one on this cantrip because an Instantaneous casting is over the moment it resolves and the rider has no deadline of its own. The light is read by every sight question, so it is this id’s residue rather than the table’s.',
+      note: 'W8-S26 read this line for the first time. A glow hung off a settled outcome is built — Faerie Fire’s `light` rider — and it lasts as long as the casting; `checkSpellDefinition` refuses one on this cantrip (grant_without_lifetime) because an Instantaneous casting is over the moment it resolves and the rider has no deadline of its own. This id’s description says the glow left it and what remains is the object, so it is the closest rather than the residue: the gap is a lifetime on a light rider, and the light is read by every sight question.',
     },
   ],
   'stinking-cloud': [
@@ -1469,7 +1473,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
     {
       clause: 'the webs being flammable',
       why: 'a-casting-ended-by-a-trigger',
-      note: 'W8-S26 re-read this as a debt, and settled the question the brief asked: is a web a thing fire reads? It is not. The engine’s fire is the Burning hazard, which lights a creature or an object, and a web is neither. SRD: "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." Exposure is the table’s fact and both consequences are read — dice the engine must throw, and a Cube that stops holding anybody. Ending part of a casting on a cause no event holds is the closest id.',
+      note: 'W8-S26 re-read this as a debt, and settled the question the brief asked: is a web a thing fire reads? It is not. The engine’s fire is the Burning hazard, which it holds on a creature, and a web is not one. SRD: "Any 5-foot Cube of webs exposed to fire burns away in 1 round, dealing 2d4 Fire damage to any creature that starts its turn in the fire." Exposure is the table’s fact and both consequences are read — dice the engine must throw, and a Cube that stops holding anybody. Ending part of a casting on a cause no event holds is the closest id.',
     },
   ],
   weird: [

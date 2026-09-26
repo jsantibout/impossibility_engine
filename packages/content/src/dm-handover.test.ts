@@ -455,13 +455,13 @@ describe('the catalogue hands over exactly the text it means to', () => {
   it('is the three the ruling named, the eight the sweep found and P3-S6’s reading', () => {
     // **And W8-S26's**, which read every `unmodelled` clause of every executed
     // spell in level-5 reach against `docs/design/content.md`'s test and moved
-    // the ones nothing reads afterwards here, in the book's words: twenty-four
+    // the ones nothing reads afterwards here, in the book's words: twenty-three
     // spells joined, each carrying the reading beside its own `dmDecides` —
     // Arcanist's Magic Aura, Barkskin, Blink, Find Steed, Flaming Sphere,
     // Goodberry, Heroism, Hideous Laughter, Levitate, Mind Spike, Mirror Image,
     // Pass without Trace, Phantom Steed, Prestidigitation, Protection from Evil
-    // and Good, Rope Trick, Sleet Storm, Spider Climb, Spike Growth, Spiritual
-    // Weapon, Suggestion, Unseen Servant, Wind Wall and Zone of Truth. Detect
+    // and Good, Rope Trick, Spider Climb, Spike Growth, Spiritual Weapon,
+    // Suggestion, Unseen Servant, Wind Wall and Zone of Truth. Detect
     // Thoughts and Magic Circle were here already and handed over more.
     // Nondetection and Gaseous Form's cloud are the table's too and are not
     // here, because an engine test pins each one's lists as they were; the
@@ -612,7 +612,6 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // is a fact about the world the engine holds nothing of.
       'silence',
       'silent-image',
-      'sleet-storm',
       'speak-with-animals',
       'speak-with-dead',
       // **The fourth.** SRD Tiny Hut's barrier, ward and ending are executed;

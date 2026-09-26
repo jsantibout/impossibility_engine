@@ -2471,17 +2471,11 @@ describe('a consumer count is a query', () => {
     // spell attack modifier" and "1d8 plus the spell's level" are marks the
     // parser reads and the casting resolves, so the steed swings and the spell
     // claims the shape from nowhere. Animate Dead left with it, on the
-    // controlled bond. **Find Steed is back, for the three lines the Slam's
-    // marks do not reach** (W8-S26): Fell Glare, Fey Step and Healing Touch
-    // stayed prose on the block, filed as the table's, and each is a save, a
-    // teleport or a heal the engine owns. It is the only claimant in reach,
-    // and it is the Slam's reading that left — not the Bonus Actions'.
-    expect(statBlock.executed).toContain('find-steed');
-    expect(
-      (ADJUDICATED['find-steed'] ?? [])
-        .filter((entry) => entry.why === 'a-stat-block-created-mid-fight')
-        .map((entry) => entry.clause),
-    ).toEqual(['three Bonus Actions are carried as prose and not taken']);
+    // controlled bond, and the shape has no claimant inside level-5 reach.
+    // Fell Glare, Fey Step and Healing Touch are the block's lines, counted in
+    // `LEDGER.md`'s bestiary row, so W8-S26 took the line naming them out of
+    // the spell's own notes rather than count them twice.
+    expect(statBlock.executed).not.toContain('find-steed');
     expect(statBlock.tracked).not.toContain('animate-dead');
     expect(SRD_CONTENT.spell('animate-dead')?.effects.map((e) => e.kind)).toEqual(['raise']);
     // Unseen Servant was the fourth, tracked on this shape until its block
@@ -2567,12 +2561,7 @@ describe('a consumer count is a query', () => {
     // is counted against the twenty the hold pins — so the lifted creature's
     // own Speed is a rule the move command reads, and the shape has one
     // executed claimant left.
-    //
-    // **And Rope Trick joined it** (W8-S26): the climb up its rope costs the
-    // climber nothing, because the rope is nothing the lattice holds — a
-    // per-foot cost riding with a mode of movement, which its line had filed
-    // as the table's.
-    expect(modes.executed).toEqual(['rope-trick', 'wind-walk']);
+    expect(modes.executed).toEqual(['wind-walk']);
     // **Fly and Spider Climb left the shape rather than moving column**,
     // which is what building a writer looks like from here: the two are
     // executed definitions now, and neither has a clause this shape still

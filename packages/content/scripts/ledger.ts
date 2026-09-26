@@ -489,8 +489,12 @@ function spellsOwed(level: number): readonly LedgerSpell[] {
  *
  * Empty is the claim: every clause an executed spell in reach prints in
  * `unmodelled` is filed against a blocker or as a definition owed, so the
- * spell's place in this report is somebody's reading. A clause that lands
- * here lands in *waits on a definition* too, by name.
+ * spell's place in this report is somebody's reading. A spell that lands here
+ * is counted in the size either way: under *waits on a definition* when it
+ * owes no shape, and under the shape it owes when it does — a shape outranks
+ * a definition owed in {@link spellWaitOf}, so an unsorted clause beside a
+ * blocker does not show in the middle column, and `ledger.test.ts` names
+ * every spell this returns for that reason.
  */
 export const unsortedInReach = (
   level: number = LEDGER_LEVEL,

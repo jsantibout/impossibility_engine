@@ -4120,8 +4120,8 @@ export const WEB: SpellDefinition = {
   // the Difficult Terrain, the obscurement and every Restrained off the
   // lattice. Whether a Cube of web meets fire is the table's too, and what
   // follows is 2d4 Fire the engine must throw and a Cube that stops holding
-  // anybody. The engine's fire is the Burning hazard, which lights a creature
-  // or an object; a web is neither, so nothing the engine holds reads it.
+  // anybody. The engine's fire is the Burning hazard, which it holds on a
+  // creature; a web is not one, so nothing the engine holds reads it.
   unmodelled: [
     'the webs collapsing when they are not anchored between two solid masses, which is a fact about the room — and the spell ending at the start of your next turn when they do, which nothing raises',
     'the webs being flammable, and the 2d4 Fire damage a burning cube deals',
@@ -5078,14 +5078,15 @@ export const ROPE_TRICK: SpellDefinition = {
   // are, not a thing on the lattice, and a creature elsewhere declares nothing
   // about anybody in the scene. The rope pulled up is not the table's alone —
   // it is the way in, and `enterElsewhere` goes on letting creatures climb it —
-  // and neither is the climb, which is movement a creature spends.
+  // and neither is the climb, which the book prices and entering the space
+  // does not.
   dmDecides: [
     'One end of it hovers upward until the rope hangs perpendicular to the ground or the rope reaches a ceiling.',
     "Attacks, spells, and other effects can't pass into or out of the space, but creatures inside it can see through the portal.",
   ],
   unmodelled: [
     'the rope being pulled into or dropped out of the space is not applied: a rope pulled up is a way in that is gone, and the climb into the space is offered whether it hangs or not',
-    'what the climb costs the climber is not charged: the rope is nothing the lattice holds, so the engine charges nothing for going up it',
+    'the climb up the rope is not a move on the lattice: entering the space is a command that spends no movement, where the book has the creature climb the rope and pay for the climb',
   ],
 };
 
@@ -10460,10 +10461,13 @@ export const PASS_WITHOUT_TRACE: SpellDefinition = {
   // be.** The book prints no unit that says only "leave no tracks" — it is the
   // second half of the sentence whose +10 the engine executes — and the
   // reading here was that handing the sentence over would disown the bonus.
-  // The owner's ruling of 2026-09-26 on Gaseous Form settled that the other
-  // way: a sentence goes to the table whole, and the half the engine executes
-  // is executed whatever the table reads. The engine holds no trail to leave
-  // or not leave, so nothing reads the rest (W8-S26).
+  // The rule a handover is held to settles it the other way: a handover is a
+  // printed sentence verbatim (`dm-handover.test.ts`), so a sentence goes to
+  // the table whole and the half the engine executes is executed whatever the
+  // table reads — which is how Gaseous Form's talking went over on
+  // 2026-09-26, beside the object clauses the engine enforces in the same
+  // sentence. The engine holds no trail to leave or not leave, so nothing
+  // reads the rest (W8-S26).
   dmDecides: [
     'While in the aura, you and each creature you choose have a +10 bonus to Dexterity (Stealth) checks and leave no tracks.',
   ],
@@ -10787,11 +10791,14 @@ export const SLEET_STORM: SpellDefinition = {
     ],
   },
   durationSeconds: 60,
-  // The flames, in the book's words (W8-S26): a flame in the open is not a
-  // thing the engine holds, and the light it sheds is light the table
-  // declares and takes away. The Heavily Obscured half of the sentence is
-  // `areaObscurement` above.
-  dmDecides: ['The area is Heavily Obscured, and exposed flames in the area are doused.'],
+  // **A debt, and not the table's** (W8-S26, on review). A torch in the open
+  // is light the table declares and takes away, but a creature on fire is not:
+  // the Burning hazard sits on the creature and deals 1d4 at the start of each
+  // of its turns, and a burning creature standing in the sleet goes on burning.
+  // So the sentence stays owed; its Heavily Obscured half is `areaObscurement`.
+  unmodelled: [
+    'the exposed flames the sleet douses are not doused: a creature with the Burning hazard in the Cylinder goes on taking its 1d4 at every turn start — the torches and campfires in the area are light the table declares and takes away',
+  ],
 };
 
 /**
@@ -14605,8 +14612,13 @@ export const FIND_STEED: SpellDefinition = {
       sharesCastersInitiative: true,
     },
   ],
+  // **The three Bonus Actions are not this spell's line** (W8-S26). Fell
+  // Glare, Fey Step, Healing Touch and Life Bond are printed on the
+  // Otherworldly Steed's block, and `LEDGER.md`'s bestiary row already counts
+  // each of them as a line nothing applies; filing them here as well would
+  // count one debt in two populations. The Slam's numbers are the casting's
+  // and are executed.
   unmodelled: [
-    'the steed’s three Bonus Actions are carried as prose and not taken: Fell Glare’s Frightened lasts "until the end of **your** next turn" — the summoner’s turn, which a printed save’s span cannot name — Fey Step carries its rider, and Healing Touch heals "2d8 plus the spell’s level"; each heading’s type gate ("Fiend Only") and its "Recharges after a Long Rest" go unread with them, and Life Bond’s echo of the rider’s healing is a trigger nothing raises',
     'the controlled-mount rules the steed is ridden under are not applied: while its rider is up, the book lets it take only the Dash, Disengage and Dodge actions and move as the rider directs, and nothing narrows a mount’s turn',
     'the gear the steed leaves behind when it disappears is not left: nothing puts what it was wearing or carrying onto the floor the engine keeps when it goes',
   ],
