@@ -1115,7 +1115,7 @@ roadmap covers the whole road.
   sweep, never on a model's surface.
 - `[ ]` **I-E8 A controller identity on tool calls.** Deferred by the
   one-player ruling; a design note before any code.
-- `[ ]` **I-E9 A read-only surface for code-run monsters** (owner,
+- `[x]` **I-E9 A read-only surface for code-run monsters** (merged 2026-09-27; owner,
   2026-09-26: build it). App code plays the monsters (I-A12), and a printed
   save line's targeting is English the engine does not check — 61 lines on 55
   blocks at CR ≤ 5, 30 of them on a recharge (the breath weapons). Structured
@@ -3244,3 +3244,18 @@ Appended 2026-09-26, wave seven on Opus:
   components and the window opens on them). **Three ids worth minting**: a
   check a casting offers with no timer, a light rider with its own deadline,
   a duration the chosen branch sets. Two Opus reviews, eleven defects, fixed.
+- **A monster the app can play** (I-E9). A printed save's catch is parsed
+  (`catches`: cone, line, emanation, sphere, own space, held; `reach` widened;
+  `seesSource`, `unlessTargetType`, `onlyIfTargetSize`), whole or not at all —
+  63 of 65 CR ≤ 5 save lines, 128 of 141 in the book (the Will-o'-Wisp's
+  "living" and the Succubus's charm stay unread). `printedLineCatch`
+  (`commands/printed-catch.ts`) measures with the spells' `areaCatch`, no
+  events, no dice; `printed_line_catch` on the DM's door returns the caught,
+  the excluded and the exact `force_printed_save` to send; `force_printed_save`
+  takes an aim, refuses a list beside one, and checks a head count against the
+  clause's own space, hold, count and size cap (the head-count road stays open
+  by default). `look` carries `catches`, `usesLeft`, a Multiattack clause's
+  `uses`, `riderApplied`/`riderReads`, `speeds` and movement left by mode. DM
+  door 124 tools. Main re-ingested. **Reading taken:** a Sphere centred on its
+  source does not catch the source. **Next for the app:** I-A12 v2, the
+  planner ranking save lines first. Opus review, four defects, fixed.
