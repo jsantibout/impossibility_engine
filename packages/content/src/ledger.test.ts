@@ -192,7 +192,12 @@ describe('the ledger measures the three populations of the roadmap', () => {
     // unbuilt. An absent state is a claim, so the guard also asks the
     // derivation above the ledger's reach, where a partial spell still stands
     // — which proves the reading still finds one when the level lets it.
-    expect([...states].sort()).toEqual(['tracked']);
+    //
+    // **And it is back, by a reading rather than a regression** (W8-S26):
+    // every clause of every executed spell in reach was read, and the ones a
+    // rule reads afterwards are filed against their blockers, which makes
+    // their spells partial again.
+    expect([...states].sort()).toEqual(['executed-partial', 'tracked']);
     expect(new Set(auditLedger(9).spells.map((one) => one.status))).toContain('executed-partial');
   });
 
@@ -765,64 +770,31 @@ describe('an executed spell with a clause nobody sorted is not executed', () => 
   /**
    * **The catalogue, sorted.** Every clause an executed spell in reach prints
    * is read against a blocker or `'expressible'`, and a new one that is not
-   * lands here by name.
-   *
-   * **Four are not sorted, each for a reason outside the reading**, and they
-   * are named rather than exempted: an unsorted clause is counted by the
-   * ledger as work, which is what they are.
-   *
-   * | | |
-   * |---|---|
-   * | Find Familiar | its record is W8-S25's while that track runs |
-   * | Gaseous Form | its cloud line is the table's, and `gaseous-form-objects.test.ts` (engine) pins the handover list to the one sentence about talking |
-   * | Nondetection | its line is the table's, and `nondetection.test.ts` (engine) pins `unmodelled` at one line |
-   * | Counterspell | its line is neither a debt nor the table's — the qualifier excludes nothing the catalogue can cast — and `counterspell.test.ts` (engine) pins it where it is |
-   *
-   * The last three need an engine test opened, which W8-S26 may not do; the
-   * list may only shrink.
+   * lands here by name. It is empty: the four this track once left unsorted —
+   * Find Familiar while W8-S25 held it, and three whose lines engine tests
+   * pinned — were sorted once each could be opened.
    */
-  const NOT_SORTED_HERE: readonly string[] = [
-    'counterspell',
-    'find-familiar',
-    'gaseous-form',
-    'nondetection',
-  ];
-
   it('leaves no clause unsorted on an executed spell in reach', () => {
     const unsorted = unsortedInReach();
-    expect(
-      Object.keys(unsorted).filter((id) => !NOT_SORTED_HERE.includes(id)),
-      JSON.stringify(unsorted, null, 2),
-    ).toEqual([]);
-    // And each of the four is really unsorted, so the list cannot go stale by
-    // one of them being sorted and staying named.
-    for (const id of NOT_SORTED_HERE) expect(unsorted[id]?.length ?? 0, id).toBeGreaterThan(0);
+    expect(Object.keys(unsorted), JSON.stringify(unsorted, null, 2)).toEqual([]);
   });
 
   /**
-   * And the column this guard feeds holds exactly two kinds of thing, written
-   * out so a spell joining it says so here: a definition nobody wrote — a
-   * clause the existing kinds already say, filed `'expressible'` because no
-   * shape is missing — and a clause left unsorted by name above, whose spell
-   * owes no shape it could wait on instead.
+   * And the column this guard feeds holds exactly the readings that are
+   * definitions nobody wrote — each a clause the existing kinds already say,
+   * filed `'expressible'` rather than against a shape, because no shape is
+   * missing. Written out so a spell joining the column says so here.
    */
-  it('waits on a definition only where the reading found one expressible, or left one unsorted', () => {
+  it('waits on a definition only where the reading found one expressible', () => {
     const ledger = auditLedger();
     const pending = ledger.spells
       .filter((one) => one.wait === 'definition')
       .map((one) => one.id)
       .sort();
-    expect(pending).toEqual(['counterspell', 'flame-blade', 'nondetection', 'produce-flame']);
-    const expressible = pending.filter((id) => !['counterspell', 'nondetection'].includes(id));
-    for (const id of expressible) {
+    expect(pending).toEqual(['flame-blade', 'produce-flame']);
+    for (const id of pending) {
       expect(unsortedInReach()[id], id).toBeUndefined();
       expect((ADJUDICATED[id] ?? []).map((entry) => entry.why), id).toContain('expressible');
-    }
-    // The other two are the unsorted pair named above, whose only reading
-    // the ledger can see is that nobody sorted them — which is the column's
-    // other half, and the reason it is a column.
-    for (const id of ['counterspell', 'nondetection']) {
-      expect(unsortedInReach()[id]?.length ?? 0, id).toBeGreaterThan(0);
     }
     // Two more carry an expressible clause beside a real blocker, and a shape
     // outranks a definition owed — so they wait on the shape, and are still

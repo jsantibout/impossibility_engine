@@ -3,7 +3,7 @@ import { SPELL_DEFINITIONS, SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId } from '@ie/shared';
 import type { CharacterSheet } from '@ie/engine';
 import type { CreatureSize } from '@ie/srd/schemas';
-import { advanceTime, createRng, createRollIssuer, declaredCasting, dmDecisionsIn, fold, optionEffects, pendingCastingsOf, remaining, repairsAnObject, resolveDeclaredCast, resolveSpell, spellSlotKey, type GameEvent, type Rng } from '@ie/engine';
+import { advanceTime, createRng, statedFormOf, createRollIssuer, declaredCasting, dmDecisionsIn, fold, optionEffects, pendingCastingsOf, remaining, repairsAnObject, resolveDeclaredCast, resolveSpell, spellSlotKey, type GameEvent, type Rng } from '@ie/engine';
 import {
   ADJUDICATED,
   BLOCKED_ON,
@@ -385,6 +385,10 @@ const aimedAt = (definition: (typeof SPELL_DEFINITIONS)[number]) => {
     ...(definition.choiceStated === undefined
       ? {}
       : { choice: definition.choiceStated.options[0]! }),
+    // **And a form the book leaves the caster is named** — SRD Find
+    // Familiar's, which joined with W8-S26 — the first printed, through the
+    // runtime's own reader, as `spell-catalogue.test.ts` names it.
+    ...(statedFormOf(definition) === null ? {} : { form: statedFormOf(definition)!.among[0]! }),
     // A cantrip is cast off the known list and spends no slot, so naming one
     // is the refusal rather than the casting.
     ...(definition.level === 0 ? {} : { slotLevel: definition.level }),
@@ -455,17 +459,15 @@ describe('the catalogue hands over exactly the text it means to', () => {
   it('is the three the ruling named, the eight the sweep found and P3-S6’s reading', () => {
     // **And W8-S26's**, which read every `unmodelled` clause of every executed
     // spell in level-5 reach against `docs/design/content.md`'s test and moved
-    // the ones nothing reads afterwards here, in the book's words: twenty-three
+    // the ones nothing reads afterwards here, in the book's words: twenty-five
     // spells joined, each carrying the reading beside its own `dmDecides` —
-    // Arcanist's Magic Aura, Barkskin, Blink, Find Steed, Flaming Sphere,
-    // Goodberry, Heroism, Hideous Laughter, Levitate, Mind Spike, Mirror Image,
-    // Pass without Trace, Phantom Steed, Prestidigitation, Protection from Evil
-    // and Good, Rope Trick, Spider Climb, Spike Growth, Spiritual Weapon,
-    // Suggestion, Unseen Servant, Wind Wall and Zone of Truth. Detect
-    // Thoughts and Magic Circle were here already and handed over more.
-    // Nondetection and Gaseous Form's cloud are the table's too and are not
-    // here, because an engine test pins each one's lists as they were; the
-    // ledger counts both as work and `ledger.test.ts` names them.
+    // Arcanist's Magic Aura, Barkskin, Blink, Find Familiar, Find Steed,
+    // Flaming Sphere, Goodberry, Heroism, Hideous Laughter, Levitate, Mind
+    // Spike, Mirror Image, Nondetection, Pass without Trace, Phantom Steed,
+    // Prestidigitation, Protection from Evil and Good, Rope Trick, Spider
+    // Climb, Spike Growth, Spiritual Weapon, Suggestion, Unseen Servant, Wind
+    // Wall and Zone of Truth. Detect Thoughts, Gaseous Form and Magic Circle
+    // were here already and handed over more.
     expect([...HANDING_OVER].sort()).toEqual([
       'alarm',
       // **The forty-seventh, and the second that is not a spell the engine
@@ -534,6 +536,7 @@ describe('the catalogue hands over exactly the text it means to', () => {
       // compulsion is adjudicated and never performed: the Action is narrowed
       // to the Dash by the engine and the route is the table's.
       'fear',
+      'find-familiar',
       'find-steed',
       'find-traps',
       'flaming-sphere',
@@ -580,6 +583,7 @@ describe('the catalogue hands over exactly the text it means to', () => {
       'minor-illusion',
       'mirage-arcane',
       'mirror-image',
+      'nondetection',
       'pass-without-trace',
       // **The phantasm itself, which is every sentence about it that is not the
       // damage.** SRD Phantasmal Force's Intelligence save, its Cube, the
@@ -916,7 +920,12 @@ describe('Gaseous Form hands its talking over and keeps the rest', () => {
 
   it('hands the sentence over under the DM mark and reports no other line about talking', () => {
     const out = atomic('gaseous-form');
-    expect(dmDecisionsIn(out.unverified)).toEqual([TALKING]);
+    // Beside the cloud's look and its liquids, which W8-S26 handed over too;
+    // the talking is the one this ruling is about.
+    expect(dmDecisionsIn(out.unverified)).toContain(TALKING);
+    expect(dmDecisionsIn(out.unverified).filter((line) => /\btalk/i.test(line))).toEqual([
+      TALKING,
+    ]);
     const unmarked = out.unverified.filter((line) => dmDecisionsIn([line]).length === 0);
     expect(unmarked.filter((line) => /\btalk/i.test(line))).toEqual([]);
   });

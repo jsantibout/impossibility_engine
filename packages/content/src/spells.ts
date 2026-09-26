@@ -334,19 +334,14 @@ export const COUNTERSPELL: SpellDefinition = {
   requiresSight: true,
   targets: { count: 1 },
   effects: [{ kind: 'interrupt-casting', ability: 'con' }],
-  // **Left unsorted on purpose** (W8-S26). Every SRD 5.2.1 spell prints one of
-  // the three components and no SRD stat block casts with none, so the
-  // qualifier excludes nothing this catalogue can cast: the line is neither a
-  // debt — nothing in reach is owed — nor the table's, since nothing about it
-  // is the DM's to decide. `counterspell.test.ts` (engine) pins it here as the
-  // place the definition says so, and the ledger has no column for a sentence
-  // that is safe to leave unchecked; so it counts as work until somebody
-  // decides which it is, and `ledger.test.ts` names it. A homebrew spell
-  // printing no component is what would make it bite, and the components are
-  // on the entry now for the window to read on that day.
-  unmodelled: [
-    'the trigger reads "casting a spell with Verbal, Somatic, or Material components"; every SRD 5.2.1 spell has one of the three, so the qualifier is not checked and excludes nothing',
-  ],
+  // The trigger reads "casting a spell with Verbal, Somatic, or Material
+  // components", and every SRD 5.2.1 spell prints one of the three — no SRD
+  // stat block casts with none — so the qualifier excludes nothing this
+  // catalogue can cast and the window is exactly the book's. W8-S26 took it
+  // out of `unmodelled`: nothing in reach is owed, and nothing about it is
+  // the DM's to decide. `counterspell.test.ts` (engine) holds the reason it
+  // is safe, and fails the day a spell with no component is parsed; the
+  // components are on the entry for the window to read on that day.
 };
 
 /**
@@ -4204,16 +4199,9 @@ export const STINKING_CLOUD: SpellDefinition = {
   },
   durationSeconds: 60,
   unmodelled: [
-    'the cloud is Heavily Obscured, and obscurement is not modelled',
-    'a strong wind dispersing the cloud, which is a fact about the weather rather than a consequence the engine records',
+    'the cloud being Heavily Obscured is not laid: an area that obscures is a kind the engine has — Fog Cloud, Web and Sleet Storm write it — and this definition does not write one',
+    'a strong wind dispersing the cloud is not applied: whether a wind blows is the table’s, and the cloud it would end is a Poisoned every turn and obscurement every sight question reads, so the ending is owed and nothing raises it',
   ],
-  // W8-S26 read both lines and left their words alone, because
-  // `action-rules-in-the-catalogue.test.ts` pins them; what the reading says
-  // is in `ADJUDICATED`. The first is stale — obscurement is modelled, and
-  // `areaObscurement` is what Fog Cloud, Web and Sleet Storm write, so it is a
-  // definition nobody wrote. The second is a debt: the wind is the table's,
-  // and the cloud it would end is a Poisoned every turn and obscurement every
-  // sight question reads.
 };
 
 export const WATER_BREATHING: SpellDefinition = {
@@ -4899,12 +4887,10 @@ export const MOVE_EARTH: SpellDefinition = {
  * > spells... The target can't be targeted by any Divination spell or
  * > perceived through magical scrying sensors."
  *
- * The clause that would be a rule excludes nothing the engine can be asked
- * about: every Divination spell the engine has a definition for is cast at
- * Self or at no creature at all, so "can't be targeted by any Divination
- * spell" has no reachable case. Same reasoning as Counterspell's components
- * clause — a rule whose only answer is "not applicable" is documented rather
- * than modelled.
+ * "Can't be targeted by any Divination spell" is a rule now: Mind Spike and
+ * Hunter's Mark are Divination spells aimed at a creature, and the ward below
+ * refuses them. What is left — a place, an object and a scrying sensor — is
+ * the table's, handed over in the book's words (W8-S26).
  */
 export const NONDETECTION: SpellDefinition = {
   id: 'nondetection',
@@ -4922,16 +4908,14 @@ export const NONDETECTION: SpellDefinition = {
   // before anything is spent, with this spell named.
   wardsTargets: { school: 'divination' },
   durationSeconds: 28_800,
-  // **The table's, and left here by a pin rather than a reading** (W8-S26).
-  // A place or an object warded against Divination spells the engine hands to
-  // the table whole — Locate Object and its kind read nothing — and a sensor
-  // that is Clairvoyance's, handed over whole too, are read by nothing, so the
-  // sentences belong in `dmDecides`. `nondetection.test.ts` (engine) pins this
-  // list at one line, and this track may not open an engine file; so the line
-  // is left unsorted on purpose, the ledger counts it as work, and
-  // `ledger.test.ts` names it.
-  unmodelled: [
-    'scrying sensors are not modelled, and a place or an object as the target is not a creature in state',
+  // The place, the object and the scrying sensor, in the book's words
+  // (W8-S26): a place or an object warded against Divination spells the
+  // engine hands to the table whole — Locate Object and its kind read nothing
+  // — and a sensor is Clairvoyance's, which is handed over whole too. The ward
+  // on a creature in the second sentence is `wardsTargets` above.
+  dmDecides: [
+    'The target can be a willing creature, or it can be a place or an object no larger than 10 feet in any dimension.',
+    "The target can't be targeted by any Divination spell or perceived through magical scrying sensors.",
   ],
 };
 
@@ -6112,13 +6096,8 @@ export const PRODUCE_FLAME: SpellDefinition = {
       },
     ],
   },
-  // W8-S26 read this line and left its words alone, because
-  // `ongoing-spells.test.ts` (engine) pins them. What the reading says is in
-  // `ADJUDICATED`: light has been modelled since P3-S, a `light` the caster
-  // carries is what SRD Light is written with, and this is a definition
-  // nobody wrote rather than a gap in the engine.
   unmodelled: [
-    'the Bright Light in a 20-foot radius and the Dim Light beyond it are the DM’s; light is not modelled',
+    'the Bright Light in a 20-foot radius and the Dim Light beyond it are not shed: a `light` its caster carries is a kind the engine has, and this definition does not write one',
   ],
 };
 
@@ -7497,18 +7476,16 @@ export const GASEOUS_FORM: SpellDefinition = {
   // The talking, in the book's words: the sentence goes over whole because a
   // handover is a printed sentence verbatim, and the object clauses inside it
   // are enforced by the `forbids` rule above whatever the table reads.
+  // And the cloud itself (W8-S26): what the target looks like, the narrow
+  // openings and the liquids are facts about a room the engine holds none of,
+  // and the gear coming along changes nothing it holds — the Concentration and
+  // the willing touch in the first sentence are the casting's own.
   dmDecides: [
+    "A willing creature you touch shape-shifts, along with everything it's wearing and carrying, into a misty cloud for the duration.",
     "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
+    'The target can pass through narrow openings, but it treats liquids as though they were solid surfaces.',
   ],
-  // **The first line is the table's and stays here, and that is a pin rather
-  // than a reading** (W8-S26). What the cloud looks like, the narrow openings
-  // and the liquids are facts about a room the engine holds none of, and the
-  // sentences belong in `dmDecides`; `gaseous-form-objects.test.ts` (engine)
-  // pins the handover list to the one sentence above, and this track may not
-  // open an engine file. So the line is left unsorted on purpose, the ledger
-  // counts it as work, and `ledger.test.ts` names it.
   unmodelled: [
-    'the cloud itself is the DM’s: what the target looks like, that it "can pass through narrow openings", and that "it treats liquids as though they were solid surfaces" are fiction, and the gear coming along changes nothing the engine holds',
     '"The target can enter and occupy the space of another creature" is not applied: occupancy is a rule the engine owns outright, and nothing lets an effect tell that rule to believe something different about one creature',
   ],
 };
@@ -7605,9 +7582,6 @@ export const LEVITATE: SpellDefinition = {
   // loose object's height is read by nothing the engine holds, so its weight
   // limit and whether it rises are the table's.
   dmDecides: ['The spell can levitate an object that weighs up to 500 pounds.'],
-  // Nothing is owed. The list is kept, empty, because `levitate.test.ts`
-  // (engine) asks it whether the clause about the target's own Speed is gone.
-  unmodelled: [],
 };
 
 /**
@@ -14543,9 +14517,17 @@ export const FIND_FAMILIAR: SpellDefinition = {
       cannotAttack: true,
     },
   ],
+  // The telepathy and the independence, in the book's words (W8-S26): what the
+  // hundred feet gate is conversation, and what the familiar does with a turn
+  // of its own is the question left open for every creature in the scene —
+  // nothing the engine holds reads either. What it leaves behind is not the
+  // table's: the things it carried are items, and the floor is the engine's.
+  dmDecides: [
+    'Your familiar acts independently of you, but it obeys your commands.',
+    '_Telepathic Connection._ While your familiar is within 100 feet of you, you can communicate with it telepathically.',
+  ],
   unmodelled: [
-    'the telepathic connection within 100 feet is the table’s: the distance is measurable and what it gates is conversation',
-    'what it leaves behind in its space when it disappears, and what it does with the turns it acts independently on while obeying your commands, are the DM’s',
+    'what it leaves behind in its space when it disappears is not left: nothing puts what it was wearing or carrying onto the floor the engine keeps when it drops to 0 or is dismissed for a while',
   ],
 };
 

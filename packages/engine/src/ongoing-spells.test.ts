@@ -1607,7 +1607,8 @@ describe('Produce Flame hurls its fire on later turns', () => {
 
     expect(out.outcomes).toEqual([]);
     expect(g.hp(FOE)).toBe(80);
-    expect(out.unverified.join(' ')).toContain('light is not modelled');
+    // The light is a definition nobody wrote (W8-S26), and still reported.
+    expect(out.unverified.join(' ')).toContain('Dim Light beyond it are not shed');
     expect(ongoingSpellOf(g.state, out.castingId!)?.spellId).toBe('produce-flame');
   });
 

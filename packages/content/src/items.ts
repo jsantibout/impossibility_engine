@@ -73,8 +73,8 @@ const CONJURED_ITEMS: readonly CatalogueItem[] = [
      * a Bonus Action to eat one berry. Eating a berry restores 1 Hit Point."
      *
      * The Bonus Action and the hit point are the conferral; the ten and the
-     * hand are the spell's. The nourishment is the spell's `unmodelled` line,
-     * because the engine tracks no hunger.
+     * hand are the spell's. The nourishment is handed to the table in the
+     * spell's `dmDecides`, because the engine tracks no hunger.
      */
     id: 'goodberry',
     name: 'Goodberry',

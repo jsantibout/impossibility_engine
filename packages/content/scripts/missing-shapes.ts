@@ -956,9 +956,9 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'find-familiar': [
     {
-      clause: 'the telepathic connection within 100 feet',
-      why: 'table',
-      note: 'The hundred feet is measurable and what it gates is conversation, which the engine’s resolution path never arrives at.',
+      clause: 'what it leaves behind in its space when it disappears is not left',
+      why: 'what-a-creature-is-holding',
+      note: 'W8-S26 read this line for the first time, after W8-S25 paid the senses. SRD: "Whenever the familiar drops to 0 Hit Points or disappears into the pocket dimension, it leaves behind in its space anything it was wearing or carrying." Items and the floor they fall to are state the engine holds, and nothing puts the familiar’s onto it — Find Steed’s gear, the same sentence. The closest id, whose description is what a creature has in hand and on its body and the verb that takes it out. The telepathy and the independent turns went to `dmDecides`.',
     },
   ],
   'find-steed': [
@@ -1417,7 +1417,7 @@ export const ADJUDICATED: Readonly<Record<string, readonly Adjudication[]>> = {
   ],
   'stinking-cloud': [
     {
-      clause: 'the cloud is Heavily Obscured',
+      clause: 'the cloud being Heavily Obscured is not laid',
       why: 'expressible',
       note: 'W8-S26 read this line for the first time, and it said obscurement is not modelled, which has been false since P3-S. `areaObscurement` is what Fog Cloud, Web and Sleet Storm write, and `checkSpellDefinition` takes one on this definition; nobody wrote it.',
     },

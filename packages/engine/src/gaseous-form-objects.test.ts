@@ -199,9 +199,11 @@ describe('SRD Gaseous Form: a cloud may not handle a thing', () => {
       ),
       'gaseous form',
     );
-    expect(dmDecisionsIn(out.unverified)).toEqual([
+    // Beside the cloud's look and its liquids, which W8-S26 handed over in
+    // the book's words too; the talking is the sentence this test is about.
+    expect(dmDecisionsIn(out.unverified)).toContain(
       "The target can't talk or manipulate objects, and any objects it was carrying or holding can't be dropped, used, or otherwise interacted with.",
-    ]);
+    );
     // And nothing unmarked speaks of talking: the debt line is gone.
     const unmarked = out.unverified.filter((line) => dmDecisionsIn([line]).length === 0);
     expect(unmarked.join('\n')).not.toMatch(/\btalk/i);

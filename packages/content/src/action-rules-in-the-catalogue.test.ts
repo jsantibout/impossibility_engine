@@ -343,8 +343,10 @@ describe('Stinking Cloud forbids the action and the Bonus Action it printed', ()
       },
     ]);
     expect(cloud.unmodelled).toEqual([
-      'the cloud is Heavily Obscured, and obscurement is not modelled',
-      'a strong wind dispersing the cloud, which is a fact about the weather rather than a consequence the engine records',
+      // Reworded by W8-S26, which read both: the first is a definition nobody
+      // wrote, the second a debt on the trigger that ends a casting.
+      'the cloud being Heavily Obscured is not laid: an area that obscures is a kind the engine has — Fog Cloud, Web and Sleet Storm write it — and this definition does not write one',
+      'a strong wind dispersing the cloud is not applied: whether a wind blows is the table’s, and the cloud it would end is a Poisoned every turn and obscurement every sight question reads, so the ending is owed and nothing raises it',
     ]);
   });
 

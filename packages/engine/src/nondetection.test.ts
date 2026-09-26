@@ -115,7 +115,12 @@ describe('the definition', () => {
   it('wards its target against Divination for eight hours, and hands the sensors to the table', () => {
     expect(definition().wardsTargets).toEqual({ school: 'divination' });
     expect(definition().durationSeconds).toBe(28_800);
-    expect(definition().unmodelled).toHaveLength(1);
+    // The sensors, the place and the object went to the table in the book's
+    // words (W8-S26): nothing the engine holds reads them, so nothing is owed.
+    expect(definition().unmodelled ?? []).toEqual([]);
+    expect(definition().dmDecides ?? []).toContain(
+      "The target can't be targeted by any Divination spell or perceived through magical scrying sensors.",
+    );
     expect(checkSpellDefinitionValue(definition())).toEqual([]);
   });
 

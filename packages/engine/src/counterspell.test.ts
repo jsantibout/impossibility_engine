@@ -917,8 +917,13 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
    * SRD Counterspell triggers on "casting a spell with Verbal, Somatic, or
    * Material components". Every spell in SRD 5.2.1 has at least one of the
    * three, so the qualifier excludes nothing the engine can be asked about —
-   * which is why the definition reports it in `unmodelled` instead of
-   * modelling a field whose only reachable value is "yes".
+   * which is why no field models it whose only reachable value is "yes".
+   *
+   * **It used to report the clause in `unmodelled`, and W8-S26 took it out.**
+   * That list is the debts the ledger counts, and a qualifier that excludes
+   * nothing this catalogue can cast is not owed and is not the table's. The
+   * reason it is safe is this test's first half, which still fails the day a
+   * spell with no component is parsed; the definition's comment says why.
    */
   it('is safe to leave the components clause unchecked, and says so', () => {
     const spells = JSON.parse(
@@ -934,7 +939,7 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
     expect(withoutComponents.map((s) => s.name)).toEqual([]);
     expect(spells).toHaveLength(339);
 
-    // And the gap reaches the narrating layer rather than a docstring.
+    // And a casting reports no debt for it, because nothing is owed.
     const open = unwrap(declareHoldPerson(TABLE), 'declare');
     const countered = unwrap(
       resolveSpell(
@@ -945,7 +950,7 @@ describe('the trigger clause, checked against what the SRD actually says', () =>
       ),
       'counterspell',
     );
-    expect(countered.unverified.join(' ')).toContain('Verbal, Somatic, or Material');
+    expect(countered.unverified.join(' ')).not.toContain('Verbal, Somatic, or Material');
   });
 
 });
