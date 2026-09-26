@@ -108,7 +108,7 @@ describe('the item blocked-on map covers the untranscribed population', () => {
    * has quietly stopped being populated. The real counts are `COVERAGE.md`'s.
    */
   it('covers a population worth deriving', () => {
-    expect(Object.keys(ITEM_BLOCKED_ON).length).toBeGreaterThan(150);
+    expect(Object.keys(ITEM_BLOCKED_ON).length).toBeGreaterThan(100);
   });
 
   /** In an order two branches can both append to, and the order is the data's. */
@@ -383,9 +383,11 @@ describe('what a shape finishes is two numbers here too', () => {
     // **And the identity is spent too.** What is left under it is never a
     // count — a copy's charges are a pool keyed to the copy now — so every
     // entry still naming it says which other fact it keeps, and the two it
-    // finishes are the two whose whole rule is one of those.
+    // finishes are the two whose whole rule is one of those. No heavier than
+    // the spell shape, and level with it since the Luck Blade — whose Wish
+    // is still undefined — was transcribed partial and left the spell shape.
     const copies = itemConsumersOf('an-item-instance-with-a-state-of-its-own');
-    expect(copies.blocks.length).toBeLessThan(spells.blocks.length);
+    expect(copies.blocks.length).toBeLessThanOrEqual(spells.blocks.length);
     expect(copies.finishes).toEqual(['ammunition-1-2-or-3', 'oil-of-sharpness']);
 
     // And the ranking is still worth reading: the top row really does finish

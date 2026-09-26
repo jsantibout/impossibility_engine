@@ -486,7 +486,7 @@ export const ITEM_EFFECT_KINDS: ReadonlySet<string> = new Set([
   'action-rule',
   // A Speed, read by `speedOf` off a worn item's pinned grants beside the
   // sheet's — see the note above. SRD Ring of Swimming, Cloak of the Manta
-  // Ray, Horseshoes of Speed and the climbing slippers print it.
+  // Ray and Gloves of Swimming and Climbing print it.
   'speed',
   // A critical taken back, on the same test as everything above: the reader
   // is `criticalsBecomeHitsOn`, which walks `standingFor`. SRD Adamantine

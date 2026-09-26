@@ -3,7 +3,7 @@ import { SRD_CONTENT } from '@ie/content';
 import { asCharacterId, expect as unwrap, type CharacterId, type Result } from '@ie/shared';
 import { itemStandingEffects, type CatalogueItem } from './catalogue.js';
 import type { CharacterSheet } from './character.js';
-import { checkContent } from './content.js';
+import { checkContent, extendContent } from './content.js';
 import { createRng, type Rng } from './dice.js';
 import { createRollIssuer } from './rolls.js';
 import { fold, type GameEvent, type GameState } from './events.js';
@@ -219,11 +219,7 @@ describe('a Speed a worn item grants', () => {
     expect(speedOf(fold('seed', both), WIZARD, 'swim')).toBe(60);
   });
 
-  it('matches the walking Speed with the slippers and the gloves', () => {
-    const slippered = fold('seed', wornAndAttuned(TABLE, WIZARD, 'slippers-of-spider-climbing'));
-    expect(speedOf(slippered, WIZARD, 'climb')).toBe(30);
-    expect(speedOf(slippered, WIZARD, 'swim')).toBe(0);
-
+  it('matches the walking Speed in both modes the gloves name', () => {
     const gloved = fold('seed', wornAndAttuned(TABLE, WIZARD, 'gloves-of-swimming-and-climbing'));
     expect(speedOf(gloved, WIZARD, 'climb')).toBe(30);
     expect(speedOf(gloved, WIZARD, 'swim')).toBe(30);
@@ -233,20 +229,36 @@ describe('a Speed a worn item grants', () => {
   });
 
   /**
-   * SRD Horseshoes of Speed: "While all four horseshoes are attached to the
-   * same creature, its Speed is increased by 30 feet." The creature is a
-   * horse, so the set has to reach one: handed over by the rider and put on
-   * the mount through the same two doors a character's ring goes through.
+   * A walking Speed added by something a **mount** wears, on a homebrew item
+   * loaded through the door homebrew uses. The SRD's Horseshoes of Speed print
+   * this sentence and stay out of the catalogue — "the hoof of a horse or
+   * similar creature" is a wearer the equip door cannot tell from a character
+   * — so what is proved here is the reader and the two doors a mount's gear
+   * goes through: handed over by the rider, then put on the horse.
    */
-  it('shoes a horse, which then walks 30 feet faster', () => {
-    const stabled = arrive(TABLE, HORSE, 'riding-horse');
-    const bare = speedOf(fold('seed', stabled), HORSE);
-    expect(bare).toBe(60);
+  it('lets a horse wear a homebrew set of shoes and walk 30 feet faster', () => {
+    const shoes: CatalogueItem = {
+      id: 'homebrew-iron-shoes',
+      name: 'Homebrew Iron Shoes',
+      kind: 'wondrous',
+      weightLb: null,
+      costCp: null,
+      armor: null,
+      weapon: null,
+      contents: [],
+      grants: [
+        { kind: 'standing', reach: 'self', effects: [{ kind: 'speed', feet: 30 }], requires: [{ kind: 'while-worn' }] },
+      ],
+    };
+    const content = unwrap(extendContent(SRD_CONTENT, { items: [shoes] }), 'homebrew');
 
-    const handed = run(gained(stabled, WIZARD, 'horseshoes-of-speed'), (s) =>
-      transferItem(s, WIZARD, HORSE, 'horseshoes-of-speed', 1, 'shoeing'),
+    const stabled = arrive(TABLE, HORSE, 'riding-horse');
+    expect(speedOf(fold('seed', stabled), HORSE)).toBe(60);
+
+    const handed = run(gained(stabled, WIZARD, shoes.id), (s) =>
+      transferItem(s, WIZARD, HORSE, shoes.id, 1, 'shoeing'),
     );
-    const shod = run(handed, (s) => equipItem(s, SRD_CONTENT, HORSE, 'horseshoes-of-speed'));
+    const shod = run(handed, (s) => equipItem(s, content, HORSE, shoes.id));
     expect(speedOf(fold('seed', shod), HORSE)).toBe(90);
   });
 });
@@ -293,6 +305,27 @@ describe('the item door holds a Speed to what the reader reads', () => {
     expect(codesOf([{ kind: 'speed', feet: 10 }], [{ kind: 'has-speed' }])).toContain(
       'item_speed_asks_for_speed',
     );
+  });
+
+  /** `speedOf` reads the holder's own grants, so an aura would move its wearer alone. */
+  it('refuses a Speed given in an aura', () => {
+    const codes = checkContent({
+      items: [
+        {
+          ...base,
+          grants: [
+            {
+              kind: 'standing',
+              reach: 'aura',
+              auraFeet: 10,
+              effects: [{ kind: 'speed', feet: 10 }],
+            },
+          ],
+        } as unknown as CatalogueItem,
+      ],
+    }).map((problem) => problem.code);
+    expect(codes).toContain('item_speed_in_an_aura');
+    expect(codesOf([{ kind: 'speed', feet: 10 }])).not.toContain('item_speed_in_an_aura');
   });
 
   it('refuses a floor with no mode, no feet, or a change it cannot give', () => {
@@ -434,6 +467,81 @@ describe('the validator holds a target narrowing to the book’s types and to a 
     expect(
       codes({ kind: 'flat-bonus', applies: ['attack', 'damage'], flat: 2, onlyWithItem: true, targetTypes: ['Beast'] }),
     ).toEqual([]);
+  });
+
+  /**
+   * A bonus narrowed to the target and aimed at the **damage alone** is a
+   * sentence the validator accepts, so it must not vanish from an untyped
+   * target unreported: the swing tells the table what it went without.
+   */
+  it('reports a damage-only narrowing the swing went without', () => {
+    const bane: CatalogueItem = {
+      ...item('longsword-plus-1'),
+      id: 'homebrew-bane',
+      name: 'Homebrew Bane',
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'flat-bonus', applies: ['damage'], flat: 2, onlyWithItem: true, targetTypes: ['Undead'] }],
+        },
+      ],
+    };
+    const content = unwrap(extendContent(SRD_CONTENT, { items: [bane] }), 'homebrew');
+    const armed = run(gained(TABLE, WIZARD, bane.id), (s) => equipItem(s, content, WIZARD, bane.id));
+    const swingAt = (target: CharacterId) =>
+      unwrap(
+        resolveAttack(fold('seed', armed), WIZARD, { target, weapon: bane.id, free: true }, { ...supply(), content }),
+        'attack',
+      );
+    const said = (target: CharacterId) =>
+      swingAt(target).unverified.some((line) => line.includes('Homebrew Bane') && line.includes('Undead'));
+    expect(said(MYSTERY)).toBe(true);
+    expect(said(ZOMBIE)).toBe(false);
+    expect(said(ORC)).toBe(false);
+  });
+
+  /**
+   * And a bonus this swing could never have had is not reported: a charm whose
+   * +2 against a Beast reaches only Ranged weapons says nothing about a sword.
+   */
+  it('reports nothing for a narrowing the weapon in hand could never meet', () => {
+    const charm: CatalogueItem = {
+      id: 'homebrew-hunters-charm',
+      name: 'Homebrew Hunter Charm',
+      kind: 'wondrous',
+      weightLb: null,
+      costCp: null,
+      armor: null,
+      weapon: null,
+      contents: [],
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'flat-bonus',
+              applies: ['attack'],
+              flat: 2,
+              onlyWithWeapon: { weapons: [{ kind: 'ranged' }] },
+              targetTypes: ['Beast'],
+            },
+          ],
+          requires: [{ kind: 'while-worn' }],
+        },
+      ],
+    };
+    const content = unwrap(extendContent(SRD_CONTENT, { items: [charm] }), 'homebrew');
+    const armed = run(
+      run(gained(gained(TABLE, WIZARD, charm.id), WIZARD, 'longsword'), (s) => equipItem(s, content, WIZARD, charm.id)),
+      (s) => equipItem(s, content, WIZARD, 'longsword'),
+    );
+    const out = unwrap(
+      resolveAttack(fold('seed', armed), WIZARD, { target: MYSTERY, weapon: 'longsword', free: true }, { ...supply(), content }),
+      'attack',
+    );
+    expect(out.unverified.some((line) => line.includes('Homebrew Hunter Charm'))).toBe(false);
   });
 
   it('refuses a subtype, an empty list, and a narrowing on a roll with no target', () => {

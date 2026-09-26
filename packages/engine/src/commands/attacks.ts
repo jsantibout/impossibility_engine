@@ -2658,7 +2658,13 @@ export function resolveAttack(
       ...heldWeaponPenalty(attacker, command.weapon, weapon?.name ?? command.weapon ?? ''),
       ...(command.attackBonuses ?? []),
     ];
-    unverified.push(...unsettledTargetBonuses(state, id, command.target, { withItem: command.weapon }));
+    unverified.push(
+      ...unsettledTargetBonuses(state, id, command.target, {
+        withItem: command.weapon,
+        weapon,
+        ...(command.twoHanded === undefined ? {} : { twoHanded: command.twoHanded }),
+      }),
+    );
 
     // — who can see whom ——————————————————————————————————————————————————
     //

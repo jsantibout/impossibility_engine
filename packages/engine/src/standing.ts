@@ -4321,11 +4321,22 @@ export function unsettledTargetBonuses(
   for (const { effect } of standingFor(state, who)) {
     const grant = effect.grant;
     if (grant.kind !== 'flat-bonus' || grant.targetTypes === undefined) continue;
-    if (!grant.applies.includes('attack')) continue;
+    // A swing's roll or its damage: a bonus narrowed to either is one this
+    // swing could have had, and one narrowed to the damage alone would
+    // otherwise vanish from an untyped target with nobody told.
+    if (!grant.applies.includes('attack') && !grant.applies.includes('damage')) continue;
+    // And only a bonus this swing could ever reach: the item in hand, and the
+    // kind of weapon the narrowing names.
     if (grant.onlyWithItem === true && (context.withItem ?? null) !== effect.feature) continue;
+    if (
+      grant.onlyWithWeapon !== undefined &&
+      !weaponNarrowingHolds(grant.onlyWithWeapon, wielding(context))
+    ) {
+      continue;
+    }
     if (targetIsOneOf(state, target, grant.targetTypes) !== null) continue;
     reported.push(
-      `${effect.name} is worth ${grant.flat >= 0 ? '+' : ''}${grant.flat} against a ${grant.targetTypes.join(' or ')}, and nobody has said what ${target} is, so the swing was made without it`,
+      `${effect.name} is worth ${grant.flat >= 0 ? '+' : ''}${grant.flat} to ${grant.applies.filter((aimed) => aimed === 'attack' || aimed === 'damage').join(' and ')} against a ${grant.targetTypes.join(' or ')}, and nobody has said what ${target} is, so the swing was made without it`,
     );
   }
   return reported;
@@ -7421,8 +7432,9 @@ function derivedSpeedGrants(
  * carry it: Spider Climb's casting is a stored {@link GrantedSpeed} and
  * Second-Story Work's is a derived {@link StandingGrant}, and a reader that
  * knew only one of them would be right about half the book. The derived door
- * includes a worn item's — SRD Slippers of Spider Climbing's "a Climb Speed
- * equal to your Speed" — through {@link derivedSpeedGrants}.
+ * includes a worn item's — SRD Gloves of Swimming and Climbing's "a Climb
+ * Speed and a Swim Speed equal to your Speed" — through
+ * {@link derivedSpeedGrants}.
  */
 function matchesWalkingSpeed(
   state: GameState,

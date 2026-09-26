@@ -1611,81 +1611,6 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     },
   ),
   wornItem(
-    { id: 'horseshoes-of-speed', name: 'Horseshoes of Speed', kind: 'wondrous' },
-    {
-      /**
-       * SRD Horseshoes of Speed: "Wondrous Item, Rare. These horseshoes come
-       * in a set of four. ... While all four horseshoes are attached to the
-       * same creature, its Speed is increased by 30 feet."
-       *
-       * **One record for the set**, because the benefit is the set's: a
-       * creature wearing three grants nothing, and the catalogue carries no
-       * record for one shoe. "Its Speed is increased" is the walking Speed
-       * the SRD writes unqualified, so `add` 30 with no mode. The creature is
-       * a horse "or similar creature", and it wears them through the doors a
-       * character's ring does: handed over, then put on.
-       *
-       * **The four Magic actions of affixing are the equip door's**, not this
-       * record's: "you can touch one of the horseshoes to the hoof ... Removing
-       * a horseshoe also takes a Magic action." `equip_item` charges no action
-       * for anything — a suit of plate is donned as freely — so that is the
-       * door's debt, carried by every worn item alike, rather than a clause
-       * this set alone leaves out.
-       *
-       * **What is left is who may wear them, and it limits the set** (rule 3
-       * above, flagged for the owner beside the slippers): the book puts them
-       * on "a horse or similar creature", and nothing records which creatures
-       * have hooves, so the equip door shoes whoever the caller names — a
-       * character included, who then walks 30 feet faster.
-       */
-      grants: [
-        {
-          kind: 'standing',
-          reach: 'self',
-          effects: [{ kind: 'speed', feet: 30 }],
-          requires: WORN,
-        },
-      ],
-      unmodelled: [
-        '"touch one of the horseshoes to the hoof of a horse or similar creature": which creatures have hooves is not a fact the engine keeps, so the set can be put on a creature the book would not shoe',
-      ],
-    },
-  ),
-  wornItem(
-    { id: 'slippers-of-spider-climbing', name: 'Slippers of Spider Climbing', kind: 'wondrous' },
-    {
-      /**
-       * SRD Slippers of Spider Climbing: "Wondrous Item, Uncommon (Requires
-       * Attunement). ... You have a Climb Speed equal to your Speed."
-       *
-       * SRD Spider Climb's sentence, spelled as that spell spells it —
-       * `match-walk` in the climbing mode.
-       *
-       * **Transcribed with a limit the engine cannot see, and flagged for
-       * the owner** (rule 3 above): "the slippers don't allow you to move
-       * this way on a slippery surface". The lattice holds no surfaces, so
-       * the Climb Speed holds on ice and oil too — a better pair of slippers
-       * than the book prints wherever the table has laid ice. It is the
-       * `unmodelled` line below rather than a reason to leave them out
-       * because the owner is to rule; Spider Climb carries the same absence
-       * of surfaces for the vertical half.
-       */
-      attunement: {},
-      grants: [
-        {
-          kind: 'standing',
-          reach: 'self',
-          effects: [{ kind: 'speed', change: 'match-walk', mode: 'climb' }],
-          requires: WORN_AND_ATTUNED,
-        },
-      ],
-      unmodelled: [
-        '"you can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the lattice holds elevation and no surfaces, as it does for SRD Spider Climb',
-        '"the slippers don\'t allow you to move this way on a slippery surface, such as one covered by ice or oil": a limit on the Climb Speed that the engine cannot apply, because nothing records what a surface is covered by — so the slippers climb where the book says they do not',
-      ],
-    },
-  ),
-  wornItem(
     {
       id: 'gloves-of-swimming-and-climbing',
       name: 'Gloves of Swimming and Climbing',
@@ -1697,7 +1622,10 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * (Requires Attunement). While wearing these gloves, you have a Climb
        * Speed and a Swim Speed equal to your Speed ..."
        *
-       * The slippers' sentence twice, one effect per mode.
+       * SRD Spider Climb's sentence twice, one effect per mode, spelled as
+       * that spell spells it — `match-walk` in the mode it names. Unlike the
+       * Slippers of Spider Climbing the gloves print no surface they will not
+       * climb, so nothing the book limits is given away here.
        */
       attunement: {},
       grants: [
@@ -2731,7 +2659,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         castsSpell('web', 1, { saveDc: 13 }),
       ],
       unmodelled: [
-        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": a Speed an item grants while worn, which `checkContent` refuses by name (`item_speed_grant`) because `speedOf` gathers Speed from the sheet alone',
+        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the Climb Speed is sayable on a worn item now, and the sentence is held back for the question the Slippers of Spider Climbing wait on — what surface an item\'s climb covers, walls and ceilings included, which the lattice does not hold',
         '"_Spider Walk._ You can\'t be caught in webs of any sort and can move through webs as if they were Difficult Terrain": an immunity to a spell\'s area and a terrain rule keyed to it, neither of which an item grant can say',
         '"The web created by the spell fills twice its normal area": a `casts` grant hands the definition to the pipeline whole, so a web from this cloak fills Web\'s own 20-foot Cube — half the page\'s cloak rather than twice it',
       ],

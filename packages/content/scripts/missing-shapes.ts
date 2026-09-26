@@ -4451,7 +4451,7 @@ export const ITEM_SHAPES = {
   // through `useItem`. Its one claimant, SRD Boots of Speed, is blocked on
   // what the doubling is *hung on* rather than on the doubling itself.
   'a-speed-an-item-grants':
-    'a Speed an item gives in some way **other than a worn grant**. The worn grant is built: `ITEM_EFFECT_KINDS` admits `speed`, `speedOf` reads a worn item’s pinned grants beside the sheet’s, and packages/engine/src/content.ts refuses only the pairing that would ask the question of its own answer — "a Speed that holds only while its wearer has a Speed asks `speedOf` about its own answer". The Ring of Swimming, the Cloak of the Manta Ray, the Horseshoes of Speed, the Slippers of Spider Climbing and the Gloves of Swimming and Climbing are transcribed on it. What still names this id is a Speed of another shape: a walking Speed stated as a floor under whatever the wearer already has, which `at-least` does not give in the walking mode; a Speed the item has of its own when it is ridden; and a Speed a use switches on for a while.',
+    'a Speed an item gives in some way **other than a worn grant**. The worn grant is built: `ITEM_EFFECT_KINDS` admits `speed`, `speedOf` reads a worn item’s pinned grants beside the sheet’s, and packages/engine/src/content.ts refuses only the pairing that would ask the question of its own answer — "a Speed that holds only while its wearer has a Speed asks `speedOf` about its own answer". The Ring of Swimming, the Cloak of the Manta Ray and the Gloves of Swimming and Climbing are transcribed on it. What still names this id is a Speed the worn grant would give **more widely than the book does**, and a Speed of another shape: **who may wear it** — SRD Horseshoes of Speed work on a horse or a creature like one, and nothing records which creatures have hooves, so the equip door would shoe a character; **what surface it climbs** — SRD Slippers of Spider Climbing refuse to climb on ice or oil, and every such climb names walls and ceilings the lattice does not hold; a walking Speed stated as a floor under whatever the wearer already has, which `at-least` does not give in the walking mode; a Speed the item has of its own when it is ridden; and a Speed a use switches on for a while.',
   'a-reaction-an-item-grants':
     'a Reaction the item gives its holder. packages/engine/src/content.ts names the four grant kinds an item’s readers execute — "only a standing grant, a charge pool, a spell it casts and the effects it confers are read from one" — and a `reaction` grant is not among them, so a glove that snatches a missile and a ring that turns a failed save into a success have nothing to hang on.',
   'a-benefit-an-item-switches-on-and-off':
@@ -4966,6 +4966,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'difficult-terrain-an-area-creates',
     'an-exhaustion-level-a-spell-changes',
   ],
+  // Pulled back out of the catalogue on review (T-B1): the worn Speed is
+  // read, and "the hoof of a horse or similar creature" is a wearer the equip
+  // door cannot tell from a character — see the shape's description.
+  'horseshoes-of-speed': ['a-speed-an-item-grants'],
   'immovable-rod': ['an-object-with-statistics-of-its-own', 'a-fact-only-the-table-can-declare'],
   'instant-fortress': ['an-object-with-statistics-of-its-own'],
   'ioun-stone': [
@@ -5317,6 +5321,10 @@ export const ITEM_BLOCKED_ON: Readonly<Record<string, ItemEntry>> = {
     'an-item-instance-with-a-state-of-its-own',
   ],
   'shield-of-missile-attraction': ['what-ends-attunement-besides-a-command'],
+  // Pulled back out on review (T-B1): "don't allow you to move this way on a
+  // slippery surface" limits the Climb Speed, and a surface is read by the
+  // climb's own cost — see the shape's description. Owner's ruling pending.
+  'slippers-of-spider-climbing': ['a-speed-an-item-grants', 'movement-modes'],
   // Both shapes stay, and both for the same word: the scroll "bears the words
   // of a single spell" and never says which, so *which spell this copy holds*
   // is a fact about the copy that no count can carry, and the entry is a
