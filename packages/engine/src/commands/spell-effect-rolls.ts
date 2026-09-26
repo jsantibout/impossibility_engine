@@ -57,6 +57,7 @@ import {
 import {
   armorClassOf,
   conditionImmunitiesOf,
+  criticalsBecomeHitsOn,
   effectiveConditions,
   evadesHalfDamage,
   grantedAttackRiders,
@@ -336,6 +337,7 @@ function resolveOneAttackRoll(
   const crowding = enemyWithinFiveFeet(current, casterId);
   unverified.push(...crowding.unverified);
 
+  const adamant = criticalsBecomeHitsOn(current, target);
   const throwIt = (): Result<AttackResult> =>
     rollAttack(supply.issuer, supply.rng, casterSheet().sheet, {
     weapon: null,
@@ -352,6 +354,9 @@ function resolveOneAttackRoll(
     // can answer it here: `isRangedAttack` reads it instead of the weapon.
     spellAttack: { modifier: attackModifier, ability, ranged: effect.attack === 'ranged' },
     targetAc: armorClassOf(current, target),
+    // SRD Adamantine Armor: "any Critical Hit against you becomes a normal
+    // hit" — a spell attack's as much as a sword's.
+    ...(adamant === null ? {} : { criticalBecomesHit: adamant }),
     modes: [...defending.modes, ...(supply.modes ?? [])],
     nearbyEnemy: crowding.near,
     attackBonuses: [

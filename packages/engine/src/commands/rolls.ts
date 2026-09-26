@@ -847,7 +847,9 @@ export function savingSupport(
  * character's, not the tool's — and `checkContent` refuses the pairing
  * outright.
  *
- * **The skill is a narrowing of the other kind**, and it is the feature's: SRD
+ * **The skill is a narrowing of the other kind**, and it is the feature's — and
+ * an item's, since SRD Gloves of Thievery's "+5 bonus to Dexterity (Sleight of
+ * Hand) checks" is a `flat-bonus` with a `skill`: SRD
  * Divine Order and Primal Order bonus two named skills each, so a gatherer that
  * could not be told which check this is would hand a Cleric their Arcana bonus
  * on a Stealth check. A caller that has no skill — Initiative, an effect's bare
@@ -880,7 +882,7 @@ export function checkBonuses(
   const held = state.creatures[who]?.bonuses ?? [];
   const standing = [
     ...bonusesFor(held, 'ability-check', skill === undefined ? undefined : { skill }),
-    ...standingBonuses(state, who, 'ability-check'),
+    ...standingBonuses(state, who, 'ability-check', skill === undefined ? {} : { skill }),
     ...(skill === undefined ? [] : standingCheckBonuses(state, who, skill)),
     ...areaBonuses(state, who, 'ability-check', skill === undefined ? undefined : { skill }),
   ];

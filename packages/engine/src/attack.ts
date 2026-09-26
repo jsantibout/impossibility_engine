@@ -539,6 +539,17 @@ export interface AttackOptions {
    * do. Read off the attacker's sheet by `resolveAttack`.
    */
   readonly criticalOn?: number;
+  /**
+   * What turns a Critical Hit against the target into a normal hit, by name —
+   * SRD Adamantine Armor: "any Critical Hit against you becomes a normal hit."
+   *
+   * A fact about the **target**, read off its state by the command
+   * (`criticalsBecomeHitsOn`) and handed down, for `criticalOn`'s reason: this
+   * file holds no state. The hit stands — a natural 20 still "hits regardless
+   * of any modifiers or the target's AC" — and only the critical goes, whether
+   * the die scored it or a condition made it automatic.
+   */
+  readonly criticalBecomesHit?: string;
   /** Whether the attacker is proficient. Defaults to true. */
   readonly proficient?: boolean;
   /** Wielded in two hands, for a Versatile weapon. */
@@ -1018,7 +1029,10 @@ export function rollAttack(
     total,
     targetAc: options.targetAc,
     hit,
-    critical: hit && (landed.naturalCritical || automaticCritical),
+    critical:
+      hit &&
+      options.criticalBecomesHit === undefined &&
+      (landed.naturalCritical || automaticCritical),
     ...(options.autoMiss === undefined ? {} : { autoMissed: options.autoMiss }),
   });
 }

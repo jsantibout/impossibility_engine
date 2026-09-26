@@ -633,6 +633,42 @@ const MITHRAL_ARMOR: readonly CatalogueItem[] = ARMOR.filter(
 }));
 
 /**
+ * SRD Adamantine Armor: "Armor (Any Medium or Heavy, Except Hide Armor),
+ * Uncommon. This suit of armor is reinforced with adamantine, one of the
+ * hardest substances in existence. While you're wearing it, any Critical Hit
+ * against you becomes a normal hit."
+ *
+ * **Mithral's twin over the same rows**, and a grant where Mithral is a
+ * changed record: what adamantine changes is not a field of the armour but
+ * what an attack against its wearer does, so every row carries the
+ * `critical-hits-become-hits` marker while worn, and the command rolling an
+ * attack at the wearer — a weapon's, a stat block's or a spell's — keeps the
+ * hit and drops the critical.
+ *
+ * Hide Armor is excluded because the book excludes it.
+ */
+const ADAMANTINE_ARMOR: readonly CatalogueItem[] = ARMOR.filter(
+  (row) => (row.category === 'medium' || row.category === 'heavy') && row.id !== 'hide-armor',
+).map((row) => ({
+  id: `adamantine-${row.id}`,
+  name: `Adamantine ${row.name}`,
+  kind: 'armor' as const,
+  weightLb: row.weightLb,
+  costCp: null,
+  armor: { ...row, name: `Adamantine ${row.name}` },
+  weapon: null,
+  contents: [],
+  grants: [
+    {
+      kind: 'standing' as const,
+      reach: 'self' as const,
+      effects: [{ kind: 'critical-hits-become-hits' as const }],
+      requires: WORN,
+    },
+  ],
+}));
+
+/**
  * The named items, one at a time, each with the sentence it was read from.
  *
  * A family entry above is a template; these are the entries the book prints
@@ -1234,11 +1270,24 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       /**
        * SRD Dragon Slayer: "Weapon (Any Simple or Martial), Rare. You gain a
        * +1 bonus to attack rolls and damage rolls made with this magic
-       * weapon."
+       * weapon. The weapon deals an extra 3d6 damage of the weapon's type if
+       * the target is a Dragon."
+       *
+       * **Both narrowings, and nothing left.** "This magic weapon" is
+       * `onlyWithItem` and "if the target is a Dragon" is `targetTypes`, read
+       * the way a magical effect reads a type — so a Dragon under SRD
+       * Arcanist's Magic Aura's Mask is spared, and a creature nobody has
+       * typed is reported rather than guessed at. "Of the weapon's type" is
+       * the absence of a damage type, which is what a *bonus* is: a Dragon
+       * resisting Slashing resists the 3d6 with the blade.
        */
-      grants: [madeWithThisWeapon(1)],
-      unmodelled: [
-        '"The weapon deals an extra 3d6 damage of the weapon\'s type if the target is a Dragon": the narrowing to the weapon is sayable now and the narrowing to the *target* is not — `attack-damage` has no test of what the creature being hit is, so the die would land on everything this sword touched',
+      grants: [
+        madeWithThisWeapon(1),
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'attack-damage', dice: '3d6', onlyWithItem: true, targetTypes: ['Dragon'] }],
+        },
       ],
     },
   ),
@@ -1247,11 +1296,24 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     {
       /**
        * SRD Giant Slayer: "Weapon (Any Simple or Martial), Rare. You gain a +1
-       * bonus to attack rolls and damage rolls made with this magic weapon."
+       * bonus to attack rolls and damage rolls made with this magic weapon.
+       * When you hit a Giant with this weapon, the Giant takes an extra 2d6
+       * damage of the weapon's type ..."
+       *
+       * Dragon Slayer's two narrowings over a different type. The save the
+       * same hit forces is what is left, and leaving it out gives the Giant a
+       * better day than the book does rather than the wielder.
        */
-      grants: [madeWithThisWeapon(1)],
+      grants: [
+        madeWithThisWeapon(1),
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'attack-damage', dice: '2d6', onlyWithItem: true, targetTypes: ['Giant'] }],
+        },
+      ],
       unmodelled: [
-        '"When you hit a Giant with this weapon, the Giant takes an extra 2d6 damage of the weapon\'s type and must succeed on a DC 15 Strength saving throw or have the Prone condition": the narrowing to the weapon is sayable, but "a Giant" is a test of what the target is and the rest is a save a weapon forces, and an item declares neither',
+        '"must succeed on a DC 15 Strength saving throw or have the Prone condition": a save a weapon forces on the hit it lands, which is a hit rider an item cannot declare',
       ],
     },
   ),
@@ -1260,11 +1322,32 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
     {
       /**
        * SRD Mace of Smiting: "Weapon (Mace), Rare. You gain a +1 bonus to
-       * attack rolls and damage rolls made with this magic weapon."
+       * attack rolls and damage rolls made with this magic weapon. The bonus
+       * increases to +3 when you use the weapon to attack a Construct."
+       *
+       * **Two grants for one bonus that increases**, because the best of an
+       * item's own bonuses is what reaches a roll — "only the effects of one
+       * of them, the most potent, apply" — so against a Construct the +3
+       * stands in for the +1 rather than beside it, and against anything
+       * else, or anything nobody has typed, the +1 is all there is.
        */
-      grants: [madeWithThisWeapon(1)],
+      grants: [
+        madeWithThisWeapon(1),
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'flat-bonus',
+              applies: ['attack', 'damage'],
+              flat: 3,
+              onlyWithItem: true,
+              targetTypes: ['Construct'],
+            },
+          ],
+        },
+      ],
       unmodelled: [
-        '"The bonus increases to +3 when you use the weapon to attack a Construct": a flat bonus is one number and has no test of what it is swung at',
         '"When you roll a 20 on an attack roll made with this weapon, the target takes an extra 7 Bludgeoning damage, or 14 Bludgeoning damage if it\'s a Construct": damage that only a Critical Hit adds is a rider on the attack, not a standing effect',
       ],
     },
@@ -1372,6 +1455,218 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
       ],
     },
   ),
+
+  // ── the standing readers (treasure T-B1) ─────────────────────────────────
+  magicWeapon(
+    { id: 'mace-of-disruption', name: 'Mace of Disruption', row: 'mace' },
+    {
+      /**
+       * SRD Mace of Disruption: "Weapon (Mace), Rare (Requires Attunement).
+       * When you hit a Fiend or an Undead with this magic weapon, that
+       * creature takes an extra 2d6 Radiant damage."
+       *
+       * Holy Avenger's die at a smaller size, and narrowed the same two ways:
+       * to this mace, and to what it hits. No bonus to the roll, because the
+       * entry prints none.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'attack-damage',
+              dice: '2d6',
+              damageType: 'radiant',
+              onlyWithItem: true,
+              targetTypes: ['Fiend', 'Undead'],
+            },
+          ],
+          requires: [{ kind: 'while-attuned' }],
+        },
+      ],
+      unmodelled: [
+        '"If the target has 25 Hit Points or fewer after taking this damage, it must succeed on a DC 15 Wisdom saving throw or be destroyed. On a successful save, the creature has the Frightened condition until the end of your next turn": a save a weapon forces on the hit it lands, gated on what is left after it — a hit rider an item cannot declare',
+        '"While you hold this weapon, it sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet": the `light` grant is read off the sheet alone and is withheld from an item, so the mace lights nothing',
+      ],
+    },
+  ),
+  magicWeapon(
+    { id: 'luck-blade', name: 'Luck Blade', row: 'longsword' },
+    {
+      /**
+       * SRD Luck Blade: "Weapon (Glaive, Greatsword, Longsword, Rapier,
+       * Scimitar, Sickle, or Shortsword), Legendary (Requires Attunement).
+       * You gain a +1 bonus to attack rolls and damage rolls made with this
+       * magic weapon. While the weapon is on your person, you also gain a +1
+       * bonus to saving throws."
+       *
+       * "On your person" is attunement's own lifetime: the fold ends an
+       * attunement the moment the item leaves its holder's inventory, so a
+       * blade attuned to is a blade carried, drawn or not. So the save bonus
+       * asks the bracket and nothing else — and a blade merely held, never
+       * attuned to, gives nothing, which the bracket says of both halves.
+       */
+      attunement: {},
+      grants: [
+        madeWithThisWeapon(1, true),
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'flat-bonus', applies: ['save'], flat: 1 }],
+          requires: [{ kind: 'while-attuned' }],
+        },
+      ],
+      unmodelled: [
+        '"you can call on its luck (no action required) to reroll one failed D20 Test if you don\'t have the Incapacitated condition. You must use the second roll": a reroll of a failed test, once a dawn, elected by the holder — a pool an item would have to declare and a Reaction-free reroll no item grant carries',
+        '"The weapon has 1d3 charges. While holding it, you can expend 1 charge and cast _Wish_ from it": Wish is not defined, so there is nothing for the charge to cast',
+      ],
+    },
+  ),
+  magicArmor(
+    { id: 'spellguard-shield', name: 'Spellguard Shield', row: 'shield' },
+    {
+      /**
+       * SRD Spellguard Shield: "Armor (Shield), Very Rare (Requires
+       * Attunement). While holding this Shield, you have Advantage on saving
+       * throws against spells and other magical effects, and spell attack
+       * rolls have Disadvantage against you."
+       *
+       * Two modes, and both halves of the sentence are the roll's own facts:
+       * a save a spell forced says `magical`, and an attack a spell makes says
+       * `spellAttack`, whichever creature holds the grant — so the second is
+       * written on the rolls made *against* the bearer, and a sword swung at
+       * them is untouched.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'saving-throw', relation: 'roller', againstMagic: true },
+              },
+            },
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'disadvantage',
+                selector: { roll: 'attack', relation: 'against-holder', onlySpellAttacks: true },
+              },
+            },
+          ],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'ring-of-swimming', name: 'Ring of Swimming', kind: 'ring' },
+    {
+      /**
+       * SRD Ring of Swimming: "Ring, Uncommon. You have a Swim Speed of 40
+       * feet while wearing this ring."
+       *
+       * "A Swim Speed of 40 feet" states a Speed rather than changing one —
+       * SRD Fly's sentence in another mode — so it is `at-least`: a creature
+       * that already swims faster keeps its own, and one that is Slowed swims
+       * at half the ring's.
+       */
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'speed', change: 'at-least', mode: 'swim', feet: 40 }],
+          requires: WORN,
+        },
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'cloak-of-the-manta-ray', name: 'Cloak of the Manta Ray', kind: 'wondrous' },
+    {
+      /**
+       * SRD Cloak of the Manta Ray: "Wondrous Item, Uncommon (Requires
+       * Attunement). While wearing this cloak, you can breathe underwater,
+       * and you have a Swim Speed of 60 feet."
+       *
+       * The ring's sentence at 60 feet. The breathing is fiction, as SRD
+       * Water Breathing's is and the Necklace of Adaptation's: the engine
+       * holds no air and no drowning, so nothing a rule reads is missing.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'speed', change: 'at-least', mode: 'swim', feet: 60 }],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+    },
+  ),
+  wornItem(
+    {
+      id: 'gloves-of-swimming-and-climbing',
+      name: 'Gloves of Swimming and Climbing',
+      kind: 'wondrous',
+    },
+    {
+      /**
+       * SRD Gloves of Swimming and Climbing: "Wondrous Item, Uncommon
+       * (Requires Attunement). While wearing these gloves, you have a Climb
+       * Speed and a Swim Speed equal to your Speed ..."
+       *
+       * SRD Spider Climb's sentence twice, one effect per mode, spelled as
+       * that spell spells it — `match-walk` in the mode it names. Unlike the
+       * Slippers of Spider Climbing the gloves print no surface they will not
+       * climb, so nothing the book limits is given away here.
+       */
+      attunement: {},
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            { kind: 'speed', change: 'match-walk', mode: 'climb' },
+            { kind: 'speed', change: 'match-walk', mode: 'swim' },
+          ],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
+      unmodelled: [
+        '"you gain a +5 bonus to Strength (Athletics) checks made to climb or swim": narrower than the skill — a check says which skill it is made with and not what it is made for — so a +5 to Athletics would reach a Grapple escape and a jump, which is a better pair of gloves than the book prints',
+      ],
+    },
+  ),
+  wornItem(
+    { id: 'gloves-of-thievery', name: 'Gloves of Thievery', kind: 'wondrous' },
+    {
+      /**
+       * SRD Gloves of Thievery: "Wondrous Item, Uncommon. These gloves are
+       * imperceptible while worn. While wearing them, you gain a +5 bonus to
+       * Dexterity (Sleight of Hand) checks."
+       *
+       * A flat bonus narrowed to one skill, the standing twin of the narrowing
+       * a casting's Guidance carries: reached by a Sleight of Hand check, and
+       * by no other check. That the gloves cannot be seen is description a
+       * rule never reads.
+       */
+      grants: [
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [{ kind: 'flat-bonus', applies: ['ability-check'], flat: 5, skill: 'sleight-of-hand' }],
+          requires: WORN,
+        },
+      ],
+    },
+  ),
   magicWeapon(
     { id: 'holy-avenger', name: 'Holy Avenger', row: 'longsword' },
     {
@@ -1387,10 +1682,59 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * hold its own version.
        */
       attunement: { byClass: ['paladin'] },
-      grants: [madeWithThisWeapon(3, true)],
+      grants: [
+        madeWithThisWeapon(3, true),
+        /**
+         * "When you hit a Fiend or an Undead with it, that creature takes an
+         * extra 2d10 Radiant damage": Radiant, so *extra* beside the blade
+         * rather than a bonus of its type, and narrowed to the target the way
+         * Dragon Slayer's die is.
+         */
+        {
+          kind: 'standing',
+          reach: 'self',
+          effects: [
+            {
+              kind: 'attack-damage',
+              dice: '2d10',
+              damageType: 'radiant',
+              onlyWithItem: true,
+              targetTypes: ['Fiend', 'Undead'],
+            },
+          ],
+          requires: [{ kind: 'while-attuned' }],
+        },
+        /**
+         * "While you hold the drawn weapon, it creates a 10-foot Emanation
+         * originating from you. You and all creatures Friendly to you in the
+         * Emanation have Advantage on saving throws against spells and other
+         * magical effects."
+         *
+         * An item's aura, as the Weapon of Warning's is, read as held
+         * (`while-worn`) and attuned. "Friendly to you" is the declared side
+         * an aura already reads for an ally. "Against spells and other
+         * magical effects" is `againstMagic`, SRD Magic Resistance's own
+         * words, answered by the site that throws the save — so a save a
+         * spell forced is reached and a trap's is not.
+         */
+        {
+          kind: 'standing',
+          reach: 'aura',
+          auraFeet: 10,
+          effects: [
+            {
+              kind: 'roll-mode',
+              modifier: {
+                mode: 'advantage',
+                selector: { roll: 'saving-throw', relation: 'roller', againstMagic: true },
+              },
+            },
+          ],
+          requires: WORN_AND_ATTUNED,
+        },
+      ],
       unmodelled: [
-        '"When you hit a Fiend or an Undead with it, that creature takes an extra 2d10 Radiant damage": narrowing the die to the weapon is sayable and narrowing it to what the target is is not — nothing on the damage path reads a creature\'s type',
-        '"You and all creatures Friendly to you in the Emanation have Advantage on saving throws against spells and other magical effects": the aura is writable and the narrowing is not — a save has no key for what it is *against*, so the mode would reach every save of every ally',
+        '"If you have 17 or more levels in the Paladin class, the size of the Emanation increases to 30 feet": an item grant declares one size for its aura and reads no class level, so the Emanation is 10 feet whoever holds it',
       ],
     },
   ),
@@ -2315,7 +2659,7 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
         castsSpell('web', 1, { saveDc: 13 }),
       ],
       unmodelled: [
-        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": a Speed an item grants while worn, which `checkContent` refuses by name (`item_speed_grant`) because `speedOf` gathers Speed from the sheet alone',
+        '"_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free": the Climb Speed is sayable on a worn item now, and the sentence is held back for the question the Slippers of Spider Climbing wait on — what surface an item\'s climb covers, walls and ceilings included, which the lattice does not hold',
         '"_Spider Walk._ You can\'t be caught in webs of any sort and can move through webs as if they were Difficult Terrain": an immunity to a spell\'s area and a terrain rule keyed to it, neither of which an item grant can say',
         '"The web created by the spell fills twice its normal area": a `casts` grant hands the definition to the pipeline whole, so a web from this cloak fills Web\'s own 20-foot Cube — half the page\'s cloak rather than twice it',
       ],
@@ -3872,6 +4216,7 @@ const MAGIC_ITEMS: readonly CatalogueItem[] = [
   ...PLUS_ARMOR,
   ...PLUS_SHIELDS,
   ...MITHRAL_ARMOR,
+  ...ADAMANTINE_ARMOR,
   ...NAMED_ITEMS,
   ...POTIONS,
 ];

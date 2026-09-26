@@ -84,7 +84,12 @@ import {
   spellOfSource,
   type CastingTime,
 } from './spells.js';
-import type { OutcomeRiders, SpellArea, SpellEffect } from './spell-definitions.js';
+import {
+  isCreatureType,
+  type OutcomeRiders,
+  type SpellArea,
+  type SpellEffect,
+} from './spell-definitions.js';
 import type { EffectEndCause } from './timers.js';
 import { tallied, type Recovery } from './resources.js';
 // `featureOfSource` is a runtime import and no cycle: everything `progression.ts`
@@ -989,7 +994,7 @@ export type StandingGrant =
    * no level to compare with. So a feature's light loses to a magical darkness
    * exactly as a torch does, which is Darkness's own sentence.
    *
-   * **Withheld from an item**, for `speed`'s reason rather than
+   * **Withheld from an item**, for the reason `speed` once was rather than
    * `attack-bonus`'s: the reader is inside `lightAt`, which sits below
    * `standing.ts` in the import graph and cannot gather what a worn item
    * grants — and it must not, because `requirementsHold` calls `lightAt` and a
@@ -1064,6 +1069,29 @@ export type StandingGrant =
        * held to: a roll is *made with* a weapon, and an Armour Class is not.
        */
       readonly onlyWithWeapon?: WeaponNarrowing;
+      /**
+       * SRD Mace of Smiting: "The bonus increases to +3 when you use the
+       * weapon to attack a **Construct**."
+       *
+       * A narrowing on the creature the roll is aimed at, from the book's own
+       * fourteen types — see {@link targetIsOneOf}, which reads the type a
+       * magical effect sees. Legal only where a roll has a target, which is an
+       * attack and its damage: an Armour Class and a saving throw are aimed at
+       * nobody. A second grant on the same item is how "the bonus increases"
+       * is written, because the best of one item's bonuses is what reaches a
+       * roll.
+       */
+      readonly targetTypes?: readonly string[];
+      /**
+       * SRD Gloves of Thievery: "a +5 bonus to Dexterity (**Sleight of Hand**)
+       * checks."
+       *
+       * The standing twin of `ActiveBonus.skill`, which is how a casting's
+       * Guidance narrows: a check made with this skill and no other. Legal only
+       * on a bonus that applies to ability checks and nothing else, because no
+       * other roll is made with a skill.
+       */
+      readonly skill?: Skill;
     }
   /**
    * A rule about the **dice** a weapon swing throws, rather than a number
@@ -1333,6 +1361,23 @@ export type StandingGrant =
    */
   | { readonly kind: 'evasion' }
   /**
+   * SRD Adamantine Armor: "While you're wearing it, any Critical Hit against
+   * you becomes a normal hit."
+   *
+   * **A fact about the creature being hit**, and read at the one place a
+   * critical is decided: the command asks {@link criticalsBecomeHitsOn} about
+   * its target and hands the answer to `rollAttack`, which keeps the hit and
+   * drops the critical. The hit is kept because the sentence keeps it — the
+   * glossary's natural 20 "hits regardless", and it is the *critical* that
+   * becomes a normal hit — and a critical nothing but the die decided
+   * (Paralyzed's automatic one) is the same critical and goes the same way.
+   *
+   * A bare marker, for `evasion`'s reason: the sentence carries no number and
+   * no narrowing, and "any Critical Hit" is every attack roll the engine
+   * throws, a weapon's, a stat block's and a spell's.
+   */
+  | { readonly kind: 'critical-hits-become-hits' }
+  /**
    * The ability modifier put back on the Light property's extra attack.
    *
    * SRD Two-Weapon Fighting: "When you make an extra attack as a result of
@@ -1591,10 +1636,23 @@ export type StandingGrant =
        *
        * It narrows *which weapon*, and nothing else. Whether the die lands at
        * all still depends on the qualifications above, and an item whose
-       * clause tests what the *target* is — "if the target is a Dragon" — is a
-       * different narrowing that does not exist yet.
+       * clause tests what the *target* is — "if the target is a Dragon" — is
+       * the narrowing below.
        */
       readonly onlyWithItem?: boolean;
+      /**
+       * SRD Dragon Slayer: "an extra 3d6 damage of the weapon's type **if the
+       * target is a Dragon**." SRD Holy Avenger: "When you hit **a Fiend or an
+       * Undead** with it".
+       *
+       * The types the creature hit must be one of, from the book's fourteen.
+       * Read through {@link targetIsOneOf}: a magic weapon asking what its
+       * target is is a magical effect asking, so it reads the type SRD
+       * Arcanist's Magic Aura's Mask makes it believe. A target nobody has
+       * typed is a miss, and `standingAttackDamage` reports it — the reading
+       * {@link advantageOrAdjacentAlly} takes of an ally nobody has placed.
+       */
+      readonly targetTypes?: readonly string[];
     }
   /**
    * A feature of the **caster** that reaches into a casting's own arithmetic.
@@ -4204,6 +4262,84 @@ export interface BonusContext {
   readonly weapon?: Weapon | null;
   /** SRD Great Weapon Fighting's "holding with two hands". */
   readonly twoHanded?: boolean;
+  /**
+   * The creature the roll is aimed at, for SRD Mace of Smiting's "when you use
+   * the weapon to attack a Construct" — see `flat-bonus.targetTypes`. Absent
+   * is a roll aimed at nobody, which such a bonus reads as a miss.
+   */
+  readonly target?: CharacterId;
+  /**
+   * The skill an ability check is made with, for SRD Gloves of Thievery's
+   * "Dexterity (Sleight of Hand) checks" — see `flat-bonus.skill`. Absent is a
+   * check made with no skill, which such a bonus reads as a miss: the reading
+   * `bonusesFor` takes of a casting's narrowed bonus.
+   */
+  readonly skill?: Skill;
+}
+
+/**
+ * Whether the creature a roll is aimed at is one of these types, as a magical
+ * effect sees it — or null where nobody has said what it is.
+ *
+ * SRD Dragon Slayer's "if the target is a Dragon" is a magic weapon asking, so
+ * the answer is {@link typeMagicSees}'s: the Mask of SRD Arcanist's Magic Aura
+ * fools the sword exactly as it fools Hold Person. The comparison is
+ * {@link isCreatureType}'s, the type and never a subtype tag. A target that is
+ * not in the state, or that nobody has typed, is `null`, and every reader
+ * treats that as a miss it reports rather than as a guess.
+ */
+export function targetIsOneOf(
+  state: GameState,
+  target: CharacterId | undefined,
+  types: readonly string[],
+): boolean | null {
+  const victim = target === undefined ? undefined : state.creatures[target];
+  if (victim === undefined) return null;
+  const seen = typeMagicSees(victim);
+  if (seen === null) return null;
+  return types.some((named) => isCreatureType(seen, named));
+}
+
+/**
+ * The target-narrowed flat bonuses a swing had to go without, because nobody
+ * has said what its target is.
+ *
+ * The attack roll's half of `standingAttackDamage`'s report: SRD Mace of
+ * Smiting's +3 "when you use the weapon to attack a Construct" cannot be
+ * weighed against a creature nobody has typed, so the swing is made at the
+ * bonus that needs no type and the table is told which one it did not get.
+ * Asked once, at the roll, by the command — a bonus that reaches both the
+ * attack and its damage is one sentence and is reported once.
+ */
+export function unsettledTargetBonuses(
+  state: GameState,
+  who: CharacterId,
+  target: CharacterId,
+  context: BonusContext = {},
+): readonly string[] {
+  const reported: string[] = [];
+  for (const { effect } of standingFor(state, who)) {
+    const grant = effect.grant;
+    if (grant.kind !== 'flat-bonus' || grant.targetTypes === undefined) continue;
+    // A swing's roll or its damage: a bonus narrowed to either is one this
+    // swing could have had, and one narrowed to the damage alone would
+    // otherwise vanish from an untyped target with nobody told.
+    if (!grant.applies.includes('attack') && !grant.applies.includes('damage')) continue;
+    // And only a bonus this swing could ever reach: the item in hand, and the
+    // kind of weapon the narrowing names.
+    if (grant.onlyWithItem === true && (context.withItem ?? null) !== effect.feature) continue;
+    if (
+      grant.onlyWithWeapon !== undefined &&
+      !weaponNarrowingHolds(grant.onlyWithWeapon, wielding(context))
+    ) {
+      continue;
+    }
+    if (targetIsOneOf(state, target, grant.targetTypes) !== null) continue;
+    reported.push(
+      `${effect.name} is worth ${grant.flat >= 0 ? '+' : ''}${grant.flat} to ${grant.applies.filter((aimed) => aimed === 'attack' || aimed === 'damage').join(' and ')} against a ${grant.targetTypes.join(' or ')}, and nobody has said what ${target} is, so the swing was made without it`,
+    );
+  }
+  return reported;
 }
 
 /**
@@ -4297,6 +4433,16 @@ export function standingBonuses(
     ) {
       continue;
     }
+    // "When you use the weapon to attack a Construct", and against nothing
+    // else — a target nobody has typed included, which the command reports.
+    if (
+      effect.grant.targetTypes !== undefined &&
+      targetIsOneOf(state, context.target, effect.grant.targetTypes) !== true
+    ) {
+      continue;
+    }
+    // "Dexterity (Sleight of Hand) checks", and no other check.
+    if (effect.grant.skill !== undefined && effect.grant.skill !== context.skill) continue;
 
     const flat = effect.grant.flat;
     const current = best.get(effect.feature);
@@ -7036,13 +7182,16 @@ export function areaSaveModesOn(
  * {@link AreaStanding} for why the pair of events the other spelling would
  * need is the wrong shape.
  *
- * **An item's grant is not read here, and that is a decision rather than an
- * omission.** `standingFor` gathers what a magic item grants; this function
- * deliberately reads the creature's own sheet alone, because it is the
- * function `has-speed` asks — so a Speed granted by an item would be a
- * question asked of its own answer the moment one carried both clauses. Until
- * somebody settles that, `checkContent` refuses a `speed` grant on an item by
- * name rather than accepting one nothing reads.
+ * **A worn item's grant is read here too, and not through `standingFor`.**
+ * SRD Ring of Swimming: "You have a Swim Speed of 40 feet while wearing this
+ * ring." The grants are the ones `itemStandingOf` gathers — pinned when the
+ * item was put on or attuned to, so the fold still opens no catalogue — read
+ * beside the sheet's own by {@link derivedSpeedGrants} and filtered by the
+ * same `meetsRequirements`. The one pairing that would recurse is a `speed`
+ * grant on an item asking `has-speed`, because this is the function that
+ * answers it; `checkContent` refuses exactly that pairing
+ * (`item_speed_asks_for_speed`) and nothing wider, so an item's `while-worn`
+ * and `while-attuned` are read here as a feature's `unarmored` is.
  *
  * **The two kinds of grant are gathered differently on purpose.** A feature's
  * is derived on every read, because whether a Monk is unarmoured changes the
@@ -7111,7 +7260,7 @@ export function speedOf(
         : Math.max(
             speedInMode(creature.sheet, mode),
             matched ? walking : 0,
-            floorInMode(creature, mode),
+            floorInMode(state, who, creature, mode),
           );
 
   // **Feet reach the mode they were granted in; an unqualified increase
@@ -7131,11 +7280,10 @@ export function speedOf(
     else if (granted.mode === undefined && feet < 0) flat += feet;
   };
 
-  for (const effect of creature.sheet.standing ?? []) {
-    if (effect.grant.kind !== 'speed') continue;
-    if ((effect.grant.change ?? 'add') !== 'add') continue;
+  for (const { effect, grant } of derivedSpeedGrants(creature)) {
+    if ((grant.change ?? 'add') !== 'add') continue;
     if (!meetsRequirements(state, who, effect)) continue;
-    flattenInMode(effect.grant);
+    flattenInMode(grant);
   }
 
   let halvings = 0;
@@ -7225,18 +7373,55 @@ function onlyMovement(creature: CreatureState): GrantedSpeed | null {
  * The highest Speed any `at-least` grant on this creature states in a mode,
  * or 0 where none does.
  *
- * A stored grant only, for the reason {@link onlyMovement} gives: no feature
- * at level 5 or below prints "a Fly Speed of N feet", and `speedGrantProblems`
- * refuses the member on one, so a derived reader would read nothing.
+ * A stored grant, and a worn item's: SRD Ring of Swimming's "a Swim Speed of
+ * 40 feet" is the Fly spell's sentence in another mode, held while the ring
+ * is worn rather than for an hour. No feature at level 5 or below prints "a
+ * Fly Speed of N feet" and `speedGrantProblems` refuses the member on one, so
+ * the derived half of this is an item's in practice — read through
+ * {@link derivedSpeedGrants} all the same, so a sheet is never a second
+ * spelling of the question.
  */
-function floorInMode(creature: CreatureState, mode: MovementMode): number {
+function floorInMode(
+  state: GameState,
+  who: CharacterId,
+  creature: CreatureState,
+  mode: MovementMode,
+): number {
   let highest = 0;
   for (const granted of creature.speedModifiers) {
     if (granted.change === 'at-least' && granted.mode === mode) {
       highest = Math.max(highest, granted.feet ?? 0);
     }
   }
+  for (const { effect, grant } of derivedSpeedGrants(creature)) {
+    if (grant.change !== 'at-least' || grant.mode !== mode) continue;
+    if (!meetsRequirements(state, who, effect)) continue;
+    highest = Math.max(highest, grant.feet ?? 0);
+  }
   return highest;
+}
+
+/**
+ * Every derived `speed` grant this creature holds: its own sheet's, and what
+ * its worn and attuned items grant.
+ *
+ * The population, not the answer — each reader still asks `meetsRequirements`
+ * — and gathered here rather than through `standingFor` for the reason
+ * {@link speedOf} gives: `standingFor` evaluates every effect's requirements,
+ * `has-speed` among them, and that asks `speedOf`. The item half is
+ * `itemStandingOf`, so SRD Wild Shape's merged gear grants no Speed either.
+ */
+function derivedSpeedGrants(
+  creature: CreatureState,
+): readonly {
+  readonly effect: StandingEffect;
+  readonly grant: Extract<StandingGrant, { kind: 'speed' }>;
+}[] {
+  const found: { effect: StandingEffect; grant: Extract<StandingGrant, { kind: 'speed' }> }[] = [];
+  for (const effect of [...(creature.sheet.standing ?? []), ...itemStandingOf(creature)]) {
+    if (effect.grant.kind === 'speed') found.push({ effect, grant: effect.grant });
+  }
+  return found;
 }
 
 /**
@@ -7246,7 +7431,10 @@ function floorInMode(creature: CreatureState, mode: MovementMode): number {
  * Both doors at once, because SRD writes one sentence and two catalogues
  * carry it: Spider Climb's casting is a stored {@link GrantedSpeed} and
  * Second-Story Work's is a derived {@link StandingGrant}, and a reader that
- * knew only one of them would be right about half the book.
+ * knew only one of them would be right about half the book. The derived door
+ * includes a worn item's — SRD Gloves of Swimming and Climbing's "a Climb
+ * Speed and a Swim Speed equal to your Speed" — through
+ * {@link derivedSpeedGrants}.
  */
 function matchesWalkingSpeed(
   state: GameState,
@@ -7258,12 +7446,9 @@ function matchesWalkingSpeed(
   if (creature.speedModifiers.some((g) => g.change === 'match-walk' && g.mode === mode)) {
     return true;
   }
-  return (creature.sheet.standing ?? []).some(
-    (effect) =>
-      effect.grant.kind === 'speed' &&
-      effect.grant.change === 'match-walk' &&
-      effect.grant.mode === mode &&
-      meetsRequirements(state, who, effect),
+  return derivedSpeedGrants(creature).some(
+    ({ effect, grant }) =>
+      grant.change === 'match-walk' && grant.mode === mode && meetsRequirements(state, who, effect),
   );
 }
 
@@ -7303,12 +7488,11 @@ export function hasSpeedInModeOn(state: GameState, who: CharacterId, mode: Movem
   ) {
     return true;
   }
-  return (creature.sheet.standing ?? []).some(
-    (effect) =>
-      effect.grant.kind === 'speed' &&
-      (effect.grant.change ?? 'add') === 'add' &&
-      effect.grant.mode === mode &&
-      (effect.grant.feet ?? 0) > 0 &&
+  return derivedSpeedGrants(creature).some(
+    ({ effect, grant }) =>
+      ((grant.change ?? 'add') === 'add' || grant.change === 'at-least') &&
+      grant.mode === mode &&
+      (grant.feet ?? 0) > 0 &&
       meetsRequirements(state, who, effect),
   );
 }
@@ -7588,6 +7772,23 @@ export function evadesHalfDamage(
 }
 
 /**
+ * What turns a Critical Hit against this creature into a normal hit, by name,
+ * or null where nothing does.
+ *
+ * SRD Adamantine Armor: "While you're wearing it, any Critical Hit against you
+ * becomes a normal hit." Asked of the *target*, like {@link evadesHalfDamage},
+ * because it is the one being hit who is wearing it — and by the two commands
+ * that roll an attack, the weapon's and the spell's, which hand the answer to
+ * `rollAttack` as `AttackOptions.criticalBecomesHit`.
+ */
+export function criticalsBecomeHitsOn(state: GameState, who: CharacterId): string | null {
+  const found = standingFor(state, who).find(
+    ({ effect }) => effect.grant.kind === 'critical-hits-become-hits',
+  );
+  return found === undefined ? null : found.effect.name;
+}
+
+/**
  * Whether this creature adds its ability modifier to the Light property's
  * extra attack after all.
  *
@@ -7857,6 +8058,17 @@ export function standingAttackDamage(
     if (grant.targetMissingHitPoints === true) {
       const victim = state.creatures[context.target];
       if (victim === undefined || victim.vitals.hp >= victim.vitals.hpMax) continue;
+    }
+    // SRD Dragon Slayer: "if the target is a Dragon". A target nobody has
+    // typed is a miss the table is told about, never a guess either way.
+    if (grant.targetTypes !== undefined) {
+      const is = targetIsOneOf(state, context.target, grant.targetTypes);
+      if (is === null) {
+        unverified.push(
+          `${effect.name} deals its extra damage only to a ${grant.targetTypes.join(' or ')}, and nobody has said what ${context.target} is, so it did not`,
+        );
+      }
+      if (is !== true) continue;
     }
     if (grant.advantageOrAdjacentAlly === true && context.mode !== 'advantage') {
       // The second branch. Disadvantage rules it out outright; otherwise it
