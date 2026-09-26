@@ -91,6 +91,20 @@ describe('an item hands the table what no rule reads, in a list of its own', () 
     expect(
       codesOf({ ...TIDE_BELL, unmodelled: [`the ring: "${sentence.toLowerCase()}" — sound is not held`] }),
     ).toEqual([`debt_and_handover @ ${WHERE}.dmDecides[0]`]);
+    // A handover that elides a part of its sentence is still that sentence
+    // when a note quotes it whole.
+    expect(
+      codesOf({
+        ...TIDE_BELL,
+        dmDecides: ['When rung ... sounds like surf on a far shore.'],
+        unmodelled: [`the ring: "${sentence}" — sound is not held`],
+      }),
+    ).toEqual([`debt_and_handover @ ${WHERE}.dmDecides[0]`]);
+    // And a note quoting only a fragment of a handed-over sentence — which is
+    // how a note usually quotes — is a claim on that sentence too.
+    expect(codesOf({ ...TIDE_BELL, unmodelled: ['"sounds like surf": sound is not held'] })).toEqual([
+      `debt_and_handover @ ${WHERE}.dmDecides[0]`,
+    ]);
     // A debt about some other sentence is not a collision.
     expect(
       codesOf({ ...TIDE_BELL, unmodelled: ['"the bell deafens whoever rings it": nothing deafens'] }),

@@ -2346,11 +2346,19 @@ const NAMED_ITEMS: readonly CatalogueItem[] = [
        * movement moves no attached thing, and breaking an object is a door's
        * hit points rather than a join. So an ounce is spent, and the table says
        * what it stuck to, what may unstick it, and what it was kept in.
+       *
+       * The application goes over with it, for the Solvent's reason: how much
+       * surface an ounce covers, the Utilize action that applies it and the
+       * minute it takes to set are the price and the timing of a bond no rule
+       * reads. The ounce is elided out of the application, because counting
+       * ounces is the pool's.
        */
       grants: [rolledUses('sovereign-glue', 'Sovereign Glue ounces', '1d6 + 1')],
       dmDecides: [
         'This viscous, milky-white substance can form a permanent adhesive bond between any two objects.',
         'It must be stored in a jar or flask that has been coated inside with _Oil of Slipperiness_.',
+        'One ounce of the glue can cover a 1-foot square surface.',
+        'Applying ... takes a Utilize action, and the applied glue takes 1 minute to set.',
         'Once it has done so, the bond it creates can be broken only by the application of _Universal Solvent_ or _Oil of Etherealness_, or with a _Wish_ spell.',
       ],
     },

@@ -1487,10 +1487,16 @@ function itemUnmodelledProblems(item: CatalogueItem): readonly ContentProblem[] 
  * refused.** `docs/design/content.md` sorts every printed sentence one way —
  * a table fact a rule then reads is a debt, one nothing reads is a handover —
  * and a sentence left in `unmodelled` after it moved here would keep the item
- * partial on the strength of a debt its own record says is not one. The test
- * is containment rather than equality, because a note quotes its sentence
- * inside the reason it gives, and it ignores case, spacing and the closing
- * stop, because a quotation starts mid-sentence as often as not.
+ * partial on the strength of a debt its own record says is not one.
+ *
+ * The test is containment in **both directions**, because the two lists quote
+ * differently. A note quotes inside the reason it gives, and usually quotes a
+ * fragment — so a run a note puts in quotation marks that is found in a
+ * handover is a claim on that handover's sentence. A handover is the book's
+ * words and may elide the part of a sentence the record executes (`...`) —
+ * so a handover whose parts are all found, in order, in a note is the same
+ * sentence filed twice. Both ignore case, spacing and closing punctuation,
+ * because a quotation starts and stops mid-sentence as often as not.
  *
  * Whether each handover is really the table's is a reading, not a shape, and
  * whether it quotes the item's own entry is the catalogue's question: neither
@@ -1501,7 +1507,26 @@ function itemHandoverProblems(item: CatalogueItem): readonly ContentProblem[] {
   const where = `items[${item.id}]`;
   const forges = (text: unknown): boolean => isString(text) && text.includes(DM_DECIDES);
   const plain = (text: string): string =>
-    text.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.]$/, '');
+    text.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[\s.,;:!?]+$/, '');
+  /** The runs of a quotation that an elision (`...`) joins, each made plain. */
+  const partsOf = (text: string): readonly string[] =>
+    text
+      .split(/\s*(?:\.\.\.|…)\s*/)
+      .map(plain)
+      .filter((part) => part.length > 0);
+  /** Every part found in `haystack`, each after the one before it. */
+  const inOrder = (parts: readonly string[], haystack: string): boolean => {
+    let cursor = 0;
+    for (const part of parts) {
+      const at = haystack.indexOf(part, cursor);
+      if (at < 0) return false;
+      cursor = at + part.length;
+    }
+    return parts.length > 0;
+  };
+  /** What a note puts in quotation marks, straight or curly. */
+  const quotedIn = (note: string): readonly string[] =>
+    [...note.matchAll(/"([^"]+)"|“([^”]+)”/g)].map((match) => match[1] ?? match[2] ?? '');
 
   const notes: readonly unknown[] = Array.isArray(item.unmodelled) ? item.unmodelled : [];
   notes.forEach((note, index) => {
@@ -1523,7 +1548,7 @@ function itemHandoverProblems(item: CatalogueItem): readonly ContentProblem[] {
     });
     return found;
   }
-  const owed = notes.filter(isString).map(plain);
+  const owed = notes.filter(isString);
   (item.dmDecides as readonly unknown[]).forEach((printed, index) => {
     const at = `${where}.dmDecides[${index}]`;
     if (!isString(printed) || printed.trim().length === 0) {
@@ -1537,8 +1562,12 @@ function itemHandoverProblems(item: CatalogueItem): readonly ContentProblem[] {
         reason: `the mark is written once, by the engine; a sentence that carries "${DM_DECIDES}" of its own reaches the table with it still in the text`,
       });
     }
+    const handed = partsOf(printed);
     const sentence = plain(printed);
-    if (owed.some((note) => note.includes(sentence))) {
+    const claims = (note: string): boolean =>
+      inOrder(handed, plain(note)) ||
+      quotedIn(note).some((run) => inOrder(partsOf(run), sentence));
+    if (owed.some(claims)) {
       found.push({
         field: at,
         code: 'debt_and_handover',
