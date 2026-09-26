@@ -268,6 +268,9 @@ function reduceVitals({ state, next }: Applying, event: VitalsEvent): GameState 
                   // already holds rather than a fact any event carries.
                   // (W7-B11)
                   ...(isBloodied(creature) ? { wasBloodied: true as const } : {}),
+                  // And what the blow was made of, pinned on the event — SRD
+                  // Split's "subjected to Lightning or Slashing damage". (W7-B12)
+                  ...(event.types === undefined ? {} : { types: event.types }),
                 },
               }),
         },

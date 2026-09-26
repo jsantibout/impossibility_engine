@@ -2558,6 +2558,39 @@ function printedSucceedInsteadReaction(
  * the walk is over the Traits section as well, and `costsReaction: false` is
  * what keeps it from granting anything the sentence withheld. (W7-B11)
  */
+/**
+ * SRD Black Pudding and SRD Ochre Jelly, Split, onto the sheet as the Reaction
+ * it is — W7-B12.
+ *
+ * "_Trigger:_ While the pudding is Large or Medium and has 10+ Hit Points, it
+ * becomes Bloodied or is subjected to Lightning or Slashing damage." A blow
+ * that has landed, which is `damaged-by-creature` — the window SRD Retaliation
+ * answers — with the gate and both triggers carried as the block printed them.
+ * The block's own id rides the effect, so the two halves are read out of
+ * content by the id this creature arrived as.
+ */
+function printedSplitReaction(monster: Monster, line: MonsterLine): ReactionFeature | null {
+  const trait = line.trait;
+  if (trait?.kind !== 'splits-into-two-creatures') return null;
+  return {
+    feature: printedTraitKey(monster.id, line.name),
+    name: line.name,
+    window: 'damaged-by-creature',
+    // Printed under Reactions, with no word saying it is free.
+    costsReaction: true,
+    pool: null,
+    reach: { kind: 'self' },
+    does: {
+      kind: 'split',
+      block: monster.id,
+      sizes: trait.sizes,
+      minimumHitPoints: trait.minimumHitPoints,
+      whenBloodied: trait.whenBloodied,
+      damageTypes: trait.damageTypes,
+    },
+  };
+}
+
 function printedReactions(monster: Monster): {
   readonly reactions: readonly ReactionFeature[];
   readonly pools: readonly PoolDeclaration[];
@@ -2575,7 +2608,8 @@ function printedReactions(monster: Monster): {
       printedSucceedInsteadReaction(monster, line) ??
       printedRollAddendReaction(monster, line) ??
       printedAcAddendReaction(monster, line) ??
-      printedLineUseReaction(monster, line);
+      printedLineUseReaction(monster, line) ??
+      printedSplitReaction(monster, line);
     if (reaction === null) continue;
     reactions.push(reaction);
     if (reaction.pool !== null) {

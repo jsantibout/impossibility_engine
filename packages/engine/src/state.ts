@@ -1465,6 +1465,16 @@ export interface LastDamage {
    * way now: no Rampage. Both frozen fixtures fold unchanged. (W7-B11)
    */
   readonly wasBloodied?: true;
+  /**
+   * The damage types the blow was made of, off `damage-taken.types` — W7-B12.
+   *
+   * SRD Black Pudding's Split: "it becomes Bloodied or **is subjected to
+   * Lightning or Slashing damage**." Carried here for `wasBloodied`'s reason:
+   * a Reaction to a blow that has landed reads the moment off this record and
+   * nothing else. Absent is a blow with no type, or a log written before the
+   * field — and reads as a blow of no type, which subjects nobody to one.
+   */
+  readonly types?: readonly string[];
 }
 
 /**

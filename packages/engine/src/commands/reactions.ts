@@ -47,7 +47,9 @@ import {
   type PendingAttack,
 } from '../events.js';
 import { type CommandIdentity, once } from '../idempotency.js';
-import { distanceBetween } from '../positioning.js';
+import { distanceBetween, type Placement } from '../positioning.js';
+import { effectiveSizeOf } from '../size.js';
+import type { CreatureSize } from '@ie/srd';
 import {
   attackReactionRefusal,
   damageWindowOpen,
@@ -73,6 +75,7 @@ import {
   defensesOf,
   effectiveConditions,
   rollModesFor,
+  isBloodied,
   sheetAsItStands,
 } from '../standing.js';
 import {
@@ -88,6 +91,8 @@ import {
   resolveDamage,
 } from './casting.js';
 import { creatureOf, damageTakenIn, unknownCreature } from './command.js';
+import { removeCreatureEverywhere, summonCreature } from './creatures.js';
+import { placeCreatureInScene } from './scene.js';
 import { wearTheWeapon } from './passive-defenses.js';
 import {
   adjustmentsFor,
@@ -1350,6 +1355,18 @@ export interface DamageResponseCommand extends CommandIdentity {
    * Attack. Naming neither leaves the choice to {@link reactionSwing}.
    */
   readonly action?: string;
+  /**
+   * What the two new creatures are called — W7-B12, SRD Split's "two new
+   * **Black Puddings**". A name is the caller's, exactly as `summon_creature`
+   * takes one; the engine reads every number.
+   */
+  readonly into?: readonly [CharacterId, CharacterId];
+  /**
+   * Where the second of them stands. The first takes the space the original
+   * held; the second is the caller's to say, because "splits into two" names no
+   * space and the engine picks none. Asked for where a scene is set.
+   */
+  readonly placement?: Omit<Placement, 'size'>;
 }
 
 /**
@@ -1381,6 +1398,12 @@ export function takeDamageResponse(
     return { events: [], attack: null, unverified: [], duplicate: true };
   }, (stamp) => {
     const feature = reactionFeatureOf(state, reactor, command.feature, 'damaged-by-creature');
+    // **SRD Split, the third answer**, which answers the blow with the holder
+    // itself rather than at whoever dealt it — so none of the reach below is
+    // its question. See {@link splitInTwo}. (W7-B12)
+    if (feature !== null && feature.does.kind === 'split') {
+      return splitInTwo(state, reactor, feature, feature.does, command, supply, stamp);
+    }
     // **Two answers to one window, and this command is both.** SRD Retaliation
     // swings back; SRD Storm's Thunder throws 1d8 Thunder back. Neither can
     // change the blow that provoked it — which is what makes them one
@@ -1502,6 +1525,165 @@ export function takeDamageResponse(
       unverified: [...swing.value.unverified, ...unverified],
     });
   });
+}
+
+/**
+ * Whether a landed blow set SRD Split off on its holder, as it stands now —
+ * W7-B12.
+ *
+ * "While the pudding is Large or Medium and has 10+ Hit Points, it becomes
+ * Bloodied or is subjected to Lightning or Slashing damage." The gate is read
+ * off the creature the blow left — its size as it stands and the Hit Points it
+ * has to divide — and the two triggers off `lastDamage`: the types the blow was
+ * made of (a type the holder is immune to still subjected it), and whether it
+ * was Bloodied before the blow and is now. Null where the window is shut.
+ */
+export function splitTriggered(
+  state: GameState,
+  who: CharacterId,
+  does: Extract<ReactionEffect, { readonly kind: 'split' }>,
+): boolean {
+  const creature = state.creatures[who];
+  // The window is open, and the record it read is the one the triggers ask.
+  const hurt = damageWindowOpen(state, who) === null ? null : (creature?.lastDamage ?? null);
+  if (creature === undefined || hurt === null || creature.vitals.dead) return false;
+  const size = effectiveSizeOf(state, who);
+  if (size === null || !does.sizes.includes(size)) return false;
+  if (creature.vitals.hp < does.minimumHitPoints) return false;
+  const subjected = (hurt.types ?? []).some((type) => does.damageTypes.includes(type));
+  const bloodiedNow = does.whenBloodied && hurt.wasBloodied !== true && isBloodied(creature);
+  return subjected || bloodiedNow;
+}
+
+/** SRD's six sizes, smallest first — the steps "one size smaller" walks. */
+const SIZE_STEPS: readonly CreatureSize[] = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'];
+
+/**
+ * SRD Split, performed — W7-B12.
+ *
+ * "The pudding splits into two new **Black Puddings**. Each new pudding is one
+ * size smaller than the original pudding and acts on its Initiative. The
+ * original pudding's Hit Points are divided evenly between the new puddings
+ * (round down)."
+ *
+ * **The doors that already exist, in the order the sentence needs them.** The
+ * two halves arrive through `summonCreature` — the block's own, read out of
+ * content by the id the original arrived as, with the size one step down and
+ * the Hit Points the halving leaves pinned over the block's — and are seated
+ * straight after the original, on its rung, which is what "acts on its
+ * Initiative" is; then the original leaves through `removeCreatureEverywhere`,
+ * which settles what it held and takes its rung and its space away; then the
+ * halves stand in the scene, the first where the original stood and the second
+ * where the caller says. Unplaced where nobody placed the original.
+ *
+ * **Everything is asked before anything is spent**: the trigger, the names,
+ * the second space. The Reaction is spent as SRD Retaliation's is, and the
+ * `reaction-taken` is written while the original is still there to have taken
+ * it.
+ */
+function splitInTwo(
+  state: GameState,
+  reactor: CharacterId,
+  feature: ReactionFeature,
+  does: Extract<ReactionEffect, { readonly kind: 'split' }>,
+  command: DamageResponseCommand,
+  supply: Supply,
+  stamp: CommandStamp | null,
+): Result<AttackResolution> {
+  const creature = creatureOf(state, reactor);
+  if (creature === null) return unknownCreature(reactor);
+
+  if (!splitTriggered(state, reactor, does)) {
+    return err(
+      'split_not_triggered',
+      `${feature.name} answers a blow that leaves ${reactor} ${does.sizes.join(' or ')} with ${does.minimumHitPoints}+ Hit Points, and that made it Bloodied or was ${does.damageTypes.join(' or ')} damage; the blow that last landed on ${reactor} was not that`,
+    );
+  }
+
+  const placed = state.scene?.positions[reactor];
+  const missing = [
+    ...(command.into === undefined ? ['what the two new creatures are called'] : []),
+    ...(placed !== undefined && command.placement === undefined
+      ? ['where the second new creature stands']
+      : []),
+  ];
+  if (missing.length > 0) {
+    return needsContext(
+      'undeclared_split',
+      `${feature.name} makes two new creatures, and nobody has said ${missing.join(' or ')}`,
+      [
+        {
+          kind: 'creature',
+          subject: reactor,
+          need: missing.join(', and '),
+          because: `${feature.name} names no creature and no space, and the engine invents neither`,
+          satisfyWith: `takeDamageResponse again with into${placed === undefined ? '' : ' and placement'} stated`,
+        },
+      ],
+    );
+  }
+  const [first, second] = command.into!;
+
+  const size = effectiveSizeOf(state, reactor)!;
+  const smaller = SIZE_STEPS[Math.max(0, SIZE_STEPS.indexOf(size) - 1)]!;
+  const half = Math.floor(creature.vitals.hp / 2);
+  const rung = state.combat?.order.find((combatant) => combatant.id === reactor);
+
+  const spent = spendReactionCost(state, reactor, creature, feature);
+  if (!spent.ok) return spent;
+  const events: GameEvent[] = [
+    ...spent.value,
+    {
+      type: 'reaction-taken',
+      reactor,
+      window: 'damaged-by-creature',
+      feature: feature.feature,
+      against: damageWindowOpen(state, reactor)!.by,
+      ...(stamp === null ? {} : { command: stamp }),
+    },
+  ];
+  let current = events.reduce(applyEvent, state);
+  const land = (more: readonly GameEvent[]): void => {
+    events.push(...more);
+    current = more.reduce(applyEvent, current);
+  };
+
+  // The two halves, in the order the original sat — the second seated after
+  // the first, both on its rung.
+  for (const [name, after] of [
+    [first, reactor],
+    [second, first],
+  ] as const) {
+    const raised = summonCreature(current, supply.content, {
+      id: name,
+      monsterId: does.block,
+      by: reactor,
+      size: smaller,
+      hitPointMaximum: half,
+      ...(creature.side === null ? {} : { side: creature.side }),
+      ...(rung === undefined ? {} : { initiative: rung.initiative, after }),
+    });
+    if (!raised.ok) return raised;
+    land(raised.value.events);
+  }
+
+  // The original goes, and takes its rung and its space with it.
+  const gone = removeCreatureEverywhere(current, reactor);
+  if (!gone.ok) return gone;
+  land(gone.value);
+
+  if (placed !== undefined) {
+    for (const [name, where] of [
+      [first, { from: { point: placed }, feet: 0 }],
+      [second, command.placement!],
+    ] as const) {
+      const stood = placeCreatureInScene(current, name, where);
+      if (!stood.ok) return stood;
+      land(stood.value);
+    }
+  }
+
+  return ok({ events, attack: null, unverified: [], duplicate: false });
 }
 
 /**
@@ -1815,6 +1997,10 @@ export function reactionOpportunities(state: GameState, content: Content): reado
     // this query has to report, or the offer and the command disagree.
     for (const feature of reactionsOf(state.creatures[who]!)) {
       if (feature.window !== 'damaged-by-creature') continue;
+      // SRD Split's trigger is narrower than the window — a blow of a type, or
+      // one that made the holder Bloodied — so it is listed only where the
+      // command would take it. (W7-B12)
+      if (feature.does.kind === 'split' && !splitTriggered(state, who, feature.does)) continue;
       if (feature.pool !== null && remaining(state.creatures[who]!.resources, feature.pool) < 1) {
         continue;
       }

@@ -1284,6 +1284,20 @@ export type GameEvent =
       /** Where it came from, for the audit trail. */
       readonly source?: string;
       /**
+       * The damage types the blow was made of, where the blow had any —
+       * W7-B12.
+       *
+       * SRD Black Pudding's Split: "it becomes Bloodied **or is subjected to
+       * Lightning or Slashing damage**." A Reaction to a blow that has landed
+       * reads `lastDamage`, which the fold writes off this event — and a blow
+       * the pudding is immune to still subjected it to the type, so the amount
+       * cannot answer. Pinned by `damageCreature` off the types the funnel
+       * computed, sorted, so the fold records what the blow was rather than
+       * asking again. Absent is a blow with no type — a DM's improvised amount
+       * — and every log written before the field.
+       */
+      readonly types?: readonly string[];
+      /**
        * Which creature dealt it, where one did.
        *
        * `source` is prose — `'a trap'`, `'Longsword'` — and prose cannot be

@@ -79,6 +79,7 @@ import {
   UNEXECUTED_TRAIT_SHAPE,
   hasHandedOverRider,
   hasHandedOverSave,
+  hasHandedOverTrait,
   hasUnappliedRider,
   hasUnexecutedTrait,
   filedHandoversOf,
@@ -710,6 +711,13 @@ const auditMonsters = (maxCr: number): LedgerMonsters => {
     hasUnappliedRider(line) ||
     hasHandedOverRider(line) ||
     hasUnexecutedTrait(line) ||
+    // **And a trait whose heading still owes a sentence** — W7-B12. The row
+    // {@link TRAIT_HANDOVER_SHAPE} names says the heading is "read and still
+    // unpaid", and this list did not ask it: a trait that files one sentence
+    // and owes another (SRD Corrosive Form's Mending, beside the hole it eats)
+    // was listed as read to the end, and a block owing only such a heading
+    // counted as clean.
+    hasHandedOverTrait(line) ||
     hasHandedOverSave(line) ||
     hasHandedOverResponse(line);
   for (const monster of low) {

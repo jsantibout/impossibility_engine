@@ -648,23 +648,21 @@ describe('the bestiary row counts blocks, and the prose it cannot read', () => {
     // A handed-over kind is on neither side of this question — it is read and
     // finished — so it is excluded from the search for an unspent one.
     //
-    // **And there are two real ones to find again**, which is the column
+    // **And there is one real one to find again**, which is the column
     // coming back off zero exactly as the note that emptied it said it would:
     // the day the parser learns a shape nothing reads, this rises and the
-    // guard is the same. Both are Reactions the bestiary prints and the engine
-    // has no seam for — an ooze that becomes two oozes mid-fight, and a goblin
-    // that swaps places with an ally and re-aims the attack — and both are
-    // *named* here rather than counted, so a kind that quietly joined or left
-    // them is a diff. `HANDOVER_TRAIT_KINDS` holds the seam each waits on.
+    // guard is the same. It is a Reaction the bestiary prints and the engine
+    // has no seam for — a goblin that swaps places with an ally and re-aims
+    // the attack — and it is *named* here rather than counted, so a kind that
+    // quietly joined or left is a diff. `HANDOVER_TRAIT_KINDS` holds the seam
+    // it waits on. The oozes' Split left in W7-B12: a Reaction at
+    // `damaged-by-creature` makes the two halves.
     const spent = TRAIT_KINDS_WITH_A_READER[0]!;
     const inert = kinds.filter(
       (kind) =>
         !TRAIT_KINDS_WITH_A_READER.includes(kind) && !Object.hasOwn(HANDOVER_TRAIT_KINDS, kind),
     );
-    expect([...inert].sort()).toEqual([
-      'splits-into-two-creatures',
-      'swaps-places-with-an-ally-to-take-an-attack',
-    ]);
+    expect([...inert].sort()).toEqual(['swaps-places-with-an-ally-to-take-an-attack']);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y' })).toBe(false);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: spent } })).toBe(false);
     expect(hasUnexecutedTrait({ name: 'x', text: 'y', trait: { kind: UNREAD_KIND } })).toBe(true);

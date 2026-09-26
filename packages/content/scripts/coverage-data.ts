@@ -1630,6 +1630,19 @@ export const hasHandedOverRider = (line: StatBlockLine): boolean => {
  * | SRD Fire Aura | `resolveTurn`, at the end of the holder's turn, on the creatures the DM named |
  * | SRD Barbed Hide | the same, at the start, caught by the hold rather than by feet |
  * | SRD Swarm's healing sentence | `healCreature` and `grantTemporaryHpTo`, the two doors hit points come back through |
+ * | SRD Regeneration (W7-B12) | `settleStartOfTurnBody`, which heals at the turn's start and kills a holder that starts it at 0 and does not regenerate; `printedTypeTriggers` hangs the acid-or-fire marker; `damageCreature` holds the death at 0 |
+ * | SRD Corrosive Form (W7-B12) | `answerTheBlow`, which burns a melee striker back where Fire Shield burns one, and `wearTheWeapon`, which wears a nonmagical weapon that dealt damage by contact on both roads a blow lands |
+ * | SRD Succubus Form and Incubus Form (W7-B12) | `takeRestForm`, the DM's door at the instant a Long Rest ends, through `stat-block-replaced` |
+ * | SRD Troll Spawn (W7-B12) | `addCreature`'s arrival, which hangs the day, and `settleBlockDeadlines`, which throws the d12; the turn refuses to advance while one is owed |
+ * | SRD Split (W7-B12) | `adaptMonster`, as a Reaction at `damaged-by-creature` that `takeDamageResponse` performs through `summonCreature` and `removeCreatureEverywhere` |
+ *
+ * **And four readers widened in W7-B12 without a new kind**: Vampire Spawn's
+ * Sunlight is `disadvantage-in-sunlight` with `hurtAtTurnStart`, burnt by
+ * `settleStartOfTurnBody`; the Fire Elemental's aura is
+ * `damages-creatures-in-an-emanation` with `ignites`, lit by the boundary; the
+ * Giant Boar's Bloodied Fury is `advantage-while-bloodied` with `reach: 'melee'`,
+ * which `RollSelector.reach` narrows; and the Swarm of Insects' Spider Climb is
+ * `climbs-without-a-check` with `ifHasClimbSpeed`, asked by `climbCheck`.
  *
  * **Every parsed kind is now on this list or on the handover one below it.**
  * `sheds-light` was the last exception, and the reason it was one was a shape
@@ -1643,6 +1656,11 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'advantage-when-ally-is-within-5-feet-of-the-target',
   'advantage-while-bloodied',
   'allies-in-emanation-have-advantage',
+  // SRD Succubus Form and Incubus Form, whose reader is `takeRestForm`, and
+  // SRD Troll Spawn, whose readers are the arrival that hangs the day and
+  // `settleBlockDeadlines`, which throws the die. (W7-B12)
+  'becomes-another-block-at-a-long-rest',
+  'becomes-another-block-on-a-die',
   'carries-as-a-larger-creature',
   // SRD Night Hag's Soul Bag, whose reader is the arrival: `raisePrintedObject`
   // raises the thing beside the hag with the line's own three statistics, and
@@ -1655,6 +1673,9 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   // (W7-B11)
   'chooses-to-succeed-on-a-failed-save',
   'climbs-without-a-check',
+  // SRD Corrosive Form, whose readers are `answerTheBlow` and `wearTheWeapon`.
+  // (W7-B12)
+  'corrodes-what-hits-it',
   'damages-creatures-in-an-emanation',
   'damages-creatures-it-is-holding',
   'deals-double-damage-to-objects',
@@ -1672,12 +1693,18 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
   'magic-resistance',
   'penalised-after-taking-a-damage-type',
   'regains-no-hit-points',
+  // SRD Regeneration, whose readers are the turn's start, the damage hook that
+  // hangs the marker, and the floor that holds the death. (W7-B12)
+  'regenerates',
   // SRD Flesh Golem's Berserk, whose reader is the turn boundary:
   // `settleStartOfTurnTraitDice` throws the d6 at a Bloodied start and reports
   // the face beside the sentences the trait files for the table. (W7-B13)
   'rolls-to-go-berserk',
   'sheds-light',
   'speed-cut-after-taking-a-damage-type',
+  // SRD Split, whose reader is the Reaction the adapter compiles and
+  // `takeDamageResponse` performs. (W7-B12)
+  'splits-into-two-creatures',
   'takes-a-named-action-as-a-bonus-action',
   'undead-fortitude',
 ];
@@ -1734,17 +1761,26 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  *
  * | Lines | The one seam each waits on |
  * |---|---|
- * | Regeneration ×2 | a marker on a creature saying a trait does not function on its next turn — a grant with a turn-order deadline that a boundary reads |
- * | Corrosive Form | a hit that knows it was melee, which only the attack path can answer |
- * | Coven Magic ×3 | a cast line gated on two allies within thirty feet; the cast line is read and the gate is not |
- * | Vampire Spawn's Sunlight | a start-of-turn read against a light level. The light model states sunlight; what is missing is the boundary reader, and its second sentence is already `disadvantage-in-sunlight` |
- * | Succubus Form, Incubus Form, Troll Spawn | one stat block replaced by another, at a Long Rest or on a 24-hour timer. `assumeStatBlock` is the mechanism and Wild Shape is its one caller; what is missing is the door a *creature's own printed line* comes through, and the Troll Limb's d12 besides |
- * | Spider Climb (the Swarm's) | a **gate** on a kind that already has a reader: "If the swarm has a Climb Speed, the swarm can climb…". `climbs-without-a-check` is spent by `climbCheck`, so this is a field on that kind rather than a third answer — and a gate read away would be a rule nobody printed |
- * | Split ×2 | a stat block created mid-fight — two creatures in the Initiative order that did not exist a moment ago, sharing the original's Hit Points. The catalogue names the same shape for the summoning spells |
  * | Redirect Attack | a Reaction window on **being attacked**, before the roll is decided, whose response retargets the attack at somebody else. Every window the engine holds opens on a hit, and nothing can re-aim an attack that has been declared |
- * | Giant Boar's Bloodied Fury | a **narrowing** on a kind that already has a reader: "Advantage on **melee** attack rolls while it is Bloodied". `advantage-while-bloodied` is spent by `adaptMonster` over every attack roll, so this is a field on that kind — melee only — rather than a third answer, the reading the Swarm's Spider Climb gets |
- * | Fire Elemental's Fire Aura | the aura the Azer and the Salamander print, with one more sentence: "Creatures and flammable objects in the Emanation start burning." The creature half is the glossary's Burning, which the engine holds; the flammable **object** is the Barbed Devil's Hurl Flame's seam — a declared object has nothing on it that takes light |
  * | Otherworldly Steed's Life Bond | a trigger on the **rider's** healing that nothing raises: "When you regain Hit Points from a level 1+ spell, the steed regains the same number of Hit Points if you're within 5 feet of it." A heal landing is a moment the engine has; a watcher on another creature's heal is not. See `missing-shapes.ts`, where the steed's spell names this line |
+ *
+ * **Fourteen lines left this table in W7-B12, and two more left the row
+ * below**, each by the seam its row named. Regeneration ×2 is `regenerates`: a
+ * marker hung "until the end of its next turn" where acid or fire landed, the
+ * heal at the turn's start, and a death held at 0 until that start. The Vampire
+ * Spawn's Sunlight burns at the start of its turn in sunlight. The Fire
+ * Elemental's aura lights the creatures it catches, and still owes the
+ * flammable objects — the Hurl Flame seam — so it sits on
+ * {@link TRAIT_HANDOVER_SHAPE} now rather than here. Both Corrosive Forms burn a
+ * melee striker (the pudding's) and wear a nonmagical weapon down, and still
+ * owe the ammunition and the Mending sentences, so they sit on that row too.
+ * The Giant Boar's melee narrowing and the Swarm's Climb Speed gate are fields
+ * on kinds that had readers. The three hags' Coven Magic is a cast line on a
+ * trait, gated on two allies and priced a Long Rest per spell. Succubus Form,
+ * Incubus Form and Troll Spawn are `stat-block-replaced`, at a rest's end and
+ * on a day's d12. And Split ×2 — a kind read and spent by nothing, so on
+ * {@link UNEXECUTED_TRAIT_SHAPE} rather than here — is a Reaction that makes
+ * two creatures of the holder's block.
  *
  * **Berserk ×2 left this table in W7-B13**: the d6 at a Bloodied start is thrown
  * by the turn boundary (`rolls-to-go-berserk`), and what a berserk golem does —
@@ -1758,11 +1794,12 @@ export const TRAIT_KINDS_WITH_A_READER: readonly string[] = [
  * the movement command now, and `drags-for-free` is its exemption, on the
  * reader roster.
  *
- * **Those last two are read as *kinds* and still unspent**, which is the one
- * thing that makes them look different from the rest of this paragraph: a
- * sentence with a kind is off the residue list below and onto
- * {@link UNEXECUTED_TRAIT_SHAPE}, where it is counted as the debt it is. The
- * table above is the reason each waits, whichever list the line is on.
+ * **Redirect Attack is read as a *kind* and still unspent** — Split was the
+ * other until W7-B12 — which is the one thing that makes it look different
+ * from the rest of this paragraph: a sentence with a kind is off the residue
+ * list below and onto {@link UNEXECUTED_TRAIT_SHAPE}, where it is counted as the
+ * debt it is. The table above is the reason each waits, whichever list the
+ * line is on.
  */
 export const HANDOVER_TRAIT_KINDS: Readonly<Record<string, string>> = {
   'a-heading-over-the-lines-that-follow':
@@ -2328,8 +2365,8 @@ export const MONSTER_LINE_SHAPES: readonly (readonly [
  * rules and the pair is what a reader needs.
  *
  * **Lines only.** A trait's residue is the table in {@link HANDOVER_TRAIT_KINDS}'
- * own note — Coven Magic, Regeneration, Berserk and
- * the rest — and keeping the two apart is what stops one sentence being
+ * own note — Redirect Attack and Life Bond, now that W7-B12 has built Coven
+ * Magic, Regeneration and the rest — and keeping the two apart is what stops one sentence being
  * answered for twice in two places that could come to disagree.
  */
 export const LINE_RESIDUE_SEAMS: Readonly<Record<string, string>> = {

@@ -21,7 +21,7 @@
 
 import { type CharacterId, DAMAGE_TYPES, err, ok, type Result } from '@ie/shared';
 import { hasCondition } from '../conditions.js';
-import type { Monster } from '@ie/srd';
+import type { CreatureSize, Monster } from '@ie/srd';
 import type { Content } from '../content.js';
 import { applyEvent, type GameEvent, type GameState } from '../events.js';
 import { carriedObjectId, type CommandStamp } from '../state.js';
@@ -449,6 +449,14 @@ export interface Summons {
   /** The same, for SRD Find Steed's "**HP** 5 + 10 per spell level". */
   readonly hitPointMaximum?: number;
   /**
+   * The size this creature arrives at, where what raised it prints one over the
+   * stat block's own — W7-B12, SRD Black Pudding's Split: "Each new pudding is
+   * one size smaller than the original pudding." Pinned into `creature-added`
+   * in place of the block's, as the Armour Class is, and worked out by the
+   * caller that read the original's size; nothing is derived here.
+   */
+  readonly size?: CreatureSize;
+  /**
    * The creature type the summons arrives with, where the spell prints one
    * over the block's own — SRD Find Familiar's "a Celestial, Fey, or Fiend
    * (your choice) instead of a Beast". Pinned into `creature-added` in place
@@ -785,12 +793,13 @@ function arrivalResolved(
  */
 function printedOver(event: GameEvent, summons: Summons): GameEvent {
   if (event.type !== 'creature-added') return event;
-  const { armorClass, hitPointMaximum, creatureType, speeds } = summons;
+  const { armorClass, hitPointMaximum, creatureType, speeds, size } = summons;
   if (
     armorClass === undefined &&
     hitPointMaximum === undefined &&
     creatureType === undefined &&
-    speeds === undefined
+    speeds === undefined &&
+    size === undefined
   ) {
     return event;
   }
@@ -804,6 +813,9 @@ function printedOver(event: GameEvent, summons: Summons): GameEvent {
     // SRD Find Familiar: "a Celestial, Fey, or Fiend (your choice) instead of
     // a Beast" — the block's type, replaced at the arrival and nowhere else.
     ...(creatureType === undefined ? {} : { creatureType }),
+    // SRD Split's "one size smaller" — the size the caller read and stepped,
+    // pinned where the block's own would have been. (W7-B12)
+    ...(size === undefined ? {} : { size }),
     sheet: armorClass === undefined ? sheet : { ...sheet, stated: { ...sheet.stated, armorClass } },
   };
 }
@@ -1130,6 +1142,12 @@ export function damageCreature(
         amount,
         ...critical,
         ...(command.source === undefined ? {} : { source: command.source }),
+        // What the blow was made of, for the Reaction that reads a landed blow
+        // off `lastDamage` — SRD Split's "subjected to Lightning or Slashing
+        // damage". See `damage-taken.types`. (W7-B12)
+        ...(command.types === undefined || command.types.length === 0
+          ? {}
+          : { types: [...new Set(command.types)].sort() }),
         ...(command.by === undefined ? {} : { by: command.by }),
         // Pinned, because the fold recomputes the blow from this event and a
         // decision the command kept to itself would be undone on replay. The

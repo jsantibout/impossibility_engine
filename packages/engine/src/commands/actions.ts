@@ -3631,7 +3631,7 @@ function castThroughTrait(
         `${line.name} is cast among ${gate.count} ${gate.kind} allies, and nobody has said whose side ${id} is on`,
         [
           {
-            kind: 'creature',
+            kind: 'side',
             subject: id,
             need: `which side ${id} is on`,
             because: `${line.name} counts ${gate.kind} allies within ${gate.feet} feet`,
